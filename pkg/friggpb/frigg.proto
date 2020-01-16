@@ -1,0 +1,60 @@
+// protoc -I pkg/friggpb/ pkg/friggpb/frigg.proto --go_out=plugins=grpc:pkg/friggpb
+
+syntax="proto3";
+
+package friggpb;
+
+service Pusher {
+  rpc Push(PushRequest) returns (PushResponse) {};
+}
+
+message PushRequest {
+  repeated Span spans = 1;
+  Process process = 2;
+}
+
+message PushResponse {
+}
+
+message Span {
+  bytes traceID = 1;
+  bytes spanID = 2;
+  bytes parentSpanID = 3;
+  string name = 5;
+  int64 startTime = 6;
+  int32 duration = 7;
+  Status status = 8;
+
+  map <string,KeyValuePair> events = 9;
+  map <string,KeyValuePair> tags = 10;
+}
+
+message Process {
+  string name = 1;
+  map <string,KeyValuePair> tags = 2;
+}
+
+// from opencensus proto
+message KeyValuePair {
+  enum ValueType {
+    STRING  = 0;
+    INT     = 1;
+    DOUBLE  = 2;
+    BOOL    = 3;
+  };
+
+  string key = 1;
+  ValueType type = 2;
+
+  // Only one of the following fields is supposed to contain data (determined by `type` field).
+  // This is deliberately not using Protobuf `oneof` for performance reasons (verified by benchmarks).
+  string string_value = 3;
+  int64 int_value = 4;
+  double double_value = 5;
+  bool bool_value = 6;
+}
+
+message Status {
+  int32 code = 1;
+  string message = 2;
+}
