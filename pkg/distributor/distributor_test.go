@@ -4,22 +4,17 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv"
-	"github.com/cortexproject/cortex/pkg/ring/kv/consul"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
-	"github.com/cortexproject/cortex/pkg/util/test"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/httpgrpc"
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -39,7 +34,6 @@ var (
 )
 
 func TestDistributor(t *testing.T) {
-	ingestionRateLimit := 0.000096 // 100 Bytes/s limit
 
 	for i, tc := range []struct {
 		lines            int
@@ -51,120 +45,23 @@ func TestDistributor(t *testing.T) {
 			expectedResponse: success,
 		},
 		{
-			lines:         100,
-			expectedError: httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (100 bytes) exceeded while adding 100 lines for a total size of 1000 bytes"),
+			lines:            100,
+			expectedResponse: success,
 		},
 	} {
 		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
 			limits := &validation.Limits{}
 			flagext.DefaultValues(limits)
 			limits.EnforceMetricName = false
-			limits.IngestionRateMB = ingestionRateLimit
-			limits.IngestionBurstSizeMB = ingestionRateLimit
+
+			// friggtodo:  test limits
 
 			d := prepare(t, limits, nil)
 
-			request := makeWriteRequest(tc.lines, 10)
+			request := makeWriteRequest(tc.lines)
 			response, err := d.Push(ctx, request)
 			assert.Equal(t, tc.expectedResponse, response)
 			assert.Equal(t, tc.expectedError, err)
-		})
-	}
-}
-
-func TestDistributor_PushIngestionRateLimiter(t *testing.T) {
-	type testPush struct {
-		bytes         int
-		expectedError error
-	}
-
-	tests := map[string]struct {
-		distributors          int
-		ingestionRateStrategy string
-		ingestionRateMB       float64
-		ingestionBurstSizeMB  float64
-		pushes                []testPush
-	}{
-		"local strategy: limit should be set to each distributor": {
-			distributors:          2,
-			ingestionRateStrategy: validation.LocalIngestionRateStrategy,
-			ingestionRateMB:       10 * (1.0 / float64(bytesInMB)),
-			ingestionBurstSizeMB:  10 * (1.0 / float64(bytesInMB)),
-			pushes: []testPush{
-				{bytes: 5, expectedError: nil},
-				{bytes: 6, expectedError: httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (10 bytes) exceeded while adding 1 lines for a total size of 6 bytes")},
-				{bytes: 5, expectedError: nil},
-				{bytes: 1, expectedError: httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (10 bytes) exceeded while adding 1 lines for a total size of 1 bytes")},
-			},
-		},
-		"global strategy: limit should be evenly shared across distributors": {
-			distributors:          2,
-			ingestionRateStrategy: validation.GlobalIngestionRateStrategy,
-			ingestionRateMB:       10 * (1.0 / float64(bytesInMB)),
-			ingestionBurstSizeMB:  5 * (1.0 / float64(bytesInMB)),
-			pushes: []testPush{
-				{bytes: 3, expectedError: nil},
-				{bytes: 3, expectedError: httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (5 bytes) exceeded while adding 1 lines for a total size of 3 bytes")},
-				{bytes: 2, expectedError: nil},
-				{bytes: 1, expectedError: httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (5 bytes) exceeded while adding 1 lines for a total size of 1 bytes")},
-			},
-		},
-		"global strategy: burst should set to each distributor": {
-			distributors:          2,
-			ingestionRateStrategy: validation.GlobalIngestionRateStrategy,
-			ingestionRateMB:       10 * (1.0 / float64(bytesInMB)),
-			ingestionBurstSizeMB:  20 * (1.0 / float64(bytesInMB)),
-			pushes: []testPush{
-				{bytes: 15, expectedError: nil},
-				{bytes: 6, expectedError: httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (5 bytes) exceeded while adding 1 lines for a total size of 6 bytes")},
-				{bytes: 5, expectedError: nil},
-				{bytes: 1, expectedError: httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (5 bytes) exceeded while adding 1 lines for a total size of 1 bytes")},
-			},
-		},
-	}
-
-	for testName, testData := range tests {
-		testData := testData
-
-		t.Run(testName, func(t *testing.T) {
-			limits := &validation.Limits{}
-			flagext.DefaultValues(limits)
-			limits.EnforceMetricName = false
-			limits.IngestionRateStrategy = testData.ingestionRateStrategy
-			limits.IngestionRateMB = testData.ingestionRateMB
-			limits.IngestionBurstSizeMB = testData.ingestionBurstSizeMB
-
-			// Init a shared KVStore
-			kvStore := consul.NewInMemoryClient(ring.GetCodec())
-
-			// Start all expected distributors
-			distributors := make([]*Distributor, testData.distributors)
-			for i := 0; i < testData.distributors; i++ {
-				distributors[i] = prepare(t, limits, kvStore)
-				defer distributors[i].Stop()
-			}
-
-			// If the distributors ring is setup, wait until the first distributor
-			// updates to the expected size
-			if distributors[0].distributorsRing != nil {
-				test.Poll(t, time.Second, testData.distributors, func() interface{} {
-					return distributors[0].distributorsRing.HealthyInstancesCount()
-				})
-			}
-
-			// Push samples in multiple requests to the first distributor
-			for _, push := range testData.pushes {
-				request := makeWriteRequest(1, push.bytes)
-				response, err := distributors[0].Push(ctx, request)
-
-				if push.expectedError == nil {
-					assert.Equal(t, success, response)
-					assert.Nil(t, err)
-				} else {
-					assert.Nil(t, response)
-					assert.Equal(t, push.expectedError, err)
-				}
-			}
 		})
 	}
 }
@@ -208,26 +105,26 @@ func prepare(t *testing.T, limits *validation.Limits, kvStore kv.Client) *Distri
 	return d
 }
 
-func makeWriteRequest(lines int, size int) *friggpb.PushRequest {
-	req := friggpb.PushRequest{
-		Streams: []*friggpb.Stream{
-			{
-				Labels: `{foo="bar"}`,
-			},
+func makeWriteRequest(spans int) *friggpb.PushRequest {
+
+	sampleSpan := friggpb.Span{
+		Name:    "test",
+		TraceID: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10},
+		SpanID:  []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+	}
+
+	req := &friggpb.PushRequest{
+		Spans: []*friggpb.Span{},
+		Process: &friggpb.Process{
+			Name: "test",
 		},
 	}
 
-	for i := 0; i < lines; i++ {
-		// Construct the log line, honoring the input size
-		line := strconv.Itoa(i) + strings.Repeat(" ", size)
-		line = line[:size]
-
-		req.Streams[0].Entries = append(req.Streams[0].Entries, friggpb.Entry{
-			Timestamp: time.Unix(0, 0),
-			Line:      line,
-		})
+	for i := 0; i < spans; i++ {
+		req.Spans = append(req.Spans, &sampleSpan)
 	}
-	return &req
+
+	return req
 }
 
 type mockIngester struct {

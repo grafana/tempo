@@ -161,18 +161,18 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	batches := make(map[uint32]*friggpb.PushRequest)
 	batchesByIngester := make(map[string][]*friggpb.PushRequest)
 	for _, span := range req.Spans {
-		var req *friggpb.PushRequest
+		var batch *friggpb.PushRequest
 		key := util.TokenFor(userID, span.TraceID)
 
-		req, ok := batches[key]
+		batch, ok := batches[key]
 		if !ok {
-			req = &friggpb.PushRequest{
+			batch = &friggpb.PushRequest{
 				Spans:   make([]*friggpb.Span, 0, spanCount), // assume most spans belong to the same trace
 				Process: req.Process,
 			}
-			batches[key] = req
+			batches[key] = batch
 		}
-		req.Spans = append(req.Spans, span)
+		req.Spans = append(batch.Spans, span)
 
 		// now map to ingesters
 		replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
@@ -180,7 +180,7 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 			return nil, err
 		}
 		for _, ingester := range replicationSet.Ingesters {
-			batchesByIngester[ingester.Addr] = append(batchesByIngester[ingester.Addr], req)
+			batchesByIngester[ingester.Addr] = append(batchesByIngester[ingester.Addr], batch)
 		}
 	}
 
