@@ -22,9 +22,7 @@ func (d *Distributor) PushHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Header.Get(contentType) {
 	case applicationJSON:
-		var err error
-
-		err := json.NewDecoder(b).Decode(&req)
+		err := json.NewDecoder(r.Body).Decode(&req)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

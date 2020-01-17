@@ -5,13 +5,14 @@ import (
 	"fmt"
 
 	"github.com/cortexproject/cortex/pkg/chunk"
-	"github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
+	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
+	"google.golang.org/grpc"
 
 	"github.com/joe-elliott/frigg/pkg/distributor"
 	"github.com/joe-elliott/frigg/pkg/ingester"
@@ -38,7 +39,7 @@ type Config struct {
 
 // RegisterFlags registers flag.
 func (c *Config) RegisterFlags(f *flag.FlagSet) {
-	c.Server.MetricsNamespace = appName
+	c.Server.MetricsNamespace = "frigg"
 	c.Target = All
 	c.Server.ExcludeRequestInLog = true
 	f.Var(&c.Target, "target", "target module (default All)")
@@ -58,10 +59,11 @@ func (c *Config) RegisterFlags(f *flag.FlagSet) {
 type App struct {
 	cfg Config
 
+	server      *server.Server
 	ring        *ring.Ring
+	overrides   *validation.Overrides
 	distributor *distributor.Distributor
 	ingester    *ingester.Ingester
-	querier     *querier.Querier
 	store       storage.Store
 
 	httpAuthMiddleware middleware.Interface

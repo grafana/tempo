@@ -3,25 +3,20 @@ package app
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/chunk"
-	"github.com/cortexproject/cortex/pkg/chunk/storage"
-	"github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
-	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/middleware"
+	"github.com/weaveworks/common/server"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/joe-elliott/frigg/pkg/distributor"
+	"github.com/joe-elliott/frigg/pkg/friggpb"
 	"github.com/joe-elliott/frigg/pkg/ingester"
-	loki_storage "github.com/joe-elliott/frigg/pkg/storage"
+	frigg_storage "github.com/joe-elliott/frigg/pkg/storage"
 	"github.com/joe-elliott/frigg/pkg/util/validation"
 )
 
@@ -98,12 +93,12 @@ func (m *moduleName) Set(s string) error {
 	}
 }
 
-func (t *Loki) initServer() (err error) {
+func (t *App) initServer() (err error) {
 	t.server, err = server.New(t.cfg.Server)
 	return
 }
 
-func (a *App) initRing() (err error) {
+func (t *App) initRing() (err error) {
 	if t.cfg.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor != 1 {
 		return fmt.Errorf("frigg only supports a replication factor of 1")
 	}
@@ -117,12 +112,12 @@ func (a *App) initRing() (err error) {
 	return
 }
 
-func (t *Loki) initOverrides() (err error) {
+func (t *App) initOverrides() (err error) {
 	t.overrides, err = validation.NewOverrides(t.cfg.LimitsConfig)
 	return err
 }
 
-func (a *App) initDistributor() (err error) {
+func (t *App) initDistributor() (err error) {
 	t.distributor, err = distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides)
 	if err != nil {
 		return
@@ -134,15 +129,16 @@ func (a *App) initDistributor() (err error) {
 
 	friggpb.RegisterPusherServer(t.server.GRPC, t.distributor)
 	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.distributor.ReadinessHandler))
+	t.server.HTTP.Handle("/api/v0/push", pushHandler)
 	return
 }
 
-func (a *App) stopDistributor() (err error) {
+func (t *App) stopDistributor() (err error) {
 	t.distributor.Stop()
 	return nil
 }
 
-func (a *App) initIngester() (err error) {
+func (t *App) initIngester() (err error) {
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = &t.cfg.Server.GRPCListenPort
 	t.ingester, err = ingester.New(t.cfg.Ingester, t.cfg.IngesterClient, t.store, t.overrides)
 	if err != nil {
@@ -156,22 +152,22 @@ func (a *App) initIngester() (err error) {
 	return
 }
 
-func (a *App) stopIngester() error {
+func (t *App) stopIngester() error {
 	t.ingester.Shutdown()
 	return nil
 }
 
-func (a *App) stoppingIngester() error {
+func (t *App) stoppingIngester() error {
 	t.ingester.Stopping()
 	return nil
 }
 
-func (a *App) initStore() (err error) {
-	t.store, err = loki_storage.NewStore(t.cfg.StorageConfig, t.cfg.ChunkStoreConfig, t.cfg.SchemaConfig, t.overrides)
+func (t *App) initStore() (err error) {
+	t.store, err = frigg_storage.NewStore(t.cfg.StorageConfig, t.cfg.ChunkStoreConfig, t.cfg.SchemaConfig, t.overrides)
 	return
 }
 
-func (a *App) stopStore() error {
+func (t *App) stopStore() error {
 	t.store.Stop()
 	return nil
 }
@@ -275,6 +271,6 @@ var modules = map[moduleName]module{
 	},
 
 	All: {
-		deps: []moduleName{Querier, Ingester, Distributor, TableManager},
+		deps: []moduleName{Ingester, Distributor},
 	},
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"net/http"
-	"sync/atomic"
 	"time"
 
 	cortex_distributor "github.com/cortexproject/cortex/pkg/distributor"
@@ -12,7 +11,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	cortex_util "github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/limiter"
-	cortex_validation "github.com/cortexproject/cortex/pkg/util/validation"
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/opentracing/opentracing-go"
@@ -147,12 +145,9 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	}
 
 	// Track metrics.
-	spanCount := 0
-	for _, stream := range req.Spans {
-		spanCount++
-	}
+	spanCount := len(req.Spans)
 	if spanCount == 0 {
-		return &logproto.PushResponse{}, nil
+		return &friggpb.PushResponse{}, nil
 	}
 	spansIngested.WithLabelValues(userID).Add(float64(spanCount))
 
@@ -160,24 +155,20 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	key := util.TokenFor(req.Spans[0].TraceID)
 
 	now := time.Now()
-	if !d.ingestionRateLimiter.AllowN(now, userID, validatedSamplesSize) {
+	if !d.ingestionRateLimiter.AllowN(now, userID, spanCount) {
 		// Return a 4xx here to have the client discard the data and not retry. If a client
 		// is sending too much data consistently we will unlikely ever catch up otherwise.
-		validation.DiscardedSamples.WithLabelValues(validation.RateLimited, userID).Add(float64(validatedSamplesCount))
-		validation.DiscardedBytes.WithLabelValues(validation.RateLimited, userID).Add(float64(validatedSamplesSize))
-		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (%d bytes) exceeded while adding %d lines for a total size of %d bytes", int(d.ingestionRateLimiter.Limit(now, userID)), validatedSamplesCount, validatedSamplesSize)
+		validation.DiscardedSamples.WithLabelValues(validation.RateLimited, userID).Add(float64(spanCount))
+		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (%d bytes) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 
 	const maxExpectedReplicationSet = 1 // 1.  b/c frigg it
 	var descs [maxExpectedReplicationSet]ring.IngesterDesc
 	replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
 
-	if len(replicationSet) != 1 {
-		return &logproto.PushResponse{}, fmt.Errorf("we only need one friggin' replica, but got %d", len(replicationSet))
-	}
-	ingesterDesc := replicationSet[0]
+	// friggtodo: restore expectation of multiple ingesters and multiple traces per push request
+	ingesterDesc := replicationSet.Ingesters[0]
 
-	// Use a background context to make sure ingester gets samples even if we return early
 	localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
 	defer cancel()
 	localCtx = user.InjectOrgID(localCtx, userID)
@@ -186,14 +177,14 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	}
 	err = d.sendSamplesErr(ctx, ingesterDesc, req)
 
-	if err {
+	if err != nil {
 		return nil, err
 	}
-	return &logproto.PushResponse{}, nil
+	return &friggpb.PushResponse{}, nil
 }
 
 // TODO taken from Cortex, see if we can refactor out an usable interface.
-func (d *Distributor) sendSamplesErr(ctx context.Context, ingester ring.IngesterDesc, req friggpb.PushRequest) error {
+func (d *Distributor) sendSamplesErr(ctx context.Context, ingester ring.IngesterDesc, req *friggpb.PushRequest) error {
 	c, err := d.pool.GetClientFor(ingester.Addr)
 	if err != nil {
 		return err

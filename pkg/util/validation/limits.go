@@ -36,8 +36,8 @@ type Limits struct {
 	EnforceMetricName      bool          `yaml:"enforce_metric_name"`
 
 	// Ingester enforced limits.
-	MaxLocalStreamsPerUser  int `yaml:"max_streams_per_user"`
-	MaxGlobalStreamsPerUser int `yaml:"max_global_streams_per_user"`
+	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user"`
+	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user"`
 
 	// Querier enforced limits.
 	MaxChunksPerQuery          int           `yaml:"max_chunks_per_query"`
@@ -64,8 +64,8 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.DurationVar(&l.CreationGracePeriod, "validation.create-grace-period", 10*time.Minute, "Duration which table will be created/deleted before/after it's needed; we won't accept sample from before this time.")
 	f.BoolVar(&l.EnforceMetricName, "validation.enforce-metric-name", true, "Enforce every sample has a metric name.")
 
-	f.IntVar(&l.MaxLocalStreamsPerUser, "ingester.max-streams-per-user", 10e3, "Maximum number of active streams per user, per ingester. 0 to disable.")
-	f.IntVar(&l.MaxGlobalStreamsPerUser, "ingester.max-global-streams-per-user", 0, "Maximum number of active streams per user, across the cluster. 0 to disable.")
+	f.IntVar(&l.MaxLocalTracesPerUser, "ingester.max-streams-per-user", 10e3, "Maximum number of active streams per user, per ingester. 0 to disable.")
+	f.IntVar(&l.MaxGlobalTracesPerUser, "ingester.max-global-streams-per-user", 0, "Maximum number of active streams per user, across the cluster. 0 to disable.")
 
 	f.IntVar(&l.MaxChunksPerQuery, "store.query-chunk-limit", 2e6, "Maximum number of chunks that can be fetched in a single query.")
 	f.DurationVar(&l.MaxQueryLength, "store.max-query-length", 0, "Limit to length of chunk store queries, 0 to disable.")
@@ -182,16 +182,16 @@ func (o *Overrides) CreationGracePeriod(userID string) time.Duration {
 	return o.overridesManager.GetLimits(userID).(*Limits).CreationGracePeriod
 }
 
-// MaxLocalStreamsPerUser returns the maximum number of streams a user is allowed to store
+// MaxLocalTracesPerUser returns the maximum number of streams a user is allowed to store
 // in a single ingester.
-func (o *Overrides) MaxLocalStreamsPerUser(userID string) int {
-	return o.overridesManager.GetLimits(userID).(*Limits).MaxLocalStreamsPerUser
+func (o *Overrides) MaxLocalTracesPerUser(userID string) int {
+	return o.overridesManager.GetLimits(userID).(*Limits).MaxLocalTracesPerUser
 }
 
-// MaxGlobalStreamsPerUser returns the maximum number of streams a user is allowed to store
+// MaxGlobalTracesPerUser returns the maximum number of streams a user is allowed to store
 // across the cluster.
-func (o *Overrides) MaxGlobalStreamsPerUser(userID string) int {
-	return o.overridesManager.GetLimits(userID).(*Limits).MaxGlobalStreamsPerUser
+func (o *Overrides) MaxGlobalTracesPerUser(userID string) int {
+	return o.overridesManager.GetLimits(userID).(*Limits).MaxGlobalTracesPerUser
 }
 
 // MaxChunksPerQuery returns the maximum number of chunks allowed per query.

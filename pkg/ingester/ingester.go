@@ -19,8 +19,8 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/joe-elliott/frigg/pkg/ingester/client"
 	"github.com/joe-elliott/frigg/pkg/friggpb"
+	"github.com/joe-elliott/frigg/pkg/ingester/client"
 	"github.com/joe-elliott/frigg/pkg/util/validation"
 )
 
@@ -61,12 +61,6 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.DurationVar(&cfg.FlushCheckPeriod, "ingester.flush-check-period", 30*time.Second, "")
 	f.DurationVar(&cfg.FlushOpTimeout, "ingester.flush-op-timeout", 10*time.Second, "")
 	f.DurationVar(&cfg.RetainPeriod, "ingester.chunks-retain-period", 15*time.Minute, "")
-	f.DurationVar(&cfg.MaxChunkIdle, "ingester.chunks-idle-period", 30*time.Minute, "")
-	f.IntVar(&cfg.BlockSize, "ingester.chunks-block-size", 256*1024, "")
-	f.IntVar(&cfg.TargetChunkSize, "ingester.chunk-target-size", 0, "")
-	f.StringVar(&cfg.ChunkEncoding, "ingester.chunk-encoding", chunkenc.EncGZIP.String(), fmt.Sprintf("The algorithm to use for compressing chunk. (%s)", chunkenc.SupportedEncoding()))
-	f.DurationVar(&cfg.SyncPeriod, "ingester.sync-period", 0, "How often to cut chunks to synchronize ingesters.")
-	f.Float64Var(&cfg.SyncMinUtilization, "ingester.sync-min-utilization", 0, "Minimum utilization of chunk when doing synchronization.")
 }
 
 // Ingester builds chunks for incoming log streams.
@@ -104,10 +98,6 @@ func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *valid
 	if cfg.ingesterClientFactory == nil {
 		cfg.ingesterClientFactory = client.New
 	}
-	enc, err := chunkenc.ParseEncoding(cfg.ChunkEncoding)
-	if err != nil {
-		return nil, err
-	}
 
 	i := &Ingester{
 		cfg:          cfg,
@@ -125,6 +115,7 @@ func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *valid
 		go i.flushLoop(j)
 	}
 
+	var err error
 	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey)
 	if err != nil {
 		return nil, err
@@ -221,7 +212,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) *instance {
 	defer i.instancesMtx.Unlock()
 	inst, ok = i.instances[instanceID]
 	if !ok {
-		inst = newInstance(instanceID, i.factory, i.limiter, i.cfg.SyncPeriod, i.cfg.SyncMinUtilization)
+		inst = newInstance(instanceID, i.limiter)
 		i.instances[instanceID] = inst
 	}
 	return inst
@@ -244,4 +235,25 @@ func (i *Ingester) getInstances() []*instance {
 		instances = append(instances, instance)
 	}
 	return instances
+}
+
+// StopIncomingRequests implements ring.Lifecycler.
+func (i *Ingester) StopIncomingRequests() {
+	i.shutdownMtx.Lock()
+	defer i.shutdownMtx.Unlock()
+
+	i.instancesMtx.Lock()
+	defer i.instancesMtx.Unlock()
+
+	i.readonly = true
+}
+
+// TransferOut implements ring.Lifecycler.
+func (i *Ingester) TransferOut(ctx context.Context) error {
+	if i.cfg.MaxTransferRetries <= 0 {
+		return fmt.Errorf("transfers disabled")
+	}
+
+	// need to decide what, if any support, we're going to have here
+	return nil
 }

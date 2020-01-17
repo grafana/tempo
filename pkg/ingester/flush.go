@@ -5,18 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/net/context"
-
-	"github.com/go-kit/kit/log/level"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/weaveworks/common/user"
-
-	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/util"
-	loki_util "github.com/joe-elliott/frigg/pkg/util"
+	"github.com/go-kit/kit/log/level"
 )
 
 var ()
@@ -48,6 +38,7 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 type flushOp struct {
+	from      int64
 	userID    string
 	fp        traceFingerprint
 	immediate bool
@@ -81,8 +72,10 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 
 			flushQueueIndex := int(uint64(trace.fp) % uint64(i.cfg.ConcurrentFlushes))
 			i.flushQueues[flushQueueIndex].Enqueue(&flushOp{
-				model.TimeFromUnixNano(firstTime.UnixNano()), instance.instanceID,
-				stream.fp, immediate,
+				trace.lastAppend.UnixNano(), // friggpb : change to first append?
+				instance.instanceID,
+				trace.fp,
+				immediate,
 			})
 		}
 	}
@@ -111,7 +104,7 @@ func (i *Ingester) flushLoop(j int) {
 		// If we're exiting & we failed to flush, put the failed operation
 		// back in the queue at a later point.
 		if op.immediate && err != nil {
-			op.from = op.from.Add(flushBackoff)
+			op.from += int64(flushBackoff)
 			i.flushQueues[j].Enqueue(op)
 		}
 	}

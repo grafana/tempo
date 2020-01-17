@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -52,13 +51,9 @@ type instance struct {
 	tracesRemovedTotal prometheus.Counter
 
 	limiter *Limiter
-
-	// sync
-	syncPeriod  time.Duration
-	syncMinUtil float64
 }
 
-func newInstance(instanceID string, factory func() chunkenc.Chunk, limiter *Limiter, syncPeriod time.Duration, syncMinUtil float64) *instance {
+func newInstance(instanceID string, limiter *Limiter) *instance {
 	i := &instance{
 		traces:     map[traceFingerprint]*trace{},
 		instanceID: instanceID,
@@ -66,11 +61,7 @@ func newInstance(instanceID string, factory func() chunkenc.Chunk, limiter *Limi
 		tracesCreatedTotal: tracesCreatedTotal.WithLabelValues(instanceID),
 		tracesRemovedTotal: tracesRemovedTotal.WithLabelValues(instanceID),
 
-		factory: factory,
 		limiter: limiter,
-
-		syncPeriod:  syncPeriod,
-		syncMinUtil: syncMinUtil,
 	}
 	return i
 }
@@ -84,13 +75,15 @@ func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
 		return err
 	}
 
-	if err := trace.Push(ctx, req, i.syncPeriod, i.syncMinUtil); err != nil {
+	if err := trace.Push(ctx, req); err != nil {
 		return err
 	}
+
+	return nil
 }
 
 func (i *instance) getOrCreateTrace(req *friggpb.PushRequest) (*trace, error) {
-	fp := util.Fingerprint(req.Spans[0].TraceID) // friggtodo:  drop this assumption?
+	fp := traceFingerprint(util.Fingerprint(req.Spans[0].TraceID)) // friggtodo:  drop this assumption?
 
 	trace, ok := i.traces[fp]
 	if ok {
@@ -103,7 +96,7 @@ func (i *instance) getOrCreateTrace(req *friggpb.PushRequest) (*trace, error) {
 	}
 
 	trace = newTrace(fp)
-	i.traces[fp] = stream
+	i.traces[fp] = trace
 	memoryTraces.Inc()
 	i.tracesCreatedTotal.Inc()
 
