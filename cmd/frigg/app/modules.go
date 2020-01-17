@@ -105,6 +105,10 @@ func (t *Loki) initServer() (err error) {
 }
 
 func (a *App) initRing() (err error) {
+	if t.cfg.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor != 1 {
+		return fmt.Errorf("frigg only supports a replication factor of 1")
+	}
+
 	t.ring, err = ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", ring.IngesterRingKey)
 	if err != nil {
 		return
