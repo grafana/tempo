@@ -189,8 +189,8 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 		done:           make(chan struct{}),
 		err:            make(chan error),
 	}
-	for ingester, batch := range batchesByIngester {
-		go func(ingesterAddr string, batches []*friggpb.PushRequest) {
+	for ingester, batches := range batchesByIngester {
+		go func(ingesterAddr string, batches []*friggpb.PushRequest, tracker *pushTracker) {
 			// Use a background context to make sure all ingesters get samples even if we return early
 			localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
 			defer cancel()
@@ -198,8 +198,8 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 			if sp := opentracing.SpanFromContext(ctx); sp != nil {
 				localCtx = opentracing.ContextWithSpan(localCtx, sp)
 			}
-			d.sendSamples(localCtx, ingester, batches, &tracker)
-		}(ingester, batch)
+			d.sendSamples(localCtx, ingesterAddr, batches, tracker)
+		}(ingester, batches, &tracker)
 	}
 
 	select {
