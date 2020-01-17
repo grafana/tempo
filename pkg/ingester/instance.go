@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,44 +25,34 @@ var (
 )
 
 var (
-	memoryTraces = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "frigg",
-		Name:      "ingester_memory_traces",
-		Help:      "The total number of traces in memory.",
-	})
 	tracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "frigg",
 		Name:      "ingester_traces_created_total",
 		Help:      "The total number of traces created per tenant.",
 	}, []string{"tenant"})
-	tracesRemovedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "frigg",
-		Name:      "ingester_traces_removed_total",
-		Help:      "The total number of traces removed per tenant.",
-	}, []string{"tenant"})
 )
 
 type instance struct {
-	tracesMtx sync.RWMutex
+	tracesMtx sync.Mutex
 	traces    map[traceFingerprint]*trace // we use 'mapped' fingerprints here.
 
-	instanceID string
+	blockTracesMtx sync.RWMutex
+	blockTraces    []*trace // friggtodo: init this with some configurable large value?
+	lastBlockCut   time.Time
 
+	instanceID         string
 	tracesCreatedTotal prometheus.Counter
-	tracesRemovedTotal prometheus.Counter
-
-	limiter *Limiter
+	limiter            *Limiter
 }
 
 func newInstance(instanceID string, limiter *Limiter) *instance {
 	i := &instance{
-		traces:     map[traceFingerprint]*trace{},
-		instanceID: instanceID,
+		traces:       map[traceFingerprint]*trace{},
+		lastBlockCut: time.Now(),
 
+		instanceID:         instanceID,
 		tracesCreatedTotal: tracesCreatedTotal.WithLabelValues(instanceID),
-		tracesRemovedTotal: tracesRemovedTotal.WithLabelValues(instanceID),
-
-		limiter: limiter,
+		limiter:            limiter,
 	}
 	return i
 }
@@ -82,6 +73,42 @@ func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
 	return nil
 }
 
+// Moves any complete traces out of the map to complete traces
+func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) {
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
+
+	i.blockTracesMtx.Lock()
+	defer i.blockTracesMtx.Unlock()
+
+	now := time.Now()
+	for key, trace := range i.traces {
+		if now.Add(cutoff).After(trace.lastAppend) || immediate {
+			i.blockTraces = append(i.blockTraces, trace)
+			delete(i.traces, key)
+		}
+	}
+}
+
+func (i *instance) IsBlockReady(maxTracesPerBlock int, maxBlockLifetime time.Duration) bool {
+	i.blockTracesMtx.RLock()
+	defer i.blockTracesMtx.RUnlock()
+
+	now := time.Now()
+	return len(i.blockTraces) >= maxTracesPerBlock && i.lastBlockCut.Add(maxBlockLifetime).After(now)
+}
+
+// GetBlock() returns complete traces.  It is up to the caller to do something sensible at this point
+func (i *instance) GetBlock() []*trace {
+	i.blockTracesMtx.Lock()
+	defer i.blockTracesMtx.Unlock()
+
+	ret := i.blockTraces
+	i.blockTraces = []*trace{}
+
+	return ret
+}
+
 func (i *instance) getOrCreateTrace(req *friggpb.PushRequest) (*trace, error) {
 	fp := traceFingerprint(util.Fingerprint(req.Spans[0].TraceID)) // friggtodo:  drop this assumption?
 
@@ -97,7 +124,6 @@ func (i *instance) getOrCreateTrace(req *friggpb.PushRequest) (*trace, error) {
 
 	trace = newTrace(fp)
 	i.traces[fp] = trace
-	memoryTraces.Inc()
 	i.tracesCreatedTotal.Inc()
 
 	return trace, nil

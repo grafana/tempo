@@ -40,12 +40,11 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 type flushOp struct {
 	from      int64
 	userID    string
-	fp        traceFingerprint
 	immediate bool
 }
 
 func (o *flushOp) Key() string {
-	return fmt.Sprintf("%s-%s-%v", o.userID, o.fp, o.immediate)
+	return fmt.Sprintf("%s-%v", o.userID, o.immediate)
 }
 
 func (o *flushOp) Priority() int64 {
@@ -66,18 +65,18 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	instance.tracesMtx.Lock()
 	defer instance.tracesMtx.Unlock()
 
-	now := time.Now()
-	for _, trace := range instance.traces {
-		if now.Add(i.cfg.MaxTraceIdle).After(trace.lastAppend) || immediate {
+	// cut traces internally
+	instance.CutCompleteTraces(i.cfg.MaxTraceIdle, immediate)
 
-			flushQueueIndex := int(uint64(trace.fp) % uint64(i.cfg.ConcurrentFlushes))
-			i.flushQueues[flushQueueIndex].Enqueue(&flushOp{
-				trace.lastAppend.UnixNano(), // friggpb : change to first append?
-				instance.instanceID,
-				trace.fp,
-				immediate,
-			})
-		}
+	// see if it's ready to cut a block?
+	if instance.IsBlockReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration) {
+		i.flushQueueIndex++
+		flushQueueIndex := i.flushQueueIndex % i.cfg.ConcurrentFlushes
+		i.flushQueues[flushQueueIndex].Enqueue(&flushOp{
+			time.Now().Unix(),
+			instance.instanceID,
+			immediate,
+		})
 	}
 }
 
@@ -94,9 +93,9 @@ func (i *Ingester) flushLoop(j int) {
 		}
 		op := o.(*flushOp)
 
-		level.Debug(util.Logger).Log("msg", "flushing stream", "userid", op.userID, "fp", op.fp, "immediate", op.immediate)
+		level.Debug(util.Logger).Log("msg", "flushing stream", "userid", op.userID, "fp", "immediate", op.immediate)
 
-		err := i.flushUserTraces(op.userID, op.fp, op.immediate)
+		err := i.flushUserTraces(op.userID, op.immediate)
 		if err != nil {
 			level.Error(util.WithUserID(op.userID, util.Logger)).Log("msg", "failed to flush user", "err", err)
 		}
@@ -110,7 +109,7 @@ func (i *Ingester) flushLoop(j int) {
 	}
 }
 
-func (i *Ingester) flushUserTraces(userID string, fp traceFingerprint, immediate bool) error {
+func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 	// friggtodo: actually flush something here
 
 	return nil

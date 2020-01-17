@@ -46,6 +46,8 @@ type Config struct {
 	FlushCheckPeriod  time.Duration `yaml:"flush_check_period"`
 	FlushOpTimeout    time.Duration `yaml:"flush_op_timeout"`
 	MaxTraceIdle      time.Duration `yaml:"trace_idle_period"`
+	MaxTracesPerBlock int           `yaml:"traces_per_block"`
+	MaxBlockDuration  time.Duration `yaml:"max_block_duration"`
 
 	// For testing, you can override the address and ID of this ingester.
 	ingesterClientFactory func(cfg client.Config, addr string) (grpc_health_v1.HealthClient, error)
@@ -60,6 +62,8 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.DurationVar(&cfg.FlushCheckPeriod, "ingester.flush-check-period", 30*time.Second, "")
 	f.DurationVar(&cfg.FlushOpTimeout, "ingester.flush-op-timeout", 10*time.Second, "")
 	f.DurationVar(&cfg.MaxTraceIdle, "ingester.trace-idle-period", 30*time.Second, "")
+	f.IntVar(&cfg.MaxTracesPerBlock, "ingester.traces-per-block", 3000000, "")
+	f.DurationVar(&cfg.MaxBlockDuration, "ingester.max-block-duration", 4*time.Hour, "")
 }
 
 // Ingester builds chunks for incoming log streams.
@@ -82,6 +86,7 @@ type Ingester struct {
 	// One queue per flush thread.  Fingerprint is used to
 	// pick a queue.
 	flushQueues     []*util.PriorityQueue
+	flushQueueIndex int
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
