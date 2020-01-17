@@ -11,10 +11,10 @@ import (
 	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/chunk/storage"
 
-	"github.com/joe-elliott/frigg/pkg/chunkenc"
-	"github.com/joe-elliott/frigg/pkg/iter"
-	"github.com/joe-elliott/frigg/pkg/logql"
-	"github.com/joe-elliott/frigg/pkg/util"
+	"github.com/grafana/loki/pkg/chunkenc"
+	"github.com/grafana/loki/pkg/iter"
+	"github.com/grafana/loki/pkg/logql"
+	"github.com/grafana/loki/pkg/util"
 )
 
 // Config is the loki storage configuration

@@ -16,10 +16,10 @@ import (
 	"github.com/cortexproject/cortex/pkg/chunk/local"
 	"github.com/cortexproject/cortex/pkg/chunk/storage"
 
-	"github.com/joe-elliott/frigg/pkg/iter"
-	"github.com/joe-elliott/frigg/pkg/logproto"
-	"github.com/joe-elliott/frigg/pkg/logql"
-	"github.com/joe-elliott/frigg/pkg/util/validation"
+	"github.com/grafana/loki/pkg/iter"
+	"github.com/grafana/loki/pkg/logproto"
+	"github.com/grafana/loki/pkg/logql"
+	"github.com/grafana/loki/pkg/util/validation"
 )
 
 var (

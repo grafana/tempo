@@ -1,6 +1,7 @@
 package distributor
 
 import (
+	"encoding/json"
 	"math"
 	"net/http"
 
@@ -8,10 +9,7 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/joe-elliott/frigg/pkg/loghttp"
-	"github.com/joe-elliott/frigg/pkg/logproto"
-	"github.com/joe-elliott/frigg/pkg/logql/unmarshal"
-	unmarshal_legacy "github.com/joe-elliott/frigg/pkg/logql/unmarshal/legacy"
+	"github.com/joe-elliott/frigg/pkg/friggpb"
 )
 
 var contentType = http.CanonicalHeaderKey("Content-Type")
@@ -20,17 +18,13 @@ const applicationJSON = "application/json"
 
 // PushHandler reads a snappy-compressed proto from the HTTP body.
 func (d *Distributor) PushHandler(w http.ResponseWriter, r *http.Request) {
-	var req logproto.PushRequest
+	var req friggpb.PushRequest
 
 	switch r.Header.Get(contentType) {
 	case applicationJSON:
 		var err error
 
-		if loghttp.GetVersion(r.RequestURI) == loghttp.VersionV1 {
-			err = unmarshal.DecodePushRequest(r.Body, &req)
-		} else {
-			err = unmarshal_legacy.DecodePushRequest(r.Body, &req)
-		}
+		err := json.NewDecoder(b).Decode(&req)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

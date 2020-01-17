@@ -8,3 +8,10 @@ func TokenFor(b []byte) uint32 {
 	_, _ = h.Write(b)
 	return h.Sum32()
 }
+
+// friggtodo:  better alg?  just add high order uint64 to low order uint64?
+func Fingerprint(b []byte) uint64 {
+	h := fnv.New64()
+	_, _ = h.Write(b)
+	return h.Sum64()
+}

@@ -19,9 +19,8 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/joe-elliott/frigg/pkg/chunkenc"
 	"github.com/joe-elliott/frigg/pkg/ingester/client"
-	"github.com/joe-elliott/frigg/pkg/logproto"
+	"github.com/joe-elliott/frigg/pkg/friggpb"
 	"github.com/joe-elliott/frigg/pkg/util/validation"
 )
 
@@ -46,15 +45,8 @@ type Config struct {
 	ConcurrentFlushes int           `yaml:"concurrent_flushes"`
 	FlushCheckPeriod  time.Duration `yaml:"flush_check_period"`
 	FlushOpTimeout    time.Duration `yaml:"flush_op_timeout"`
-	RetainPeriod      time.Duration `yaml:"chunk_retain_period"`
-	MaxChunkIdle      time.Duration `yaml:"chunk_idle_period"`
-	BlockSize         int           `yaml:"chunk_block_size"`
-	TargetChunkSize   int           `yaml:"chunk_target_size"`
-	ChunkEncoding     string        `yaml:"chunk_encoding"`
-
-	// Synchronization settings. Used to make sure that ingesters cut their chunks at the same moments.
-	SyncPeriod         time.Duration `yaml:"sync_period"`
-	SyncMinUtilization float64       `yaml:"sync_min_utilization"`
+	RetainPeriod      time.Duration `yaml:"trace_retain_period"`
+	MaxTraceIdle      time.Duration `yaml:"trace_idle_period"`
 
 	// For testing, you can override the address and ID of this ingester.
 	ingesterClientFactory func(cfg client.Config, addr string) (grpc_health_v1.HealthClient, error)
@@ -100,7 +92,6 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
-	factory func() chunkenc.Chunk
 }
 
 // ChunkStore is the interface we need to store chunks.
@@ -126,9 +117,6 @@ func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *valid
 		quit:         make(chan struct{}),
 		flushQueues:  make([]*util.PriorityQueue, cfg.ConcurrentFlushes),
 		quitting:     make(chan struct{}),
-		factory: func() chunkenc.Chunk {
-			return chunkenc.NewMemChunkSize(enc, cfg.BlockSize, cfg.TargetChunkSize)
-		},
 	}
 
 	i.flushQueuesDone.Add(cfg.ConcurrentFlushes)
@@ -182,13 +170,10 @@ func (i *Ingester) Shutdown() {
 // Stopping helps cleaning up resources before actual shutdown
 func (i *Ingester) Stopping() {
 	close(i.quitting)
-	for _, instance := range i.getInstances() {
-		instance.closeTailers()
-	}
 }
 
-// Push implements logproto.Pusher.
-func (i *Ingester) Push(ctx context.Context, req *logproto.PushRequest) (*logproto.PushResponse, error) {
+// Push implements friggpb.Pusher.
+func (i *Ingester) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb.PushResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -198,56 +183,7 @@ func (i *Ingester) Push(ctx context.Context, req *logproto.PushRequest) (*logpro
 
 	instance := i.getOrCreateInstance(instanceID)
 	err = instance.Push(ctx, req)
-	return &logproto.PushResponse{}, err
-}
-
-func (i *Ingester) getOrCreateInstance(instanceID string) *instance {
-	inst, ok := i.getInstanceByID(instanceID)
-	if ok {
-		return inst
-	}
-
-	i.instancesMtx.Lock()
-	defer i.instancesMtx.Unlock()
-	inst, ok = i.instances[instanceID]
-	if !ok {
-		inst = newInstance(instanceID, i.factory, i.limiter, i.cfg.SyncPeriod, i.cfg.SyncMinUtilization)
-		i.instances[instanceID] = inst
-	}
-	return inst
-}
-
-// Query the ingests for log streams matching a set of matchers.
-func (i *Ingester) Query(req *logproto.QueryRequest, queryServer logproto.Querier_QueryServer) error {
-	instanceID, err := user.ExtractOrgID(queryServer.Context())
-	if err != nil {
-		return err
-	}
-
-	instance := i.getOrCreateInstance(instanceID)
-	return instance.Query(req, queryServer)
-}
-
-// Label returns the set of labels for the stream this ingester knows about.
-func (i *Ingester) Label(ctx context.Context, req *logproto.LabelRequest) (*logproto.LabelResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	instance := i.getOrCreateInstance(instanceID)
-	return instance.Label(ctx, req)
-}
-
-// Series queries the ingester for log stream identifiers (label sets) matching a set of matchers
-func (i *Ingester) Series(ctx context.Context, req *logproto.SeriesRequest) (*logproto.SeriesResponse, error) {
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	instance := i.getOrCreateInstance(instanceID)
-	return instance.Series(ctx, req)
+	return &friggpb.PushResponse{}, err
 }
 
 // Check implements grpc_health_v1.HealthCheck.
@@ -275,6 +211,22 @@ func (i *Ingester) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (i *Ingester) getOrCreateInstance(instanceID string) *instance {
+	inst, ok := i.getInstanceByID(instanceID)
+	if ok {
+		return inst
+	}
+
+	i.instancesMtx.Lock()
+	defer i.instancesMtx.Unlock()
+	inst, ok = i.instances[instanceID]
+	if !ok {
+		inst = newInstance(instanceID, i.factory, i.limiter, i.cfg.SyncPeriod, i.cfg.SyncMinUtilization)
+		i.instances[instanceID] = inst
+	}
+	return inst
+}
+
 func (i *Ingester) getInstanceByID(id string) (*instance, bool) {
 	i.instancesMtx.RLock()
 	defer i.instancesMtx.RUnlock()
@@ -292,28 +244,4 @@ func (i *Ingester) getInstances() []*instance {
 		instances = append(instances, instance)
 	}
 	return instances
-}
-
-// Tail logs matching given query
-func (i *Ingester) Tail(req *logproto.TailRequest, queryServer logproto.Querier_TailServer) error {
-	select {
-	case <-i.quitting:
-		return errors.New("Ingester is stopping")
-	default:
-	}
-
-	instanceID, err := user.ExtractOrgID(queryServer.Context())
-	if err != nil {
-		return err
-	}
-
-	instance := i.getOrCreateInstance(instanceID)
-	tailer, err := newTailer(instanceID, req.Query, queryServer)
-	if err != nil {
-		return err
-	}
-
-	instance.addNewTailer(tailer)
-	tailer.loop()
-	return nil
 }

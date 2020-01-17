@@ -7,12 +7,13 @@ import (
 
 	cortex_client "github.com/cortexproject/cortex/pkg/ingester/client"
 	"github.com/cortexproject/cortex/pkg/util/grpcclient"
-	"github.com/joe-elliott/frigg/pkg/logproto"
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/weaveworks/common/middleware"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
+
+	"github.com/joe-elliott/frigg/pkg/friggpb"
 )
 
 // Config for an ingester client.
@@ -45,16 +46,12 @@ func New(cfg Config, addr string) (grpc_health_v1.HealthClient, error) {
 		return nil, err
 	}
 	return struct {
-		logproto.PusherClient
-		logproto.QuerierClient
-		logproto.IngesterClient
+		friggpb.PusherClient
 		grpc_health_v1.HealthClient
 		io.Closer
 	}{
-		PusherClient:   logproto.NewPusherClient(conn),
-		QuerierClient:  logproto.NewQuerierClient(conn),
-		IngesterClient: logproto.NewIngesterClient(conn),
-		Closer:         conn,
+		PusherClient: friggpb.NewPusherClient(conn),
+		Closer:       conn,
 	}, nil
 }
 

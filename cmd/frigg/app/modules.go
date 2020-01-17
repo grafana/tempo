@@ -21,7 +21,6 @@ import (
 
 	"github.com/joe-elliott/frigg/pkg/distributor"
 	"github.com/joe-elliott/frigg/pkg/ingester"
-	"github.com/joe-elliott/frigg/pkg/logproto"
 	loki_storage "github.com/joe-elliott/frigg/pkg/storage"
 	"github.com/joe-elliott/frigg/pkg/util/validation"
 )
@@ -133,6 +132,7 @@ func (a *App) initDistributor() (err error) {
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.distributor.PushHandler))
 
+	friggpb.RegisterPusherServer(t.server.GRPC, t.distributor)
 	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.distributor.ReadinessHandler))
 	return
 }
@@ -149,9 +149,7 @@ func (a *App) initIngester() (err error) {
 		return
 	}
 
-	/*logproto.RegisterPusherServer(t.server.GRPC, t.ingester)
-	logproto.RegisterQuerierServer(t.server.GRPC, t.ingester)
-	logproto.RegisterIngesterServer(t.server.GRPC, t.ingester)*/
+	friggpb.RegisterPusherServer(t.server.GRPC, t.ingester)
 	grpc_health_v1.RegisterHealthServer(t.server.GRPC, t.ingester)
 	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.ingester.ReadinessHandler))
 	t.server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
