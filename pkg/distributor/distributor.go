@@ -162,11 +162,12 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (%d bytes) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 
-	const maxExpectedReplicationSet = 1 // 1.  b/c frigg it
+	const maxExpectedReplicationSet = 2 // 2.  b/c frigg it
 	var descs [maxExpectedReplicationSet]ring.IngesterDesc
 	replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
 
-	// friggtodo: restore expectation of multiple ingesters and multiple traces per push request
+	// friggtodo: restore expectation of multiple ingesters and multiple traces per push request.
+	//               i think during ingester hand off periods this can return multiple ingesters even w/ a repl factor of 1
 	ingesterDesc := replicationSet.Ingesters[0]
 
 	localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)

@@ -3,22 +3,18 @@ package storage
 import (
 	"flag"
 
-	"github.com/prometheus/common/model"
-
 	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/chunk/storage"
 )
 
 // Config is the loki storage configuration
 type Config struct {
-	storage.Config    `yaml:",inline"`
-	MaxChunkBatchSize int `yaml:"max_chunk_batch_size"`
+	storage.Config `yaml:",inline"`
 }
 
 // RegisterFlags adds the flags required to configure this flag set.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	cfg.Config.RegisterFlags(f)
-	f.IntVar(&cfg.MaxChunkBatchSize, "max-chunk-batch-size", 50, "The maximun of chunks to fetch per batch.")
 }
 
 // Store is the Loki chunk store to retrieve and save chunks.
@@ -42,15 +38,4 @@ func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConf
 		Store: s,
 		cfg:   cfg,
 	}, nil
-}
-
-func filterChunksByTime(from, through model.Time, chunks []chunk.Chunk) []chunk.Chunk {
-	filtered := make([]chunk.Chunk, 0, len(chunks))
-	for _, chunk := range chunks {
-		if chunk.Through < from || through < chunk.From {
-			continue
-		}
-		filtered = append(filtered, chunk)
-	}
-	return filtered
 }

@@ -45,7 +45,6 @@ type Config struct {
 	ConcurrentFlushes int           `yaml:"concurrent_flushes"`
 	FlushCheckPeriod  time.Duration `yaml:"flush_check_period"`
 	FlushOpTimeout    time.Duration `yaml:"flush_op_timeout"`
-	RetainPeriod      time.Duration `yaml:"trace_retain_period"`
 	MaxTraceIdle      time.Duration `yaml:"trace_idle_period"`
 
 	// For testing, you can override the address and ID of this ingester.
@@ -60,7 +59,7 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&cfg.ConcurrentFlushes, "ingester.concurrent-flushed", 16, "")
 	f.DurationVar(&cfg.FlushCheckPeriod, "ingester.flush-check-period", 30*time.Second, "")
 	f.DurationVar(&cfg.FlushOpTimeout, "ingester.flush-op-timeout", 10*time.Second, "")
-	f.DurationVar(&cfg.RetainPeriod, "ingester.chunks-retain-period", 15*time.Minute, "")
+	f.DurationVar(&cfg.MaxTraceIdle, "ingester.trace-idle-period", 30*time.Second, "")
 }
 
 // Ingester builds chunks for incoming log streams.
