@@ -2,11 +2,10 @@ package distributor
 
 import (
 	"context"
-	"flag"
 	"net/http"
+	"sync/atomic"
 	"time"
 
-	cortex_distributor "github.com/cortexproject/cortex/pkg/distributor"
 	cortex_client "github.com/cortexproject/cortex/pkg/ingester/client"
 	"github.com/cortexproject/cortex/pkg/ring"
 	cortex_util "github.com/cortexproject/cortex/pkg/util"
@@ -26,7 +25,8 @@ import (
 	"github.com/joe-elliott/frigg/pkg/util/validation"
 )
 
-var readinessProbeSuccess = []byte("Ready")
+const tracesPerBatchEstimate = 5
+
 var (
 	ingesterAppends = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "loki",
@@ -38,27 +38,14 @@ var (
 		Name:      "distributor_ingester_append_failures_total",
 		Help:      "The total number of failed batch appends sent to ingesters.",
 	}, []string{"ingester"})
-
 	spansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "frigg",
 		Name:      "distributor_spans_received_total",
 		Help:      "The total number of spans received per tenant",
 	}, []string{"tenant"})
+
+	readinessProbeSuccess = []byte("Ready")
 )
-
-// Config for a Distributor.
-type Config struct {
-	// Distributors ring
-	DistributorRing cortex_distributor.RingConfig `yaml:"ring,omitempty"`
-
-	// For testing.
-	factory func(addr string) (grpc_health_v1.HealthClient, error) `yaml:"-"`
-}
-
-// RegisterFlags registers the flags.
-func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
-	cfg.DistributorRing.RegisterFlags(f)
-}
 
 // Distributor coordinates replicates and distribution of log streams.
 type Distributor struct {
@@ -74,6 +61,14 @@ type Distributor struct {
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
+}
+
+// TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
+type pushTracker struct {
+	samplesPending int32
+	samplesFailed  int32
+	done           chan struct{}
+	err            chan error
 }
 
 // New a distributor creates.
@@ -151,9 +146,6 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	}
 	spansIngested.WithLabelValues(userID).Add(float64(spanCount))
 
-	// friggtodo: split spans into traces in case trace ids differ
-	key := util.TokenFor(req.Spans[0].TraceID)
-
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, spanCount) {
 		// Return a 4xx here to have the client discard the data and not retry. If a client
@@ -162,39 +154,91 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (%d bytes) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 
-	const maxExpectedReplicationSet = 2 // 2.  b/c frigg it
+	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
 	var descs [maxExpectedReplicationSet]ring.IngesterDesc
-	replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
 
-	// friggtodo: restore expectation of multiple ingesters and multiple traces per push request.
-	//               i think during ingester hand off periods this can return multiple ingesters even w/ a repl factor of 1
-	ingesterDesc := replicationSet.Ingesters[0]
+	// friggtodo: add a metric to understand traces per batch
+	batches := make(map[uint32]*friggpb.PushRequest)
+	batchesByIngester := make(map[string][]*friggpb.PushRequest)
+	for _, span := range req.Spans {
+		var req *friggpb.PushRequest
+		key := util.TokenFor(userID, span.TraceID)
 
-	localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
-	defer cancel()
-	localCtx = user.InjectOrgID(localCtx, userID)
-	if sp := opentracing.SpanFromContext(ctx); sp != nil {
-		localCtx = opentracing.ContextWithSpan(localCtx, sp)
+		req, ok := batches[key]
+		if !ok {
+			req = &friggpb.PushRequest{
+				Spans:   make([]*friggpb.Span, 0, spanCount), // assume most spans belong to the same trace
+				Process: req.Process,
+			}
+			batches[key] = req
+		}
+		req.Spans = append(req.Spans, span)
+
+		// now map to ingesters
+		replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
+		if err != nil {
+			return nil, err
+		}
+		for _, ingester := range replicationSet.Ingesters {
+			batchesByIngester[ingester.Addr] = append(batchesByIngester[ingester.Addr], req)
+		}
 	}
-	err = d.sendSamplesErr(ctx, ingesterDesc, req)
 
-	if err != nil {
+	tracker := pushTracker{
+		samplesPending: int32(len(batches)),
+		done:           make(chan struct{}),
+		err:            make(chan error),
+	}
+	for ingester, batch := range batchesByIngester {
+		go func(ingesterAddr string, batches []*friggpb.PushRequest) {
+			// Use a background context to make sure all ingesters get samples even if we return early
+			localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
+			defer cancel()
+			localCtx = user.InjectOrgID(localCtx, userID)
+			if sp := opentracing.SpanFromContext(ctx); sp != nil {
+				localCtx = opentracing.ContextWithSpan(localCtx, sp)
+			}
+			d.sendSamples(localCtx, ingester, batches, &tracker)
+		}(ingester, batch)
+	}
+
+	select {
+	case err := <-tracker.err:
 		return nil, err
+	case <-tracker.done:
+		return &friggpb.PushResponse{}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
-	return &friggpb.PushResponse{}, nil
 }
 
-// TODO taken from Cortex, see if we can refactor out an usable interface.
-func (d *Distributor) sendSamplesErr(ctx context.Context, ingester ring.IngesterDesc, req *friggpb.PushRequest) error {
-	c, err := d.pool.GetClientFor(ingester.Addr)
+// TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
+func (d *Distributor) sendSamples(ctx context.Context, ingesterAddr string, batches []*friggpb.PushRequest, pushTracker *pushTracker) {
+
+	for _, b := range batches {
+		err := d.sendSamplesErr(ctx, ingesterAddr, b)
+
+		if err != nil {
+			pushTracker.err <- err
+		} else {
+			if atomic.AddInt32(&pushTracker.samplesPending, -1) == 0 {
+				pushTracker.done <- struct{}{}
+			}
+		}
+	}
+}
+
+// TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
+func (d *Distributor) sendSamplesErr(ctx context.Context, ingesterAddr string, req *friggpb.PushRequest) error {
+	c, err := d.pool.GetClientFor(ingesterAddr)
 	if err != nil {
 		return err
 	}
 
 	_, err = c.(friggpb.PusherClient).Push(ctx, req)
-	ingesterAppends.WithLabelValues(ingester.Addr).Inc()
+	ingesterAppends.WithLabelValues(ingesterAddr).Inc()
 	if err != nil {
-		ingesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
+		ingesterAppendFailures.WithLabelValues(ingesterAddr).Inc()
 	}
 	return err
 }
