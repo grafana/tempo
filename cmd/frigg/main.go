@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 
-	"github.com/joe-elliott/frigg/pkg/cfg"
+	"github.com/joe-elliott/frigg/cmd/frigg/cfg"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	"github.com/weaveworks/common/logging"
