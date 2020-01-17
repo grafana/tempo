@@ -7,7 +7,7 @@ import (
 )
 
 func TestOrderedDeps(t *testing.T) {
-	for _, m := range []moduleName{All, Distributor, Ingester, Querier} {
+	for _, m := range []moduleName{All, Distributor, Ingester} {
 		deps := orderedDeps(m)
 		seen := make(map[moduleName]struct{})
 		// make sure that getDeps always orders dependencies correctly.
