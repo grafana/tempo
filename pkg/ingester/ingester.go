@@ -91,7 +91,7 @@ func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *valid
 	var err error
 	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewLifecycler failed %v", err)
 	}
 
 	i.lifecycler.Start()

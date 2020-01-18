@@ -99,13 +99,14 @@ func (t *App) initServer() (err error) {
 }
 
 func (t *App) initRing() (err error) {
+	// friggtodo: get rid of this requirement?  enforce it in a different, less dumb way
 	if t.cfg.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor != 1 {
 		return fmt.Errorf("frigg only supports a replication factor of 1")
 	}
 
 	t.ring, err = ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", ring.IngesterRingKey)
 	if err != nil {
-		return
+		return err
 	}
 	prometheus.MustRegister(t.ring)
 	t.server.HTTP.Handle("/ring", t.ring)
@@ -127,7 +128,6 @@ func (t *App) initDistributor() (err error) {
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.distributor.PushHandler))
 
-	friggpb.RegisterPusherServer(t.server.GRPC, t.distributor)
 	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.distributor.ReadinessHandler))
 	t.server.HTTP.Handle("/api/v0/push", pushHandler)
 	return
