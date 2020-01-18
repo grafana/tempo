@@ -95,7 +95,7 @@ func (i *instance) IsBlockReady(maxTracesPerBlock int, maxBlockLifetime time.Dur
 	defer i.blockTracesMtx.RUnlock()
 
 	now := time.Now()
-	return len(i.blockTraces) >= maxTracesPerBlock && i.lastBlockCut.Add(maxBlockLifetime).After(now)
+	return len(i.blockTraces) >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now)
 }
 
 // GetBlock() returns complete traces.  It is up to the caller to do something sensible at this point
