@@ -31,6 +31,9 @@ type wal struct {
 }
 
 type walblock struct {
+	appendFile *os.File
+	readFile   *os.File
+
 	filepath   string
 	blockID    uuid.UUID
 	instanceID string
@@ -83,11 +86,14 @@ func (w *wal) NewBlock(id uuid.UUID, instanceID string) (WALBlock, error) {
 
 func (w *walblock) Write(p proto.Message) (int64, int32, error) {
 	name := fullFilename(w.filepath, w.blockID, w.instanceID)
+	var err error
 
-	f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644) // todo:  evaluate reopening on each write?
-	defer f.Close()
-	if err != nil {
-		return 0, 0, err
+	if w.appendFile == nil {
+		f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644) // todo:  evaluate reopening on each write?
+		if err != nil {
+			return 0, 0, err
+		}
+		w.appendFile = f
 	}
 
 	b, err := proto.Marshal(p)
@@ -95,17 +101,17 @@ func (w *walblock) Write(p proto.Message) (int64, int32, error) {
 		return 0, 0, err
 	}
 
-	err = binary.Write(f, binary.LittleEndian, uint32(len(b)))
+	err = binary.Write(w.appendFile, binary.LittleEndian, uint32(len(b)))
 	if err != nil {
 		return 0, 0, err
 	}
 
-	info, err := f.Stat()
+	info, err := w.appendFile.Stat()
 	if err != nil {
 		return 0, 0, err
 	}
 
-	length, err := f.Write(b)
+	length, err := w.appendFile.Write(b)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -115,15 +121,18 @@ func (w *walblock) Write(p proto.Message) (int64, int32, error) {
 
 func (w *walblock) Read(start int64, length int32, out proto.Message) error {
 	name := fullFilename(w.filepath, w.blockID, w.instanceID)
+	var err error
 
-	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
-	defer f.Close()
-	if err != nil {
-		return err
+	if w.readFile == nil {
+		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
+		if err != nil {
+			return err
+		}
+		w.readFile = f
 	}
 
 	b := make([]byte, length)
-	_, err = f.ReadAt(b, start)
+	_, err = w.readFile.ReadAt(b, start)
 	if err != nil {
 		return err
 	}
@@ -137,8 +146,21 @@ func (w *walblock) Read(start int64, length int32, out proto.Message) error {
 }
 
 func (w *walblock) Clear() error {
+	var err error
+	if w.appendFile != nil {
+		err := w.appendFile.Close()
+		if err != nil {
+			return err
+		}
+	}
+	if w.readFile != nil {
+		err := w.readFile.Close()
+		if err != nil {
+			return err
+		}
+	}
 	name := fullFilename(w.filepath, w.blockID, w.instanceID)
-	err := os.Remove(name)
+	err = os.Remove(name)
 	return err
 }
 

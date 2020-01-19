@@ -103,7 +103,7 @@ func TestIterator(t *testing.T) {
 	assert.Equal(t, numMsgs, i)
 }
 
-func BenchmarkWAL(b *testing.B) {
+func BenchmarkWriteRead(b *testing.B) {
 	tempDir, _ := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 
@@ -119,7 +119,7 @@ func BenchmarkWAL(b *testing.B) {
 	numMsgs := 1000
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(100)
+		req := test.MakeRequest(1000)
 		reqs = append(reqs, req)
 	}
 
