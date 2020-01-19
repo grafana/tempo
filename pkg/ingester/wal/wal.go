@@ -3,6 +3,7 @@ package wal
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 )
+
+type IterFunc func(out proto.Message) (bool, error)
 
 type WAL interface {
 	AllBlocks() ([]WALBlock, error)
@@ -20,6 +23,7 @@ type WALBlock interface {
 	Write(p proto.Message) (int64, int32, error)
 	Read(start int64, offset int32, out proto.Message) error
 	Clear() error
+	Iterator() (IterFunc, error)
 }
 
 type wal struct {
@@ -91,9 +95,7 @@ func (w *walblock) Write(p proto.Message) (int64, int32, error) {
 		return 0, 0, err
 	}
 
-	lengthBuffer := make([]byte, 4)
-	binary.LittleEndian.PutUint32(lengthBuffer, uint32(len(b)))
-	_, err = f.Write(lengthBuffer)
+	err = binary.Write(f, binary.LittleEndian, uint32(len(b)))
 	if err != nil {
 		return 0, 0, err
 	}
@@ -114,7 +116,7 @@ func (w *walblock) Write(p proto.Message) (int64, int32, error) {
 func (w *walblock) Read(start int64, length int32, out proto.Message) error {
 	name := fullFilename(w.filepath, w.blockID, w.instanceID)
 
-	f, err := os.OpenFile(name, os.O_RDONLY, 0644) // todo:  evaluate reopening on each write?
+	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 	defer f.Close()
 	if err != nil {
 		return err
@@ -138,6 +140,41 @@ func (w *walblock) Clear() error {
 	name := fullFilename(w.filepath, w.blockID, w.instanceID)
 	err := os.Remove(name)
 	return err
+}
+
+// Iterator returns a function that can be called repeatedly to iterate through all messages in the block
+//  This function must be called until it returns false to close the filehandle
+func (w *walblock) Iterator() (IterFunc, error) {
+	name := fullFilename(w.filepath, w.blockID, w.instanceID)
+	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return func(out proto.Message) (bool, error) {
+		var length uint32
+		err := binary.Read(f, binary.LittleEndian, &length)
+		if err == io.EOF {
+			f.Close()
+			return false, nil
+		} else if err != nil {
+			return false, err
+		}
+
+		b := make([]byte, length)
+		readLength, err := f.Read(b)
+		if uint32(readLength) != length {
+			return false, fmt.Errorf("read %d but expected %d", readLength, length)
+		}
+
+		err = proto.Unmarshal(b, out)
+		if err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}, nil
 }
 
 func parseFilename(name string) (uuid.UUID, string, error) {

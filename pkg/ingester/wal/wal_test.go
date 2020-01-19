@@ -2,6 +2,7 @@ package wal
 
 import (
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"testing"
 
@@ -57,4 +58,47 @@ func TestReadWrite(t *testing.T) {
 	err = block.Read(start, length, outReq)
 	assert.NoError(t, err, "unexpected error creating reading req")
 	assert.Equal(t, req, outReq)
+}
+
+func TestIterator(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	wal := New(&Config{
+		filepath: tempDir,
+	})
+
+	blockID := uuid.New()
+	instanceID := "fake"
+
+	block, err := wal.NewBlock(blockID, instanceID)
+	assert.NoError(t, err, "unexpected error creating block")
+
+	numMsgs := 10
+	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
+	for i := 0; i < numMsgs; i++ {
+		req := test.MakeRequest(rand.Int() % 1000)
+		reqs = append(reqs, req)
+		_, _, err := block.Write(req)
+		assert.NoError(t, err, "unexpected error writing req")
+	}
+
+	iterator, err := block.Iterator()
+	assert.NoError(t, err, "unexpected error getting iterator")
+
+	outReq := &friggpb.PushRequest{}
+	i := 0
+	for {
+		more, err := iterator(outReq)
+		assert.NoError(t, err, "unexpected error creating reading req")
+
+		if !more {
+			break
+		}
+		assert.Equal(t, outReq, reqs[i])
+		i++
+	}
+
+	assert.Equal(t, numMsgs, i)
 }
