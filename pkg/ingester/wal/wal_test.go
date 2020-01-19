@@ -102,3 +102,34 @@ func TestIterator(t *testing.T) {
 
 	assert.Equal(t, numMsgs, i)
 }
+
+func BenchmarkWAL(b *testing.B) {
+	tempDir, _ := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+
+	wal := New(&Config{
+		filepath: tempDir,
+	})
+
+	blockID := uuid.New()
+	instanceID := "fake"
+
+	// 1 million requests, 10k spans per request
+	block, _ := wal.NewBlock(blockID, instanceID)
+	numMsgs := 1000
+	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
+	for i := 0; i < numMsgs; i++ {
+		req := test.MakeRequest(100)
+		reqs = append(reqs, req)
+	}
+
+	outReq := &friggpb.PushRequest{}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, req := range reqs {
+			start, len, _ := block.Write(req)
+			block.Read(start, len, outReq)
+		}
+	}
+}
