@@ -12,6 +12,7 @@ require (
 	github.com/golang/lint v0.0.0-20180702182130-06c8688daad7 // indirect
 	github.com/golang/protobuf v1.3.2
 	github.com/golang/snappy v0.0.1
+	github.com/google/uuid v1.1.1
 	github.com/grafana/loki v6.7.8+incompatible
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/klauspost/compress v1.9.7
