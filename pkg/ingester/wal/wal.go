@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -86,6 +87,13 @@ func (w *walblock) Write(p proto.Message) (int64, int32, error) {
 	}
 
 	b, err := proto.Marshal(p)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	lengthBuffer := make([]byte, 4)
+	binary.LittleEndian.PutUint32(lengthBuffer, uint32(len(b)))
+	_, err = f.Write(lengthBuffer)
 	if err != nil {
 		return 0, 0, err
 	}
