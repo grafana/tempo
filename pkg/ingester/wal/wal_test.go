@@ -113,10 +113,10 @@ func BenchmarkWriteRead(b *testing.B) {
 
 	// 1 million requests, 10k spans per request
 	block, _ := wal.NewBlock(blockID, instanceID)
-	numMsgs := 1000
+	numMsgs := 100
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(1000)
+		req := test.MakeRequest(100)
 		reqs = append(reqs, req)
 	}
 

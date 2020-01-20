@@ -8,6 +8,11 @@ service Pusher {
   rpc Push(PushRequest) returns (PushResponse) {};
 }
 
+// todo:  defining a Trace as a bunch of push requests seems dumb-ish.  rename push request to "batch"?
+message Trace {
+  repeated PushRequest batches = 1;
+}
+
 message PushRequest {
   repeated Span spans = 1;
   Process process = 2;
