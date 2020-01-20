@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
@@ -84,22 +85,18 @@ func TestIterator(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	iterator, err := block.Iterator()
-	assert.NoError(t, err, "unexpected error getting iterator")
-
 	outReq := &friggpb.PushRequest{}
 	i := 0
-	for {
-		more, err := iterator(outReq)
-		assert.NoError(t, err, "unexpected error creating reading req")
+	err = block.Iterator(outReq, func(msg proto.Message) (bool, error) {
+		req := msg.(*friggpb.PushRequest)
 
-		if !more {
-			break
-		}
-		assert.Equal(t, outReq, reqs[i])
+		assert.Equal(t, req, reqs[i])
 		i++
-	}
 
+		return true, nil
+	})
+
+	assert.NoError(t, err, "unexpected error iterating")
 	assert.Equal(t, numMsgs, i)
 }
 
