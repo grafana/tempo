@@ -1,20 +1,13 @@
 package storage
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/google/uuid"
 
 	"github.com/joe-elliott/frigg/pkg/friggpb"
 	"github.com/joe-elliott/frigg/pkg/storage/trace_backend"
-	"github.com/joe-elliott/frigg/pkg/storage/trace_backend/local"
 )
-
-type TraceConfig struct {
-	Engine string       `yaml:"engine"`
-	Local  local.Config `yaml:"local"`
-}
 
 type TraceID []byte
 
@@ -25,7 +18,7 @@ type TraceRecord struct {
 }
 
 type TraceWriter interface {
-	WriteBlock(records []TraceRecord, block io.Reader, blockID uuid.UUID, tenantID string) error
+	WriteBlock(blockID uuid.UUID, tenantID string, records []TraceRecord, block io.Reader) error
 }
 
 type TraceReader interface {
@@ -37,26 +30,7 @@ type readerWriter struct {
 	w trace_backend.Writer
 }
 
-func newTraceStore(cfg TraceConfig) (TraceReader, TraceWriter, error) {
-	var r trace_backend.Reader
-	var w trace_backend.Writer
-
-	switch cfg.Engine {
-	case "local":
-		r, w = local.New(cfg.Local)
-	default:
-		return nil, nil, fmt.Errorf("unknown engine %s", cfg.Engine)
-	}
-
-	rw := &readerWriter{
-		r: r,
-		w: w,
-	}
-
-	return rw, rw, fmt.Errorf("unknown engine %s", cfg.Engine)
-}
-
-func (rw *readerWriter) WriteBlock(records []TraceRecord, block io.Reader, blockID uuid.UUID, tenantID string) error {
+func (rw *readerWriter) WriteBlock(blockID uuid.UUID, tenantID string, records []TraceRecord, block io.Reader) error {
 	return nil
 }
 

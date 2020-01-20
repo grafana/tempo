@@ -1,8 +1,12 @@
 package storage
 
 import (
+	"fmt"
+
 	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/chunk/storage"
+	"github.com/joe-elliott/frigg/pkg/storage/trace_backend"
+	"github.com/joe-elliott/frigg/pkg/storage/trace_backend/local"
 )
 
 // Store is the Frigg chunk store to retrieve and save chunks.
@@ -35,4 +39,23 @@ func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConf
 		TraceReader: r,
 		TraceWriter: w,
 	}, nil
+}
+
+func newTraceStore(cfg TraceConfig) (TraceReader, TraceWriter, error) {
+	var r trace_backend.Reader
+	var w trace_backend.Writer
+
+	switch cfg.Engine {
+	case "local":
+		r, w = local.New(cfg.Local)
+	default:
+		return nil, nil, fmt.Errorf("unknown engine %s", cfg.Engine)
+	}
+
+	rw := &readerWriter{
+		r: r,
+		w: w,
+	}
+
+	return rw, rw, fmt.Errorf("unknown engine %s", cfg.Engine)
 }
