@@ -20,6 +20,6 @@ type TraceConfig struct {
 
 // RegisterFlags adds the flags required to configure this flag set.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
-	// jpe : how to adjust the flags "down" a level beneath columnar?  just remove flags?  add trace flags?
+	// todo : how to adjust the flags "down" a level beneath columnar?  just remove flags?  add trace flags?
 	cfg.Columnar.RegisterFlags(f)
 }

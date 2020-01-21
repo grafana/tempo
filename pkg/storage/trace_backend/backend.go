@@ -1,17 +1,15 @@
 package trace_backend
 
-import (
-	"io"
-)
+import "github.com/google/uuid"
 
-type BloomIter func(bytes []byte, blockID string) bool
+type BloomIter func(bytes []byte, blockID uuid.UUID) (bool, error)
 
 type Writer interface {
-	Write(bBloom []byte, bIndex []byte, bTraces io.Reader) error
+	Write(path string, bBloom []byte, bIndex []byte, tracesFilePath string) error
 }
 
 type Reader interface {
-	Bloom(fn BloomIter) error
-	Index(name string) ([]byte, error)
-	Trace(name string, start uint32, length uint32) ([]byte, error)
+	Bloom(instanceID string, fn BloomIter) error
+	Index(path string) ([]byte, error)
+	Trace(path string, start uint64, length uint32) ([]byte, error)
 }
