@@ -1,8 +1,6 @@
 package storage
 
 import (
-	"fmt"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/willf/bloom"
@@ -25,14 +23,13 @@ type readerWriter struct {
 }
 
 func (rw *readerWriter) WriteBlock(blockID uuid.UUID, tenantID string, records []*TraceRecord, blockFilePath string) error {
-	path := buildPath(blockID, tenantID)
 	bloomBytes, indexBytes, err := encodeRecords(records)
 
 	if err != nil {
 		return err
 	}
 
-	return rw.w.Write(path, bloomBytes, indexBytes, blockFilePath)
+	return rw.w.Write(blockID, tenantID, bloomBytes, indexBytes, blockFilePath)
 }
 
 func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, error) {
@@ -43,8 +40,7 @@ func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, 
 		filter.GobDecode(bloomBytes)
 
 		if filter.Test(id) {
-			path := buildPath(blockID, tenantID)
-			indexBytes, err := rw.r.Index(path)
+			indexBytes, err := rw.r.Index(blockID, tenantID)
 			if err != nil {
 				return false, err
 			}
@@ -55,7 +51,7 @@ func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, 
 			}
 
 			if record != nil {
-				traceBytes, err := rw.r.Trace(path, record.Start, record.Length)
+				traceBytes, err := rw.r.Trace(blockID, tenantID, record.Start, record.Length)
 				if err != nil {
 					return false, err
 				}
@@ -80,8 +76,4 @@ func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, 
 	}
 
 	return out, nil
-}
-
-func buildPath(blockID uuid.UUID, tenantID string) string {
-	return fmt.Sprintf("%s/%v", tenantID, blockID)
 }
