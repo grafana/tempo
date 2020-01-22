@@ -49,4 +49,10 @@ func TestInstance(t *testing.T) {
 
 	records, _ := i.GetBlock()
 	assert.Equal(t, 1, len(records))
+
+	err = i.ResetBlock()
+	assert.NoError(t, err, "unexpected error resetting block")
+
+	records, _ = i.GetBlock()
+	assert.Equal(t, 0, len(records))
 }
