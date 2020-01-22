@@ -112,18 +112,14 @@ func findRecord(id TraceID, recordBytes []byte) (*TraceRecord, error) {
 }
 
 func encodeRecord(r *TraceRecord, buff []byte) {
-	for i, idByte := range r.TraceID {
-		buff[i] = idByte
-	}
+	copy(buff, r.TraceID)
 
 	binary.LittleEndian.PutUint64(buff[16:24], r.Start)
 	binary.LittleEndian.PutUint32(buff[24:], r.Length)
 }
 
 func decodeRecord(buff []byte, r *TraceRecord) {
-	for i := range r.TraceID {
-		r.TraceID[i] = buff[i]
-	}
+	copy(r.TraceID, buff[:16])
 	r.Start = binary.LittleEndian.Uint64(buff[16:24])
 	r.Length = binary.LittleEndian.Uint32(buff[24:])
 }
