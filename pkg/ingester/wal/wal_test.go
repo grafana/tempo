@@ -104,8 +104,8 @@ func BenchmarkWriteRead(b *testing.B) {
 	tempDir, _ := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 
-	wal := New(&Config{
-		filepath: tempDir,
+	wal := New(Config{
+		Filepath: tempDir,
 	})
 
 	blockID := uuid.New()

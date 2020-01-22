@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -39,7 +40,7 @@ func TestReadWrite(t *testing.T) {
 	_, err = fakeTracesFile.Write(fakeTraces)
 	assert.NoError(t, err, "unexpected error writing fakeTraces")
 
-	err = w.Write(blockID, tenantID, fakeBloom, fakeIndex, fakeTracesFile.Name())
+	err = w.Write(context.Background(), blockID, tenantID, fakeBloom, fakeIndex, fakeTracesFile.Name())
 	assert.NoError(t, err, "unexpected error writing")
 
 	actualIndex, err := r.Index(blockID, tenantID)
