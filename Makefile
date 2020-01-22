@@ -1,6 +1,7 @@
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
                                 -not -path './testbed/*' \
+								-not -path './vendor/*' \
                                 -type f | sort)
 
 # All source code and documents. Used in spell check.
@@ -10,7 +11,6 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 # ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
-GO_OPT= -mod=vendor
 
 GOTEST_OPT?= -race -timeout 30s
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -coverprofile=coverage.txt -covermode=atomic
