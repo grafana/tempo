@@ -30,7 +30,7 @@ func newTrace(fp traceFingerprint, traceID []byte) *trace {
 }
 
 func (t *trace) Push(_ context.Context, req *friggpb.PushRequest) error {
-	t.trace.Batches = append(t.trace.Batches, req)
+	t.trace.Batches = append(t.trace.Batches, req.Batch)
 	t.lastAppend = time.Now()
 
 	return nil

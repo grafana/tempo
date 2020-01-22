@@ -180,7 +180,7 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 }
 
 func (i *instance) getOrCreateTrace(req *friggpb.PushRequest) (*trace, error) {
-	traceID := req.Spans[0].TraceID // two assumptions here should hold.  distributor separates spans by traceid.  0 length span slices should be filtered before here
+	traceID := req.Batch.Spans[0].TraceId // two assumptions here should hold.  distributor separates spans by traceid.  0 length span slices should be filtered before here
 	fp := traceFingerprint(util.Fingerprint(traceID))
 
 	trace, ok := i.traces[fp]

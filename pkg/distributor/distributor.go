@@ -12,6 +12,8 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/limiter"
 
 	"github.com/go-kit/kit/log/level"
+	opentelemetry_proto_collector_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/collector/traces/v1"
+	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -140,7 +142,10 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	}
 
 	// Track metrics.
-	spanCount := len(req.Spans)
+	if req.Batch == nil {
+		return &friggpb.PushResponse{}, nil
+	}
+	spanCount := len(req.Batch.Spans)
 	if spanCount == 0 {
 		return &friggpb.PushResponse{}, nil
 	}
@@ -160,19 +165,21 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	// todo: add a metric to understand traces per batch
 	batches := make(map[uint32]*friggpb.PushRequest)
 	batchesByIngester := make(map[string][]*friggpb.PushRequest)
-	for _, span := range req.Spans {
+	for _, span := range req.Batch.Spans {
 		var batch *friggpb.PushRequest
-		key := util.TokenFor(userID, span.TraceID)
+		key := util.TokenFor(userID, span.TraceId)
 
 		batch, ok := batches[key]
 		if !ok {
 			batch = &friggpb.PushRequest{
-				Spans:   make([]*friggpb.Span, 0, spanCount), // assume most spans belong to the same trace
-				Process: req.Process,
+				&opentelemetry_proto_collector_trace_v1.ResourceSpans{
+					Spans:    make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace
+					Resource: req.Batch.Resource,
+				},
 			}
 			batches[key] = batch
 		}
-		req.Spans = append(batch.Spans, span)
+		req.Batch.Spans = append(req.Batch.Spans, span)
 
 		// now map to ingesters
 		replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
