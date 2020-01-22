@@ -10,6 +10,8 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 # ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
+GO_OPT= -mod=vendor
+
 GOTEST_OPT?= -race -timeout 30s
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -coverprofile=coverage.txt -covermode=atomic
 GOTEST=go test
@@ -17,7 +19,7 @@ LINT=golangci-lint
 
 .PHONY: frigg
 frigg:
-	GO111MODULE=on CGO_ENABLED=0 go build -o ./bin/$(GOOS)/frigg $(BUILD_INFO) ./cmd/frigg
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/frigg $(BUILD_INFO) ./cmd/frigg
 
 .PHONY: test
 test:
@@ -56,3 +58,7 @@ check-component:
 ifndef COMPONENT
 	$(error COMPONENT variable was not defined)
 endif
+
+.PHONY: deps
+deps:
+	GO111MODULE=on GOPROXY=https://proxy.golang.org go mod vendor
