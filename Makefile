@@ -1,6 +1,7 @@
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
                                 -not -path './testbed/*' \
+								-not -path './vendor/*' \
                                 -type f | sort)
 
 # All source code and documents. Used in spell check.
@@ -10,6 +11,7 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 # ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
+
 GOTEST_OPT?= -race -timeout 30s
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -coverprofile=coverage.txt -covermode=atomic
 GOTEST=go test
@@ -17,7 +19,7 @@ LINT=golangci-lint
 
 .PHONY: frigg
 frigg:
-	GO111MODULE=on CGO_ENABLED=0 go build -o ./bin/$(GOOS)/frigg $(BUILD_INFO) ./cmd/frigg
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/frigg $(BUILD_INFO) ./cmd/frigg
 
 .PHONY: test
 test:
@@ -56,3 +58,10 @@ check-component:
 ifndef COMPONENT
 	$(error COMPONENT variable was not defined)
 endif
+
+.PHONY: deps
+deps:
+	# go get github.com/nomad-software/vend
+	#  unfortunately this tool is necessary to pull in no .go packages.  we're using it specifically to grab the
+	#  otel proto
+	vend -package

@@ -1,0 +1,10 @@
+cover/cover
+socks/proxy
+socks/image.tar
+runner/runner
+*.pyc
+*~
+terraform.tfstate
+terraform.tfstate.backup
+*.retry
+build/**/.uptodate

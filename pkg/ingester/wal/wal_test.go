@@ -58,7 +58,7 @@ func TestReadWrite(t *testing.T) {
 	outReq := &friggpb.PushRequest{}
 	err = block.Read(start, length, outReq)
 	assert.NoError(t, err, "unexpected error creating reading req")
-	assert.Equal(t, req, outReq)
+	assert.True(t, proto.Equal(req, outReq))
 }
 
 func TestIterator(t *testing.T) {
@@ -90,7 +90,7 @@ func TestIterator(t *testing.T) {
 	err = block.Iterator(outReq, func(msg proto.Message) (bool, error) {
 		req := msg.(*friggpb.PushRequest)
 
-		assert.Equal(t, req, reqs[i])
+		assert.True(t, proto.Equal(req, reqs[i]))
 		i++
 
 		return true, nil

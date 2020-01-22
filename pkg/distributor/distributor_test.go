@@ -12,6 +12,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/joe-elliott/frigg/pkg/friggpb"
 	"github.com/joe-elliott/frigg/pkg/ingester/client"
+	"github.com/joe-elliott/frigg/pkg/util/test"
 	"github.com/joe-elliott/frigg/pkg/util/validation"
 )
 
@@ -58,9 +60,10 @@ func TestDistributor(t *testing.T) {
 
 			d := prepare(t, limits, nil)
 
-			request := makeWriteRequest(tc.lines)
+			request := test.MakeRequest(tc.lines, []byte{})
 			response, err := d.Push(ctx, request)
-			assert.Equal(t, tc.expectedResponse, response)
+
+			assert.True(t, proto.Equal(tc.expectedResponse, response))
 			assert.Equal(t, tc.expectedError, err)
 		})
 	}
@@ -103,28 +106,6 @@ func prepare(t *testing.T, limits *validation.Limits, kvStore kv.Client) *Distri
 	require.NoError(t, err)
 
 	return d
-}
-
-func makeWriteRequest(spans int) *friggpb.PushRequest {
-
-	sampleSpan := friggpb.Span{
-		Name:    "test",
-		TraceID: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10},
-		SpanID:  []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
-	}
-
-	req := &friggpb.PushRequest{
-		Spans: []*friggpb.Span{},
-		Process: &friggpb.Process{
-			Name: "test",
-		},
-	}
-
-	for i := 0; i < spans; i++ {
-		req.Spans = append(req.Spans, &sampleSpan)
-	}
-
-	return req
 }
 
 type mockIngester struct {

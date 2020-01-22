@@ -1,0 +1,55 @@
+// Copyright 2019, OpenTelemetry Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package opentelemetry.proto.common.v1;
+
+option java_multiple_files = true;
+option java_package = "io.opentelemetry.proto.common.v1";
+option java_outer_classname = "CommonProto";
+option go_package = "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1";
+
+// AttributeKeyValue is a key-value pair that is used to store Span attributes, Link
+// attributes, etc.
+message AttributeKeyValue {
+  // ValueType is the enumeration of possible types that value can have.
+  enum ValueType {
+    STRING  = 0;
+    INT     = 1;
+    DOUBLE  = 2;
+    BOOL    = 3;
+  };
+
+  // key part of the key-value pair.
+  string key = 1;
+
+  // type of the value.
+  ValueType type = 2;
+
+  // Only one of the following fields is supposed to contain data (determined by `type` field).
+  // This is deliberately not using Protobuf `oneof` for performance reasons (verified by benchmarks).
+
+  string string_value = 3;
+  int64 int_value = 4;
+  double double_value = 5;
+  bool bool_value = 6;
+}
+
+// StringKeyValue is a pair of key/value strings. This is the simpler (and faster) version
+// of AttributeKeyValue that only supports string values.
+message StringKeyValue {
+  string key = 1;
+  string value = 2;
+}
