@@ -148,6 +148,33 @@ func (i *instance) ResetBlock() error {
 	return err
 }
 
+func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
+
+	// search and return only complete traces.  traceRecords is ordered so binary search it
+	idx := sort.Search(len(i.traceRecords), func(idx int) bool {
+		return bytes.Compare(i.traceRecords[idx].TraceID, id) == -1
+	})
+
+	rec := i.traceRecords[idx]
+	if bytes.Compare(rec.TraceID, id) == 0 {
+		i.blockTracesMtx.Lock()
+		defer i.blockTracesMtx.Unlock()
+
+		out := &friggpb.Trace{}
+
+		err := i.walBlock.Read(rec.Start, rec.Length, out)
+		if err != nil {
+			return nil, err
+		}
+
+		return out, nil
+	}
+
+	return nil, nil
+}
+
 func (i *instance) getOrCreateTrace(req *friggpb.PushRequest) (*trace, error) {
 	traceID := req.Spans[0].TraceID // two assumptions here should hold.  distributor separates spans by traceid.  0 length span slices should be filtered before here
 	fp := traceFingerprint(util.Fingerprint(traceID))

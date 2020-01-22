@@ -8,6 +8,18 @@ service Pusher {
   rpc Push(PushRequest) returns (PushResponse) {};
 }
 
+service Querier {
+  rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
+}
+
+message TraceByIDRequest {
+  bytes traceID = 1;
+}
+
+message TraceByIDResponse {
+  Trace trace = 1;
+}
+
 // todo:  defining a Trace as a bunch of push requests seems dumb-ish.  rename push request to "batch"?
 message Trace {
   repeated PushRequest batches = 1;

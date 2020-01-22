@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/joe-elliott/frigg/pkg/util/validation"
 	"github.com/willf/bloom"
 )
 
@@ -54,7 +55,7 @@ func encodeRecords(records []*TraceRecord) ([]byte, []byte, error) {
 	for i, r := range records {
 		buff := recordBytes[i*28 : (i+1)*28]
 
-		if len(r.TraceID) != 16 {
+		if !validation.ValidTraceID(r.TraceID) {
 			return nil, nil, fmt.Errorf("Trace Ids must be 128 bit")
 		}
 

@@ -155,6 +155,28 @@ func (i *Ingester) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb
 	return &friggpb.PushResponse{}, err
 }
 
+// FindTraceByID implements friggpb.Querier.
+func (i *Ingester) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDRequest) (*friggpb.TraceByIDResponse, error) {
+	if !validation.ValidTraceID(req.TraceID) {
+		return nil, fmt.Errorf("invalid trace id")
+	}
+
+	instanceID, err := user.ExtractOrgID(ctx)
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		return &friggpb.TraceByIDResponse{}, nil
+	}
+
+	trace, err := inst.FindTraceByID(req.TraceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &friggpb.TraceByIDResponse{
+		Trace: trace,
+	}, nil
+}
+
 // Check implements grpc_health_v1.HealthCheck.
 func (*Ingester) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
