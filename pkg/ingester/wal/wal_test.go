@@ -51,7 +51,7 @@ func TestReadWrite(t *testing.T) {
 	block, err := wal.NewBlock(blockID, instanceID)
 	assert.NoError(t, err, "unexpected error creating block")
 
-	req := test.MakeRequest(10)
+	req := test.MakeRequest(10, []byte{})
 	start, length, err := block.Write(req)
 	assert.NoError(t, err, "unexpected error creating writing req")
 
@@ -79,7 +79,7 @@ func TestIterator(t *testing.T) {
 	numMsgs := 10
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(rand.Int() % 1000)
+		req := test.MakeRequest(rand.Int()%1000, []byte{})
 		reqs = append(reqs, req)
 		_, _, err := block.Write(req)
 		assert.NoError(t, err, "unexpected error writing req")
@@ -116,7 +116,7 @@ func BenchmarkWriteRead(b *testing.B) {
 	numMsgs := 100
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(100)
+		req := test.MakeRequest(100, []byte{})
 		reqs = append(reqs, req)
 	}
 

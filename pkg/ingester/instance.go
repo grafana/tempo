@@ -154,8 +154,12 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 
 	// search and return only complete traces.  traceRecords is ordered so binary search it
 	idx := sort.Search(len(i.traceRecords), func(idx int) bool {
-		return bytes.Compare(i.traceRecords[idx].TraceID, id) == -1
+		return bytes.Compare(i.traceRecords[idx].TraceID, id) <= 0
 	})
+
+	if idx < 0 || idx >= len(i.traceRecords) {
+		return nil, nil
+	}
 
 	rec := i.traceRecords[idx]
 	if bytes.Compare(rec.TraceID, id) == 0 {

@@ -34,7 +34,7 @@ func TestInstance(t *testing.T) {
 		Filepath: tempDir,
 	})
 
-	request := test.MakeRequest(10)
+	request := test.MakeRequest(10, []byte{})
 
 	i := newInstance("fake", limiter, wal)
 	i.Push(context.Background(), request)
