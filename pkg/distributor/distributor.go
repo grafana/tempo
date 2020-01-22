@@ -166,13 +166,17 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	batches := make(map[uint32]*friggpb.PushRequest)
 	batchesByIngester := make(map[string][]*friggpb.PushRequest)
 	for _, span := range req.Batch.Spans {
-		var batch *friggpb.PushRequest
+		if !validation.ValidTraceID(span.TraceId) {
+			return nil, httpgrpc.Errorf(http.StatusBadRequest, "trace ids must be 128 bit")
+		}
+
 		key := util.TokenFor(userID, span.TraceId)
 
+		var batch *friggpb.PushRequest
 		batch, ok := batches[key]
 		if !ok {
 			batch = &friggpb.PushRequest{
-				&opentelemetry_proto_collector_trace_v1.ResourceSpans{
+				Batch: &opentelemetry_proto_collector_trace_v1.ResourceSpans{
 					Spans:    make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace
 					Resource: req.Batch.Resource,
 				},
