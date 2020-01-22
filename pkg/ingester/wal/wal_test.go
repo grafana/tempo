@@ -19,8 +19,8 @@ func TestCreateBlock(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal := New(&Config{
-		filepath: tempDir,
+	wal := New(Config{
+		Filepath: tempDir,
 	})
 
 	blockID := uuid.New()
@@ -41,8 +41,8 @@ func TestReadWrite(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal := New(&Config{
-		filepath: tempDir,
+	wal := New(Config{
+		Filepath: tempDir,
 	})
 
 	blockID := uuid.New()
@@ -66,8 +66,8 @@ func TestIterator(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal := New(&Config{
-		filepath: tempDir,
+	wal := New(Config{
+		Filepath: tempDir,
 	})
 
 	blockID := uuid.New()
