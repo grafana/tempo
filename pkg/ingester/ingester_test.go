@@ -13,6 +13,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/weaveworks/common/user"
 
@@ -49,8 +50,11 @@ func TestPushQuery(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 
 	for _, trace := range traces {
-		for _, req := range trace.Batches {
-			_, err = ingester.Push(ctx, req)
+		for _, batch := range trace.Batches {
+			_, err = ingester.Push(ctx,
+				&friggpb.PushRequest{
+					Batch: batch,
+				})
 			assert.NoError(t, err, "unexpected error pushing")
 		}
 	}
@@ -76,7 +80,8 @@ func TestPushQuery(t *testing.T) {
 			TraceID: traceID,
 		})
 		assert.NoError(t, err, "unexpected error querying")
-		assert.Equal(t, traces[i], foundTrace.Trace)
+		equal := proto.Equal(traces[i], foundTrace.Trace)
+		assert.True(t, equal)
 	}
 }
 
