@@ -15,9 +15,9 @@ GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -coverprofile=coverage.txt -covermode=a
 GOTEST=go test
 LINT=golangci-lint
 
-.PHONY: tsp
-tsp:
-	GO111MODULE=on CGO_ENABLED=0 go build -o ./bin/$(GOOS)/tsp $(BUILD_INFO) ./cmd/tsp
+.PHONY: frigg
+frigg:
+	GO111MODULE=on CGO_ENABLED=0 go build -o ./bin/$(GOOS)/frigg $(BUILD_INFO) ./cmd/frigg
 
 .PHONY: test
 test:
@@ -48,7 +48,7 @@ docker-component: check-component
 	rm ./cmd/$(COMPONENT)/$(COMPONENT)
 
 .PHONY: docker-frigg
-docker-tsp:
+docker-frigg:
 	COMPONENT=frigg $(MAKE) docker-component
 
 .PHONY: check-component
