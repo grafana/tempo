@@ -25,6 +25,8 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20191126064551-80ba03c67da1
 	github.com/stretchr/testify v1.4.0
 	github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d
+	github.com/willf/bitset v1.1.10 // indirect
+	github.com/willf/bloom v2.0.3+incompatible
 	golang.org/x/net v0.0.0-20191112182307-2180aed22343
 	google.golang.org/grpc v1.25.1
 	gopkg.in/yaml.v2 v2.2.5

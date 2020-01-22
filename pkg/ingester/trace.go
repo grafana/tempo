@@ -14,21 +14,23 @@ func init() {
 }
 
 type trace struct {
-	batches    []*friggpb.PushRequest
+	trace      *friggpb.Trace
 	fp         traceFingerprint
 	lastAppend time.Time
+	traceID    []byte
 }
 
-func newTrace(fp traceFingerprint) *trace {
+func newTrace(fp traceFingerprint, traceID []byte) *trace {
 	return &trace{
 		fp:         fp,
-		batches:    []*friggpb.PushRequest{},
+		trace:      &friggpb.Trace{},
 		lastAppend: time.Now(),
+		traceID:    traceID,
 	}
 }
 
 func (t *trace) Push(_ context.Context, req *friggpb.PushRequest) error {
-	t.batches = append(t.batches, req)
+	t.trace.Batches = append(t.trace.Batches, req)
 	t.lastAppend = time.Now()
 
 	return nil

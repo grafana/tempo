@@ -20,6 +20,7 @@ import (
 
 	"github.com/joe-elliott/frigg/pkg/friggpb"
 	"github.com/joe-elliott/frigg/pkg/ingester/client"
+	"github.com/joe-elliott/frigg/pkg/ingester/wal"
 	"github.com/joe-elliott/frigg/pkg/util/validation"
 )
 
@@ -59,6 +60,7 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
+	wal     wal.WAL
 }
 
 // ChunkStore is the interface we need to store chunks.
@@ -99,6 +101,9 @@ func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *valid
 	// Now that the lifecycler has been created, we can create the limiter
 	// which depends on it.
 	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
+
+	// todo: add replay logic
+	i.wal = wal.New(cfg.WALConfig)
 
 	i.done.Add(1)
 	go i.loop()
@@ -150,6 +155,28 @@ func (i *Ingester) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb
 	return &friggpb.PushResponse{}, err
 }
 
+// FindTraceByID implements friggpb.Querier.
+func (i *Ingester) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDRequest) (*friggpb.TraceByIDResponse, error) {
+	if !validation.ValidTraceID(req.TraceID) {
+		return nil, fmt.Errorf("invalid trace id")
+	}
+
+	instanceID, err := user.ExtractOrgID(ctx)
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		return &friggpb.TraceByIDResponse{}, nil
+	}
+
+	trace, err := inst.FindTraceByID(req.TraceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &friggpb.TraceByIDResponse{
+		Trace: trace,
+	}, nil
+}
+
 // Check implements grpc_health_v1.HealthCheck.
 func (*Ingester) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
@@ -185,7 +212,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) *instance {
 	defer i.instancesMtx.Unlock()
 	inst, ok = i.instances[instanceID]
 	if !ok {
-		inst = newInstance(instanceID, i.limiter)
+		inst = newInstance(instanceID, i.limiter, i.wal)
 		i.instances[instanceID] = inst
 	}
 	return inst

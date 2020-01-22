@@ -737,8 +737,13 @@ github.com/weaveworks/common v0.0.0-20190822150010-afb9996716e4/go.mod h1:pSm+0K
 github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d h1:lD81tX/BEZ+7KCXgiVQJkpbKm89htY8K2U7ivSrbTew=
 github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d/go.mod h1:pSm+0KR57BG3pvGoJWFXJSAC7+sEPewcvdt5StevL3A=
 github.com/weaveworks/common v0.0.0-20200116193307-699fb0a803ad h1:tYVUjFQia4pceAV9+BvmPDM0t5bgMkv1V3E295Ce9qc=
+github.com/weaveworks/common v0.0.0-20200121152915-f95aa0ece940 h1:UTs+t8K8+RnCmVrJqmFppJ2LXkmxsyzcP6NuqVTafTs=
 github.com/weaveworks/promrus v1.2.0 h1:jOLf6pe6/vss4qGHjXmGz4oDJQA+AOCqEL3FvvZGz7M=
 github.com/weaveworks/promrus v1.2.0/go.mod h1:SaE82+OJ91yqjrE1rsvBWVzNZKcHYFtMUyS1+Ogs/KA=
+github.com/willf/bitset v1.1.10 h1:NotGKqX0KwQ72NUzqrjZq5ipPNDQex9lo3WpaS8L2sc=
+github.com/willf/bitset v1.1.10/go.mod h1:RjeCKbqT1RxIR/KWY6phxZiaY1IyutSBfGjNPySAYV4=
+github.com/willf/bloom v2.0.3+incompatible h1:QDacWdqcAUI1MPOwIQZRy9kOR7yxfyEmxX8Wdm2/JPA=
+github.com/willf/bloom v2.0.3+incompatible/go.mod h1:MmAltL9pDMNTrvUkxdg0k0q5I0suxmuwp3KbyrZLOZ8=
 github.com/xanzy/go-gitlab v0.15.0/go.mod h1:8zdQa/ri1dfn8eS3Ir1SyfvOKlw7WBJ8DVThkpGiXrs=
 github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c/go.mod h1:lB8K/P019DLNhemzwFU4jHLhdvlE6uDZjXFejJXr49I=
 github.com/xdg/stringprep v1.0.0/go.mod h1:Jhud4/sHMO4oL310DaZAKk9ZaJ08SJfe+sJh0HrGL1Y=

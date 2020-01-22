@@ -33,3 +33,8 @@ var DiscardedSamples = prometheus.NewCounterVec(
 func init() {
 	prometheus.MustRegister(DiscardedSamples, DiscardedBytes)
 }
+
+// ValidTraceID confirms that trace ids are 128 bits
+func ValidTraceID(id []byte) bool {
+	return len(id) == 16
+}

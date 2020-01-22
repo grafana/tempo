@@ -1,5 +1,5 @@
 package wal
 
 type Config struct {
-	filepath string
+	Filepath string
 }

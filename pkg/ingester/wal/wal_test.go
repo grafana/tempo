@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
@@ -18,8 +19,8 @@ func TestCreateBlock(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal := New(&Config{
-		filepath: tempDir,
+	wal := New(Config{
+		Filepath: tempDir,
 	})
 
 	blockID := uuid.New()
@@ -40,8 +41,8 @@ func TestReadWrite(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal := New(&Config{
-		filepath: tempDir,
+	wal := New(Config{
+		Filepath: tempDir,
 	})
 
 	blockID := uuid.New()
@@ -50,7 +51,7 @@ func TestReadWrite(t *testing.T) {
 	block, err := wal.NewBlock(blockID, instanceID)
 	assert.NoError(t, err, "unexpected error creating block")
 
-	req := test.MakeRequest(10)
+	req := test.MakeRequest(10, []byte{})
 	start, length, err := block.Write(req)
 	assert.NoError(t, err, "unexpected error creating writing req")
 
@@ -65,8 +66,8 @@ func TestIterator(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal := New(&Config{
-		filepath: tempDir,
+	wal := New(Config{
+		Filepath: tempDir,
 	})
 
 	blockID := uuid.New()
@@ -78,28 +79,24 @@ func TestIterator(t *testing.T) {
 	numMsgs := 10
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(rand.Int() % 1000)
+		req := test.MakeRequest(rand.Int()%1000, []byte{})
 		reqs = append(reqs, req)
 		_, _, err := block.Write(req)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	iterator, err := block.Iterator()
-	assert.NoError(t, err, "unexpected error getting iterator")
-
 	outReq := &friggpb.PushRequest{}
 	i := 0
-	for {
-		more, err := iterator(outReq)
-		assert.NoError(t, err, "unexpected error creating reading req")
+	err = block.Iterator(outReq, func(msg proto.Message) (bool, error) {
+		req := msg.(*friggpb.PushRequest)
 
-		if !more {
-			break
-		}
-		assert.Equal(t, outReq, reqs[i])
+		assert.Equal(t, req, reqs[i])
 		i++
-	}
 
+		return true, nil
+	})
+
+	assert.NoError(t, err, "unexpected error iterating")
 	assert.Equal(t, numMsgs, i)
 }
 
@@ -107,8 +104,8 @@ func BenchmarkWriteRead(b *testing.B) {
 	tempDir, _ := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 
-	wal := New(&Config{
-		filepath: tempDir,
+	wal := New(Config{
+		Filepath: tempDir,
 	})
 
 	blockID := uuid.New()
@@ -116,10 +113,10 @@ func BenchmarkWriteRead(b *testing.B) {
 
 	// 1 million requests, 10k spans per request
 	block, _ := wal.NewBlock(blockID, instanceID)
-	numMsgs := 1000
+	numMsgs := 100
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(1000)
+		req := test.MakeRequest(100, []byte{})
 		reqs = append(reqs, req)
 	}
 

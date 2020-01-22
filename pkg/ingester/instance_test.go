@@ -2,9 +2,12 @@ package ingester
 
 import (
 	"context"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/joe-elliott/frigg/pkg/ingester/wal"
 	"github.com/joe-elliott/frigg/pkg/util/test"
 	"github.com/joe-elliott/frigg/pkg/util/validation"
 
@@ -24,9 +27,16 @@ func TestInstance(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	request := test.MakeRequest(10)
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+	wal := wal.New(wal.Config{
+		Filepath: tempDir,
+	})
 
-	i := newInstance("fake", limiter)
+	request := test.MakeRequest(10, []byte{})
+
+	i := newInstance("fake", limiter, wal)
 	i.Push(context.Background(), request)
 
 	i.CutCompleteTraces(0, true)
@@ -37,7 +47,12 @@ func TestInstance(t *testing.T) {
 	ready = i.IsBlockReady(0, 30*time.Hour)
 	assert.True(t, ready, "block should be ready due to max traces")
 
-	block := i.GetBlock()
-	assert.Equal(t, 1, len(block))
-	assert.Equal(t, request, block[0].batches[0])
+	records, _ := i.GetBlock()
+	assert.Equal(t, 1, len(records))
+
+	err = i.ResetBlock()
+	assert.NoError(t, err, "unexpected error resetting block")
+
+	records, _ = i.GetBlock()
+	assert.Equal(t, 0, len(records))
 }
