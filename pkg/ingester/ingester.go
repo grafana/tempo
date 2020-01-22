@@ -20,6 +20,7 @@ import (
 
 	"github.com/joe-elliott/frigg/pkg/friggpb"
 	"github.com/joe-elliott/frigg/pkg/ingester/client"
+	"github.com/joe-elliott/frigg/pkg/ingester/wal"
 	"github.com/joe-elliott/frigg/pkg/util/validation"
 )
 
@@ -59,6 +60,7 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
+	wal     wal.WAL
 }
 
 // ChunkStore is the interface we need to store chunks.
@@ -99,6 +101,9 @@ func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *valid
 	// Now that the lifecycler has been created, we can create the limiter
 	// which depends on it.
 	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
+
+	// todo: add replay logic
+	i.wal = wal.New(cfg.WALConfig)
 
 	i.done.Add(1)
 	go i.loop()
@@ -185,7 +190,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) *instance {
 	defer i.instancesMtx.Unlock()
 	inst, ok = i.instances[instanceID]
 	if !ok {
-		inst = newInstance(instanceID, i.limiter)
+		inst = newInstance(instanceID, i.limiter, i.wal)
 		i.instances[instanceID] = inst
 	}
 	return inst

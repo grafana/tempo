@@ -5,13 +5,16 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/joe-elliott/frigg/pkg/ingester/client"
 	"google.golang.org/grpc/health/grpc_health_v1"
+
+	"github.com/joe-elliott/frigg/pkg/ingester/client"
+	"github.com/joe-elliott/frigg/pkg/ingester/wal"
 )
 
 // Config for an ingester.
 type Config struct {
 	LifecyclerConfig ring.LifecyclerConfig `yaml:"lifecycler,omitempty"`
+	WALConfig        wal.Config            `yaml:"wal_config"`
 
 	// Config for transferring chunks.
 	MaxTransferRetries int `yaml:"max_transfer_retries,omitempty"`

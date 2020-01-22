@@ -7,6 +7,7 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
+	"github.com/joe-elliott/frigg/pkg/storage"
 )
 
 var ()
@@ -57,7 +58,6 @@ func (i *Ingester) sweepUsers(immediate bool) {
 
 	for _, instance := range instances {
 		i.sweepInstance(instance, immediate)
-		i.removeFlushedTraces(instance)
 	}
 }
 
@@ -66,7 +66,11 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	defer instance.tracesMtx.Unlock()
 
 	// cut traces internally
-	instance.CutCompleteTraces(i.cfg.MaxTraceIdle, immediate)
+	err := instance.CutCompleteTraces(i.cfg.MaxTraceIdle, immediate)
+	if err != nil {
+		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut traces", "err", err)
+		return
+	}
 
 	// see if it's ready to cut a block?
 	if instance.IsBlockReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration) {
@@ -111,10 +115,22 @@ func (i *Ingester) flushLoop(j int) {
 
 func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 	// friggtodo: actually flush something here
+	instance := i.getOrCreateInstance(userID)
 
-	return nil
-}
+	if instance == nil {
+		return fmt.Errorf("instance id %s not found", userID)
+	}
 
-func (i *Ingester) removeFlushedTraces(instance *instance) {
-	// friggtodo: actually remove traces
+	records, block := instance.GetBlock()
+	uuid, file := block.Identity()
+
+	err := i.store.(storage.Store).WriteBlock(uuid, userID, records, file)
+
+	if err != nil {
+		return err
+	}
+
+	err = instance.ResetBlock()
+
+	return err
 }

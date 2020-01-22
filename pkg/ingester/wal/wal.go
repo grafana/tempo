@@ -20,14 +20,15 @@ type WAL interface {
 }
 
 type WALBlock interface {
-	Write(p proto.Message) (int64, int32, error)
-	Read(start int64, offset int32, out proto.Message) error
+	Write(p proto.Message) (uint64, uint32, error)
+	Read(start uint64, offset uint32, out proto.Message) error
 	Clear() error
 	Iterator(read proto.Message, fn IterFunc) error
+	Identity() (uuid.UUID, string)
 }
 
 type wal struct {
-	c *Config
+	c Config
 }
 
 type walblock struct {
@@ -39,14 +40,14 @@ type walblock struct {
 	instanceID string
 }
 
-func New(c *Config) WAL {
+func New(c Config) WAL {
 	return &wal{
 		c: c,
 	}
 }
 
 func (w *wal) AllBlocks() ([]WALBlock, error) {
-	files, err := ioutil.ReadDir(fmt.Sprintf("%s", w.c.filepath))
+	files, err := ioutil.ReadDir(fmt.Sprintf("%s", w.c.Filepath))
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +61,7 @@ func (w *wal) AllBlocks() ([]WALBlock, error) {
 		}
 
 		blocks = append(blocks, &walblock{
-			filepath:   w.c.filepath,
+			filepath:   w.c.Filepath,
 			blockID:    blockID,
 			instanceID: instanceID,
 		})
@@ -70,7 +71,7 @@ func (w *wal) AllBlocks() ([]WALBlock, error) {
 }
 
 func (w *wal) NewBlock(id uuid.UUID, instanceID string) (WALBlock, error) {
-	name := fullFilename(w.c.filepath, id, instanceID)
+	name := fullFilename(w.c.Filepath, id, instanceID)
 
 	_, err := os.Create(name)
 	if err != nil {
@@ -78,13 +79,17 @@ func (w *wal) NewBlock(id uuid.UUID, instanceID string) (WALBlock, error) {
 	}
 
 	return &walblock{
-		filepath:   w.c.filepath,
+		filepath:   w.c.Filepath,
 		blockID:    id,
 		instanceID: instanceID,
 	}, nil
 }
 
-func (w *walblock) Write(p proto.Message) (int64, int32, error) {
+func (w *walblock) Identity() (uuid.UUID, string) {
+	return w.blockID, fullFilename(w.filepath, w.blockID, w.instanceID)
+}
+
+func (w *walblock) Write(p proto.Message) (uint64, uint32, error) {
 	name := fullFilename(w.filepath, w.blockID, w.instanceID)
 	var err error
 
@@ -116,10 +121,10 @@ func (w *walblock) Write(p proto.Message) (int64, int32, error) {
 		return 0, 0, err
 	}
 
-	return info.Size(), int32(length), nil
+	return uint64(info.Size()), uint32(length), nil
 }
 
-func (w *walblock) Read(start int64, length int32, out proto.Message) error {
+func (w *walblock) Read(start uint64, length uint32, out proto.Message) error {
 	name := fullFilename(w.filepath, w.blockID, w.instanceID)
 	var err error
 
@@ -132,7 +137,7 @@ func (w *walblock) Read(start int64, length int32, out proto.Message) error {
 	}
 
 	b := make([]byte, length)
-	_, err = w.readFile.ReadAt(b, start)
+	_, err = w.readFile.ReadAt(b, int64(start))
 	if err != nil {
 		return err
 	}

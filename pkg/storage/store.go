@@ -12,6 +12,8 @@ import (
 // Store is the Frigg chunk store to retrieve and save chunks.
 type Store interface {
 	chunk.Store
+	TraceReader
+	TraceWriter
 }
 
 type store struct {
