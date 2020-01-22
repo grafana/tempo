@@ -56,7 +56,9 @@ func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID str
 		return fmt.Errorf("traces file not found %s", tracesFilePath)
 	}
 
-	// copy traces file
+	// copy traces file.
+	//  todo:  consider having the storage backend responsible for removing the WAL.  in this case we could just
+	//   do a rename here which would be way faster.
 	src, err := os.Open(tracesFilePath)
 	if err != nil {
 		return err
