@@ -116,7 +116,6 @@ func (i *Ingester) flushLoop(j int) {
 }
 
 func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
-	// friggtodo: actually flush something here
 	instance := i.getOrCreateInstance(userID)
 
 	if instance == nil {

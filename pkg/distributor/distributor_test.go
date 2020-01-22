@@ -56,8 +56,7 @@ func TestDistributor(t *testing.T) {
 			flagext.DefaultValues(limits)
 			limits.EnforceMetricName = false
 
-			// friggtodo:  test limits
-
+			// todo:  test limits
 			d := prepare(t, limits, nil)
 
 			request := test.MakeRequest(tc.lines, []byte{})

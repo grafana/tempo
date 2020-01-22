@@ -162,7 +162,7 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
 	var descs [maxExpectedReplicationSet]ring.IngesterDesc
 
-	// todo: add a metric to understand traces per batch
+	// todo: add a metric to track traces per batch
 	batches := make(map[uint32]*friggpb.PushRequest)
 	batchesByIngester := make(map[string][]*friggpb.PushRequest)
 	for _, span := range req.Batch.Spans {

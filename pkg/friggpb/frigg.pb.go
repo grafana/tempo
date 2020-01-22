@@ -69,7 +69,6 @@ func (m *TraceByIDResponse) GetTrace() *Trace {
 	return nil
 }
 
-// todo:  defining a Trace as a bunch of push requests seems dumb-ish.  rename push request to "batch"?
 type Trace struct {
 	Batches []*opentelemetry_proto_collector_trace_v1.ResourceSpans `protobuf:"bytes,1,rep,name=batches" json:"batches,omitempty"`
 }

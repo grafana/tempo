@@ -94,7 +94,7 @@ func (w *walblock) Write(p proto.Message) (uint64, uint32, error) {
 	var err error
 
 	if w.appendFile == nil {
-		f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644) // todo:  evaluate reopening on each write?
+		f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
 			return 0, 0, err
 		}

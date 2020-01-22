@@ -22,7 +22,6 @@ message TraceByIDResponse {
   Trace trace = 1;
 }
 
-// todo:  defining a Trace as a bunch of push requests seems dumb-ish.  rename push request to "batch"?
 message Trace {
   repeated opentelemetry.proto.collector.trace.v1.ResourceSpans batches = 1;
 }
