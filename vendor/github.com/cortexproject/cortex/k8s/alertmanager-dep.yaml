@@ -1,0 +1,24 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: alertmanager
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: alertmanager
+    spec:
+      containers:
+      - name: alertmanager
+        image: quay.io/cortexproject/cortex
+        imagePullPolicy: IfNotPresent
+        args:
+        - -target=alertmanager
+        - -log.level=debug
+        - -server.http-listen-port=80
+        - -alertmanager.configs.url=http://configs.default.svc.cluster.local:80
+        - -alertmanager.web.external-url=/api/prom/alertmanager
+        ports:
+        - containerPort: 80

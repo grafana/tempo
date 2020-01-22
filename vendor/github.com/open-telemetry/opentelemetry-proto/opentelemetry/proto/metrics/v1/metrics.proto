@@ -1,0 +1,393 @@
+// Copyright 2019, OpenTelemetry Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package opentelemetry.proto.metrics.v1;
+
+import "opentelemetry/proto/common/v1/common.proto";
+
+option java_multiple_files = true;
+option java_package = "io.opentelemetry.proto.metrics.v1";
+option java_outer_classname = "MetricsProto";
+option go_package = "github.com/open-telemetry/opentelemetry-proto/gen/go/metrics/v1";
+
+// Defines a Metric which has one or more timeseries.
+//
+// The data model and relation between entities is shown in the diagram below.
+//
+// - Metric is composed of a MetricDescriptor and a list of data points.
+// - MetricDescriptor contains a list of label keys (shown horizontally).
+// - Data is a list of DataPoints (shown vertically).
+// - DataPoint contains a list of label values and a value.
+//
+//     Metric
+//  +----------+         +------------------------+
+//  |descriptor|-------->| MetricDescriptor       |
+//  |          |         |+-----+-----+   +-----+ |
+//  |          |         ||label|label|...|label| |
+//  |      data|--+      ||key1 |key2 |   |keyN | |
+//  +----------+  |      |+-----+-----+   +-----+ |
+//                |      +------------------------+
+//                |
+//                |      +---------------------------+
+//                |      |DataPoint 1                |
+//                v      |+------+------+   +------+ |
+//             +-----+   ||label |label |...|label | |
+//             |  1  |-->||value1|value2|...|valueN| |
+//             +-----+   |+------+------+   +------+ |
+//             |  .  |   |+-----+                    |
+//             |  .  |   ||value|                    |
+//             |  .  |   |+-----+                    |
+//             |  .  |   +---------------------------+
+//             |  .  |                   .
+//             |  .  |                   .
+//             |  .  |                   .
+//             |  .  |   +---------------------------+
+//             |  .  |   |DataPoint M                |
+//             +-----+   |+------+------+   +------+ |
+//             |  M  |-->||label |label |...|label | |
+//             +-----+   ||value1|value2|...|valueN| |
+//                       |+------+------+   +------+ |
+//                       |+-----+                    |
+//                       ||value|                    |
+//                       |+-----+                    |
+//                       +---------------------------+
+//
+//-----------------------------------------------------------------------
+// DataPoint is a value of specific type corresponding to a given moment in
+// time. Each DataPoint is timestamped.
+//
+// DataPoint is strongly typed: each DataPoint type has a specific Protobuf message
+// depending on the value type of the metric and thus there are currently 4 DataPoint
+// messages, which correspond to the types of metric values.
+message Metric {
+  // metric_descriptor describes the Metric.
+  MetricDescriptor metric_descriptor = 1;
+
+  // Data is a list of one or more DataPoints for a single metric. Only one of the
+  // following fields is used for the data, depending on the type of the metric defined
+  // by MetricDescriptor.type field.
+  repeated Int64DataPoint int64_datapoints = 2;
+  repeated DoubleDataPoint double_datapoints = 3;
+  repeated HistogramDataPoint histogram_datapoints = 4;
+  repeated SummaryDataPoint summary_datapoints = 5;
+}
+
+// Defines a metric type and its schema.
+message MetricDescriptor {
+  // name of the metric, including its DNS name prefix. It must be unique.
+  string name = 1;
+
+  // description of the metric, which can be used in documentation.
+  string description = 2;
+
+  // unit in which the metric value is reported. Follows the format
+  // described by http://unitsofmeasure.org/ucum.html.
+  string unit = 3;
+
+  // Type of the metric. It describes how the data is reported.
+  //
+  // A gauge is an instantaneous measurement of a value.
+  //
+  // A counter/cumulative measurement is a value accumulated over a time
+  // interval. In a time series, cumulative measurements should have the same
+  // start time, increasing values, until an event resets the cumulative value
+  // to zero and sets a new start time for the subsequent points.
+  enum Type {
+    // Do not use this default value.
+    UNSPECIFIED = 0;
+
+    // Integer gauge. The value can go both up and down over time.
+    // Corresponding values are stored in Int64DataPoint.
+    GAUGE_INT64 = 1;
+
+    // Floating point gauge. The value can go both up and down over time.
+    // Corresponding values are stored in DoubleDataPoint.
+    GAUGE_DOUBLE = 2;
+
+    // Histogram gauge measurement.
+    // Used in scenarios like a snapshot of time that current items in a queue
+    // have spent there.
+    // Corresponding values are stored in HistogramDataPoint. The count and sum of the
+    // histogram can go both up and down over time. Recorded values are always >= 0.
+    GAUGE_HISTOGRAM = 3;
+
+    // Integer counter measurement. The value cannot decrease; if value is reset then
+    // CounterInt64Value.start_time_unixnano should also be reset.
+    // Corresponding values are stored in Int64DataPoint.
+    COUNTER_INT64 = 4;
+
+    // Floating point counter measurement. The value cannot decrease, if
+    // resets then the CounterDoubleValue.start_time_unixnano should also be reset.
+    // Recorded values are always >= 0.
+    // Corresponding values are stored in DoubleDataPoint.
+    COUNTER_DOUBLE = 5;
+
+    // Histogram cumulative measurement.
+    // Corresponding values are stored in HistogramDataPoint. The count and sum of the
+    // histogram cannot decrease; if values are reset then HistogramValue.start_time_unixnano
+    // should also be reset to the new start timestamp.
+    CUMULATIVE_HISTOGRAM = 6;
+
+    // Summary value. Some frameworks implemented Histograms as a summary of observations
+    // (usually things like request durations and response sizes). While it
+    // also provides a total count of observations and a sum of all observed
+    // values, it calculates configurable percentiles over a sliding time
+    // window.
+    // Corresponding values are stored in SummaryDataPoint.
+    SUMMARY = 7;
+  }
+  Type type = 4;
+
+  // The label keys associated with the metric descriptor. Keys in this list must
+  // be unique.
+  repeated string label_keys = 5;
+}
+
+// Int64DataPoint is a single data point in a timeseries that describes the time-varying
+// values of a int64 metric.
+message Int64DataPoint {
+  // The set of label values that uniquely identify this timeseries. The order of label
+  // values must match that of label keys in the metric descriptor. Each element in this
+  // array is the value of the key defined at the corresponding index of
+  // MetricDescriptor.label_keys array. The number of elements in this array and
+  // MetricDescriptor.label_keys array must be the same.
+  repeated string label_values = 1;
+
+  // The value of data point.
+  Int64Value value = 2;
+}
+
+// DoubleDataPoint is a single data point in a timeseries that describes the time-varying
+// value of a double metric.
+message DoubleDataPoint {
+  // The set of label values that uniquely identify this timeseries. The order of label
+  // values must match that of label keys in the metric descriptor. Each element in this
+  // array is the value of the key defined at the corresponding index of
+  // MetricDescriptor.label_keys array. The number of elements in this array and
+  // MetricDescriptor.label_keys array must be the same.
+  repeated string label_values = 1;
+
+  // The value of data point.
+  DoubleValue value = 2;
+}
+
+// HistogramDataPoint is a single data point in a timeseries that describes the time-varying
+// values of a Histogram.
+message HistogramDataPoint {
+  // The set of label values that uniquely identify this timeseries. The order of label
+  // values must match that of label keys in the metric descriptor. Each element in this
+  // array is the value of the key defined at the corresponding index of
+  // MetricDescriptor.label_keys array. The number of elements in this array and
+  // MetricDescriptor.label_keys array must be the same.
+  repeated string label_values = 1;
+
+  // The value of data point.
+  HistogramValue value = 2;
+
+  // ExplicitBounds specifies buckets with explicitly defined bounds for values.
+  message ExplicitBounds {
+    // The bucket boundaries are described by "bounds" field.
+    //
+    // This defines size(bounds) + 1 (= N) buckets. The boundaries for bucket
+    // at index i are:
+    //
+    // [0, bounds[i]) for i == 0
+    // [bounds[i-1], bounds[i]) for 0 < i < N-1
+    // [bounds[i], +infinity) for i == N-1
+    // The values in bounds array must be strictly increasing and > 0.
+    //
+    // Note: only [a, b) intervals are currently supported for each bucket. If we decides
+    // to also support (a, b] intervals we should add support for these by defining a boolean
+    // value which decides what type of intervals to use.
+    repeated double bounds = 1;
+  }
+
+  // A histogram may optionally contain the distribution of the values in the population.
+  // In that case one of the option fields below and "buckets" field in HistogramValue
+  // both must be defined. Otherwise all option fields and "buckets" field must be omitted
+  // in which case the distribution of values in the histogram is unknown and only the
+  // total count and sum are known.
+  //
+  // Bucket options apply to all points in this HistogramDataPoint. To define
+  // different bucket options for different points create separate instances of
+  // HistogramDataPoint each with its own bucket options.
+
+  // explicit_bounds is the only supported bucket option currently.
+  ExplicitBounds explicit_bounds = 3;
+}
+
+// SummaryDataPoint is a single data point in a timeseries that describes the time-varying
+// values of a Summary metric.
+message SummaryDataPoint {
+  // The set of label values that uniquely identify this timeseries. The order of label
+  // values must match that of label keys in the metric descriptor. Each element in this
+  // array is the value of the key defined at the corresponding index of
+  // MetricDescriptor.label_keys array. The number of elements in this array and
+  // MetricDescriptor.label_keys array must be the same.
+  repeated string label_values = 1;
+
+  // The value of data point.
+  SummaryValue value = 2;
+}
+
+// Int64Value is a timestamped measurement of int64 value.
+message Int64Value {
+  // start_time_unixnano is the time when the cumulative value was reset to zero.
+  // This is used for Counter type only. For Gauge the value is not specified and
+  // defaults to 0.
+  //
+  // The cumulative value is over the time interval (start_time_unixnano, timestamp_unixnano].
+  // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+  //
+  // Value of 0 indicates that the timestamp is unspecified. In that case the timestamp
+  // may be decided by the backend.
+  fixed64 start_time_unixnano = 1;
+
+  // timestamp_unixnano is the moment when this value was recorded.
+  // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+  fixed64 timestamp_unixnano = 2;
+
+  // value itself.
+  int64 value = 3;
+}
+
+// DoubleValue is a timestamped measurement of double value.
+message DoubleValue {
+  // start_time_unixnano is the time when the cumulative value was reset to zero.
+  // This is used for Counter type only. For Gauge the value is not specified and
+  // defaults to 0.
+  //
+  // The cumulative value is over the time interval (start_time_unixnano, timestamp_unixnano].
+  // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+  //
+  // Value of 0 indicates that the timestamp is unspecified. In that case the timestamp
+  // may be decided by the backend.
+  fixed64 start_time_unixnano = 1;
+
+  // timestamp_unixnano is the moment when this value was recorded.
+  // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+  fixed64 timestamp_unixnano = 2;
+
+  // value itself.
+  double value = 3;
+}
+
+// HistogramValue contains summary statistics for a population of values. It may
+// optionally contain the distribution of those values across a set of buckets.
+message HistogramValue {
+  // start_time_unixnano is the time when the cumulative value was reset to zero.
+  //
+  // The cumulative value is over the time interval (start_time_unixnano, timestamp_unixnano].
+  // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+  //
+  // Value of 0 indicates that the timestamp is unspecified. In that case the timestamp
+  // may be decided by the backend.
+  // Note: this field is always unspecified and ignored if MetricDescriptor.type==GAUGE_HISTOGRAM.
+  fixed64 start_time_unixnano = 1;
+
+  // timestamp_unixnano is the moment when this value was recorded.
+  // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+  fixed64 timestamp_unixnano = 2;
+
+  // count is the number of values in the population. Must be non-negative. This value
+  // must be equal to the sum of the "count" fields in buckets if a histogram is
+  // provided.
+  int64 count = 3;
+
+  // sum of the values in the population. If count is zero then this field
+  // must be zero. This value must be equal to the sum of the "sum" fields in buckets if
+  // a histogram is provided.
+  double sum = 4;
+
+  // Bucket contains values for a bucket.
+  message Bucket {
+    // The number of values in each bucket of the histogram, as described by
+    // bucket_options.
+    int64 count = 1;
+
+    // Exemplars are example points that may be used to annotate aggregated
+    // Histogram values. They are metadata that gives information about a
+    // particular value added to a Histogram bucket.
+    message Exemplar {
+      // Value of the exemplar point. It determines which bucket the exemplar belongs to.
+      // If bucket_options define bounds for this bucket then this value must be within
+      // the defined bounds.
+      double value = 1;
+
+      // timestamp_unixnano is the moment when this exemplar was recorded.
+      // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+      fixed64 timestamp_unixnano = 2;
+
+      // exemplar_attachments are contextual information about the example value.
+      // Keys in this list must be unique.
+      repeated opentelemetry.proto.common.v1.StringKeyValue attachments = 3;
+    }
+
+    // exemplar is an optional representative value of the bucket.
+    Exemplar exemplar = 2;
+  }
+
+  // buckets is an optional field contains the values of histogram for each bucket.
+  //
+  // The sum of the values in the buckets "count" field must equal the value in the
+  // count field of HistogramValue.
+  //
+  // The number of elements in buckets array must be by one greater than the
+  // number of elements in bucket_bounds array.
+  //
+  // Note: if HistogramDataPoint.bucket_options defines bucket bounds then this field
+  // must also be present and number of elements in this field must be equal to the
+  // number of buckets defined by bucket_options.
+  repeated Bucket buckets = 5;
+}
+
+// The start_timestamp only applies to the count and sum in the SummaryValue.
+message SummaryValue {
+  // start_time_unixnano is the time when the cumulative value was reset to zero.
+  //
+  // The cumulative value is over the time interval (start_time_unixnano, timestamp_unixnano].
+  // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+  //
+  // Value of 0 indicates that the timestamp is unspecified. In that case the timestamp
+  // may be decided by the backend.
+  fixed64 start_time_unixnano = 1;
+
+  // timestamp_unixnano is the moment when this value was recorded.
+  // Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+  fixed64 timestamp_unixnano = 2;
+
+  // The total number of recorded values since start_time. Optional since
+  // some systems don't expose this.
+  fixed64 count = 3;
+
+  // The total sum of recorded values since start_time. Optional since some
+  // systems don't expose this. If count is zero then this field must be zero.
+  double sum = 4;
+
+  // Represents the value at a given percentile of a distribution.
+  message ValueAtPercentile {
+    // The percentile of a distribution. Must be in the interval
+    // (0.0, 100.0].
+    double percentile = 1;
+
+    // The value at the given percentile of a distribution.
+    double value = 2;
+  }
+
+  // A list of values at different percentiles of the distribution calculated
+  // from the current snapshot. The percentiles must be strictly increasing.
+  repeated ValueAtPercentile percentile_values = 5;
+}

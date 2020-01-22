@@ -62,3 +62,6 @@ endif
 .PHONY: deps
 deps:
 	GO111MODULE=on GOPROXY=https://proxy.golang.org go mod vendor
+	# go get -u github.com/goware/modvendor
+	echo "github.com/open-telemetry/opentelemetry-proto" >> vendor/modules.txt
+	modvendor -copy="**/*.proto" -v

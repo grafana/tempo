@@ -1,0 +1,35 @@
+version: 2
+
+# https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
+defaults: &defaults
+  docker:
+    - image: weaveworks/build-golang:1.12.1-stretch
+  working_directory: /go/src/github.com/weaveworks/common
+
+workflows:
+  version: 2
+  test-build-deploy:
+    jobs:
+    - lint
+    - test
+
+jobs:
+  lint:
+    <<: *defaults
+    steps:
+    - checkout
+    - run:
+        name: Lint
+        command: |
+          dep ensure &&
+          make BUILD_IN_CONTAINER=false lint
+
+  test:
+    <<: *defaults
+    steps:
+    - checkout
+    - run:
+        name: Test
+        command: |
+          dep ensure &&
+          make BUILD_IN_CONTAINER=false test
