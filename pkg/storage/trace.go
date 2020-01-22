@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"context"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/willf/bloom"
@@ -10,7 +12,7 @@ import (
 )
 
 type TraceWriter interface {
-	WriteBlock(blockID uuid.UUID, tenantID string, records []*TraceRecord, blockFilePath string) error
+	WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*TraceRecord, blockFilePath string) error
 }
 
 type TraceReader interface {
@@ -22,14 +24,14 @@ type readerWriter struct {
 	w trace_backend.Writer
 }
 
-func (rw *readerWriter) WriteBlock(blockID uuid.UUID, tenantID string, records []*TraceRecord, blockFilePath string) error {
+func (rw *readerWriter) WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*TraceRecord, blockFilePath string) error {
 	bloomBytes, indexBytes, err := encodeRecords(records)
 
 	if err != nil {
 		return err
 	}
 
-	return rw.w.Write(blockID, tenantID, bloomBytes, indexBytes, blockFilePath)
+	return rw.w.Write(ctx, blockID, tenantID, bloomBytes, indexBytes, blockFilePath)
 }
 
 func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, error) {

@@ -1,11 +1,15 @@
 package trace_backend
 
-import "github.com/google/uuid"
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
 
 type BloomIter func(bytes []byte, blockID uuid.UUID) (bool, error)
 
 type Writer interface {
-	Write(blockID uuid.UUID, tenantID string, bBloom []byte, bIndex []byte, tracesFilePath string) error
+	Write(ctx context.Context, blockID uuid.UUID, tenantID string, bBloom []byte, bIndex []byte, tracesFilePath string) error
 }
 
 type Reader interface {

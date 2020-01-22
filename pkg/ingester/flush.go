@@ -1,6 +1,7 @@
 package ingester
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
 	"github.com/joe-elliott/frigg/pkg/storage"
+	"github.com/weaveworks/common/user"
 )
 
 var ()
@@ -124,7 +126,10 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 	records, block := instance.GetBlock()
 	uuid, file := block.Identity()
 
-	err := i.store.(storage.Store).WriteBlock(uuid, userID, records, file)
+	ctx := user.InjectOrgID(context.Background(), userID)
+	ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
+	defer cancel()
+	err := i.store.(storage.Store).WriteBlock(ctx, uuid, userID, records, file)
 
 	if err != nil {
 		return err
