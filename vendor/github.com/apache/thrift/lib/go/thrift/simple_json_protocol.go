@@ -22,7 +22,6 @@ package thrift
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -553,7 +552,7 @@ func (p *TSimpleJSONProtocol) ReadBinary() ([]byte, error) {
 	return v, p.ParsePostValue()
 }
 
-func (p *TSimpleJSONProtocol) Flush(ctx context.Context) (err error) {
+func (p *TSimpleJSONProtocol) Flush() (err error) {
 	return NewTProtocolException(p.writer.Flush())
 }
 
@@ -1065,7 +1064,7 @@ func (p *TSimpleJSONProtocol) ParseListEnd() error {
 	for _, char := range line {
 		switch char {
 		default:
-			e := fmt.Errorf("Expecting end of list \"]\", but found: \"%v\"", line)
+			e := fmt.Errorf("Expecting end of list \"]\", but found: \"", line, "\"")
 			return NewTProtocolExceptionWithType(INVALID_DATA, e)
 		case ' ', '\n', '\r', '\t', rune(JSON_RBRACKET[0]):
 			break
