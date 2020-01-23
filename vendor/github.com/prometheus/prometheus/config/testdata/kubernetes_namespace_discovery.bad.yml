@@ -1,6 +1,0 @@
-scrape_configs:
-- kubernetes_sd_configs:
-  - api_server: kubernetes:443
-    role: endpoints
-    namespaces:
-      foo: bar

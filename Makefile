@@ -65,3 +65,4 @@ deps:
 	#  unfortunately this tool is necessary to pull in no .go packages.  we're using it specifically to grab the
 	#  otel proto
 	vend -package
+	go mod vendor
