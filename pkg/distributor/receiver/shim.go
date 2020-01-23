@@ -16,6 +16,7 @@ import (
 	opentelemetry_proto_resource_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/spf13/viper"
+	"github.com/weaveworks/common/user"
 	"go.uber.org/zap"
 
 	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
@@ -29,13 +30,15 @@ type Receivers interface {
 }
 
 type receiversShim struct {
-	receivers []receiver.TraceReceiver
-	pusher    friggpb.PusherServer
+	authEnabled bool
+	receivers   []receiver.TraceReceiver
+	pusher      friggpb.PusherServer
 }
 
-func New(receiverCfg map[string]interface{}, pusher friggpb.PusherServer) (Receivers, error) {
+func New(receiverCfg map[string]interface{}, pusher friggpb.PusherServer, authEnabled bool) (Receivers, error) {
 	shim := &receiversShim{
-		pusher: pusher,
+		authEnabled: authEnabled,
+		pusher:      pusher,
 	}
 
 	v := viper.New()
@@ -106,6 +109,10 @@ func (r *receiversShim) Shutdown() error {
 
 // implements consumer.TraceConsumer
 func (r *receiversShim) ConsumeTraceData(ctx context.Context, td consumerdata.TraceData) error {
+	if !r.authEnabled {
+		ctx = user.InjectOrgID(ctx, "fake")
+	}
+
 	// todo: eventually otel collector intends to start using otel proto internally instead of opencensus
 	//  when that happens we need to update our depedency and we can remove all of this translation logic
 	// also note: this translation logic is woefully incomplete and is meant as a stopgap while we wait for the otel collector

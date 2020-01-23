@@ -78,7 +78,7 @@ type pushTracker struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overrides *validation.Overrides) (*Distributor, error) {
+func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overrides *validation.Overrides, authEnabled bool) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (grpc_health_v1.HealthClient, error) {
@@ -116,7 +116,7 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 
 	if len(cfg.Receivers) > 0 {
 		var err error
-		d.receivers, err = receiver.New(cfg.Receivers, d)
+		d.receivers, err = receiver.New(cfg.Receivers, d, authEnabled)
 		if err != nil {
 			return nil, err
 		}

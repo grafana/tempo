@@ -855,6 +855,7 @@ github.com/weaveworks/billing-client v0.0.0-20171006123215-be0d55e547b1/go.mod h
 github.com/weaveworks/common v0.0.0-20190822150010-afb9996716e4/go.mod h1:pSm+0KR57BG3pvGoJWFXJSAC7+sEPewcvdt5StevL3A=
 github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d h1:lD81tX/BEZ+7KCXgiVQJkpbKm89htY8K2U7ivSrbTew=
 github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d/go.mod h1:pSm+0KR57BG3pvGoJWFXJSAC7+sEPewcvdt5StevL3A=
+github.com/weaveworks/common v0.0.0-20200121152915-f95aa0ece940 h1:UTs+t8K8+RnCmVrJqmFppJ2LXkmxsyzcP6NuqVTafTs=
 github.com/weaveworks/promrus v1.2.0 h1:jOLf6pe6/vss4qGHjXmGz4oDJQA+AOCqEL3FvvZGz7M=
 github.com/weaveworks/promrus v1.2.0/go.mod h1:SaE82+OJ91yqjrE1rsvBWVzNZKcHYFtMUyS1+Ogs/KA=
 github.com/willf/bitset v1.1.10 h1:NotGKqX0KwQ72NUzqrjZq5ipPNDQex9lo3WpaS8L2sc=

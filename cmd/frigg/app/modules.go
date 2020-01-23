@@ -114,7 +114,7 @@ func (t *App) initOverrides() (err error) {
 }
 
 func (t *App) initDistributor() (err error) {
-	t.distributor, err = distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides)
+	t.distributor, err = distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides, t.cfg.AuthEnabled)
 	if err != nil {
 		return
 	}
