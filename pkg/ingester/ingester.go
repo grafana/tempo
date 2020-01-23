@@ -157,6 +157,7 @@ func (i *Ingester) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb
 	if err != nil {
 		return nil, err
 	}
+
 	err = instance.Push(ctx, req)
 	return &friggpb.PushResponse{}, err
 }
@@ -218,7 +219,8 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	defer i.instancesMtx.Unlock()
 	inst, ok = i.instances[instanceID]
 	if !ok {
-		inst, err := newInstance(instanceID, i.limiter, i.wal)
+		var err error
+		inst, err = newInstance(instanceID, i.limiter, i.wal)
 		if err != nil {
 			return nil, err
 		}
