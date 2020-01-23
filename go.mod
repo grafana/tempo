@@ -3,6 +3,7 @@ module github.com/joe-elliott/frigg
 go 1.13
 
 require (
+	github.com/census-instrumentation/opencensus-proto v0.2.1
 	github.com/cortexproject/cortex v0.4.1-0.20191217132644-cd4009e2f8e7
 	github.com/go-kit/kit v0.9.0
 	github.com/golang/protobuf v1.3.2

@@ -116,7 +116,7 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 
 	if len(cfg.Receivers) > 0 {
 		var err error
-		d.receivers, err = receivers.New(cfg.Receivers, d)
+		d.receivers, err = receiver.New(cfg.Receivers, d)
 		if err != nil {
 			return nil, err
 		}
