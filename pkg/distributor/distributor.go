@@ -176,49 +176,18 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (%d bytes) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 
-	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
-	var descs [maxExpectedReplicationSet]ring.IngesterDesc
-
-	// todo: add a metric to track traces per batch
-	batches := make(map[uint32]*friggpb.PushRequest)
-	batchesByIngester := make(map[string][]*friggpb.PushRequest)
-	for _, span := range req.Batch.Spans {
-		if !validation.ValidTraceID(span.TraceId) {
-			return nil, httpgrpc.Errorf(http.StatusBadRequest, "trace ids must be 128 bit")
-		}
-
-		key := util.TokenFor(userID, span.TraceId)
-
-		var batch *friggpb.PushRequest
-		batch, ok := batches[key]
-		if !ok {
-			batch = &friggpb.PushRequest{
-				Batch: &opentelemetry_proto_collector_trace_v1.ResourceSpans{
-					Spans:    make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace
-					Resource: req.Batch.Resource,
-				},
-			}
-			batches[key] = batch
-		}
-		req.Batch.Spans = append(req.Batch.Spans, span)
-
-		// now map to ingesters
-		replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
-		if err != nil {
-			return nil, err
-		}
-		for _, ingester := range replicationSet.Ingesters {
-			batchesByIngester[ingester.Addr] = append(batchesByIngester[ingester.Addr], batch)
-		}
+	requestsByIngester, totalRequests, err := d.routeRequest(req, userID, spanCount)
+	if err != nil {
+		return nil, err
 	}
 
 	tracker := pushTracker{
-		samplesPending: int32(len(batches)),
+		samplesPending: int32(totalRequests),
 		done:           make(chan struct{}),
 		err:            make(chan error),
 	}
-	for ingester, batches := range batchesByIngester {
-		go func(ingesterAddr string, batches []*friggpb.PushRequest, tracker *pushTracker) {
+	for ingester, reqs := range requestsByIngester {
+		go func(ingesterAddr string, reqs []*friggpb.PushRequest, tracker *pushTracker) {
 			// Use a background context to make sure all ingesters get samples even if we return early
 			localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
 			defer cancel()
@@ -226,8 +195,8 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 			if sp := opentracing.SpanFromContext(ctx); sp != nil {
 				localCtx = opentracing.ContextWithSpan(localCtx, sp)
 			}
-			d.sendSamples(localCtx, ingesterAddr, batches, tracker)
-		}(ingester, batches, &tracker)
+			d.sendSamples(localCtx, ingesterAddr, reqs, tracker)
+		}(ingester, reqs, &tracker)
 	}
 
 	select {
@@ -274,4 +243,45 @@ func (d *Distributor) sendSamplesErr(ctx context.Context, ingesterAddr string, r
 // Check implements the grpc healthcheck
 func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
+}
+
+func (d *Distributor) routeRequest(req *friggpb.PushRequest, userID string, spanCount int) (map[string][]*friggpb.PushRequest, int, error) {
+	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
+	var descs [maxExpectedReplicationSet]ring.IngesterDesc
+
+	// todo: add a metric to track traces per batch
+	requests := make(map[uint32]*friggpb.PushRequest)
+	for _, span := range req.Batch.Spans {
+		if !validation.ValidTraceID(span.TraceId) {
+			return nil, 0, httpgrpc.Errorf(http.StatusBadRequest, "trace ids must be 128 bit")
+		}
+
+		key := util.TokenFor(userID, span.TraceId)
+
+		routedReq, ok := requests[key]
+		if !ok {
+			routedReq = &friggpb.PushRequest{
+				Batch: &opentelemetry_proto_collector_trace_v1.ResourceSpans{
+					Spans:    make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace
+					Resource: req.Batch.Resource,
+				},
+			}
+			requests[key] = routedReq
+		}
+		routedReq.Batch.Spans = append(routedReq.Batch.Spans, span)
+	}
+
+	requestsByIngester := make(map[string][]*friggpb.PushRequest)
+	for key, routedReq := range requests {
+		// now map to ingesters
+		replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
+		if err != nil {
+			return nil, 0, err
+		}
+		for _, ingester := range replicationSet.Ingesters {
+			requestsByIngester[ingester.Addr] = append(requestsByIngester[ingester.Addr], routedReq)
+		}
+	}
+
+	return requestsByIngester, len(requests), nil
 }

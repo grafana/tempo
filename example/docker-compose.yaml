@@ -1,7 +1,6 @@
 version: "2"
 services:
 
-  # Collector
   # frigg:
   #   image: frigg:latest
   #   command: ["-config.file=/etc/local-config.yaml"]

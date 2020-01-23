@@ -120,6 +120,7 @@ func (r *receiversShim) ConsumeTraceData(ctx context.Context, td consumerdata.Tr
 		Batch: convertTraceData(td),
 	})
 
+	// todo:  confirm/deny if this error propagates back to the caller
 	return err
 }
 
