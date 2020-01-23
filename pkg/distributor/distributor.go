@@ -21,6 +21,7 @@ import (
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/joe-elliott/frigg/pkg/distributor/receiver"
 	"github.com/joe-elliott/frigg/pkg/friggpb"
 	"github.com/joe-elliott/frigg/pkg/ingester/client"
 	"github.com/joe-elliott/frigg/pkg/util"
@@ -56,6 +57,9 @@ type Distributor struct {
 	ingestersRing ring.ReadRing
 	overrides     *validation.Overrides
 	pool          *cortex_client.Pool
+
+	// receiver shims
+	receivers receiver.Receivers
 
 	// The global rate limiter requires a distributors ring to count
 	// the number of healthy instances.
@@ -100,7 +104,7 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 		ingestionRateStrategy = newLocalIngestionRateStrategy(overrides)
 	}
 
-	d := Distributor{
+	d := &Distributor{
 		cfg:                  cfg,
 		clientCfg:            clientCfg,
 		ingestersRing:        ingestersRing,
@@ -110,12 +114,25 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 	}
 
-	return &d, nil
+	if len(cfg.Receivers) > 0 {
+		var err error
+		d.receivers, err = receivers.New(cfg.Receivers, d)
+		if err != nil {
+			return nil, err
+		}
+		d.receivers.Start()
+	}
+
+	return d, nil
 }
 
 func (d *Distributor) Stop() {
 	if d.distributorsRing != nil {
 		d.distributorsRing.Shutdown()
+	}
+
+	if d.receivers != nil {
+		d.receivers.Shutdown()
 	}
 }
 

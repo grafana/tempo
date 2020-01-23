@@ -12,6 +12,9 @@ type Config struct {
 	// Distributors ring
 	DistributorRing cortex_distributor.RingConfig `yaml:"ring,omitempty"`
 
+	// receivers map for shim.
+	Receivers map[string]interface{} `yaml:"receivers"`
+
 	// For testing.
 	factory func(addr string) (grpc_health_v1.HealthClient, error) `yaml:"-"`
 }
