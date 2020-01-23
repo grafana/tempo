@@ -40,10 +40,16 @@ type walblock struct {
 	instanceID string
 }
 
-func New(c Config) WAL {
+func New(c Config) (WAL, error) {
+	// make folder
+	err := os.MkdirAll(c.Filepath, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
 	return &wal{
 		c: c,
-	}
+	}, nil
 }
 
 func (w *wal) AllBlocks() ([]WALBlock, error) {

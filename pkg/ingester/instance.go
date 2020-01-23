@@ -53,7 +53,7 @@ type instance struct {
 	wal                wal.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal wal.WAL) *instance {
+func newInstance(instanceID string, limiter *Limiter, wal wal.WAL) (*instance, error) {
 	i := &instance{
 		traces:       map[traceFingerprint]*trace{},
 		lastBlockCut: time.Now(),
@@ -63,8 +63,11 @@ func newInstance(instanceID string, limiter *Limiter, wal wal.WAL) *instance {
 		limiter:            limiter,
 		wal:                wal,
 	}
-	i.ResetBlock()
-	return i
+	err := i.ResetBlock()
+	if err != nil {
+		return nil, err
+	}
+	return i, nil
 }
 
 func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {

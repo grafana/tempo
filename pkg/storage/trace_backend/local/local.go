@@ -16,12 +16,17 @@ type readerWriter struct {
 	cfg Config
 }
 
-func New(cfg Config) (trace_backend.Reader, trace_backend.Writer) {
+func New(cfg Config) (trace_backend.Reader, trace_backend.Writer, error) {
+	err := os.MkdirAll(cfg.Path, os.ModePerm)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	rw := &readerWriter{
 		cfg: cfg,
 	}
 
-	return rw, rw
+	return rw, rw, nil
 }
 
 func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID string, bBloom []byte, bIndex []byte, tracesFilePath string) error {

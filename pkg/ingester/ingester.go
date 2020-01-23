@@ -103,7 +103,10 @@ func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *valid
 	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
 
 	// todo: add replay logic
-	i.wal = wal.New(cfg.WALConfig)
+	i.wal, err = wal.New(cfg.WALConfig)
+	if err != nil {
+		return nil, err
+	}
 
 	i.done.Add(1)
 	go i.loop()
@@ -150,7 +153,10 @@ func (i *Ingester) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb
 		return nil, ErrReadOnly
 	}
 
-	instance := i.getOrCreateInstance(instanceID)
+	instance, err := i.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
 	err = instance.Push(ctx, req)
 	return &friggpb.PushResponse{}, err
 }
@@ -202,20 +208,23 @@ func (i *Ingester) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (i *Ingester) getOrCreateInstance(instanceID string) *instance {
+func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok := i.getInstanceByID(instanceID)
 	if ok {
-		return inst
+		return inst, nil
 	}
 
 	i.instancesMtx.Lock()
 	defer i.instancesMtx.Unlock()
 	inst, ok = i.instances[instanceID]
 	if !ok {
-		inst = newInstance(instanceID, i.limiter, i.wal)
+		inst, err := newInstance(instanceID, i.limiter, i.wal)
+		if err != nil {
+			return nil, err
+		}
 		i.instances[instanceID] = inst
 	}
-	return inst
+	return inst, nil
 }
 
 func (i *Ingester) getInstanceByID(id string) (*instance, bool) {

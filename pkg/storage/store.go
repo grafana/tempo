@@ -44,14 +44,19 @@ func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConf
 }
 
 func newTraceStore(cfg TraceConfig) (TraceReader, TraceWriter, error) {
+	var err error
 	var r trace_backend.Reader
 	var w trace_backend.Writer
 
 	switch cfg.Engine {
 	case "local":
-		r, w = local.New(cfg.Local)
+		r, w, err = local.New(cfg.Local)
 	default:
-		return nil, nil, fmt.Errorf("unknown engine %s", cfg.Engine)
+		err = fmt.Errorf("unknown engine %s", cfg.Engine)
+	}
+
+	if err != nil {
+		return nil, nil, err
 	}
 
 	rw := &readerWriter{

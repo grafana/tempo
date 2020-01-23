@@ -113,12 +113,17 @@ func (i *Ingester) flushLoop(j int) {
 }
 
 func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
-	instance := i.getOrCreateInstance(userID)
+	instance, err := i.getOrCreateInstance(userID)
+	if err != nil {
+		return err
+	}
 
 	if instance == nil {
 		return fmt.Errorf("instance id %s not found", userID)
 	}
 
+	// todo:  writes to the block are ...blocked... until write/reset go through
+	//  need to queue up blocks like Loki?
 	instance.blockTracesMtx.Lock()
 	defer instance.blockTracesMtx.Unlock()
 
@@ -128,8 +133,8 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 	ctx := user.InjectOrgID(context.Background(), userID)
 	ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
 	defer cancel()
-	err := i.store.(storage.Store).WriteBlock(ctx, uuid, userID, records, file)
 
+	err = i.store.(storage.Store).WriteBlock(ctx, uuid, userID, records, file)
 	if err != nil {
 		return err
 	}

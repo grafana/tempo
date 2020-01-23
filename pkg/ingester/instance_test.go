@@ -30,13 +30,15 @@ func TestInstance(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
-	wal := wal.New(wal.Config{
+	wal, err := wal.New(wal.Config{
 		Filepath: tempDir,
 	})
+	assert.NoError(t, err, "unexpected error creating wal")
 
 	request := test.MakeRequest(10, []byte{})
 
-	i := newInstance("fake", limiter, wal)
+	i, err := newInstance("fake", limiter, wal)
+	assert.NoError(t, err, "unexpected error creating new instance")
 	i.Push(context.Background(), request)
 
 	i.CutCompleteTraces(0, true)
