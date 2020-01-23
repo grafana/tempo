@@ -59,5 +59,5 @@ func newTraceStore(cfg TraceConfig) (TraceReader, TraceWriter, error) {
 		w: w,
 	}
 
-	return rw, rw, fmt.Errorf("unknown engine %s", cfg.Engine)
+	return rw, rw, nil
 }

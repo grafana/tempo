@@ -21,7 +21,7 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp file")
 
 	r, w := New(Config{
-		path: tempDir,
+		Path: tempDir,
 	})
 
 	blockID := uuid.New()

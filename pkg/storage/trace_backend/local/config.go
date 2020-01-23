@@ -1,5 +1,5 @@
 package local
 
 type Config struct {
-	path string
+	Path string `yaml:"path"`
 }

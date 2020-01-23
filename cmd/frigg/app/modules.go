@@ -99,11 +99,6 @@ func (t *App) initServer() (err error) {
 }
 
 func (t *App) initRing() (err error) {
-	// friggtodo: get rid of this requirement?  enforce it in a different, less dumb way
-	if t.cfg.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor != 1 {
-		return fmt.Errorf("frigg only supports a replication factor of 1")
-	}
-
 	t.ring, err = ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", ring.IngesterRingKey)
 	if err != nil {
 		return err

@@ -75,7 +75,7 @@ func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID str
 }
 
 func (rw *readerWriter) Bloom(tenantID string, fn trace_backend.BloomIter) error {
-	path := path.Join(rw.cfg.path, tenantID)
+	path := path.Join(rw.cfg.Path, tenantID)
 	folders, err := ioutil.ReadDir(path)
 	if err != nil {
 		return err
@@ -144,7 +144,7 @@ func (rw *readerWriter) tracesFileName(blockID uuid.UUID, tenantID string) strin
 }
 
 func (rw *readerWriter) rootPath(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.cfg.path, tenantID, blockID.String())
+	return path.Join(rw.cfg.Path, tenantID, blockID.String())
 }
 
 func fileExists(filename string) bool {

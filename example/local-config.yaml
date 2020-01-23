@@ -3,6 +3,12 @@ auth_enabled: false
 server:
   http_listen_port: 3100
 
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        thrift-http:  # newer otelcol is thrift_http.  will need to change on update
+
 ingester:
   lifecycler:
     address: 127.0.0.1
@@ -27,11 +33,15 @@ schema_config:
       period: 168h
 
 storage_config:
-  boltdb:
-    directory: /tmp/loki/index
-
-  filesystem:
-    directory: /tmp/loki/chunks
+  columnar:
+    boltdb:
+      directory: /tmp/frigg/index
+    filesystem:
+      directory: /tmp/frigg/chunks
+  trace:
+    engine: local
+    local:
+      path: /tmp/frigg/traces
 
 limits_config:
   enforce_metric_name: false
