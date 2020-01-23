@@ -34,7 +34,9 @@ type receiversShim struct {
 }
 
 func New(receiverCfg map[string]interface{}, pusher friggpb.PusherServer) (Receivers, error) {
-	shim := &receiversShim{}
+	shim := &receiversShim{
+		pusher: pusher,
+	}
 
 	v := viper.New()
 	err := v.MergeConfigMap(receiverCfg)

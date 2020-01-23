@@ -39,6 +39,6 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.DurationVar(&cfg.FlushCheckPeriod, "ingester.flush-check-period", 30*time.Second, "")
 	f.DurationVar(&cfg.FlushOpTimeout, "ingester.flush-op-timeout", 10*time.Second, "")
 	f.DurationVar(&cfg.MaxTraceIdle, "ingester.trace-idle-period", 30*time.Second, "")
-	f.IntVar(&cfg.MaxTracesPerBlock, "ingester.traces-per-block", 3000000, "")
+	f.IntVar(&cfg.MaxTracesPerBlock, "ingester.traces-per-block", 10000, "")
 	f.DurationVar(&cfg.MaxBlockDuration, "ingester.max-block-duration", 4*time.Hour, "")
 }
