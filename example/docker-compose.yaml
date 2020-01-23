@@ -1,0 +1,21 @@
+version: "2"
+services:
+
+  # Collector
+  frigg:
+    image: frigg:latest
+    command: ["-config.file=/etc/local-config.yaml"]
+    volumes:
+      - ./local-config.yaml:/etc/local-config.yaml
+      - /tmp/frigg:/tmp/frigg
+    ports:
+      - "14268"      # jaeger
+      - "3100:3100"  # frigg
+
+  # Synthetic load generator
+  synthetic-load-generator:
+    image: omnition/synthetic-load-generator:1.0.25
+    environment:
+      - JAEGER_COLLECTOR_URL=http://frigg:14268
+    depends_on:
+      - frigg
