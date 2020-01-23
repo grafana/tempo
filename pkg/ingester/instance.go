@@ -128,16 +128,10 @@ func (i *instance) IsBlockReady(maxTracesPerBlock int, maxBlockLifetime time.Dur
 
 // GetBlock() returns complete traces.  It is up to the caller to do something sensible at this point
 func (i *instance) GetBlock() ([]*storage.TraceRecord, wal.WALBlock) {
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
-
 	return i.traceRecords, i.walBlock
 }
 
 func (i *instance) ResetBlock() error {
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
-
 	i.traceRecords = make([]*storage.TraceRecord, 0) //todo : init this with some value?  max traces per block?
 
 	if i.walBlock != nil {

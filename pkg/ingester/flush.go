@@ -64,9 +64,6 @@ func (i *Ingester) sweepUsers(immediate bool) {
 }
 
 func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
-	instance.tracesMtx.Lock()
-	defer instance.tracesMtx.Unlock()
-
 	// cut traces internally
 	err := instance.CutCompleteTraces(i.cfg.MaxTraceIdle, immediate)
 	if err != nil {
@@ -121,6 +118,9 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 	if instance == nil {
 		return fmt.Errorf("instance id %s not found", userID)
 	}
+
+	instance.blockTracesMtx.Lock()
+	defer instance.blockTracesMtx.Unlock()
 
 	records, block := instance.GetBlock()
 	uuid, file := block.Identity()
