@@ -1,5 +1,5 @@
 package wal
 
 type Config struct {
-	Filepath string
+	Filepath string `yaml:"path"`
 }

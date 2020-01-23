@@ -14,7 +14,7 @@ import (
 // Config for an ingester.
 type Config struct {
 	LifecyclerConfig ring.LifecyclerConfig `yaml:"lifecycler,omitempty"`
-	WALConfig        wal.Config            `yaml:"wal_config"`
+	WALConfig        wal.Config            `yaml:"wal"`
 
 	// Config for transferring chunks.
 	MaxTransferRetries int `yaml:"max_transfer_retries,omitempty"`

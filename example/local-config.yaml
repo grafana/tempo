@@ -10,6 +10,8 @@ distributor:
         thrift-http:  # newer otelcol is thrift_http.  will need to change on update
 
 ingester:
+  wal:
+    path: /tmp/frigg/wal
   lifecycler:
     address: 127.0.0.1
     ring:
@@ -18,7 +20,7 @@ ingester:
       replication_factor: 1
     final_sleep: 0s
   trace_idle_period: 10s
-  traces_per_block: 100000
+  traces_per_block: 1000
   max_block_duration: 30m
   max_transfer_retries: 1
 
