@@ -25,7 +25,7 @@ type readerWriter struct {
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*TraceRecord, blockFilePath string) error {
-	bloomBytes, indexBytes, err := encodeRecords(records)
+	bloomBytes, indexBytes, err := EncodeRecords(records)
 
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, 
 				return false, err
 			}
 
-			record, err := findRecord(id, indexBytes)
+			record, err := FindRecord(id, indexBytes)
 			if err != nil {
 				return false, err
 			}

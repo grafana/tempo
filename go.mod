@@ -23,6 +23,7 @@ require (
 	github.com/willf/bloom v2.0.3+incompatible
 	go.uber.org/zap v1.10.0
 	golang.org/x/net v0.0.0-20191112182307-2180aed22343
+	google.golang.org/api v0.11.0
 	google.golang.org/grpc v1.25.1
 	gopkg.in/yaml.v2 v2.2.5
 )

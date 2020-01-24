@@ -44,7 +44,7 @@ func (t *traceRecordSorter) Swap(i, j int) {
 }
 
 // todo: move encoding/decoding to a seperate util area?  is the index too large?  need an io.Reader?
-func encodeRecords(records []*TraceRecord) ([]byte, []byte, error) {
+func EncodeRecords(records []*TraceRecord) ([]byte, []byte, error) {
 	// 28 = 128 bit traceid, 64bit start, 32bit length
 	recordBytes := make([]byte, len(records)*28)
 	// todo: choose a bloom filter size to hit a configurable false positive rate
@@ -71,7 +71,7 @@ func encodeRecords(records []*TraceRecord) ([]byte, []byte, error) {
 	return recordBytes, bloomBytes, nil
 }
 
-func decodeRecords(recordBytes []byte) ([]*TraceRecord, error) {
+func DecodeRecords(recordBytes []byte) ([]*TraceRecord, error) {
 	numRecords := len(recordBytes) / 28
 	records := make([]*TraceRecord, 0, numRecords)
 
@@ -88,7 +88,7 @@ func decodeRecords(recordBytes []byte) ([]*TraceRecord, error) {
 }
 
 // binary search the bytes.  records are not compressed and ordered
-func findRecord(id TraceID, recordBytes []byte) (*TraceRecord, error) {
+func FindRecord(id TraceID, recordBytes []byte) (*TraceRecord, error) {
 	numRecords := len(recordBytes) / 28
 	record := newTraceRecord()
 
