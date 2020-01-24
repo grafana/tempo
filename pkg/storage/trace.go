@@ -17,7 +17,16 @@ type TraceWriter interface {
 }
 
 type TraceReader interface {
-	FindTrace(tenantID string, id TraceID) (*friggpb.Trace, error)
+	FindTrace(tenantID string, id TraceID) (*friggpb.Trace, FindMetrics, error)
+}
+
+type FindMetrics struct {
+	BloomFilterReads     int
+	BloomFilterBytesRead int
+	IndexReads           int
+	IndexBytesRead       int
+	BlockReads           int
+	BlockBytesRead       int
 }
 
 type readerWriter struct {
@@ -37,14 +46,19 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, blockID uuid.UUID, tenan
 	return rw.w.Write(ctx, blockID, tenantID, bloomBytes, indexBytes, blockFilePath)
 }
 
-func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, error) {
-	out := &friggpb.Trace{}
+func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, FindMetrics, error) {
+	metrics := FindMetrics{}
+	var found *friggpb.Trace
 
 	err := rw.r.Bloom(tenantID, func(bloomBytes []byte, blockID uuid.UUID) (bool, error) {
 		filter := bloom.JSONUnmarshal(bloomBytes)
+		metrics.BloomFilterReads++
+		metrics.BloomFilterBytesRead += len(bloomBytes)
 
 		if filter.Has(farm.Fingerprint64(id)) {
 			indexBytes, err := rw.r.Index(blockID, tenantID)
+			metrics.IndexReads++
+			metrics.IndexBytesRead += len(indexBytes)
 			if err != nil {
 				return false, err
 			}
@@ -56,16 +70,20 @@ func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, 
 
 			if record != nil {
 				traceBytes, err := rw.r.Trace(blockID, tenantID, record.Start, record.Length)
+				metrics.BlockReads++
+				metrics.BlockBytesRead += len(traceBytes)
 				if err != nil {
 					return false, err
 				}
 
+				out := &friggpb.Trace{}
 				err = proto.Unmarshal(traceBytes, out)
 				if err != nil {
 					return false, err
 				}
 
 				// got it
+				found = out
 				return false, nil
 			}
 
@@ -76,8 +94,8 @@ func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, 
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, metrics, err
 	}
 
-	return out, nil
+	return found, metrics, nil
 }

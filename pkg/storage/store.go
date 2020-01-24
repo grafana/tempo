@@ -30,7 +30,7 @@ func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConf
 	if err != nil {
 		return nil, err
 	}
-	r, w, err := newTraceStore(cfg.Trace)
+	r, w, err := NewTraceStore(cfg.Trace)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConf
 	}, nil
 }
 
-func newTraceStore(cfg TraceConfig) (TraceReader, TraceWriter, error) {
+func NewTraceStore(cfg TraceConfig) (TraceReader, TraceWriter, error) {
 	var err error
 	var r trace_backend.Reader
 	var w trace_backend.Writer

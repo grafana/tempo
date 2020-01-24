@@ -140,6 +140,7 @@ github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e/go.mod h1:F5haX7
 github.com/coreos/pkg v0.0.0-20160727233714-3ac0863d7acf/go.mod h1:E3G3o1h8I7cfcXa63jLwjI0eiQQMgzzUDFVpN/nH/eA=
 github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f h1:lBNOc5arjvs8E5mO2tbpBpLoyyu8B6e44T7hJy6potg=
 github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f/go.mod h1:E3G3o1h8I7cfcXa63jLwjI0eiQQMgzzUDFVpN/nH/eA=
+github.com/cortexproject/cortex v0.4.0 h1:d9bUl/d0SoPnAKYYt9oOFaJc7y5Y/jmx5LvVvxSMqM4=
 github.com/cortexproject/cortex v0.4.1-0.20191217132644-cd4009e2f8e7 h1:njm5BUay8R005/pn7JYtMUWqg0uL3Ab1Lqg46TFLSEM=
 github.com/cortexproject/cortex v0.4.1-0.20191217132644-cd4009e2f8e7/go.mod h1:q8S8k4LL/UO2jcaXNUl3NVsQBPoYM/L3sPqRkLa41oI=
 github.com/cpuguy83/go-md2man v1.0.10/go.mod h1:SmD6nW6nTyfqj6ABTjUi3V3JVMnlJmwcJI5acqYI6dE=
