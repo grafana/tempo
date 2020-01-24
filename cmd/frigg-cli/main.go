@@ -55,7 +55,7 @@ func dumpIndex(dir string) error {
 		return err
 	}
 
-	fmt.Println("records: %d", len(records))
+	fmt.Printf("records: %d\n", len(records))
 	for i, r := range records {
 		fmt.Printf("%4d : %v %v %v\n", i, r.TraceID, r.Start, r.Length)
 	}

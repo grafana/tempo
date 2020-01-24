@@ -34,10 +34,10 @@ func TestEncodeDecodeRecords(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	recordBytes, bloomBytes, err := encodeRecords(expected)
+	recordBytes, bloomBytes, err := EncodeRecords(expected)
 	assert.NoError(t, err, "unexpected error encoding records")
 
-	actual, err := decodeRecords(recordBytes)
+	actual, err := DecodeRecords(recordBytes)
 	assert.NoError(t, err, "unexpected error decoding records")
 
 	filter := bloom.New(1, 1)
@@ -64,11 +64,11 @@ func TestFindRecord(t *testing.T) {
 
 	SortRecords(expected)
 
-	recordBytes, _, err := encodeRecords(expected)
+	recordBytes, _, err := EncodeRecords(expected)
 	assert.NoError(t, err, "unexpected error encoding records")
 
 	for _, r := range expected {
-		found, err := findRecord(r.TraceID, recordBytes)
+		found, err := FindRecord(r.TraceID, recordBytes)
 
 		assert.NoError(t, err, "unexpected error finding records")
 		assert.Equal(t, r, found)

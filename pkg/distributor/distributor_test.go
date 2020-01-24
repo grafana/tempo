@@ -101,7 +101,7 @@ func prepare(t *testing.T, limits *validation.Limits, kvStore kv.Client) *Distri
 		return ingesters[addr], nil
 	}
 
-	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides)
+	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, true)
 	require.NoError(t, err)
 
 	return d

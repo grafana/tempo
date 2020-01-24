@@ -19,9 +19,10 @@ func TestCreateBlock(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal := New(Config{
+	wal, err := New(Config{
 		Filepath: tempDir,
 	})
+	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
 	instanceID := "fake"
@@ -41,9 +42,10 @@ func TestReadWrite(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal := New(Config{
+	wal, err := New(Config{
 		Filepath: tempDir,
 	})
+	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
 	instanceID := "fake"
@@ -66,9 +68,10 @@ func TestIterator(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal := New(Config{
+	wal, err := New(Config{
 		Filepath: tempDir,
 	})
+	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
 	instanceID := "fake"
@@ -104,7 +107,7 @@ func BenchmarkWriteRead(b *testing.B) {
 	tempDir, _ := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 
-	wal := New(Config{
+	wal, _ := New(Config{
 		Filepath: tempDir,
 	})
 

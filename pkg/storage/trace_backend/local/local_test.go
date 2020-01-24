@@ -20,9 +20,10 @@ func TestReadWrite(t *testing.T) {
 	defer os.Remove(fakeTracesFile.Name())
 	assert.NoError(t, err, "unexpected error creating temp file")
 
-	r, w := New(Config{
+	r, w, err := New(Config{
 		Path: tempDir,
 	})
+	assert.NoError(t, err, "unexpected error creating local backend")
 
 	blockID := uuid.New()
 	tenantID := "fake"
