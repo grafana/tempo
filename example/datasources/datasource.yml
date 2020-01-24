@@ -1,0 +1,15 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: prometheus
+
+datasources:
+- name: prometheus
+  type: prometheus
+  access: proxy
+  orgId: 1
+  url: http://prometheus:9090
+  basicAuth: false
+  isDefault: false
+  version: 1
+  editable: false
