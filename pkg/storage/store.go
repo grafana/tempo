@@ -48,20 +48,25 @@ func newTraceStore(cfg TraceConfig) (TraceReader, TraceWriter, error) {
 	var r trace_backend.Reader
 	var w trace_backend.Writer
 
-	switch cfg.Engine {
+	switch cfg.Backend {
 	case "local":
 		r, w, err = local.New(cfg.Local)
 	default:
-		err = fmt.Errorf("unknown engine %s", cfg.Engine)
+		err = fmt.Errorf("unknown local %s", cfg.Backend)
 	}
 
 	if err != nil {
 		return nil, nil, err
 	}
 
+	if cfg.BloomFilterFalsePositive <= 0.0 {
+		return nil, nil, fmt.Errorf("invalid bloom filter fp rate %v", cfg.BloomFilterFalsePositive)
+	}
+
 	rw := &readerWriter{
-		r: r,
-		w: w,
+		r:       r,
+		w:       w,
+		bloomFP: cfg.BloomFilterFalsePositive,
 	}
 
 	return rw, rw, nil

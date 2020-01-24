@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"sort"
 
+	bloom "github.com/dgraph-io/ristretto/z"
+	"github.com/dgryski/go-farm"
 	"github.com/grafana/frigg/pkg/util/validation"
-	"github.com/willf/bloom"
 )
 
 type TraceID []byte
@@ -44,13 +45,9 @@ func (t *traceRecordSorter) Swap(i, j int) {
 }
 
 // todo: move encoding/decoding to a seperate util area?  is the index too large?  need an io.Reader?
-func EncodeRecords(records []*TraceRecord) ([]byte, []byte, error) {
-	// 28 = 128 bit traceid, 64bit start, 32bit length
-	recordBytes := make([]byte, len(records)*28)
-	// todo: choose a bloom filter size to hit a configurable false positive rate
-	//   the following assumes 1000 traces/second cut every 2 hours.  n = 7200000 with a target fp rate of 1%
-	//   https://hur.st/bloomfilter/ m = 69069274, k = 7
-	bloom := bloom.New(69069274, 7)
+func EncodeRecords(records []*TraceRecord, bloomFP float64) ([]byte, []byte, error) {
+	recordBytes := make([]byte, len(records)*28) // 28 = 128 bit traceid, 64bit start, 32bit length
+	bf := bloom.NewBloomFilter(float64(len(records)), bloomFP)
 
 	for i, r := range records {
 		buff := recordBytes[i*28 : (i+1)*28]
@@ -59,14 +56,11 @@ func EncodeRecords(records []*TraceRecord) ([]byte, []byte, error) {
 			return nil, nil, fmt.Errorf("Trace Ids must be 128 bit")
 		}
 
-		bloom.Add(r.TraceID)
+		bf.Add(farm.Fingerprint64(r.TraceID))
 		encodeRecord(r, buff)
 	}
 
-	bloomBytes, err := bloom.GobEncode()
-	if err != nil {
-		return nil, nil, err
-	}
+	bloomBytes := bf.JSONMarshal()
 
 	return recordBytes, bloomBytes, nil
 }

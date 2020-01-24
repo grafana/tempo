@@ -5,8 +5,9 @@ import (
 	"math/rand"
 	"testing"
 
+	bloom "github.com/dgraph-io/ristretto/z"
+	"github.com/dgryski/go-farm"
 	"github.com/stretchr/testify/assert"
-	"github.com/willf/bloom"
 )
 
 func TestEncodeDecodeRecord(t *testing.T) {
@@ -34,18 +35,16 @@ func TestEncodeDecodeRecords(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	recordBytes, bloomBytes, err := EncodeRecords(expected)
+	recordBytes, bloomBytes, err := EncodeRecords(expected, .01)
 	assert.NoError(t, err, "unexpected error encoding records")
 	assert.Equal(t, len(expected)*28, len(recordBytes))
 
 	actual, err := DecodeRecords(recordBytes)
 	assert.NoError(t, err, "unexpected error decoding records")
 
-	filter := bloom.New(1, 1)
-	filter.GobDecode(bloomBytes)
-
+	filter := bloom.JSONUnmarshal(bloomBytes)
 	for _, r := range expected {
-		assert.True(t, filter.Test(r.TraceID))
+		assert.True(t, filter.Has(farm.Fingerprint64(r.TraceID)))
 	}
 
 	assert.Equal(t, expected, actual)
@@ -65,7 +64,7 @@ func TestFindRecord(t *testing.T) {
 
 	SortRecords(expected)
 
-	recordBytes, _, err := EncodeRecords(expected)
+	recordBytes, _, err := EncodeRecords(expected, .01)
 	assert.NoError(t, err, "unexpected error encoding records")
 
 	for _, r := range expected {

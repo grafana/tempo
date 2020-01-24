@@ -3,9 +3,10 @@ package storage
 import (
 	"context"
 
+	bloom "github.com/dgraph-io/ristretto/z"
+	"github.com/dgryski/go-farm"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/willf/bloom"
 
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/storage/trace_backend"
@@ -22,10 +23,12 @@ type TraceReader interface {
 type readerWriter struct {
 	r trace_backend.Reader
 	w trace_backend.Writer
+
+	bloomFP float64
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*TraceRecord, blockFilePath string) error {
-	bloomBytes, indexBytes, err := EncodeRecords(records)
+	indexBytes, bloomBytes, err := EncodeRecords(records, rw.bloomFP)
 
 	if err != nil {
 		return err
@@ -38,10 +41,9 @@ func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, 
 	out := &friggpb.Trace{}
 
 	err := rw.r.Bloom(tenantID, func(bloomBytes []byte, blockID uuid.UUID) (bool, error) {
-		filter := bloom.New(1, 1)
-		filter.GobDecode(bloomBytes)
+		filter := bloom.JSONUnmarshal(bloomBytes)
 
-		if filter.Test(id) {
+		if filter.Has(farm.Fingerprint64(id)) {
 			indexBytes, err := rw.r.Index(blockID, tenantID)
 			if err != nil {
 				return false, err

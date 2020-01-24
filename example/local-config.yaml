@@ -41,7 +41,7 @@ storage_config:
     filesystem:
       directory: /tmp/frigg/chunks
   trace:
-    engine: local
+    backend: local
     local:
       path: /tmp/frigg/traces
 

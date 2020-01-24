@@ -5,6 +5,8 @@ go 1.13
 require (
 	github.com/census-instrumentation/opencensus-proto v0.2.1
 	github.com/cortexproject/cortex v0.4.1-0.20191217132644-cd4009e2f8e7
+	github.com/dgraph-io/ristretto v0.0.1
+	github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2
 	github.com/go-kit/kit v0.9.0
 	github.com/golang/protobuf v1.3.2
 	github.com/google/uuid v1.1.1
@@ -19,11 +21,8 @@ require (
 	github.com/spf13/viper v1.6.2
 	github.com/stretchr/testify v1.4.0
 	github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d
-	github.com/willf/bitset v1.1.10 // indirect
-	github.com/willf/bloom v2.0.3+incompatible
 	go.uber.org/zap v1.10.0
 	golang.org/x/net v0.0.0-20191112182307-2180aed22343
-	google.golang.org/api v0.11.0
 	google.golang.org/grpc v1.25.1
 	gopkg.in/yaml.v2 v2.2.5
 )

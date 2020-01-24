@@ -55,8 +55,7 @@ type instance struct {
 
 func newInstance(instanceID string, limiter *Limiter, wal wal.WAL) (*instance, error) {
 	i := &instance{
-		traces:       map[traceFingerprint]*trace{},
-		lastBlockCut: time.Now(),
+		traces: map[traceFingerprint]*trace{},
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: tracesCreatedTotal.WithLabelValues(instanceID),
@@ -143,6 +142,7 @@ func (i *instance) ResetBlock() error {
 
 	var err error
 	i.walBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
+	i.lastBlockCut = time.Now()
 	return err
 }
 
