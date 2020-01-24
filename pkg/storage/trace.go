@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/willf/bloom"
 
-	"github.com/joe-elliott/frigg/pkg/friggpb"
-	"github.com/joe-elliott/frigg/pkg/storage/trace_backend"
+	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/storage/trace_backend"
 )
 
 type TraceWriter interface {

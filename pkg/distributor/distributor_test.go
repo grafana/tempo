@@ -20,10 +20,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/joe-elliott/frigg/pkg/friggpb"
-	"github.com/joe-elliott/frigg/pkg/ingester/client"
-	"github.com/joe-elliott/frigg/pkg/util/test"
-	"github.com/joe-elliott/frigg/pkg/util/validation"
+	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/ingester/client"
+	"github.com/grafana/frigg/pkg/util/test"
+	"github.com/grafana/frigg/pkg/util/validation"
 )
 
 const (

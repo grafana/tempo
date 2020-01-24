@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/joe-elliott/frigg/pkg/util/validation"
+	"github.com/grafana/frigg/pkg/util/validation"
 	"github.com/willf/bloom"
 )
 

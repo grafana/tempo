@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joe-elliott/frigg/pkg/ingester/wal"
-	"github.com/joe-elliott/frigg/pkg/util/test"
-	"github.com/joe-elliott/frigg/pkg/util/validation"
+	"github.com/grafana/frigg/pkg/ingester/wal"
+	"github.com/grafana/frigg/pkg/util/test"
+	"github.com/grafana/frigg/pkg/util/validation"
 
 	"github.com/stretchr/testify/assert"
 )

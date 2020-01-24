@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/joe-elliott/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/friggpb"
 )
 
 // Config for an ingester client.

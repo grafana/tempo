@@ -21,11 +21,11 @@ import (
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/joe-elliott/frigg/pkg/distributor/receiver"
-	"github.com/joe-elliott/frigg/pkg/friggpb"
-	"github.com/joe-elliott/frigg/pkg/ingester/client"
-	"github.com/joe-elliott/frigg/pkg/util"
-	"github.com/joe-elliott/frigg/pkg/util/validation"
+	"github.com/grafana/frigg/pkg/distributor/receiver"
+	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/ingester/client"
+	"github.com/grafana/frigg/pkg/util"
+	"github.com/grafana/frigg/pkg/util/validation"
 )
 
 const tracesPerBatchEstimate = 5

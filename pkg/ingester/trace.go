@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/joe-elliott/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/friggpb"
 )
 
 var ()

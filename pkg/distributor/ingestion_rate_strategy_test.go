@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/cortexproject/cortex/pkg/util/limiter"
-	"github.com/joe-elliott/frigg/pkg/util/validation"
+	"github.com/grafana/frigg/pkg/util/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

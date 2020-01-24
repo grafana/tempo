@@ -14,11 +14,11 @@ import (
 	"github.com/weaveworks/common/server"
 	"google.golang.org/grpc"
 
-	"github.com/joe-elliott/frigg/pkg/distributor"
-	"github.com/joe-elliott/frigg/pkg/ingester"
-	"github.com/joe-elliott/frigg/pkg/ingester/client"
-	"github.com/joe-elliott/frigg/pkg/storage"
-	"github.com/joe-elliott/frigg/pkg/util/validation"
+	"github.com/grafana/frigg/pkg/distributor"
+	"github.com/grafana/frigg/pkg/ingester"
+	"github.com/grafana/frigg/pkg/ingester/client"
+	"github.com/grafana/frigg/pkg/storage"
+	"github.com/grafana/frigg/pkg/util/validation"
 )
 
 // Config is the root config for App.

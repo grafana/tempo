@@ -15,10 +15,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
 
-	"github.com/joe-elliott/frigg/pkg/friggpb"
-	"github.com/joe-elliott/frigg/pkg/ingester/wal"
-	"github.com/joe-elliott/frigg/pkg/storage"
-	"github.com/joe-elliott/frigg/pkg/util"
+	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/ingester/wal"
+	"github.com/grafana/frigg/pkg/storage"
+	"github.com/grafana/frigg/pkg/util"
 )
 
 type traceFingerprint uint64

@@ -9,7 +9,7 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/joe-elliott/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/friggpb"
 )
 
 var contentType = http.CanonicalHeaderKey("Content-Type")

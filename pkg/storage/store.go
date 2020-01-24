@@ -5,8 +5,8 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/chunk/storage"
-	"github.com/joe-elliott/frigg/pkg/storage/trace_backend"
-	"github.com/joe-elliott/frigg/pkg/storage/trace_backend/local"
+	"github.com/grafana/frigg/pkg/storage/trace_backend"
+	"github.com/grafana/frigg/pkg/storage/trace_backend/local"
 )
 
 // Store is the Frigg chunk store to retrieve and save chunks.

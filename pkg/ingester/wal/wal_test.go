@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/joe-elliott/frigg/pkg/friggpb"
-	"github.com/joe-elliott/frigg/pkg/util/test"
+	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/util/test"
 )
 
 func TestCreateBlock(t *testing.T) {

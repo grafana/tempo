@@ -9,7 +9,7 @@ import (
 	"path"
 
 	"github.com/google/uuid"
-	"github.com/joe-elliott/frigg/pkg/storage/trace_backend"
+	"github.com/grafana/frigg/pkg/storage/trace_backend"
 )
 
 type readerWriter struct {

@@ -21,7 +21,7 @@ import (
 
 	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
 
-	"github.com/joe-elliott/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/friggpb"
 )
 
 type Receivers interface {

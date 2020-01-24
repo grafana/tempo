@@ -6,12 +6,12 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/joe-elliott/frigg/cmd/frigg/app"
-	_ "github.com/joe-elliott/frigg/cmd/frigg/build"
+	"github.com/grafana/frigg/cmd/frigg/app"
+	_ "github.com/grafana/frigg/cmd/frigg/build"
 
 	"github.com/go-kit/kit/log/level"
 
-	"github.com/joe-elliott/frigg/cmd/frigg/cfg"
+	"github.com/grafana/frigg/cmd/frigg/cfg"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	"github.com/weaveworks/common/logging"

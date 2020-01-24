@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"path"
 
-	"github.com/joe-elliott/frigg/pkg/storage"
+	"github.com/grafana/frigg/pkg/storage"
 )
 
 var (

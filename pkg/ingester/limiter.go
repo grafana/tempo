@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/joe-elliott/frigg/pkg/util/validation"
+	"github.com/grafana/frigg/pkg/util/validation"
 )
 
 const (

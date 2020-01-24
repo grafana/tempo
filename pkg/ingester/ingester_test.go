@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/weaveworks/common/user"
 
-	"github.com/joe-elliott/frigg/pkg/friggpb"
-	"github.com/joe-elliott/frigg/pkg/ingester/client"
-	"github.com/joe-elliott/frigg/pkg/util/test"
-	"github.com/joe-elliott/frigg/pkg/util/validation"
+	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/ingester/client"
+	"github.com/grafana/frigg/pkg/util/test"
+	"github.com/grafana/frigg/pkg/util/validation"
 )
 
 func TestPushQuery(t *testing.T) {

@@ -1,4 +1,4 @@
-module github.com/joe-elliott/frigg
+module github.com/grafana/frigg
 
 go 1.13
 

@@ -4,7 +4,7 @@ import (
 	"flag"
 
 	"github.com/cortexproject/cortex/pkg/chunk/storage"
-	"github.com/joe-elliott/frigg/pkg/storage/trace_backend/local"
+	"github.com/grafana/frigg/pkg/storage/trace_backend/local"
 )
 
 // Config is the loki storage configuration

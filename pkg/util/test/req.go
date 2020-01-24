@@ -3,7 +3,7 @@ package test
 import (
 	"math/rand"
 
-	"github.com/joe-elliott/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/friggpb"
 	opentelemetry_proto_collector_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/collector/traces/v1"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 )

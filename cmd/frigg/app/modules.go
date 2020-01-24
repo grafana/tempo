@@ -13,11 +13,11 @@ import (
 	"github.com/weaveworks/common/server"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/joe-elliott/frigg/pkg/distributor"
-	"github.com/joe-elliott/frigg/pkg/friggpb"
-	"github.com/joe-elliott/frigg/pkg/ingester"
-	frigg_storage "github.com/joe-elliott/frigg/pkg/storage"
-	"github.com/joe-elliott/frigg/pkg/util/validation"
+	"github.com/grafana/frigg/pkg/distributor"
+	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/ingester"
+	frigg_storage "github.com/grafana/frigg/pkg/storage"
+	"github.com/grafana/frigg/pkg/util/validation"
 )
 
 const maxChunkAgeForTableManager = 12 * time.Hour
