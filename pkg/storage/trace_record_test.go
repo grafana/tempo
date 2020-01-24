@@ -36,6 +36,7 @@ func TestEncodeDecodeRecords(t *testing.T) {
 
 	recordBytes, bloomBytes, err := EncodeRecords(expected)
 	assert.NoError(t, err, "unexpected error encoding records")
+	assert.Equal(t, len(expected)*28, len(recordBytes))
 
 	actual, err := DecodeRecords(recordBytes)
 	assert.NoError(t, err, "unexpected error decoding records")

@@ -9,10 +9,23 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
 	"github.com/joe-elliott/frigg/pkg/storage"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
 )
 
-var ()
+var (
+	tracesFlushed = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "frigg",
+		Name:      "ingester_traces_flushed_total",
+		Help:      "The total number of traces flushed",
+	})
+	failedFlushes = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "frigg",
+		Name:      "ingester_failed_flushes_total",
+		Help:      "The total number of failed traces",
+	})
+)
 
 const (
 	// Backoff for retrying 'immediate' flushes. Only counts for queue
@@ -136,8 +149,10 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 
 	err = i.store.(storage.Store).WriteBlock(ctx, uuid, userID, records, file)
 	if err != nil {
+		failedFlushes.Inc()
 		return err
 	}
+	tracesFlushed.Add(float64(len(records)))
 
 	err = instance.ResetBlock()
 

@@ -32,7 +32,7 @@ services:
     image: grafana/grafana:latest
     volumes:
       - ./datasources:/etc/grafana/provisioning/datasources
-    environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true
+    #environment:
+    #  - GF_AUTH_ANONYMOUS_ENABLED=true
     ports:
       - "3000:3000"
