@@ -24,7 +24,7 @@ type store struct {
 	TraceWriter
 }
 
-// NewStore creates a new Loki Store using configuration supplied.
+// NewStore creates a new Frigg Store using configuration supplied.
 func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConfig, limits storage.StoreLimits) (Store, error) {
 	s, err := storage.NewStore(cfg.Columnar, storeCfg, schemaCfg, limits)
 	if err != nil {

@@ -24,7 +24,7 @@ const maxChunkAgeForTableManager = 12 * time.Hour
 
 type moduleName int
 
-// The various modules that make up Loki.
+// The various modules that make up Frigg.
 const (
 	Ring moduleName = iota
 	Overrides

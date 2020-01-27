@@ -142,7 +142,7 @@ func (t *App) Run() error {
 	return t.server.Run()
 }
 
-// Stop gracefully stops a Loki.
+// Stop gracefully stops Frigg.
 func (t *App) Stop() error {
 	t.stopping(t.cfg.Target)
 	t.stop(t.cfg.Target)

@@ -55,21 +55,21 @@ func main() {
 		}
 	}()
 
-	// Start Loki
+	// Start Frigg
 	t, err := app.New(config)
 	if err != nil {
-		level.Error(util.Logger).Log("msg", "error initialising loki", "err", err)
+		level.Error(util.Logger).Log("msg", "error initialising Frigg", "err", err)
 		os.Exit(1)
 	}
 
-	level.Info(util.Logger).Log("msg", "Starting Loki", "version", version.Info())
+	level.Info(util.Logger).Log("msg", "Starting Frigg", "version", version.Info())
 
 	if err := t.Run(); err != nil {
-		level.Error(util.Logger).Log("msg", "error running loki", "err", err)
+		level.Error(util.Logger).Log("msg", "error running Frigg", "err", err)
 	}
 
 	if err := t.Stop(); err != nil {
-		level.Error(util.Logger).Log("msg", "error stopping loki", "err", err)
+		level.Error(util.Logger).Log("msg", "error stopping Frigg", "err", err)
 		os.Exit(1)
 	}
 }

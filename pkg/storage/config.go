@@ -7,7 +7,7 @@ import (
 	"github.com/grafana/frigg/pkg/storage/trace_backend/local"
 )
 
-// Config is the loki storage configuration
+// Config is the Frigg storage configuration
 type Config struct {
 	Columnar storage.Config `yaml:"columnar"`
 	Trace    TraceConfig    `yaml:"trace"`
