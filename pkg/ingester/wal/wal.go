@@ -13,8 +13,8 @@ import (
 type IterFunc func(msg proto.Message) (bool, error)
 
 type WAL interface {
-	AllBlocks() ([]WALBlock, error)
-	NewBlock(id uuid.UUID, instanceID string) (WALBlock, error)
+	AllBlocks() ([]HeadBlock, error)
+	NewBlock(id uuid.UUID, instanceID string) (HeadBlock, error)
 }
 
 type wal struct {
@@ -33,13 +33,13 @@ func New(c Config) (WAL, error) {
 	}, nil
 }
 
-func (w *wal) AllBlocks() ([]WALBlock, error) {
+func (w *wal) AllBlocks() ([]HeadBlock, error) {
 	files, err := ioutil.ReadDir(fmt.Sprintf("%s", w.c.Filepath))
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]WALBlock, 0, len(files))
+	blocks := make([]HeadBlock, 0, len(files))
 	for _, f := range files {
 		name := f.Name()
 		blockID, instanceID, err := parseFilename(name)
@@ -47,7 +47,7 @@ func (w *wal) AllBlocks() ([]WALBlock, error) {
 			return nil, err
 		}
 
-		blocks = append(blocks, &walblock{
+		blocks = append(blocks, &headblock{
 			filepath:   w.c.Filepath,
 			blockID:    blockID,
 			instanceID: instanceID,
@@ -57,7 +57,7 @@ func (w *wal) AllBlocks() ([]WALBlock, error) {
 	return blocks, nil
 }
 
-func (w *wal) NewBlock(id uuid.UUID, instanceID string) (WALBlock, error) {
+func (w *wal) NewBlock(id uuid.UUID, instanceID string) (HeadBlock, error) {
 	name := fullFilename(w.c.Filepath, id, instanceID)
 
 	_, err := os.Create(name)
@@ -65,7 +65,7 @@ func (w *wal) NewBlock(id uuid.UUID, instanceID string) (WALBlock, error) {
 		return nil, err
 	}
 
-	return &walblock{
+	return &headblock{
 		filepath:   w.c.Filepath,
 		blockID:    id,
 		instanceID: instanceID,

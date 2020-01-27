@@ -44,7 +44,7 @@ type instance struct {
 
 	blockTracesMtx sync.RWMutex
 	traceRecords   []*storage.TraceRecord
-	walBlock       wal.WALBlock
+	headBlock      wal.HeadBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
@@ -96,7 +96,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	now := time.Now()
 	for key, trace := range i.traces {
 		if now.Add(cutoff).After(trace.lastAppend) || immediate {
-			start, length, err := i.walBlock.Write(trace.trace)
+			start, length, err := i.headBlock.Write(trace.trace)
 			if err != nil {
 				return err
 			}
@@ -129,19 +129,19 @@ func (i *instance) IsBlockReady(maxTracesPerBlock int, maxBlockLifetime time.Dur
 }
 
 // GetBlock() returns complete traces.  It is up to the caller to do something sensible at this point
-func (i *instance) GetBlock() ([]*storage.TraceRecord, wal.WALBlock) {
-	return i.traceRecords, i.walBlock
+func (i *instance) GetBlock() ([]*storage.TraceRecord, wal.HeadBlock) {
+	return i.traceRecords, i.headBlock
 }
 
 func (i *instance) ResetBlock() error {
 	i.traceRecords = make([]*storage.TraceRecord, 0) //todo : init this with some value?  max traces per block?
 
-	if i.walBlock != nil {
-		i.walBlock.Clear()
+	if i.headBlock != nil {
+		i.headBlock.Clear()
 	}
 
 	var err error
-	i.walBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
+	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
 	i.lastBlockCut = time.Now()
 	return err
 }
@@ -166,7 +166,7 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 
 		out := &friggpb.Trace{}
 
-		err := i.walBlock.Read(rec.Start, rec.Length, out)
+		err := i.headBlock.Read(rec.Start, rec.Length, out)
 		if err != nil {
 			return nil, err
 		}

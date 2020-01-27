@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type WALBlock interface {
+type HeadBlock interface {
 	Write(p proto.Message) (uint64, uint32, error)
 	Read(start uint64, offset uint32, out proto.Message) error
 	Clear() error
@@ -18,7 +18,7 @@ type WALBlock interface {
 	Identity() (uuid.UUID, string)
 }
 
-type walblock struct {
+type headblock struct {
 	appendFile *os.File
 	readFile   *os.File
 
@@ -27,20 +27,20 @@ type walblock struct {
 	instanceID string
 }
 
-func (w *walblock) Identity() (uuid.UUID, string) {
-	return w.blockID, fullFilename(w.filepath, w.blockID, w.instanceID)
+func (h *headblock) Identity() (uuid.UUID, string) {
+	return h.blockID, fullFilename(h.filepath, h.blockID, h.instanceID)
 }
 
-func (w *walblock) Write(p proto.Message) (uint64, uint32, error) {
-	name := fullFilename(w.filepath, w.blockID, w.instanceID)
+func (h *headblock) Write(p proto.Message) (uint64, uint32, error) {
+	name := fullFilename(h.filepath, h.blockID, h.instanceID)
 	var err error
 
-	if w.appendFile == nil {
+	if h.appendFile == nil {
 		f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
 			return 0, 0, err
 		}
-		w.appendFile = f
+		h.appendFile = f
 	}
 
 	b, err := proto.Marshal(p)
@@ -48,17 +48,17 @@ func (w *walblock) Write(p proto.Message) (uint64, uint32, error) {
 		return 0, 0, err
 	}
 
-	err = binary.Write(w.appendFile, binary.LittleEndian, uint32(len(b)))
+	err = binary.Write(h.appendFile, binary.LittleEndian, uint32(len(b)))
 	if err != nil {
 		return 0, 0, err
 	}
 
-	info, err := w.appendFile.Stat()
+	info, err := h.appendFile.Stat()
 	if err != nil {
 		return 0, 0, err
 	}
 
-	length, err := w.appendFile.Write(b)
+	length, err := h.appendFile.Write(b)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -66,20 +66,20 @@ func (w *walblock) Write(p proto.Message) (uint64, uint32, error) {
 	return uint64(info.Size()), uint32(length), nil
 }
 
-func (w *walblock) Read(start uint64, length uint32, out proto.Message) error {
-	name := fullFilename(w.filepath, w.blockID, w.instanceID)
+func (h *headblock) Read(start uint64, length uint32, out proto.Message) error {
+	name := fullFilename(h.filepath, h.blockID, h.instanceID)
 	var err error
 
-	if w.readFile == nil {
+	if h.readFile == nil {
 		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 		if err != nil {
 			return err
 		}
-		w.readFile = f
+		h.readFile = f
 	}
 
 	b := make([]byte, length)
-	_, err = w.readFile.ReadAt(b, int64(start))
+	_, err = h.readFile.ReadAt(b, int64(start))
 	if err != nil {
 		return err
 	}
@@ -92,27 +92,27 @@ func (w *walblock) Read(start uint64, length uint32, out proto.Message) error {
 	return nil
 }
 
-func (w *walblock) Clear() error {
+func (h *headblock) Clear() error {
 	var err error
-	if w.appendFile != nil {
-		err := w.appendFile.Close()
+	if h.appendFile != nil {
+		err := h.appendFile.Close()
 		if err != nil {
 			return err
 		}
 	}
-	if w.readFile != nil {
-		err := w.readFile.Close()
+	if h.readFile != nil {
+		err := h.readFile.Close()
 		if err != nil {
 			return err
 		}
 	}
-	name := fullFilename(w.filepath, w.blockID, w.instanceID)
+	name := fullFilename(h.filepath, h.blockID, h.instanceID)
 	err = os.Remove(name)
 	return err
 }
 
-func (w *walblock) Iterator(read proto.Message, fn IterFunc) error {
-	name := fullFilename(w.filepath, w.blockID, w.instanceID)
+func (h *headblock) Iterator(read proto.Message, fn IterFunc) error {
+	name := fullFilename(h.filepath, h.blockID, h.instanceID)
 	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 	defer f.Close()
 
