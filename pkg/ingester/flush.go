@@ -152,13 +152,11 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 			break
 		}
 
-		uuid, _, records, file := block.Identity()
-
 		ctx := user.InjectOrgID(context.Background(), userID)
 		ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
 		defer cancel()
 
-		err = i.store.(storage.Store).WriteBlock(ctx, uuid, userID, records, file)
+		err = i.store.(storage.Store).WriteBlock(ctx, block)
 		if err != nil {
 			failedFlushes.Inc()
 			return err

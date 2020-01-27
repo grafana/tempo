@@ -14,7 +14,7 @@ import (
 )
 
 type TraceWriter interface {
-	WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*wal.Record, blockFilePath string) error
+	WriteBlock(ctx context.Context, block wal.CompleteBlock) error
 }
 
 type TraceReader interface {
@@ -37,14 +37,15 @@ type readerWriter struct {
 	bloomFP float64
 }
 
-func (rw *readerWriter) WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*wal.Record, blockFilePath string) error {
+func (rw *readerWriter) WriteBlock(ctx context.Context, block wal.CompleteBlock) error {
+	uuid, tenantID, records, blockFilePath := block.Identity()
 	indexBytes, bloomBytes, err := wal.MarshalRecords(records, rw.bloomFP)
 
 	if err != nil {
 		return err
 	}
 
-	return rw.w.Write(ctx, blockID, tenantID, bloomBytes, indexBytes, blockFilePath)
+	return rw.w.Write(ctx, uuid, tenantID, bloomBytes, indexBytes, blockFilePath)
 }
 
 func (rw *readerWriter) FindTrace(tenantID string, id wal.ID) (*friggpb.Trace, FindMetrics, error) {

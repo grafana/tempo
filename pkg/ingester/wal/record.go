@@ -52,7 +52,7 @@ func MarshalRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) 
 	for i, r := range records {
 		buff := recordBytes[i*28 : (i+1)*28]
 
-		if !validation.ValidTraceID(r.ID) { // jpe ?
+		if !validation.ValidTraceID(r.ID) {
 			return nil, nil, fmt.Errorf("Trace Ids must be 128 bit")
 		}
 

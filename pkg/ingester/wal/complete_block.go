@@ -23,11 +23,11 @@ type completeBlock struct {
 }
 
 type CompleteBlock interface {
-	Identity() (uuid.UUID, string, []*Record, string) // jpe.  make cut block instead
+	Identity() (blockID uuid.UUID, tenantID string, records []*Record, filepath string)
 	Find(id ID, out proto.Message) (bool, error)
 	Iterator(read proto.Message, fn IterFunc) error
 	Length() int
-	Clear() error // jpe ?
+	Clear() error
 }
 
 func (c *completeBlock) Identity() (uuid.UUID, string, []*Record, string) {
