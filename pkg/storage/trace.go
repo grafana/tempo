@@ -38,7 +38,7 @@ type readerWriter struct {
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*wal.Record, blockFilePath string) error {
-	indexBytes, bloomBytes, err := wal.EncodeRecords(records, rw.bloomFP)
+	indexBytes, bloomBytes, err := wal.MarshalRecords(records, rw.bloomFP)
 
 	if err != nil {
 		return err

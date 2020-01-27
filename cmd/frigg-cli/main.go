@@ -102,7 +102,7 @@ func dumpIndex(dir string) error {
 		return err
 	}
 
-	records, err := wal.DecodeRecords(bytes)
+	records, err := wal.UnmarshalRecords(bytes)
 	if err != nil {
 		return err
 	}

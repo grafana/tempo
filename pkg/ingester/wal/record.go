@@ -45,7 +45,7 @@ func (t *recordSorter) Swap(i, j int) {
 }
 
 // todo: move encoding/decoding to a seperate util area?  is the index too large?  need an io.Reader?
-func EncodeRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) {
+func MarshalRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) {
 	recordBytes := make([]byte, len(records)*28) // 28 = 128 bit ID, 64bit start, 32bit length
 	bf := bloom.NewBloomFilter(float64(len(records)), bloomFP)
 
@@ -65,7 +65,7 @@ func EncodeRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) {
 	return recordBytes, bloomBytes, nil
 }
 
-func DecodeRecords(recordBytes []byte) ([]*Record, error) {
+func UnmarshalRecords(recordBytes []byte) ([]*Record, error) {
 	numRecords := len(recordBytes) / 28
 	records := make([]*Record, 0, numRecords)
 

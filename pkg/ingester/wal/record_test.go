@@ -23,7 +23,7 @@ func TestEncodeDecodeRecord(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func TestEncodeDecodeRecords(t *testing.T) {
+func TestMarshalUnmarshalRecords(t *testing.T) {
 	numRecords := 10
 	expected := make([]*Record, 0, numRecords)
 
@@ -35,11 +35,11 @@ func TestEncodeDecodeRecords(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	recordBytes, bloomBytes, err := EncodeRecords(expected, .01)
+	recordBytes, bloomBytes, err := MarshalRecords(expected, .01)
 	assert.NoError(t, err, "unexpected error encoding records")
 	assert.Equal(t, len(expected)*28, len(recordBytes))
 
-	actual, err := DecodeRecords(recordBytes)
+	actual, err := UnmarshalRecords(recordBytes)
 	assert.NoError(t, err, "unexpected error decoding records")
 
 	filter := bloom.JSONUnmarshal(bloomBytes)
@@ -64,7 +64,7 @@ func TestFindRecord(t *testing.T) {
 
 	SortRecords(expected)
 
-	recordBytes, _, err := EncodeRecords(expected, .01)
+	recordBytes, _, err := MarshalRecords(expected, .01)
 	assert.NoError(t, err, "unexpected error encoding records")
 
 	for _, r := range expected {
