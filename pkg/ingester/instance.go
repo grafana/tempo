@@ -103,7 +103,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 
 			// insert sorted
 			idx := sort.Search(len(i.traceRecords), func(idx int) bool {
-				return bytes.Compare(i.traceRecords[idx].TraceID, trace.traceID) == -1
+				return bytes.Compare(i.traceRecords[idx].TraceID, trace.traceID) == 1
 			})
 			i.traceRecords = append(i.traceRecords, nil)
 			copy(i.traceRecords[idx+1:], i.traceRecords[idx:])
