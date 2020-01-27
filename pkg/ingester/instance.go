@@ -41,6 +41,7 @@ type instance struct {
 
 	blockTracesMtx sync.RWMutex
 	headBlock      wal.HeadBlock
+	completeBlocks []wal.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
@@ -58,7 +59,7 @@ func newInstance(instanceID string, limiter *Limiter, wal wal.WAL) (*instance, e
 		limiter:            limiter,
 		wal:                wal,
 	}
-	err := i.ResetBlock()
+	err := i.resetHeadBlock()
 	if err != nil {
 		return nil, err
 	}
@@ -104,32 +105,40 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-func (i *instance) IsBlockReady(maxTracesPerBlock int, maxBlockLifetime time.Duration) bool {
+func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration) (bool, error) {
 	i.blockTracesMtx.RLock()
 	defer i.blockTracesMtx.RUnlock()
 
 	if i.headBlock == nil {
-		return false
+		return false, nil
 	}
 
 	now := time.Now()
-	return i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now)
+	ready := i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now)
+
+	if ready {
+		completeBlock, err := i.headBlock.Complete()
+		if err != nil {
+			return false, err
+		}
+
+		i.completeBlocks = append(i.completeBlocks, completeBlock)
+		i.resetHeadBlock()
+	}
+
+	return ready, nil
 }
 
 // GetBlock() returns complete traces.  It is up to the caller to do something sensible at this point
-func (i *instance) GetBlock() wal.HeadBlock {
-	return i.headBlock
-}
-
-func (i *instance) ResetBlock() error {
-	if i.headBlock != nil {
-		i.headBlock.Clear()
+func (i *instance) GetCompleteBlock() wal.CompleteBlock {
+	if len(i.completeBlocks) == 0 {
+		return nil
 	}
 
-	var err error
-	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
-	i.lastBlockCut = time.Now()
-	return err
+	var completeBlock wal.CompleteBlock
+	completeBlock, i.completeBlocks = i.completeBlocks[0], i.completeBlocks[1:]
+
+	return completeBlock
 }
 
 func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
@@ -174,6 +183,13 @@ func (i *instance) getOrCreateTrace(req *friggpb.PushRequest) (*trace, error) {
 	i.tracesCreatedTotal.Inc()
 
 	return trace, nil
+}
+
+func (i *instance) resetHeadBlock() error {
+	var err error
+	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
+	i.lastBlockCut = time.Now()
+	return err
 }
 
 func isDone(ctx context.Context) bool {

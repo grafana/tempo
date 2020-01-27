@@ -43,18 +43,23 @@ func TestInstance(t *testing.T) {
 
 	i.CutCompleteTraces(0, true)
 
-	ready := i.IsBlockReady(5, 0)
+	ready, err := i.CutBlockIfReady(5, 0)
+	assert.NoError(t, err, "unexpected error cutting block")
 	assert.True(t, ready, "block should be ready due to time")
 
-	ready = i.IsBlockReady(0, 30*time.Hour)
+	ready, err = i.CutBlockIfReady(0, 30*time.Hour)
+	assert.NoError(t, err, "unexpected error cutting block")
 	assert.True(t, ready, "block should be ready due to max traces")
 
-	block := i.GetBlock()
+	block := i.GetCompleteBlock()
 	assert.Equal(t, 1, block.Length())
 
-	err = i.ResetBlock()
+	block = i.GetCompleteBlock()
+	assert.Equal(t, 0, block.Length())
+
+	err = i.resetHeadBlock()
 	assert.NoError(t, err, "unexpected error resetting block")
 
-	block = i.GetBlock()
-	assert.Equal(t, 0, block.Length())
+	block = i.GetCompleteBlock()
+	assert.Nil(t, block)
 }

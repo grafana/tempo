@@ -85,7 +85,13 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	// see if it's ready to cut a block?
-	if instance.IsBlockReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration) {
+	ready, err := instance.CutBlockIfReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration)
+	if err != nil {
+		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut block", "err", err)
+		return
+	}
+
+	if ready {
 		i.flushQueueIndex++
 		flushQueueIndex := i.flushQueueIndex % i.cfg.ConcurrentFlushes
 		i.flushQueues[flushQueueIndex].Enqueue(&flushOp{
@@ -140,21 +146,30 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 	instance.blockTracesMtx.Lock()
 	defer instance.blockTracesMtx.Unlock()
 
-	block := instance.GetBlock()
-	uuid, _, records, file := block.Identity()
+	for {
+		block := instance.GetCompleteBlock()
+		if block == nil {
+			break
+		}
 
-	ctx := user.InjectOrgID(context.Background(), userID)
-	ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
-	defer cancel()
+		uuid, _, records, file := block.Identity()
 
-	err = i.store.(storage.Store).WriteBlock(ctx, uuid, userID, records, file)
-	if err != nil {
-		failedFlushes.Inc()
-		return err
+		ctx := user.InjectOrgID(context.Background(), userID)
+		ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
+		defer cancel()
+
+		err = i.store.(storage.Store).WriteBlock(ctx, uuid, userID, records, file)
+		if err != nil {
+			failedFlushes.Inc()
+			return err
+		}
+		tracesFlushed.Add(float64(block.Length()))
+
+		err = block.Clear()
+		if err != nil {
+			return err
+		}
 	}
-	tracesFlushed.Add(float64(block.Length()))
 
-	err = instance.ResetBlock()
-
-	return err
+	return nil
 }

@@ -47,10 +47,12 @@ func (w *wal) AllBlocks() ([]HeadBlock, error) {
 			return nil, err
 		}
 
-		blocks = append(blocks, &headblock{
-			filepath:   w.c.Filepath,
-			blockID:    blockID,
-			instanceID: instanceID,
+		blocks = append(blocks, &headBlock{
+			completeBlock: completeBlock{
+				filepath:   w.c.Filepath,
+				blockID:    blockID,
+				instanceID: instanceID,
+			},
 		})
 	}
 
@@ -65,10 +67,12 @@ func (w *wal) NewBlock(id uuid.UUID, instanceID string) (HeadBlock, error) {
 		return nil, err
 	}
 
-	return &headblock{
-		filepath:   w.c.Filepath,
-		blockID:    id,
-		instanceID: instanceID,
+	return &headBlock{
+		completeBlock: completeBlock{
+			filepath:   w.c.Filepath,
+			blockID:    id,
+			instanceID: instanceID,
+		},
 	}, nil
 }
 
