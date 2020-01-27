@@ -9,15 +9,16 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/frigg/pkg/ingester/wal"
 	"github.com/grafana/frigg/pkg/storage/trace_backend"
 )
 
 type TraceWriter interface {
-	WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*TraceRecord, blockFilePath string) error
+	WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*wal.Record, blockFilePath string) error
 }
 
 type TraceReader interface {
-	FindTrace(tenantID string, id TraceID) (*friggpb.Trace, FindMetrics, error)
+	FindTrace(tenantID string, id wal.ID) (*friggpb.Trace, FindMetrics, error)
 }
 
 type FindMetrics struct {
@@ -36,8 +37,8 @@ type readerWriter struct {
 	bloomFP float64
 }
 
-func (rw *readerWriter) WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*TraceRecord, blockFilePath string) error {
-	indexBytes, bloomBytes, err := EncodeRecords(records, rw.bloomFP)
+func (rw *readerWriter) WriteBlock(ctx context.Context, blockID uuid.UUID, tenantID string, records []*wal.Record, blockFilePath string) error {
+	indexBytes, bloomBytes, err := wal.EncodeRecords(records, rw.bloomFP)
 
 	if err != nil {
 		return err
@@ -46,7 +47,7 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, blockID uuid.UUID, tenan
 	return rw.w.Write(ctx, blockID, tenantID, bloomBytes, indexBytes, blockFilePath)
 }
 
-func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, FindMetrics, error) {
+func (rw *readerWriter) FindTrace(tenantID string, id wal.ID) (*friggpb.Trace, FindMetrics, error) {
 	metrics := FindMetrics{}
 	var found *friggpb.Trace
 
@@ -63,7 +64,7 @@ func (rw *readerWriter) FindTrace(tenantID string, id TraceID) (*friggpb.Trace, 
 				return false, err
 			}
 
-			record, err := FindRecord(id, indexBytes)
+			record, err := wal.FindRecord(id, indexBytes)
 			if err != nil {
 				return false, err
 			}

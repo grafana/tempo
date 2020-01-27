@@ -49,12 +49,12 @@ func TestInstance(t *testing.T) {
 	ready = i.IsBlockReady(0, 30*time.Hour)
 	assert.True(t, ready, "block should be ready due to max traces")
 
-	records, _ := i.GetBlock()
-	assert.Equal(t, 1, len(records))
+	block := i.GetBlock()
+	assert.Equal(t, 1, block.Length())
 
 	err = i.ResetBlock()
 	assert.NoError(t, err, "unexpected error resetting block")
 
-	records, _ = i.GetBlock()
-	assert.Equal(t, 0, len(records))
+	block = i.GetBlock()
+	assert.Equal(t, 0, block.Length())
 }

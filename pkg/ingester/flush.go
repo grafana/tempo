@@ -140,8 +140,8 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 	instance.blockTracesMtx.Lock()
 	defer instance.blockTracesMtx.Unlock()
 
-	records, block := instance.GetBlock()
-	uuid, file := block.Identity()
+	block := instance.GetBlock()
+	uuid, _, records, file := block.Identity()
 
 	ctx := user.InjectOrgID(context.Background(), userID)
 	ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
@@ -152,7 +152,7 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 		failedFlushes.Inc()
 		return err
 	}
-	tracesFlushed.Add(float64(len(records)))
+	tracesFlushed.Add(float64(block.Length()))
 
 	err = instance.ResetBlock()
 

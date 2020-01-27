@@ -1,4 +1,4 @@
-package storage
+package wal
 
 import (
 	"bytes"
@@ -11,10 +11,10 @@ import (
 )
 
 func TestEncodeDecodeRecord(t *testing.T) {
-	expected, err := makeTraceRecord(t)
+	expected, err := makeRecord(t)
 	assert.NoError(t, err, "unexpected error making trace record")
 
-	actual := newTraceRecord()
+	actual := newRecord()
 	buff := make([]byte, 28)
 
 	encodeRecord(expected, buff)
@@ -25,10 +25,10 @@ func TestEncodeDecodeRecord(t *testing.T) {
 
 func TestEncodeDecodeRecords(t *testing.T) {
 	numRecords := 10
-	expected := make([]*TraceRecord, 0, numRecords)
+	expected := make([]*Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
-		r, err := makeTraceRecord(t)
+		r, err := makeRecord(t)
 		if err != nil {
 			assert.NoError(t, err, "unexpected error making trace record")
 		}
@@ -44,7 +44,7 @@ func TestEncodeDecodeRecords(t *testing.T) {
 
 	filter := bloom.JSONUnmarshal(bloomBytes)
 	for _, r := range expected {
-		assert.True(t, filter.Has(farm.Fingerprint64(r.TraceID)))
+		assert.True(t, filter.Has(farm.Fingerprint64(r.ID)))
 	}
 
 	assert.Equal(t, expected, actual)
@@ -52,10 +52,10 @@ func TestEncodeDecodeRecords(t *testing.T) {
 
 func TestFindRecord(t *testing.T) {
 	numRecords := 10
-	expected := make([]*TraceRecord, 0, numRecords)
+	expected := make([]*Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
-		r, err := makeTraceRecord(t)
+		r, err := makeRecord(t)
 		if err != nil {
 			assert.NoError(t, err, "unexpected error making trace record")
 		}
@@ -68,7 +68,7 @@ func TestFindRecord(t *testing.T) {
 	assert.NoError(t, err, "unexpected error encoding records")
 
 	for _, r := range expected {
-		found, err := FindRecord(r.TraceID, recordBytes)
+		found, err := FindRecord(r.ID, recordBytes)
 
 		assert.NoError(t, err, "unexpected error finding records")
 		assert.Equal(t, r, found)
@@ -77,10 +77,10 @@ func TestFindRecord(t *testing.T) {
 
 func TestSortRecord(t *testing.T) {
 	numRecords := 10
-	expected := make([]*TraceRecord, 0, numRecords)
+	expected := make([]*Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
-		r, err := makeTraceRecord(t)
+		r, err := makeRecord(t)
 		if err != nil {
 			assert.NoError(t, err, "unexpected error making trace record")
 		}
@@ -94,22 +94,22 @@ func TestSortRecord(t *testing.T) {
 			continue
 		}
 
-		idSmaller := expected[i-1].TraceID
-		idLarger := expected[i].TraceID
+		idSmaller := expected[i-1].ID
+		idLarger := expected[i].ID
 
 		assert.NotEqual(t, 1, bytes.Compare(idSmaller, idLarger))
 	}
 }
 
 // todo: belongs in util/test?
-func makeTraceRecord(t *testing.T) (*TraceRecord, error) {
+func makeRecord(t *testing.T) (*Record, error) {
 	t.Helper()
 
-	r := newTraceRecord()
+	r := newRecord()
 	r.Start = rand.Uint64()
 	r.Length = rand.Uint32()
 
-	_, err := rand.Read(r.TraceID)
+	_, err := rand.Read(r.ID)
 	if err != nil {
 		return nil, err
 	}

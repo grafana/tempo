@@ -1,11 +1,9 @@
 package ingester
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/http"
-	"sort"
 	"sync"
 	"time"
 
@@ -17,7 +15,6 @@ import (
 
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/wal"
-	"github.com/grafana/frigg/pkg/storage"
 	"github.com/grafana/frigg/pkg/util"
 )
 
@@ -43,7 +40,6 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blockTracesMtx sync.RWMutex
-	traceRecords   []*storage.TraceRecord
 	headBlock      wal.HeadBlock
 	lastBlockCut   time.Time
 
@@ -96,21 +92,9 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	now := time.Now()
 	for key, trace := range i.traces {
 		if now.Add(cutoff).After(trace.lastAppend) || immediate {
-			start, length, err := i.headBlock.Write(trace.trace)
+			err := i.headBlock.Write(trace.traceID, trace.trace)
 			if err != nil {
 				return err
-			}
-
-			// insert sorted
-			idx := sort.Search(len(i.traceRecords), func(idx int) bool {
-				return bytes.Compare(i.traceRecords[idx].TraceID, trace.traceID) == 1
-			})
-			i.traceRecords = append(i.traceRecords, nil)
-			copy(i.traceRecords[idx+1:], i.traceRecords[idx:])
-			i.traceRecords[idx] = &storage.TraceRecord{
-				TraceID: trace.traceID,
-				Start:   start,
-				Length:  length,
 			}
 
 			delete(i.traces, key)
@@ -124,18 +108,20 @@ func (i *instance) IsBlockReady(maxTracesPerBlock int, maxBlockLifetime time.Dur
 	i.blockTracesMtx.RLock()
 	defer i.blockTracesMtx.RUnlock()
 
+	if i.headBlock == nil {
+		return false
+	}
+
 	now := time.Now()
-	return len(i.traceRecords) >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now)
+	return i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now)
 }
 
 // GetBlock() returns complete traces.  It is up to the caller to do something sensible at this point
-func (i *instance) GetBlock() ([]*storage.TraceRecord, wal.HeadBlock) {
-	return i.traceRecords, i.headBlock
+func (i *instance) GetBlock() wal.HeadBlock {
+	return i.headBlock
 }
 
 func (i *instance) ResetBlock() error {
-	i.traceRecords = make([]*storage.TraceRecord, 0) //todo : init this with some value?  max traces per block?
-
 	if i.headBlock != nil {
 		i.headBlock.Clear()
 	}
@@ -147,30 +133,17 @@ func (i *instance) ResetBlock() error {
 }
 
 func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
-	i.tracesMtx.Lock()
-	defer i.tracesMtx.Unlock()
+	i.blockTracesMtx.Lock()
+	defer i.blockTracesMtx.Unlock()
 
-	// search and return only complete traces.  traceRecords is ordered so binary search it
-	idx := sort.Search(len(i.traceRecords), func(idx int) bool {
-		return bytes.Compare(i.traceRecords[idx].TraceID, id) >= 0
-	})
+	out := &friggpb.Trace{}
 
-	if idx < 0 || idx >= len(i.traceRecords) {
-		return nil, nil
+	found, err := i.headBlock.Find(id, out)
+	if err != nil {
+		return nil, err
 	}
 
-	rec := i.traceRecords[idx]
-	if bytes.Compare(rec.TraceID, id) == 0 {
-		i.blockTracesMtx.Lock()
-		defer i.blockTracesMtx.Unlock()
-
-		out := &friggpb.Trace{}
-
-		err := i.headBlock.Read(rec.Start, rec.Length, out)
-		if err != nil {
-			return nil, err
-		}
-
+	if found {
 		return out, nil
 	}
 

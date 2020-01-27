@@ -1,4 +1,4 @@
-package storage
+package wal
 
 import (
 	"bytes"
@@ -11,52 +11,52 @@ import (
 	"github.com/grafana/frigg/pkg/util/validation"
 )
 
-type TraceID []byte
+type ID []byte
 
-type TraceRecord struct {
-	TraceID []byte
-	Start   uint64
-	Length  uint32
+type Record struct {
+	ID     []byte
+	Start  uint64
+	Length uint32
 }
 
-type traceRecordSorter struct {
-	records []*TraceRecord
+type recordSorter struct {
+	records []*Record
 }
 
-func SortRecords(records []*TraceRecord) {
-	sort.Sort(&traceRecordSorter{
+func SortRecords(records []*Record) {
+	sort.Sort(&recordSorter{
 		records: records,
 	})
 }
 
-func (t *traceRecordSorter) Len() int {
+func (t *recordSorter) Len() int {
 	return len(t.records)
 }
 
-func (t *traceRecordSorter) Less(i, j int) bool {
+func (t *recordSorter) Less(i, j int) bool {
 	a := t.records[i]
 	b := t.records[j]
 
-	return bytes.Compare(a.TraceID, b.TraceID) == -1
+	return bytes.Compare(a.ID, b.ID) == -1
 }
 
-func (t *traceRecordSorter) Swap(i, j int) {
+func (t *recordSorter) Swap(i, j int) {
 	t.records[i], t.records[j] = t.records[j], t.records[i]
 }
 
 // todo: move encoding/decoding to a seperate util area?  is the index too large?  need an io.Reader?
-func EncodeRecords(records []*TraceRecord, bloomFP float64) ([]byte, []byte, error) {
-	recordBytes := make([]byte, len(records)*28) // 28 = 128 bit traceid, 64bit start, 32bit length
+func EncodeRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) {
+	recordBytes := make([]byte, len(records)*28) // 28 = 128 bit ID, 64bit start, 32bit length
 	bf := bloom.NewBloomFilter(float64(len(records)), bloomFP)
 
 	for i, r := range records {
 		buff := recordBytes[i*28 : (i+1)*28]
 
-		if !validation.ValidTraceID(r.TraceID) {
+		if !validation.ValidTraceID(r.ID) { // jpe ?
 			return nil, nil, fmt.Errorf("Trace Ids must be 128 bit")
 		}
 
-		bf.Add(farm.Fingerprint64(r.TraceID))
+		bf.Add(farm.Fingerprint64(r.ID))
 		encodeRecord(r, buff)
 	}
 
@@ -65,14 +65,14 @@ func EncodeRecords(records []*TraceRecord, bloomFP float64) ([]byte, []byte, err
 	return recordBytes, bloomBytes, nil
 }
 
-func DecodeRecords(recordBytes []byte) ([]*TraceRecord, error) {
+func DecodeRecords(recordBytes []byte) ([]*Record, error) {
 	numRecords := len(recordBytes) / 28
-	records := make([]*TraceRecord, 0, numRecords)
+	records := make([]*Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
 		buff := recordBytes[i*28 : (i+1)*28]
 
-		r := newTraceRecord()
+		r := newRecord()
 		decodeRecord(buff, r)
 
 		records = append(records, r)
@@ -82,22 +82,22 @@ func DecodeRecords(recordBytes []byte) ([]*TraceRecord, error) {
 }
 
 // binary search the bytes.  records are not compressed and ordered
-func FindRecord(id TraceID, recordBytes []byte) (*TraceRecord, error) {
+func FindRecord(id ID, recordBytes []byte) (*Record, error) {
 	numRecords := len(recordBytes) / 28
-	record := newTraceRecord()
+	record := newRecord()
 
 	i := sort.Search(numRecords, func(i int) bool {
 		buff := recordBytes[i*28 : (i+1)*28]
 		decodeRecord(buff, record)
 
-		return bytes.Compare(record.TraceID, id) >= 0
+		return bytes.Compare(record.ID, id) >= 0
 	})
 
 	if i >= 0 && i < numRecords {
 		buff := recordBytes[i*28 : (i+1)*28]
 		decodeRecord(buff, record)
 
-		if bytes.Equal(id, record.TraceID) {
+		if bytes.Equal(id, record.ID) {
 			return record, nil
 		}
 	}
@@ -105,23 +105,23 @@ func FindRecord(id TraceID, recordBytes []byte) (*TraceRecord, error) {
 	return nil, nil
 }
 
-func encodeRecord(r *TraceRecord, buff []byte) {
-	copy(buff, r.TraceID)
+func encodeRecord(r *Record, buff []byte) {
+	copy(buff, r.ID)
 
 	binary.LittleEndian.PutUint64(buff[16:24], r.Start)
 	binary.LittleEndian.PutUint32(buff[24:], r.Length)
 }
 
-func decodeRecord(buff []byte, r *TraceRecord) {
-	copy(r.TraceID, buff[:16])
+func decodeRecord(buff []byte, r *Record) {
+	copy(r.ID, buff[:16])
 	r.Start = binary.LittleEndian.Uint64(buff[16:24])
 	r.Length = binary.LittleEndian.Uint32(buff[24:])
 }
 
-func newTraceRecord() *TraceRecord {
-	return &TraceRecord{
-		TraceID: make([]byte, 16), // 128 bits
-		Start:   0,
-		Length:  0,
+func newRecord() *Record {
+	return &Record{
+		ID:     make([]byte, 16), // 128 bits
+		Start:  0,
+		Length: 0,
 	}
 }

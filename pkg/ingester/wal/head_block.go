@@ -1,21 +1,24 @@
 package wal
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 )
 
 type HeadBlock interface {
-	Write(p proto.Message) (uint64, uint32, error)
-	Read(start uint64, offset uint32, out proto.Message) error
-	Clear() error
+	Write(id ID, p proto.Message) error
+	Find(id ID, out proto.Message) (bool, error)
+	Clear() error // jpe ?
 	Iterator(read proto.Message, fn IterFunc) error
-	Identity() (uuid.UUID, string)
+	Identity() (uuid.UUID, string, []*Record, string) // jpe.  make cut block instead
+	Length() int
 }
 
 type headblock struct {
@@ -25,74 +28,101 @@ type headblock struct {
 	filepath   string
 	blockID    uuid.UUID
 	instanceID string
+	records    []*Record
 }
 
-func (h *headblock) Identity() (uuid.UUID, string) {
-	return h.blockID, fullFilename(h.filepath, h.blockID, h.instanceID)
+func (h *headblock) Identity() (uuid.UUID, string, []*Record, string) {
+	return h.blockID, h.instanceID, h.records, fullFilename(h.filepath, h.blockID, h.instanceID)
 }
 
-func (h *headblock) Write(p proto.Message) (uint64, uint32, error) {
+func (h *headblock) Write(id ID, p proto.Message) error {
 	name := fullFilename(h.filepath, h.blockID, h.instanceID)
 	var err error
 
 	if h.appendFile == nil {
 		f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
-			return 0, 0, err
+			return err
 		}
 		h.appendFile = f
 	}
 
 	b, err := proto.Marshal(p)
 	if err != nil {
-		return 0, 0, err
+		return err
 	}
 
 	err = binary.Write(h.appendFile, binary.LittleEndian, uint32(len(b)))
 	if err != nil {
-		return 0, 0, err
+		return err
 	}
 
 	info, err := h.appendFile.Stat()
 	if err != nil {
-		return 0, 0, err
+		return err
 	}
 
 	length, err := h.appendFile.Write(b)
 	if err != nil {
-		return 0, 0, err
-	}
-
-	return uint64(info.Size()), uint32(length), nil
-}
-
-func (h *headblock) Read(start uint64, length uint32, out proto.Message) error {
-	name := fullFilename(h.filepath, h.blockID, h.instanceID)
-	var err error
-
-	if h.readFile == nil {
-		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
-		if err != nil {
-			return err
-		}
-		h.readFile = f
-	}
-
-	b := make([]byte, length)
-	_, err = h.readFile.ReadAt(b, int64(start))
-	if err != nil {
 		return err
 	}
 
-	err = proto.Unmarshal(b, out)
-	if err != nil {
-		return err
+	// insert sorted to records
+	i := sort.Search(len(h.records), func(idx int) bool {
+		return bytes.Compare(h.records[idx].ID, id) == 1
+	})
+	h.records = append(h.records, nil)
+	copy(h.records[i+1:], h.records[i:])
+	h.records[i] = &Record{
+		ID:     id,
+		Start:  uint64(info.Size()),
+		Length: uint32(length),
 	}
 
 	return nil
 }
 
-func (h *headblock) Clear() error {
+func (h *headblock) Find(id ID, out proto.Message) (bool, error) {
+
+	i := sort.Search(len(h.records), func(idx int) bool {
+		return bytes.Compare(h.records[idx].ID, id) >= 0
+	})
+
+	if i < 0 || i >= len(h.records) {
+		return false, nil
+	}
+
+	rec := h.records[i]
+	if bytes.Compare(rec.ID, id) != 0 {
+		return false, nil
+	}
+
+	name := fullFilename(h.filepath, h.blockID, h.instanceID)
+	if h.readFile == nil {
+		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
+		if err != nil {
+			return false, err
+		}
+		h.readFile = f
+	}
+
+	b := make([]byte, rec.Length)
+	_, err := h.readFile.ReadAt(b, int64(rec.Start))
+	if err != nil {
+		return false, err
+	}
+
+	err = proto.Unmarshal(b, out)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (h *headblock) Clear() error { // jpe
+	h.records = make([]*Record, 0) //todo : init this with some value?  max traces per block?
+
 	var err error
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
@@ -151,4 +181,8 @@ func (h *headblock) Iterator(read proto.Message, fn IterFunc) error {
 	}
 
 	return nil
+}
+
+func (h *headblock) Length() int {
+	return len(h.records)
 }
