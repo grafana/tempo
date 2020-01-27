@@ -151,9 +151,18 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	if found {
 		return out, nil
+	}
+
+	for _, c := range i.completeBlocks {
+		found, err = c.Find(id, out)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			return out, nil
+		}
 	}
 
 	return nil, nil

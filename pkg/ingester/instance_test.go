@@ -63,3 +63,43 @@ func TestInstance(t *testing.T) {
 	block = i.GetCompleteBlock()
 	assert.Nil(t, block)
 }
+
+func TestInstanceFind(t *testing.T) {
+	limits, err := validation.NewOverrides(validation.Limits{})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+	wal, err := wal.New(wal.Config{
+		Filepath: tempDir,
+	})
+	assert.NoError(t, err, "unexpected error creating wal")
+
+	request := test.MakeRequest(10, []byte{})
+	traceID := request.Batch.Spans[0].TraceId
+
+	i, err := newInstance("fake", limiter, wal)
+	assert.NoError(t, err, "unexpected error creating new instance")
+	i.Push(context.Background(), request)
+
+	trace, err := i.FindTraceByID(traceID)
+	assert.Nil(t, trace)
+	assert.NoError(t, err)
+
+	err = i.CutCompleteTraces(0, true)
+	assert.NoError(t, err)
+
+	trace, err = i.FindTraceByID(traceID)
+	assert.NotNil(t, trace)
+	assert.NoError(t, err)
+
+	ready, err := i.CutBlockIfReady(0, 0)
+	assert.True(t, ready)
+	assert.NoError(t, err)
+
+	trace, err = i.FindTraceByID(traceID)
+	assert.NotNil(t, trace)
+	assert.NoError(t, err)
+}
