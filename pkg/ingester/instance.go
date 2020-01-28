@@ -145,14 +145,13 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return ready, nil
 }
 
-// GetBlock() returns complete traces.  It is up to the caller to do something sensible at this point
 func (i *instance) GetCompleteBlock() wal.CompleteBlock {
+	i.blockTracesMtx.Lock()
+	defer i.blockTracesMtx.Unlock()
+
 	if len(i.completeBlocks) == 0 {
 		return nil
 	}
-
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
 
 	return i.completeBlocks[0]
 }

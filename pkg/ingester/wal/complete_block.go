@@ -32,6 +32,7 @@ type CompleteBlock interface {
 	Clear() error
 }
 
+// todo:  I hate this method.  Make it not exist
 func (c *completeBlock) Identity() (uuid.UUID, string, []*Record, string) {
 	return c.blockID, c.instanceID, c.records, fullFilename(c.filepath, c.blockID, c.instanceID)
 }
