@@ -14,7 +14,7 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 
 	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/ingester/wal"
+	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/util"
 )
 
@@ -40,17 +40,17 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blockTracesMtx sync.RWMutex
-	headBlock      wal.HeadBlock
-	completeBlocks []wal.CompleteBlock
+	headBlock      block.HeadBlock
+	completeBlocks []block.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	limiter            *Limiter
-	wal                wal.WAL
+	wal                block.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal wal.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal block.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[traceFingerprint]*trace{},
 
@@ -145,7 +145,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return ready, nil
 }
 
-func (i *instance) GetCompleteBlock() wal.CompleteBlock {
+func (i *instance) GetCompleteBlock() block.CompleteBlock {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
@@ -156,7 +156,7 @@ func (i *instance) GetCompleteBlock() wal.CompleteBlock {
 	return i.completeBlocks[0]
 }
 
-func (i *instance) ClearCompleteBlock(deleteBlock wal.CompleteBlock) error {
+func (i *instance) ClearCompleteBlock(deleteBlock block.CompleteBlock) error {
 	var err error
 
 	i.blockTracesMtx.Lock()

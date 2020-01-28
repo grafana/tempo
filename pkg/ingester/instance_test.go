@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/frigg/pkg/ingester/wal"
+	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/util/test"
 	"github.com/grafana/frigg/pkg/util/validation"
 
@@ -30,7 +30,7 @@ func TestInstance(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
-	wal, err := wal.New(wal.Config{
+	wal, err := block.New(block.Config{
 		Filepath: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating wal")
@@ -78,7 +78,7 @@ func TestInstanceFind(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
-	wal, err := wal.New(wal.Config{
+	wal, err := block.New(block.Config{
 		Filepath: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating wal")

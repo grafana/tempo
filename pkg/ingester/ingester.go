@@ -21,7 +21,7 @@ import (
 
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
-	"github.com/grafana/frigg/pkg/ingester/wal"
+	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/util/validation"
 )
 
@@ -61,7 +61,7 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
-	wal     wal.WAL
+	wal     block.WAL
 }
 
 // ChunkStore is the interface we need to store chunks.
@@ -104,7 +104,7 @@ func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *valid
 	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
 
 	// todo: add replay logic
-	i.wal, err = wal.New(cfg.WALConfig)
+	i.wal, err = block.New(cfg.WALConfig)
 	if err != nil {
 		return nil, err
 	}

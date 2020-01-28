@@ -8,7 +8,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/grafana/frigg/pkg/ingester/wal"
+	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/storage"
 	"github.com/grafana/frigg/pkg/storage/trace_backend/local"
 )
@@ -102,7 +102,7 @@ func dumpIndex(dir string) error {
 		return err
 	}
 
-	records, err := wal.UnmarshalRecords(bytes)
+	records, err := block.UnmarshalRecords(bytes)
 	if err != nil {
 		return err
 	}

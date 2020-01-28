@@ -1,4 +1,4 @@
-package wal
+package block
 
 import (
 	"bytes"
