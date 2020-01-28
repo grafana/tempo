@@ -122,9 +122,7 @@ func (i *Ingester) flushLoop(j int) {
 			level.Error(util.WithUserID(op.userID, util.Logger)).Log("msg", "failed to flush user", "err", err)
 		}
 
-		// If we're exiting & we failed to flush, put the failed operation
-		// back in the queue at a later point.
-		if op.immediate && err != nil {
+		if err != nil {
 			op.from += int64(flushBackoff)
 			i.flushQueues[j].Enqueue(op)
 		}
@@ -140,11 +138,6 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 	if instance == nil {
 		return fmt.Errorf("instance id %s not found", userID)
 	}
-
-	// todo:  writes to the block are ...blocked... until write/reset go through
-	//  need to queue up blocks like Loki?
-	instance.blockTracesMtx.Lock()
-	defer instance.blockTracesMtx.Unlock()
 
 	for {
 		block := instance.GetCompleteBlock()
@@ -163,10 +156,7 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 		}
 		tracesFlushed.Add(float64(block.Length()))
 
-		err = block.Clear()
-		if err != nil {
-			return err
-		}
+		err = instance.ClearCompleteBlock(block)
 	}
 
 	return nil

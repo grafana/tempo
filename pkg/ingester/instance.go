@@ -151,10 +151,30 @@ func (i *instance) GetCompleteBlock() wal.CompleteBlock {
 		return nil
 	}
 
-	var completeBlock wal.CompleteBlock
-	completeBlock, i.completeBlocks = i.completeBlocks[0], i.completeBlocks[1:]
+	i.blockTracesMtx.Lock()
+	defer i.blockTracesMtx.Unlock()
 
-	return completeBlock
+	return i.completeBlocks[0]
+}
+
+func (i *instance) ClearCompleteBlock(deleteBlock wal.CompleteBlock) error {
+	var err error
+
+	i.blockTracesMtx.Lock()
+	defer i.blockTracesMtx.Unlock()
+
+	deleteID, _, _, _ := deleteBlock.Identity()
+
+	for idx, b := range i.completeBlocks {
+		blockID, _, _, _ := b.Identity()
+		if blockID == deleteID {
+			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
+			err = b.Clear()
+			break
+		}
+	}
+
+	return err
 }
 
 func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {

@@ -54,8 +54,14 @@ func TestInstance(t *testing.T) {
 	block := i.GetCompleteBlock()
 	assert.Equal(t, 1, block.Length())
 
+	err = i.ClearCompleteBlock(block)
+	assert.NoError(t, err)
+
 	block = i.GetCompleteBlock()
 	assert.Equal(t, 0, block.Length())
+
+	err = i.ClearCompleteBlock(block)
+	assert.NoError(t, err)
 
 	err = i.resetHeadBlock()
 	assert.NoError(t, err, "unexpected error resetting block")
