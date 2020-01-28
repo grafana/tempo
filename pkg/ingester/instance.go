@@ -1,11 +1,9 @@
 package ingester
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/http"
-	"sort"
 	"sync"
 	"time"
 
@@ -16,8 +14,7 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 
 	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/ingester/wal"
-	"github.com/grafana/frigg/pkg/storage"
+	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/util"
 )
 
@@ -43,17 +40,17 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blockTracesMtx sync.RWMutex
-	traceRecords   []*storage.TraceRecord
-	walBlock       wal.WALBlock
+	headBlock      block.HeadBlock
+	completeBlocks []block.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	limiter            *Limiter
-	wal                wal.WAL
+	wal                block.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal wal.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal block.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[traceFingerprint]*trace{},
 
@@ -62,7 +59,7 @@ func newInstance(instanceID string, limiter *Limiter, wal wal.WAL) (*instance, e
 		limiter:            limiter,
 		wal:                wal,
 	}
-	err := i.ResetBlock()
+	err := i.resetHeadBlock()
 	if err != nil {
 		return nil, err
 	}
@@ -85,6 +82,22 @@ func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
 	return nil
 }
 
+// PushTrace is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
+func (i *instance) PushTrace(ctx context.Context, t *friggpb.Trace) error {
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
+
+	if len(t.Batches) == 0 {
+		return fmt.Errorf("invalid trace received with 0 batches")
+	}
+
+	if len(t.Batches[0].Spans) == 0 {
+		return fmt.Errorf("invalid batch received with 0 spans")
+	}
+
+	return i.headBlock.Write(t.Batches[0].Spans[0].TraceId, t)
+}
+
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	i.tracesMtx.Lock()
@@ -96,21 +109,9 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	now := time.Now()
 	for key, trace := range i.traces {
 		if now.Add(cutoff).After(trace.lastAppend) || immediate {
-			start, length, err := i.walBlock.Write(trace.trace)
+			err := i.headBlock.Write(trace.traceID, trace.trace)
 			if err != nil {
 				return err
-			}
-
-			// insert sorted
-			idx := sort.Search(len(i.traceRecords), func(idx int) bool {
-				return bytes.Compare(i.traceRecords[idx].TraceID, trace.traceID) == 1
-			})
-			i.traceRecords = append(i.traceRecords, nil)
-			copy(i.traceRecords[idx+1:], i.traceRecords[idx:])
-			i.traceRecords[idx] = &storage.TraceRecord{
-				TraceID: trace.traceID,
-				Start:   start,
-				Length:  length,
 			}
 
 			delete(i.traces, key)
@@ -120,58 +121,83 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-func (i *instance) IsBlockReady(maxTracesPerBlock int, maxBlockLifetime time.Duration) bool {
+func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration) (bool, error) {
 	i.blockTracesMtx.RLock()
 	defer i.blockTracesMtx.RUnlock()
 
-	now := time.Now()
-	return len(i.traceRecords) >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now)
-}
-
-// GetBlock() returns complete traces.  It is up to the caller to do something sensible at this point
-func (i *instance) GetBlock() ([]*storage.TraceRecord, wal.WALBlock) {
-	return i.traceRecords, i.walBlock
-}
-
-func (i *instance) ResetBlock() error {
-	i.traceRecords = make([]*storage.TraceRecord, 0) //todo : init this with some value?  max traces per block?
-
-	if i.walBlock != nil {
-		i.walBlock.Clear()
+	if i.headBlock == nil {
+		return false, nil
 	}
 
+	now := time.Now()
+	ready := i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now)
+
+	if ready {
+		completeBlock, err := i.headBlock.Complete()
+		if err != nil {
+			return false, err
+		}
+
+		i.completeBlocks = append(i.completeBlocks, completeBlock)
+		i.resetHeadBlock()
+	}
+
+	return ready, nil
+}
+
+func (i *instance) GetCompleteBlock() block.CompleteBlock {
+	i.blockTracesMtx.Lock()
+	defer i.blockTracesMtx.Unlock()
+
+	if len(i.completeBlocks) == 0 {
+		return nil
+	}
+
+	return i.completeBlocks[0]
+}
+
+func (i *instance) ClearCompleteBlock(deleteBlock block.CompleteBlock) error {
 	var err error
-	i.walBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
-	i.lastBlockCut = time.Now()
+
+	i.blockTracesMtx.Lock()
+	defer i.blockTracesMtx.Unlock()
+
+	deleteID, _, _, _ := deleteBlock.Identity()
+
+	for idx, b := range i.completeBlocks {
+		blockID, _, _, _ := b.Identity()
+		if blockID == deleteID {
+			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
+			err = b.Clear()
+			break
+		}
+	}
+
 	return err
 }
 
 func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
-	i.tracesMtx.Lock()
-	defer i.tracesMtx.Unlock()
+	i.blockTracesMtx.Lock()
+	defer i.blockTracesMtx.Unlock()
 
-	// search and return only complete traces.  traceRecords is ordered so binary search it
-	idx := sort.Search(len(i.traceRecords), func(idx int) bool {
-		return bytes.Compare(i.traceRecords[idx].TraceID, id) >= 0
-	})
+	out := &friggpb.Trace{}
 
-	if idx < 0 || idx >= len(i.traceRecords) {
-		return nil, nil
+	found, err := i.headBlock.Find(id, out)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return out, nil
 	}
 
-	rec := i.traceRecords[idx]
-	if bytes.Compare(rec.TraceID, id) == 0 {
-		i.blockTracesMtx.Lock()
-		defer i.blockTracesMtx.Unlock()
-
-		out := &friggpb.Trace{}
-
-		err := i.walBlock.Read(rec.Start, rec.Length, out)
+	for _, c := range i.completeBlocks {
+		found, err = c.Find(id, out)
 		if err != nil {
 			return nil, err
 		}
-
-		return out, nil
+		if found {
+			return out, nil
+		}
 	}
 
 	return nil, nil
@@ -201,6 +227,13 @@ func (i *instance) getOrCreateTrace(req *friggpb.PushRequest) (*trace, error) {
 	i.tracesCreatedTotal.Inc()
 
 	return trace, nil
+}
+
+func (i *instance) resetHeadBlock() error {
+	var err error
+	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
+	i.lastBlockCut = time.Now()
+	return err
 }
 
 func isDone(ctx context.Context) bool {

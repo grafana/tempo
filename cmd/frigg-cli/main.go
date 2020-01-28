@@ -8,6 +8,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/storage"
 	"github.com/grafana/frigg/pkg/storage/trace_backend/local"
 )
@@ -101,14 +102,14 @@ func dumpIndex(dir string) error {
 		return err
 	}
 
-	records, err := storage.DecodeRecords(bytes)
+	records, err := block.UnmarshalRecords(bytes)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("records: %d\n", len(records))
 	for i, r := range records {
-		fmt.Printf("%4d : %v %v %v\n", i, r.TraceID, r.Start, r.Length)
+		fmt.Printf("%4d : %v %v %v\n", i, r.ID, r.Start, r.Length)
 	}
 
 	return nil

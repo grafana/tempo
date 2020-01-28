@@ -85,7 +85,13 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	// see if it's ready to cut a block?
-	if instance.IsBlockReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration) {
+	ready, err := instance.CutBlockIfReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration)
+	if err != nil {
+		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut block", "err", err)
+		return
+	}
+
+	if ready {
 		i.flushQueueIndex++
 		flushQueueIndex := i.flushQueueIndex % i.cfg.ConcurrentFlushes
 		i.flushQueues[flushQueueIndex].Enqueue(&flushOp{
@@ -116,9 +122,7 @@ func (i *Ingester) flushLoop(j int) {
 			level.Error(util.WithUserID(op.userID, util.Logger)).Log("msg", "failed to flush user", "err", err)
 		}
 
-		// If we're exiting & we failed to flush, put the failed operation
-		// back in the queue at a later point.
-		if op.immediate && err != nil {
+		if err != nil {
 			op.from += int64(flushBackoff)
 			i.flushQueues[j].Enqueue(op)
 		}
@@ -135,26 +139,25 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 		return fmt.Errorf("instance id %s not found", userID)
 	}
 
-	// todo:  writes to the block are ...blocked... until write/reset go through
-	//  need to queue up blocks like Loki?
-	instance.blockTracesMtx.Lock()
-	defer instance.blockTracesMtx.Unlock()
+	for {
+		block := instance.GetCompleteBlock()
+		if block == nil {
+			break
+		}
 
-	records, block := instance.GetBlock()
-	uuid, file := block.Identity()
+		ctx := user.InjectOrgID(context.Background(), userID)
+		ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
+		defer cancel()
 
-	ctx := user.InjectOrgID(context.Background(), userID)
-	ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
-	defer cancel()
+		err = i.store.(storage.Store).WriteBlock(ctx, block)
+		if err != nil {
+			failedFlushes.Inc()
+			return err
+		}
+		tracesFlushed.Add(float64(block.Length()))
 
-	err = i.store.(storage.Store).WriteBlock(ctx, uuid, userID, records, file)
-	if err != nil {
-		failedFlushes.Inc()
-		return err
+		err = instance.ClearCompleteBlock(block)
 	}
-	tracesFlushed.Add(float64(len(records)))
 
-	err = instance.ResetBlock()
-
-	return err
+	return nil
 }

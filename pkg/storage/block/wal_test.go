@@ -1,4 +1,4 @@
-package wal
+package block
 
 import (
 	"io/ioutil"
@@ -53,13 +53,14 @@ func TestReadWrite(t *testing.T) {
 	block, err := wal.NewBlock(blockID, instanceID)
 	assert.NoError(t, err, "unexpected error creating block")
 
-	req := test.MakeRequest(10, []byte{})
-	start, length, err := block.Write(req)
+	req := test.MakeRequest(10, []byte{0x00, 0x01})
+	err = block.Write([]byte{0x00, 0x01}, req)
 	assert.NoError(t, err, "unexpected error creating writing req")
 
 	outReq := &friggpb.PushRequest{}
-	err = block.Read(start, length, outReq)
+	found, err := block.Find([]byte{0x00, 0x01}, outReq)
 	assert.NoError(t, err, "unexpected error creating reading req")
+	assert.True(t, found)
 	assert.True(t, proto.Equal(req, outReq))
 }
 
@@ -84,7 +85,7 @@ func TestIterator(t *testing.T) {
 	for i := 0; i < numMsgs; i++ {
 		req := test.MakeRequest(rand.Int()%1000, []byte{})
 		reqs = append(reqs, req)
-		_, _, err := block.Write(req)
+		err := block.Write([]byte{}, req)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
@@ -128,8 +129,8 @@ func BenchmarkWriteRead(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, req := range reqs {
-			start, len, _ := block.Write(req)
-			block.Read(start, len, outReq)
+			block.Write(req.Batch.Spans[0].TraceId, req)
+			block.Find(req.Batch.Spans[0].TraceId, outReq)
 		}
 	}
 }
