@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
+type IterFunc func(msg proto.Message) (bool, error)
+
 // complete block has all of the fields
 type completeBlock struct {
 	filepath   string

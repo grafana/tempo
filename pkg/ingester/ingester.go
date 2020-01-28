@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log/level"
+	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -107,6 +108,7 @@ func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *valid
 	if err != nil {
 		return nil, err
 	}
+	err = i.replayWal()
 
 	i.done.Add(1)
 	go i.loop()
@@ -266,5 +268,43 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 	}
 
 	// need to decide what, if any support, we're going to have here
+	return nil
+}
+
+func (i *Ingester) replayWal() error {
+	blocks, err := i.wal.AllBlocks()
+	if err != nil {
+		return nil
+	}
+
+	read := &friggpb.Trace{}
+	for _, b := range blocks {
+		err = b.Iterator(read, func(r proto.Message) (bool, error) {
+			req := r.(*friggpb.Trace)
+
+			_, tenantID, _, _ := b.Identity()
+			instance, err := i.getOrCreateInstance(tenantID)
+			if err != nil {
+				return false, err
+			}
+
+			err = instance.PushTrace(context.Background(), req)
+			if err != nil {
+				return false, err
+			}
+
+			return true, nil
+		})
+		if err != nil {
+			// clean up any instance headblocks that were created to keep from replaying again and again
+			for _, instance := range i.instances {
+				instance.headBlock.Clear()
+			}
+
+			return err
+		}
+		b.Clear()
+	}
+
 	return nil
 }

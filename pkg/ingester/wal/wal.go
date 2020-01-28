@@ -6,11 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 )
-
-type IterFunc func(msg proto.Message) (bool, error)
 
 type WAL interface {
 	AllBlocks() ([]HeadBlock, error)

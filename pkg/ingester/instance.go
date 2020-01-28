@@ -82,6 +82,22 @@ func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
 	return nil
 }
 
+// PushTrace is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
+func (i *instance) PushTrace(ctx context.Context, t *friggpb.Trace) error {
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
+
+	if len(t.Batches) == 0 {
+		return fmt.Errorf("invalid trace received with 0 batches")
+	}
+
+	if len(t.Batches[0].Spans) == 0 {
+		return fmt.Errorf("invalid batch received with 0 spans")
+	}
+
+	return i.headBlock.Write(t.Batches[0].Spans[0].TraceId, t)
+}
+
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	i.tracesMtx.Lock()

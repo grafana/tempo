@@ -24,40 +24,12 @@ import (
 )
 
 func TestPushQuery(t *testing.T) {
-	ingesterConfig := defaultIngesterTestConfig(t)
-	limits, err := validation.NewOverrides(defaultLimitsTestConfig())
-	assert.NoError(t, err, "unexpected error creating overrides")
-
 	tmpDir, err := ioutil.TempDir("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
-	ingesterConfig.WALConfig.Filepath = tmpDir
-
-	store := &mockStore{}
-	ingester, err := New(ingesterConfig, client.Config{}, store, limits)
-
-	// make some fake traceIDs/requests
-	traces := make([]*friggpb.Trace, 0)
-	traceIDs := make([][]byte, 0)
-	for i := 0; i < 10; i++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-
-		traces = append(traces, test.MakeTrace(10, id))
-		traceIDs = append(traceIDs, id)
-	}
 
 	ctx := user.InjectOrgID(context.Background(), "test")
-
-	for _, trace := range traces {
-		for _, batch := range trace.Batches {
-			_, err = ingester.Push(ctx,
-				&friggpb.PushRequest{
-					Batch: batch,
-				})
-			assert.NoError(t, err, "unexpected error pushing")
-		}
-	}
+	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
 
 	// now query and get nils (nothing has been flushed)
 	for _, traceID := range traceIDs {
@@ -71,7 +43,7 @@ func TestPushQuery(t *testing.T) {
 	// force cut all traces
 	for _, instance := range ingester.instances {
 		err = instance.CutCompleteTraces(0, true)
-		assert.NoError(t, err, "unexpected cutting traces")
+		assert.NoError(t, err, "unexpected error cutting traces")
 	}
 
 	// should be able to find them now
@@ -83,6 +55,80 @@ func TestPushQuery(t *testing.T) {
 		equal := proto.Equal(traces[i], foundTrace.Trace)
 		assert.True(t, equal)
 	}
+}
+
+func TestWal(t *testing.T) { // jpe
+	tmpDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting tempdir")
+	defer os.RemoveAll(tmpDir)
+
+	ctx := user.InjectOrgID(context.Background(), "test")
+	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
+
+	// now query and get nils (nothing has been flushed)
+	for _, traceID := range traceIDs {
+		foundTrace, err := ingester.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
+			TraceID: traceID,
+		})
+		assert.NoError(t, err, "unexpected error querying")
+		assert.Nil(t, foundTrace.Trace)
+	}
+
+	// force cut all traces
+	for _, instance := range ingester.instances {
+		err := instance.CutCompleteTraces(0, true)
+		assert.NoError(t, err, "unexpected error cutting traces")
+	}
+
+	// create new ingester.  this should replay wal!
+	ingester, _, _ = defaultIngester(t, tmpDir)
+
+	// should be able to find old traces that were replayed
+	for i, traceID := range traceIDs {
+		foundTrace, err := ingester.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
+			TraceID: traceID,
+		})
+		assert.NoError(t, err, "unexpected error querying")
+		equal := proto.Equal(traces[i], foundTrace.Trace)
+		assert.True(t, equal)
+	}
+}
+
+func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, [][]byte) {
+	ingesterConfig := defaultIngesterTestConfig(t)
+	limits, err := validation.NewOverrides(defaultLimitsTestConfig())
+	assert.NoError(t, err, "unexpected error creating overrides")
+
+	ingesterConfig.WALConfig.Filepath = tmpDir
+
+	store := &mockStore{}
+	ingester, err := New(ingesterConfig, client.Config{}, store, limits)
+	assert.NoError(t, err, "unexpected error creating ingester")
+
+	// make some fake traceIDs/requests
+	traces := make([]*friggpb.Trace, 0)
+
+	traceIDs := make([][]byte, 0)
+	for i := 0; i < 10; i++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+
+		traces = append(traces, test.MakeTrace(10, id))
+		traceIDs = append(traceIDs, id)
+	}
+
+	ctx := user.InjectOrgID(context.Background(), "test")
+	for _, trace := range traces {
+		for _, batch := range trace.Batches {
+			_, err := ingester.Push(ctx,
+				&friggpb.PushRequest{
+					Batch: batch,
+				})
+			assert.NoError(t, err, "unexpected error pushing")
+		}
+	}
+
+	return ingester, traces, traceIDs
 }
 
 func defaultIngesterTestConfig(t *testing.T) Config {
