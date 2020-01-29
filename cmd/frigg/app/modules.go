@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
@@ -16,6 +15,7 @@ import (
 	"github.com/grafana/frigg/pkg/distributor"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester"
+	"github.com/grafana/frigg/pkg/querier"
 	frigg_storage "github.com/grafana/frigg/pkg/storage"
 	"github.com/grafana/frigg/pkg/util/validation"
 )
@@ -31,6 +31,7 @@ const (
 	Server
 	Distributor
 	Ingester
+	Querier
 	Store
 	All
 )
@@ -58,6 +59,8 @@ func (m moduleName) String() string {
 		return "store"
 	case Ingester:
 		return "ingester"
+	case Querier:
+		return "querier"
 	case All:
 		return "all"
 	default:
@@ -84,6 +87,9 @@ func (m *moduleName) Set(s string) error {
 		return nil
 	case "ingester":
 		*m = Ingester
+		return nil
+	case "querier":
+		*m = Querier
 		return nil
 	case "all":
 		*m = All
@@ -141,6 +147,7 @@ func (t *App) initIngester() (err error) {
 	}
 
 	friggpb.RegisterPusherServer(t.server.GRPC, t.ingester)
+	friggpb.RegisterQuerierServer(t.server.GRPC, t.ingester)
 	grpc_health_v1.RegisterHealthServer(t.server.GRPC, t.ingester)
 	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.ingester.ReadinessHandler))
 	t.server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
@@ -155,6 +162,18 @@ func (t *App) stopIngester() error {
 func (t *App) stoppingIngester() error {
 	t.ingester.Stopping()
 	return nil
+}
+
+func (t *App) initQuerier() (err error) {
+	t.querier, err = querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides)
+	if err != nil {
+		return
+	}
+
+	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.querier.ReadinessHandler))
+	t.server.HTTP.Handle("/api/traces", http.HandlerFunc(t.querier.TraceByIDHandler))
+
+	return
 }
 
 func (t *App) initStore() (err error) {
@@ -252,12 +271,6 @@ var modules = map[moduleName]module{
 		stop: (*App).stopDistributor,
 	},
 
-	Store: {
-		deps: []moduleName{Overrides},
-		init: (*App).initStore,
-		stop: (*App).stopStore,
-	},
-
 	Ingester: {
 		deps:     []moduleName{Store, Server},
 		init:     (*App).initIngester,
@@ -265,7 +278,18 @@ var modules = map[moduleName]module{
 		stopping: (*App).stoppingIngester,
 	},
 
+	Querier: {
+		deps: []moduleName{Store, Ring, Server},
+		init: (*App).initQuerier,
+	},
+
+	Store: {
+		deps: []moduleName{Overrides},
+		init: (*App).initStore,
+		stop: (*App).stopStore,
+	},
+
 	All: {
-		deps: []moduleName{Ingester, Distributor},
+		deps: []moduleName{Querier, Ingester, Distributor},
 	},
 }
