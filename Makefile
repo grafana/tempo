@@ -67,4 +67,3 @@ deps:
 .PHONY: install-tools
 install-tools:
 	go get -u github.com/nomad-software/vend
-	go get -u github.com/mjibson/esc
