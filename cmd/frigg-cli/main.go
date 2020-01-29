@@ -1,16 +1,16 @@
 package main
 
 import (
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"path"
 	"time"
 
-	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/storage"
+	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/storage/trace_backend/local"
+	"github.com/grafana/frigg/pkg/util"
 )
 
 var (
@@ -54,14 +54,9 @@ func main() {
 }
 
 func findTraceByID(dir string, id string) error {
-	byteID, err := hex.DecodeString(id)
+	byteID, err := util.HexStringToTraceID(id)
 	if err != nil {
 		return err
-	}
-
-	size := len(byteID)
-	if size < 16 {
-		byteID = append(make([]byte, 16-size), byteID...)
 	}
 
 	reader, _, err := storage.NewTraceStore(storage.TraceConfig{

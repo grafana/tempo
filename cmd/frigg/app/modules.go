@@ -171,7 +171,7 @@ func (t *App) initQuerier() (err error) {
 	}
 
 	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.querier.ReadinessHandler))
-	t.server.HTTP.Handle("/api/traces", http.HandlerFunc(t.querier.TraceByIDHandler))
+	t.server.HTTP.Handle("/api/traces/{traceID}", http.HandlerFunc(t.querier.TraceByIDHandler))
 
 	return
 }
