@@ -61,8 +61,10 @@ endif
 
 .PHONY: deps
 deps:
-	# go get github.com/nomad-software/vend
-	#  unfortunately this tool is necessary to pull in no .go packages.  we're using it specifically to grab the
-	#  otel proto
 	vend -package
 	go mod vendor
+
+.PHONY: install-tools
+install-tools:
+	go get -u github.com/nomad-software/vend
+	go get -u github.com/mjibson/esc
