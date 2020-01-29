@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/frigg/pkg/distributor"
 	"github.com/grafana/frigg/pkg/ingester"
 	"github.com/grafana/frigg/pkg/ingester/client"
+	"github.com/grafana/frigg/pkg/querier"
 	"github.com/grafana/frigg/pkg/storage"
 	"github.com/grafana/frigg/pkg/util/validation"
 )
@@ -30,6 +31,7 @@ type Config struct {
 	Server           server.Config      `yaml:"server,omitempty"`
 	Distributor      distributor.Config `yaml:"distributor,omitempty"`
 	IngesterClient   client.Config      `yaml:"ingester_client,omitempty"`
+	Querier          querier.Config     `yaml:"querier,omitempty"`
 	Ingester         ingester.Config    `yaml:"ingester,omitempty"`
 	StorageConfig    storage.Config     `yaml:"storage_config,omitempty"`
 	ChunkStoreConfig chunk.StoreConfig  `yaml:"chunk_store_config,omitempty"`
@@ -48,6 +50,7 @@ func (c *Config) RegisterFlags(f *flag.FlagSet) {
 	c.Server.RegisterFlags(f)
 	c.Distributor.RegisterFlags(f)
 	c.IngesterClient.RegisterFlags(f)
+	c.Querier.RegisterFlags(f)
 	c.Ingester.RegisterFlags(f)
 	c.StorageConfig.RegisterFlags(f)
 	c.ChunkStoreConfig.RegisterFlags(f)
@@ -63,6 +66,7 @@ type App struct {
 	ring        *ring.Ring
 	overrides   *validation.Overrides
 	distributor *distributor.Distributor
+	querier     *querier.Querier
 	ingester    *ingester.Ingester
 	store       storage.Store
 

@@ -47,11 +47,13 @@ func New(cfg Config, addr string) (grpc_health_v1.HealthClient, error) {
 	}
 	return struct {
 		friggpb.PusherClient
+		friggpb.QuerierClient
 		grpc_health_v1.HealthClient
 		io.Closer
 	}{
-		PusherClient: friggpb.NewPusherClient(conn),
-		Closer:       conn,
+		PusherClient:  friggpb.NewPusherClient(conn),
+		QuerierClient: friggpb.NewQuerierClient(conn),
+		Closer:        conn,
 	}, nil
 }
 
