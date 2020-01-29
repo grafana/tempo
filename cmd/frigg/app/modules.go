@@ -170,8 +170,12 @@ func (t *App) initQuerier() (err error) {
 		return
 	}
 
+	tracesHandler := middleware.Merge(
+		t.httpAuthMiddleware,
+	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
+
 	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.querier.ReadinessHandler))
-	t.server.HTTP.Handle("/api/traces/{traceID}", http.HandlerFunc(t.querier.TraceByIDHandler))
+	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
 	return
 }
