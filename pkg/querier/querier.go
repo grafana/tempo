@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/go-kit/kit/log/level"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
@@ -20,7 +22,46 @@ import (
 	"github.com/grafana/frigg/pkg/util/validation"
 )
 
-var readinessProbeSuccess = []byte("Ready")
+var (
+	readinessProbeSuccess = []byte("Ready")
+
+	metricBloomFilterReads = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "frigg",
+		Name:      "bloom_filter_reads",
+		Help:      "count of bloom filters read",
+		Buckets:   prometheus.ExponentialBuckets(0.5, 2, 10),
+	})
+	metricBloomFilterBytesRead = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "frigg",
+		Name:      "bloom_filter_bytes_read",
+		Help:      "bytes of bloom filters read",
+		Buckets:   prometheus.ExponentialBuckets(512, 2, 10),
+	})
+	metricIndexReads = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "frigg",
+		Name:      "index_reads",
+		Help:      "count of indexes read",
+		Buckets:   prometheus.ExponentialBuckets(0.5, 2, 10),
+	})
+	metricIndexBytesRead = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "frigg",
+		Name:      "index_bytes_read",
+		Help:      "bytes of indexes read",
+		Buckets:   prometheus.ExponentialBuckets(512, 2, 10),
+	})
+	metricBlockReads = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "frigg",
+		Name:      "block_reads",
+		Help:      "count of blocks read",
+		Buckets:   prometheus.ExponentialBuckets(0.5, 2, 10),
+	})
+	metricBlockBytesRead = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "frigg",
+		Name:      "block_bytes_reads",
+		Help:      "bytes of blocks read",
+		Buckets:   prometheus.ExponentialBuckets(512, 2, 10),
+	})
+)
 
 // Querier handlers queries.
 type Querier struct {
@@ -91,6 +132,22 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDReque
 		if trace != nil {
 			break
 		}
+	}
+
+	// if the ingester didn't have it check the store.  todo: parallelize
+	if trace == nil {
+		var metrics storage.FindMetrics
+		trace, metrics, err = q.store.FindTrace(userID, req.TraceID)
+		if err != nil {
+			return nil, err
+		}
+
+		metricBloomFilterReads.Observe(float64(metrics.BloomFilterReads))
+		metricBloomFilterBytesRead.Observe(float64(metrics.BloomFilterBytesRead))
+		metricIndexReads.Observe(float64(metrics.IndexReads))
+		metricIndexBytesRead.Observe(float64(metrics.IndexBytesRead))
+		metricBlockReads.Observe(float64(metrics.BlockReads))
+		metricBlockBytesRead.Observe(float64(metrics.BlockBytesRead))
 	}
 
 	return &friggpb.TraceByIDResponse{
