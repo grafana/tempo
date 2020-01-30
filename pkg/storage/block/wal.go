@@ -19,6 +19,10 @@ type wal struct {
 }
 
 func New(c Config) (WAL, error) {
+	if c.Filepath == "" {
+		return nil, fmt.Errorf("please provide a path for the WAL")
+	}
+
 	// make folder
 	err := os.MkdirAll(c.Filepath, os.ModePerm)
 	if err != nil {
