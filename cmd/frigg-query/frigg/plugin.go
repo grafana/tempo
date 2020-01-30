@@ -81,10 +81,6 @@ func (b *Backend) WriteSpan(span *model.Span) error {
 	return nil
 }
 
-/*func addResourceIfNotExists(processes []model.Trace_ProcessMapping, resource *opentelemetry_resource_trace_v1.Resource) []model.Trace_ProcessMapping {
-	return processes
-}*/
-
 func protoSpanToJaegerSpan(in *opentelemetry_proto_trace_v1.Span, resource *opentelemetry_resource_trace_v1.Resource) *model.Span {
 
 	traceID := model.TraceID{
