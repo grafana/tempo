@@ -2,30 +2,42 @@ package main
 
 import (
 	"flag"
-	"path"
 	"strings"
 
 	"github.com/spf13/viper"
 
 	"github.com/grafana/frigg/cmd/frigg-query/frigg"
+	"github.com/hashicorp/go-hclog"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 func main() {
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:       "jaeger-frigg",
+		Level:      hclog.Error, // Jaeger only captures >= Warn, so don't bother logging below Warn
+		JSONFormat: true,
+	})
+
 	var configPath string
 	flag.StringVar(&configPath, "config", "", "A path to the plugin's configuration file")
 	flag.Parse()
 
-	if configPath != "" {
-		viper.SetConfigFile(path.Base(configPath))
-		viper.AddConfigPath(path.Dir(configPath))
-	}
+	logger.Error(configPath)
 
 	v := viper.New()
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+
+	if configPath != "" {
+		v.SetConfigFile(configPath)
+
+		err := v.ReadInConfig()
+		if err != nil {
+			logger.Error("failed to parse configuration file", "error", err)
+		}
+	}
 
 	cfg := &frigg.Config{}
 	cfg.InitFromViper(v)

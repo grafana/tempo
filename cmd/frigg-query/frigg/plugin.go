@@ -23,7 +23,7 @@ type Backend struct {
 
 func New(cfg *Config) *Backend {
 	return &Backend{
-		friggEndpoint: "http://frigg:3100/api/traces/", //jpe
+		friggEndpoint: "http://" + cfg.Backend + "/api/traces/",
 	}
 }
 

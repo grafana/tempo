@@ -6,7 +6,7 @@ import (
 
 // Config holds the configuration for redbull.
 type Config struct {
-	Backend string
+	Backend string `yaml:"backend"`
 }
 
 // InitFromViper initializes the options struct with values from Viper
