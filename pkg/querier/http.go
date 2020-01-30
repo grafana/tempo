@@ -11,6 +11,10 @@ import (
 	"github.com/grafana/frigg/pkg/util"
 )
 
+const (
+	TraceIDVar = "traceID"
+)
+
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
 func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
@@ -18,7 +22,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	vars := mux.Vars(r)
-	traceID, ok := vars["traceID"] // jpe : make a constant?
+	traceID, ok := vars[TraceIDVar]
 
 	if !ok {
 		http.Error(w, "please provide a traceID", http.StatusBadRequest)

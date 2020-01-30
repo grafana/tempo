@@ -10,8 +10,12 @@ require (
 	github.com/go-kit/kit v0.9.0
 	github.com/golang/protobuf v1.3.2
 	github.com/google/uuid v1.1.1
+	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.3
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
+	github.com/hashicorp/go-hclog v0.12.0
+	github.com/hashicorp/go-plugin v1.0.1 // indirect
+	github.com/jaegertracing/jaeger v1.16.0
 	github.com/open-telemetry/opentelemetry-collector v0.2.3
 	github.com/open-telemetry/opentelemetry-proto v0.0.0-20200114203242-839beca37552
 	github.com/opentracing/opentracing-go v1.1.0

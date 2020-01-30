@@ -21,6 +21,10 @@ LINT=golangci-lint
 frigg:
 	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/frigg $(BUILD_INFO) ./cmd/frigg
 
+.PHONY: frigg-query
+frigg-query:
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/frigg-query $(BUILD_INFO) ./cmd/frigg-query
+
 .PHONY: test
 test:
 	$(GOTEST) $(GOTEST_OPT) $(ALL_PKGS)
@@ -53,6 +57,10 @@ docker-component: check-component
 docker-frigg:
 	COMPONENT=frigg $(MAKE) docker-component
 
+.PHONY: docker-frigg-query
+docker-frigg-query:
+	COMPONENT=frigg-query $(MAKE) docker-component
+
 .PHONY: check-component
 check-component:
 ifndef COMPONENT
@@ -61,8 +69,9 @@ endif
 
 .PHONY: deps
 deps:
-	# go get github.com/nomad-software/vend
-	#  unfortunately this tool is necessary to pull in no .go packages.  we're using it specifically to grab the
-	#  otel proto
 	vend -package
 	go mod vendor
+
+.PHONY: install-tools
+install-tools:
+	go get -u github.com/nomad-software/vend

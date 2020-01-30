@@ -57,7 +57,7 @@ func TestPushQuery(t *testing.T) {
 	}
 }
 
-func TestWal(t *testing.T) { // jpe
+func TestWal(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
