@@ -56,7 +56,6 @@ func (b *Backend) GetTrace(ctx context.Context, traceID model.TraceID) (*model.T
 	// now convert trace to jaeger
 	// todo: remove custom code in favor of otelcol once it's complete
 	for _, batch := range out.Batches {
-		//jaegerTrace.ProcessMap = addResourceIfNotExists(jaegerTrace.ProcessMap, batch.Resource)
 		for _, span := range batch.Spans {
 			jaegerTrace.Spans = append(jaegerTrace.Spans, protoSpanToJaegerSpan(span, batch.Resource))
 		}
@@ -93,7 +92,7 @@ func protoSpanToJaegerSpan(in *opentelemetry_proto_trace_v1.Span, resource *open
 		SpanID:        model.SpanID(binary.BigEndian.Uint64(in.SpanId)),
 		OperationName: in.Name,
 		StartTime:     time.Unix(0, int64(in.StartTimeUnixnano)),
-		Duration:      time.Unix(0, int64(in.StartTimeUnixnano)).Sub(time.Unix(0, int64(in.EndTimeUnixnano))),
+		Duration:      time.Unix(0, int64(in.EndTimeUnixnano)).Sub(time.Unix(0, int64(in.StartTimeUnixnano))),
 	}
 
 	for _, link := range in.Links {
