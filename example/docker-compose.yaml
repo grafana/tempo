@@ -11,6 +11,11 @@ services:
       - "14268"      # jaeger
       - "3100:3100"  # frigg
 
+  frigg:
+    image: frigg-query:latest
+    ports:
+      - "16686:16686"  # jaeger-ui
+
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
     environment:

@@ -22,7 +22,10 @@ func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]mo
 	return nil, nil
 }
 func (b *Backend) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	return nil, nil
+	return &model.Trace{
+		Spans:      []*model.Span{},
+		ProcessMap: []model.Trace_ProcessMapping{},
+	}, nil
 }
 func (b *Backend) GetServices(ctx context.Context) ([]string, error) {
 	return nil, nil

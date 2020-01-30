@@ -28,7 +28,7 @@ func main() {
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
 	cfg := &frigg.Config{}
-	//cfg.InitFromViper(v)
+	cfg.InitFromViper(v)
 
 	backend := frigg.New(cfg)
 	grpc.Serve(&plugin{backend: backend})
