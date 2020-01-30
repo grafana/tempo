@@ -32,8 +32,6 @@ func main() {
 
 	backend := frigg.New(cfg)
 	grpc.Serve(&plugin{backend: backend})
-
-	backend.Close()
 }
 
 type plugin struct {

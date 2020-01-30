@@ -3,58 +3,63 @@ package frigg
 import (
 	"context"
 	"encoding/binary"
-	"log"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/grafana/frigg/pkg/friggpb"
 
-	"google.golang.org/grpc"
-
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	opentelemetry_resource_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
+	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 )
 
 type Backend struct {
-	conn   *grpc.ClientConn
-	client friggpb.QuerierClient
+	friggEndpoint string
 }
 
 func New(cfg *Config) *Backend {
-	conn, err := grpc.Dial("192.168.1.126:3100", grpc.WithInsecure()) // jpe : how to pass config?
-	if err != nil {
-		log.Panic(err)
-	}
-
 	return &Backend{
-		conn:   conn,
-		client: friggpb.NewQuerierClient(conn),
+		friggEndpoint: "http://frigg:3100/api/traces/", //jpe
 	}
-}
-
-func (b *Backend) Close() {
-	b.conn.Close()
 }
 
 func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	return nil, nil
 }
 func (b *Backend) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	traceIDBytes := make([]byte, 16)
-	binary.BigEndian.PutUint64(traceIDBytes[:8], traceID.High)
-	binary.BigEndian.PutUint64(traceIDBytes[8:], traceID.Low)
-
-	_, err := b.client.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
-		TraceID: traceIDBytes,
-	})
+	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
+	resp, err := http.Get(b.friggEndpoint + hexID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &model.Trace{
+	out := &friggpb.Trace{}
+	err = json.NewDecoder(resp.Body).Decode(out)
+	resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	jaegerTrace := &model.Trace{
 		Spans:      []*model.Span{},
 		ProcessMap: []model.Trace_ProcessMapping{},
-	}, nil
+	}
+
+	// now convert trace to jaeger
+	// todo: remove custom code in favor of otelcol once it's complete
+	for _, batch := range out.Batches {
+		//jaegerTrace.ProcessMap = addResourceIfNotExists(jaegerTrace.ProcessMap, batch.Resource)
+		for _, span := range batch.Spans {
+			jaegerTrace.Spans = append(jaegerTrace.Spans, protoSpanToJaegerSpan(span, batch.Resource))
+		}
+	}
+
+	return jaegerTrace, nil
 }
+
 func (b *Backend) GetServices(ctx context.Context) ([]string, error) {
 	return nil, nil
 }
@@ -69,4 +74,39 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryP
 }
 func (b *Backend) WriteSpan(span *model.Span) error {
 	return nil
+}
+
+/*func addResourceIfNotExists(processes []model.Trace_ProcessMapping, resource *opentelemetry_resource_trace_v1.Resource) []model.Trace_ProcessMapping {
+	return processes
+}*/
+
+func protoSpanToJaegerSpan(in *opentelemetry_proto_trace_v1.Span, resource *opentelemetry_resource_trace_v1.Resource) *model.Span {
+
+	traceID := model.TraceID{
+		High: binary.BigEndian.Uint64(in.TraceId[:8]),
+		Low:  binary.BigEndian.Uint64(in.TraceId[8:]),
+	}
+
+	s := &model.Span{
+		TraceID:       traceID,
+		SpanID:        model.SpanID(binary.BigEndian.Uint64(in.SpanId)),
+		OperationName: in.Name,
+	}
+
+	for _, link := range in.Links {
+		s.References = append(s.References, model.SpanRef{
+			TraceID: traceID,
+			SpanID:  model.SpanID(binary.BigEndian.Uint64(link.SpanId)),
+			RefType: model.SpanRefType_CHILD_OF,
+		})
+	}
+
+	s.Process = &model.Process{}
+	for _, att := range resource.Attributes {
+		if att.Key == "process_name" {
+			s.Process.ServiceName = att.StringValue
+		}
+	}
+
+	return s
 }
