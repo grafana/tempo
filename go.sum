@@ -663,6 +663,7 @@ github.com/onsi/gomega v1.7.0 h1:XPnZz8VVBHjVsy1vzJmRwIcSwiUO+JFfrv/xGiigmME=
 github.com/onsi/gomega v1.7.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/open-telemetry/opentelemetry-collector v0.2.3 h1:x0VUODn+GVwRf00klpCJIaAI1QGKbjCz7eDiNauWNRw=
 github.com/open-telemetry/opentelemetry-collector v0.2.3/go.mod h1:WxiK9mcisb/hM6M6+2BRV/VIU2c8VzlCRJED2S1MWns=
+github.com/open-telemetry/opentelemetry-collector v0.2.4 h1:KLDYeGaDz9nVwFgZSBaw3ACg3ykuWUEDvgLG1eZ9lvs=
 github.com/open-telemetry/opentelemetry-proto v0.0.0-20200114203242-839beca37552 h1:jze7/8rddnEBx+mEn/Gwo6ZwFdZCJ32X0O77FgU9EGk=
 github.com/open-telemetry/opentelemetry-proto v0.0.0-20200114203242-839beca37552/go.mod h1:PMR5GI0F7BSpio+rBGFxNm6SLzg3FypDTcFuQZnO+F8=
 github.com/opencontainers/go-digest v1.0.0-rc1/go.mod h1:cMLVZDEM3+U2I4VmLI6N8jQYUd2OVphdqWwCJHrFt2s=

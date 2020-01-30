@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/frigg/pkg/friggpb"
 
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	opentelemetry_resource_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
@@ -41,6 +42,10 @@ func (b *Backend) GetTrace(ctx context.Context, traceID model.TraceID) (*model.T
 	resp.Body.Close()
 	if err != nil {
 		return nil, err
+	}
+
+	if len(out.Batches) == 0 {
+		return nil, fmt.Errorf("TraceID Not Found: " + hexID)
 	}
 
 	jaegerTrace := &model.Trace{
@@ -91,6 +96,8 @@ func protoSpanToJaegerSpan(in *opentelemetry_proto_trace_v1.Span, resource *open
 		TraceID:       traceID,
 		SpanID:        model.SpanID(binary.BigEndian.Uint64(in.SpanId)),
 		OperationName: in.Name,
+		StartTime:     time.Unix(0, int64(in.StartTimeUnixnano)),
+		Duration:      time.Unix(0, int64(in.StartTimeUnixnano)).Sub(time.Unix(0, int64(in.EndTimeUnixnano))),
 	}
 
 	for _, link := range in.Links {
@@ -109,4 +116,11 @@ func protoSpanToJaegerSpan(in *opentelemetry_proto_trace_v1.Span, resource *open
 	}
 
 	return s
+}
+
+func timestampToTimeProto(ts *timestamp.Timestamp) (t time.Time) {
+	if ts == nil {
+		return
+	}
+	return time.Unix(ts.Seconds, int64(ts.Nanos)).UTC()
 }
