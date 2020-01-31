@@ -6,6 +6,6 @@ type Config struct {
 	Backend string       `yaml:"backend"`
 	Local   local.Config `yaml:"local"`
 
-	WALFilepath              string  `yaml:"path"`
+	WALFilepath              string  `yaml:"walpath"`
 	BloomFilterFalsePositive float64 `yaml:"bloom-filter-false-positive"`
 }
