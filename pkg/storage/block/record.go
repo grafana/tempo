@@ -57,7 +57,7 @@ func MarshalRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) 
 		}
 
 		bf.Add(farm.Fingerprint64(r.ID))
-		encodeRecord(r, buff)
+		marshalRecord(r, buff)
 	}
 
 	bloomBytes := bf.JSONMarshal()
@@ -73,7 +73,7 @@ func UnmarshalRecords(recordBytes []byte) ([]*Record, error) {
 		buff := recordBytes[i*28 : (i+1)*28]
 
 		r := newRecord()
-		decodeRecord(buff, r)
+		unmarshalRecord(buff, r)
 
 		records = append(records, r)
 	}
@@ -88,14 +88,14 @@ func FindRecord(id ID, recordBytes []byte) (*Record, error) {
 
 	i := sort.Search(numRecords, func(i int) bool {
 		buff := recordBytes[i*28 : (i+1)*28]
-		decodeRecord(buff, record)
+		unmarshalRecord(buff, record)
 
 		return bytes.Compare(record.ID, id) >= 0
 	})
 
 	if i >= 0 && i < numRecords {
 		buff := recordBytes[i*28 : (i+1)*28]
-		decodeRecord(buff, record)
+		unmarshalRecord(buff, record)
 
 		if bytes.Equal(id, record.ID) {
 			return record, nil
@@ -105,14 +105,14 @@ func FindRecord(id ID, recordBytes []byte) (*Record, error) {
 	return nil, nil
 }
 
-func encodeRecord(r *Record, buff []byte) {
+func marshalRecord(r *Record, buff []byte) {
 	copy(buff, r.ID)
 
 	binary.LittleEndian.PutUint64(buff[16:24], r.Start)
 	binary.LittleEndian.PutUint32(buff[24:], r.Length)
 }
 
-func decodeRecord(buff []byte, r *Record) {
+func unmarshalRecord(buff []byte, r *Record) {
 	copy(r.ID, buff[:16])
 	r.Start = binary.LittleEndian.Uint64(buff[16:24])
 	r.Length = binary.LittleEndian.Uint32(buff[24:])
