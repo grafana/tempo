@@ -70,7 +70,7 @@ func New(cfg *Config) (Reader, Writer, error) {
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
 	uuid, tenantID, records, blockFilePath := c.Identity()
-	indexBytes, bloomBytes, err := MarshalRecords(records, rw.cfg.BloomFilterFalsePositive) //jpe hide marshal/unmarshal
+	indexBytes, bloomBytes, err := marshalRecords(records, rw.cfg.BloomFilterFalsePositive)
 
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMet
 				return false, err
 			}
 
-			record, err := FindRecord(id, indexBytes) // jpe hide findrecord
+			record, err := findRecord(id, indexBytes)
 			if err != nil {
 				return false, err
 			}
