@@ -114,7 +114,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDReque
 	// if the ingester didn't have it check the store.  todo: parallelize
 	if trace == nil {
 		var metrics friggdb.FindMetrics
-		var out *friggpb.Trace
+		out := &friggpb.Trace{}
 		metrics, err = q.store.Find(userID, req.TraceID, out)
 		if err != nil {
 			return nil, err
