@@ -15,6 +15,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
+	"github.com/grafana/frigg/friggdb"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
 	"github.com/grafana/frigg/pkg/storage"
@@ -112,8 +113,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDReque
 
 	// if the ingester didn't have it check the store.  todo: parallelize
 	if trace == nil {
-		var metrics storage.FindMetrics
-		trace, metrics, err = q.store.FindTrace(userID, req.TraceID)
+		var metrics friggdb.FindMetrics
+		var out *friggpb.Trace
+		metrics, err = q.store.Find(userID, req.TraceID, out)
 		if err != nil {
 			return nil, err
 		}

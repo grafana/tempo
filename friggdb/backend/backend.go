@@ -1,4 +1,4 @@
-package trace_backend
+package backend
 
 import (
 	"context"

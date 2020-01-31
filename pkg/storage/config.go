@@ -3,20 +3,13 @@ package storage
 import (
 	"flag"
 
-	"github.com/grafana/frigg/pkg/storage/trace_backend/local"
+	"github.com/grafana/frigg/friggdb"
 )
 
 // Config is the Frigg storage configuration
 type Config struct {
-	Trace TraceConfig `yaml:"trace"`
-}
-
-type TraceConfig struct {
-	Backend string       `yaml:"backend"`
-	Local   local.Config `yaml:"local"`
-
-	BloomFilterFalsePositive float64 `yaml:"bloom-filter-false-positive"`
-}
+	Trace friggdb.Config `yaml:"trace"`
+} // jpe clean up config.  wal?
 
 // RegisterFlags adds the flags required to configure this flag set.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {

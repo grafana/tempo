@@ -1,4 +1,4 @@
-package block
+package friggdb
 
 import (
 	"io/ioutil"
@@ -19,8 +19,8 @@ func TestCreateBlock(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal, err := New(Config{
-		Filepath: tempDir,
+	wal, err := newWAL(&walConfig{
+		filepath: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -42,8 +42,8 @@ func TestReadWrite(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal, err := New(Config{
-		Filepath: tempDir,
+	wal, err := newWAL(&walConfig{
+		filepath: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -69,8 +69,8 @@ func TestIterator(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal, err := New(Config{
-		Filepath: tempDir,
+	wal, err := newWAL(&walConfig{
+		filepath: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -108,8 +108,8 @@ func BenchmarkWriteRead(b *testing.B) {
 	tempDir, _ := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 
-	wal, _ := New(Config{
-		Filepath: tempDir,
+	wal, _ := newWAL(&walConfig{
+		filepath: tempDir,
 	})
 
 	blockID := uuid.New()

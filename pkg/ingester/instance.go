@@ -13,8 +13,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
 
+	"github.com/grafana/frigg/friggdb"
 	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/util"
 )
 
@@ -40,17 +40,17 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blockTracesMtx sync.RWMutex
-	headBlock      block.HeadBlock
-	completeBlocks []block.CompleteBlock
+	headBlock      friggdb.HeadBlock
+	completeBlocks []friggdb.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	limiter            *Limiter
-	wal                block.WAL
+	wal                friggdb.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal block.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal friggdb.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[traceFingerprint]*trace{},
 
@@ -145,7 +145,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return ready, nil
 }
 
-func (i *instance) GetCompleteBlock() block.CompleteBlock {
+func (i *instance) GetCompleteBlock() friggdb.CompleteBlock {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
@@ -156,7 +156,7 @@ func (i *instance) GetCompleteBlock() block.CompleteBlock {
 	return i.completeBlocks[0]
 }
 
-func (i *instance) ClearCompleteBlock(deleteBlock block.CompleteBlock) error {
+func (i *instance) ClearCompleteBlock(deleteBlock friggdb.CompleteBlock) error {
 	var err error
 
 	i.blockTracesMtx.Lock()

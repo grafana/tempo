@@ -18,10 +18,10 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
+	"github.com/grafana/frigg/friggdb"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
 	"github.com/grafana/frigg/pkg/storage"
-	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/util/validation"
 )
 
@@ -61,7 +61,7 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
-	wal     block.WAL
+	wal     friggdb.WAL
 }
 
 // New makes a new Ingester.
@@ -98,8 +98,7 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 	// which depends on it.
 	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
 
-	// todo: add replay logic
-	i.wal, err = block.New(cfg.WALConfig)
+	i.wal, err = i.store.WAL()
 	if err != nil {
 		return nil, err
 	}

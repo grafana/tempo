@@ -8,13 +8,11 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/frigg/pkg/ingester/client"
-	"github.com/grafana/frigg/pkg/storage/block"
 )
 
 // Config for an ingester.
 type Config struct {
 	LifecyclerConfig ring.LifecyclerConfig `yaml:"lifecycler,omitempty"`
-	WALConfig        block.Config            `yaml:"wal"`
 
 	// Config for transferring chunks.
 	MaxTransferRetries int `yaml:"max_transfer_retries,omitempty"`
