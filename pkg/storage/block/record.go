@@ -23,7 +23,7 @@ type recordSorter struct {
 	records []*Record
 }
 
-func SortRecords(records []*Record) {
+func sortRecords(records []*Record) {
 	sort.Sort(&recordSorter{
 		records: records,
 	})

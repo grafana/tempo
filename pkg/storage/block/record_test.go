@@ -17,8 +17,8 @@ func TestEncodeDecodeRecord(t *testing.T) {
 	actual := newRecord()
 	buff := make([]byte, 28)
 
-	encodeRecord(expected, buff)
-	decodeRecord(buff, actual)
+	marshalRecord(expected, buff)
+	unmarshalRecord(buff, actual)
 
 	assert.Equal(t, expected, actual)
 }
@@ -62,7 +62,7 @@ func TestFindRecord(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	SortRecords(expected)
+	sortRecords(expected)
 
 	recordBytes, _, err := MarshalRecords(expected, .01)
 	assert.NoError(t, err, "unexpected error encoding records")
@@ -87,7 +87,7 @@ func TestSortRecord(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	SortRecords(expected)
+	sortRecords(expected)
 
 	for i := range expected {
 		if i == 0 {
