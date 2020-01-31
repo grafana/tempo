@@ -15,12 +15,12 @@ import (
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
+	"github.com/grafana/frigg/pkg/storage"
 	"github.com/grafana/frigg/pkg/storage/block"
 	"github.com/grafana/frigg/pkg/util/validation"
 )
@@ -48,7 +48,7 @@ type Ingester struct {
 	readonly     bool
 
 	lifecycler *ring.Lifecycler
-	store      ChunkStore
+	store      storage.Store
 
 	done     sync.WaitGroup
 	quit     chan struct{}
@@ -64,13 +64,8 @@ type Ingester struct {
 	wal     block.WAL
 }
 
-// ChunkStore is the interface we need to store chunks.
-type ChunkStore interface {
-	Put(ctx context.Context, chunks []chunk.Chunk) error
-}
-
 // New makes a new Ingester.
-func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *validation.Overrides) (*Ingester, error) {
+func New(cfg Config, clientConfig client.Config, store storage.Store, limits *validation.Overrides) (*Ingester, error) {
 	if cfg.ingesterClientFactory == nil {
 		cfg.ingesterClientFactory = client.New
 	}

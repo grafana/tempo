@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
@@ -101,8 +100,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, 
 
 	ingesterConfig.WALConfig.Filepath = tmpDir
 
-	store := &mockStore{}
-	ingester, err := New(ingesterConfig, client.Config{}, store, limits)
+	ingester, err := New(ingesterConfig, client.Config{}, nil, limits)
 	assert.NoError(t, err, "unexpected error creating ingester")
 
 	// make some fake traceIDs/requests
@@ -154,11 +152,4 @@ func defaultLimitsTestConfig() validation.Limits {
 	limits := validation.Limits{}
 	flagext.DefaultValues(&limits)
 	return limits
-}
-
-type mockStore struct {
-}
-
-func (s *mockStore) Put(ctx context.Context, chunks []chunk.Chunk) error {
-	return nil
 }

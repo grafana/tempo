@@ -3,7 +3,6 @@ package storage
 import (
 	"fmt"
 
-	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/chunk/storage"
 	"github.com/grafana/frigg/pkg/storage/trace_backend"
 	"github.com/grafana/frigg/pkg/storage/trace_backend/local"
@@ -11,7 +10,6 @@ import (
 
 // Store is the Frigg chunk store to retrieve and save chunks.
 type Store interface {
-	chunk.Store
 	TraceReader
 	TraceWriter
 }
@@ -19,24 +17,18 @@ type Store interface {
 type store struct {
 	cfg Config
 
-	chunk.Store
 	TraceReader
 	TraceWriter
 }
 
 // NewStore creates a new Frigg Store using configuration supplied.
-func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConfig, limits storage.StoreLimits) (Store, error) {
-	s, err := storage.NewStore(cfg.Columnar, storeCfg, schemaCfg, limits)
-	if err != nil {
-		return nil, err
-	}
+func NewStore(cfg Config, limits storage.StoreLimits) (Store, error) {
 	r, w, err := NewTraceStore(cfg.Trace)
 	if err != nil {
 		return nil, err
 	}
 
 	return &store{
-		Store:       s,
 		cfg:         cfg,
 		TraceReader: r,
 		TraceWriter: w,

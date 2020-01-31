@@ -24,22 +24,7 @@ ingester:
   max_block_duration: 30m
   max_transfer_retries: 1
 
-schema_config:
-  configs:
-  - from: 2018-04-15
-    store: boltdb
-    object_store: filesystem
-    schema: v9
-    index:
-      prefix: index_
-      period: 168h
-
 storage_config:
-  columnar:
-    boltdb:
-      directory: /tmp/frigg/index
-    filesystem:
-      directory: /tmp/frigg/chunks
   trace:
     backend: local
     local:
