@@ -15,12 +15,12 @@ import (
 )
 
 var (
-	tracesFlushed = promauto.NewCounter(prometheus.CounterOpts{
+	metricTracesFlushed = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "frigg",
 		Name:      "ingester_traces_flushed_total",
 		Help:      "The total number of traces flushed",
 	})
-	failedFlushes = promauto.NewCounter(prometheus.CounterOpts{
+	metricFailedFlushes = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "frigg",
 		Name:      "ingester_failed_flushes_total",
 		Help:      "The total number of failed traces",
@@ -151,10 +151,10 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 
 		err = i.store.(storage.Store).WriteBlock(ctx, block)
 		if err != nil {
-			failedFlushes.Inc()
+			metricFailedFlushes.Inc()
 			return err
 		}
-		tracesFlushed.Add(float64(block.Length()))
+		metricTracesFlushed.Add(float64(block.Length()))
 
 		err = instance.ClearCompleteBlock(block)
 	}

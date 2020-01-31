@@ -28,7 +28,7 @@ var (
 )
 
 var (
-	tracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "frigg",
 		Name:      "ingester_traces_created_total",
 		Help:      "The total number of traces created per tenant.",
@@ -55,7 +55,7 @@ func newInstance(instanceID string, limiter *Limiter, wal block.WAL) (*instance,
 		traces: map[traceFingerprint]*trace{},
 
 		instanceID:         instanceID,
-		tracesCreatedTotal: tracesCreatedTotal.WithLabelValues(instanceID),
+		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
 		limiter:            limiter,
 		wal:                wal,
 	}

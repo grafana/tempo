@@ -40,6 +40,8 @@ services:
     image: grafana/grafana:latest
     volumes:
       - ./datasources:/etc/grafana/provisioning/datasources
+      - ./dashboards-provisioning:/etc/grafana/provisioning/dashboards
+      - ./dashboards:/var/lib/grafana/dashboards
     #environment:
     #  - GF_AUTH_ANONYMOUS_ENABLED=true
     ports:

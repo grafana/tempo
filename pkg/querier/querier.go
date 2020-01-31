@@ -25,42 +25,18 @@ import (
 var (
 	readinessProbeSuccess = []byte("Ready")
 
-	metricBloomFilterReads = promauto.NewHistogram(prometheus.HistogramOpts{
+	metricQueryReads = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "frigg",
-		Name:      "bloom_filter_reads",
-		Help:      "count of bloom filters read",
+		Name:      "query_reads",
+		Help:      "count of reads",
 		Buckets:   prometheus.ExponentialBuckets(0.5, 2, 10),
-	})
-	metricBloomFilterBytesRead = promauto.NewHistogram(prometheus.HistogramOpts{
+	}, []string{"layer"})
+	metricQueryBytesRead = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "frigg",
-		Name:      "bloom_filter_bytes_read",
-		Help:      "bytes of bloom filters read",
+		Name:      "query_bytes_read",
+		Help:      "bytes read",
 		Buckets:   prometheus.ExponentialBuckets(512, 2, 10),
-	})
-	metricIndexReads = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "frigg",
-		Name:      "index_reads",
-		Help:      "count of indexes read",
-		Buckets:   prometheus.ExponentialBuckets(0.5, 2, 10),
-	})
-	metricIndexBytesRead = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "frigg",
-		Name:      "index_bytes_read",
-		Help:      "bytes of indexes read",
-		Buckets:   prometheus.ExponentialBuckets(512, 2, 10),
-	})
-	metricBlockReads = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "frigg",
-		Name:      "block_reads",
-		Help:      "count of blocks read",
-		Buckets:   prometheus.ExponentialBuckets(0.5, 2, 10),
-	})
-	metricBlockBytesRead = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "frigg",
-		Name:      "block_bytes_reads",
-		Help:      "bytes of blocks read",
-		Buckets:   prometheus.ExponentialBuckets(512, 2, 10),
-	})
+	}, []string{"layer"})
 )
 
 // Querier handlers queries.
@@ -142,12 +118,12 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDReque
 			return nil, err
 		}
 
-		metricBloomFilterReads.Observe(float64(metrics.BloomFilterReads))
-		metricBloomFilterBytesRead.Observe(float64(metrics.BloomFilterBytesRead))
-		metricIndexReads.Observe(float64(metrics.IndexReads))
-		metricIndexBytesRead.Observe(float64(metrics.IndexBytesRead))
-		metricBlockReads.Observe(float64(metrics.BlockReads))
-		metricBlockBytesRead.Observe(float64(metrics.BlockBytesRead))
+		metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads))
+		metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead))
+		metricQueryReads.WithLabelValues("index").Observe(float64(metrics.IndexReads))
+		metricQueryBytesRead.WithLabelValues("index").Observe(float64(metrics.IndexBytesRead))
+		metricQueryReads.WithLabelValues("block").Observe(float64(metrics.BlockReads))
+		metricQueryBytesRead.WithLabelValues("block").Observe(float64(metrics.BlockBytesRead))
 	}
 
 	return &friggpb.TraceByIDResponse{
