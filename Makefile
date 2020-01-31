@@ -25,6 +25,10 @@ frigg:
 frigg-query:
 	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/frigg-query $(BUILD_INFO) ./cmd/frigg-query
 
+.PHONY: frigg-cli
+frigg-cli:
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/frigg-cli $(BUILD_INFO) ./cmd/frigg-cli
+
 .PHONY: test
 test:
 	$(GOTEST) $(GOTEST_OPT) $(ALL_PKGS)

@@ -1,24 +1,25 @@
-package storage
+package friggdb
 
 import (
 	"context"
+	"fmt"
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/storage/block"
-	"github.com/grafana/frigg/pkg/storage/trace_backend"
+	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/friggdb/backend/local"
 )
 
-type TraceWriter interface {
-	WriteBlock(ctx context.Context, block block.CompleteBlock) error
+type Writer interface {
+	WriteBlock(ctx context.Context, block CompleteBlock) error
+	WAL() (WAL, error)
 }
 
-type TraceReader interface {
-	FindTrace(tenantID string, id block.ID) (*friggpb.Trace, FindMetrics, error)
+type Reader interface {
+	Find(tenantID string, id ID, out proto.Message) (FindMetrics, error)
 }
 
 type FindMetrics struct {
@@ -31,15 +32,45 @@ type FindMetrics struct {
 }
 
 type readerWriter struct {
-	r trace_backend.Reader
-	w trace_backend.Writer
+	r backend.Reader
+	w backend.Writer
 
 	bloomFP float64
+	cfg     *Config
 }
 
-func (rw *readerWriter) WriteBlock(ctx context.Context, c block.CompleteBlock) error {
+func New(cfg *Config) (Reader, Writer, error) {
+	var err error
+	var r backend.Reader
+	var w backend.Writer
+
+	switch cfg.Backend {
+	case "local":
+		r, w, err = local.New(cfg.Local)
+	default:
+		err = fmt.Errorf("unknown local %s", cfg.Backend)
+	}
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if cfg.BloomFilterFalsePositive <= 0.0 {
+		return nil, nil, fmt.Errorf("invalid bloom filter fp rate %v", cfg.BloomFilterFalsePositive)
+	}
+
+	rw := &readerWriter{
+		r:   r,
+		w:   w,
+		cfg: cfg,
+	}
+
+	return rw, rw, nil
+}
+
+func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
 	uuid, tenantID, records, blockFilePath := c.Identity()
-	indexBytes, bloomBytes, err := block.MarshalRecords(records, rw.bloomFP)
+	indexBytes, bloomBytes, err := marshalRecords(records, rw.cfg.BloomFilterFalsePositive)
 
 	if err != nil {
 		return err
@@ -48,9 +79,14 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c block.CompleteBlock) e
 	return rw.w.Write(ctx, uuid, tenantID, bloomBytes, indexBytes, blockFilePath)
 }
 
-func (rw *readerWriter) FindTrace(tenantID string, id block.ID) (*friggpb.Trace, FindMetrics, error) {
+func (rw *readerWriter) WAL() (WAL, error) {
+	return newWAL(&walConfig{
+		rw.cfg.WALFilepath,
+	})
+}
+
+func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMetrics, error) {
 	metrics := FindMetrics{}
-	var found *friggpb.Trace
 
 	err := rw.r.Bloom(tenantID, func(bloomBytes []byte, blockID uuid.UUID) (bool, error) {
 		filter := bloom.JSONUnmarshal(bloomBytes)
@@ -65,7 +101,7 @@ func (rw *readerWriter) FindTrace(tenantID string, id block.ID) (*friggpb.Trace,
 				return false, err
 			}
 
-			record, err := block.FindRecord(id, indexBytes)
+			record, err := findRecord(id, indexBytes)
 			if err != nil {
 				return false, err
 			}
@@ -78,14 +114,11 @@ func (rw *readerWriter) FindTrace(tenantID string, id block.ID) (*friggpb.Trace,
 					return false, err
 				}
 
-				out := &friggpb.Trace{}
 				err = proto.Unmarshal(traceBytes, out)
 				if err != nil {
 					return false, err
 				}
 
-				// got it
-				found = out
 				return false, nil
 			}
 
@@ -96,8 +129,8 @@ func (rw *readerWriter) FindTrace(tenantID string, id block.ID) (*friggpb.Trace,
 	})
 
 	if err != nil {
-		return nil, metrics, err
+		return metrics, err
 	}
 
-	return found, metrics, nil
+	return metrics, nil
 }

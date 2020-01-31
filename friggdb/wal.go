@@ -1,4 +1,4 @@
-package block
+package friggdb
 
 import (
 	"fmt"
@@ -15,16 +15,20 @@ type WAL interface {
 }
 
 type wal struct {
-	c Config
+	c *walConfig
 }
 
-func New(c Config) (WAL, error) {
-	if c.Filepath == "" {
+type walConfig struct {
+	filepath string
+}
+
+func newWAL(c *walConfig) (WAL, error) {
+	if c.filepath == "" {
 		return nil, fmt.Errorf("please provide a path for the WAL")
 	}
 
 	// make folder
-	err := os.MkdirAll(c.Filepath, os.ModePerm)
+	err := os.MkdirAll(c.filepath, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +39,7 @@ func New(c Config) (WAL, error) {
 }
 
 func (w *wal) AllBlocks() ([]HeadBlock, error) {
-	files, err := ioutil.ReadDir(fmt.Sprintf("%s", w.c.Filepath))
+	files, err := ioutil.ReadDir(fmt.Sprintf("%s", w.c.filepath))
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +54,7 @@ func (w *wal) AllBlocks() ([]HeadBlock, error) {
 
 		blocks = append(blocks, &headBlock{
 			completeBlock: completeBlock{
-				filepath:   w.c.Filepath,
+				filepath:   w.c.filepath,
 				blockID:    blockID,
 				instanceID: instanceID,
 			},
@@ -61,7 +65,7 @@ func (w *wal) AllBlocks() ([]HeadBlock, error) {
 }
 
 func (w *wal) NewBlock(id uuid.UUID, instanceID string) (HeadBlock, error) {
-	name := fullFilename(w.c.Filepath, id, instanceID)
+	name := fullFilename(w.c.filepath, id, instanceID)
 
 	_, err := os.Create(name)
 	if err != nil {
@@ -70,7 +74,7 @@ func (w *wal) NewBlock(id uuid.UUID, instanceID string) (HeadBlock, error) {
 
 	return &headBlock{
 		completeBlock: completeBlock{
-			filepath:   w.c.Filepath,
+			filepath:   w.c.filepath,
 			blockID:    id,
 			instanceID: instanceID,
 		},

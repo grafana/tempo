@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
@@ -28,15 +27,13 @@ type Config struct {
 	AuthEnabled bool       `yaml:"auth_enabled,omitempty"`
 	HTTPPrefix  string     `yaml:"http_prefix"`
 
-	Server           server.Config      `yaml:"server,omitempty"`
-	Distributor      distributor.Config `yaml:"distributor,omitempty"`
-	IngesterClient   client.Config      `yaml:"ingester_client,omitempty"`
-	Querier          querier.Config     `yaml:"querier,omitempty"`
-	Ingester         ingester.Config    `yaml:"ingester,omitempty"`
-	StorageConfig    storage.Config     `yaml:"storage_config,omitempty"`
-	ChunkStoreConfig chunk.StoreConfig  `yaml:"chunk_store_config,omitempty"`
-	SchemaConfig     chunk.SchemaConfig `yaml:"schema_config,omitempty"`
-	LimitsConfig     validation.Limits  `yaml:"limits_config,omitempty"`
+	Server         server.Config      `yaml:"server,omitempty"`
+	Distributor    distributor.Config `yaml:"distributor,omitempty"`
+	IngesterClient client.Config      `yaml:"ingester_client,omitempty"`
+	Querier        querier.Config     `yaml:"querier,omitempty"`
+	Ingester       ingester.Config    `yaml:"ingester,omitempty"`
+	StorageConfig  storage.Config     `yaml:"storage_config,omitempty"`
+	LimitsConfig   validation.Limits  `yaml:"limits_config,omitempty"`
 }
 
 // RegisterFlags registers flag.
@@ -53,8 +50,6 @@ func (c *Config) RegisterFlags(f *flag.FlagSet) {
 	c.Querier.RegisterFlags(f)
 	c.Ingester.RegisterFlags(f)
 	c.StorageConfig.RegisterFlags(f)
-	c.ChunkStoreConfig.RegisterFlags(f)
-	c.SchemaConfig.RegisterFlags(f)
 	c.LimitsConfig.RegisterFlags(f)
 }
 

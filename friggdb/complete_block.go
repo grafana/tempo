@@ -1,4 +1,4 @@
-package block
+package friggdb
 
 import (
 	"bytes"

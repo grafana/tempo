@@ -1,4 +1,4 @@
-package block
+package friggdb
 
 import (
 	"bytes"
@@ -17,8 +17,8 @@ func TestEncodeDecodeRecord(t *testing.T) {
 	actual := newRecord()
 	buff := make([]byte, 28)
 
-	encodeRecord(expected, buff)
-	decodeRecord(buff, actual)
+	marshalRecord(expected, buff)
+	unmarshalRecord(buff, actual)
 
 	assert.Equal(t, expected, actual)
 }
@@ -35,11 +35,11 @@ func TestMarshalUnmarshalRecords(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	recordBytes, bloomBytes, err := MarshalRecords(expected, .01)
+	recordBytes, bloomBytes, err := marshalRecords(expected, .01)
 	assert.NoError(t, err, "unexpected error encoding records")
 	assert.Equal(t, len(expected)*28, len(recordBytes))
 
-	actual, err := UnmarshalRecords(recordBytes)
+	actual, err := unmarshalRecords(recordBytes)
 	assert.NoError(t, err, "unexpected error decoding records")
 
 	filter := bloom.JSONUnmarshal(bloomBytes)
@@ -62,13 +62,13 @@ func TestFindRecord(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	SortRecords(expected)
+	sortRecords(expected)
 
-	recordBytes, _, err := MarshalRecords(expected, .01)
+	recordBytes, _, err := marshalRecords(expected, .01)
 	assert.NoError(t, err, "unexpected error encoding records")
 
 	for _, r := range expected {
-		found, err := FindRecord(r.ID, recordBytes)
+		found, err := findRecord(r.ID, recordBytes)
 
 		assert.NoError(t, err, "unexpected error finding records")
 		assert.Equal(t, r, found)
@@ -87,7 +87,7 @@ func TestSortRecord(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	SortRecords(expected)
+	sortRecords(expected)
 
 	for i := range expected {
 		if i == 0 {

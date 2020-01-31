@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
@@ -17,8 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/weaveworks/common/user"
 
+	"github.com/grafana/frigg/friggdb"
+	"github.com/grafana/frigg/friggdb/backend/local"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
+	"github.com/grafana/frigg/pkg/storage"
 	"github.com/grafana/frigg/pkg/util/test"
 	"github.com/grafana/frigg/pkg/util/validation"
 )
@@ -99,10 +101,19 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, 
 	limits, err := validation.NewOverrides(defaultLimitsTestConfig())
 	assert.NoError(t, err, "unexpected error creating overrides")
 
-	ingesterConfig.WALConfig.Filepath = tmpDir
+	s, err := storage.NewStore(storage.Config{
+		Trace: friggdb.Config{
+			Backend:                  "local",
+			BloomFilterFalsePositive: .01,
+			Local: local.Config{
+				Path: tmpDir,
+			},
+			WALFilepath: tmpDir,
+		},
+	}, limits)
+	assert.NoError(t, err, "unexpected error store")
 
-	store := &mockStore{}
-	ingester, err := New(ingesterConfig, client.Config{}, store, limits)
+	ingester, err := New(ingesterConfig, client.Config{}, s, limits)
 	assert.NoError(t, err, "unexpected error creating ingester")
 
 	// make some fake traceIDs/requests
@@ -154,11 +165,4 @@ func defaultLimitsTestConfig() validation.Limits {
 	limits := validation.Limits{}
 	flagext.DefaultValues(&limits)
 	return limits
-}
-
-type mockStore struct {
-}
-
-func (s *mockStore) Put(ctx context.Context, chunks []chunk.Chunk) error {
-	return nil
 }

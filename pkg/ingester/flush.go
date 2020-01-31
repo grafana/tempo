@@ -8,7 +8,6 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
-	"github.com/grafana/frigg/pkg/storage"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -149,7 +148,7 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 		ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
 		defer cancel()
 
-		err = i.store.(storage.Store).WriteBlock(ctx, block)
+		err = i.store.WriteBlock(ctx, block)
 		if err != nil {
 			metricFailedFlushes.Inc()
 			return err

@@ -1,4 +1,4 @@
-package block
+package friggdb
 
 import (
 	"bytes"
@@ -23,7 +23,7 @@ type recordSorter struct {
 	records []*Record
 }
 
-func SortRecords(records []*Record) {
+func sortRecords(records []*Record) {
 	sort.Sort(&recordSorter{
 		records: records,
 	})
@@ -45,7 +45,7 @@ func (t *recordSorter) Swap(i, j int) {
 }
 
 // todo: move encoding/decoding to a seperate util area?  is the index too large?  need an io.Reader?
-func MarshalRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) {
+func marshalRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) {
 	recordBytes := make([]byte, len(records)*28) // 28 = 128 bit ID, 64bit start, 32bit length
 	bf := bloom.NewBloomFilter(float64(len(records)), bloomFP)
 
@@ -57,7 +57,7 @@ func MarshalRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) 
 		}
 
 		bf.Add(farm.Fingerprint64(r.ID))
-		encodeRecord(r, buff)
+		marshalRecord(r, buff)
 	}
 
 	bloomBytes := bf.JSONMarshal()
@@ -65,7 +65,7 @@ func MarshalRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) 
 	return recordBytes, bloomBytes, nil
 }
 
-func UnmarshalRecords(recordBytes []byte) ([]*Record, error) {
+func unmarshalRecords(recordBytes []byte) ([]*Record, error) {
 	numRecords := len(recordBytes) / 28
 	records := make([]*Record, 0, numRecords)
 
@@ -73,7 +73,7 @@ func UnmarshalRecords(recordBytes []byte) ([]*Record, error) {
 		buff := recordBytes[i*28 : (i+1)*28]
 
 		r := newRecord()
-		decodeRecord(buff, r)
+		unmarshalRecord(buff, r)
 
 		records = append(records, r)
 	}
@@ -82,20 +82,20 @@ func UnmarshalRecords(recordBytes []byte) ([]*Record, error) {
 }
 
 // binary search the bytes.  records are not compressed and ordered
-func FindRecord(id ID, recordBytes []byte) (*Record, error) {
+func findRecord(id ID, recordBytes []byte) (*Record, error) {
 	numRecords := len(recordBytes) / 28
 	record := newRecord()
 
 	i := sort.Search(numRecords, func(i int) bool {
 		buff := recordBytes[i*28 : (i+1)*28]
-		decodeRecord(buff, record)
+		unmarshalRecord(buff, record)
 
 		return bytes.Compare(record.ID, id) >= 0
 	})
 
 	if i >= 0 && i < numRecords {
 		buff := recordBytes[i*28 : (i+1)*28]
-		decodeRecord(buff, record)
+		unmarshalRecord(buff, record)
 
 		if bytes.Equal(id, record.ID) {
 			return record, nil
@@ -105,14 +105,14 @@ func FindRecord(id ID, recordBytes []byte) (*Record, error) {
 	return nil, nil
 }
 
-func encodeRecord(r *Record, buff []byte) {
+func marshalRecord(r *Record, buff []byte) {
 	copy(buff, r.ID)
 
 	binary.LittleEndian.PutUint64(buff[16:24], r.Start)
 	binary.LittleEndian.PutUint32(buff[24:], r.Length)
 }
 
-func decodeRecord(buff []byte, r *Record) {
+func unmarshalRecord(buff []byte, r *Record) {
 	copy(r.ID, buff[:16])
 	r.Start = binary.LittleEndian.Uint64(buff[16:24])
 	r.Length = binary.LittleEndian.Uint32(buff[24:])

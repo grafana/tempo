@@ -181,12 +181,11 @@ func (t *App) initQuerier() (err error) {
 }
 
 func (t *App) initStore() (err error) {
-	t.store, err = frigg_storage.NewStore(t.cfg.StorageConfig, t.cfg.ChunkStoreConfig, t.cfg.SchemaConfig, t.overrides)
+	t.store, err = frigg_storage.NewStore(t.cfg.StorageConfig, t.overrides)
 	return
 }
 
 func (t *App) stopStore() error {
-	t.store.Stop()
 	return nil
 }
 

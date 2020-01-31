@@ -9,14 +9,14 @@ import (
 	"path"
 
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/pkg/storage/trace_backend"
+	"github.com/grafana/frigg/friggdb/backend"
 )
 
 type readerWriter struct {
 	cfg Config
 }
 
-func New(cfg Config) (trace_backend.Reader, trace_backend.Writer, error) {
+func New(cfg Config) (backend.Reader, backend.Writer, error) {
 	err := os.MkdirAll(cfg.Path, os.ModePerm)
 	if err != nil {
 		return nil, nil, err
@@ -79,7 +79,7 @@ func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID str
 	return err
 }
 
-func (rw *readerWriter) Bloom(tenantID string, fn trace_backend.BloomIter) error {
+func (rw *readerWriter) Bloom(tenantID string, fn backend.BloomIter) error {
 	path := path.Join(rw.cfg.Path, tenantID)
 	folders, err := ioutil.ReadDir(path)
 	if err != nil {
