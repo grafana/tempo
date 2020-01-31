@@ -23,9 +23,9 @@ ingester:
   max_transfer_retries: 1
 
 storage_config:
-  walpath: /tmp/frigg/wal
-	bloom-filter-false-positive: .05
   trace:
+    walpath: /tmp/frigg/wal
+    bloom-filter-false-positive: .05
     backend: local
     local:
       path: /tmp/frigg/traces
