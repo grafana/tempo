@@ -31,17 +31,17 @@ import (
 const tracesPerBatchEstimate = 5
 
 var (
-	ingesterAppends = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricIngesterAppends = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "frigg",
 		Name:      "distributor_ingester_appends_total",
 		Help:      "The total number of batch appends sent to ingesters.",
 	}, []string{"ingester"})
-	ingesterAppendFailures = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricIngesterAppendFailures = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "frigg",
 		Name:      "distributor_ingester_append_failures_total",
 		Help:      "The total number of failed batch appends sent to ingesters.",
 	}, []string{"ingester"})
-	spansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "frigg",
 		Name:      "distributor_spans_received_total",
 		Help:      "The total number of spans received per tenant",
@@ -166,7 +166,7 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	if spanCount == 0 {
 		return &friggpb.PushResponse{}, nil
 	}
-	spansIngested.WithLabelValues(userID).Add(float64(spanCount))
+	metricSpansIngested.WithLabelValues(userID).Add(float64(spanCount))
 
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, spanCount) {
@@ -233,9 +233,9 @@ func (d *Distributor) sendSamplesErr(ctx context.Context, ingesterAddr string, r
 	}
 
 	_, err = c.(friggpb.PusherClient).Push(ctx, req)
-	ingesterAppends.WithLabelValues(ingesterAddr).Inc()
+	metricIngesterAppends.WithLabelValues(ingesterAddr).Inc()
 	if err != nil {
-		ingesterAppendFailures.WithLabelValues(ingesterAddr).Inc()
+		metricIngesterAppendFailures.WithLabelValues(ingesterAddr).Inc()
 	}
 	return err
 }

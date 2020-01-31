@@ -31,7 +31,7 @@ var ErrReadOnly = errors.New("Ingester is shutting down")
 
 var readinessProbeSuccess = []byte("Ready")
 
-var flushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
+var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "frigg",
 	Name:      "ingester_flush_queue_length",
 	Help:      "The total number of series pending in the flush queue.",
@@ -87,7 +87,7 @@ func New(cfg Config, clientConfig client.Config, store ChunkStore, limits *valid
 
 	i.flushQueuesDone.Add(cfg.ConcurrentFlushes)
 	for j := 0; j < cfg.ConcurrentFlushes; j++ {
-		i.flushQueues[j] = util.NewPriorityQueue(flushQueueLength)
+		i.flushQueues[j] = util.NewPriorityQueue(metricFlushQueueLength)
 		go i.flushLoop(j)
 	}
 
