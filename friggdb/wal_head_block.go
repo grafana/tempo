@@ -23,7 +23,7 @@ type headBlock struct {
 }
 
 func (h *headBlock) Write(id ID, p proto.Message) error {
-	name := fullFilename(h.filepath, h.blockID, h.tenantID)
+	name := h.fullFilename()
 	var err error
 
 	if h.appendFile == nil {

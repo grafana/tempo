@@ -38,6 +38,8 @@ func newWAL(c *walConfig) (WAL, error) {
 	}, nil
 }
 
+// returns all blocks in the configured file path.  blocks fields are not complete though and
+//   are useful for wal replay only
 func (w *wal) AllBlocks() ([]HeadBlock, error) {
 	files, err := ioutil.ReadDir(fmt.Sprintf("%s", w.c.filepath))
 	if err != nil {
@@ -54,9 +56,8 @@ func (w *wal) AllBlocks() ([]HeadBlock, error) {
 
 		blocks = append(blocks, &headBlock{
 			completeBlock: completeBlock{
-				filepath:   w.c.filepath,
-				blockID:    blockID,
-				tenantID: tenantID,
+				meta:     newBlockMeta(tenantID, blockID),
+				filepath: w.c.filepath,
 			},
 		})
 	}
@@ -65,20 +66,20 @@ func (w *wal) AllBlocks() ([]HeadBlock, error) {
 }
 
 func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
-	name := fullFilename(w.c.filepath, id, tenantID)
+	h := &headBlock{
+		completeBlock: completeBlock{
+			meta:     newBlockMeta(tenantID, id),
+			filepath: w.c.filepath,
+		},
+	}
 
+	name := h.fullFilename()
 	_, err := os.Create(name)
 	if err != nil {
 		return nil, err
 	}
 
-	return &headBlock{
-		completeBlock: completeBlock{
-			filepath:   w.c.filepath,
-			blockID:    id,
-			tenantID: tenantID,
-		},
-	}, nil
+	return h, nil
 }
 
 func parseFilename(name string) (uuid.UUID, string, error) {
@@ -97,8 +98,4 @@ func parseFilename(name string) (uuid.UUID, string, error) {
 	}
 
 	return blockID, tenantID, nil
-}
-
-func fullFilename(filepath string, blockID uuid.UUID, tenantID string) string {
-	return fmt.Sprintf("%s/%v:%v", filepath, blockID, tenantID)
 }
