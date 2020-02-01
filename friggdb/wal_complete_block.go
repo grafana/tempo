@@ -18,7 +18,7 @@ type IterFunc func(msg proto.Message) (bool, error)
 type completeBlock struct {
 	filepath   string
 	blockID    uuid.UUID
-	instanceID string
+	tenantID string
 	records    []*Record
 
 	readFile *os.File
@@ -34,7 +34,7 @@ type CompleteBlock interface {
 
 // todo:  I hate this method.  Make it not exist
 func (c *completeBlock) Identity() (uuid.UUID, string, []*Record, string) {
-	return c.blockID, c.instanceID, c.records, fullFilename(c.filepath, c.blockID, c.instanceID)
+	return c.blockID, c.tenantID, c.records, fullFilename(c.filepath, c.blockID, c.tenantID)
 }
 
 func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
@@ -52,7 +52,7 @@ func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
 		return false, nil
 	}
 
-	name := fullFilename(c.filepath, c.blockID, c.instanceID)
+	name := fullFilename(c.filepath, c.blockID, c.tenantID)
 	if c.readFile == nil {
 		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 		if err != nil {
@@ -76,7 +76,7 @@ func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
 }
 
 func (c *completeBlock) Iterator(read proto.Message, fn IterFunc) error {
-	name := fullFilename(c.filepath, c.blockID, c.instanceID)
+	name := fullFilename(c.filepath, c.blockID, c.tenantID)
 	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 	defer f.Close()
 
@@ -129,6 +129,6 @@ func (c *completeBlock) Clear() error {
 		}
 	}
 
-	name := fullFilename(c.filepath, c.blockID, c.instanceID)
+	name := fullFilename(c.filepath, c.blockID, c.tenantID)
 	return os.Remove(name)
 }

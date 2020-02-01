@@ -25,9 +25,9 @@ func TestCreateBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	instanceID := "fake"
+	tenantID := "fake"
 
-	block, err := wal.NewBlock(blockID, instanceID)
+	block, err := wal.NewBlock(blockID, tenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
 	blocks, err := wal.AllBlocks()
@@ -48,9 +48,9 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	instanceID := "fake"
+	tenantID := "fake"
 
-	block, err := wal.NewBlock(blockID, instanceID)
+	block, err := wal.NewBlock(blockID, tenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
 	req := test.MakeRequest(10, []byte{0x00, 0x01})
@@ -75,9 +75,9 @@ func TestIterator(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	instanceID := "fake"
+	tenantID := "fake"
 
-	block, err := wal.NewBlock(blockID, instanceID)
+	block, err := wal.NewBlock(blockID, tenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 10
@@ -113,10 +113,10 @@ func BenchmarkWriteRead(b *testing.B) {
 	})
 
 	blockID := uuid.New()
-	instanceID := "fake"
+	tenantID := "fake"
 
 	// 1 million requests, 10k spans per request
-	block, _ := wal.NewBlock(blockID, instanceID)
+	block, _ := wal.NewBlock(blockID, tenantID)
 	numMsgs := 100
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
