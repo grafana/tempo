@@ -39,17 +39,7 @@ func (h *headBlock) Write(id ID, p proto.Message) error {
 		return err
 	}
 
-	err = binary.Write(h.appendFile, binary.LittleEndian, uint32(len(b)))
-	if err != nil {
-		return err
-	}
-
-	info, err := h.appendFile.Stat()
-	if err != nil {
-		return err
-	}
-
-	length, err := h.appendFile.Write(b)
+	start, length, err := appendBinary(h.appendFile, b)
 	if err != nil {
 		return err
 	}
@@ -62,8 +52,8 @@ func (h *headBlock) Write(id ID, p proto.Message) error {
 	copy(h.records[i+1:], h.records[i:])
 	h.records[i] = &Record{
 		ID:     id,
-		Start:  uint64(info.Size()),
-		Length: uint32(length),
+		Start:  start,
+		Length: length,
 	}
 
 	return nil
@@ -76,7 +66,31 @@ func (h *headBlock) Complete() (CompleteBlock, error) {
 			return nil, err
 		}
 	}
-	// todo: any other book-keeping?  sort wal file in trace id order?
+
+	// create a new block and write all objects to it in sorted order
+	// todo: if the app crashes here then we'd have to wals with duplicate info and
+	//   we'd replay both.  add a crc to the end of the file?
+
+	// for each
 
 	return h, nil
+}
+
+func appendBinary(f *os.File, b []byte) (uint64, uint32, error) {
+	err := binary.Write(f, binary.LittleEndian, uint32(len(b)))
+	if err != nil {
+		return 0, 0, err
+	}
+
+	info, err := f.Stat()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	length, err := f.Write(b)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return uint64(info.Size()), uint32(length), nil
 }
