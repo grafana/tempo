@@ -23,12 +23,17 @@ type completeBlock struct {
 	readFile *os.File
 }
 
-type CompleteBlock interface {
-	Identity() (blockID uuid.UUID, tenantID string, records []*Record, filepath string)
-	Find(id ID, out proto.Message) (bool, error)
+type ReplayBlock interface {
 	Iterator(read proto.Message, fn IterFunc) error
-	Length() int
+	Identity() (blockID uuid.UUID, tenantID string, records []*Record, filepath string) // jpe : No more identity!
 	Clear() error
+}
+
+type CompleteBlock interface {
+	ReplayBlock
+
+	Find(id ID, out proto.Message) (bool, error)
+	Length() int
 }
 
 // todo:  I hate this method.  Make it not exist

@@ -10,7 +10,7 @@ import (
 )
 
 type WAL interface {
-	AllBlocks() ([]HeadBlock, error)
+	AllBlocks() ([]ReplayBlock, error)
 	NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
 }
 
@@ -38,15 +38,13 @@ func newWAL(c *walConfig) (WAL, error) {
 	}, nil
 }
 
-// returns all blocks in the configured file path.  blocks fields are not complete though and
-//   are useful for wal replay only
-func (w *wal) AllBlocks() ([]HeadBlock, error) {
+func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 	files, err := ioutil.ReadDir(fmt.Sprintf("%s", w.c.filepath))
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]HeadBlock, 0, len(files))
+	blocks := make([]ReplayBlock, 0, len(files))
 	for _, f := range files {
 		name := f.Name()
 		blockID, tenantID, err := parseFilename(name)
