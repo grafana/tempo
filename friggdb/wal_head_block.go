@@ -23,23 +23,12 @@ type headBlock struct {
 }
 
 func (h *headBlock) Write(id ID, p proto.Message) error {
-	name := h.fullFilename()
-	var err error
-
-	if h.appendFile == nil {
-		f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
-		if err != nil {
-			return err
-		}
-		h.appendFile = f
-	}
-
 	b, err := proto.Marshal(p)
 	if err != nil {
 		return err
 	}
 
-	start, length, err := appendBinary(h.appendFile, b)
+	start, length, err := h.appendBytes(b)
 	if err != nil {
 		return err
 	}
@@ -59,6 +48,9 @@ func (h *headBlock) Write(id ID, p proto.Message) error {
 	return nil
 }
 
+// jpe:  move CompleteBlock method to the wal so we can access the folder and other config from the wal
+//  add wal init method that creates "work" folder beneath wal folder.  use work folder for replay and this logic
+//  also downsample granularity of records based on configurable value
 func (h *headBlock) Complete() (CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
@@ -71,23 +63,33 @@ func (h *headBlock) Complete() (CompleteBlock, error) {
 	// todo: if the app crashes here then we'd have to wals with duplicate info and
 	//   we'd replay both.  add a crc to the end of the file?
 
-	// for each
+	// jpe if about to return error clean up new file!
 
 	return h, nil
 }
 
-func appendBinary(f *os.File, b []byte) (uint64, uint32, error) {
-	err := binary.Write(f, binary.LittleEndian, uint32(len(b)))
+func (h *headBlock) appendBytes(b []byte) (uint64, uint32, error) {
+	if h.appendFile == nil {
+		name := h.fullFilename()
+
+		f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return 0, 0, err
+		}
+		h.appendFile = f
+	}
+
+	err := binary.Write(h.appendFile, binary.LittleEndian, uint32(len(b)))
 	if err != nil {
 		return 0, 0, err
 	}
 
-	info, err := f.Stat()
+	info, err := h.appendFile.Stat()
 	if err != nil {
 		return 0, 0, err
 	}
 
-	length, err := f.Write(b)
+	length, err := h.appendFile.Write(b)
 	if err != nil {
 		return 0, 0, err
 	}
