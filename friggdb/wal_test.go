@@ -1,6 +1,7 @@
 package friggdb
 
 import (
+	"bytes"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -139,10 +140,16 @@ func TestCompleteBlock(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
+	assert.True(t, bytes.Equal(block.(*headBlock).records[0].ID, block.(*headBlock).meta.MinID))
+	assert.True(t, bytes.Equal(block.(*headBlock).records[numMsgs-1].ID, block.(*headBlock).meta.MaxID))
+
 	complete, err := block.Complete(wal)
 	assert.NoError(t, err, "unexpected error completing block")
 	// test downsample config
 	assert.Equal(t, numMsgs/indexDownsample+1, len(complete.(*headBlock).records))
+
+	assert.True(t, bytes.Equal(complete.(*headBlock).meta.MinID, block.(*headBlock).meta.MinID))
+	assert.True(t, bytes.Equal(complete.(*headBlock).meta.MaxID, block.(*headBlock).meta.MaxID))
 
 	for i, id := range ids {
 		out := &friggpb.PushRequest{}

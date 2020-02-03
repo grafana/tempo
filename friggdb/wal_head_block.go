@@ -41,6 +41,7 @@ func (h *headBlock) Write(id ID, p proto.Message) error {
 		Length: length,
 	}
 
+	h.meta.objectAdded(id)
 	return nil
 }
 
@@ -69,6 +70,10 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 			records:  make([]*Record, 0, len(h.records)/walConfig.indexDownsample+1),
 		},
 	}
+	orderedBlock.meta.StartTime = h.meta.StartTime
+	orderedBlock.meta.EndTime = h.meta.EndTime
+	orderedBlock.meta.MinID = h.meta.MinID
+	orderedBlock.meta.MaxID = h.meta.MaxID
 
 	_, err := os.Create(orderedBlock.fullFilename())
 	if err != nil {
