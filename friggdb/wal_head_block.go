@@ -7,13 +7,14 @@ import (
 	"sort"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/google/uuid"
 )
 
 type HeadBlock interface {
 	CompleteBlock
 
 	Write(id ID, p proto.Message) error
-	Complete() (CompleteBlock, error)
+	Complete(w WAL) (CompleteBlock, error)
 }
 
 type headBlock struct {
@@ -28,7 +29,7 @@ func (h *headBlock) Write(id ID, p proto.Message) error {
 		return err
 	}
 
-	start, length, err := h.appendBytes(b)
+	start, length, err := h.appendObject(b)
 	if err != nil {
 		return err
 	}
@@ -48,10 +49,8 @@ func (h *headBlock) Write(id ID, p proto.Message) error {
 	return nil
 }
 
-// jpe:  move CompleteBlock method to the wal so we can access the folder and other config from the wal
-//  add wal init method that creates "work" folder beneath wal folder.  use work folder for replay and this logic
-//  also downsample granularity of records based on configurable value
-func (h *headBlock) Complete() (CompleteBlock, error) {
+// jpe: add downsample granularity of records file here
+func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -59,16 +58,60 @@ func (h *headBlock) Complete() (CompleteBlock, error) {
 		}
 	}
 
-	// create a new block and write all objects to it in sorted order
-	// todo: if the app crashes here then we'd have to wals with duplicate info and
-	//   we'd replay both.  add a crc to the end of the file?
+	// 1) create a new block in work dir
+	// 2) append all objects from this block in order
+	// 3) move from workdir -> realdir
+	// 4) remove old
+	orderedBlock := &headBlock{
+		completeBlock: completeBlock{
+			meta:     newBlockMeta(h.meta.TenantID, uuid.New()),
+			filepath: w.WorkFolder(),
+			records:  make([]*Record, 0, len(h.records)),
+		},
+	}
 
-	// jpe if about to return error clean up new file!
+	_, err := os.Create(orderedBlock.fullFilename())
+	if err != nil {
+		return nil, err
+	}
 
-	return h, nil
+	// records are already sorted
+	for _, r := range h.records {
+		b, err := h.readObject(r.Start, r.Length)
+		if err != nil {
+			return nil, err
+		}
+
+		start, length, err := orderedBlock.appendObject(b)
+		if err != nil {
+			return nil, err
+		}
+
+		orderedBlock.records = append(orderedBlock.records, &Record{
+			ID:     r.ID,
+			Start:  start,
+			Length: length,
+		})
+	}
+
+	workFilename := orderedBlock.fullFilename()
+	orderedBlock.filepath = h.filepath
+	completeFilename := orderedBlock.fullFilename()
+
+	err = os.Rename(workFilename, completeFilename)
+	if err != nil {
+		return nil, err
+	}
+
+	os.Remove(h.fullFilename())
+	if err != nil {
+		return nil, err
+	}
+
+	return orderedBlock, nil
 }
 
-func (h *headBlock) appendBytes(b []byte) (uint64, uint32, error) {
+func (h *headBlock) appendObject(b []byte) (uint64, uint32, error) {
 	if h.appendFile == nil {
 		name := h.fullFilename()
 

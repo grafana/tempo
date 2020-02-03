@@ -17,6 +17,7 @@ const (
 type WAL interface {
 	AllBlocks() ([]ReplayBlock, error)
 	NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
+	WorkFolder() string
 }
 
 type wal struct {
@@ -99,6 +100,10 @@ func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
 	}
 
 	return h, nil
+}
+
+func (w *wal) WorkFolder() string {
+	return w.workFilepath
 }
 
 func parseFilename(name string) (uuid.UUID, string, error) {

@@ -56,17 +56,7 @@ func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
 		return false, nil
 	}
 
-	name := c.fullFilename()
-	if c.readFile == nil {
-		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
-		if err != nil {
-			return false, err
-		}
-		c.readFile = f
-	}
-
-	b := make([]byte, rec.Length)
-	_, err := c.readFile.ReadAt(b, int64(rec.Start))
+	b, err := c.readObject(rec.Start, rec.Length)
 	if err != nil {
 		return false, err
 	}
@@ -139,4 +129,24 @@ func (c *completeBlock) Clear() error {
 
 func (c *completeBlock) fullFilename() string {
 	return fmt.Sprintf("%s/%v:%v", c.filepath, c.meta.BlockID, c.meta.TenantID)
+}
+
+func (c *completeBlock) readObject(start uint64, length uint32) ([]byte, error) {
+	if c.readFile == nil {
+		name := c.fullFilename()
+
+		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
+		if err != nil {
+			return nil, err
+		}
+		c.readFile = f
+	}
+
+	b := make([]byte, length)
+	_, err := c.readFile.ReadAt(b, int64(start))
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }

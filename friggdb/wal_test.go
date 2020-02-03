@@ -105,6 +105,59 @@ func TestIterator(t *testing.T) {
 	assert.Equal(t, numMsgs, i)
 }
 
+func TestCompleteBlock(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	wal, err := newWAL(&walConfig{
+		filepath: tempDir,
+	})
+	assert.NoError(t, err, "unexpected error creating temp wal")
+
+	blockID := uuid.New()
+	tenantID := "fake"
+
+	block, err := wal.NewBlock(blockID, tenantID)
+	assert.NoError(t, err, "unexpected error creating block")
+
+	numMsgs := 10
+	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
+	for i := 0; i < numMsgs; i++ {
+		req := test.MakeRequest(rand.Int()%1000, []byte{})
+		reqs = append(reqs, req)
+		err := block.Write([]byte{}, req)
+		assert.NoError(t, err, "unexpected error writing req")
+	}
+
+	complete, err := block.Complete(wal)
+	assert.NoError(t, err, "unexpected error completing block")
+
+	outReq := &friggpb.PushRequest{}
+	i := 0
+	err = complete.Iterator(outReq, func(msg proto.Message) (bool, error) {
+		req := msg.(*friggpb.PushRequest)
+
+		assert.True(t, proto.Equal(req, reqs[i]))
+		i++
+
+		return true, nil
+	})
+
+	// confirm order
+	var prev *Record
+	for _, r := range complete.(*headBlock).records {
+		if prev != nil {
+			assert.Greater(t, r.Start, prev.Start)
+		}
+
+		prev = r
+	}
+
+	assert.NoError(t, err, "unexpected error iterating")
+	assert.Equal(t, numMsgs, i)
+}
+
 func TestWorkDir(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)

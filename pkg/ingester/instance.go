@@ -133,7 +133,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	ready := i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now)
 
 	if ready {
-		completeBlock, err := i.headBlock.Complete()
+		completeBlock, err := i.headBlock.Complete(i.wal)
 		if err != nil {
 			return false, err
 		}
