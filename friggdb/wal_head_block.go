@@ -48,7 +48,6 @@ func (c *completeBlock) Length() int {
 	return len(c.records)
 }
 
-// jpe: add downsample granularity of records file here
 func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()

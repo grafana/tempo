@@ -290,7 +290,7 @@ func (i *Ingester) replayWal() error {
 			return true, nil
 		})
 		if err != nil {
-			// jpe:  this is gorpy and error prone.  change to use the wal work dir?
+			// todo:  this is gorpy and error prone.  change to use the wal work dir?
 			// clean up any instance headblocks that were created to keep from replaying again and again
 			for _, instance := range i.instances {
 				instance.headBlock.Clear()
