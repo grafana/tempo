@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -102,6 +103,31 @@ func TestIterator(t *testing.T) {
 
 	assert.NoError(t, err, "unexpected error iterating")
 	assert.Equal(t, numMsgs, i)
+}
+
+func TestWorkDir(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	err = os.MkdirAll(path.Join(tempDir, workDir), os.ModePerm)
+	assert.NoError(t, err, "unexpected error creating workdir")
+
+	_, err = os.Create(path.Join(tempDir, workDir, "testfile"))
+	assert.NoError(t, err, "unexpected error creating testfile")
+
+	_, err = newWAL(&walConfig{
+		filepath: tempDir,
+	})
+	assert.NoError(t, err, "unexpected error creating temp wal")
+
+	_, err = os.Stat(path.Join(tempDir, workDir))
+	assert.NoError(t, err, "work folder should exist")
+
+	files, err := ioutil.ReadDir(path.Join(tempDir, workDir))
+	assert.NoError(t, err, "unexpected reading work dir")
+
+	assert.Len(t, files, 0, "work dir should be empty")
 }
 
 func BenchmarkWriteRead(b *testing.B) {

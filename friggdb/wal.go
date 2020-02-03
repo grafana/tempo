@@ -4,9 +4,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/google/uuid"
+)
+
+const (
+	workDir = "work"
 )
 
 type WAL interface {
@@ -15,7 +20,8 @@ type WAL interface {
 }
 
 type wal struct {
-	c *walConfig
+	c            *walConfig
+	workFilepath string
 }
 
 type walConfig struct {
@@ -33,8 +39,19 @@ func newWAL(c *walConfig) (WAL, error) {
 		return nil, err
 	}
 
+	workFilepath := path.Join(c.filepath, workDir)
+	err = os.RemoveAll(workFilepath)
+	if err != nil {
+		return nil, err
+	}
+	err = os.MkdirAll(workFilepath, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
 	return &wal{
-		c: c,
+		c:            c,
+		workFilepath: workFilepath,
 	}, nil
 }
 
@@ -46,6 +63,10 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 
 	blocks := make([]ReplayBlock, 0, len(files))
 	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+
 		name := f.Name()
 		blockID, tenantID, err := parseFilename(name)
 		if err != nil {
