@@ -50,14 +50,10 @@ func TestInstance(t *testing.T) {
 	assert.True(t, ready, "block should be ready due to max traces")
 
 	block := i.GetCompleteBlock()
-	assert.Equal(t, 1, block.Length())
-
 	err = i.ClearCompleteBlock(block)
 	assert.NoError(t, err)
 
 	block = i.GetCompleteBlock()
-	assert.Equal(t, 0, block.Length())
-
 	err = i.ClearCompleteBlock(block)
 	assert.NoError(t, err)
 

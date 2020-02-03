@@ -113,9 +113,10 @@ func TestCompleteBlock(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
+	indexDownsample := 13
 	wal, err := newWAL(&walConfig{
 		filepath:        tempDir,
-		indexDownsample: 2,
+		indexDownsample: indexDownsample,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -125,7 +126,7 @@ func TestCompleteBlock(t *testing.T) {
 	block, err := wal.NewBlock(blockID, tenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
-	numMsgs := 10
+	numMsgs := 100
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
@@ -140,6 +141,8 @@ func TestCompleteBlock(t *testing.T) {
 
 	complete, err := block.Complete(wal)
 	assert.NoError(t, err, "unexpected error completing block")
+	// test downsample config
+	assert.Equal(t, numMsgs/indexDownsample+1, len(complete.(*headBlock).records))
 
 	for i, id := range ids {
 		out := &friggpb.PushRequest{}

@@ -36,7 +36,6 @@ type CompleteBlock interface {
 	ReplayBlock
 
 	Find(id ID, out proto.Message) (bool, error)
-	Length() int
 }
 
 // todo:  I hate this method.  Make it not exist
@@ -55,16 +54,27 @@ func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
 	}
 
 	rec := c.records[i]
-	if bytes.Compare(rec.ID, id) != 0 {
-		return false, nil
-	}
 
-	foundID, err := c.readObject(rec, out)
+	b, err := c.readRecordBytes(rec)
 	if err != nil {
 		return false, err
 	}
 
-	return bytes.Equal(id, foundID), nil
+	found := false
+	err = iterateObjects(bytes.NewReader(b), out, func(foundID ID, msg proto.Message) (bool, error) {
+		if bytes.Equal(foundID, id) {
+			found = true
+			return false, nil
+		}
+
+		return true, nil
+
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return found, nil
 }
 
 func (c *completeBlock) Iterator(read proto.Message, fn IterFunc) error {
@@ -77,10 +87,6 @@ func (c *completeBlock) Iterator(read proto.Message, fn IterFunc) error {
 	}
 
 	return iterateObjects(f, read, fn)
-}
-
-func (c *completeBlock) Length() int {
-	return len(c.records)
 }
 
 func (c *completeBlock) Clear() error {

@@ -153,7 +153,7 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 			metricFailedFlushes.Inc()
 			return err
 		}
-		metricTracesFlushed.Add(float64(block.Length()))
+		// metricTracesFlushed.Add(float64(block.Length())) jpe ?
 
 		err = instance.ClearCompleteBlock(block)
 	}

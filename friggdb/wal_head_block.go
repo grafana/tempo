@@ -14,6 +14,7 @@ type HeadBlock interface {
 
 	Write(id ID, p proto.Message) error
 	Complete(w WAL) (CompleteBlock, error)
+	Length() int
 }
 
 type headBlock struct {
@@ -43,6 +44,10 @@ func (h *headBlock) Write(id ID, p proto.Message) error {
 	return nil
 }
 
+func (c *completeBlock) Length() int {
+	return len(c.records)
+}
+
 // jpe: add downsample granularity of records file here
 func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	if h.appendFile != nil {
@@ -62,7 +67,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 		completeBlock: completeBlock{
 			meta:     newBlockMeta(h.meta.TenantID, uuid.New()),
 			filepath: walConfig.workFilepath,
-			records:  make([]*Record, 0, len(h.records)),
+			records:  make([]*Record, 0, len(h.records)/walConfig.indexDownsample+1),
 		},
 	}
 
@@ -72,7 +77,8 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	}
 
 	// records are already sorted
-	for _, r := range h.records {
+	var currentRecord *Record
+	for i, r := range h.records {
 		b, err := h.readRecordBytes(r)
 		if err != nil {
 			return nil, err
@@ -83,11 +89,24 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 			return nil, err
 		}
 
-		orderedBlock.records = append(orderedBlock.records, &Record{
-			ID:     r.ID,
-			Start:  start,
-			Length: length,
-		})
+		// start or continue working on a record
+		if currentRecord == nil {
+			currentRecord = &Record{
+				ID:     r.ID,
+				Start:  start,
+				Length: length,
+			}
+		} else {
+			currentRecord.Length += length
+		}
+
+		// if this is the last record to be included by hte downsample config OR is simply the last record
+		if i%walConfig.indexDownsample == walConfig.indexDownsample-1 ||
+			i == len(h.records)-1 {
+			currentRecord.ID = r.ID
+			orderedBlock.records = append(orderedBlock.records, currentRecord)
+			currentRecord = nil
+		}
 	}
 
 	workFilename := orderedBlock.fullFilename()
