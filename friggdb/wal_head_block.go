@@ -58,6 +58,8 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 		}
 	}
 
+	walConfig := w.config()
+
 	// 1) create a new block in work dir
 	// 2) append all objects from this block in order
 	// 3) move from workdir -> realdir
@@ -65,7 +67,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	orderedBlock := &headBlock{
 		completeBlock: completeBlock{
 			meta:     newBlockMeta(h.meta.TenantID, uuid.New()),
-			filepath: w.WorkFolder(),
+			filepath: walConfig.workFilepath,
 			records:  make([]*Record, 0, len(h.records)),
 		},
 	}

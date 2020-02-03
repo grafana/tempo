@@ -21,7 +21,8 @@ func TestCreateBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
 	wal, err := newWAL(&walConfig{
-		filepath: tempDir,
+		filepath:        tempDir,
+		indexDownsample: 2,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -44,7 +45,8 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
 	wal, err := newWAL(&walConfig{
-		filepath: tempDir,
+		filepath:        tempDir,
+		indexDownsample: 2,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -71,7 +73,8 @@ func TestIterator(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
 	wal, err := newWAL(&walConfig{
-		filepath: tempDir,
+		filepath:        tempDir,
+		indexDownsample: 2,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -111,7 +114,8 @@ func TestCompleteBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
 	wal, err := newWAL(&walConfig{
-		filepath: tempDir,
+		filepath:        tempDir,
+		indexDownsample: 2,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -170,7 +174,8 @@ func TestWorkDir(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating testfile")
 
 	_, err = newWAL(&walConfig{
-		filepath: tempDir,
+		filepath:        tempDir,
+		indexDownsample: 2,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -188,7 +193,8 @@ func BenchmarkWriteRead(b *testing.B) {
 	defer os.RemoveAll(tempDir)
 
 	wal, _ := newWAL(&walConfig{
-		filepath: tempDir,
+		filepath:        tempDir,
+		indexDownsample: 2,
 	})
 
 	blockID := uuid.New()

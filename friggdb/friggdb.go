@@ -81,7 +81,8 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
 
 func (rw *readerWriter) WAL() (WAL, error) {
 	return newWAL(&walConfig{
-		rw.cfg.WALFilepath,
+		filepath:        rw.cfg.WALFilepath,
+		indexDownsample: rw.cfg.IndexDownsample,
 	})
 }
 

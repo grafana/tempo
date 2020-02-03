@@ -7,5 +7,6 @@ type Config struct {
 	Local   local.Config `yaml:"local"`
 
 	WALFilepath              string  `yaml:"walpath"`
+	IndexDownsample          int     `yaml:"index-downsample"`
 	BloomFilterFalsePositive float64 `yaml:"bloom-filter-false-positive"`
 }

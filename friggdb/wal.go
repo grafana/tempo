@@ -17,21 +17,26 @@ const (
 type WAL interface {
 	AllBlocks() ([]ReplayBlock, error)
 	NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
-	WorkFolder() string
+	config() *walConfig
 }
 
 type wal struct {
-	c            *walConfig
-	workFilepath string
+	c *walConfig
 }
 
 type walConfig struct {
-	filepath string
+	filepath        string
+	workFilepath    string
+	indexDownsample int
 }
 
 func newWAL(c *walConfig) (WAL, error) {
 	if c.filepath == "" {
 		return nil, fmt.Errorf("please provide a path for the WAL")
+	}
+
+	if c.indexDownsample == 0 {
+		return nil, fmt.Errorf("Non-zero index downsample required")
 	}
 
 	// make folder
@@ -40,19 +45,22 @@ func newWAL(c *walConfig) (WAL, error) {
 		return nil, err
 	}
 
-	workFilepath := path.Join(c.filepath, workDir)
-	err = os.RemoveAll(workFilepath)
-	if err != nil {
-		return nil, err
-	}
-	err = os.MkdirAll(workFilepath, os.ModePerm)
-	if err != nil {
-		return nil, err
+	if c.workFilepath == "" {
+		workFilepath := path.Join(c.filepath, workDir)
+		err = os.RemoveAll(workFilepath)
+		if err != nil {
+			return nil, err
+		}
+		err = os.MkdirAll(workFilepath, os.ModePerm)
+		if err != nil {
+			return nil, err
+		}
+
+		c.workFilepath = workFilepath
 	}
 
 	return &wal{
-		c:            c,
-		workFilepath: workFilepath,
+		c: c,
 	}, nil
 }
 
@@ -102,8 +110,8 @@ func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
 	return h, nil
 }
 
-func (w *wal) WorkFolder() string {
-	return w.workFilepath
+func (w *wal) config() *walConfig {
+	return w.c
 }
 
 func parseFilename(name string) (uuid.UUID, string, error) {
