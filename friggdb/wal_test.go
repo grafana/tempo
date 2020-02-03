@@ -127,26 +127,28 @@ func TestCompleteBlock(t *testing.T) {
 
 	numMsgs := 10
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
+	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(rand.Int()%1000, []byte{})
+		id := make([]byte, 16)
+		rand.Read(id)
+		req := test.MakeRequest(rand.Int()%1000, id)
 		reqs = append(reqs, req)
-		err := block.Write([]byte{}, req)
+		ids = append(ids, id)
+		err := block.Write(id, req)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
 	complete, err := block.Complete(wal)
 	assert.NoError(t, err, "unexpected error completing block")
 
-	outReq := &friggpb.PushRequest{}
-	i := 0
-	err = complete.Iterator(outReq, func(msg proto.Message) (bool, error) {
-		req := msg.(*friggpb.PushRequest)
+	for i, id := range ids {
+		out := &friggpb.PushRequest{}
+		found, err := complete.Find(id, out)
+		assert.True(t, found)
+		assert.NoError(t, err)
 
-		assert.True(t, proto.Equal(req, reqs[i]))
-		i++
-
-		return true, nil
-	})
+		assert.True(t, proto.Equal(out, reqs[i]))
+	}
 
 	// confirm order
 	var prev *Record
@@ -157,9 +159,6 @@ func TestCompleteBlock(t *testing.T) {
 
 		prev = r
 	}
-
-	assert.NoError(t, err, "unexpected error iterating")
-	assert.Equal(t, numMsgs, i)
 }
 
 func TestWorkDir(t *testing.T) {

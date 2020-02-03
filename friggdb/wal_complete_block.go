@@ -12,6 +12,10 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	uint32Size = 4
+)
+
 type IterFunc func(msg proto.Message) (bool, error)
 
 // complete block has all of the fields
@@ -56,7 +60,7 @@ func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
 		return false, nil
 	}
 
-	b, err := c.readObject(rec.Start, rec.Length)
+	b, err := c.readObject(rec)
 	if err != nil {
 		return false, err
 	}
@@ -78,37 +82,7 @@ func (c *completeBlock) Iterator(read proto.Message, fn IterFunc) error {
 		return err
 	}
 
-	for {
-		var length uint32
-		err := binary.Read(f, binary.LittleEndian, &length)
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			return err
-		}
-
-		b := make([]byte, length)
-		readLength, err := f.Read(b)
-		if uint32(readLength) != length {
-			return fmt.Errorf("read %d but expected %d", readLength, length)
-		}
-
-		err = proto.Unmarshal(b, read)
-		if err != nil {
-			return err
-		}
-
-		more, err := fn(read)
-		if err != nil {
-			return err
-		}
-
-		if !more {
-			break
-		}
-	}
-
-	return nil
+	return iterateObjects(f, read, fn)
 }
 
 func (c *completeBlock) Length() int {
@@ -131,7 +105,16 @@ func (c *completeBlock) fullFilename() string {
 	return fmt.Sprintf("%s/%v:%v", c.filepath, c.meta.BlockID, c.meta.TenantID)
 }
 
-func (c *completeBlock) readObject(start uint64, length uint32) ([]byte, error) {
+func (c *completeBlock) readObject(r *Record) ([]byte, error) {
+	b, err := c.readObjects(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return b[uint32Size:], nil
+}
+
+func (c *completeBlock) readObjects(r *Record) ([]byte, error) {
 	if c.readFile == nil {
 		name := c.fullFilename()
 
@@ -142,11 +125,45 @@ func (c *completeBlock) readObject(start uint64, length uint32) ([]byte, error) 
 		c.readFile = f
 	}
 
-	b := make([]byte, length)
-	_, err := c.readFile.ReadAt(b, int64(start))
+	b := make([]byte, r.Length)
+	_, err := c.readFile.ReadAt(b, int64(r.Start))
 	if err != nil {
 		return nil, err
 	}
 
 	return b, nil
+}
+
+func iterateObjects(reader io.Reader, read proto.Message, fn IterFunc) error {
+	for {
+		var length uint32
+		err := binary.Read(reader, binary.LittleEndian, &length)
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		b := make([]byte, length)
+		readLength, err := reader.Read(b)
+		if uint32(readLength) != length {
+			return fmt.Errorf("read %d but expected %d", readLength, length)
+		}
+
+		err = proto.Unmarshal(b, read)
+		if err != nil {
+			return err
+		}
+
+		more, err := fn(read)
+		if err != nil {
+			return err
+		}
+
+		if !more {
+			break
+		}
+	}
+
+	return nil
 }

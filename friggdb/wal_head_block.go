@@ -79,7 +79,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 
 	// records are already sorted
 	for _, r := range h.records {
-		b, err := h.readObject(r.Start, r.Length)
+		b, err := h.readObject(r)
 		if err != nil {
 			return nil, err
 		}
@@ -124,12 +124,12 @@ func (h *headBlock) appendObject(b []byte) (uint64, uint32, error) {
 		h.appendFile = f
 	}
 
-	err := binary.Write(h.appendFile, binary.LittleEndian, uint32(len(b)))
+	info, err := h.appendFile.Stat()
 	if err != nil {
 		return 0, 0, err
 	}
 
-	info, err := h.appendFile.Stat()
+	err = binary.Write(h.appendFile, binary.LittleEndian, uint32(len(b)))
 	if err != nil {
 		return 0, 0, err
 	}
@@ -139,5 +139,5 @@ func (h *headBlock) appendObject(b []byte) (uint64, uint32, error) {
 		return 0, 0, err
 	}
 
-	return uint64(info.Size()), uint32(length), nil
+	return uint64(info.Size()), uint32(length) + 4, nil // 4 => uint32
 }
