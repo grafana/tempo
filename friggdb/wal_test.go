@@ -95,7 +95,7 @@ func TestIterator(t *testing.T) {
 
 	outReq := &friggpb.PushRequest{}
 	i := 0
-	err = block.(*headBlock).Iterator(outReq, func(msg proto.Message) (bool, error) {
+	err = block.(*headBlock).Iterator(outReq, func(id ID, msg proto.Message) (bool, error) {
 		req := msg.(*friggpb.PushRequest)
 
 		assert.True(t, proto.Equal(req, reqs[i]))

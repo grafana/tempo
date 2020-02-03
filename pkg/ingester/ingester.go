@@ -273,7 +273,7 @@ func (i *Ingester) replayWal() error {
 
 	read := &friggpb.Trace{}
 	for _, b := range blocks {
-		err = b.Iterator(read, func(r proto.Message) (bool, error) {
+		err = b.Iterator(read, func(id friggdb.ID, r proto.Message) (bool, error) {
 			req := r.(*friggpb.Trace)
 
 			_, tenantID, _, _ := b.Identity()

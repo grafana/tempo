@@ -2,7 +2,6 @@ package friggdb
 
 import (
 	"bytes"
-	"encoding/binary"
 	"os"
 	"sort"
 
@@ -24,12 +23,7 @@ type headBlock struct {
 }
 
 func (h *headBlock) Write(id ID, p proto.Message) error {
-	b, err := proto.Marshal(p)
-	if err != nil {
-		return err
-	}
-
-	start, length, err := h.appendObjectBytes(b)
+	start, length, err := h.appendObject(id, p)
 	if err != nil {
 		return err
 	}
@@ -79,12 +73,12 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 
 	// records are already sorted
 	for _, r := range h.records {
-		b, err := h.readObjectBytes(r)
+		b, err := h.readRecordBytes(r)
 		if err != nil {
 			return nil, err
 		}
 
-		start, length, err := orderedBlock.appendObjectBytes(b)
+		start, length, err := orderedBlock.appendBytes(b)
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +107,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	return orderedBlock, nil
 }
 
-func (h *headBlock) appendObjectBytes(b []byte) (uint64, uint32, error) {
+func (h *headBlock) appendObject(id ID, p proto.Message) (uint64, uint32, error) {
 	if h.appendFile == nil {
 		name := h.fullFilename()
 
@@ -129,15 +123,34 @@ func (h *headBlock) appendObjectBytes(b []byte) (uint64, uint32, error) {
 		return 0, 0, err
 	}
 
-	err = binary.Write(h.appendFile, binary.LittleEndian, uint32(len(b)))
+	length, err := marshalObjectToWriter(id, p, h.appendFile)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	length, err := h.appendFile.Write(b)
+	return uint64(info.Size()), uint32(length), nil
+}
+
+func (h *headBlock) appendBytes(b []byte) (uint64, uint32, error) {
+	if h.appendFile == nil {
+		name := h.fullFilename()
+
+		f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return 0, 0, err
+		}
+		h.appendFile = f
+	}
+
+	info, err := h.appendFile.Stat()
 	if err != nil {
 		return 0, 0, err
 	}
 
-	return uint64(info.Size()), uint32(length) + 4, nil // 4 => uint32
+	_, err = h.appendFile.Write(b)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return uint64(info.Size()), uint32(len(b)), nil
 }

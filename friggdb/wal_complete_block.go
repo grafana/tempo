@@ -2,7 +2,6 @@ package friggdb
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -16,7 +15,7 @@ const (
 	uint32Size = 4
 )
 
-type IterFunc func(msg proto.Message) (bool, error)
+type IterFunc func(id ID, msg proto.Message) (bool, error)
 
 // complete block has all of the fields
 type completeBlock struct {
@@ -60,17 +59,12 @@ func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
 		return false, nil
 	}
 
-	b, err := c.readObjectBytes(rec)
+	foundID, err := c.readObject(rec, out)
 	if err != nil {
 		return false, err
 	}
 
-	err = proto.Unmarshal(b, out)
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return bytes.Equal(id, foundID), nil
 }
 
 func (c *completeBlock) Iterator(read proto.Message, fn IterFunc) error {
@@ -105,16 +99,22 @@ func (c *completeBlock) fullFilename() string {
 	return fmt.Sprintf("%s/%v:%v", c.filepath, c.meta.BlockID, c.meta.TenantID)
 }
 
-func (c *completeBlock) readObjectBytes(r *Record) ([]byte, error) {
-	b, err := c.readObjectsBytes(r)
+func (c *completeBlock) readObject(r *Record, out proto.Message) (ID, error) {
+	b, err := c.readRecordBytes(r)
 	if err != nil {
 		return nil, err
 	}
 
-	return b[uint32Size:], nil
+	// only reads and returns the first object
+	id, _, err := unmarshalObjectFromReader(out, bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+
+	return id, nil
 }
 
-func (c *completeBlock) readObjectsBytes(r *Record) ([]byte, error) {
+func (c *completeBlock) readRecordBytes(r *Record) ([]byte, error) {
 	if c.readFile == nil {
 		name := c.fullFilename()
 
@@ -136,31 +136,21 @@ func (c *completeBlock) readObjectsBytes(r *Record) ([]byte, error) {
 
 func iterateObjects(reader io.Reader, read proto.Message, fn IterFunc) error {
 	for {
-		var length uint32
-		err := binary.Read(reader, binary.LittleEndian, &length)
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			return err
-		}
-
-		b := make([]byte, length)
-		readLength, err := reader.Read(b)
-		if uint32(readLength) != length {
-			return fmt.Errorf("read %d but expected %d", readLength, length)
-		}
-
-		err = proto.Unmarshal(b, read)
+		id, more, err := unmarshalObjectFromReader(read, reader)
 		if err != nil {
 			return err
 		}
-
-		more, err := fn(read)
-		if err != nil {
-			return err
-		}
-
 		if !more {
+			// there are no more objects in the reader
+			break
+		}
+
+		more, err = fn(id, read)
+		if err != nil {
+			return err
+		}
+		if !more {
+			// the calling code doesn't need any more objects
 			break
 		}
 	}
