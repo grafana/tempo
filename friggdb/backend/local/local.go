@@ -118,7 +118,7 @@ func (rw *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error
 	return ioutil.ReadFile(filename)
 }
 
-func (rw *readerWriter) Trace(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error) {
+func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error) {
 	filename := rw.tracesFileName(blockID, tenantID)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)

@@ -15,5 +15,5 @@ type Writer interface {
 type Reader interface {
 	Bloom(tenantID string, fn BloomIter) error
 	Index(blockID uuid.UUID, tenantID string) ([]byte, error)
-	Trace(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error)
+	Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error)
 }

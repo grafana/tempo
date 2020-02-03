@@ -48,7 +48,7 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error reading indexes")
 	assert.Equal(t, fakeIndex, actualIndex)
 
-	actualTrace, err := r.Trace(blockID, tenantID, 100, 20)
+	actualTrace, err := r.Object(blockID, tenantID, 100, 20)
 	assert.NoError(t, err, "unexpected error reading traces")
 	assert.Equal(t, fakeTraces[100:120], actualTrace)
 

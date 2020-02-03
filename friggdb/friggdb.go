@@ -108,14 +108,14 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMet
 			}
 
 			if record != nil {
-				traceBytes, err := rw.r.Trace(blockID, tenantID, record.Start, record.Length)
+				objectBytes, err := rw.r.Object(blockID, tenantID, record.Start, record.Length)
 				metrics.BlockReads++
-				metrics.BlockBytesRead += len(traceBytes)
+				metrics.BlockBytesRead += len(objectBytes)
 				if err != nil {
 					return false, err
 				}
 
-				err = proto.Unmarshal(traceBytes, out)
+				err = proto.Unmarshal(objectBytes, out)
 				if err != nil {
 					return false, err
 				}
