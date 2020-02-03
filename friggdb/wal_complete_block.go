@@ -60,7 +60,7 @@ func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
 		return false, nil
 	}
 
-	b, err := c.readObject(rec)
+	b, err := c.readObjectBytes(rec)
 	if err != nil {
 		return false, err
 	}
@@ -105,8 +105,8 @@ func (c *completeBlock) fullFilename() string {
 	return fmt.Sprintf("%s/%v:%v", c.filepath, c.meta.BlockID, c.meta.TenantID)
 }
 
-func (c *completeBlock) readObject(r *Record) ([]byte, error) {
-	b, err := c.readObjects(r)
+func (c *completeBlock) readObjectBytes(r *Record) ([]byte, error) {
+	b, err := c.readObjectsBytes(r)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (c *completeBlock) readObject(r *Record) ([]byte, error) {
 	return b[uint32Size:], nil
 }
 
-func (c *completeBlock) readObjects(r *Record) ([]byte, error) {
+func (c *completeBlock) readObjectsBytes(r *Record) ([]byte, error) {
 	if c.readFile == nil {
 		name := c.fullFilename()
 

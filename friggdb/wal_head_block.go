@@ -29,7 +29,7 @@ func (h *headBlock) Write(id ID, p proto.Message) error {
 		return err
 	}
 
-	start, length, err := h.appendObject(b)
+	start, length, err := h.appendObjectBytes(b)
 	if err != nil {
 		return err
 	}
@@ -79,12 +79,12 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 
 	// records are already sorted
 	for _, r := range h.records {
-		b, err := h.readObject(r)
+		b, err := h.readObjectBytes(r)
 		if err != nil {
 			return nil, err
 		}
 
-		start, length, err := orderedBlock.appendObject(b)
+		start, length, err := orderedBlock.appendObjectBytes(b)
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +113,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	return orderedBlock, nil
 }
 
-func (h *headBlock) appendObject(b []byte) (uint64, uint32, error) {
+func (h *headBlock) appendObjectBytes(b []byte) (uint64, uint32, error) {
 	if h.appendFile == nil {
 		name := h.fullFilename()
 
