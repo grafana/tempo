@@ -117,21 +117,6 @@ func (c *completeBlock) fullFilename() string {
 	return fmt.Sprintf("%s/%v:%v", c.filepath, c.meta.BlockID, c.meta.TenantID)
 }
 
-func (c *completeBlock) readObject(r *Record, out proto.Message) (ID, error) {
-	b, err := c.readRecordBytes(r)
-	if err != nil {
-		return nil, err
-	}
-
-	// only reads and returns the first object
-	id, _, err := unmarshalObjectFromReader(out, bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-
-	return id, nil
-}
-
 func (c *completeBlock) readRecordBytes(r *Record) ([]byte, error) {
 	if c.readFile == nil {
 		name := c.fullFilename()
