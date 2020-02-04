@@ -7,7 +7,9 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend/local"
 	"github.com/grafana/frigg/pkg/friggpb"
@@ -28,6 +30,7 @@ func TestDB(t *testing.T) {
 		WALFilepath:              path.Join(tempDir, "wal"),
 		IndexDownsample:          17,
 		BloomFilterFalsePositive: .01,
+		BlocklistRefreshRate:     30 * time.Minute,
 	})
 	assert.NoError(t, err)
 
@@ -40,7 +43,7 @@ func TestDB(t *testing.T) {
 	head, err := wal.NewBlock(blockID, tenantID)
 	assert.NoError(t, err)
 
-	numMsgs := 100
+	numMsgs := 1
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
@@ -59,12 +62,16 @@ func TestDB(t *testing.T) {
 	err = w.WriteBlock(context.Background(), complete)
 	assert.NoError(t, err)
 
-	for _, id := range ids {
-		out := &friggpb.Trace{}
+	// force poll the blocklist now that we've written something
+	err = r.(*readerWriter).actuallyPollBlocklist()
+	assert.NoError(t, err)
+
+	for i, id := range ids {
+		out := &friggpb.PushRequest{}
 		_, found, err := r.Find(tenantID, id, out)
 		assert.True(t, found)
 		assert.NoError(t, err)
 
-		//assert.True(t, proto.Equal(out, reqs[i]))
+		assert.True(t, proto.Equal(out, reqs[i]))
 	}
 }

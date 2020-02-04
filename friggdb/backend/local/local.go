@@ -87,14 +87,31 @@ func (rw *readerWriter) Write(blockID uuid.UUID, tenantID string, bMeta []byte, 
 	return err
 }
 
-func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
-	blocklists := make([][]byte, 0)
+func (rw *readerWriter) Tenants() ([]string, error) {
+	folders, err := ioutil.ReadDir(rw.cfg.Path)
+	if err != nil {
+		return nil, err
+	}
 
+	tenants := make([]string, 0, len(folders))
+	for _, f := range folders {
+		if !f.IsDir() {
+			continue
+		}
+		tenants = append(tenants, f.Name())
+	}
+
+	return tenants, nil
+}
+
+func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 	path := path.Join(rw.cfg.Path, tenantID)
 	folders, err := ioutil.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
+
+	blocklists := make([][]byte, 0, len(folders))
 	for _, f := range folders {
 		if !f.IsDir() {
 			continue

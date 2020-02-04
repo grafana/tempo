@@ -1,6 +1,7 @@
 package local
 
 import (
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -25,7 +26,11 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating local backend")
 
 	blockID := uuid.New()
-	tenantID := "fake"
+	tenantIDs := []string{"fake"}
+
+	for i := 0; i < 10; i++ {
+		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
+	}
 
 	fakeMeta := make([]byte, 20)
 	fakeBloom := make([]byte, 20)
@@ -43,23 +48,29 @@ func TestReadWrite(t *testing.T) {
 	_, err = fakeTracesFile.Write(fakeTraces)
 	assert.NoError(t, err, "unexpected error writing fakeTraces")
 
-	err = w.Write(blockID, tenantID, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
-	assert.NoError(t, err, "unexpected error writing")
+	for _, id := range tenantIDs {
+		err = w.Write(blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		assert.NoError(t, err, "unexpected error writing")
+	}
 
-	actualIndex, err := r.Index(blockID, tenantID)
+	actualIndex, err := r.Index(blockID, tenantIDs[0])
 	assert.NoError(t, err, "unexpected error reading indexes")
 	assert.Equal(t, fakeIndex, actualIndex)
 
-	actualTrace, err := r.Object(blockID, tenantID, 100, 20)
+	actualTrace, err := r.Object(blockID, tenantIDs[0], 100, 20)
 	assert.NoError(t, err, "unexpected error reading traces")
 	assert.Equal(t, fakeTraces[100:120], actualTrace)
 
-	actualBloom, err := r.Bloom(blockID, tenantID)
+	actualBloom, err := r.Bloom(blockID, tenantIDs[0])
 	assert.NoError(t, err, "unexpected error reading bloom")
 	assert.Equal(t, fakeBloom, actualBloom)
 
-	list, err := r.Blocklist(tenantID)
+	list, err := r.Blocklist(tenantIDs[0])
 	assert.NoError(t, err, "unexpected error reading blocklist")
 	assert.Len(t, list, 1)
 	assert.Equal(t, fakeMeta, list[0])
+
+	tenants, err := r.Tenants()
+	assert.NoError(t, err, "unexpected error reading tenants")
+	assert.Len(t, tenants, len(tenantIDs))
 }

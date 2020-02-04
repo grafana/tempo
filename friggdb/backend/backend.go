@@ -9,6 +9,7 @@ type Writer interface {
 }
 
 type Reader interface {
+	Tenants() ([]string, error)
 	Blocklist(tenantID string) ([][]byte, error)
 	Bloom(blockID uuid.UUID, tenantID string) ([]byte, error)
 	Index(blockID uuid.UUID, tenantID string) ([]byte, error)
