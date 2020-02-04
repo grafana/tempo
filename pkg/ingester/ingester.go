@@ -276,7 +276,7 @@ func (i *Ingester) replayWal() error {
 		err = b.Iterator(read, func(id friggdb.ID, r proto.Message) (bool, error) {
 			req := r.(*friggpb.Trace)
 
-			_, tenantID, _, _ := b.Identity()
+			tenantID := b.TenantID()
 			instance, err := i.getOrCreateInstance(tenantID)
 			if err != nil {
 				return false, err

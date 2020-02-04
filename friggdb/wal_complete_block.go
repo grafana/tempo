@@ -32,7 +32,7 @@ type completeBlock struct {
 
 type ReplayBlock interface {
 	Iterator(read proto.Message, fn IterFunc) error
-	Identity() (blockID uuid.UUID, tenantID string, records []*Record, filepath string) // jpe : No more identity!
+	TenantID() string
 	Clear() error
 }
 
@@ -41,13 +41,18 @@ type CompleteBlock interface {
 
 	Find(id ID, out proto.Message) (bool, error)
 	TimeWritten() time.Time
+
 	blockMeta() *blockMeta
 	bloomFilter() *bloom.Bloom
 	blockWroteSuccessfully(t time.Time)
+	writeInfo() (blockID uuid.UUID, tenantID string, records []*Record, filepath string) // todo:  i hate this method.  do something better
 }
 
-// todo:  I hate this method.  Make it not exist
-func (c *completeBlock) Identity() (uuid.UUID, string, []*Record, string) {
+func (c *completeBlock) TenantID() string {
+	return c.meta.TenantID
+}
+
+func (c *completeBlock) writeInfo() (uuid.UUID, string, []*Record, string) {
 	return c.meta.BlockID, c.meta.TenantID, c.records, c.fullFilename()
 }
 

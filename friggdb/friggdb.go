@@ -76,7 +76,7 @@ func New(cfg *Config) (Reader, Writer, error) {
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
-	uuid, tenantID, records, blockFilePath := c.Identity()
+	uuid, tenantID, records, blockFilePath := c.writeInfo()
 	indexBytes, err := marshalRecords(records, rw.cfg.BloomFilterFalsePositive)
 	if err != nil {
 		return err
