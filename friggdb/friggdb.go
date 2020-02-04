@@ -89,7 +89,14 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
 
 	bloomBytes := c.bloomFilter().JSONMarshal()
 
-	return rw.w.Write(uuid, tenantID, metaBytes, bloomBytes, indexBytes, blockFilePath)
+	err = rw.w.Write(uuid, tenantID, metaBytes, bloomBytes, indexBytes, blockFilePath)
+	if err != nil {
+		return err
+	}
+
+	c.blockWroteSuccessfully(time.Now())
+
+	return nil
 }
 
 func (rw *readerWriter) WAL() (WAL, error) {

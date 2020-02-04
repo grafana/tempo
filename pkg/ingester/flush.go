@@ -84,14 +84,20 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	// see if it's ready to cut a block?
-	err = instance.CutBlockIfReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration)
+	ready, err := instance.CutBlockIfReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration)
 	if err != nil {
 		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut block", "err", err)
 		return
 	}
 
+	// dump any blocks that have been flushed for awhile
+	err = instance.ClearCompleteBlocks(i.cfg.CompleteBlockTimeout)
+	if err != nil {
+		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut block", "err", err)
+	}
+
 	// see if any complete blocks are ready to be flushed
-	if instance.CompleteBlocksReady(i.cfg.CompleteBlockTimeout) {
+	if ready {
 		i.flushQueueIndex++
 		flushQueueIndex := i.flushQueueIndex % i.cfg.ConcurrentFlushes
 		i.flushQueues[flushQueueIndex].Enqueue(&flushOp{
@@ -140,7 +146,7 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 	}
 
 	for {
-		block := instance.GetCompleteBlock()
+		block := instance.GetBlockToBeFlushed()
 		if block == nil {
 			break
 		}
@@ -155,8 +161,6 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 			return err
 		}
 		metricBlocksFlushed.Inc()
-
-		err = instance.ClearCompleteBlock(block)
 	}
 
 	return nil

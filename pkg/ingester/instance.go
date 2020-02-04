@@ -33,6 +33,11 @@ var (
 		Name:      "ingester_traces_created_total",
 		Help:      "The total number of traces created per tenant.",
 	}, []string{"tenant"})
+	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "frigg",
+		Name:      "ingester_blocks_cleared_total",
+		Help:      "The total number of blocks cleared.",
+	})
 )
 
 type instance struct {
@@ -121,12 +126,12 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration) error {
+func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration) (bool, error) {
 	i.blockTracesMtx.RLock()
 	defer i.blockTracesMtx.RUnlock()
 
 	if i.headBlock == nil {
-		return nil
+		return false, nil
 	}
 
 	now := time.Now()
@@ -135,54 +140,47 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	if ready {
 		completeBlock, err := i.headBlock.Complete(i.wal)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		i.completeBlocks = append(i.completeBlocks, completeBlock)
 		i.resetHeadBlock()
 	}
 
-	return nil
+	return ready, nil
 }
 
-// CompleteBlocksReady checks to see if any complete blocks are ready to be flushed
-func (i *instance) CompleteBlocksReady(completeBlockTimeout time.Duration) bool {
-	i.blockTracesMtx.RLock()
-	defer i.blockTracesMtx.RUnlock()
-
-	for _, c := range i.completeBlocks {
-		if c.TimeCompleted().Add(completeBlockTimeout).Before(time.Now()) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (i *instance) GetCompleteBlock() friggdb.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed() friggdb.CompleteBlock {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
-	if len(i.completeBlocks) == 0 {
-		return nil
+	for _, c := range i.completeBlocks {
+		if c.TimeWritten().IsZero() {
+			return c
+		}
 	}
 
-	return i.completeBlocks[0]
+	return nil
 }
 
-func (i *instance) ClearCompleteBlock(deleteBlock friggdb.CompleteBlock) error {
+func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error {
 	var err error
 
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
-	deleteID, _, _, _ := deleteBlock.Identity()
-
 	for idx, b := range i.completeBlocks {
-		blockID, _, _, _ := b.Identity()
-		if blockID == deleteID {
+		written := b.TimeWritten()
+		if written.IsZero() {
+			continue
+		}
+
+		if written.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
 			err = b.Clear()
+			if err != nil {
+				metricBlocksClearedTotal.Inc()
+			}
 			break
 		}
 	}

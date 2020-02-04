@@ -41,31 +41,19 @@ func TestInstance(t *testing.T) {
 
 	i.CutCompleteTraces(0, true)
 
-	ready := i.CompleteBlocksReady(0)
-	assert.False(t, ready, "there should be no cut blocks")
-
-	err = i.CutBlockIfReady(5, 0)
+	ready, err := i.CutBlockIfReady(5, 0)
+	assert.True(t, ready, "there should be no cut blocks")
 	assert.NoError(t, err, "unexpected error cutting block")
 
-	ready = i.CompleteBlocksReady(0)
-	assert.True(t, ready, "block should be ready due to time")
-
-	err = i.CutBlockIfReady(0, 30*time.Hour)
+	ready, err = i.CutBlockIfReady(0, 30*time.Hour)
+	assert.True(t, ready, "there should be no cut blocks")
 	assert.NoError(t, err, "unexpected error cutting block")
 
-	block := i.GetCompleteBlock()
-	err = i.ClearCompleteBlock(block)
-	assert.NoError(t, err)
-
-	block = i.GetCompleteBlock()
-	err = i.ClearCompleteBlock(block)
+	err = i.ClearCompleteBlocks(0)
 	assert.NoError(t, err)
 
 	err = i.resetHeadBlock()
 	assert.NoError(t, err, "unexpected error resetting block")
-
-	block = i.GetCompleteBlock()
-	assert.Nil(t, block)
 }
 
 func TestInstanceFind(t *testing.T) {
@@ -98,7 +86,8 @@ func TestInstanceFind(t *testing.T) {
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
 
-	err = i.CutBlockIfReady(0, 0)
+	ready, err := i.CutBlockIfReady(0, 0)
+	assert.True(t, ready)
 	assert.NoError(t, err)
 
 	trace, err = i.FindTraceByID(traceID)

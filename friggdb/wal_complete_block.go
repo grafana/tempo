@@ -21,11 +21,11 @@ type IterFunc func(id ID, msg proto.Message) (bool, error)
 
 // complete block has all of the fields
 type completeBlock struct {
-	meta          *blockMeta
-	bloom         *bloom.Bloom
-	filepath      string
-	records       []*Record
-	timeCompleted time.Time
+	meta        *blockMeta
+	bloom       *bloom.Bloom
+	filepath    string
+	records     []*Record
+	timeWritten time.Time
 
 	readFile *os.File
 }
@@ -40,9 +40,10 @@ type CompleteBlock interface {
 	ReplayBlock
 
 	Find(id ID, out proto.Message) (bool, error)
-	TimeCompleted() time.Time
+	TimeWritten() time.Time
 	blockMeta() *blockMeta
 	bloomFilter() *bloom.Bloom
+	blockWroteSuccessfully(t time.Time)
 }
 
 // todo:  I hate this method.  Make it not exist
@@ -108,8 +109,12 @@ func (c *completeBlock) Clear() error {
 	return os.Remove(name)
 }
 
-func (c *completeBlock) TimeCompleted() time.Time {
-	return c.timeCompleted
+func (c *completeBlock) TimeWritten() time.Time {
+	return c.timeWritten
+}
+
+func (c *completeBlock) blockWroteSuccessfully(t time.Time) {
+	c.timeWritten = t
 }
 
 func (c *completeBlock) blockMeta() *blockMeta {
