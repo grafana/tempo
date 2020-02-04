@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"sort"
+	"time"
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
@@ -67,10 +68,11 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	// 4) remove old
 	orderedBlock := &headBlock{
 		completeBlock: completeBlock{
-			meta:     newBlockMeta(h.meta.TenantID, uuid.New()),
-			filepath: walConfig.workFilepath,
-			records:  make([]*Record, 0, len(h.records)/walConfig.indexDownsample+1),
-			bloom:    bloom.NewBloomFilter(float64(len(h.records)), walConfig.bloomFP),
+			meta:          newBlockMeta(h.meta.TenantID, uuid.New()),
+			filepath:      walConfig.workFilepath,
+			records:       make([]*Record, 0, len(h.records)/walConfig.indexDownsample+1),
+			bloom:         bloom.NewBloomFilter(float64(len(h.records)), walConfig.bloomFP),
+			timeCompleted: time.Now(),
 		},
 	}
 	orderedBlock.meta.StartTime = h.meta.StartTime

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"time"
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/golang/protobuf/proto"
@@ -20,10 +21,11 @@ type IterFunc func(id ID, msg proto.Message) (bool, error)
 
 // complete block has all of the fields
 type completeBlock struct {
-	meta     *blockMeta
-	bloom    *bloom.Bloom
-	filepath string
-	records  []*Record
+	meta          *blockMeta
+	bloom         *bloom.Bloom
+	filepath      string
+	records       []*Record
+	timeCompleted time.Time
 
 	readFile *os.File
 }
@@ -38,6 +40,7 @@ type CompleteBlock interface {
 	ReplayBlock
 
 	Find(id ID, out proto.Message) (bool, error)
+	TimeCompleted() time.Time
 	blockMeta() *blockMeta
 	bloomFilter() *bloom.Bloom
 }
@@ -103,6 +106,10 @@ func (c *completeBlock) Clear() error {
 
 	name := c.fullFilename()
 	return os.Remove(name)
+}
+
+func (c *completeBlock) TimeCompleted() time.Time {
+	return c.timeCompleted
 }
 
 func (c *completeBlock) blockMeta() *blockMeta {

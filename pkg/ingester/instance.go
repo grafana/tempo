@@ -121,12 +121,12 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration) (bool, error) {
+func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration) error {
 	i.blockTracesMtx.RLock()
 	defer i.blockTracesMtx.RUnlock()
 
 	if i.headBlock == nil {
-		return false, nil
+		return nil
 	}
 
 	now := time.Now()
@@ -135,14 +135,28 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	if ready {
 		completeBlock, err := i.headBlock.Complete(i.wal)
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		i.completeBlocks = append(i.completeBlocks, completeBlock)
 		i.resetHeadBlock()
 	}
 
-	return ready, nil
+	return nil
+}
+
+// CompleteBlocksReady checks to see if any complete blocks are ready to be flushed
+func (i *instance) CompleteBlocksReady(completeBlockTimeout time.Duration) bool {
+	i.blockTracesMtx.RLock()
+	defer i.blockTracesMtx.RUnlock()
+
+	for _, c := range i.completeBlocks {
+		if c.TimeCompleted().Add(completeBlockTimeout).Before(time.Now()) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (i *instance) GetCompleteBlock() friggdb.CompleteBlock {
