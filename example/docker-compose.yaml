@@ -3,9 +3,9 @@ services:
 
   frigg:
     image: frigg:latest
-    command: ["-config.file=/etc/local-config.yaml"]
+    command: ["-config.file=/etc/frigg.yaml"]
     volumes:
-      - ./local-config.yaml:/etc/local-config.yaml
+      - ./frigg.yaml:/etc/frigg.yaml
       - /tmp/frigg:/tmp/frigg
     ports:
       - "14268"      # jaeger
@@ -21,7 +21,10 @@ services:
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
+    volumes:
+      - ./load-generator.json:/etc/load-generator.json
     environment:
+      - TOPOLOGY_FILE=/etc/load-generator.json
       - JAEGER_COLLECTOR_URL=http://frigg:14268
     depends_on:
       - frigg

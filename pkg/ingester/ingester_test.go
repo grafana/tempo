@@ -108,7 +108,8 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, 
 			Local: local.Config{
 				Path: tmpDir,
 			},
-			WALFilepath: tmpDir,
+			WALFilepath:     tmpDir,
+			IndexDownsample: 2,
 		},
 	}, limits)
 	assert.NoError(t, err, "unexpected error store")

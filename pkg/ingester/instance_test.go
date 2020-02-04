@@ -42,30 +42,25 @@ func TestInstance(t *testing.T) {
 	i.CutCompleteTraces(0, true)
 
 	ready, err := i.CutBlockIfReady(5, 0)
+	assert.True(t, ready, "there should be no cut blocks")
 	assert.NoError(t, err, "unexpected error cutting block")
-	assert.True(t, ready, "block should be ready due to time")
 
 	ready, err = i.CutBlockIfReady(0, 30*time.Hour)
+	assert.True(t, ready, "there should be no cut blocks")
 	assert.NoError(t, err, "unexpected error cutting block")
-	assert.True(t, ready, "block should be ready due to max traces")
 
-	block := i.GetCompleteBlock()
-	assert.Equal(t, 1, block.Length())
+	block := i.GetBlockToBeFlushed()
+	assert.NotNil(t, block)
 
-	err = i.ClearCompleteBlock(block)
+	err = ingester.store.WriteBlock(context.Background(), block)
 	assert.NoError(t, err)
 
-	block = i.GetCompleteBlock()
-	assert.Equal(t, 0, block.Length())
-
-	err = i.ClearCompleteBlock(block)
+	err = i.ClearCompleteBlocks(0)
 	assert.NoError(t, err)
+	assert.Len(t, i.completeBlocks, 1)
 
 	err = i.resetHeadBlock()
 	assert.NoError(t, err, "unexpected error resetting block")
-
-	block = i.GetCompleteBlock()
-	assert.Nil(t, block)
 }
 
 func TestInstanceFind(t *testing.T) {

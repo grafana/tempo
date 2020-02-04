@@ -1,13 +1,16 @@
 package friggdb
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"sync"
+	"time"
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
 	"github.com/golang/protobuf/proto"
-	"github.com/google/uuid"
 
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/backend/local"
@@ -19,7 +22,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(tenantID string, id ID, out proto.Message) (FindMetrics, error)
+	Find(tenantID string, id ID, out proto.Message) (FindMetrics, bool, error)
 }
 
 type FindMetrics struct {
@@ -35,8 +38,9 @@ type readerWriter struct {
 	r backend.Reader
 	w backend.Writer
 
-	bloomFP float64
-	cfg     *Config
+	cfg           *Config
+	blockLists    map[string][]searchableBlockMeta
+	blockListsMtx sync.Mutex
 }
 
 func New(cfg *Config) (Reader, Writer, error) {
@@ -60,77 +64,167 @@ func New(cfg *Config) (Reader, Writer, error) {
 	}
 
 	rw := &readerWriter{
-		r:   r,
-		w:   w,
-		cfg: cfg,
+		r:          r,
+		w:          w,
+		cfg:        cfg,
+		blockLists: make(map[string][]searchableBlockMeta),
 	}
+
+	go rw.pollBlocklist()
 
 	return rw, rw, nil
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
-	uuid, tenantID, records, blockFilePath := c.Identity()
-	indexBytes, bloomBytes, err := marshalRecords(records, rw.cfg.BloomFilterFalsePositive)
-
+	uuid, tenantID, records, blockFilePath := c.writeInfo()
+	indexBytes, err := marshalRecords(records, rw.cfg.BloomFilterFalsePositive)
 	if err != nil {
 		return err
 	}
 
-	return rw.w.Write(ctx, uuid, tenantID, bloomBytes, indexBytes, blockFilePath)
+	metaBytes, err := json.Marshal(c.blockMeta())
+	if err != nil {
+		return err
+	}
+
+	bloomBytes := c.bloomFilter().JSONMarshal()
+
+	err = rw.w.Write(uuid, tenantID, metaBytes, bloomBytes, indexBytes, blockFilePath)
+	if err != nil {
+		return err
+	}
+
+	c.blockWroteSuccessfully(time.Now())
+
+	return nil
 }
 
 func (rw *readerWriter) WAL() (WAL, error) {
 	return newWAL(&walConfig{
-		rw.cfg.WALFilepath,
+		filepath:        rw.cfg.WALFilepath,
+		indexDownsample: rw.cfg.IndexDownsample,
+		bloomFP:         rw.cfg.BloomFilterFalsePositive,
 	})
 }
 
-func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMetrics, error) {
+func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMetrics, bool, error) {
 	metrics := FindMetrics{}
 
-	err := rw.r.Bloom(tenantID, func(bloomBytes []byte, blockID uuid.UUID) (bool, error) {
+	// todo:  lock, copy slice and unlock
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	blocklist, found := rw.blockLists[tenantID]
+	if !found {
+		return metrics, false, fmt.Errorf("tenantID %s not found", tenantID)
+	}
+
+	for _, meta := range blocklist {
+		if bytes.Compare(id, meta.MinID) == -1 || bytes.Compare(id, meta.MaxID) == 1 {
+			continue
+		}
+
+		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
+		if err != nil {
+			return metrics, false, err
+		}
+
 		filter := bloom.JSONUnmarshal(bloomBytes)
 		metrics.BloomFilterReads++
 		metrics.BloomFilterBytesRead += len(bloomBytes)
+		if !filter.Has(farm.Fingerprint64(id)) {
+			continue
+		}
 
-		if filter.Has(farm.Fingerprint64(id)) {
-			indexBytes, err := rw.r.Index(blockID, tenantID)
-			metrics.IndexReads++
-			metrics.IndexBytesRead += len(indexBytes)
-			if err != nil {
-				return false, err
-			}
+		indexBytes, err := rw.r.Index(meta.BlockID, tenantID)
+		metrics.IndexReads++
+		metrics.IndexBytesRead += len(indexBytes)
+		if err != nil {
+			return metrics, false, err
+		}
 
-			record, err := findRecord(id, indexBytes)
-			if err != nil {
-				return false, err
-			}
+		record, err := findRecord(id, indexBytes)
+		if err != nil {
+			return metrics, false, err
+		}
 
-			if record != nil {
-				traceBytes, err := rw.r.Trace(blockID, tenantID, record.Start, record.Length)
-				metrics.BlockReads++
-				metrics.BlockBytesRead += len(traceBytes)
-				if err != nil {
-					return false, err
-				}
+		if record == nil {
+			continue
+		}
 
-				err = proto.Unmarshal(traceBytes, out)
-				if err != nil {
-					return false, err
-				}
+		objectBytes, err := rw.r.Object(meta.BlockID, tenantID, record.Start, record.Length)
+		metrics.BlockReads++
+		metrics.BlockBytesRead += len(objectBytes)
+		if err != nil {
+			return metrics, false, err
+		}
 
+		found := false
+		err = iterateObjects(bytes.NewReader(objectBytes), out, func(foundID ID, msg proto.Message) (bool, error) {
+			if bytes.Equal(foundID, id) {
+				found = true
 				return false, nil
 			}
 
 			return true, nil
+
+		})
+		if err != nil {
+			return metrics, false, err
 		}
 
-		return true, nil
-	})
-
-	if err != nil {
-		return metrics, err
+		if found {
+			return metrics, true, nil
+		}
 	}
 
-	return metrics, nil
+	return metrics, false, nil
+}
+
+func (rw *readerWriter) pollBlocklist() {
+	rw.actuallyPollBlocklist()
+
+	if rw.cfg.BlocklistRefreshRate == 0 {
+		return
+	}
+
+	ticker := time.NewTicker(rw.cfg.BlocklistRefreshRate)
+	for {
+		select {
+		case <-ticker.C:
+			rw.actuallyPollBlocklist()
+		}
+	}
+}
+
+func (rw *readerWriter) actuallyPollBlocklist() error {
+	// todo: friggdb needs a logger as a param and log this crap
+	tenants, err := rw.r.Tenants()
+	if err != nil {
+		return err
+	}
+
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	for _, tenantID := range tenants {
+		blocklistsJSON, err := rw.r.Blocklist(tenantID)
+		if err != nil {
+			continue
+		}
+
+		meta := &searchableBlockMeta{}
+		blocklist := make([]searchableBlockMeta, 0, len(blocklistsJSON))
+		for _, j := range blocklistsJSON {
+			err = json.Unmarshal(j, meta)
+			if err != nil {
+				continue
+			}
+
+			blocklist = append(blocklist, *meta)
+		}
+		rw.blockLists[tenantID] = blocklist
+	}
+
+	return nil
 }

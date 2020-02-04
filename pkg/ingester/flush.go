@@ -14,10 +14,10 @@ import (
 )
 
 var (
-	metricTracesFlushed = promauto.NewCounter(prometheus.CounterOpts{
+	metricBlocksFlushed = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "frigg",
-		Name:      "ingester_traces_flushed_total",
-		Help:      "The total number of traces flushed",
+		Name:      "ingester_blocks_flushed_total",
+		Help:      "The total number of blocks flushed",
 	})
 	metricFailedFlushes = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "frigg",
@@ -90,6 +90,13 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 		return
 	}
 
+	// dump any blocks that have been flushed for awhile
+	err = instance.ClearCompleteBlocks(i.cfg.CompleteBlockTimeout)
+	if err != nil {
+		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to complete block", "err", err)
+	}
+
+	// see if any complete blocks are ready to be flushed
 	if ready {
 		i.flushQueueIndex++
 		flushQueueIndex := i.flushQueueIndex % i.cfg.ConcurrentFlushes
@@ -139,7 +146,7 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 	}
 
 	for {
-		block := instance.GetCompleteBlock()
+		block := instance.GetBlockToBeFlushed()
 		if block == nil {
 			break
 		}
@@ -153,9 +160,7 @@ func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
 			metricFailedFlushes.Inc()
 			return err
 		}
-		metricTracesFlushed.Add(float64(block.Length()))
-
-		err = instance.ClearCompleteBlock(block)
+		metricBlocksFlushed.Inc()
 	}
 
 	return nil

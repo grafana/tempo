@@ -17,12 +17,13 @@ type Config struct {
 	// Config for transferring chunks.
 	MaxTransferRetries int `yaml:"max_transfer_retries,omitempty"`
 
-	ConcurrentFlushes int           `yaml:"concurrent_flushes"`
-	FlushCheckPeriod  time.Duration `yaml:"flush_check_period"`
-	FlushOpTimeout    time.Duration `yaml:"flush_op_timeout"`
-	MaxTraceIdle      time.Duration `yaml:"trace_idle_period"`
-	MaxTracesPerBlock int           `yaml:"traces_per_block"`
-	MaxBlockDuration  time.Duration `yaml:"max_block_duration"`
+	ConcurrentFlushes    int           `yaml:"concurrent_flushes"`
+	FlushCheckPeriod     time.Duration `yaml:"flush_check_period"`
+	FlushOpTimeout       time.Duration `yaml:"flush_op_timeout"`
+	MaxTraceIdle         time.Duration `yaml:"trace_idle_period"`
+	MaxTracesPerBlock    int           `yaml:"traces_per_block"`
+	MaxBlockDuration     time.Duration `yaml:"max_block_duration"`
+	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
 
 	// For testing, you can override the address and ID of this ingester.
 	ingesterClientFactory func(cfg client.Config, addr string) (grpc_health_v1.HealthClient, error)

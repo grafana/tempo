@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"sort"
 
-	bloom "github.com/dgraph-io/ristretto/z"
-	"github.com/dgryski/go-farm"
 	"github.com/grafana/frigg/pkg/util/validation"
 )
 
@@ -45,24 +43,20 @@ func (t *recordSorter) Swap(i, j int) {
 }
 
 // todo: move encoding/decoding to a seperate util area?  is the index too large?  need an io.Reader?
-func marshalRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) {
+func marshalRecords(records []*Record, bloomFP float64) ([]byte, error) {
 	recordBytes := make([]byte, len(records)*28) // 28 = 128 bit ID, 64bit start, 32bit length
-	bf := bloom.NewBloomFilter(float64(len(records)), bloomFP)
 
 	for i, r := range records {
 		buff := recordBytes[i*28 : (i+1)*28]
 
-		if !validation.ValidTraceID(r.ID) {
-			return nil, nil, fmt.Errorf("Trace Ids must be 128 bit")
+		if !validation.ValidTraceID(r.ID) { // todo: remove this check.  maybe have a max id size of 128 bits?
+			return nil, fmt.Errorf("Trace Ids must be 128 bit")
 		}
 
-		bf.Add(farm.Fingerprint64(r.ID))
 		marshalRecord(r, buff)
 	}
 
-	bloomBytes := bf.JSONMarshal()
-
-	return recordBytes, bloomBytes, nil
+	return recordBytes, nil
 }
 
 func unmarshalRecords(recordBytes []byte) ([]*Record, error) {
@@ -97,9 +91,7 @@ func findRecord(id ID, recordBytes []byte) (*Record, error) {
 		buff := recordBytes[i*28 : (i+1)*28]
 		unmarshalRecord(buff, record)
 
-		if bytes.Equal(id, record.ID) {
-			return record, nil
-		}
+		return record, nil
 	}
 
 	return nil, nil
