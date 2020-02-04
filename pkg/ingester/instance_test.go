@@ -49,8 +49,15 @@ func TestInstance(t *testing.T) {
 	assert.True(t, ready, "there should be no cut blocks")
 	assert.NoError(t, err, "unexpected error cutting block")
 
+	block := i.GetBlockToBeFlushed()
+	assert.NotNil(t, block)
+
+	err = ingester.store.WriteBlock(context.Background(), block)
+	assert.NoError(t, err)
+
 	err = i.ClearCompleteBlocks(0)
 	assert.NoError(t, err)
+	assert.Len(t, i.completeBlocks, 1)
 
 	err = i.resetHeadBlock()
 	assert.NoError(t, err, "unexpected error resetting block")

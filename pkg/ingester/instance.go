@@ -178,7 +178,7 @@ func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error
 		if written.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
 			err = b.Clear()
-			if err != nil {
+			if err == nil {
 				metricBlocksClearedTotal.Inc()
 			}
 			break
