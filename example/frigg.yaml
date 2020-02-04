@@ -21,7 +21,7 @@ ingester:
   traces_per_block: 10000
   max_block_duration: 1h
   max_transfer_retries: 1
-  complete_block_timeout: 30m
+  complete_block_timeout: 1m
 
 storage_config:
   trace:
