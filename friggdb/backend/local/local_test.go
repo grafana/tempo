@@ -1,7 +1,6 @@
 package local
 
 import (
-	"context"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -28,10 +27,13 @@ func TestReadWrite(t *testing.T) {
 	blockID := uuid.New()
 	tenantID := "fake"
 
+	fakeMeta := make([]byte, 20)
 	fakeBloom := make([]byte, 20)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
 
+	_, err = rand.Read(fakeMeta)
+	assert.NoError(t, err, "unexpected error creating fakeMeta")
 	_, err = rand.Read(fakeBloom)
 	assert.NoError(t, err, "unexpected error creating fakeBloom")
 	_, err = rand.Read(fakeIndex)
@@ -41,7 +43,7 @@ func TestReadWrite(t *testing.T) {
 	_, err = fakeTracesFile.Write(fakeTraces)
 	assert.NoError(t, err, "unexpected error writing fakeTraces")
 
-	err = w.Write(context.Background(), blockID, tenantID, fakeBloom, fakeIndex, fakeTracesFile.Name())
+	err = w.Write(blockID, tenantID, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
 	assert.NoError(t, err, "unexpected error writing")
 
 	actualIndex, err := r.Index(blockID, tenantID)
@@ -52,14 +54,12 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error reading traces")
 	assert.Equal(t, fakeTraces[100:120], actualTrace)
 
-	i := 0
-	err = r.Bloom(tenantID, func(actualBloomBytes []byte, actualBlockID uuid.UUID) (bool, error) {
-		assert.Equal(t, blockID, actualBlockID)
-		assert.Equal(t, fakeBloom, actualBloomBytes)
-		i++
+	actualBloom, err := r.Bloom(blockID, tenantID)
+	assert.NoError(t, err, "unexpected error reading bloom")
+	assert.Equal(t, fakeBloom, actualBloom)
 
-		return true, nil
-	})
-	assert.NoError(t, err, "unexpected error iterating bloom")
-	assert.Equal(t, 1, i, "should only be 1 bloom filter")
+	list, err := r.Blocklist(tenantID)
+	assert.NoError(t, err, "unexpected error reading blocklist")
+	assert.Len(t, list, 1)
+	assert.Equal(t, fakeMeta, list[0])
 }

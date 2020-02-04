@@ -115,7 +115,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDReque
 	if trace == nil {
 		var metrics friggdb.FindMetrics
 		out := &friggpb.Trace{}
-		metrics, err = q.store.Find(userID, req.TraceID, out)
+		metrics, _, err = q.store.Find(userID, req.TraceID, out)
 		if err != nil {
 			return nil, err
 		}

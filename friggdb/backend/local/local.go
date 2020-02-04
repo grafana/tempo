@@ -1,7 +1,6 @@
 package local
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -29,8 +28,17 @@ func New(cfg Config) (backend.Reader, backend.Writer, error) {
 	return rw, rw, nil
 }
 
-func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID string, bBloom []byte, bIndex []byte, tracesFilePath string) error {
+func (rw *readerWriter) Write(blockID uuid.UUID, tenantID string, bMeta []byte, bBloom []byte, bIndex []byte, tracesFilePath string) error {
 	err := os.MkdirAll(rw.rootPath(blockID, tenantID), os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	meta := rw.metaFileName(blockID, tenantID)
+	if fileExists(meta) {
+		return fmt.Errorf("unexpectedly found meta file at %s", meta)
+	}
+	err = ioutil.WriteFile(meta, bMeta, 0644)
 	if err != nil {
 		return err
 	}
@@ -79,38 +87,37 @@ func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID str
 	return err
 }
 
-func (rw *readerWriter) Bloom(tenantID string, fn backend.BloomIter) error {
+func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
+	blocklists := make([][]byte, 0)
+
 	path := path.Join(rw.cfg.Path, tenantID)
 	folders, err := ioutil.ReadDir(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	for _, f := range folders {
 		if !f.IsDir() {
 			continue
 		}
-
 		blockID, err := uuid.Parse(f.Name())
 		if err != nil {
-			return err
+			return nil, err
 		}
-
-		filename := rw.bloomFileName(blockID, tenantID)
+		filename := rw.metaFileName(blockID, tenantID)
 		bytes, err := ioutil.ReadFile(filename)
-
-		more, err := fn(bytes, blockID)
-
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		if !more {
-			break
-		}
+		blocklists = append(blocklists, bytes)
 	}
 
-	return nil
+	return blocklists, nil
+}
+
+func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {
+	filename := rw.bloomFileName(blockID, tenantID)
+	return ioutil.ReadFile(filename)
 }
 
 func (rw *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
@@ -134,6 +141,10 @@ func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64,
 	}
 
 	return b, nil
+}
+
+func (rw *readerWriter) metaFileName(blockID uuid.UUID, tenantID string) string {
+	return path.Join(rw.rootPath(blockID, tenantID), "meta.json")
 }
 
 func (rw *readerWriter) bloomFileName(blockID uuid.UUID, tenantID string) string {

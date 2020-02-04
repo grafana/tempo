@@ -1,13 +1,14 @@
 package friggdb
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
 	"github.com/golang/protobuf/proto"
-	"github.com/google/uuid"
 
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/backend/local"
@@ -19,7 +20,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(tenantID string, id ID, out proto.Message) (FindMetrics, error)
+	Find(tenantID string, id ID, out proto.Message) (FindMetrics, bool, error)
 }
 
 type FindMetrics struct {
@@ -71,12 +72,16 @@ func New(cfg *Config) (Reader, Writer, error) {
 func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
 	uuid, tenantID, records, blockFilePath := c.Identity()
 	indexBytes, bloomBytes, err := marshalRecords(records, rw.cfg.BloomFilterFalsePositive)
-
 	if err != nil {
 		return err
 	}
 
-	return rw.w.Write(ctx, uuid, tenantID, bloomBytes, indexBytes, blockFilePath)
+	metaBytes, err := json.Marshal(c.blockMeta())
+	if err != nil {
+		return err
+	}
+
+	return rw.w.Write(uuid, tenantID, metaBytes, bloomBytes, indexBytes, blockFilePath)
 }
 
 func (rw *readerWriter) WAL() (WAL, error) {
@@ -86,52 +91,78 @@ func (rw *readerWriter) WAL() (WAL, error) {
 	})
 }
 
-func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMetrics, error) {
+func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMetrics, bool, error) {
 	metrics := FindMetrics{}
 
-	err := rw.r.Bloom(tenantID, func(bloomBytes []byte, blockID uuid.UUID) (bool, error) {
+	blocklists, err := rw.r.Blocklist(tenantID)
+	if err != nil {
+		return metrics, false, err
+	}
+
+	for _, b := range blocklists {
+		meta := &searchableBlockMeta{}
+		err = json.Unmarshal(b, meta)
+		if err != nil {
+			return metrics, false, err
+		}
+
+		if bytes.Compare(id, meta.MinID) == -1 || bytes.Compare(id, meta.MaxID) == 1 {
+			continue
+		}
+
+		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
+		if err != nil {
+			return metrics, false, err
+		}
+
 		filter := bloom.JSONUnmarshal(bloomBytes)
 		metrics.BloomFilterReads++
 		metrics.BloomFilterBytesRead += len(bloomBytes)
+		if !filter.Has(farm.Fingerprint64(id)) {
+			continue
+		}
 
-		if filter.Has(farm.Fingerprint64(id)) {
-			indexBytes, err := rw.r.Index(blockID, tenantID)
-			metrics.IndexReads++
-			metrics.IndexBytesRead += len(indexBytes)
-			if err != nil {
-				return false, err
-			}
+		indexBytes, err := rw.r.Index(meta.BlockID, tenantID)
+		metrics.IndexReads++
+		metrics.IndexBytesRead += len(indexBytes)
+		if err != nil {
+			return metrics, false, err
+		}
 
-			record, err := findRecord(id, indexBytes)
-			if err != nil {
-				return false, err
-			}
+		record, err := findRecord(id, indexBytes)
+		if err != nil {
+			return metrics, false, err
+		}
 
-			if record != nil {
-				objectBytes, err := rw.r.Object(blockID, tenantID, record.Start, record.Length)
-				metrics.BlockReads++
-				metrics.BlockBytesRead += len(objectBytes)
-				if err != nil {
-					return false, err
-				}
+		if record == nil {
+			continue
+		}
 
-				err = proto.Unmarshal(objectBytes, out)
-				if err != nil {
-					return false, err
-				}
+		objectBytes, err := rw.r.Object(meta.BlockID, tenantID, record.Start, record.Length)
+		metrics.BlockReads++
+		metrics.BlockBytesRead += len(objectBytes)
+		if err != nil {
+			return metrics, false, err
+		}
 
+		found := false
+		err = iterateObjects(bytes.NewReader(objectBytes), out, func(foundID ID, msg proto.Message) (bool, error) {
+			if bytes.Equal(foundID, id) {
+				found = true
 				return false, nil
 			}
 
 			return true, nil
+
+		})
+		if err != nil {
+			return metrics, false, err
 		}
 
-		return true, nil
-	})
-
-	if err != nil {
-		return metrics, err
+		if found {
+			return metrics, true, nil
+		}
 	}
 
-	return metrics, nil
+	return metrics, false, nil
 }

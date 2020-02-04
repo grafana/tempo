@@ -36,6 +36,7 @@ type CompleteBlock interface {
 	ReplayBlock
 
 	Find(id ID, out proto.Message) (bool, error)
+	blockMeta() *blockMeta
 }
 
 // todo:  I hate this method.  Make it not exist
@@ -99,6 +100,10 @@ func (c *completeBlock) Clear() error {
 
 	name := c.fullFilename()
 	return os.Remove(name)
+}
+
+func (c *completeBlock) blockMeta() *blockMeta {
+	return c.meta
 }
 
 func (c *completeBlock) fullFilename() string {

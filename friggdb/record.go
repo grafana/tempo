@@ -52,7 +52,7 @@ func marshalRecords(records []*Record, bloomFP float64) ([]byte, []byte, error) 
 	for i, r := range records {
 		buff := recordBytes[i*28 : (i+1)*28]
 
-		if !validation.ValidTraceID(r.ID) {
+		if !validation.ValidTraceID(r.ID) { // todo: remove this check.  maybe have a max id size of 128 bits?
 			return nil, nil, fmt.Errorf("Trace Ids must be 128 bit")
 		}
 
@@ -97,9 +97,7 @@ func findRecord(id ID, recordBytes []byte) (*Record, error) {
 		buff := recordBytes[i*28 : (i+1)*28]
 		unmarshalRecord(buff, record)
 
-		if bytes.Equal(id, record.ID) {
-			return record, nil
-		}
+		return record, nil
 	}
 
 	return nil, nil
