@@ -18,8 +18,8 @@ ingester:
       replication_factor: 1
     final_sleep: 0s
   trace_idle_period: 10s
-  traces_per_block: 1000
-  max_block_duration: 30m
+  traces_per_block: 10000
+  max_block_duration: 1h
   max_transfer_retries: 1
   complete_block_timeout: 30m
 
@@ -29,6 +29,7 @@ storage_config:
     bloom-filter-false-positive: .05
     blocklistRefreshRate: 30s
     backend: local
+    index-downsample: 10
     local:
       path: /tmp/frigg/traces
 
