@@ -5,6 +5,8 @@ import (
 	"os"
 	"sort"
 
+	bloom "github.com/dgraph-io/ristretto/z"
+	"github.com/dgryski/go-farm"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 )
@@ -45,8 +47,8 @@ func (h *headBlock) Write(id ID, p proto.Message) error {
 	return nil
 }
 
-func (c *completeBlock) Length() int {
-	return len(c.records)
+func (h *headBlock) Length() int {
+	return len(h.records)
 }
 
 func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
@@ -68,6 +70,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 			meta:     newBlockMeta(h.meta.TenantID, uuid.New()),
 			filepath: walConfig.workFilepath,
 			records:  make([]*Record, 0, len(h.records)/walConfig.indexDownsample+1),
+			bloom:    bloom.NewBloomFilter(float64(len(h.records)), walConfig.bloomFP),
 		},
 	}
 	orderedBlock.meta.StartTime = h.meta.StartTime
@@ -92,6 +95,8 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		orderedBlock.bloom.Add(farm.Fingerprint64(r.ID))
 
 		// start or continue working on a record
 		if currentRecord == nil {

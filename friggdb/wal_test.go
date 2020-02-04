@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dgryski/go-farm"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util/test"
 )
@@ -118,6 +119,7 @@ func TestCompleteBlock(t *testing.T) {
 	wal, err := newWAL(&walConfig{
 		filepath:        tempDir,
 		indexDownsample: indexDownsample,
+		bloomFP:         .01,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -158,6 +160,7 @@ func TestCompleteBlock(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))
+		assert.True(t, complete.bloomFilter().Has(farm.Fingerprint64(id)))
 	}
 
 	// confirm order

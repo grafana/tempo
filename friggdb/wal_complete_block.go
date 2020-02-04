@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 
+	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 )
@@ -20,6 +21,7 @@ type IterFunc func(id ID, msg proto.Message) (bool, error)
 // complete block has all of the fields
 type completeBlock struct {
 	meta     *blockMeta
+	bloom    *bloom.Bloom
 	filepath string
 	records  []*Record
 
@@ -37,6 +39,7 @@ type CompleteBlock interface {
 
 	Find(id ID, out proto.Message) (bool, error)
 	blockMeta() *blockMeta
+	bloomFilter() *bloom.Bloom
 }
 
 // todo:  I hate this method.  Make it not exist
@@ -104,6 +107,10 @@ func (c *completeBlock) Clear() error {
 
 func (c *completeBlock) blockMeta() *blockMeta {
 	return c.meta
+}
+
+func (c *completeBlock) bloomFilter() *bloom.Bloom {
+	return c.bloom
 }
 
 func (c *completeBlock) fullFilename() string {

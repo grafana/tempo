@@ -28,6 +28,7 @@ type walConfig struct {
 	filepath        string
 	workFilepath    string
 	indexDownsample int
+	bloomFP         float64
 }
 
 func newWAL(c *walConfig) (WAL, error) {

@@ -71,7 +71,7 @@ func New(cfg *Config) (Reader, Writer, error) {
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
 	uuid, tenantID, records, blockFilePath := c.Identity()
-	indexBytes, bloomBytes, err := marshalRecords(records, rw.cfg.BloomFilterFalsePositive)
+	indexBytes, err := marshalRecords(records, rw.cfg.BloomFilterFalsePositive)
 	if err != nil {
 		return err
 	}
@@ -81,6 +81,8 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
 		return err
 	}
 
+	bloomBytes := c.bloomFilter().JSONMarshal()
+
 	return rw.w.Write(uuid, tenantID, metaBytes, bloomBytes, indexBytes, blockFilePath)
 }
 
@@ -88,6 +90,7 @@ func (rw *readerWriter) WAL() (WAL, error) {
 	return newWAL(&walConfig{
 		filepath:        rw.cfg.WALFilepath,
 		indexDownsample: rw.cfg.IndexDownsample,
+		bloomFP:         rw.cfg.BloomFilterFalsePositive,
 	})
 }
 
