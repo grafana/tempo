@@ -70,7 +70,6 @@ type Distributor struct {
 // TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
 type pushTracker struct {
 	samplesPending int32
-	samplesFailed  int32
 	done           chan struct{}
 	err            chan error
 }

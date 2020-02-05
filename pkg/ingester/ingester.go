@@ -103,6 +103,9 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 		return nil, err
 	}
 	err = i.replayWal()
+	if err != nil {
+		return nil, err
+	}
 
 	i.done.Add(1)
 	go i.loop()
