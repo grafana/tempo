@@ -49,7 +49,7 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error writing fakeTraces")
 
 	for _, id := range tenantIDs {
-		err = w.Write(blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		err = w.Write(nil, blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
 		assert.NoError(t, err, "unexpected error writing")
 	}
 

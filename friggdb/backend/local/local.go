@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -28,7 +29,7 @@ func New(cfg Config) (backend.Reader, backend.Writer, error) {
 	return rw, rw, nil
 }
 
-func (rw *readerWriter) Write(blockID uuid.UUID, tenantID string, bMeta []byte, bBloom []byte, bIndex []byte, tracesFilePath string) error {
+func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID string, bMeta []byte, bBloom []byte, bIndex []byte, tracesFilePath string) error {
 	err := os.MkdirAll(rw.rootPath(blockID, tenantID), os.ModePerm)
 	if err != nil {
 		return err

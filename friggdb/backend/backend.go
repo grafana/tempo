@@ -1,11 +1,13 @@
 package backend
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 )
 
 type Writer interface {
-	Write(blockID uuid.UUID, tenantID string, bMeta []byte, bBloom []byte, bIndex []byte, tracesFilePath string) error
+	Write(ctx context.Context, blockID uuid.UUID, tenantID string, bMeta []byte, bBloom []byte, bIndex []byte, tracesFilePath string) error
 }
 
 type Reader interface {
