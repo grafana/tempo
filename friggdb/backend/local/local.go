@@ -30,43 +30,36 @@ func New(cfg Config) (backend.Reader, backend.Writer, error) {
 }
 
 func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID string, bMeta []byte, bBloom []byte, bIndex []byte, tracesFilePath string) error {
-	err := os.MkdirAll(rw.rootPath(blockID, tenantID), os.ModePerm)
+	blockFolder := rw.rootPath(blockID, tenantID)
+	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
 		return err
 	}
 
 	meta := rw.metaFileName(blockID, tenantID)
-	if fileExists(meta) {
-		return fmt.Errorf("unexpectedly found meta file at %s", meta)
-	}
 	err = ioutil.WriteFile(meta, bMeta, 0644)
 	if err != nil {
+		os.RemoveAll(blockFolder)
 		return err
 	}
 
 	bloom := rw.bloomFileName(blockID, tenantID)
-	if fileExists(bloom) {
-		return fmt.Errorf("unexpectedly found bloom file at %s", bloom)
-	}
 	err = ioutil.WriteFile(bloom, bBloom, 0644)
 	if err != nil {
+		os.RemoveAll(blockFolder)
 		return err
 	}
 
 	index := rw.indexFileName(blockID, tenantID)
-	if fileExists(index) {
-		return fmt.Errorf("unexpectedly found index file at %s", index)
-	}
 	err = ioutil.WriteFile(index, bIndex, 0644)
 	if err != nil {
+		os.RemoveAll(blockFolder)
 		return err
 	}
 
 	traces := rw.tracesFileName(blockID, tenantID)
-	if fileExists(traces) {
-		return fmt.Errorf("unexpectedly found traces file at %s", index)
-	}
 	if !fileExists(tracesFilePath) {
+		os.RemoveAll(blockFolder)
 		return fmt.Errorf("traces file not found %s", tracesFilePath)
 	}
 
@@ -75,16 +68,21 @@ func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID str
 	//   do a rename here which would be way faster.
 	src, err := os.Open(tracesFilePath)
 	if err != nil {
+		os.RemoveAll(blockFolder)
 		return err
 	}
 	defer src.Close()
 	dst, err := os.Create(traces)
 	if err != nil {
+		os.RemoveAll(blockFolder)
 		return err
 	}
 	defer dst.Close()
 
 	_, err = io.Copy(dst, src)
+	if err != nil {
+		os.RemoveAll(blockFolder)
+	}
 	return err
 }
 
