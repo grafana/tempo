@@ -37,9 +37,11 @@ func TestInstance(t *testing.T) {
 
 	i, err := newInstance("fake", limiter, wal)
 	assert.NoError(t, err, "unexpected error creating new instance")
-	i.Push(context.Background(), request)
+	err = i.Push(context.Background(), request)
+	assert.NoError(t, err)
 
-	i.CutCompleteTraces(0, true)
+	err = i.CutCompleteTraces(0, true)
+	assert.NoError(t, err)
 
 	ready, err := i.CutBlockIfReady(5, 0)
 	assert.True(t, ready, "there should be no cut blocks")
@@ -80,7 +82,8 @@ func TestInstanceFind(t *testing.T) {
 
 	i, err := newInstance("fake", limiter, wal)
 	assert.NoError(t, err, "unexpected error creating new instance")
-	i.Push(context.Background(), request)
+	err = i.Push(context.Background(), request)
+	assert.NoError(t, err)
 
 	trace, err := i.FindTraceByID(traceID)
 	assert.Nil(t, trace)

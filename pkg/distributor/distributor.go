@@ -117,7 +117,10 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 		if err != nil {
 			return nil, err
 		}
-		d.receivers.Start()
+		err = d.receivers.Start()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return d, nil
@@ -129,7 +132,10 @@ func (d *Distributor) Stop() {
 	}
 
 	if d.receivers != nil {
-		d.receivers.Shutdown()
+		err := d.receivers.Shutdown()
+		if err != nil {
+			level.Error(cortex_util.Logger).Log("msg", "error stopping receivers", "error", err)
+		}
 	}
 }
 

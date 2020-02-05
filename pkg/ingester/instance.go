@@ -142,7 +142,10 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 		}
 
 		i.completeBlocks = append(i.completeBlocks, completeBlock)
-		i.resetHeadBlock()
+		err = i.resetHeadBlock()
+		if err != nil {
+			return false, err
+		}
 	}
 
 	return ready, nil

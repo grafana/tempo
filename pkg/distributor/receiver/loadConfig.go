@@ -134,7 +134,7 @@ func expandEnvConfig(v *viper.Viper) *viper.Viper {
 		newCfg[k] = expandStringValues(val)
 	}
 	newVip := viper.New()
-	newVip.MergeConfigMap(newCfg)
+	newVip.MergeConfigMap(newCfg) //nolint:errcheck
 	return newVip
 }
 
