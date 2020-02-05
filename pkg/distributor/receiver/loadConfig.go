@@ -21,33 +21,10 @@ type configErrorCode int
 const (
 	_ configErrorCode = iota // skip 0, start errors codes from 1.
 	errInvalidTypeAndNameKey
-	errUnknownExtensionType
 	errUnknownReceiverType
-	errUnknownExporterType
-	errUnknownProcessorType
-	errInvalidPipelineType
-	errDuplicateExtensionName
 	errDuplicateReceiverName
-	errDuplicateExporterName
-	errDuplicateProcessorName
-	errDuplicatePipelineName
-	errMissingPipelines
-	errPipelineMustHaveReceiver
-	errPipelineMustHaveExporter
-	errPipelineMustHaveProcessors
-	errExtensionNotExists
-	errPipelineReceiverNotExists
-	errPipelineProcessorNotExists
-	errPipelineExporterNotExists
 	errMissingReceivers
-	errMissingExporters
-	errUnmarshalErrorOnTopLevelSection
-	errUnmarshalErrorOnExtension
-	errUnmarshalErrorOnService
 	errUnmarshalErrorOnReceiver
-	errUnmarshalErrorOnProcessor
-	errUnmarshalErrorOnExporter
-	errUnmarshalErrorOnPipeline
 )
 
 // typeAndNameSeparator is the separator that is used between type and name in type/name composite keys.
@@ -157,7 +134,7 @@ func expandEnvConfig(v *viper.Viper) *viper.Viper {
 		newCfg[k] = expandStringValues(val)
 	}
 	newVip := viper.New()
-	newVip.MergeConfigMap(newCfg)
+	newVip.MergeConfigMap(newCfg) //nolint:errcheck
 	return newVip
 }
 

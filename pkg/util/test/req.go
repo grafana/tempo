@@ -20,7 +20,7 @@ func MakeRequest(spans int, traceID []byte) *friggpb.PushRequest {
 	}
 
 	req := &friggpb.PushRequest{
-		&opentelemetry_proto_collector_trace_v1.ResourceSpans{},
+		Batch: &opentelemetry_proto_collector_trace_v1.ResourceSpans{},
 	}
 
 	for i := 0; i < spans; i++ {

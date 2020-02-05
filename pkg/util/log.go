@@ -21,54 +21,54 @@ func NewLogAdapater(l log.Logger) LogAdapater {
 
 // Fatal implements tail.logger
 func (l LogAdapater) Fatal(v ...interface{}) {
-	level.Error(l).Log("msg", fmt.Sprint(v...))
+	level.Error(l).Log("msg", fmt.Sprint(v...)) //nolint:errcheck
 	os.Exit(1)
 }
 
 // Fatalf implements tail.logger
 func (l LogAdapater) Fatalf(format string, v ...interface{}) {
-	level.Error(l).Log("msg", fmt.Sprintf(strings.TrimSuffix(format, "\n"), v...))
+	level.Error(l).Log("msg", fmt.Sprintf(strings.TrimSuffix(format, "\n"), v...)) //nolint:errcheck
 	os.Exit(1)
 }
 
 // Fatalln implements tail.logger
 func (l LogAdapater) Fatalln(v ...interface{}) {
-	level.Error(l).Log("msg", fmt.Sprint(v...))
+	level.Error(l).Log("msg", fmt.Sprint(v...)) //nolint:errcheck
 	os.Exit(1)
 }
 
 // Panic implements tail.logger
 func (l LogAdapater) Panic(v ...interface{}) {
 	s := fmt.Sprint(v...)
-	level.Error(l).Log("msg", s)
+	level.Error(l).Log("msg", s) //nolint:errcheck
 	panic(s)
 }
 
 // Panicf implements tail.logger
 func (l LogAdapater) Panicf(format string, v ...interface{}) {
 	s := fmt.Sprintf(strings.TrimSuffix(format, "\n"), v...)
-	level.Error(l).Log("msg", s)
+	level.Error(l).Log("msg", s) //nolint:errcheck
 	panic(s)
 }
 
 // Panicln implements tail.logger
 func (l LogAdapater) Panicln(v ...interface{}) {
 	s := fmt.Sprint(v...)
-	level.Error(l).Log("msg", s)
+	level.Error(l).Log("msg", s) //nolint:errcheck
 	panic(s)
 }
 
 // Print implements tail.logger
 func (l LogAdapater) Print(v ...interface{}) {
-	level.Info(l).Log("msg", fmt.Sprint(v...))
+	level.Info(l).Log("msg", fmt.Sprint(v...)) //nolint:errcheck
 }
 
 // Printf implements tail.logger
 func (l LogAdapater) Printf(format string, v ...interface{}) {
-	level.Info(l).Log("msg", fmt.Sprintf(strings.TrimSuffix(format, "\n"), v...))
+	level.Info(l).Log("msg", fmt.Sprintf(strings.TrimSuffix(format, "\n"), v...)) //nolint:errcheck
 }
 
 // Println implements tail.logger
 func (l LogAdapater) Println(v ...interface{}) {
-	level.Info(l).Log("msg", fmt.Sprint(v...))
+	level.Info(l).Log("msg", fmt.Sprint(v...)) //nolint:errcheck
 }

@@ -20,8 +20,6 @@ import (
 
 type traceFingerprint uint64
 
-const queryBatchSize = 128
-
 // Errors returned on Query.
 var (
 	ErrTraceMissing = errors.New("Trace missing")
@@ -144,7 +142,10 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 		}
 
 		i.completeBlocks = append(i.completeBlocks, completeBlock)
-		i.resetHeadBlock()
+		err = i.resetHeadBlock()
+		if err != nil {
+			return false, err
+		}
 	}
 
 	return ready, nil
@@ -246,13 +247,4 @@ func (i *instance) resetHeadBlock() error {
 	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
 	i.lastBlockCut = time.Now()
 	return err
-}
-
-func isDone(ctx context.Context) bool {
-	select {
-	case <-ctx.Done():
-		return true
-	default:
-		return false
-	}
 }

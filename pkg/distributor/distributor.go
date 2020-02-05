@@ -28,8 +28,6 @@ import (
 	"github.com/grafana/frigg/pkg/util/validation"
 )
 
-const tracesPerBatchEstimate = 5
-
 var (
 	metricIngesterAppends = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "frigg",
@@ -72,7 +70,6 @@ type Distributor struct {
 // TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
 type pushTracker struct {
 	samplesPending int32
-	samplesFailed  int32
 	done           chan struct{}
 	err            chan error
 }
@@ -120,7 +117,10 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 		if err != nil {
 			return nil, err
 		}
-		d.receivers.Start()
+		err = d.receivers.Start()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return d, nil
@@ -132,7 +132,10 @@ func (d *Distributor) Stop() {
 	}
 
 	if d.receivers != nil {
-		d.receivers.Shutdown()
+		err := d.receivers.Shutdown()
+		if err != nil {
+			level.Error(cortex_util.Logger).Log("msg", "error stopping receivers", "error", err)
+		}
 	}
 }
 

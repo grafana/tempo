@@ -93,11 +93,10 @@ func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
 func (c *completeBlock) Iterator(read proto.Message, fn IterFunc) error {
 	name := c.fullFilename()
 	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
-	defer f.Close()
-
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
 	return iterateObjects(f, read, fn)
 }

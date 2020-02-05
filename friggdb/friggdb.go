@@ -189,11 +189,8 @@ func (rw *readerWriter) pollBlocklist() {
 	}
 
 	ticker := time.NewTicker(rw.cfg.BlocklistRefreshRate)
-	for {
-		select {
-		case <-ticker.C:
-			rw.actuallyPollBlocklist()
-		}
+	for range ticker.C {
+		rw.actuallyPollBlocklist()
 	}
 }
 

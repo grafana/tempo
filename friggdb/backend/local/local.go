@@ -182,8 +182,5 @@ func (rw *readerWriter) rootPath(blockID uuid.UUID, tenantID string) string {
 
 func fileExists(filename string) bool {
 	_, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return true
+	return !os.IsNotExist(err)
 }

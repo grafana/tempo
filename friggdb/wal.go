@@ -66,7 +66,7 @@ func newWAL(c *walConfig) (WAL, error) {
 }
 
 func (w *wal) AllBlocks() ([]ReplayBlock, error) {
-	files, err := ioutil.ReadDir(fmt.Sprintf("%s", w.c.filepath))
+	files, err := ioutil.ReadDir(w.c.filepath)
 	if err != nil {
 		return nil, err
 	}

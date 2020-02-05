@@ -53,6 +53,9 @@ func New(receiverCfg map[string]interface{}, pusher friggpb.PusherServer, authEn
 		&zipkinreceiver.Factory{},
 		&opencensusreceiver.Factory{},
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	configs, err := loadReceivers(v, receiverCfg, factories)
 	if err != nil {

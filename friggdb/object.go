@@ -61,6 +61,9 @@ func unmarshalObjectFromReader(out proto.Message, r io.Reader) (ID, bool, error)
 	protoLength := totalLength - uint32Size*2
 	b := make([]byte, protoLength)
 	readLength, err := r.Read(b)
+	if err != nil {
+		return nil, false, err
+	}
 	if uint32(readLength) != protoLength {
 		return nil, false, fmt.Errorf("read %d but expected %d", readLength, protoLength)
 	}

@@ -10,7 +10,6 @@ import (
 
 	"github.com/grafana/frigg/pkg/friggpb"
 
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	opentelemetry_resource_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
@@ -111,11 +110,4 @@ func protoSpanToJaegerSpan(in *opentelemetry_proto_trace_v1.Span, resource *open
 	}
 
 	return s
-}
-
-func timestampToTimeProto(ts *timestamp.Timestamp) (t time.Time) {
-	if ts == nil {
-		return
-	}
-	return time.Unix(ts.Seconds, int64(ts.Nanos)).UTC()
 }

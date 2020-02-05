@@ -103,6 +103,9 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 		return nil, err
 	}
 	err = i.replayWal()
+	if err != nil {
+		return nil, err
+	}
 
 	i.done.Add(1)
 	go i.loop()
@@ -158,13 +161,16 @@ func (i *Ingester) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb
 	return &friggpb.PushResponse{}, err
 }
 
-// FindTraceByID implements friggpb.Querier.
+// FindTraceByID implements friggpb.Querier.f
 func (i *Ingester) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDRequest) (*friggpb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, fmt.Errorf("invalid trace id")
 	}
 
 	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	inst, ok := i.getInstanceByID(instanceID)
 	if !ok || inst == nil {
 		return &friggpb.TraceByIDResponse{}, nil
@@ -293,12 +299,16 @@ func (i *Ingester) replayWal() error {
 			// todo:  this is gorpy and error prone.  change to use the wal work dir?
 			// clean up any instance headblocks that were created to keep from replaying again and again
 			for _, instance := range i.instances {
-				instance.headBlock.Clear()
+				err := instance.headBlock.Clear()
+				level.Error(util.Logger).Log("msg", "error cleaning up headblock", "error", err)
 			}
 
 			return err
 		}
-		b.Clear()
+		err = b.Clear()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
