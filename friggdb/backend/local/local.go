@@ -64,8 +64,6 @@ func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID str
 	}
 
 	// copy traces file.
-	//  todo:  consider having the storage backend responsible for removing the block.  in this case we could just
-	//   do a rename here which would be way faster.
 	src, err := os.Open(tracesFilePath)
 	if err != nil {
 		os.RemoveAll(blockFolder)

@@ -13,6 +13,7 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/friggdb/backend/gcs"
 	"github.com/grafana/frigg/friggdb/backend/local"
 )
 
@@ -51,6 +52,8 @@ func New(cfg *Config) (Reader, Writer, error) {
 	switch cfg.Backend {
 	case "local":
 		r, w, err = local.New(cfg.Local)
+	case "gcs":
+		r, w, err = gcs.New(cfg.GCS)
 	default:
 		err = fmt.Errorf("unknown local %s", cfg.Backend)
 	}
