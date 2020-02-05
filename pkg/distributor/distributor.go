@@ -28,8 +28,6 @@ import (
 	"github.com/grafana/frigg/pkg/util/validation"
 )
 
-const tracesPerBatchEstimate = 5
-
 var (
 	metricIngesterAppends = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "frigg",

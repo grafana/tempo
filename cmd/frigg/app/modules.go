@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,8 +18,6 @@ import (
 	frigg_storage "github.com/grafana/frigg/pkg/storage"
 	"github.com/grafana/frigg/pkg/util/validation"
 )
-
-const maxChunkAgeForTableManager = 12 * time.Hour
 
 type moduleName int
 
