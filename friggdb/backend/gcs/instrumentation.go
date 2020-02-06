@@ -14,7 +14,7 @@ import (
 
 var (
 	gcsRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "frigg",
+		Namespace: "friggdb",
 		Name:      "gcs_request_duration_seconds",
 		Help:      "Time spent doing GCS requests.",
 

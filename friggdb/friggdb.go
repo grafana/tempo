@@ -13,10 +13,20 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/proto"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/backend/gcs"
 	"github.com/grafana/frigg/friggdb/backend/local"
+)
+
+var (
+	blocklistPollTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "blocklist_poll_total",
+		Help:      "Total number of times blocklist polling has occurred.",
+	}, []string{"status"})
 )
 
 type Writer interface {
@@ -198,7 +208,11 @@ func (rw *readerWriter) pollBlocklist() {
 
 	ticker := time.NewTicker(rw.cfg.BlocklistRefreshRate)
 	for range ticker.C {
-		rw.actuallyPollBlocklist()
+		if err := rw.actuallyPollBlocklist(); err != nil {
+			blocklistPollTotal.WithLabelValues("failure")
+		} else {
+			blocklistPollTotal.WithLabelValues("success")
+		}
 	}
 }
 
