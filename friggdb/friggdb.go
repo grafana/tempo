@@ -204,9 +204,6 @@ func (rw *readerWriter) actuallyPollBlocklist() error {
 		return err
 	}
 
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
 	for _, tenantID := range tenants {
 		blocklistsJSON, err := rw.r.Blocklist(tenantID)
 		if err != nil {
@@ -223,7 +220,9 @@ func (rw *readerWriter) actuallyPollBlocklist() error {
 
 			blocklist = append(blocklist, *meta)
 		}
+		rw.blockListsMtx.Lock()
 		rw.blockLists[tenantID] = blocklist
+		rw.blockListsMtx.Unlock()
 	}
 
 	return nil

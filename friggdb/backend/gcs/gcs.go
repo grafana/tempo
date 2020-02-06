@@ -107,7 +107,6 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 
 // erg...this is gross...need to rethink this in cloud storage.
 //   jpe: implement regular, smaller updates? jam all block metas in one file?  panic?
-//         ooooooh, maybe we can leave this mess but update outside of a lock, lock and swap for the existing blocklist.  seems brittle
 func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 	ctx := context.Background()
 	iter := rw.bucket.Objects(ctx, &storage.Query{
