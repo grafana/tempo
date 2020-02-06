@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
@@ -85,7 +86,7 @@ func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID s
 
 func (rw *readerWriter) Tenants() ([]string, error) {
 	iter := rw.bucket.Objects(context.Background(), &storage.Query{
-		Delimiter: "/", // todo...ruh roh
+		Delimiter: "/",
 		Versions:  false,
 	})
 
@@ -99,7 +100,7 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		tenants = append(tenants, attrs.Name)
+		tenants = append(tenants, strings.TrimSuffix(attrs.Prefix, "/"))
 	}
 
 	return tenants, nil
@@ -110,8 +111,8 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 	ctx := context.Background()
 	iter := rw.bucket.Objects(ctx, &storage.Query{
-		Prefix:    tenantID,
-		Delimiter: "/", // todo...ruh roh
+		Prefix:    tenantID + "/",
+		Delimiter: "/",
 		Versions:  false,
 	})
 
@@ -125,7 +126,8 @@ func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 			return nil, err
 		}
 
-		blockID, err := uuid.Parse(attrs.Name)
+		idString := strings.TrimSuffix(strings.TrimPrefix(attrs.Prefix, tenantID+"/"), "/")
+		blockID, err := uuid.Parse(idString)
 		if err != nil {
 			return nil, err
 		}
