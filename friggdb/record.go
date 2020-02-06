@@ -60,6 +60,11 @@ func marshalRecords(records []*Record) ([]byte, error) {
 }
 
 func unmarshalRecords(recordBytes []byte) ([]*Record, error) {
+	mod := len(recordBytes) % 28
+	if mod != 0 {
+		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
+	}
+
 	numRecords := len(recordBytes) / 28
 	records := make([]*Record, 0, numRecords)
 
@@ -77,6 +82,11 @@ func unmarshalRecords(recordBytes []byte) ([]*Record, error) {
 
 // binary search the bytes.  records are not compressed and ordered
 func findRecord(id ID, recordBytes []byte) (*Record, error) {
+	mod := len(recordBytes) % 28
+	if mod != 0 {
+		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
+	}
+
 	numRecords := len(recordBytes) / 28
 	record := newRecord()
 

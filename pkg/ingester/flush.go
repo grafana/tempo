@@ -58,7 +58,7 @@ type flushOp struct {
 }
 
 func (o *flushOp) Key() string {
-	return fmt.Sprintf("%s", o.userID)
+	return o.userID
 }
 
 func (o *flushOp) Priority() int64 {
