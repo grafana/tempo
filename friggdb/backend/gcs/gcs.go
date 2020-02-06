@@ -134,14 +134,14 @@ func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 		idString := strings.TrimSuffix(strings.TrimPrefix(attrs.Prefix, tenantID+"/"), "/")
 		blockID, err := uuid.Parse(idString)
 		if err != nil {
-			warning = err
+			warning = fmt.Errorf("failed parse on blockID %s: %v", idString, err)
 			continue
 		}
 
 		filename := rw.metaFileName(blockID, tenantID)
 		b, err := rw.readAll(ctx, filename)
 		if err != nil {
-			warning = err
+			warning = fmt.Errorf("failed read on blockID %s: %v", blockID, err)
 			continue
 		}
 		blocklists = append(blocklists, b)
