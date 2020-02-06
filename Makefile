@@ -71,8 +71,8 @@ ifndef COMPONENT
 	$(error COMPONENT variable was not defined)
 endif
 
-.PHONY: deps
-deps:
+.PHONY: vendor
+vendor:
 	vend -package
 	go mod vendor
 
