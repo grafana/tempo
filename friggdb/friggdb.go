@@ -135,8 +135,10 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMet
 
 	rw.blockListsMtx.Lock()
 	blocklist, found := rw.blockLists[tenantID]
-	copiedBlocklist := make([]searchableBlockMeta, 0, len(blocklist))
-	copy(copiedBlocklist, blocklist)
+	/*copiedBlocklist := make([]searchableBlockMeta, 0, len(blocklist))
+	copy(copiedBlocklist, blocklist)*/
+
+	copiedBlocklist := append(make([]searchableBlockMeta, 0, len(blocklist)), blocklist...)
 	rw.blockListsMtx.Unlock()
 
 	if !found {
