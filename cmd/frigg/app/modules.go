@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/cortexproject/cortex/pkg/ring"
+	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
@@ -178,7 +179,7 @@ func (t *App) initQuerier() (err error) {
 }
 
 func (t *App) initStore() (err error) {
-	t.store, err = frigg_storage.NewStore(t.cfg.StorageConfig, t.overrides)
+	t.store, err = frigg_storage.NewStore(t.cfg.StorageConfig, t.overrides, util.Logger)
 	return
 }
 

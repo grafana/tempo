@@ -2,6 +2,7 @@ package storage
 
 import (
 	"github.com/cortexproject/cortex/pkg/chunk/storage"
+	"github.com/go-kit/kit/log"
 	"github.com/grafana/frigg/friggdb"
 )
 
@@ -19,8 +20,8 @@ type store struct {
 }
 
 // NewStore creates a new Frigg Store using configuration supplied.
-func NewStore(cfg Config, limits storage.StoreLimits) (Store, error) {
-	r, w, err := friggdb.New(&cfg.Trace)
+func NewStore(cfg Config, limits storage.StoreLimits, logger log.Logger) (Store, error) {
+	r, w, err := friggdb.New(&cfg.Trace, logger)
 	if err != nil {
 		return nil, err
 	}

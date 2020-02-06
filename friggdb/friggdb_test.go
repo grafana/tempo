@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend/local"
@@ -31,7 +33,7 @@ func TestDB(t *testing.T) {
 		IndexDownsample:          17,
 		BloomFilterFalsePositive: .01,
 		BlocklistRefreshRate:     30 * time.Minute,
-	})
+	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	blockID := uuid.New()

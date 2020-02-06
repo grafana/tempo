@@ -10,6 +10,8 @@ import (
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/proto"
 
 	"github.com/grafana/frigg/friggdb/backend"
@@ -39,12 +41,13 @@ type readerWriter struct {
 	r backend.Reader
 	w backend.Writer
 
+	logger        log.Logger
 	cfg           *Config
 	blockLists    map[string][]searchableBlockMeta
 	blockListsMtx sync.Mutex
 }
 
-func New(cfg *Config) (Reader, Writer, error) {
+func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 	var err error
 	var r backend.Reader
 	var w backend.Writer
@@ -70,6 +73,7 @@ func New(cfg *Config) (Reader, Writer, error) {
 		r:          r,
 		w:          w,
 		cfg:        cfg,
+		logger:     logger,
 		blockLists: make(map[string][]searchableBlockMeta),
 	}
 
@@ -188,6 +192,7 @@ func (rw *readerWriter) pollBlocklist() {
 	rw.actuallyPollBlocklist()
 
 	if rw.cfg.BlocklistRefreshRate == 0 {
+		level.Info(rw.logger).Log("msg", "Blocklist Refresh Rate unset.  Querying effectively disabled.")
 		return
 	}
 
@@ -201,12 +206,14 @@ func (rw *readerWriter) actuallyPollBlocklist() error {
 	// todo: friggdb needs a logger as a param and log this crap
 	tenants, err := rw.r.Tenants()
 	if err != nil {
+		level.Error(rw.logger).Log("msg", "failed to retrieve tenants while polling blocklist", "err", err)
 		return err
 	}
 
 	for _, tenantID := range tenants {
 		blocklistsJSON, err := rw.r.Blocklist(tenantID)
 		if err != nil {
+			level.Error(rw.logger).Log("msg", "failed to retrieve blocklist", "tenantID", tenantID, "err", err)
 			continue
 		}
 
@@ -215,6 +222,7 @@ func (rw *readerWriter) actuallyPollBlocklist() error {
 		for _, j := range blocklistsJSON {
 			err = json.Unmarshal(j, meta)
 			if err != nil {
+				level.Error(rw.logger).Log("msg", "failed to unmarshal json blocklist", "tenantID", tenantID, "err", err)
 				continue
 			}
 
