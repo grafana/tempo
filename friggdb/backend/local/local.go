@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -28,62 +29,58 @@ func New(cfg Config) (backend.Reader, backend.Writer, error) {
 	return rw, rw, nil
 }
 
-func (rw *readerWriter) Write(blockID uuid.UUID, tenantID string, bMeta []byte, bBloom []byte, bIndex []byte, tracesFilePath string) error {
-	err := os.MkdirAll(rw.rootPath(blockID, tenantID), os.ModePerm)
+func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID string, bMeta []byte, bBloom []byte, bIndex []byte, tracesFilePath string) error {
+	blockFolder := rw.rootPath(blockID, tenantID)
+	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
 		return err
 	}
 
 	meta := rw.metaFileName(blockID, tenantID)
-	if fileExists(meta) {
-		return fmt.Errorf("unexpectedly found meta file at %s", meta)
-	}
 	err = ioutil.WriteFile(meta, bMeta, 0644)
 	if err != nil {
+		os.RemoveAll(blockFolder)
 		return err
 	}
 
 	bloom := rw.bloomFileName(blockID, tenantID)
-	if fileExists(bloom) {
-		return fmt.Errorf("unexpectedly found bloom file at %s", bloom)
-	}
 	err = ioutil.WriteFile(bloom, bBloom, 0644)
 	if err != nil {
+		os.RemoveAll(blockFolder)
 		return err
 	}
 
 	index := rw.indexFileName(blockID, tenantID)
-	if fileExists(index) {
-		return fmt.Errorf("unexpectedly found index file at %s", index)
-	}
 	err = ioutil.WriteFile(index, bIndex, 0644)
 	if err != nil {
+		os.RemoveAll(blockFolder)
 		return err
 	}
 
 	traces := rw.tracesFileName(blockID, tenantID)
-	if fileExists(traces) {
-		return fmt.Errorf("unexpectedly found traces file at %s", index)
-	}
 	if !fileExists(tracesFilePath) {
+		os.RemoveAll(blockFolder)
 		return fmt.Errorf("traces file not found %s", tracesFilePath)
 	}
 
 	// copy traces file.
-	//  todo:  consider having the storage backend responsible for removing the block.  in this case we could just
-	//   do a rename here which would be way faster.
 	src, err := os.Open(tracesFilePath)
 	if err != nil {
+		os.RemoveAll(blockFolder)
 		return err
 	}
 	defer src.Close()
 	dst, err := os.Create(traces)
 	if err != nil {
+		os.RemoveAll(blockFolder)
 		return err
 	}
 	defer dst.Close()
 
 	_, err = io.Copy(dst, src)
+	if err != nil {
+		os.RemoveAll(blockFolder)
+	}
 	return err
 }
 
@@ -105,6 +102,7 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 }
 
 func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
+	var warning error
 	path := path.Join(rw.cfg.Path, tenantID)
 	folders, err := ioutil.ReadDir(path)
 	if err != nil {
@@ -118,18 +116,20 @@ func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 		}
 		blockID, err := uuid.Parse(f.Name())
 		if err != nil {
-			return nil, err
+			warning = err
+			continue
 		}
 		filename := rw.metaFileName(blockID, tenantID)
 		bytes, err := ioutil.ReadFile(filename)
 		if err != nil {
-			return nil, err
+			warning = err
+			continue
 		}
 
 		blocklists = append(blocklists, bytes)
 	}
 
-	return blocklists, nil
+	return blocklists, warning
 }
 
 func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {

@@ -10,10 +10,29 @@ import (
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/proto"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/friggdb/backend/gcs"
 	"github.com/grafana/frigg/friggdb/backend/local"
+)
+
+var (
+	metricBlocklistPoll = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "blocklist_poll_total",
+		Help:      "Total number of times blocklist polling has occurred.",
+	})
+
+	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "blocklist_poll_errors_total",
+		Help:      "Total number of times an error occurred while polling the blocklist.",
+	}, []string{"tenant"})
 )
 
 type Writer interface {
@@ -38,12 +57,13 @@ type readerWriter struct {
 	r backend.Reader
 	w backend.Writer
 
+	logger        log.Logger
 	cfg           *Config
 	blockLists    map[string][]searchableBlockMeta
 	blockListsMtx sync.Mutex
 }
 
-func New(cfg *Config) (Reader, Writer, error) {
+func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 	var err error
 	var r backend.Reader
 	var w backend.Writer
@@ -51,6 +71,8 @@ func New(cfg *Config) (Reader, Writer, error) {
 	switch cfg.Backend {
 	case "local":
 		r, w, err = local.New(cfg.Local)
+	case "gcs":
+		r, w, err = gcs.New(cfg.GCS)
 	default:
 		err = fmt.Errorf("unknown local %s", cfg.Backend)
 	}
@@ -67,6 +89,7 @@ func New(cfg *Config) (Reader, Writer, error) {
 		r:          r,
 		w:          w,
 		cfg:        cfg,
+		logger:     logger,
 		blockLists: make(map[string][]searchableBlockMeta),
 	}
 
@@ -89,7 +112,7 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
 
 	bloomBytes := c.bloomFilter().JSONMarshal()
 
-	err = rw.w.Write(uuid, tenantID, metaBytes, bloomBytes, indexBytes, blockFilePath)
+	err = rw.w.Write(ctx, uuid, tenantID, metaBytes, bloomBytes, indexBytes, blockFilePath)
 	if err != nil {
 		return err
 	}
@@ -185,29 +208,32 @@ func (rw *readerWriter) pollBlocklist() {
 	rw.actuallyPollBlocklist()
 
 	if rw.cfg.BlocklistRefreshRate == 0 {
+		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  querying effectively disabled.")
 		return
 	}
 
 	ticker := time.NewTicker(rw.cfg.BlocklistRefreshRate)
 	for range ticker.C {
-		rw.actuallyPollBlocklist()
+		if err := rw.actuallyPollBlocklist(); err != nil {
+			level.Error(rw.logger).Log("msg", "blocklist poll failure", "err", err)
+		}
 	}
 }
 
 func (rw *readerWriter) actuallyPollBlocklist() error {
-	// todo: friggdb needs a logger as a param and log this crap
+	metricBlocklistPoll.Inc()
+
 	tenants, err := rw.r.Tenants()
 	if err != nil {
-		return err
+		metricBlocklistErrors.WithLabelValues("").Inc()
+		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
 	}
-
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
 
 	for _, tenantID := range tenants {
 		blocklistsJSON, err := rw.r.Blocklist(tenantID)
 		if err != nil {
-			continue
+			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
 		}
 
 		meta := &searchableBlockMeta{}
@@ -215,12 +241,16 @@ func (rw *readerWriter) actuallyPollBlocklist() error {
 		for _, j := range blocklistsJSON {
 			err = json.Unmarshal(j, meta)
 			if err != nil {
+				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+				level.Error(rw.logger).Log("msg", "failed to unmarshal json blocklist", "tenantID", tenantID, "err", err)
 				continue
 			}
 
 			blocklist = append(blocklist, *meta)
 		}
+		rw.blockListsMtx.Lock()
 		rw.blockLists[tenantID] = blocklist
+		rw.blockListsMtx.Unlock()
 	}
 
 	return nil

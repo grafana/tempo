@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/google/uuid"
@@ -49,7 +50,7 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error writing fakeTraces")
 
 	for _, id := range tenantIDs {
-		err = w.Write(blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		err = w.Write(nil, blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
 		assert.NoError(t, err, "unexpected error writing")
 	}
 
@@ -73,4 +74,24 @@ func TestReadWrite(t *testing.T) {
 	tenants, err := r.Tenants()
 	assert.NoError(t, err, "unexpected error reading tenants")
 	assert.Len(t, tenants, len(tenantIDs))
+}
+
+func TestWriteFail(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	_, w, err := New(Config{
+		Path: tempDir,
+	})
+	assert.NoError(t, err, "unexpected error creating local backend")
+
+	blockID := uuid.New()
+	tenantID := "fake"
+
+	err = w.Write(nil, blockID, tenantID, nil, nil, nil, "file-that-doesnt-exist")
+	assert.Error(t, err)
+
+	_, err = os.Stat(path.Join(tempDir, tenantID, blockID.String()))
+	assert.True(t, os.IsNotExist(err))
 }

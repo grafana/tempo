@@ -12,6 +12,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
+	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/weaveworks/common/user"
@@ -111,7 +112,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, 
 			WALFilepath:     tmpDir,
 			IndexDownsample: 2,
 		},
-	}, limits)
+	}, limits, log.NewNopLogger())
 	assert.NoError(t, err, "unexpected error store")
 
 	ingester, err := New(ingesterConfig, client.Config{}, s, limits)
