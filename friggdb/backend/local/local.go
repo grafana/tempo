@@ -102,6 +102,7 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 }
 
 func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
+	var warning error
 	path := path.Join(rw.cfg.Path, tenantID)
 	folders, err := ioutil.ReadDir(path)
 	if err != nil {
@@ -115,18 +116,20 @@ func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 		}
 		blockID, err := uuid.Parse(f.Name())
 		if err != nil {
-			return nil, err
+			warning = err
+			continue
 		}
 		filename := rw.metaFileName(blockID, tenantID)
 		bytes, err := ioutil.ReadFile(filename)
 		if err != nil {
-			return nil, err
+			warning = err
+			continue
 		}
 
 		blocklists = append(blocklists, bytes)
 	}
 
-	return blocklists, nil
+	return blocklists, warning
 }
 
 func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {

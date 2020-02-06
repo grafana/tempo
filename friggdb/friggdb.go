@@ -22,11 +22,17 @@ import (
 )
 
 var (
-	blocklistPollTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricBlocklistPoll = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "friggdb",
 		Name:      "blocklist_poll_total",
 		Help:      "Total number of times blocklist polling has occurred.",
-	}, []string{"status"})
+	})
+
+	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "blocklist_poll_errors_total",
+		Help:      "Total number of times an error occurred while polling the blocklist.",
+	}, []string{"tenant"})
 )
 
 type Writer interface {
@@ -202,33 +208,32 @@ func (rw *readerWriter) pollBlocklist() {
 	rw.actuallyPollBlocklist()
 
 	if rw.cfg.BlocklistRefreshRate == 0 {
-		level.Info(rw.logger).Log("msg", "Blocklist Refresh Rate unset.  Querying effectively disabled.")
+		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  querying effectively disabled.")
 		return
 	}
 
 	ticker := time.NewTicker(rw.cfg.BlocklistRefreshRate)
 	for range ticker.C {
 		if err := rw.actuallyPollBlocklist(); err != nil {
-			blocklistPollTotal.WithLabelValues("failure")
-		} else {
-			blocklistPollTotal.WithLabelValues("success")
+			level.Error(rw.logger).Log("msg", "blocklist poll failure", "err", err)
 		}
 	}
 }
 
 func (rw *readerWriter) actuallyPollBlocklist() error {
-	// todo: friggdb needs a logger as a param and log this crap
+	metricBlocklistPoll.Inc()
+
 	tenants, err := rw.r.Tenants()
 	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to retrieve tenants while polling blocklist", "err", err)
-		return err
+		metricBlocklistErrors.WithLabelValues("").Inc()
+		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
 	}
 
 	for _, tenantID := range tenants {
 		blocklistsJSON, err := rw.r.Blocklist(tenantID)
 		if err != nil {
-			level.Error(rw.logger).Log("msg", "failed to retrieve blocklist", "tenantID", tenantID, "err", err)
-			continue
+			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
 		}
 
 		meta := &searchableBlockMeta{}
@@ -236,6 +241,7 @@ func (rw *readerWriter) actuallyPollBlocklist() error {
 		for _, j := range blocklistsJSON {
 			err = json.Unmarshal(j, meta)
 			if err != nil {
+				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 				level.Error(rw.logger).Log("msg", "failed to unmarshal json blocklist", "tenantID", tenantID, "err", err)
 				continue
 			}

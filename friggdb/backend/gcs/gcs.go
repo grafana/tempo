@@ -85,6 +85,7 @@ func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID s
 }
 
 func (rw *readerWriter) Tenants() ([]string, error) {
+	var warning error
 	iter := rw.bucket.Objects(context.Background(), &storage.Query{
 		Delimiter: "/",
 		Versions:  false,
@@ -98,17 +99,20 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 			break
 		}
 		if err != nil {
-			return nil, err
+			warning = err
+			continue
 		}
 		tenants = append(tenants, strings.TrimSuffix(attrs.Prefix, "/"))
 	}
 
-	return tenants, nil
+	return tenants, warning
 }
 
 // erg...this is gross...need to rethink this in cloud storage.
 //   jpe: implement regular, smaller updates? jam all block metas in one file?  panic?
 func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
+	var warning error
+
 	ctx := context.Background()
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Prefix:    tenantID + "/",
@@ -123,24 +127,27 @@ func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 			break
 		}
 		if err != nil {
-			return nil, err
+			warning = err
+			continue
 		}
 
 		idString := strings.TrimSuffix(strings.TrimPrefix(attrs.Prefix, tenantID+"/"), "/")
 		blockID, err := uuid.Parse(idString)
 		if err != nil {
-			return nil, err
+			warning = err
+			continue
 		}
 
 		filename := rw.metaFileName(blockID, tenantID)
 		b, err := rw.readAll(ctx, filename)
 		if err != nil {
-			return nil, err
+			warning = err
+			continue
 		}
 		blocklists = append(blocklists, b)
 	}
 
-	return blocklists, nil
+	return blocklists, warning
 }
 
 func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {
