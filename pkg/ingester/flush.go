@@ -53,13 +53,12 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 type flushOp struct {
-	from      int64
-	userID    string
-	immediate bool
+	from   int64
+	userID string
 }
 
 func (o *flushOp) Key() string {
-	return fmt.Sprintf("%s-%v", o.userID, o.immediate)
+	return fmt.Sprintf("%s", o.userID)
 }
 
 func (o *flushOp) Priority() int64 {
@@ -84,7 +83,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	// see if it's ready to cut a block?
-	ready, err := instance.CutBlockIfReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration)
+	ready, err := instance.CutBlockIfReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration, immediate)
 	if err != nil {
 		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut block", "err", err)
 		return
@@ -103,7 +102,6 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 		i.flushQueues[flushQueueIndex].Enqueue(&flushOp{
 			time.Now().Unix(),
 			instance.instanceID,
-			immediate,
 		})
 	}
 }
@@ -121,9 +119,9 @@ func (i *Ingester) flushLoop(j int) {
 		}
 		op := o.(*flushOp)
 
-		level.Debug(util.Logger).Log("msg", "flushing stream", "userid", op.userID, "fp", "immediate", op.immediate)
+		level.Debug(util.Logger).Log("msg", "flushing stream", "userid", op.userID, "fp")
 
-		err := i.flushUserTraces(op.userID, op.immediate)
+		err := i.flushUserTraces(op.userID)
 		if err != nil {
 			level.Error(util.WithUserID(op.userID, util.Logger)).Log("msg", "failed to flush user", "err", err)
 		}
@@ -135,7 +133,7 @@ func (i *Ingester) flushLoop(j int) {
 	}
 }
 
-func (i *Ingester) flushUserTraces(userID string, immediate bool) error {
+func (i *Ingester) flushUserTraces(userID string) error {
 	instance, err := i.getOrCreateInstance(userID)
 	if err != nil {
 		return err
