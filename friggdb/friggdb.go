@@ -133,16 +133,17 @@ func (rw *readerWriter) WAL() (WAL, error) {
 func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMetrics, bool, error) {
 	metrics := FindMetrics{}
 
-	// todo:  lock, copy slice and unlock
 	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
 	blocklist, found := rw.blockLists[tenantID]
+	copiedBlocklist := make([]searchableBlockMeta, 0, len(blocklist))
+	copy(copiedBlocklist, blocklist)
+	rw.blockListsMtx.Unlock()
+
 	if !found {
 		return metrics, false, fmt.Errorf("tenantID %s not found", tenantID)
 	}
 
-	for _, meta := range blocklist {
+	for _, meta := range copiedBlocklist {
 		if bytes.Compare(id, meta.MinID) == -1 || bytes.Compare(id, meta.MaxID) == 1 {
 			continue
 		}
