@@ -347,7 +347,7 @@
           "refId": "A"
         },
         {
-          "expr": "rate(blocklist_poll_errors_total[$interval])",
+          "expr": "rate(friggdb_blocklist_poll_errors_total[$interval])",
           "refId": "B"
         }
       ],
