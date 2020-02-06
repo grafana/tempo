@@ -117,7 +117,7 @@ func (r *receiversShim) ConsumeTraceData(ctx context.Context, td consumerdata.Tr
 	}
 
 	// todo: eventually otel collector intends to start using otel proto internally instead of opencensus
-	//  when that happens we need to update our depedency and we can remove all of this translation logic
+	//  when that happens we need to update our dependency and we can remove all of this translation logic
 	// also note: this translation logic is woefully incomplete and is meant as a stopgap while we wait for the otel collector
 	_, err := r.pusher.Push(ctx, &friggpb.PushRequest{
 		Batch: convertTraceData(td),

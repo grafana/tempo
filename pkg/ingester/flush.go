@@ -63,7 +63,7 @@ func (o *flushOp) Key() string {
 }
 
 func (o *flushOp) Priority() int64 {
-	return -int64(o.from)
+	return -o.from
 }
 
 // sweepUsers periodically schedules series for flushing and garbage collects users with no series

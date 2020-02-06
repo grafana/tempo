@@ -29,9 +29,8 @@ func TestCreateBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	tenantID := "fake"
 
-	block, err := wal.NewBlock(blockID, tenantID)
+	block, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
 	blocks, err := wal.AllBlocks()
@@ -53,9 +52,8 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	tenantID := "fake"
 
-	block, err := wal.NewBlock(blockID, tenantID)
+	block, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
 	req := test.MakeRequest(10, []byte{0x00, 0x01})
@@ -81,9 +79,8 @@ func TestIterator(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	tenantID := "fake"
 
-	block, err := wal.NewBlock(blockID, tenantID)
+	block, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 10
@@ -124,9 +121,8 @@ func TestCompleteBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	tenantID := "fake"
 
-	block, err := wal.NewBlock(blockID, tenantID)
+	block, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 100
@@ -210,10 +206,9 @@ func BenchmarkWriteRead(b *testing.B) {
 	})
 
 	blockID := uuid.New()
-	tenantID := "fake"
 
 	// 1 million requests, 10k spans per request
-	block, _ := wal.NewBlock(blockID, tenantID)
+	block, _ := wal.NewBlock(blockID, testTenantID)
 	numMsgs := 100
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
@@ -226,8 +221,8 @@ func BenchmarkWriteRead(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, req := range reqs {
-			block.Write(req.Batch.Spans[0].TraceId, req)
-			block.Find(req.Batch.Spans[0].TraceId, outReq)
+			_ = block.Write(req.Batch.Spans[0].TraceId, req)
+			_, _ = block.Find(req.Batch.Spans[0].TraceId, outReq)
 		}
 	}
 }

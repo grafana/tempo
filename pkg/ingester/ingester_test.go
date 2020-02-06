@@ -2,8 +2,8 @@ package ingester
 
 import (
 	"context"
-	"crypto/rand"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
@@ -124,7 +124,8 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, 
 	traceIDs := make([][]byte, 0)
 	for i := 0; i < 10; i++ {
 		id := make([]byte, 16)
-		rand.Read(id)
+		_, err = rand.Read(id)
+		assert.NoError(t, err)
 
 		traces = append(traces, test.MakeTrace(10, id))
 		traceIDs = append(traceIDs, id)
