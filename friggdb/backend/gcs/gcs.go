@@ -161,7 +161,7 @@ func (rw *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error
 }
 
 func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error) {
-	name := rw.indexFileName(blockID, tenantID)
+	name := rw.objectFileName(blockID, tenantID)
 	return rw.readRange(context.Background(), name, int64(start), int64(length))
 }
 
