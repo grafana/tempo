@@ -30,7 +30,7 @@ jobs:
       run: export PATH="$(go env GOPATH)/bin":$PATH
 
     - name: Install Dependencies
-      run: make vendor
+      run: PATH="$(go env GOPATH)/bin":$PATH make vendor
 
     - name: Lint
       run: make lint
