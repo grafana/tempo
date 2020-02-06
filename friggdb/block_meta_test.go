@@ -11,10 +11,10 @@ import (
 
 func TestBlockMeta(t *testing.T) {
 	id := uuid.New()
-	b := newBlockMeta("fake", id)
+	b := newBlockMeta(testTenantID, id)
 
 	assert.Equal(t, id, b.BlockID)
-	assert.Equal(t, "fake", b.TenantID)
+	assert.Equal(t, testTenantID, b.TenantID)
 
 	randID1 := make([]byte, 10)
 	randID2 := make([]byte, 10)

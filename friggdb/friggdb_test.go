@@ -19,6 +19,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testTenantID = "fake"
+)
+
 func TestDB(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -37,12 +41,11 @@ func TestDB(t *testing.T) {
 	assert.NoError(t, err)
 
 	blockID := uuid.New()
-	tenantID := "fake"
 
 	wal, err := w.WAL()
 	assert.NoError(t, err)
 
-	head, err := wal.NewBlock(blockID, tenantID)
+	head, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err)
 
 	numMsgs := 1
@@ -65,12 +68,11 @@ func TestDB(t *testing.T) {
 	assert.NoError(t, err)
 
 	// force poll the blocklist now that we've written something
-	err = r.(*readerWriter).actuallyPollBlocklist()
-	assert.NoError(t, err)
+	r.(*readerWriter).actuallyPollBlocklist()
 
 	for i, id := range ids {
 		out := &friggpb.PushRequest{}
-		_, found, err := r.Find(tenantID, id, out)
+		_, found, err := r.Find(testTenantID, id, out)
 		assert.True(t, found)
 		assert.NoError(t, err)
 

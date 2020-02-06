@@ -100,7 +100,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
 	uuid, tenantID, records, blockFilePath := c.writeInfo()
-	indexBytes, err := marshalRecords(records, rw.cfg.BloomFilterFalsePositive)
+	indexBytes, err := marshalRecords(records)
 	if err != nil {
 		return err
 	}
@@ -205,22 +205,20 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMet
 }
 
 func (rw *readerWriter) pollBlocklist() {
-	rw.actuallyPollBlocklist()
-
 	if rw.cfg.BlocklistRefreshRate == 0 {
-		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  querying effectively disabled.")
+		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  friggdb querying effectively disabled.")
 		return
 	}
 
+	rw.actuallyPollBlocklist()
+
 	ticker := time.NewTicker(rw.cfg.BlocklistRefreshRate)
 	for range ticker.C {
-		if err := rw.actuallyPollBlocklist(); err != nil {
-			level.Error(rw.logger).Log("msg", "blocklist poll failure", "err", err)
-		}
+		rw.actuallyPollBlocklist()
 	}
 }
 
-func (rw *readerWriter) actuallyPollBlocklist() error {
+func (rw *readerWriter) actuallyPollBlocklist() {
 	metricBlocklistPoll.Inc()
 
 	tenants, err := rw.r.Tenants()
@@ -252,6 +250,4 @@ func (rw *readerWriter) actuallyPollBlocklist() error {
 		rw.blockLists[tenantID] = blocklist
 		rw.blockListsMtx.Unlock()
 	}
-
-	return nil
 }

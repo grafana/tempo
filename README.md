@@ -29,4 +29,3 @@ docker-compose up
 - [ ] Compactor
 - [ ] Optimize!
 
-Let's go!

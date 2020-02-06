@@ -43,11 +43,11 @@ func TestInstance(t *testing.T) {
 	err = i.CutCompleteTraces(0, true)
 	assert.NoError(t, err)
 
-	ready, err := i.CutBlockIfReady(5, 0)
+	ready, err := i.CutBlockIfReady(5, 0, false)
 	assert.True(t, ready, "there should be no cut blocks")
 	assert.NoError(t, err, "unexpected error cutting block")
 
-	ready, err = i.CutBlockIfReady(0, 30*time.Hour)
+	ready, err = i.CutBlockIfReady(0, 30*time.Hour, false)
 	assert.True(t, ready, "there should be no cut blocks")
 	assert.NoError(t, err, "unexpected error cutting block")
 
@@ -96,7 +96,7 @@ func TestInstanceFind(t *testing.T) {
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
 
-	ready, err := i.CutBlockIfReady(0, 0)
+	ready, err := i.CutBlockIfReady(0, 0, false)
 	assert.True(t, ready)
 	assert.NoError(t, err)
 

@@ -42,8 +42,8 @@ func (t *recordSorter) Swap(i, j int) {
 	t.records[i], t.records[j] = t.records[j], t.records[i]
 }
 
-// todo: move encoding/decoding to a seperate util area?  is the index too large?  need an io.Reader?
-func marshalRecords(records []*Record, bloomFP float64) ([]byte, error) {
+// todo: move encoding/decoding to a separate util area?  is the index too large?  need an io.Reader?
+func marshalRecords(records []*Record) ([]byte, error) {
 	recordBytes := make([]byte, len(records)*28) // 28 = 128 bit ID, 64bit start, 32bit length
 
 	for i, r := range records {
@@ -60,6 +60,11 @@ func marshalRecords(records []*Record, bloomFP float64) ([]byte, error) {
 }
 
 func unmarshalRecords(recordBytes []byte) ([]*Record, error) {
+	mod := len(recordBytes) % 28
+	if mod != 0 {
+		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
+	}
+
 	numRecords := len(recordBytes) / 28
 	records := make([]*Record, 0, numRecords)
 
@@ -77,6 +82,11 @@ func unmarshalRecords(recordBytes []byte) ([]*Record, error) {
 
 // binary search the bytes.  records are not compressed and ordered
 func findRecord(id ID, recordBytes []byte) (*Record, error) {
+	mod := len(recordBytes) % 28
+	if mod != 0 {
+		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
+	}
+
 	numRecords := len(recordBytes) / 28
 	record := newRecord()
 

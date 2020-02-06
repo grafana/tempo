@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -50,7 +51,7 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error writing fakeTraces")
 
 	for _, id := range tenantIDs {
-		err = w.Write(nil, blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		err = w.Write(context.Background(), blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
 		assert.NoError(t, err, "unexpected error writing")
 	}
 
@@ -89,7 +90,7 @@ func TestWriteFail(t *testing.T) {
 	blockID := uuid.New()
 	tenantID := "fake"
 
-	err = w.Write(nil, blockID, tenantID, nil, nil, nil, "file-that-doesnt-exist")
+	err = w.Write(context.Background(), blockID, tenantID, nil, nil, nil, "file-that-doesnt-exist")
 	assert.Error(t, err)
 
 	_, err = os.Stat(path.Join(tempDir, tenantID, blockID.String()))

@@ -33,7 +33,7 @@ func TestMarshalUnmarshalRecords(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	recordBytes, err := marshalRecords(expected, .01)
+	recordBytes, err := marshalRecords(expected)
 	assert.NoError(t, err, "unexpected error encoding records")
 	assert.Equal(t, len(expected)*28, len(recordBytes))
 
@@ -57,7 +57,7 @@ func TestFindRecord(t *testing.T) {
 
 	sortRecords(expected)
 
-	recordBytes, err := marshalRecords(expected, .01)
+	recordBytes, err := marshalRecords(expected)
 	assert.NoError(t, err, "unexpected error encoding records")
 
 	for _, r := range expected {

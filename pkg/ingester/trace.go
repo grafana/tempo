@@ -7,12 +7,6 @@ import (
 	"github.com/grafana/frigg/pkg/friggpb"
 )
 
-var ()
-
-func init() {
-
-}
-
 type trace struct {
 	trace      *friggpb.Trace
 	fp         traceFingerprint
