@@ -23,12 +23,6 @@ jobs:
     - name: Install Tools
       run: make install-tools
 
-    - name: What is GOPATH
-      run: go env GOPATH
-
-    - name: Add GOPATH to Path
-      run: export PATH="$(go env GOPATH)/bin":$PATH
-
     - name: Install Dependencies
       run: PATH="$(go env GOPATH)/bin":$PATH make vendor
 
