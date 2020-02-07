@@ -22,7 +22,7 @@ func TestReadWrite(t *testing.T) {
 	defer os.Remove(fakeTracesFile.Name())
 	assert.NoError(t, err, "unexpected error creating temp file")
 
-	r, w, err := New(Config{
+	r, w, err := New(&Config{
 		Path: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating local backend")
@@ -82,7 +82,7 @@ func TestWriteFail(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	_, w, err := New(Config{
+	_, w, err := New(&Config{
 		Path: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating local backend")

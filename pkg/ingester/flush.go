@@ -24,6 +24,12 @@ var (
 		Name:      "ingester_failed_flushes_total",
 		Help:      "The total number of failed traces",
 	})
+	metricFlushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "frigg",
+		Name:      "ingester_flush_duration_seconds",
+		Help:      "Records the amount of time to flush a complete block.",
+		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+	})
 )
 
 const (
@@ -153,7 +159,9 @@ func (i *Ingester) flushUserTraces(userID string) error {
 		ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
 		defer cancel()
 
+		start := time.Now()
 		err = i.store.WriteBlock(ctx, block)
+		metricFlushDuration.Observe(time.Since(start).Seconds())
 		if err != nil {
 			metricFailedFlushes.Inc()
 			return err

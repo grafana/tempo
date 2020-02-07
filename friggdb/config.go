@@ -5,12 +5,14 @@ import (
 
 	"github.com/grafana/frigg/friggdb/backend/gcs"
 	"github.com/grafana/frigg/friggdb/backend/local"
+	"github.com/grafana/frigg/friggdb/pool"
 )
 
 type Config struct {
-	Backend string       `yaml:"backend"`
-	Local   local.Config `yaml:"local"`
-	GCS     gcs.Config   `yaml:"gcs"`
+	Backend string        `yaml:"backend"`
+	Local   *local.Config `yaml:"local"`
+	GCS     *gcs.Config   `yaml:"gcs"`
+	Pool    *pool.Config  `yaml:"query_pool,omitempty"`
 
 	BlocklistRefreshRate     time.Duration `yaml:"blocklistRefreshRate"`
 	WALFilepath              string        `yaml:"walpath"`

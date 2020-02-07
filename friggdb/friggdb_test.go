@@ -30,7 +30,7 @@ func TestDB(t *testing.T) {
 
 	r, w, err := New(&Config{
 		Backend: "local",
-		Local: local.Config{
+		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
 		WALFilepath:              path.Join(tempDir, "wal"),

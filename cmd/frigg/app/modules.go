@@ -184,6 +184,7 @@ func (t *App) initStore() (err error) {
 }
 
 func (t *App) stopStore() error {
+	t.store.Shutdown()
 	return nil
 }
 

@@ -13,10 +13,10 @@ import (
 )
 
 type readerWriter struct {
-	cfg Config
+	cfg *Config
 }
 
-func New(cfg Config) (backend.Reader, backend.Writer, error) {
+func New(cfg *Config) (backend.Reader, backend.Writer, error) {
 	err := os.MkdirAll(cfg.Path, os.ModePerm)
 	if err != nil {
 		return nil, nil, err

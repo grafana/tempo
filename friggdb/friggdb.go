@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/backend/gcs"
 	"github.com/grafana/frigg/friggdb/backend/local"
+	"github.com/grafana/frigg/friggdb/pool"
 )
 
 var (
@@ -27,12 +28,17 @@ var (
 		Name:      "blocklist_poll_total",
 		Help:      "Total number of times blocklist polling has occurred.",
 	})
-
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "friggdb",
 		Name:      "blocklist_poll_errors_total",
 		Help:      "Total number of times an error occurred while polling the blocklist.",
 	}, []string{"tenant"})
+	metricBlocklistPollDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "friggdb",
+		Name:      "blocklist_poll_duration_seconds",
+		Help:      "Records the amount of time to poll and update the blocklist.",
+		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+	})
 )
 
 type Writer interface {
@@ -41,10 +47,11 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(tenantID string, id ID, out proto.Message) (FindMetrics, bool, error)
+	Find(tenantID string, id ID, out proto.Message) (EstimatedMetrics, bool, error)
+	Shutdown()
 }
 
-type FindMetrics struct {
+type EstimatedMetrics struct {
 	BloomFilterReads     int
 	BloomFilterBytesRead int
 	IndexReads           int
@@ -56,6 +63,8 @@ type FindMetrics struct {
 type readerWriter struct {
 	r backend.Reader
 	w backend.Writer
+
+	pool *pool.Pool
 
 	logger        log.Logger
 	cfg           *Config
@@ -90,6 +99,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 		w:          w,
 		cfg:        cfg,
 		logger:     logger,
+		pool:       pool.NewPool(cfg.Pool),
 		blockLists: make(map[string][]searchableBlockMeta),
 	}
 
@@ -130,56 +140,61 @@ func (rw *readerWriter) WAL() (WAL, error) {
 	})
 }
 
-func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMetrics, bool, error) {
-	metrics := FindMetrics{}
+func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (EstimatedMetrics, bool, error) {
+	metrics := EstimatedMetrics{} // we are purposefully not locking when updating this struct.  that's why they are "estimated"
 
-	// todo:  lock, copy slice and unlock
 	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
 	blocklist, found := rw.blockLists[tenantID]
+	copiedBlocklist := make([]interface{}, 0, len(blocklist))
+	for _, b := range blocklist {
+		copiedBlocklist = append(copiedBlocklist, b)
+	}
+	rw.blockListsMtx.Unlock()
+
 	if !found {
 		return metrics, false, fmt.Errorf("tenantID %s not found", tenantID)
 	}
 
-	for _, meta := range blocklist {
+	msg, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) (proto.Message, error) {
+		meta := payload.(searchableBlockMeta)
+
 		if bytes.Compare(id, meta.MinID) == -1 || bytes.Compare(id, meta.MaxID) == 1 {
-			continue
+			return nil, nil
 		}
 
 		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
 		if err != nil {
-			return metrics, false, err
+			return nil, err
 		}
 
 		filter := bloom.JSONUnmarshal(bloomBytes)
 		metrics.BloomFilterReads++
 		metrics.BloomFilterBytesRead += len(bloomBytes)
 		if !filter.Has(farm.Fingerprint64(id)) {
-			continue
+			return nil, nil
 		}
 
 		indexBytes, err := rw.r.Index(meta.BlockID, tenantID)
 		metrics.IndexReads++
 		metrics.IndexBytesRead += len(indexBytes)
 		if err != nil {
-			return metrics, false, err
+			return nil, err
 		}
 
 		record, err := findRecord(id, indexBytes)
 		if err != nil {
-			return metrics, false, err
+			return nil, err
 		}
 
 		if record == nil {
-			continue
+			return nil, nil
 		}
 
 		objectBytes, err := rw.r.Object(meta.BlockID, tenantID, record.Start, record.Length)
 		metrics.BlockReads++
 		metrics.BlockBytesRead += len(objectBytes)
 		if err != nil {
-			return metrics, false, err
+			return nil, err
 		}
 
 		found := false
@@ -193,15 +208,23 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMet
 
 		})
 		if err != nil {
-			return metrics, false, err
+			return nil, err
 		}
 
 		if found {
-			return metrics, true, nil
+			return out, nil
 		}
-	}
 
-	return metrics, false, nil
+		return nil, nil
+	})
+
+	out = msg
+	return metrics, msg != nil, err
+}
+
+func (rw *readerWriter) Shutdown() {
+	// todo: stop blocklist poll
+	rw.pool.Shutdown()
 }
 
 func (rw *readerWriter) pollBlocklist() {
@@ -214,7 +237,9 @@ func (rw *readerWriter) pollBlocklist() {
 
 	ticker := time.NewTicker(rw.cfg.BlocklistRefreshRate)
 	for range ticker.C {
+		start := time.Now()
 		rw.actuallyPollBlocklist()
+		metricBlocklistPollDuration.Observe(time.Since(start).Seconds())
 	}
 }
 
