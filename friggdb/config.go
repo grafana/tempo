@@ -12,7 +12,7 @@ type Config struct {
 	Backend string        `yaml:"backend"`
 	Local   *local.Config `yaml:"local"`
 	GCS     *gcs.Config   `yaml:"gcs"`
-	Pool    *pool.Config  `yaml:"worker_pool,omitempty"`
+	Pool    *pool.Config  `yaml:"query_pool,omitempty"`
 
 	BlocklistRefreshRate     time.Duration `yaml:"blocklistRefreshRate"`
 	WALFilepath              string        `yaml:"walpath"`
