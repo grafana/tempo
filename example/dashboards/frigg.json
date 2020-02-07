@@ -16,7 +16,7 @@
   "gnetId": null,
   "graphTooltip": 1,
   "id": 4,
-  "iteration": 1581007952169,
+  "iteration": 1581103712960,
   "links": [],
   "panels": [
     {
@@ -403,7 +403,98 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 13,
+        "x": 12,
+        "y": 1
+      },
+      "id": 33,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "friggdb_query_queue_length",
+          "legendFormat": "length",
+          "refId": "A"
+        },
+        {
+          "expr": "friggdb_query_queue_max",
+          "legendFormat": "max",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Query Queue",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 15,
         "y": 1
       },
       "id": 23,
@@ -488,7 +579,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 16,
+        "x": 18,
         "y": 1
       },
       "id": 24,
@@ -573,7 +664,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 19,
+        "x": 21,
         "y": 1
       },
       "id": 25,
@@ -656,9 +747,96 @@
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
-        "h": 8,
+        "h": 10,
         "w": 8,
         "x": 0,
+        "y": 6
+      },
+      "id": 34,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "rate(frigg_request_duration_seconds_sum{route=\"/friggpb.Querier/FindTraceByID\"}[$interval])",
+          "hide": false,
+          "legendFormat": "{{layer}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Reads/Sec",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 10,
+        "w": 7,
+        "x": 8,
         "y": 6
       },
       "id": 5,
@@ -741,9 +919,9 @@
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
+        "h": 5,
+        "w": 7,
+        "x": 15,
         "y": 6
       },
       "id": 17,
@@ -837,10 +1015,10 @@
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 6
+        "h": 5,
+        "w": 7,
+        "x": 15,
+        "y": 11
       },
       "id": 3,
       "legend": {
@@ -930,7 +1108,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 16
       },
       "id": 19,
       "panels": [],
@@ -949,7 +1127,7 @@
         "h": 5,
         "w": 3,
         "x": 0,
-        "y": 15
+        "y": 17
       },
       "id": 10,
       "legend": {
@@ -1035,7 +1213,7 @@
         "h": 5,
         "w": 3,
         "x": 3,
-        "y": 15
+        "y": 17
       },
       "id": 9,
       "legend": {
@@ -1120,7 +1298,7 @@
         "h": 5,
         "w": 3,
         "x": 6,
-        "y": 15
+        "y": 17
       },
       "id": 8,
       "legend": {
@@ -1205,7 +1383,7 @@
         "h": 5,
         "w": 3,
         "x": 9,
-        "y": 15
+        "y": 17
       },
       "id": 12,
       "legend": {
@@ -1290,7 +1468,7 @@
         "h": 5,
         "w": 3,
         "x": 12,
-        "y": 15
+        "y": 17
       },
       "id": 26,
       "legend": {
@@ -1375,7 +1553,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 20
+        "y": 22
       },
       "id": 6,
       "legend": {
@@ -1460,7 +1638,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 20
+        "y": 22
       },
       "id": 2,
       "legend": {
@@ -1550,7 +1728,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 30
       },
       "id": 28,
       "panels": [],
@@ -1569,7 +1747,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 29
+        "y": 31
       },
       "id": 30,
       "legend": {
@@ -1665,7 +1843,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 29
+        "y": 31
       },
       "id": 31,
       "legend": {
@@ -1797,5 +1975,5 @@
   "timezone": "",
   "title": "Frigg",
   "uid": "AOFXrRUZz",
-  "version": 3
+  "version": 5
 }
