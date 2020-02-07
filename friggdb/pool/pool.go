@@ -66,6 +66,8 @@ func NewPool(cfg *Config) *Pool {
 		go p.worker(q)
 	}
 
+	go p.reportQueueLength()
+
 	metricQueryQueueMax.Set(float64(cfg.QueueDepth))
 
 	return p
