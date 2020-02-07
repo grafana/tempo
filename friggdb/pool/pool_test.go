@@ -14,8 +14,8 @@ import (
 
 func TestResults(t *testing.T) {
 	p := NewPool(&Config{
-		maxWorkers: 10,
-		queueDepth: 10,
+		MaxWorkers: 10,
+		QueueDepth: 10,
 	})
 
 	ret := test.MakeTrace(5, nil)
@@ -40,8 +40,8 @@ func TestResults(t *testing.T) {
 
 func TestNoResults(t *testing.T) {
 	p := NewPool(&Config{
-		maxWorkers: 10,
-		queueDepth: 10,
+		MaxWorkers: 10,
+		QueueDepth: 10,
 	})
 
 	fn := func(payload interface{}) (proto.Message, error) {
@@ -56,8 +56,8 @@ func TestNoResults(t *testing.T) {
 
 func TestError(t *testing.T) {
 	p := NewPool(&Config{
-		maxWorkers: 1,
-		queueDepth: 10,
+		MaxWorkers: 1,
+		QueueDepth: 10,
 	})
 
 	ret := fmt.Errorf("blerg")
@@ -78,8 +78,8 @@ func TestError(t *testing.T) {
 
 func TestMultipleErrors(t *testing.T) {
 	p := NewPool(&Config{
-		maxWorkers: 10,
-		queueDepth: 10,
+		MaxWorkers: 10,
+		QueueDepth: 10,
 	})
 
 	ret := fmt.Errorf("blerg")
@@ -95,8 +95,8 @@ func TestMultipleErrors(t *testing.T) {
 
 func TestTooManyJobs(t *testing.T) {
 	p := NewPool(&Config{
-		maxWorkers: 10,
-		queueDepth: 3,
+		MaxWorkers: 10,
+		QueueDepth: 3,
 	})
 
 	fn := func(payload interface{}) (proto.Message, error) {
@@ -111,8 +111,8 @@ func TestTooManyJobs(t *testing.T) {
 
 func TestOneWorker(t *testing.T) {
 	p := NewPool(&Config{
-		maxWorkers: 1,
-		queueDepth: 10,
+		MaxWorkers: 1,
+		QueueDepth: 10,
 	})
 
 	ret := test.MakeTrace(10, nil)
@@ -133,8 +133,8 @@ func TestOneWorker(t *testing.T) {
 
 func TestGoingHam(t *testing.T) {
 	p := NewPool(&Config{
-		maxWorkers: 1000,
-		queueDepth: 10000,
+		MaxWorkers: 1000,
+		QueueDepth: 10000,
 	})
 
 	wg := &sync.WaitGroup{}
@@ -147,7 +147,7 @@ func TestGoingHam(t *testing.T) {
 				i := payload.(int)
 
 				time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
-				if i == 3 {
+				if i == 5 {
 					return ret, nil
 				}
 				return nil, nil

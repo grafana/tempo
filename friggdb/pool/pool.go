@@ -82,7 +82,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error
 		}
 	}
 
-	allDone := make(chan struct{})
+	allDone := make(chan struct{}, 1)
 	go func() {
 		wg.Wait()
 		allDone <- struct{}{}
@@ -117,10 +117,9 @@ func (p *Pool) worker(j <-chan *job) {
 		if msg != nil {
 			select {
 			case job.results <- msg:
-				// purposefully not flagging job.wg.Done().  this prevents a race between the wg and the results chan
+				// not signalling done here to dodge race condition between results chan and done
 				continue
 			default:
-				fmt.Println("asdfasdfasdf")
 				// this is weird.  found the id twice?
 			}
 		}
