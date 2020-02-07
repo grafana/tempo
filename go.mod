@@ -26,6 +26,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20191126064551-80ba03c67da1 // indirect
 	github.com/spf13/viper v1.6.2
 	github.com/stretchr/testify v1.4.0
+	github.com/uber-go/atomic v1.4.0
 	github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d
 	go.uber.org/zap v1.10.0
 	golang.org/x/net v0.0.0-20191112182307-2180aed22343
