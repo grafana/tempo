@@ -131,9 +131,9 @@ func (p *Pool) Shutdown() {
 func (p *Pool) worker(j <-chan *job) {
 	for {
 		select {
-		case job := <-j:
-			if job == nil {
-				continue
+		case job, ok := <-j:
+			if !ok {
+				return
 			}
 
 			p.size.Dec()
