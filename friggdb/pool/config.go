@@ -1,6 +1,6 @@
 package pool
 
 type Config struct {
-	maxWorkers int `yaml:"max_workers"`
-	queueDepth int `yaml:"queue_depth"`
+	MaxWorkers int `yaml:"max_workers"`
+	QueueDepth int `yaml:"queue_depth"`
 }

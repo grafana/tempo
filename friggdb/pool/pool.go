@@ -34,14 +34,14 @@ func NewPool(cfg *Config) *Pool {
 		cfg = defaultConfig()
 	}
 
-	q := make(chan *job, cfg.queueDepth)
+	q := make(chan *job, cfg.QueueDepth)
 	p := &Pool{
 		cfg:       cfg,
 		workQueue: q,
 		size:      atomic.NewInt32(0),
 	}
 
-	for i := 0; i < cfg.maxWorkers; i++ {
+	for i := 0; i < cfg.MaxWorkers; i++ {
 		go p.worker(q)
 	}
 
@@ -51,7 +51,7 @@ func NewPool(cfg *Config) *Pool {
 func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error) {
 
 	// sanity check before we even attempt to start adding jobs
-	if int(p.size.Load())+len(payloads) > p.cfg.queueDepth {
+	if int(p.size.Load())+len(payloads) > p.cfg.QueueDepth {
 		return nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
@@ -134,7 +134,7 @@ func (p *Pool) worker(j <-chan *job) {
 // default is concurrency disabled
 func defaultConfig() *Config {
 	return &Config{
-		maxWorkers: 30,
-		queueDepth: 10000,
+		MaxWorkers: 30,
+		QueueDepth: 10000,
 	}
 }
