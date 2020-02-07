@@ -46,6 +46,7 @@ type Pool struct {
 	size *atomic.Int32
 
 	workQueue chan *job
+	stopCh    chan struct{}
 }
 
 func NewPool(cfg *Config) *Pool {
@@ -58,6 +59,7 @@ func NewPool(cfg *Config) *Pool {
 		cfg:       cfg,
 		workQueue: q,
 		size:      atomic.NewInt32(0),
+		stopCh:    make(chan struct{}),
 	}
 
 	for i := 0; i < cfg.MaxWorkers; i++ {
@@ -83,7 +85,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error
 	err := atomic.NewError(nil)
 
 	wg.Add(totalJobs)
-	// add each job one at a time.  these might still fail
+	// add each job one at a time.  even though we checked length above these might still fail
 	for _, payload := range payloads {
 		j := &job{
 			fn:      fn,
@@ -99,7 +101,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error
 			p.size.Inc()
 		default:
 			stopped.Store(true)
-			return nil, fmt.Errorf("failed to add a job due to queue being full")
+			return nil, fmt.Errorf("failed to add a job to work queue")
 		}
 	}
 
@@ -119,35 +121,41 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error
 	}
 }
 
-// jpe: call/test this
 func (p *Pool) Shutdown() {
 	close(p.workQueue)
+	close(p.stopCh)
 }
 
 func (p *Pool) worker(j <-chan *job) {
-	for job := range j {
-		p.size.Dec()
+	for {
+		select {
+		case job := <-j:
 
-		if job.stopped.Load() {
-			job.wg.Done()
-			continue
-		}
+			p.size.Dec()
 
-		msg, err := job.fn(job.payload)
-
-		if msg != nil {
-			select {
-			case job.results <- msg:
-				// not signalling done here to dodge race condition between results chan and done
+			if job.stopped.Load() {
+				job.wg.Done()
 				continue
-			default:
-				// this is weird.  found the id twice?
 			}
+
+			msg, err := job.fn(job.payload)
+
+			if msg != nil {
+				select {
+				case job.results <- msg:
+					// not signalling done here to dodge race condition between results chan and done
+					continue
+				default:
+					// this is weird.  found the id twice?
+				}
+			}
+			if err != nil {
+				job.err.Store(err)
+			}
+			job.wg.Done()
+		case <-p.stopCh:
+			return
 		}
-		if err != nil {
-			job.err.Store(err)
-		}
-		job.wg.Done()
 	}
 }
 
@@ -159,10 +167,12 @@ func (p *Pool) reportQueueLength() {
 			select {
 			case <-ticker.C:
 				metricQueryQueueLength.Set(float64(p.size.Load()))
+			case <-p.stopCh:
+				return
 			}
 		}
 	}()
-} // jpe : shutdown: stopch?
+}
 
 // default is concurrency disabled
 func defaultConfig() *Config {

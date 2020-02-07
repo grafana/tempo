@@ -48,6 +48,7 @@ type Writer interface {
 
 type Reader interface {
 	Find(tenantID string, id ID, out proto.Message) (EstimatedMetrics, bool, error)
+	Shutdown()
 }
 
 type EstimatedMetrics struct {
@@ -219,6 +220,11 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (Estimat
 
 	out = msg
 	return metrics, msg != nil, err
+}
+
+func (rw *readerWriter) Shutdown() {
+	// todo: stop blocklist poll
+	rw.pool.Shutdown()
 }
 
 func (rw *readerWriter) pollBlocklist() {

@@ -167,3 +167,27 @@ func TestGoingHam(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestShutdown(t *testing.T) {
+	p := NewPool(&Config{
+		MaxWorkers: 1,
+		QueueDepth: 10,
+	})
+
+	ret := test.MakeTrace(5, nil)
+	fn := func(payload interface{}) (proto.Message, error) {
+		i := payload.(int)
+
+		if i == 3 {
+			return ret, nil
+		}
+		return nil, nil
+	}
+	payloads := []interface{}{1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5}
+	_, _ = p.RunJobs(payloads, fn)
+	p.Shutdown()
+
+	msg, err := p.RunJobs(payloads, fn)
+	assert.Nil(t, msg)
+	assert.Error(t, err)
+}
