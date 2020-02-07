@@ -3,12 +3,31 @@ package pool
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/uber-go/atomic"
 )
 
-// jpe: work queue length metric
+const (
+	queueLengthReportDuration = 15 * time.Second
+)
+
+var (
+	metricQueryQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "friggdb",
+		Name:      "query_queue_length",
+		Help:      "Current length of the query queue.",
+	})
+
+	metricQueryQueueMax = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "friggdb",
+		Name:      "query_queue_max",
+		Help:      "Maximum number of items in the query queue.",
+	})
+)
 
 type JobFunc func(payload interface{}) (proto.Message, error)
 
@@ -45,17 +64,19 @@ func NewPool(cfg *Config) *Pool {
 		go p.worker(q)
 	}
 
+	metricQueryQueueMax.Set(float64(cfg.QueueDepth))
+
 	return p
 }
 
 func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error) {
+	totalJobs := len(payloads)
 
 	// sanity check before we even attempt to start adding jobs
-	if int(p.size.Load())+len(payloads) > p.cfg.QueueDepth {
+	if int(p.size.Load())+totalJobs > p.cfg.QueueDepth {
 		return nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
-	totalJobs := len(payloads)
 	results := make(chan proto.Message, 1)
 	wg := &sync.WaitGroup{}
 	stopped := atomic.NewBool(false)
@@ -91,7 +112,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error
 	select {
 	case msg := <-results:
 		wg.Done()
-		stopped.Store(true)
+		stopped.Store(true) // todo: use stopCh instead?
 		return msg, nil
 	case <-allDone:
 		return nil, err.Load()
@@ -129,6 +150,19 @@ func (p *Pool) worker(j <-chan *job) {
 		job.wg.Done()
 	}
 }
+
+func (p *Pool) reportQueueLength() {
+	ticker := time.NewTicker(queueLengthReportDuration)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				metricQueryQueueLength.Set(float64(p.size.Load()))
+			}
+		}
+	}()
+} // jpe : shutdown: stopch?
 
 // default is concurrency disabled
 func defaultConfig() *Config {
