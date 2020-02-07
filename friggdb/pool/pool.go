@@ -132,6 +132,9 @@ func (p *Pool) worker(j <-chan *job) {
 	for {
 		select {
 		case job := <-j:
+			if job == nil {
+				continue
+			}
 
 			p.size.Dec()
 
