@@ -108,8 +108,8 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 	return tenants, warning
 }
 
-// erg...this is gross...need to rethink this in cloud storage.
-//   jpe: implement regular, smaller updates? jam all block metas in one file?  panic?
+//  todo: think about this some.  this is a lot of work at high block counts.
+//     implement regular, smaller updates? jam all block metas in one file?  panic?
 func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 	var warning error
 

@@ -42,10 +42,10 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(tenantID string, id ID, out proto.Message) (FindMetrics, bool, error)
+	Find(tenantID string, id ID, out proto.Message) (EstimatedMetrics, bool, error)
 }
 
-type FindMetrics struct {
+type EstimatedMetrics struct {
 	BloomFilterReads     int
 	BloomFilterBytesRead int
 	IndexReads           int
@@ -134,8 +134,8 @@ func (rw *readerWriter) WAL() (WAL, error) {
 	})
 }
 
-func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (FindMetrics, bool, error) {
-	metrics := FindMetrics{} //jpe :(
+func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (EstimatedMetrics, bool, error) {
+	metrics := EstimatedMetrics{} // we are purposefully not locking when updating this struct.  that's why they are "estimated"
 
 	rw.blockListsMtx.Lock()
 	blocklist, found := rw.blockLists[tenantID]
