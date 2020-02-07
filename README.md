@@ -24,7 +24,7 @@ docker-compose up
 ## To Do
 
 - [x] GCS Support
-- [ ] Concurrent Queries
+- [x] Concurrent Queries
 - [ ] Caching
 - [ ] Compactor
 - [ ] Optimize!
