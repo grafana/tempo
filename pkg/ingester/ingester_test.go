@@ -106,7 +106,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, 
 		Trace: friggdb.Config{
 			Backend:                  "local",
 			BloomFilterFalsePositive: .01,
-			Local: local.Config{
+			Local: &local.Config{
 				Path: tmpDir,
 			},
 			WALFilepath:     tmpDir,

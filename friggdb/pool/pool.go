@@ -30,6 +30,10 @@ type Pool struct {
 }
 
 func NewPool(cfg *Config) *Pool {
+	if cfg == nil {
+		cfg = defaultConfig()
+	}
+
 	q := make(chan *job, cfg.queueDepth)
 	p := &Pool{
 		cfg:       cfg,
@@ -91,6 +95,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error
 	}
 }
 
+// jpe: call/test this
 func (p *Pool) Shutdown() {
 	close(p.workQueue)
 }
@@ -119,5 +124,13 @@ func (p *Pool) worker(j <-chan *job) {
 			job.err.Store(err)
 		}
 		job.wg.Done()
+	}
+}
+
+// default is concurrency disabled
+func defaultConfig() *Config {
+	return &Config{
+		maxWorkers: 30,
+		queueDepth: 10000,
 	}
 }

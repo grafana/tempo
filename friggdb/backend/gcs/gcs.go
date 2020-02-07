@@ -16,12 +16,12 @@ import (
 )
 
 type readerWriter struct {
-	cfg    Config
+	cfg    *Config
 	client *storage.Client
 	bucket *storage.BucketHandle
 }
 
-func New(cfg Config) (backend.Reader, backend.Writer, error) {
+func New(cfg *Config) (backend.Reader, backend.Writer, error) {
 	ctx := context.Background()
 
 	option, err := instrumentation(ctx, storage.ScopeReadWrite)
