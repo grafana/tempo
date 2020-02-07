@@ -55,12 +55,13 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error
 		return nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
+	totalJobs := len(payloads)
 	results := make(chan proto.Message, 1)
 	wg := &sync.WaitGroup{}
 	stopped := atomic.NewBool(false)
 	err := atomic.NewError(nil)
 
-	wg.Add(len(payloads))
+	wg.Add(totalJobs)
 	// add each job one at a time.  these might still fail
 	for _, payload := range payloads {
 		j := &job{
@@ -89,6 +90,8 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error
 
 	select {
 	case msg := <-results:
+		wg.Done()
+		stopped.Store(true)
 		return msg, nil
 	case <-allDone:
 		return nil, err.Load()
@@ -105,6 +108,7 @@ func (p *Pool) worker(j <-chan *job) {
 		p.size.Dec()
 
 		if job.stopped.Load() {
+			job.wg.Done()
 			continue
 		}
 
