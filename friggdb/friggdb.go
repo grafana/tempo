@@ -28,12 +28,17 @@ var (
 		Name:      "blocklist_poll_total",
 		Help:      "Total number of times blocklist polling has occurred.",
 	})
-
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "friggdb",
 		Name:      "blocklist_poll_errors_total",
 		Help:      "Total number of times an error occurred while polling the blocklist.",
 	}, []string{"tenant"})
+	metricBlocklistPollDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "friggdb",
+		Name:      "blocklist_poll_duration_seconds",
+		Help:      "Records the amount of time to poll and update the blocklist.",
+		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+	})
 )
 
 type Writer interface {
@@ -226,7 +231,9 @@ func (rw *readerWriter) pollBlocklist() {
 
 	ticker := time.NewTicker(rw.cfg.BlocklistRefreshRate)
 	for range ticker.C {
+		start := time.Now()
 		rw.actuallyPollBlocklist()
+		metricBlocklistPollDuration.Observe(time.Since(start).Seconds())
 	}
 }
 
