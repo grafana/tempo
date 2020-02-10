@@ -9,6 +9,33 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+type missFunc func(blockID uuid.UUID, tenantID string) ([]byte, error)
+
+const (
+	typeBloom = "bloom"
+	typeIndex = "index"
+)
+
+var (
+	metricDiskCacheMiss = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "disk_cache_miss_total",
+		Help:      "Total number of times the disk cache missed.",
+	}, []string{"type"})
+	metricDiskCache = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "disk_cache_total",
+		Help:      "Total number of times there were errors checking the disk cache.",
+	}, []string{"type", "status"})
+	metricDiskCacheClean = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "disk_cache_clean_total",
+		Help:      "Total number of times a disk clean has occurred.",
+	}, []string{"status"})
 )
 
 type reader struct {
@@ -64,20 +91,26 @@ func (r *reader) Blocklist(tenantID string) ([][]byte, error) {
 
 // jpe: how to force cache all blooms at the start
 func (r *reader) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {
-	b, skippableErr, err := r.readOrCacheKeyToDisk(blockID, tenantID, "bloom", r.next.Bloom)
+	b, skippableErr, err := r.readOrCacheKeyToDisk(blockID, tenantID, typeBloom, r.next.Bloom)
 
 	if skippableErr != nil {
+		metricDiskCache.WithLabelValues(typeBloom, "error").Inc()
 		level.Error(r.logger).Log("err", skippableErr)
+	} else {
+		metricDiskCache.WithLabelValues(typeBloom, "success").Inc()
 	}
 
 	return b, err
 }
 
 func (r *reader) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
-	b, skippableErr, err := r.readOrCacheKeyToDisk(blockID, tenantID, "index", r.next.Index)
+	b, skippableErr, err := r.readOrCacheKeyToDisk(blockID, tenantID, typeIndex, r.next.Index)
 
 	if skippableErr != nil {
+		metricDiskCache.WithLabelValues(typeIndex, "error").Inc()
 		level.Error(r.logger).Log("err", skippableErr)
+	} else {
+		metricDiskCache.WithLabelValues(typeIndex, "success").Inc()
 	}
 
 	return b, err

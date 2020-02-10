@@ -13,7 +13,7 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
-func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t string, miss func(blockID uuid.UUID, tenantID string) ([]byte, error)) ([]byte, error, error) {
+func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t string, miss missFunc) ([]byte, error, error) {
 	var skippableError error
 
 	k := key(blockID, tenantID, t)
@@ -29,6 +29,7 @@ func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t stri
 		return bytes, nil, nil
 	}
 
+	metricDiskCacheMiss.WithLabelValues(t).Inc()
 	bytes, err = miss(blockID, tenantID)
 	if err != nil {
 		return nil, nil, err // backend store error.  need to bubble this up
@@ -56,7 +57,12 @@ func (r *reader) startJanitor() {
 			case <-ticker.C:
 				// repeatedly clean until we don't need to
 				for cleaned, err := clean(r.cfg.Path, r.cfg.MaxDiskMBs, r.cfg.DiskPruneCount); cleaned; {
-					level.Error(r.logger).Log("msg", "error cleaning cache dir", "err", err)
+					if err != nil {
+						metricDiskCacheClean.WithLabelValues("error").Inc()
+						level.Error(r.logger).Log("msg", "error cleaning cache dir", "err", err)
+					} else {
+						metricDiskCacheClean.WithLabelValues("success").Inc()
+					}
 				}
 			case <-r.stopCh:
 				return
