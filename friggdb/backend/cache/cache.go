@@ -19,8 +19,6 @@ type reader struct {
 	stopCh chan struct{}
 }
 
-// jpe: add shutdown method?  stop stopCh?
-
 func New(next backend.Reader, cfg *Config, logger log.Logger) (backend.Reader, error) {
 	// cleanup disk cache dir
 	err := os.RemoveAll(cfg.Path)
