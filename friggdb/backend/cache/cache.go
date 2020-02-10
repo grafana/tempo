@@ -76,7 +76,7 @@ func New(next backend.Reader, cfg *Config, logger log.Logger) (backend.Reader, e
 		logger: logger,
 	}
 
-	go r.startJanitor()
+	r.startJanitor()
 
 	return r, nil
 }
