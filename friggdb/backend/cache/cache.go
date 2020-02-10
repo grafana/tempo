@@ -123,6 +123,7 @@ func (r *reader) Object(blockID uuid.UUID, tenantID string, start uint64, length
 
 func (r *reader) Shutdown() {
 	r.stopCh <- struct{}{}
+	r.next.Shutdown()
 }
 
 func key(blockID uuid.UUID, tenantID string, t string) string {

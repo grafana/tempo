@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/friggdb/backend/cache"
 	"github.com/grafana/frigg/friggdb/backend/gcs"
 	"github.com/grafana/frigg/friggdb/backend/local"
 	"github.com/grafana/frigg/friggdb/pool"
@@ -88,6 +89,14 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if cfg.Cache != nil {
+		r, err = cache.New(r, cfg.Cache, logger)
+
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if cfg.BloomFilterFalsePositive <= 0.0 {
@@ -224,6 +233,7 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (Estimat
 func (rw *readerWriter) Shutdown() {
 	// todo: stop blocklist poll
 	rw.pool.Shutdown()
+	rw.r.Shutdown()
 }
 
 func (rw *readerWriter) pollBlocklist() {
