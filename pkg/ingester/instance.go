@@ -193,6 +193,14 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
+
+	// Search live traces being assembled in the ingester instance.
+	if liveTrace, ok := i.traces[traceFingerprint(util.Fingerprint(id))]; ok {
+		return liveTrace.trace, nil
+	}
+
 	out := &friggpb.Trace{}
 
 	found, err := i.headBlock.Find(id, out)
