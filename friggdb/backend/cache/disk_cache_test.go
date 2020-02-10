@@ -29,19 +29,21 @@ func TestReadOrCache(t *testing.T) {
 		MaxDiskMBs:     1024,
 		DiskPruneCount: 10,
 		DiskCleanRate:  time.Hour,
-	})
+	}, nil)
 	assert.NoError(t, err)
 
 	blockID := uuid.New()
 	tenantID := "fake"
 
-	bytes, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+	bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
 	assert.NoError(t, err)
+	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
 	assert.Equal(t, 1, missCalled)
 
-	bytes, err = cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+	bytes, skippableErr, err = cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
 	assert.NoError(t, err)
+	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
 	assert.Equal(t, 1, missCalled)
 }
@@ -62,7 +64,7 @@ func TestJanitor(t *testing.T) {
 		MaxDiskMBs:     30,
 		DiskPruneCount: 10,
 		DiskCleanRate:  time.Hour,
-	})
+	}, nil)
 	assert.NoError(t, err)
 
 	// test
@@ -70,13 +72,15 @@ func TestJanitor(t *testing.T) {
 		blockID := uuid.New()
 		tenantID := "fake"
 
-		bytes, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+		bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
 		assert.NoError(t, err)
+		assert.NoError(t, skippableErr)
 		assert.Equal(t, missBytes, bytes)
 	}
 
 	// force prune. should do nothing b/c we don't have enough files
-	cleaned := clean(tempDir, 1, 10)
+	cleaned, err := clean(tempDir, 1, 10)
+	assert.NoError(t, err)
 	assert.False(t, cleaned)
 
 	// now make enough files to prune
@@ -89,8 +93,9 @@ func TestJanitor(t *testing.T) {
 		blockID := uuid.New()
 		tenantID := "fake"
 
-		bytes, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+		bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
 		assert.NoError(t, err)
+		assert.NoError(t, skippableErr)
 		assert.Equal(t, missBytes, bytes)
 	}
 
@@ -99,7 +104,8 @@ func TestJanitor(t *testing.T) {
 	assert.NoError(t, err)
 
 	// force clean at 1MB and see only 1033 (b/c prunecount = 1)
-	cleaned = clean(tempDir, 1, 1)
+	cleaned, err = clean(tempDir, 1, 1)
+	assert.NoError(t, err)
 	assert.True(t, cleaned)
 
 	fi, err = ioutil.ReadDir(tempDir)
@@ -107,7 +113,8 @@ func TestJanitor(t *testing.T) {
 	assert.NoError(t, err)
 
 	// force clean at 1MB and see only 1023 (b/c prunecount = 10)
-	cleaned = clean(tempDir, 1, 10)
+	cleaned, err = clean(tempDir, 1, 10)
+	assert.NoError(t, err)
 	assert.True(t, cleaned)
 
 	fi, err = ioutil.ReadDir(tempDir)
@@ -115,7 +122,8 @@ func TestJanitor(t *testing.T) {
 	assert.NoError(t, err)
 
 	// force clean at 1MB and see only 1023 (b/c we're less than 1MB)
-	cleaned = clean(tempDir, 1, 10)
+	cleaned, err = clean(tempDir, 1, 10)
+	assert.NoError(t, err)
 	assert.False(t, cleaned)
 
 	fi, err = ioutil.ReadDir(tempDir)
@@ -141,7 +149,7 @@ func TestJanitorCleanupOrder(t *testing.T) {
 		MaxDiskMBs:     30,
 		DiskPruneCount: 10,
 		DiskCleanRate:  time.Hour,
-	})
+	}, nil)
 	assert.NoError(t, err)
 
 	// add 3 files
@@ -150,18 +158,21 @@ func TestJanitorCleanupOrder(t *testing.T) {
 	secondBlockID, _ := uuid.FromBytes([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01})
 	thirdBlockID, _ := uuid.FromBytes([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02})
 
-	bytes, err := cache.(*reader).readOrCacheKeyToDisk(firstBlockID, tenantID, "type", missFunc)
+	bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(firstBlockID, tenantID, "type", missFunc)
 	assert.NoError(t, err)
+	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
 	assert.Equal(t, 1, missCalled)
 
-	bytes, err = cache.(*reader).readOrCacheKeyToDisk(secondBlockID, tenantID, "type", missFunc)
+	bytes, skippableErr, err = cache.(*reader).readOrCacheKeyToDisk(secondBlockID, tenantID, "type", missFunc)
 	assert.NoError(t, err)
+	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
 	assert.Equal(t, 2, missCalled)
 
-	bytes, err = cache.(*reader).readOrCacheKeyToDisk(thirdBlockID, tenantID, "type", missFunc)
+	bytes, skippableErr, err = cache.(*reader).readOrCacheKeyToDisk(thirdBlockID, tenantID, "type", missFunc)
 	assert.NoError(t, err)
+	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
 	assert.Equal(t, 3, missCalled)
 
@@ -187,7 +198,8 @@ func TestJanitorCleanupOrder(t *testing.T) {
 	}
 
 	// force prune. should prune 2
-	cleaned := clean(tempDir, 1, 2)
+	cleaned, err := clean(tempDir, 1, 2)
+	assert.NoError(t, err)
 	assert.True(t, cleaned)
 
 	fi, err = ioutil.ReadDir(tempDir)
