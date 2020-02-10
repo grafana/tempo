@@ -68,7 +68,7 @@ type readerWriter struct {
 
 	logger        log.Logger
 	cfg           *Config
-	blockLists    map[string][]searchableBlockMeta
+	blockLists    map[string][]searchableBlockMeta // todo: evaluate for performance
 	blockListsMtx sync.Mutex
 }
 

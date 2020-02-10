@@ -17,6 +17,7 @@ require (
 	github.com/hashicorp/go-hclog v0.12.0
 	github.com/hashicorp/go-plugin v1.0.1 // indirect
 	github.com/jaegertracing/jaeger v1.16.0
+	github.com/karrick/godirwalk v1.15.3
 	github.com/open-telemetry/opentelemetry-collector v0.2.3
 	github.com/open-telemetry/opentelemetry-proto v0.0.0-20200114203242-839beca37552
 	github.com/opentracing/opentracing-go v1.1.0
