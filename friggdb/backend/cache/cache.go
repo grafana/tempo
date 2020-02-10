@@ -89,7 +89,6 @@ func (r *reader) Blocklist(tenantID string) ([][]byte, error) {
 	return r.next.Blocklist(tenantID)
 }
 
-// jpe: how to force cache all blooms at the start
 func (r *reader) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {
 	b, skippableErr, err := r.readOrCacheKeyToDisk(blockID, tenantID, typeBloom, r.next.Bloom)
 
