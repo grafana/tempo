@@ -29,7 +29,6 @@ func TestReadOrCache(t *testing.T) {
 		MaxDiskMBs:     1024,
 		DiskPruneCount: 10,
 		DiskCleanRate:  time.Hour,
-		MaxMemoryMBs:   1024,
 	})
 	assert.NoError(t, err)
 
@@ -63,7 +62,6 @@ func TestJanitor(t *testing.T) {
 		MaxDiskMBs:     30,
 		DiskPruneCount: 10,
 		DiskCleanRate:  time.Hour,
-		MaxMemoryMBs:   1024,
 	})
 	assert.NoError(t, err)
 
@@ -143,7 +141,6 @@ func TestJanitorCleanupOrder(t *testing.T) {
 		MaxDiskMBs:     30,
 		DiskPruneCount: 10,
 		DiskCleanRate:  time.Hour,
-		MaxMemoryMBs:   1024,
 	})
 	assert.NoError(t, err)
 

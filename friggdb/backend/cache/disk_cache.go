@@ -60,7 +60,7 @@ func (r *reader) startJanitor() {
 			select {
 			case <-ticker.C:
 				// repeatedly clean until we don't need to
-				for clean(r.cfg.Path, r.cfg.MaxMemoryMBs, r.cfg.DiskPruneCount) {
+				for clean(r.cfg.Path, r.cfg.MaxDiskMBs, r.cfg.DiskPruneCount) {
 				}
 			case <-r.stopCh:
 				return
