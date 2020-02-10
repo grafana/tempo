@@ -71,7 +71,7 @@ func (r *reader) startJanitor() {
 /* simplify */
 func clean(folder string, allowedMBs int, pruneCount int) bool {
 
-	var totalSizeMBs int64
+	var totalSize int64
 	fileInfoHeap := FileInfoHeap(make([]os.FileInfo, 0, pruneCount))
 
 	err := godirwalk.Walk(folder, &godirwalk.Options{
@@ -85,7 +85,7 @@ func clean(folder string, allowedMBs int, pruneCount int) bool {
 				return err
 			}
 
-			totalSizeMBs += info.Size() / (1024 * 1024)
+			totalSize += info.Size()
 
 			fileInfoHeap.Push(info)
 			return nil
@@ -98,7 +98,7 @@ func clean(folder string, allowedMBs int, pruneCount int) bool {
 		return false
 	}
 
-	if totalSizeMBs < int64(allowedMBs) {
+	if totalSize < int64(allowedMBs*1024*1024) {
 		return false
 	}
 
