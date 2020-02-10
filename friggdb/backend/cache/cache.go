@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
 )
@@ -12,12 +15,13 @@ type reader struct {
 	cfg  *Config
 	next backend.Reader
 
+	logger log.Logger
 	stopCh chan struct{}
 }
 
 // jpe: add shutdown method?  stop stopCh?
 
-func New(next backend.Reader, cfg *Config) (backend.Reader, error) {
+func New(next backend.Reader, cfg *Config, logger log.Logger) (backend.Reader, error) {
 	// cleanup disk cache dir
 	err := os.RemoveAll(cfg.Path)
 	if err != nil {
@@ -44,6 +48,7 @@ func New(next backend.Reader, cfg *Config) (backend.Reader, error) {
 		cfg:    cfg,
 		next:   next,
 		stopCh: make(chan struct{}, 0),
+		logger: logger,
 	}
 
 	go r.startJanitor()
@@ -61,16 +66,32 @@ func (r *reader) Blocklist(tenantID string) ([][]byte, error) {
 
 // jpe: how to force cache all blooms at the start
 func (r *reader) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {
-	return r.readOrCacheKeyToDisk(blockID, tenantID, "bloom", r.next.Bloom)
+	b, skippableErr, err := r.readOrCacheKeyToDisk(blockID, tenantID, "bloom", r.next.Bloom)
+
+	if skippableErr != nil {
+		level.Error(r.logger).Log("err", skippableErr)
+	}
+
+	return b, err
 }
 
 func (r *reader) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
-	return r.readOrCacheKeyToDisk(blockID, tenantID, "index", r.next.Index)
+	b, skippableErr, err := r.readOrCacheKeyToDisk(blockID, tenantID, "index", r.next.Index)
+
+	if skippableErr != nil {
+		level.Error(r.logger).Log("err", skippableErr)
+	}
+
+	return b, err
 }
 
 func (r *reader) Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error) {
 	// not attempting to cache these...yet...
 	return r.next.Object(blockID, tenantID, start, length)
+}
+
+func (r *reader) Shutdown() {
+	r.stopCh <- struct{}{}
 }
 
 func key(blockID uuid.UUID, tenantID string, t string) string {

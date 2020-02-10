@@ -12,33 +12,35 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
-func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t string, miss func(blockID uuid.UUID, tenantID string) ([]byte, error)) ([]byte, error) {
+func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t string, miss func(blockID uuid.UUID, tenantID string) ([]byte, error)) ([]byte, error, error) {
+	var skippableError error
+
 	k := key(blockID, tenantID, t)
 	filename := path.Join(r.cfg.Path, k)
 
 	bytes, err := ioutil.ReadFile(filename)
 
 	if err != nil && !os.IsNotExist(err) {
-		return nil, err // todo: just ignore this error and go to the backing store?
+		skippableError = err
 	}
 
 	if bytes != nil {
-		return bytes, nil
+		return bytes, nil, nil
 	}
 
 	bytes, err = miss(blockID, tenantID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err // backend store error.  need to bubble this up
 	}
 
 	if bytes != nil {
 		err = r.writeKeyToDisk(filename, bytes)
 		if err != nil {
-			return nil, err // jpe: ignore this error?
+			skippableError = err
 		}
 	}
 
-	return bytes, nil
+	return bytes, nil, skippableError
 }
 
 func (r *reader) writeKeyToDisk(filename string, b []byte) error {
