@@ -34,7 +34,6 @@ func TestPushQuery(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
 
-	// now query and get nils (nothing has been flushed)
 	for pos, traceID := range traceIDs {
 		foundTrace, err := ingester.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
 			TraceID: traceID,
@@ -68,7 +67,6 @@ func TestWal(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
 
-	// now query and get nils (nothing has been flushed)
 	for pos, traceID := range traceIDs {
 		foundTrace, err := ingester.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
 			TraceID: traceID,
