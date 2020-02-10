@@ -86,7 +86,7 @@ func TestInstanceFind(t *testing.T) {
 	assert.NoError(t, err)
 
 	trace, err := i.FindTraceByID(traceID)
-	assert.Nil(t, trace)
+	assert.NotNil(t, trace)
 	assert.NoError(t, err)
 
 	err = i.CutCompleteTraces(0, true)
