@@ -56,7 +56,10 @@ func (r *reader) startJanitor() {
 			select {
 			case <-ticker.C:
 				// repeatedly clean until we don't need to
-				for cleaned, err := clean(r.cfg.Path, r.cfg.MaxDiskMBs, r.cfg.DiskPruneCount); cleaned; {
+				cleaned := true
+				for cleaned {
+					var err error
+					cleaned, err = clean(r.cfg.Path, r.cfg.MaxDiskMBs, r.cfg.DiskPruneCount)
 					if err != nil {
 						metricDiskCacheClean.WithLabelValues("error").Inc()
 						level.Error(r.logger).Log("msg", "error cleaning cache dir", "err", err)
