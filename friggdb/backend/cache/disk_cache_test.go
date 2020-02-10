@@ -3,7 +3,6 @@ package cache
 import (
 	"io/ioutil"
 	"os"
-	"path"
 	"syscall"
 	"testing"
 	"time"
@@ -170,6 +169,8 @@ func TestJanitorCleanupOrder(t *testing.T) {
 	assert.Equal(t, missBytes, bytes)
 	assert.Equal(t, 2, missCalled)
 
+	time.Sleep(time.Second)
+
 	bytes, skippableErr, err = cache.(*reader).readOrCacheKeyToDisk(thirdBlockID, tenantID, "type", missFunc)
 	assert.NoError(t, err)
 	assert.NoError(t, skippableErr)
@@ -180,16 +181,12 @@ func TestJanitorCleanupOrder(t *testing.T) {
 	assert.Len(t, fi, 3)
 	assert.NoError(t, err)
 
-	time.Sleep(time.Second) // sadface, smaller values seem to make this test flaky
-
-	_, err = ioutil.ReadFile(path.Join(tempDir, fi[1].Name()))
-	assert.NoError(t, err)
-
 	var newestFi os.FileInfo
+	fi, err = ioutil.ReadDir(tempDir)
+	assert.NoError(t, err)
 	for _, info := range fi {
 		if newestFi == nil {
 			newestFi = info
-			continue
 		}
 
 		if info.Sys().(*syscall.Stat_t).Atim.Nano() > newestFi.Sys().(*syscall.Stat_t).Atim.Nano() {
