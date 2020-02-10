@@ -147,7 +147,10 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (Estimat
 	blocklist, found := rw.blockLists[tenantID]
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
 	for _, b := range blocklist {
-		copiedBlocklist = append(copiedBlocklist, b)
+		// if in range copy
+		if bytes.Compare(id, b.MinID) != -1 && bytes.Compare(id, b.MaxID) != 1 {
+			copiedBlocklist = append(copiedBlocklist, b)
+		}
 	}
 	rw.blockListsMtx.Unlock()
 
@@ -157,10 +160,6 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (Estimat
 
 	msg, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) (proto.Message, error) {
 		meta := payload.(searchableBlockMeta)
-
-		if bytes.Compare(id, meta.MinID) == -1 || bytes.Compare(id, meta.MaxID) == 1 {
-			return nil, nil
-		}
 
 		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
 		if err != nil {
