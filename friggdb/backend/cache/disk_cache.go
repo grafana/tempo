@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/karrick/godirwalk"
 )
@@ -54,7 +55,8 @@ func (r *reader) startJanitor() {
 			select {
 			case <-ticker.C:
 				// repeatedly clean until we don't need to
-				for clean(r.cfg.Path, r.cfg.MaxDiskMBs, r.cfg.DiskPruneCount) {
+				for cleaned, err := clean(r.cfg.Path, r.cfg.MaxDiskMBs, r.cfg.DiskPruneCount); cleaned; {
+					level.Error(r.logger).Log("msg", "error cleaning cache dir", "err", err)
 				}
 			case <-r.stopCh:
 				return
@@ -64,7 +66,7 @@ func (r *reader) startJanitor() {
 }
 
 /* simplify */
-func clean(folder string, allowedMBs int, pruneCount int) bool {
+func clean(folder string, allowedMBs int, pruneCount int) (bool, error) {
 
 	var totalSize int64
 	fileInfoHeap := FileInfoHeap(make([]os.FileInfo, 0, pruneCount))
@@ -92,13 +94,12 @@ func clean(folder string, allowedMBs int, pruneCount int) bool {
 		Unsorted: true,
 	})
 
-	// jpe : err?
 	if err != nil {
-		return false
+		return false, err
 	}
 
 	if totalSize < int64(allowedMBs*1024*1024) {
-		return false
+		return false, nil
 	}
 
 	// prune oldest files
@@ -108,10 +109,10 @@ func clean(folder string, allowedMBs int, pruneCount int) bool {
 			continue
 		}
 
-		os.Remove(path.Join(folder, info.Name()))
+		err = os.Remove(path.Join(folder, info.Name()))
 	}
 
-	return true
+	return true, err
 }
 
 type FileInfoHeap []os.FileInfo
