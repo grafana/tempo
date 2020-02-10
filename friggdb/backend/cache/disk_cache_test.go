@@ -11,6 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testTenantID = "fake"
+)
+
 func TestReadOrCache(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -32,7 +36,7 @@ func TestReadOrCache(t *testing.T) {
 	assert.NoError(t, err)
 
 	blockID := uuid.New()
-	tenantID := "fake"
+	tenantID := testTenantID
 
 	bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
 	assert.NoError(t, err)
@@ -53,7 +57,7 @@ func TestJanitor(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
 	// 1KB per file
-	missBytes := make([]byte, 1024, 1024)
+	missBytes := make([]byte, 1024)
 	missFunc := func(blockID uuid.UUID, tenantID string) ([]byte, error) {
 		return missBytes, nil
 	}
@@ -69,7 +73,7 @@ func TestJanitor(t *testing.T) {
 	// test
 	for i := 0; i < 10; i++ {
 		blockID := uuid.New()
-		tenantID := "fake"
+		tenantID := testTenantID
 
 		bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
 		assert.NoError(t, err)
@@ -90,7 +94,7 @@ func TestJanitor(t *testing.T) {
 	// create 1024 files
 	for i := 0; i < 1024; i++ {
 		blockID := uuid.New()
-		tenantID := "fake"
+		tenantID := testTenantID
 
 		bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
 		assert.NoError(t, err)
@@ -137,7 +141,7 @@ func TestJanitorCleanupOrder(t *testing.T) {
 
 	// 1MB per file
 	missCalled := 0
-	missBytes := make([]byte, 1024*1024, 1024*1024)
+	missBytes := make([]byte, 1024*1024)
 	missFunc := func(blockID uuid.UUID, tenantID string) ([]byte, error) {
 		missCalled++
 		return missBytes, nil
@@ -152,7 +156,7 @@ func TestJanitorCleanupOrder(t *testing.T) {
 	assert.NoError(t, err)
 
 	// add 3 files
-	tenantID := "fake"
+	tenantID := testTenantID
 	firstBlockID, _ := uuid.FromBytes([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 	secondBlockID, _ := uuid.FromBytes([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01})
 	thirdBlockID, _ := uuid.FromBytes([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02})

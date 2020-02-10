@@ -72,7 +72,7 @@ func New(next backend.Reader, cfg *Config, logger log.Logger) (backend.Reader, e
 	r := &reader{
 		cfg:    cfg,
 		next:   next,
-		stopCh: make(chan struct{}, 0),
+		stopCh: make(chan struct{}),
 		logger: logger,
 	}
 
