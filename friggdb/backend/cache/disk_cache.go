@@ -42,7 +42,7 @@ func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t stri
 		}
 	}
 
-	return bytes, nil, skippableError
+	return bytes, skippableError, nil
 }
 
 func (r *reader) writeKeyToDisk(filename string, b []byte) error {
