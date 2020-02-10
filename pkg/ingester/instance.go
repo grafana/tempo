@@ -190,6 +190,15 @@ func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error
 }
 
 func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
+	// First search live traces being assembled in the ingester instance.
+	i.tracesMtx.Lock()
+	if liveTrace, ok := i.traces[traceFingerprint(util.Fingerprint(id))]; ok {
+		retMe := liveTrace.trace
+		i.tracesMtx.Unlock()
+		return retMe, nil
+	}
+	i.tracesMtx.Unlock()
+
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 

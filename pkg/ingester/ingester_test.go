@@ -34,13 +34,12 @@ func TestPushQuery(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
 
-	// now query and get nils (nothing has been flushed)
-	for _, traceID := range traceIDs {
+	for pos, traceID := range traceIDs {
 		foundTrace, err := ingester.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
 			TraceID: traceID,
 		})
 		assert.NoError(t, err, "unexpected error querying")
-		assert.Nil(t, foundTrace.Trace)
+		assert.Equal(t, foundTrace.Trace, traces[pos])
 	}
 
 	// force cut all traces
@@ -68,13 +67,12 @@ func TestWal(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
 
-	// now query and get nils (nothing has been flushed)
-	for _, traceID := range traceIDs {
+	for pos, traceID := range traceIDs {
 		foundTrace, err := ingester.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
 			TraceID: traceID,
 		})
 		assert.NoError(t, err, "unexpected error querying")
-		assert.Nil(t, foundTrace.Trace)
+		assert.Equal(t, foundTrace.Trace, traces[pos])
 	}
 
 	// force cut all traces
