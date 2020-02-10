@@ -15,7 +15,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
-  "iteration": 1581370469646,
+  "iteration": 1581371193777,
   "links": [],
   "panels": [
     {
@@ -788,7 +788,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "friggdb_disk_cache_clean_total",
+          "expr": "rate(friggdb_disk_cache_clean_total[$interval])",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -845,7 +845,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 19,
+        "x": 21,
         "y": 7
       },
       "id": 13,
@@ -2437,5 +2437,5 @@
   "timezone": "",
   "title": "Frigg",
   "uid": "AOFXrRUZz",
-  "version": 7
+  "version": 8
 }
