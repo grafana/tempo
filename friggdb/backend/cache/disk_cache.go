@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"container/heap"
 	"io/ioutil"
 	"os"
 	"path"
@@ -73,6 +74,7 @@ func clean(folder string, allowedMBs int, pruneCount int) bool {
 
 	var totalSize int64
 	fileInfoHeap := FileInfoHeap(make([]os.FileInfo, 0, pruneCount))
+	heap.Init(&fileInfoHeap)
 
 	err := godirwalk.Walk(folder, &godirwalk.Options{
 		Callback: func(osPathname string, de *godirwalk.Dirent) error {
@@ -87,7 +89,10 @@ func clean(folder string, allowedMBs int, pruneCount int) bool {
 
 			totalSize += info.Size()
 
-			fileInfoHeap.Push(info)
+			for len(fileInfoHeap) >= cap(fileInfoHeap) {
+				heap.Pop(&fileInfoHeap)
+			}
+			heap.Push(&fileInfoHeap, info)
 			return nil
 		},
 		Unsorted: true,
@@ -104,7 +109,7 @@ func clean(folder string, allowedMBs int, pruneCount int) bool {
 
 	// prune oldest files
 	for fileInfoHeap.Len() > 0 {
-		info := fileInfoHeap.Pop().(os.FileInfo)
+		info := heap.Pop(&fileInfoHeap).(os.FileInfo)
 		if info == nil {
 			continue
 		}
@@ -136,7 +141,7 @@ func (h FileInfoHeap) Less(i, j int) bool {
 	jStat, jOK := jInfo.Sys().(*syscall.Stat_t)
 
 	if iOK && jOK {
-		return iStat.Atim.Sec > jStat.Atim.Sec
+		return iStat.Atim.Nano() > jStat.Atim.Nano()
 	}
 
 	return iInfo.ModTime().After(jInfo.ModTime())
@@ -147,10 +152,6 @@ func (h FileInfoHeap) Swap(i, j int) {
 }
 
 func (h *FileInfoHeap) Push(x interface{}) {
-	// don't let the heap grow larger than the capacity
-	for len(*h) >= cap(*h) {
-		h.Pop()
-	}
 	item := x.(os.FileInfo)
 	*h = append(*h, item)
 }
