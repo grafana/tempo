@@ -160,6 +160,10 @@ func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64,
 	return b, nil
 }
 
+func (rw *readerWriter) Shutdown() {
+
+}
+
 func (rw *readerWriter) metaFileName(blockID uuid.UUID, tenantID string) string {
 	return path.Join(rw.rootPath(blockID, tenantID), "meta.json")
 }

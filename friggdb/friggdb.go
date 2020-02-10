@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/friggdb/backend/cache"
 	"github.com/grafana/frigg/friggdb/backend/gcs"
 	"github.com/grafana/frigg/friggdb/backend/local"
 	"github.com/grafana/frigg/friggdb/pool"
@@ -68,7 +69,7 @@ type readerWriter struct {
 
 	logger        log.Logger
 	cfg           *Config
-	blockLists    map[string][]searchableBlockMeta
+	blockLists    map[string][]searchableBlockMeta // todo: evaluate for performance
 	blockListsMtx sync.Mutex
 }
 
@@ -88,6 +89,14 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if cfg.Cache != nil {
+		r, err = cache.New(r, cfg.Cache, logger)
+
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if cfg.BloomFilterFalsePositive <= 0.0 {
@@ -147,7 +156,10 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (Estimat
 	blocklist, found := rw.blockLists[tenantID]
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
 	for _, b := range blocklist {
-		copiedBlocklist = append(copiedBlocklist, b)
+		// if in range copy
+		if bytes.Compare(id, b.MinID) != -1 && bytes.Compare(id, b.MaxID) != 1 {
+			copiedBlocklist = append(copiedBlocklist, b)
+		}
 	}
 	rw.blockListsMtx.Unlock()
 
@@ -157,10 +169,6 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (Estimat
 
 	msg, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) (proto.Message, error) {
 		meta := payload.(searchableBlockMeta)
-
-		if bytes.Compare(id, meta.MinID) == -1 || bytes.Compare(id, meta.MaxID) == 1 {
-			return nil, nil
-		}
 
 		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
 		if err != nil {
@@ -225,6 +233,7 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (Estimat
 func (rw *readerWriter) Shutdown() {
 	// todo: stop blocklist poll
 	rw.pool.Shutdown()
+	rw.r.Shutdown()
 }
 
 func (rw *readerWriter) pollBlocklist() {

@@ -16,4 +16,6 @@ type Reader interface {
 	Bloom(blockID uuid.UUID, tenantID string) ([]byte, error)
 	Index(blockID uuid.UUID, tenantID string) ([]byte, error)
 	Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error)
+
+	Shutdown()
 }
