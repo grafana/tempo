@@ -1,8 +1,8 @@
 package cache
 
 import (
+	"fmt"
 	"os"
-	"sync"
 
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
@@ -13,7 +13,6 @@ type reader struct {
 	next backend.Reader
 
 	stopCh chan struct{}
-	lock   sync.RWMutex
 }
 
 // jpe: add shutdown method?  stop stopCh?
@@ -29,7 +28,17 @@ func New(next backend.Reader, cfg *Config) (backend.Reader, error) {
 		return nil, err
 	}
 
-	// jpe sub in defaults for empty config values
+	if cfg.DiskPruneCount == 0 {
+		return nil, fmt.Errorf("must specify disk prune count")
+	}
+
+	if cfg.DiskCleanRate == 0 {
+		return nil, fmt.Errorf("must specify a clean rate")
+	}
+
+	if cfg.MaxDiskMBs == 0 {
+		return nil, fmt.Errorf("must specify a maximum number of MBs to save")
+	}
 
 	r := &reader{
 		cfg:    cfg,

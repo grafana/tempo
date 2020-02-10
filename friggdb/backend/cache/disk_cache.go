@@ -13,24 +13,19 @@ import (
 )
 
 func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t string, miss func(blockID uuid.UUID, tenantID string) ([]byte, error)) ([]byte, error) {
-	r.lock.RLock()
-
 	k := key(blockID, tenantID, t)
 	filename := path.Join(r.cfg.Path, k)
 
 	bytes, err := ioutil.ReadFile(filename)
 
 	if err != nil && !os.IsNotExist(err) {
-		r.lock.RUnlock()
 		return nil, err // todo: just ignore this error and go to the backing store?
 	}
 
 	if bytes != nil {
-		r.lock.RUnlock()
 		return bytes, nil
 	}
 
-	r.lock.RUnlock()
 	bytes, err = miss(blockID, tenantID)
 	if err != nil {
 		return nil, err
@@ -47,9 +42,6 @@ func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t stri
 }
 
 func (r *reader) writeKeyToDisk(filename string, b []byte) error {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
 	return ioutil.WriteFile(filename, b, 0644)
 }
 
