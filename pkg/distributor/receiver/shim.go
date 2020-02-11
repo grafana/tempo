@@ -157,30 +157,33 @@ func convertTraceData(td consumerdata.TraceData) *opentelemetry_proto_collector_
 			// Kind: fromSpan.Kind,
 			StartTimeUnixnano: uint64(fromSpan.StartTime.GetNanos()),
 			EndTimeUnixnano:   uint64(fromSpan.EndTime.GetNanos()),
-			Attributes:        make([]*opentelemetry_proto_common_v1.AttributeKeyValue, 0, len(fromSpan.Attributes.AttributeMap)),
 		}
 
-		for key, att := range fromSpan.Attributes.AttributeMap {
-			toAtt := &opentelemetry_proto_common_v1.AttributeKeyValue{
-				Key: key,
-			}
+		if fromSpan.Attributes != nil {
+			toSpan.Attributes = make([]*opentelemetry_proto_common_v1.AttributeKeyValue, 0, len(fromSpan.Attributes.AttributeMap))
 
-			switch att.Value.(type) {
-			case *tracepb.AttributeValue_StringValue:
-				toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_STRING
-				toAtt.StringValue = att.GetStringValue().String()
-			case *tracepb.AttributeValue_IntValue:
-				toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_INT
-				toAtt.IntValue = att.GetIntValue()
-			case *tracepb.AttributeValue_BoolValue:
-				toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_BOOL
-				toAtt.BoolValue = att.GetBoolValue()
-			case *tracepb.AttributeValue_DoubleValue:
-				toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_BOOL
-				toAtt.DoubleValue = att.GetDoubleValue()
-			}
+			for key, att := range fromSpan.Attributes.AttributeMap {
+				toAtt := &opentelemetry_proto_common_v1.AttributeKeyValue{
+					Key: key,
+				}
 
-			toSpan.Attributes = append(toSpan.Attributes, toAtt)
+				switch att.Value.(type) {
+				case *tracepb.AttributeValue_StringValue:
+					toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_STRING
+					toAtt.StringValue = att.GetStringValue().String()
+				case *tracepb.AttributeValue_IntValue:
+					toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_INT
+					toAtt.IntValue = att.GetIntValue()
+				case *tracepb.AttributeValue_BoolValue:
+					toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_BOOL
+					toAtt.BoolValue = att.GetBoolValue()
+				case *tracepb.AttributeValue_DoubleValue:
+					toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_BOOL
+					toAtt.DoubleValue = att.GetDoubleValue()
+				}
+
+				toSpan.Attributes = append(toSpan.Attributes, toAtt)
+			}
 		}
 
 		batch.Spans = append(batch.Spans, toSpan)
