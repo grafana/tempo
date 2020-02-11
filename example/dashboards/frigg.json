@@ -15,7 +15,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
-  "iteration": 1581371193777,
+  "id": 4,
+  "iteration": 1581452765846,
   "links": [],
   "panels": [
     {
@@ -36,7 +37,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -121,7 +122,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -206,7 +207,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -304,7 +305,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -394,7 +395,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -490,7 +491,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -581,7 +582,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -667,7 +668,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -753,7 +754,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -839,7 +840,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -935,7 +936,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1022,7 +1023,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1107,7 +1108,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1203,7 +1204,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1290,7 +1291,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1386,7 +1387,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1486,7 +1487,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1572,7 +1573,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1657,7 +1658,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1742,7 +1743,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1827,7 +1828,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1912,7 +1913,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2008,7 +2009,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2093,7 +2094,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2202,7 +2203,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2298,7 +2299,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": "$ds",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2387,6 +2388,23 @@
   "templating": {
     "list": [
       {
+        "current": {
+          "text": "prometheus",
+          "value": "prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "ds",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
         "allValue": null,
         "current": {
           "tags": [],
@@ -2437,5 +2455,5 @@
   "timezone": "",
   "title": "Frigg",
   "uid": "AOFXrRUZz",
-  "version": 8
+  "version": 9
 }
