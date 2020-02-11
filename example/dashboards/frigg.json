@@ -15,12 +15,13 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
-  "id": 4,
-  "iteration": 1581452765846,
+  "id": 1425,
+  "iteration": 1581453326070,
   "links": [],
   "panels": [
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -46,6 +47,7 @@
         "x": 0,
         "y": 1
       },
+      "hiddenSeries": false,
       "id": 24,
       "legend": {
         "avg": false,
@@ -72,7 +74,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(go_gc_duration_seconds_count{job=\"frigg\"}[$interval])",
+          "expr": "rate(go_gc_duration_seconds_count{cluster=\"ops-tools1\", namespace=\"jaeger\", job=\"jaeger/frigg\"}[$interval])",
           "refId": "A"
         }
       ],
@@ -131,6 +133,7 @@
         "x": 3,
         "y": 1
       },
+      "hiddenSeries": false,
       "id": 25,
       "legend": {
         "avg": false,
@@ -157,7 +160,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "go_memstats_heap_alloc_bytes{job=\"frigg\"}",
+          "expr": "go_memstats_heap_alloc_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", job=\"jaeger/frigg\"}",
           "refId": "A"
         }
       ],
@@ -216,6 +219,7 @@
         "x": 6,
         "y": 1
       },
+      "hiddenSeries": false,
       "id": 23,
       "legend": {
         "avg": false,
@@ -242,7 +246,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "go_goroutines{job=\"frigg\"}",
+          "expr": "go_goroutines{cluster=\"ops-tools1\", namespace=\"jaeger\", job=\"jaeger/frigg\"}",
           "refId": "A"
         }
       ],
@@ -288,7 +292,352 @@
       }
     },
     {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 9,
+        "y": 1
+      },
+      "hiddenSeries": false,
+      "id": 42,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{cluster=\"ops-tools1\", namespace=\"jaeger\", container_name=\"frigg\"}[$interval])",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "cpu",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 12,
+        "y": 1
+      },
+      "hiddenSeries": false,
+      "id": 43,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "\ncontainer_memory_working_set_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", container_name=\"frigg\"}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "working set",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "decbytes",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 15,
+        "y": 1
+      },
+      "hiddenSeries": false,
+      "id": 44,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "rate(container_network_receive_bytes_total{cluster=\"ops-tools1\", namespace=\"jaeger\", pod_name=~\"frigg.*\"}[$interval])",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "rx",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "decbytes",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 18,
+        "y": 1
+      },
+      "hiddenSeries": false,
+      "id": 45,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "kubelet_volume_stats_available_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", persistentvolumeclaim=~'frigg.*'}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "data volume free",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "decbytes",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -314,6 +663,7 @@
         "x": 0,
         "y": 7
       },
+      "hiddenSeries": false,
       "id": 32,
       "legend": {
         "avg": false,
@@ -404,6 +754,7 @@
         "x": 3,
         "y": 7
       },
+      "hiddenSeries": false,
       "id": 35,
       "legend": {
         "avg": false,
@@ -500,6 +851,7 @@
         "x": 6,
         "y": 7
       },
+      "hiddenSeries": false,
       "id": 33,
       "legend": {
         "avg": false,
@@ -591,6 +943,7 @@
         "x": 9,
         "y": 7
       },
+      "hiddenSeries": false,
       "id": 40,
       "legend": {
         "avg": false,
@@ -677,6 +1030,7 @@
         "x": 12,
         "y": 7
       },
+      "hiddenSeries": false,
       "id": 39,
       "legend": {
         "avg": false,
@@ -763,6 +1117,7 @@
         "x": 15,
         "y": 7
       },
+      "hiddenSeries": false,
       "id": 41,
       "legend": {
         "avg": false,
@@ -849,6 +1204,7 @@
         "x": 21,
         "y": 7
       },
+      "hiddenSeries": false,
       "id": 13,
       "legend": {
         "avg": false,
@@ -945,6 +1301,7 @@
         "x": 0,
         "y": 12
       },
+      "hiddenSeries": false,
       "id": 34,
       "legend": {
         "avg": false,
@@ -1032,6 +1389,7 @@
         "x": 8,
         "y": 12
       },
+      "hiddenSeries": false,
       "id": 5,
       "legend": {
         "avg": false,
@@ -1117,6 +1475,7 @@
         "x": 15,
         "y": 12
       },
+      "hiddenSeries": false,
       "id": 17,
       "legend": {
         "avg": false,
@@ -1213,6 +1572,7 @@
         "x": 21,
         "y": 12
       },
+      "hiddenSeries": false,
       "id": 14,
       "legend": {
         "avg": false,
@@ -1300,6 +1660,7 @@
         "x": 15,
         "y": 17
       },
+      "hiddenSeries": false,
       "id": 3,
       "legend": {
         "avg": false,
@@ -1396,6 +1757,7 @@
         "x": 21,
         "y": 17
       },
+      "hiddenSeries": false,
       "id": 15,
       "legend": {
         "avg": false,
@@ -1471,6 +1833,7 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1496,6 +1859,7 @@
         "x": 0,
         "y": 23
       },
+      "hiddenSeries": false,
       "id": 10,
       "legend": {
         "avg": false,
@@ -1582,6 +1946,7 @@
         "x": 3,
         "y": 23
       },
+      "hiddenSeries": false,
       "id": 9,
       "legend": {
         "avg": false,
@@ -1667,6 +2032,7 @@
         "x": 6,
         "y": 23
       },
+      "hiddenSeries": false,
       "id": 8,
       "legend": {
         "avg": false,
@@ -1752,6 +2118,7 @@
         "x": 9,
         "y": 23
       },
+      "hiddenSeries": false,
       "id": 12,
       "legend": {
         "avg": false,
@@ -1837,6 +2204,7 @@
         "x": 12,
         "y": 23
       },
+      "hiddenSeries": false,
       "id": 26,
       "legend": {
         "avg": false,
@@ -1922,6 +2290,7 @@
         "x": 15,
         "y": 23
       },
+      "hiddenSeries": false,
       "id": 36,
       "legend": {
         "avg": false,
@@ -2018,6 +2387,7 @@
         "x": 0,
         "y": 28
       },
+      "hiddenSeries": false,
       "id": 6,
       "legend": {
         "avg": false,
@@ -2103,6 +2473,7 @@
         "x": 8,
         "y": 28
       },
+      "hiddenSeries": false,
       "id": 2,
       "legend": {
         "avg": false,
@@ -2187,6 +2558,7 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -2212,6 +2584,7 @@
         "x": 0,
         "y": 37
       },
+      "hiddenSeries": false,
       "id": 30,
       "legend": {
         "avg": false,
@@ -2308,6 +2681,7 @@
         "x": 12,
         "y": 37
       },
+      "hiddenSeries": false,
       "id": 31,
       "legend": {
         "avg": false,
@@ -2382,15 +2756,16 @@
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 19,
+  "schemaVersion": 22,
   "style": "dark",
   "tags": [],
   "templating": {
     "list": [
       {
         "current": {
-          "text": "prometheus",
-          "value": "prometheus"
+          "selected": true,
+          "text": "ops-cortex",
+          "value": "ops-cortex"
         },
         "hide": 0,
         "includeAll": false,
@@ -2407,7 +2782,7 @@
       {
         "allValue": null,
         "current": {
-          "tags": [],
+          "selected": true,
           "text": "1m",
           "value": "1m"
         },
@@ -2455,5 +2830,5 @@
   "timezone": "",
   "title": "Frigg",
   "uid": "AOFXrRUZz",
-  "version": 9
+  "version": 4
 }
