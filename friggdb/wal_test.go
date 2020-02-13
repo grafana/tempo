@@ -57,13 +57,17 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating block")
 
 	req := test.MakeRequest(10, []byte{0x00, 0x01})
-	err = block.Write([]byte{0x00, 0x01}, req)
+	bReq, err := proto.Marshal(req)
+	assert.NoError(t, err)
+	err = block.Write([]byte{0x00, 0x01}, bReq)
 	assert.NoError(t, err, "unexpected error creating writing req")
 
-	outReq := &friggpb.PushRequest{}
-	found, err := block.Find([]byte{0x00, 0x01}, outReq)
+	foundBytes, err := block.Find([]byte{0x00, 0x01})
 	assert.NoError(t, err, "unexpected error creating reading req")
-	assert.True(t, found)
+
+	outReq := &friggpb.PushRequest{}
+	err = proto.Unmarshal(foundBytes, outReq)
+	assert.NoError(t, err)
 	assert.True(t, proto.Equal(req, outReq))
 }
 
@@ -88,14 +92,17 @@ func TestIterator(t *testing.T) {
 	for i := 0; i < numMsgs; i++ {
 		req := test.MakeRequest(rand.Int()%1000, []byte{})
 		reqs = append(reqs, req)
-		err := block.Write([]byte{}, req)
+		bReq, err := proto.Marshal(req)
+		assert.NoError(t, err)
+		err = block.Write([]byte{}, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	outReq := &friggpb.PushRequest{}
 	i := 0
-	err = block.(*headBlock).Iterator(outReq, func(id ID, msg proto.Message) (bool, error) {
-		req := msg.(*friggpb.PushRequest)
+	err = block.(*headBlock).Iterator(func(id ID, msg []byte) (bool, error) {
+		req := &friggpb.PushRequest{}
+		err = proto.Unmarshal(msg, req)
+		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(req, reqs[i]))
 		i++
@@ -134,7 +141,9 @@ func TestCompleteBlock(t *testing.T) {
 		req := test.MakeRequest(rand.Int()%1000, id)
 		reqs = append(reqs, req)
 		ids = append(ids, id)
-		err := block.Write(id, req)
+		bReq, err := proto.Marshal(req)
+		assert.NoError(t, err)
+		err = block.Write(id, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
@@ -151,8 +160,9 @@ func TestCompleteBlock(t *testing.T) {
 
 	for i, id := range ids {
 		out := &friggpb.PushRequest{}
-		found, err := complete.Find(id, out)
-		assert.True(t, found)
+		foundBytes, err := complete.Find(id)
+
+		err = proto.Unmarshal(foundBytes, out)
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))
@@ -216,13 +226,12 @@ func BenchmarkWriteRead(b *testing.B) {
 		reqs = append(reqs, req)
 	}
 
-	outReq := &friggpb.PushRequest{}
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, req := range reqs {
-			_ = block.Write(req.Batch.Spans[0].TraceId, req)
-			_, _ = block.Find(req.Batch.Spans[0].TraceId, outReq)
+			bytes, _ := proto.Marshal(req)
+			_ = block.Write(req.Batch.Spans[0].TraceId, bytes)
+			_, _ = block.Find(req.Batch.Spans[0].TraceId)
 		}
 	}
 }

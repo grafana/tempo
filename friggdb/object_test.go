@@ -15,13 +15,19 @@ func TestMarshalUnmarshal(t *testing.T) {
 	id := []byte{0x00, 0x01}
 	req := test.MakeRequest(10, id)
 
-	_, err := marshalObjectToWriter(id, req, buffer)
+	bReq, err := proto.Marshal(req)
 	assert.NoError(t, err)
 
-	outReq := &friggpb.PushRequest{}
-	outID, found, err := unmarshalObjectFromReader(outReq, buffer)
+	_, err = marshalObjectToWriter(id, bReq, buffer)
 	assert.NoError(t, err)
-	assert.True(t, found)
+
+	outID, outObject, err := unmarshalObjectFromReader(buffer)
+	assert.NoError(t, err)
 	assert.True(t, bytes.Equal(id, outID))
+
+	outReq := &friggpb.PushRequest{}
+	err = proto.Unmarshal(outObject, outReq)
+	assert.NoError(t, err)
+
 	assert.True(t, proto.Equal(req, outReq))
 }

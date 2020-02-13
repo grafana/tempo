@@ -57,7 +57,10 @@ func TestDB(t *testing.T) {
 		req := test.MakeRequest(rand.Int()%1000, id)
 		reqs = append(reqs, req)
 		ids = append(ids, id)
-		err := head.Write(id, req)
+
+		bReq, err := proto.Marshal(req)
+		assert.NoError(t, err)
+		err = head.Write(id, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
@@ -71,9 +74,11 @@ func TestDB(t *testing.T) {
 	r.(*readerWriter).actuallyPollBlocklist()
 
 	for i, id := range ids {
+		bFound, _, err := r.Find(testTenantID, id)
+		assert.NoError(t, err)
+
 		out := &friggpb.PushRequest{}
-		_, found, err := r.Find(testTenantID, id, out)
-		assert.True(t, found)
+		err = proto.Unmarshal(bFound, out)
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))

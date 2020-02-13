@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/uber-go/atomic"
@@ -29,14 +28,14 @@ var (
 	})
 )
 
-type JobFunc func(payload interface{}) (proto.Message, error)
+type JobFunc func(payload interface{}) ([]byte, error)
 
 type job struct {
 	payload interface{}
 	fn      JobFunc
 
 	wg      *sync.WaitGroup
-	results chan proto.Message
+	results chan []byte
 	stopped *atomic.Bool
 	err     *atomic.Error
 }
@@ -73,7 +72,7 @@ func NewPool(cfg *Config) *Pool {
 	return p
 }
 
-func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error) {
+func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 	totalJobs := len(payloads)
 
 	// sanity check before we even attempt to start adding jobs
@@ -81,7 +80,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) (proto.Message, error
 		return nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
-	results := make(chan proto.Message, 1)
+	results := make(chan []byte, 1)
 	wg := &sync.WaitGroup{}
 	stopped := atomic.NewBool(false)
 	err := atomic.NewError(nil)

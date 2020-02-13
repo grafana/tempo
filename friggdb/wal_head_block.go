@@ -7,14 +7,13 @@ import (
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
-	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 )
 
 type HeadBlock interface {
 	CompleteBlock
 
-	Write(id ID, p proto.Message) error
+	Write(id ID, b []byte) error
 	Complete(w WAL) (CompleteBlock, error)
 	Length() int
 }
@@ -25,8 +24,8 @@ type headBlock struct {
 	appendFile *os.File
 }
 
-func (h *headBlock) Write(id ID, p proto.Message) error {
-	start, length, err := h.appendObject(id, p)
+func (h *headBlock) Write(id ID, b []byte) error {
+	start, length, err := h.appendObject(id, b)
 	if err != nil {
 		return err
 	}
@@ -135,7 +134,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	return orderedBlock, nil
 }
 
-func (h *headBlock) appendObject(id ID, p proto.Message) (uint64, uint32, error) {
+func (h *headBlock) appendObject(id ID, b []byte) (uint64, uint32, error) {
 	if h.appendFile == nil {
 		name := h.fullFilename()
 
@@ -151,7 +150,7 @@ func (h *headBlock) appendObject(id ID, p proto.Message) (uint64, uint32, error)
 		return 0, 0, err
 	}
 
-	length, err := marshalObjectToWriter(id, p, h.appendFile)
+	length, err := marshalObjectToWriter(id, b, h.appendFile)
 	if err != nil {
 		return 0, 0, err
 	}
