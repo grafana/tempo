@@ -108,9 +108,7 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 	return tenants, warning
 }
 
-//  todo: think about this some.  this is a lot of work at high block counts.
-//     implement regular, smaller updates? jam all block metas in one file?  panic?
-func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
+func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 	var warning error
 
 	ctx := context.Background()
@@ -120,7 +118,7 @@ func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 		Versions:  false,
 	})
 
-	blocklists := make([][]byte, 0)
+	blocks := make([]uuid.UUID, 0)
 	for {
 		attrs, err := iter.Next()
 		if err == iterator.Done {
@@ -138,16 +136,15 @@ func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 			continue
 		}
 
-		filename := rw.metaFileName(blockID, tenantID)
-		b, err := rw.readAll(ctx, filename)
-		if err != nil {
-			warning = fmt.Errorf("failed read on blockID %s: %v", blockID, err)
-			continue
-		}
-		blocklists = append(blocklists, b)
+		blocks = append(blocks, blockID)
 	}
 
-	return blocklists, warning
+	return blocks, warning
+}
+
+func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) ([]byte, error) {
+	name := rw.metaFileName(blockID, tenantID)
+	return rw.readAll(context.Background(), name)
 }
 
 func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {

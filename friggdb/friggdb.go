@@ -256,24 +256,32 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 	}
 
 	for _, tenantID := range tenants {
-		blocklistsJSON, err := rw.r.Blocklist(tenantID)
+		blockIDs, err := rw.r.Blocks(tenantID)
 		if err != nil {
 			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
 		}
 
-		meta := &searchableBlockMeta{}
-		blocklist := make([]searchableBlockMeta, 0, len(blocklistsJSON))
-		for _, j := range blocklistsJSON {
-			err = json.Unmarshal(j, meta)
+		blocklist := make([]searchableBlockMeta, 0, len(blockIDs))
+		for _, blockID := range blockIDs {
+			meta := &searchableBlockMeta{}
+			metaBytes, err := rw.r.BlockMeta(blockID, tenantID)
 			if err != nil {
 				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-				level.Error(rw.logger).Log("msg", "failed to unmarshal json blocklist", "tenantID", tenantID, "err", err)
+				level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)
+				continue
+			}
+
+			err = json.Unmarshal(metaBytes, meta)
+			if err != nil {
+				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+				level.Error(rw.logger).Log("msg", "failed to unmarshal json blocklist", "tenantID", tenantID, "blockID", blockID, "err", err)
 				continue
 			}
 
 			blocklist = append(blocklist, *meta)
 		}
+
 		rw.blockListsMtx.Lock()
 		rw.blockLists[tenantID] = blocklist
 		rw.blockListsMtx.Unlock()
