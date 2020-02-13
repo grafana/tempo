@@ -3,10 +3,13 @@ package ingester
 import (
 	"context"
 	"io/ioutil"
+	"math/rand"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util/test"
 	"github.com/grafana/frigg/pkg/util/validation"
 
@@ -103,4 +106,43 @@ func TestInstanceFind(t *testing.T) {
 	trace, err = i.FindTraceByID(traceID)
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
+}
+
+func BenchmarkShardedTraceMap(b *testing.B) {
+	// benchmark instance.Push and instance.FindTraceByID
+	i := &instance{
+		traceMapShards:   make(map[string]*traceMapShard, 256),
+		traceMapShardMtx: new(sync.RWMutex),
+	}
+
+	// make some fake traceIDs/requests
+	// traces := make([]*friggpb.Trace, 0)
+
+	// traceIDs := make([][]byte, 0)
+	for n := 0; n < b.N; n++ {
+		id := make([]byte, 16)
+		_, err := rand.Read(id)
+		assert.NoError(b, err)
+
+		// 	traces = append(traces, test.MakeTrace(10, id))
+		// 	traceIDs = append(traceIDs, id)
+		// }
+
+		trace := test.MakeTrace(10, id)
+
+		// for n := 0; n < b.N; n++ {
+		for _, batch := range trace.Batches {
+			err := i.Push(context.Background(),
+				&friggpb.PushRequest{
+					Batch: batch,
+				})
+			assert.NoError(b, err, "unexpected error pushing")
+		}
+		// }
+
+		// for n := 0; n < b.N; n++ {
+		t, err := i.FindTraceByID(id)
+		assert.NotNil(b, t)
+		assert.NoError(b, err)
+	}
 }
