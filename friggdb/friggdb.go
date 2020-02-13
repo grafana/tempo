@@ -40,6 +40,11 @@ var (
 		Help:      "Records the amount of time to poll and update the blocklist.",
 		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
 	})
+	metricBlocklistLength = promauto.NewGaugeVec(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "blocklist_length",
+		Help:      "Total number of blocks per tenant.",
+	}, []string{"tenant"})
 )
 
 type Writer interface {
@@ -296,6 +301,8 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 
 			return nil, nil
 		})
+
+		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
 
 		rw.blockListsMtx.Lock()
 		rw.blockLists[tenantID] = blocklist
