@@ -12,6 +12,7 @@ import (
 	"github.com/dgryski/go-farm"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -262,25 +263,39 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
 		}
 
+		interfaceSlice := make([]interface{}, 0, len(blockIDs))
+		for _, id := range blockIDs {
+			interfaceSlice = append(interfaceSlice, id)
+		}
+
+		listMutex := sync.Mutex{}
 		blocklist := make([]searchableBlockMeta, 0, len(blockIDs))
-		for _, blockID := range blockIDs {
+		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
+			blockID := payload.(uuid.UUID)
 			meta := &searchableBlockMeta{}
+
 			metaBytes, err := rw.r.BlockMeta(blockID, tenantID)
 			if err != nil {
 				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 				level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)
-				continue
+				return nil, nil
 			}
 
 			err = json.Unmarshal(metaBytes, meta)
 			if err != nil {
 				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 				level.Error(rw.logger).Log("msg", "failed to unmarshal json blocklist", "tenantID", tenantID, "blockID", blockID, "err", err)
-				continue
+				return nil, nil
 			}
 
+			// todo:  make this not terrible. this mutex is dumb we should be returning results with a channel. shoehorning this into the worker pool is silly.
+			//        make the worker pool more generic? and reusable in this case
+			listMutex.Lock()
 			blocklist = append(blocklist, *meta)
-		}
+			listMutex.Unlock()
+
+			return nil, nil
+		})
 
 		rw.blockListsMtx.Lock()
 		rw.blockLists[tenantID] = blocklist
