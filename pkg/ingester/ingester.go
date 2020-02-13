@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log/level"
-	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -277,18 +276,15 @@ func (i *Ingester) replayWal() error {
 		return nil
 	}
 
-	read := &friggpb.Trace{}
 	for _, b := range blocks {
-		err = b.Iterator(read, func(id friggdb.ID, r proto.Message) (bool, error) {
-			req := r.(*friggpb.Trace)
-
+		err = b.Iterator(func(id friggdb.ID, object []byte) (bool, error) {
 			tenantID := b.TenantID()
 			instance, err := i.getOrCreateInstance(tenantID)
 			if err != nil {
 				return false, err
 			}
 
-			err = instance.PushTrace(context.Background(), req)
+			err = instance.PushBytes(context.Background(), id, object)
 			if err != nil {
 				return false, err
 			}
