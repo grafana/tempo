@@ -16,7 +16,7 @@
   "gnetId": null,
   "graphTooltip": 1,
   "id": 1425,
-  "iteration": 1581453326070,
+  "iteration": 1581605691383,
   "links": [],
   "panels": [
     {
@@ -700,7 +700,7 @@
       },
       "yaxes": [
         {
-          "format": "decbytes",
+          "format": "short",
           "label": null,
           "logBase": 1,
           "max": null,
@@ -938,6 +938,93 @@
         "y": 7
       },
       "hiddenSeries": false,
+      "id": 47,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "friggdb_blocklist_length",
+          "legendFormat": "{{tenant}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Blocklist Length",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 9,
+        "y": 7
+      },
+      "hiddenSeries": false,
       "id": 33,
       "legend": {
         "avg": false,
@@ -1026,7 +1113,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 9,
+        "x": 12,
         "y": 7
       },
       "hiddenSeries": false,
@@ -1056,7 +1143,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(friggdb_disk_cache_total[$interval])",
+          "expr": "increase(friggdb_disk_cache_total[$interval])",
           "legendFormat": "{{type}}-{{status}}",
           "refId": "A"
         }
@@ -1113,7 +1200,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 12,
+        "x": 15,
         "y": 7
       },
       "hiddenSeries": false,
@@ -1143,7 +1230,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(friggdb_disk_cache_miss_total[$interval])",
+          "expr": "increase(friggdb_disk_cache_miss_total[$interval])",
           "legendFormat": "length",
           "refId": "A"
         }
@@ -1200,7 +1287,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 15,
+        "x": 18,
         "y": 7
       },
       "hiddenSeries": false,
@@ -2145,7 +2232,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(frigg_ingester_blocks_flushed_total[$interval])",
+          "expr": "increase(frigg_ingester_blocks_flushed_total[$interval])",
           "refId": "A"
         }
       ],
@@ -2317,7 +2404,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "frigg_ingester_blocks_cleared_total",
+          "expr": "increase(frigg_ingester_blocks_cleared_total[$interval])",
           "refId": "A"
         }
       ],
@@ -2422,7 +2509,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Complete Block Flush",
+      "title": "Flush Duration",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -2896,7 +2983,7 @@
     ]
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {
@@ -2916,5 +3003,5 @@
   "timezone": "",
   "title": "Frigg",
   "uid": "AOFXrRUZz",
-  "version": 6
+  "version": 7
 }
