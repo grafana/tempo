@@ -161,6 +161,7 @@ func TestCompleteBlock(t *testing.T) {
 	for i, id := range ids {
 		out := &friggpb.PushRequest{}
 		foundBytes, err := complete.Find(id)
+		assert.NoError(t, err)
 
 		err = proto.Unmarshal(foundBytes, out)
 		assert.NoError(t, err)

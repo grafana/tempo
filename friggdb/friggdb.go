@@ -302,6 +302,12 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 			return nil, nil
 		})
 
+		if err != nil {
+			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+			level.Error(rw.logger).Log("msg", "run blocklist jobs", "tenantID", tenantID, "err", err)
+			continue
+		}
+
 		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
 
 		rw.blockListsMtx.Lock()
