@@ -101,7 +101,7 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 	return tenants, nil
 }
 
-func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
+func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 	var warning error
 	path := path.Join(rw.cfg.Path, tenantID)
 	folders, err := ioutil.ReadDir(path)
@@ -109,7 +109,7 @@ func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 		return nil, err
 	}
 
-	blocklists := make([][]byte, 0, len(folders))
+	blocks := make([]uuid.UUID, 0, len(folders))
 	for _, f := range folders {
 		if !f.IsDir() {
 			continue
@@ -119,17 +119,15 @@ func (rw *readerWriter) Blocklist(tenantID string) ([][]byte, error) {
 			warning = err
 			continue
 		}
-		filename := rw.metaFileName(blockID, tenantID)
-		bytes, err := ioutil.ReadFile(filename)
-		if err != nil {
-			warning = err
-			continue
-		}
-
-		blocklists = append(blocklists, bytes)
+		blocks = append(blocks, blockID)
 	}
 
-	return blocklists, warning
+	return blocks, warning
+}
+
+func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) ([]byte, error) {
+	filename := rw.metaFileName(blockID, tenantID)
+	return ioutil.ReadFile(filename)
 }
 
 func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {

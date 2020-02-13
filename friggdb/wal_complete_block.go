@@ -9,7 +9,6 @@ import (
 	"time"
 
 	bloom "github.com/dgraph-io/ristretto/z"
-	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 )
 
@@ -17,7 +16,7 @@ const (
 	uint32Size = 4
 )
 
-type IterFunc func(id ID, msg proto.Message) (bool, error)
+type IterFunc func(id ID, b []byte) (bool, error)
 
 // complete block has all of the fields
 type completeBlock struct {
@@ -31,7 +30,7 @@ type completeBlock struct {
 }
 
 type ReplayBlock interface {
-	Iterator(read proto.Message, fn IterFunc) error
+	Iterator(fn IterFunc) error
 	TenantID() string
 	Clear() error
 }
@@ -39,7 +38,7 @@ type ReplayBlock interface {
 type CompleteBlock interface {
 	ReplayBlock
 
-	Find(id ID, out proto.Message) (bool, error)
+	Find(id ID) ([]byte, error)
 	TimeWritten() time.Time
 
 	blockMeta() *blockMeta
@@ -56,27 +55,27 @@ func (c *completeBlock) writeInfo() (uuid.UUID, string, []*Record, string) {
 	return c.meta.BlockID, c.meta.TenantID, c.records, c.fullFilename()
 }
 
-func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
+func (c *completeBlock) Find(id ID) ([]byte, error) {
 
 	i := sort.Search(len(c.records), func(idx int) bool {
 		return bytes.Compare(c.records[idx].ID, id) >= 0
 	})
 
 	if i < 0 || i >= len(c.records) {
-		return false, nil
+		return nil, nil
 	}
 
 	rec := c.records[i]
 
 	b, err := c.readRecordBytes(rec)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	found := false
-	err = iterateObjects(bytes.NewReader(b), out, func(foundID ID, msg proto.Message) (bool, error) {
+	var foundObject []byte
+	err = iterateObjects(bytes.NewReader(b), func(foundID ID, b []byte) (bool, error) {
 		if bytes.Equal(foundID, id) {
-			found = true
+			foundObject = b
 			return false, nil
 		}
 
@@ -84,13 +83,13 @@ func (c *completeBlock) Find(id ID, out proto.Message) (bool, error) {
 
 	})
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return found, nil
+	return foundObject, nil
 }
 
-func (c *completeBlock) Iterator(read proto.Message, fn IterFunc) error {
+func (c *completeBlock) Iterator(fn IterFunc) error {
 	name := c.fullFilename()
 	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 	if err != nil {
@@ -98,7 +97,7 @@ func (c *completeBlock) Iterator(read proto.Message, fn IterFunc) error {
 	}
 	defer f.Close()
 
-	return iterateObjects(f, read, fn)
+	return iterateObjects(f, fn)
 }
 
 func (c *completeBlock) Clear() error {
@@ -153,18 +152,18 @@ func (c *completeBlock) readRecordBytes(r *Record) ([]byte, error) {
 	return b, nil
 }
 
-func iterateObjects(reader io.Reader, read proto.Message, fn IterFunc) error {
+func iterateObjects(reader io.Reader, fn IterFunc) error {
 	for {
-		id, more, err := unmarshalObjectFromReader(read, reader)
+		id, b, err := unmarshalObjectFromReader(reader)
 		if err != nil {
 			return err
 		}
-		if !more {
+		if id == nil {
 			// there are no more objects in the reader
 			break
 		}
 
-		more, err = fn(id, read)
+		more, err := fn(id, b)
 		if err != nil {
 			return err
 		}

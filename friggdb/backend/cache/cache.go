@@ -85,8 +85,12 @@ func (r *reader) Tenants() ([]string, error) {
 	return r.next.Tenants()
 }
 
-func (r *reader) Blocklist(tenantID string) ([][]byte, error) {
-	return r.next.Blocklist(tenantID)
+func (r *reader) Blocks(tenantID string) ([]uuid.UUID, error) {
+	return r.next.Blocks(tenantID)
+}
+
+func (r *reader) BlockMeta(blockID uuid.UUID, tenantID string) ([]byte, error) {
+	return r.next.BlockMeta(blockID, tenantID)
 }
 
 func (r *reader) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {

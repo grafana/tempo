@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/grafana/frigg/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,8 +16,8 @@ func TestResults(t *testing.T) {
 		QueueDepth: 10,
 	})
 
-	ret := test.MakeTrace(5, nil)
-	fn := func(payload interface{}) (proto.Message, error) {
+	ret := []byte{0x01, 0x02}
+	fn := func(payload interface{}) ([]byte, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -31,11 +29,7 @@ func TestResults(t *testing.T) {
 
 	msg, err := p.RunJobs(payloads, fn)
 	assert.NoError(t, err)
-
-	equal := proto.Equal(ret, msg)
-	if !equal {
-		assert.Equal(t, ret, msg)
-	}
+	assert.Equal(t, ret, msg)
 }
 
 func TestNoResults(t *testing.T) {
@@ -44,7 +38,7 @@ func TestNoResults(t *testing.T) {
 		QueueDepth: 10,
 	})
 
-	fn := func(payload interface{}) (proto.Message, error) {
+	fn := func(payload interface{}) ([]byte, error) {
 		return nil, nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
@@ -61,7 +55,7 @@ func TestError(t *testing.T) {
 	})
 
 	ret := fmt.Errorf("blerg")
-	fn := func(payload interface{}) (proto.Message, error) {
+	fn := func(payload interface{}) ([]byte, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -83,7 +77,7 @@ func TestMultipleErrors(t *testing.T) {
 	})
 
 	ret := fmt.Errorf("blerg")
-	fn := func(payload interface{}) (proto.Message, error) {
+	fn := func(payload interface{}) ([]byte, error) {
 		return nil, ret
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
@@ -99,7 +93,7 @@ func TestTooManyJobs(t *testing.T) {
 		QueueDepth: 3,
 	})
 
-	fn := func(payload interface{}) (proto.Message, error) {
+	fn := func(payload interface{}) ([]byte, error) {
 		return nil, nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
@@ -115,8 +109,8 @@ func TestOneWorker(t *testing.T) {
 		QueueDepth: 10,
 	})
 
-	ret := test.MakeTrace(10, nil)
-	fn := func(payload interface{}) (proto.Message, error) {
+	ret := []byte{0x01, 0x02, 0x03}
+	fn := func(payload interface{}) ([]byte, error) {
 		i := payload.(int)
 
 		if i == 3 {
@@ -128,7 +122,7 @@ func TestOneWorker(t *testing.T) {
 
 	msg, err := p.RunJobs(payloads, fn)
 	assert.NoError(t, err)
-	assert.True(t, proto.Equal(ret, msg))
+	assert.Equal(t, ret, msg)
 }
 
 func TestGoingHam(t *testing.T) {
@@ -142,8 +136,8 @@ func TestGoingHam(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		wg.Add(1)
 		go func() {
-			ret := test.MakeTrace(10, nil)
-			fn := func(payload interface{}) (proto.Message, error) {
+			ret := []byte{0x01, 0x03, 0x04}
+			fn := func(payload interface{}) ([]byte, error) {
 				i := payload.(int)
 
 				time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
@@ -156,11 +150,7 @@ func TestGoingHam(t *testing.T) {
 
 			msg, err := p.RunJobs(payloads, fn)
 			assert.NoError(t, err)
-
-			equal := proto.Equal(ret, msg)
-			if !equal {
-				assert.Equal(t, ret, msg)
-			}
+			assert.Equal(t, ret, msg)
 			wg.Done()
 		}()
 	}
@@ -174,8 +164,8 @@ func TestShutdown(t *testing.T) {
 		QueueDepth: 10,
 	})
 
-	ret := test.MakeTrace(5, nil)
-	fn := func(payload interface{}) (proto.Message, error) {
+	ret := []byte{0x01, 0x03, 0x04}
+	fn := func(payload interface{}) ([]byte, error) {
 		i := payload.(int)
 
 		if i == 3 {

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-kit/kit/log/level"
+	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -15,7 +16,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/grafana/frigg/friggdb"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
 	"github.com/grafana/frigg/pkg/storage"
@@ -113,9 +113,13 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDReque
 
 	// if the ingester didn't have it check the store.  todo: parallelize
 	if trace == nil {
-		var metrics friggdb.EstimatedMetrics
+		foundBytes, metrics, err := q.store.Find(userID, req.TraceID)
+		if err != nil {
+			return nil, err
+		}
+
 		out := &friggpb.Trace{}
-		metrics, _, err = q.store.Find(userID, req.TraceID, out)
+		err = proto.Unmarshal(foundBytes, out)
 		if err != nil {
 			return nil, err
 		}

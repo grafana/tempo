@@ -4,8 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-
-	"github.com/golang/protobuf/proto"
 )
 
 /*
@@ -13,16 +11,11 @@ import (
 	| total length | id length | id | object bytes |
 */
 
-func marshalObjectToWriter(id ID, p proto.Message, w io.Writer) (int, error) {
-	b, err := proto.Marshal(p)
-	if err != nil {
-		return 0, err
-	}
-
+func marshalObjectToWriter(id ID, b []byte, w io.Writer) (int, error) {
 	idLength := len(id)
 	totalLength := len(b) + idLength + uint32Size*2
 
-	err = binary.Write(w, binary.LittleEndian, uint32(totalLength))
+	err := binary.Write(w, binary.LittleEndian, uint32(totalLength))
 	if err != nil {
 		return 0, err
 	}
@@ -43,38 +36,33 @@ func marshalObjectToWriter(id ID, p proto.Message, w io.Writer) (int, error) {
 	return totalLength, err
 }
 
-func unmarshalObjectFromReader(out proto.Message, r io.Reader) (ID, bool, error) {
+func unmarshalObjectFromReader(r io.Reader) (ID, []byte, error) {
 	var totalLength uint32
 	err := binary.Read(r, binary.LittleEndian, &totalLength)
 	if err == io.EOF {
-		return nil, false, nil
+		return nil, nil, nil
 	} else if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 
 	var idLength uint32
 	err = binary.Read(r, binary.LittleEndian, &idLength)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 
 	protoLength := totalLength - uint32Size*2
 	b := make([]byte, protoLength)
 	readLength, err := r.Read(b)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 	if uint32(readLength) != protoLength {
-		return nil, false, fmt.Errorf("read %d but expected %d", readLength, protoLength)
+		return nil, nil, fmt.Errorf("read %d but expected %d", readLength, protoLength)
 	}
 
 	bytesID := b[:idLength]
 	bytesObject := b[idLength:]
 
-	err = proto.Unmarshal(bytesObject, out)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return bytesID, true, nil
+	return bytesID, bytesObject, nil
 }

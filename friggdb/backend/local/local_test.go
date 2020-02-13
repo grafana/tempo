@@ -55,6 +55,10 @@ func TestReadWrite(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing")
 	}
 
+	actualMeta, err := r.BlockMeta(blockID, tenantIDs[0])
+	assert.NoError(t, err, "unexpected error reading indexes")
+	assert.Equal(t, fakeMeta, actualMeta)
+
 	actualIndex, err := r.Index(blockID, tenantIDs[0])
 	assert.NoError(t, err, "unexpected error reading indexes")
 	assert.Equal(t, fakeIndex, actualIndex)
@@ -67,10 +71,10 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error reading bloom")
 	assert.Equal(t, fakeBloom, actualBloom)
 
-	list, err := r.Blocklist(tenantIDs[0])
+	list, err := r.Blocks(tenantIDs[0])
 	assert.NoError(t, err, "unexpected error reading blocklist")
 	assert.Len(t, list, 1)
-	assert.Equal(t, fakeMeta, list[0])
+	assert.Equal(t, blockID, list[0])
 
 	tenants, err := r.Tenants()
 	assert.NoError(t, err, "unexpected error reading tenants")

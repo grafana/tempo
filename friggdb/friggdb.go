@@ -12,7 +12,7 @@ import (
 	"github.com/dgryski/go-farm"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/golang/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -40,6 +40,11 @@ var (
 		Help:      "Records the amount of time to poll and update the blocklist.",
 		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
 	})
+	metricBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "friggdb",
+		Name:      "blocklist_length",
+		Help:      "Total number of blocks per tenant.",
+	}, []string{"tenant"})
 )
 
 type Writer interface {
@@ -48,7 +53,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(tenantID string, id ID, out proto.Message) (EstimatedMetrics, bool, error)
+	Find(tenantID string, id ID) ([]byte, EstimatedMetrics, error)
 	Shutdown()
 }
 
@@ -149,7 +154,7 @@ func (rw *readerWriter) WAL() (WAL, error) {
 	})
 }
 
-func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (EstimatedMetrics, bool, error) {
+func (rw *readerWriter) Find(tenantID string, id ID) ([]byte, EstimatedMetrics, error) {
 	metrics := EstimatedMetrics{} // we are purposefully not locking when updating this struct.  that's why they are "estimated"
 
 	rw.blockListsMtx.Lock()
@@ -164,10 +169,10 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (Estimat
 	rw.blockListsMtx.Unlock()
 
 	if !found {
-		return metrics, false, fmt.Errorf("tenantID %s not found", tenantID)
+		return nil, metrics, fmt.Errorf("tenantID %s not found", tenantID)
 	}
 
-	msg, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) (proto.Message, error) {
+	foundBytes, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) ([]byte, error) {
 		meta := payload.(searchableBlockMeta)
 
 		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
@@ -205,10 +210,10 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (Estimat
 			return nil, err
 		}
 
-		found := false
-		err = iterateObjects(bytes.NewReader(objectBytes), out, func(foundID ID, msg proto.Message) (bool, error) {
-			if bytes.Equal(foundID, id) {
-				found = true
+		var foundObject []byte
+		err = iterateObjects(bytes.NewReader(objectBytes), func(iterID ID, iterObject []byte) (bool, error) {
+			if bytes.Equal(iterID, id) {
+				foundObject = iterObject
 				return false, nil
 			}
 
@@ -219,15 +224,10 @@ func (rw *readerWriter) Find(tenantID string, id ID, out proto.Message) (Estimat
 			return nil, err
 		}
 
-		if found {
-			return out, nil
-		}
-
-		return nil, nil
+		return foundObject, nil
 	})
 
-	out = msg
-	return metrics, msg != nil, err
+	return foundBytes, metrics, err
 }
 
 func (rw *readerWriter) Shutdown() {
@@ -262,24 +262,54 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 	}
 
 	for _, tenantID := range tenants {
-		blocklistsJSON, err := rw.r.Blocklist(tenantID)
+		blockIDs, err := rw.r.Blocks(tenantID)
 		if err != nil {
 			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
 		}
 
-		meta := &searchableBlockMeta{}
-		blocklist := make([]searchableBlockMeta, 0, len(blocklistsJSON))
-		for _, j := range blocklistsJSON {
-			err = json.Unmarshal(j, meta)
+		interfaceSlice := make([]interface{}, 0, len(blockIDs))
+		for _, id := range blockIDs {
+			interfaceSlice = append(interfaceSlice, id)
+		}
+
+		listMutex := sync.Mutex{}
+		blocklist := make([]searchableBlockMeta, 0, len(blockIDs))
+		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
+			blockID := payload.(uuid.UUID)
+			meta := &searchableBlockMeta{}
+
+			metaBytes, err := rw.r.BlockMeta(blockID, tenantID)
 			if err != nil {
 				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-				level.Error(rw.logger).Log("msg", "failed to unmarshal json blocklist", "tenantID", tenantID, "err", err)
-				continue
+				level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)
+				return nil, nil
 			}
 
+			err = json.Unmarshal(metaBytes, meta)
+			if err != nil {
+				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+				level.Error(rw.logger).Log("msg", "failed to unmarshal json blocklist", "tenantID", tenantID, "blockID", blockID, "err", err)
+				return nil, nil
+			}
+
+			// todo:  make this not terrible. this mutex is dumb we should be returning results with a channel. shoehorning this into the worker pool is silly.
+			//        make the worker pool more generic? and reusable in this case
+			listMutex.Lock()
 			blocklist = append(blocklist, *meta)
+			listMutex.Unlock()
+
+			return nil, nil
+		})
+
+		if err != nil {
+			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+			level.Error(rw.logger).Log("msg", "run blocklist jobs", "tenantID", tenantID, "err", err)
+			continue
 		}
+
+		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
+
 		rw.blockListsMtx.Lock()
 		rw.blockLists[tenantID] = blocklist
 		rw.blockListsMtx.Unlock()

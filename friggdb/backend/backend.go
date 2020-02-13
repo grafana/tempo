@@ -12,7 +12,8 @@ type Writer interface {
 
 type Reader interface {
 	Tenants() ([]string, error)
-	Blocklist(tenantID string) ([][]byte, error)
+	Blocks(tenantID string) ([]uuid.UUID, error)
+	BlockMeta(blockID uuid.UUID, tenantID string) ([]byte, error)
 	Bloom(blockID uuid.UUID, tenantID string) ([]byte, error)
 	Index(blockID uuid.UUID, tenantID string) ([]byte, error)
 	Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error)

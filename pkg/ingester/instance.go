@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -85,20 +86,12 @@ func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
 	return nil
 }
 
-// PushTrace is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushTrace(ctx context.Context, t *friggpb.Trace) error {
+// PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
+func (i *instance) PushBytes(ctx context.Context, id friggdb.ID, object []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
-	if len(t.Batches) == 0 {
-		return fmt.Errorf("invalid trace received with 0 batches")
-	}
-
-	if len(t.Batches[0].Spans) == 0 {
-		return fmt.Errorf("invalid batch received with 0 spans")
-	}
-
-	return i.headBlock.Write(t.Batches[0].Spans[0].TraceId, t)
+	return i.headBlock.Write(id, object)
 }
 
 // Moves any complete traces out of the map to complete traces
@@ -112,7 +105,12 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	now := time.Now()
 	for key, trace := range i.traces {
 		if now.Add(cutoff).After(trace.lastAppend) || immediate {
-			err := i.headBlock.Write(trace.traceID, trace.trace)
+			out, err := proto.Marshal(trace.trace)
+			if err != nil {
+				return err
+			}
+
+			err = i.headBlock.Write(trace.traceID, out)
 			if err != nil {
 				return err
 			}
@@ -202,23 +200,32 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
-	out := &friggpb.Trace{}
-
-	found, err := i.headBlock.Find(id, out)
+	foundBytes, err := i.headBlock.Find(id)
 	if err != nil {
 		return nil, err
 	}
-	if found {
+	if foundBytes != nil {
+		out := &friggpb.Trace{}
+
+		err = proto.Unmarshal(foundBytes, out)
+		if err != nil {
+			return nil, err
+		}
+
 		return out, nil
 	}
 
 	for _, c := range i.completeBlocks {
-		found, err = c.Find(id, out)
+		foundBytes, err = c.Find(id)
 		if err != nil {
 			return nil, err
 		}
-		if found {
-			return out, nil
+		if foundBytes != nil {
+			out := &friggpb.Trace{}
+			if err != nil {
+				return nil, err
+			}
+			return out, err
 		}
 	}
 
