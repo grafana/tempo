@@ -19,8 +19,8 @@ var (
 		Help:      "Time spent doing GCS requests.",
 
 		// GCS latency seems to range from a few ms to a few secs and is
-		// important.  So use 6 buckets from 5ms to 5s.
-		Buckets: prometheus.ExponentialBuckets(0.005, 4, 6),
+		// important.  So use 9 buckets from 5ms to 320s.
+		Buckets: prometheus.ExponentialBuckets(0.005, 4, 9),
 	}, []string{"operation", "status_code"})
 )
 
