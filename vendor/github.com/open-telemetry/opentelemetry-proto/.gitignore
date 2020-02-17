@@ -1,0 +1,19 @@
+# IntelliJ IDEA
+.idea
+*.iml
+
+# VS Code
+.vscode
+.classpath
+.project
+.settings/
+
+# OS X
+.DS_Store
+
+# Emacs
+*~
+\#*\#
+
+# Vim
+.swp

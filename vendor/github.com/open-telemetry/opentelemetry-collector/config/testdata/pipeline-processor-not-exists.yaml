@@ -1,0 +1,15 @@
+receivers:
+  multireceiver:
+exporters:
+  exampleexporter:
+processors:
+  exampleprocessor:
+service:
+  pipelines:
+    traces:
+      receivers:
+        - multireceiver
+      processors:
+        - nosuchprocessor
+      exporters:
+        - exampleexporter

@@ -1,0 +1,12 @@
+receivers:
+  multireceiver:
+exporters:
+  exampleexporter:
+processors:
+  exampleprocessor:
+service:
+  pipelines:
+    metrics:
+      receivers: [multireceiver]
+      exporters: [exampleexporter]
+      processors: [exampleprocessor]

@@ -1,0 +1,36 @@
+receivers:
+  opencensus:
+    endpoint: 0.0.0.0:55678
+  jaeger:
+    protocols:
+      thrift-http:
+        endpoint: "0.0.0.0:14268"
+
+
+exporters:
+  opencensus:
+    endpoint: "otel-collector:55678"
+  logging:
+    loglevel: debug
+
+processors:
+  batch:
+  queued_retry:
+
+extensions:
+  pprof:
+    endpoint: localhost:1777
+  zpages:
+    endpoint: localhost:55679
+  health_check:
+
+service:
+  extensions: [health_check, pprof, zpages]
+  pipelines:
+    traces:
+      receivers: [opencensus, jaeger]
+      exporters: [opencensus, logging]
+      processors: [batch, queued_retry]
+    metrics:
+      receivers: [opencensus]
+      exporters: [logging,opencensus]

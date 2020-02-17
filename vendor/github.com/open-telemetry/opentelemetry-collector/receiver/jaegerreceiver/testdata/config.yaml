@@ -1,0 +1,75 @@
+receivers:
+  # The following demonstrates specifying different endpoints.
+  # The Jaeger receiver connects to ports on all available network interfaces.
+  # Ex: `endpoint: "9876"` is incorrect.
+  # Ex: `endpoint: "1.2.3.4:9876"`  and ":9876" is correct.
+  jaeger/customname:
+    protocols:
+      grpc:
+        endpoint: "localhost:9876"
+      thrift-http:
+        endpoint: ":3456"
+      thrift-tchannel:
+        endpoint: "0.0.0.0:123"
+      thrift-compact:
+        endpoint: "0.0.0.0:456"
+      thrift-binary:
+        endpoint: "0.0.0.0:789"
+    remote_sampling:
+      fetch_endpoint: "jaeger-collector:1234"
+  # The following demonstrates how to enable protocols with defaults.
+  jaeger/defaults:
+    protocols:
+      grpc:
+      thrift-http:
+      thrift-tchannel:
+      thrift-compact:
+      thrift-binary:
+  # The following demonstrates only enabling certain protocols with defaults/overrides.
+  jaeger/mixed:
+    protocols:
+      grpc:
+        endpoint: "localhost:9876"
+      thrift-compact:
+  # The following demonstrates how to disable a protocol.  This particular config
+  # will not start any jaeger protocols.
+  jaeger/disabled:
+    protocols:
+      grpc:
+        disabled: true
+      thrift-http:
+        disabled: true
+      thrift-tchannel:
+        disabled: true
+      thrift-compact:
+        disabled: true
+      thrift-binary:
+        disabled: true
+  # The following demonstrates specifying different endpoints.
+  # The Jaeger receiver connects to ports on all available network interfaces.
+  # Ex: `endpoint: "9876"` is incorrect.
+  # Ex: `endpoint: "1.2.3.4:9876"`  and ":9876" is correct.
+  jaeger/tls:
+    protocols:
+      grpc:
+        tls_credentials:
+          cert_file: /test.crt
+          key_file: /test.key
+        endpoint: "localhost:9876"
+      thrift-http:
+        endpoint: ":3456"
+      thrift-tchannel:
+        endpoint: "0.0.0.0:123"
+
+processors:
+  exampleprocessor:
+
+exporters:
+  exampleexporter:
+
+service:
+  pipelines:
+    traces:
+     receivers: [jaeger/defaults]
+     processors: [exampleprocessor]
+     exporters: [exampleexporter]

@@ -1,0 +1,54 @@
+version: '2'
+
+services:
+    jaeger-collector:
+      image: jaegertracing/jaeger-collector
+      command: ["--es.num-shards=1", "--es.num-replicas=0", "--es.server-urls=http://elasticsearch:9200", "--collector.zipkin.http-port=9411"]
+      ports:
+        - "14269"
+        - "14268:14268"
+        - "14267"
+        - "14250"
+        - "9411:9411"
+      environment:
+        - SPAN_STORAGE_TYPE=elasticsearch
+        - LOG_LEVEL=debug
+      restart: on-failure
+      depends_on:
+        - elasticsearch
+
+    jaeger-query:
+      image: jaegertracing/jaeger-query
+      command: ["--es.num-shards=1", "--es.num-replicas=0", "--es.server-urls=http://elasticsearch:9200"]
+      ports:
+        - "16686:16686"
+        - "16687"
+      environment:
+        - SPAN_STORAGE_TYPE=elasticsearch
+        - LOG_LEVEL=debug
+      restart: on-failure
+      depends_on:
+        - elasticsearch
+
+    jaeger-agent:
+      image: jaegertracing/jaeger-agent
+      command: ["--reporter.grpc.host-port=jaeger-collector:14250", "--reporter.grpc.retry.max=1000"]
+      ports:
+        - "5775:5775/udp"
+        - "6831:6831/udp"
+        - "6832:6832/udp"
+        - "5778:5778"
+      environment:
+        - LOG_LEVEL=debug
+      restart: on-failure
+      depends_on:
+        - jaeger-collector
+
+    elasticsearch:
+      image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.8.3
+      environment:
+        - discovery.type=single-node
+      ports:
+        - "9200:9200/tcp"
+
+

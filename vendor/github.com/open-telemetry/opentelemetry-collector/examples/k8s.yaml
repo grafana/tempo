@@ -1,0 +1,223 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-agent-conf
+  labels:
+    app: opentelemetry
+    component: otel-agent-conf
+data:
+  otel-agent-config: |
+    receivers:
+      opencensus: {}
+#      jaeger: {}
+#      zipkin: {}
+    exporters:
+      opencensus:
+        endpoint: "otel-collector.default:55678" # TODO: Update me
+    processors:
+      queued_retry:
+        num_workers: 4
+        queue_size: 100
+        retry_on_failure: true
+    extensions:
+      zpages: {}
+    services:
+      extensions: [zpages]
+      pipelines:
+        traces:
+          receivers: [opencensus]
+          processors: [queued_retry]
+          exporters: [opencensus]
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: otel-agent
+  labels:
+    app: opentelemetry
+    component: otel-agent
+spec:
+  template:
+    metadata:
+      labels:
+        app: opentelemetry
+        component: otel-agent
+    spec:
+      containers:
+      - command:
+          - "/usr/bin/otelcol"
+          - "--config=/conf/otel-agent-config.yaml"
+        image: omnition/opentelemetry-collector:v0.2.0
+        name: otel-agent
+        resources:
+          limits:
+            cpu: 500m
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        ports:
+        - containerPort: 55678 # Default Opencensus receiver port.
+        - containerPort: 55679 # ZPages endpoint.
+#        - containerPort: 14267 # Default Jaeger TChannel port.
+#        - containerPort: 14268 # Default Jaeger HTTP receiver port.
+#        - containerPort: 9411 # Default Zipkin receiver port.
+        volumeMounts:
+        - name: otel-agent-config-vol
+          mountPath: /conf
+      volumes:
+        - configMap:
+            name: otel-agent-conf
+            items:
+              - key: otel-agent-config
+                path: otel-agent-config.yaml
+          name: otel-agent-config-vol
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-conf
+  labels:
+    app: opentelemetry
+    component: otel-collector-conf
+data:
+  otel-collector-config: |
+    receivers:
+      opencensus:
+# keepalive settings can help load balancing, see receiver/README.md for more info.
+        keepalive:
+          server_parameters:
+            max_connection_age: 120s
+            max_connection_age-grace: 30s
+      jaeger: {}
+      zipkin: {}
+    processors:
+      queued_retry:
+        num_workers: 16
+        queue_size: 10000
+        retry_on_failure: true
+      batch:
+        send_batch_size: 1024
+        timeout: 5s
+    extensions:
+      health_check: {}
+    exporters:
+      opencensus:
+        compression: "gzip"
+        endpoint: "someopencensus.target.com:443" # Replace with a real endpoint.
+        num_workers: 8
+        reconnection_delay: 2s
+        secure: true
+      zipkin:
+        url: "http://somezipkin.target.com:9411/api/v2/spans" # Replace with a real endpoint.
+      jaeger_grpc:
+        endpoint: "somejaegergrpc.target.com:55678" # Replace with a real endpoint.
+    services:
+      extensions: [health_check]
+      pipelines:
+        traces/1:
+          receivers: [opencensus, zipkin]
+          processors: [batch, queued_retry]
+          exporters: [opencensus, zipkin]
+        traces/2:
+          receivers: [opencensus, jaeger]
+          processors: [batch, queued_retry]
+          exporters: [jaeger_grpc]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  labels:
+    app: opencesus
+    component: otel-collector
+spec:
+  ports:
+  - name: opencensus # Default endpoint for Opencensus receiver.
+    port: 55678
+    protocol: TCP
+    targetPort: 55678
+  - name: jaeger_tchannel  # Default endpoint for Jaeger TChannel receiver.
+    port: 14267
+  - name: jaeger_thrift_http # Default endpoint for Jaeger HTTP receiver.
+    port: 14268
+  - name: zipkin # Default endpoint for Zipkin receiver.
+    port: 9411
+  - name: metrics # Default endpoint for querying metrics.
+    port: 8888
+  selector:
+    component: otel-collector
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels:
+    app: opentelemetry
+    component: otel-collector
+spec:
+  minReadySeconds: 5
+  progressDeadlineSeconds: 120
+  replicas: 1 #TODO - adjust this to your own requirements
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8888"
+        prometheus.io/scrape: "true"
+      labels:
+        app: opentelemetry
+        component: otel-collector
+    spec:
+      containers:
+      - command:
+          - "/usr/bin/otelcol"
+          - "--config=/conf/otel-collector-config.yaml"
+#           Memory Ballast size should be max 1/3 to 1/2 of memory.
+          - "--mem-ballast-size-mib=683"
+        env:
+        - name: GOGC
+          value: "80"
+        image: omnition/opentelemetry-collector:v0.2.0
+        name: otel-collector
+        resources:
+          limits:
+            cpu: 1
+            memory: 2Gi
+          requests:
+            cpu: 200m
+            memory: 400Mi
+        ports:
+        - containerPort: 55678 # Default endpoint for Opencensus receiver.
+        - containerPort: 14267 # Default endpoint for Jaeger TChannel receiver.
+        - containerPort: 14268 # Default endpoint for Jaeger HTTP receiver.
+        - containerPort: 9411 # Default endpoint for Zipkin receiver.
+        - containerPort: 8888  # Default endpoint for querying metrics.
+        volumeMounts:
+        - name: otel-collector-config-vol
+          mountPath: /conf
+#        - name: otel-collector-secrets
+#          mountPath: /secrets
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 13133 # Health Check extension default port.
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 13133 # Health Check extension default port.
+      volumes:
+        - configMap:
+            name: otel-collector-conf
+            items:
+              - key: otel-collector-config
+                path: otel-collector-config.yaml
+          name: otel-collector-config-vol
+#        - secret:
+#            name: otel-collector-secrets
+#            items:
+#              - key: cert.pem
+#                path: cert.pem
+#              - key: key.pem
+#                path: key.pem

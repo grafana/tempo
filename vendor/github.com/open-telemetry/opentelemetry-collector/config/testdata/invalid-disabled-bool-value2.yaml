@@ -1,0 +1,13 @@
+receivers:
+  examplereceiver:
+    disabled: "string for bool"
+exporters:
+  exampleexporter:
+processors:
+  exampleprocessor:
+service:
+  pipelines:
+    traces:
+      receivers: [examplereceiver]
+      exporters: [exampleexporter]
+      processors: [exampleprocessor]

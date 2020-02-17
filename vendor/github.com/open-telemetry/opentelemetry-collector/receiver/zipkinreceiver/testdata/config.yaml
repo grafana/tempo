@@ -1,0 +1,18 @@
+receivers:
+  zipkin:
+  zipkin/customname:
+    endpoint: "localhost:8765"
+
+processors:
+  exampleprocessor:
+
+exporters:
+  exampleexporter:
+
+service:
+  pipelines:
+    traces:
+     receivers: [zipkin]
+     processors: [exampleprocessor]
+     exporters: [exampleexporter]
+

@@ -1,0 +1,21 @@
+receivers:
+  examplereceiver:
+
+processors:
+  batch:
+  batch/2:
+    timeout: 10s
+    send_batch_size: 1000
+    num_tickers: 10
+    tick_time: 5s
+    remove_after_ticks: 20
+
+exporters:
+  exampleexporter:
+
+service:
+  pipelines:
+    traces:
+      receivers: [examplereceiver]
+      processors: [batch/2]
+      exporters: [exampleexporter]

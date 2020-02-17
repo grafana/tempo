@@ -1,0 +1,14 @@
+receivers:
+  examplereceiver:
+exporters:
+  exampleexporter:
+processors:
+  exampleprocessor:
+service:
+  pipelines:
+    traces:
+      receivers:
+        examplereceiver:
+          some: config
+      exporters: [exampleexporter]
+      processors: [exampleprocessor]

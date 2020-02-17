@@ -1,0 +1,40 @@
+receivers:
+  examplereceiver:
+  examplereceiver/2:
+  examplereceiver/3:
+  examplereceiver/multi:
+
+processors:
+  attributes:
+    actions:
+      - key: attr1
+        value: 12345
+        action: insert
+
+exporters:
+  exampleexporter:
+  exampleexporter/2:
+
+service:
+  pipelines:
+    traces:
+      receivers: [examplereceiver, examplereceiver/multi]
+      processors: [attributes]
+      exporters: [exampleexporter]
+
+    traces/2:
+      receivers: [examplereceiver/2, examplereceiver/multi]
+      processors: [attributes]
+      exporters: [exampleexporter, exampleexporter/2]
+
+    metrics:
+      receivers: [examplereceiver]
+      exporters: [exampleexporter]
+
+    metrics/2:
+      receivers: [examplereceiver/3]
+      exporters: [exampleexporter]
+
+    metrics/3:
+      receivers: [examplereceiver/3]
+      exporters: [exampleexporter/2]

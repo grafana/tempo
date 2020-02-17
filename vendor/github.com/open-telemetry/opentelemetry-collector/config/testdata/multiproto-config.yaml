@@ -1,0 +1,28 @@
+receivers:
+  multireceiver:
+  multireceiver/myreceiver:
+    protocols:
+      http:
+        endpoint: "localhost:12345"
+        extra: "some string 1"
+      tcp:
+        endpoint: "0.0.0.0:4567"
+        extra: "some string 2"
+
+processors:
+  exampleprocessor:
+    disabled: true
+
+exporters:
+  exampleexporter:
+    extra: "locahost:1010"
+
+service:
+  pipelines:
+    traces:
+        receivers: [multireceiver/myreceiver]
+        processors: [exampleprocessor]
+        exporters: [exampleexporter]
+    metrics:
+        receivers: [multireceiver/myreceiver]
+        exporters: [exampleexporter]

@@ -1,0 +1,127 @@
+{
+  "spans": [
+    {
+      "traceId": "AAAAAAAAAAAAAAAAAAAAEQ==",
+      "spanId": "AAAAAAAAAAM=",
+      "operationName": "example-operation-1",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": "100000ns",
+      "tags": [],
+      "process": {
+        "serviceName": "example-service-1",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    },
+    {
+      "traceId": "AAAAAAAAAAAAAAAAAAAAEQ==",
+      "spanId": "AAAAAAAAAAQ=",
+      "operationName": "example-operation-2",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": "100000ns",
+      "tags": [],
+      "process": {
+        "serviceName": "example-service-2",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    },
+    {
+      "traceId": "AAAAAAAAAAAAAAAAAAAAEQ==",
+      "spanId": "AAAAAAAAAAU=",
+      "operationName": "example-operation-1",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": "100000ns",
+      "tags": [],
+      "process": {
+        "serviceName": "example-service-3",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    },
+    {
+      "traceId": "AAAAAAAAAAAAAAAAAAAAEQ==",
+      "spanId": "AAAAAAAAAAY=",
+      "operationName": "example-operation-3",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": "100000ns",
+      "tags": [{
+        "key": "span.kind",
+        "vType": "STRING",
+        "vStr": "server"
+      }],
+      "process": {
+        "serviceName": "example-service-1",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    },
+    {
+      "traceId": "AAAAAAAAAAAAAAAAAAAAEQ==",
+      "spanId": "AAAAAAAAAAc=",
+      "operationName": "example-operation-4",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": "100000ns",
+      "tags": [{
+        "key": "span.kind",
+        "vType": "STRING",
+        "vStr": "client"
+      }],
+      "process": {
+        "serviceName": "example-service-1",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    }
+  ]
+}
