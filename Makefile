@@ -69,7 +69,6 @@ endif
 .PHONY: vendor
 vendor:
 	vend -package
-	go mod tidy
 
 .PHONY: install-tools
 install-tools:
