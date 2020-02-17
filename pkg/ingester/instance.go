@@ -222,6 +222,8 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 		}
 		if foundBytes != nil {
 			out := &friggpb.Trace{}
+
+			err = proto.Unmarshal(foundBytes, out)
 			if err != nil {
 				return nil, err
 			}
