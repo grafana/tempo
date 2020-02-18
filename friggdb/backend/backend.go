@@ -20,3 +20,9 @@ type Reader interface {
 
 	Shutdown()
 }
+
+type Compactor interface {
+	MarkBlockCompacted(blockID uuid.UUID, tenantID string) error
+	ClearBlock(blockID uuid.UUID, tenantID string) error
+	CompactedBlocks(tenantID string) ([]uuid.UUID, error)
+}
