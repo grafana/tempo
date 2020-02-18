@@ -97,7 +97,7 @@ func (c *compactorBlock) index() ([]byte, error) {
 			currentRecord.Length += r.Length
 		}
 
-		// if this is the last record to be included by hte downsample config OR is simply the last record
+		// if this is the last record to be included by the downsample config OR is simply the last record
 		if i%c.cfg.indexDownsample == c.cfg.indexDownsample-1 || i == len(c.h.records)-1 {
 			currentRecord.ID = r.ID
 			downsampledRecords = append(downsampledRecords, currentRecord)

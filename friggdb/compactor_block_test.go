@@ -26,7 +26,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 
 	walCfg := &walConfig{
 		workFilepath:    tempDir,
-		indexDownsample: 2,
+		indexDownsample: 3,
 		bloomFP:         .01,
 	}
 
@@ -94,9 +94,15 @@ func TestCompactorBlockWrite(t *testing.T) {
 	assert.NoError(t, err)
 
 	bloom := bloom.JSONUnmarshal(bloomBytes)
-
 	for _, id := range ids {
 		has := bloom.Has(farm.Fingerprint64(id))
 		assert.True(t, has)
 	}
+
+	// index
+	indexBytes, err := cb.index()
+	assert.NoError(t, err)
+
+	_, err = unmarshalRecords(indexBytes)
+	assert.NoError(t, err)
 }
