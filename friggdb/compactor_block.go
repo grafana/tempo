@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	bloom "github.com/dgraph-io/ristretto/z"
+	"github.com/dgryski/go-farm"
 	"github.com/google/uuid"
 )
 
@@ -62,8 +64,20 @@ func (c *compactorBlock) meta() ([]byte, error) {
 	return json.Marshal(meta)
 }
 
-func (c *compactorBlock) bloom() []byte {
-	return c.h.bloom.JSONMarshal()
+func (c *compactorBlock) bloom() ([]byte, error) {
+	length := c.length()
+	if length == 0 {
+		return nil, fmt.Errorf("cannot create bloom without records")
+	}
+
+	b := bloom.NewBloomFilter(float64(length), c.cfg.bloomFP)
+
+	// add all ids
+	for _, r := range c.h.records {
+		b.Add(farm.Fingerprint64(r.ID))
+	}
+
+	return b.JSONMarshal(), nil
 }
 
 func (c *compactorBlock) index() ([]byte, error) {

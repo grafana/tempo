@@ -129,7 +129,12 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 				return err
 			}
 
-			err = c.w.Write(context.TODO(), currentBlock.id(), tenantID, currentMeta, currentBlock.bloom(), currentIndex, currentBlock.objectFilePath())
+			currentBloom, err := currentBlock.bloom()
+			if err != nil {
+				return err
+			}
+
+			err = c.w.Write(context.TODO(), currentBlock.id(), tenantID, currentMeta, currentBloom, currentIndex, currentBlock.objectFilePath())
 			if err != nil {
 				return err
 			}

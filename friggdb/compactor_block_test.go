@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	bloom "github.com/dgraph-io/ristretto/z"
+	"github.com/dgryski/go-farm"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,6 +27,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 	walCfg := &walConfig{
 		workFilepath:    tempDir,
 		indexDownsample: 2,
+		bloomFP:         .01,
 	}
 
 	metas := []*blockMeta{
@@ -43,9 +46,11 @@ func TestCompactorBlockWrite(t *testing.T) {
 
 	var minID ID
 	var maxID ID
+
+	numObjects := (rand.Int() % 20) + 1
 	ids := make([][]byte, 0)
 	objects := make([][]byte, 0)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < numObjects; i++ {
 		id := make([]byte, 16)
 		_, err = rand.Read(id)
 		assert.NoError(t, err)
@@ -68,6 +73,8 @@ func TestCompactorBlockWrite(t *testing.T) {
 		}
 	}
 
+	assert.Equal(t, numObjects, cb.length())
+
 	// test meta
 	metaBytes, err := cb.meta()
 	assert.NoError(t, err)
@@ -81,4 +88,15 @@ func TestCompactorBlockWrite(t *testing.T) {
 	assert.Equal(t, minID, meta.MinID)
 	assert.Equal(t, maxID, meta.MaxID)
 	assert.Equal(t, testTenantID, meta.TenantID)
+
+	// bloom
+	bloomBytes, err := cb.bloom()
+	assert.NoError(t, err)
+
+	bloom := bloom.JSONUnmarshal(bloomBytes)
+
+	for _, id := range ids {
+		has := bloom.Has(farm.Fingerprint64(id))
+		assert.True(t, has)
+	}
 }
