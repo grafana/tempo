@@ -20,13 +20,3 @@ func (b *bookmark) clearObject() {
 	b.currentID = nil
 	b.currentObject = nil
 }
-
-func allDone(bookmarks []*bookmark) bool {
-	for _, b := range bookmarks {
-		if !b.done() {
-			return false
-		}
-	}
-
-	return true
-}

@@ -35,6 +35,7 @@ require (
 	google.golang.org/api v0.11.0
 	google.golang.org/grpc v1.25.1
 	gopkg.in/yaml.v2 v2.2.5
+	gotest.tools v2.2.0+incompatible
 )
 
 replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.2.0+incompatible

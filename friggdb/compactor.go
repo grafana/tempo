@@ -163,6 +163,7 @@ func (c *compactor) nextObject(b *bookmark, tenantID string) ([]byte, []byte, er
 	var err error
 
 	// if no objects, pull objects
+
 	if len(b.objects) == 0 {
 		// if no index left, EOF
 		if len(b.index) == 0 {
@@ -209,4 +210,14 @@ func (c *compactor) nextObject(b *bookmark, tenantID string) ([]byte, []byte, er
 	b.objects = b.objects[bytesRead:]
 
 	return id, object, nil
+}
+
+func allDone(bookmarks []*bookmark) bool {
+	for _, b := range bookmarks {
+		if !b.done() {
+			return false
+		}
+	}
+
+	return true
 }
