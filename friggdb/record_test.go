@@ -13,7 +13,7 @@ func TestEncodeDecodeRecord(t *testing.T) {
 	assert.NoError(t, err, "unexpected error making trace record")
 
 	actual := newRecord()
-	buff := make([]byte, 28)
+	buff := make([]byte, recordLength)
 
 	marshalRecord(expected, buff)
 	unmarshalRecord(buff, actual)

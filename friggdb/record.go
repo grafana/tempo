@@ -9,6 +9,8 @@ import (
 	"github.com/grafana/frigg/pkg/util/validation"
 )
 
+const recordLength = 28 // 28 = 128 bit ID, 64bit start, 32bit length
+
 type ID []byte
 
 type Record struct {
@@ -44,13 +46,13 @@ func (t *recordSorter) Swap(i, j int) {
 
 // todo: move encoding/decoding to a separate util area?  is the index too large?  need an io.Reader?
 func marshalRecords(records []*Record) ([]byte, error) {
-	recordBytes := make([]byte, len(records)*28) // 28 = 128 bit ID, 64bit start, 32bit length
+	recordBytes := make([]byte, len(records)*recordLength)
 
 	for i, r := range records {
-		buff := recordBytes[i*28 : (i+1)*28]
+		buff := recordBytes[i*recordLength : (i+1)*recordLength]
 
 		if !validation.ValidTraceID(r.ID) { // todo: remove this check.  maybe have a max id size of 128 bits?
-			return nil, fmt.Errorf("Trace Ids must be 128 bit")
+			return nil, fmt.Errorf("Ids must be 128 bit")
 		}
 
 		marshalRecord(r, buff)
@@ -60,16 +62,16 @@ func marshalRecords(records []*Record) ([]byte, error) {
 }
 
 func unmarshalRecords(recordBytes []byte) ([]*Record, error) {
-	mod := len(recordBytes) % 28
+	mod := len(recordBytes) % recordLength
 	if mod != 0 {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
 	}
 
-	numRecords := len(recordBytes) / 28
+	numRecords := len(recordBytes) / recordLength
 	records := make([]*Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
-		buff := recordBytes[i*28 : (i+1)*28]
+		buff := recordBytes[i*recordLength : (i+1)*recordLength]
 
 		r := newRecord()
 		unmarshalRecord(buff, r)
@@ -82,23 +84,23 @@ func unmarshalRecords(recordBytes []byte) ([]*Record, error) {
 
 // binary search the bytes.  records are not compressed and ordered
 func findRecord(id ID, recordBytes []byte) (*Record, error) {
-	mod := len(recordBytes) % 28
+	mod := len(recordBytes) % recordLength
 	if mod != 0 {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
 	}
 
-	numRecords := len(recordBytes) / 28
+	numRecords := len(recordBytes) / recordLength
 	record := newRecord()
 
 	i := sort.Search(numRecords, func(i int) bool {
-		buff := recordBytes[i*28 : (i+1)*28]
+		buff := recordBytes[i*recordLength : (i+1)*recordLength]
 		unmarshalRecord(buff, record)
 
 		return bytes.Compare(record.ID, id) >= 0
 	})
 
 	if i >= 0 && i < numRecords {
-		buff := recordBytes[i*28 : (i+1)*28]
+		buff := recordBytes[i*recordLength : (i+1)*recordLength]
 		unmarshalRecord(buff, record)
 
 		return record, nil
