@@ -95,10 +95,18 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 }
 
 func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
+	return newBlock(id, tenantID, w.c.filepath)
+}
+
+func (w *wal) config() *walConfig {
+	return w.c
+}
+
+func newBlock(id uuid.UUID, tenantID string, filepath string) (*headBlock, error) {
 	h := &headBlock{
 		completeBlock: completeBlock{
 			meta:     newBlockMeta(tenantID, id),
-			filepath: w.c.filepath,
+			filepath: filepath,
 		},
 	}
 
@@ -109,10 +117,6 @@ func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
 	}
 
 	return h, nil
-}
-
-func (w *wal) config() *walConfig {
-	return w.c
 }
 
 func parseFilename(name string) (uuid.UUID, string, error) {

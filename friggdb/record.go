@@ -67,7 +67,7 @@ func unmarshalRecords(recordBytes []byte) ([]*Record, error) {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
 	}
 
-	numRecords := len(recordBytes) / recordLength
+	numRecords := recordCount(recordBytes)
 	records := make([]*Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
@@ -89,7 +89,7 @@ func findRecord(id ID, recordBytes []byte) (*Record, error) {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
 	}
 
-	numRecords := len(recordBytes) / recordLength
+	numRecords := recordCount(recordBytes)
 	record := newRecord()
 
 	i := sort.Search(numRecords, func(i int) bool {
@@ -107,6 +107,10 @@ func findRecord(id ID, recordBytes []byte) (*Record, error) {
 	}
 
 	return nil, nil
+}
+
+func recordCount(b []byte) int {
+	return len(b) / recordLength
 }
 
 func marshalRecord(r *Record, buff []byte) {

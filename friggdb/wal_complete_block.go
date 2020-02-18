@@ -44,7 +44,7 @@ type CompleteBlock interface {
 	blockMeta() *blockMeta
 	bloomFilter() *bloom.Bloom
 	blockWroteSuccessfully(t time.Time)
-	writeInfo() (blockID uuid.UUID, tenantID string, records []*Record, filepath string) // todo:  i hate this method.  do something better
+	writeInfo() (blockID uuid.UUID, tenantID string, records []*Record, filepath string) // todo:  i hate this method.  do something better.
 }
 
 func (c *completeBlock) TenantID() string {
