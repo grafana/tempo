@@ -17,7 +17,7 @@ func TestCompactor(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	r, w, err := New(&Config{
+	_, _, err = New(&Config{
 		Backend: "local",
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
