@@ -26,7 +26,7 @@ type compactor struct {
 	w backend.Writer
 }
 
-func newCompactor(cfg *compactorConfig, r backend.Reader, w backend.Writer, walCfg *walConfig) *compactor {
+func newCompactor(cfg *compactorConfig, walCfg *walConfig, r backend.Reader, w backend.Writer) *compactor {
 	return &compactor{
 		cfg:    cfg,
 		r:      r,
