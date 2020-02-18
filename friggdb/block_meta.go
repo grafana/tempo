@@ -16,10 +16,9 @@ type searchableBlockMeta struct {
 
 type blockMeta struct {
 	searchableBlockMeta
-	TenantID     string    `json:"tenantID"`
-	StartTime    time.Time `json:"startTime"`
-	EndTime      time.Time `json:"endTime"`
-	CreationTime time.Time `json:"creationTime"`
+	TenantID  string    `json:"tenantID"`
+	StartTime time.Time `json:"startTime"`
+	EndTime   time.Time `json:"endTime"`
 }
 
 func newBlockMeta(tenantID string, blockID uuid.UUID) *blockMeta {
@@ -31,10 +30,9 @@ func newBlockMeta(tenantID string, blockID uuid.UUID) *blockMeta {
 			MinID:   []byte{},
 			MaxID:   []byte{},
 		},
-		TenantID:     tenantID,
-		StartTime:    now,
-		EndTime:      now,
-		CreationTime: now,
+		TenantID:  tenantID,
+		StartTime: now,
+		EndTime:   now,
 	}
 
 	return b

@@ -24,5 +24,5 @@ type Reader interface {
 type Compactor interface {
 	MarkBlockCompacted(blockID uuid.UUID, tenantID string) error
 	ClearBlock(blockID uuid.UUID, tenantID string) error
-	CompactedBlocks(tenantID string) ([]uuid.UUID, error)
+	CompactedBlockMeta(blockID uuid.UUID, tenantID string) ([]byte, error)
 }

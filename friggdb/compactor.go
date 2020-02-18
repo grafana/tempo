@@ -86,8 +86,9 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 				return err
 			}
 
-			// todo:  right now if we run into equal ids we take the larger object in the hopes that it's a more complete trace or something.
-			//   in the future add a callback or something that allows the owning application to make a choice or attempt to combine the traces or something
+			// todo:  right now if we run into equal ids we take the larger object in the hopes that it's a more complete trace.
+			//   in the future add a callback or something that allows the owning application to make a more intelligent choice
+			//   such as combining traces if they're both incomplete
 			if bytes.Equal(currentID, lowestID) {
 				if len(currentObject) > len(lowestObject) {
 					lowestID = currentID
