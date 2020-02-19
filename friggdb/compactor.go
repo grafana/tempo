@@ -21,6 +21,16 @@ const (
 	chunkSizeBytes = 1024 * 1024 * 10
 )
 
+func (rw *readerWriter) doCompactionThings() {
+	// stop crazy jobs currently doing compaction
+
+	// wait
+
+	// start crazy jobs to do compaction with new list
+
+	// iterate through compacted list looking for blocks to clear
+}
+
 func (rw *readerWriter) blocksToCompact(tenantID string) []*encoding.BlockMeta {
 	return nil
 }

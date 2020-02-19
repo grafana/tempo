@@ -44,7 +44,7 @@ type Pool struct {
 	cfg  *Config
 	size *atomic.Int32
 
-	workQueue chan *job
+	workQueue chan interface{}
 	stopCh    chan struct{}
 }
 
@@ -53,7 +53,7 @@ func NewPool(cfg *Config) *Pool {
 		cfg = defaultConfig()
 	}
 
-	q := make(chan *job, cfg.QueueDepth)
+	q := make(chan interface{}, cfg.QueueDepth)
 	p := &Pool{
 		cfg:       cfg,
 		workQueue: q,
@@ -127,38 +127,26 @@ func (p *Pool) Shutdown() {
 	close(p.stopCh)
 }
 
-func (p *Pool) worker(j <-chan *job) {
+func (p *Pool) worker(j <-chan interface{}) {
 	for {
 		select {
 		case <-p.stopCh:
 			return
-		case job, ok := <-j:
+		case j, ok := <-j:
 			if !ok {
 				return
 			}
 
-			p.size.Dec()
-
-			select {
-			case <-job.stopCh:
-				job.wg.Done()
-				continue
+			switch typedJob := j.(type) {
+			case *stoppableJob:
+				runStoppableJob(typedJob)
+			case *job:
+				runJob(typedJob)
 			default:
-				msg, err := job.fn(job.payload)
-
-				if msg != nil {
-					select {
-					case job.resultsCh <- msg:
-						// not signalling done here to dodge race condition between results chan and done
-						continue
-					default:
-					}
-				}
-				if err != nil {
-					job.err.Store(err)
-				}
-				job.wg.Done()
+				panic("unexpected job type")
 			}
+
+			p.size.Dec()
 		}
 	}
 }
@@ -176,6 +164,29 @@ func (p *Pool) reportQueueLength() {
 			}
 		}
 	}()
+}
+
+func runJob(job *job) {
+	select {
+	case <-job.stopCh:
+		job.wg.Done()
+		return
+	default:
+		msg, err := job.fn(job.payload)
+
+		if msg != nil {
+			select {
+			case job.resultsCh <- msg:
+				// not signalling done here to dodge race condition between results chan and done
+				return
+			default:
+			}
+		}
+		if err != nil {
+			job.err.Store(err)
+		}
+		job.wg.Done()
+	}
 }
 
 // default is concurrency disabled
