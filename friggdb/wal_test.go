@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dgryski/go-farm"
+	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util/test"
 )
@@ -99,7 +100,7 @@ func TestIterator(t *testing.T) {
 	}
 
 	i := 0
-	err = block.(*headBlock).Iterator(func(id ID, msg []byte) (bool, error) {
+	err = block.(*headBlock).Iterator(func(id encoding.ID, msg []byte) (bool, error) {
 		req := &friggpb.PushRequest{}
 		err = proto.Unmarshal(msg, req)
 		assert.NoError(t, err)
@@ -171,7 +172,7 @@ func TestCompleteBlock(t *testing.T) {
 	}
 
 	// confirm order
-	var prev *Record
+	var prev *encoding.Record
 	for _, r := range complete.(*headBlock).records {
 		if prev != nil {
 			assert.Greater(t, r.Start, prev.Start)

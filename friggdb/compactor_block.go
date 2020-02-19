@@ -7,6 +7,7 @@ import (
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
 	"github.com/google/uuid"
+	"github.com/grafana/frigg/friggdb/encoding"
 )
 
 // compactor block wraps a headblock to facilitate compaction.  it primarily needs the headblock
@@ -15,12 +16,12 @@ import (
 //   split this functionality entirely
 type compactorBlock struct {
 	h     *headBlock
-	metas []*blockMeta
+	metas []*encoding.BlockMeta
 
 	cfg *walConfig // todo: these config elements are being used by more than the wal, change their location?
 }
 
-func newCompactorBlock(tenantID string, cfg *walConfig, metas []*blockMeta) (*compactorBlock, error) {
+func newCompactorBlock(tenantID string, cfg *walConfig, metas []*encoding.BlockMeta) (*compactorBlock, error) {
 	h, err := newBlock(uuid.New(), tenantID, cfg.workFilepath)
 	if err != nil {
 		return nil, err
@@ -37,7 +38,7 @@ func newCompactorBlock(tenantID string, cfg *walConfig, metas []*blockMeta) (*co
 	}, nil
 }
 
-func (c *compactorBlock) write(id ID, object []byte) error {
+func (c *compactorBlock) write(id encoding.ID, object []byte) error {
 	return c.h.Write(id, object)
 }
 
@@ -82,13 +83,13 @@ func (c *compactorBlock) bloom() ([]byte, error) {
 
 func (c *compactorBlock) index() ([]byte, error) {
 	numRecords := (len(c.h.records) / c.cfg.indexDownsample) + 1
-	downsampledRecords := make([]*Record, 0, numRecords)
+	downsampledRecords := make([]*encoding.Record, 0, numRecords)
 	// downsample index and then marshal
-	var currentRecord *Record
+	var currentRecord *encoding.Record
 	for i, r := range c.h.records {
 		// start or continue working on a record
 		if currentRecord == nil {
-			currentRecord = &Record{
+			currentRecord = &encoding.Record{
 				ID:     r.ID,
 				Start:  r.Start,
 				Length: r.Length,
@@ -105,7 +106,7 @@ func (c *compactorBlock) index() ([]byte, error) {
 		}
 	}
 
-	return marshalRecords(downsampledRecords)
+	return encoding.MarshalRecords(downsampledRecords)
 }
 
 func (c *compactorBlock) length() int {

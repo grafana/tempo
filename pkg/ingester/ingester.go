@@ -18,6 +18,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 
 	"github.com/grafana/frigg/friggdb"
+	friggdb_encoding "github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
 	"github.com/grafana/frigg/pkg/storage"
@@ -277,7 +278,7 @@ func (i *Ingester) replayWal() error {
 	}
 
 	for _, b := range blocks {
-		err = b.Iterator(func(id friggdb.ID, object []byte) (bool, error) {
+		err = b.Iterator(func(id friggdb_encoding.ID, object []byte) (bool, error) {
 			tenantID := b.TenantID()
 			instance, err := i.getOrCreateInstance(tenantID)
 			if err != nil {

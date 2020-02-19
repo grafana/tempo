@@ -1,4 +1,4 @@
-package friggdb
+package encoding
 
 import (
 	"encoding/binary"
@@ -6,12 +6,16 @@ import (
 	"io"
 )
 
+const (
+	uint32Size = 4
+)
+
 /*
 	|          -- totalLength --                   |
 	| total length | id length | id | object bytes |
 */
 
-func marshalObjectToWriter(id ID, b []byte, w io.Writer) (int, error) {
+func MarshalObjectToWriter(id ID, b []byte, w io.Writer) (int, error) {
 	idLength := len(id)
 	totalLength := len(b) + idLength + uint32Size*2
 
@@ -36,7 +40,7 @@ func marshalObjectToWriter(id ID, b []byte, w io.Writer) (int, error) {
 	return totalLength, err
 }
 
-func unmarshalObjectFromReader(r io.Reader) (ID, []byte, error) {
+func UnmarshalObjectFromReader(r io.Reader) (ID, []byte, error) {
 	var totalLength uint32
 	err := binary.Read(r, binary.LittleEndian, &totalLength)
 	if err == io.EOF {

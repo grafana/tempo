@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/friggdb/encoding"
 )
 
 type compactorConfig struct {
@@ -45,7 +46,7 @@ func (c *compactor) blocksToCompact(tenantID string) []uuid.UUID {
 func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 	var err error
 	bookmarks := make([]*bookmark, 0, len(ids))
-	blockMetas := make([]*blockMeta, 0, len(ids))
+	blockMetas := make([]*encoding.BlockMeta, 0, len(ids))
 
 	totalRecords := 0
 	for _, id := range ids {
@@ -54,7 +55,7 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 			return err
 		}
 
-		totalRecords += recordCount(index)
+		totalRecords += encoding.RecordCount(index)
 		bookmarks = append(bookmarks, &bookmark{
 			id:    id,
 			index: index,
@@ -65,7 +66,7 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 			return err
 		}
 
-		meta := &blockMeta{}
+		meta := &encoding.BlockMeta{}
 		err = json.Unmarshal(metaBytes, meta)
 		if err != nil {
 			return err
@@ -187,22 +188,19 @@ func (c *compactor) nextObject(b *bookmark, tenantID string) ([]byte, []byte, er
 		}
 
 		// pull next n bytes into objects
-		rec := &Record{}
+		rec := &encoding.Record{}
 
 		var start uint64
 		var length uint32
 
 		start = math.MaxUint64
 		for length < c.cfg.BytesAtOnce {
-			buff := b.index[:recordLength]
-			marshalRecord(rec, buff)
+			b.index = encoding.MarshalRecordAndAdvance(rec, b.index)
 
 			if start == math.MaxUint64 {
 				start = rec.Start
 			}
 			length += rec.Length
-
-			b.index = b.index[recordLength:]
 		}
 
 		b.objects, err = c.r.Object(b.id, tenantID, start, length)
@@ -213,7 +211,7 @@ func (c *compactor) nextObject(b *bookmark, tenantID string) ([]byte, []byte, er
 
 	// attempt to get next object from objects
 	objectReader := bytes.NewReader(b.objects)
-	id, object, err := unmarshalObjectFromReader(objectReader)
+	id, object, err := encoding.UnmarshalObjectFromReader(objectReader)
 	if err != nil {
 		return nil, nil, err
 	}

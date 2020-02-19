@@ -1,4 +1,4 @@
-package friggdb
+package encoding
 
 import (
 	"bytes"
@@ -7,24 +7,24 @@ import (
 	"github.com/google/uuid"
 )
 
-type searchableBlockMeta struct {
+type SearchableBlockMeta struct {
 	Version string    `json:"format"`
 	BlockID uuid.UUID `json:"blockID"`
 	MinID   ID        `json:"minID"`
 	MaxID   ID        `json:"maxID"`
 }
 
-type blockMeta struct {
-	searchableBlockMeta
+type BlockMeta struct {
+	SearchableBlockMeta
 	TenantID  string    `json:"tenantID"`
 	StartTime time.Time `json:"startTime"`
 	EndTime   time.Time `json:"endTime"`
 }
 
-func newBlockMeta(tenantID string, blockID uuid.UUID) *blockMeta {
+func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
 	now := time.Now()
-	b := &blockMeta{
-		searchableBlockMeta: searchableBlockMeta{
+	b := &BlockMeta{
+		SearchableBlockMeta: SearchableBlockMeta{
 			Version: "v0",
 			BlockID: blockID,
 			MinID:   []byte{},
@@ -38,7 +38,7 @@ func newBlockMeta(tenantID string, blockID uuid.UUID) *blockMeta {
 	return b
 }
 
-func (b *blockMeta) objectAdded(id ID) {
+func (b *BlockMeta) ObjectAdded(id ID) {
 	b.EndTime = time.Now()
 
 	if len(b.MinID) == 0 || bytes.Compare(id, b.MinID) == -1 {

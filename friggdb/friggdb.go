@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/frigg/friggdb/backend/cache"
 	"github.com/grafana/frigg/friggdb/backend/gcs"
 	"github.com/grafana/frigg/friggdb/backend/local"
+	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/friggdb/pool"
 )
 
@@ -54,7 +55,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(tenantID string, id ID) ([]byte, EstimatedMetrics, error)
+	Find(tenantID string, id encoding.ID) ([]byte, EstimatedMetrics, error)
 	Shutdown()
 }
 
@@ -76,8 +77,8 @@ type readerWriter struct {
 
 	logger              log.Logger
 	cfg                 *Config
-	blockLists          map[string][]searchableBlockMeta
-	compactedBlockLists map[string][]searchableBlockMeta
+	blockLists          map[string][]encoding.SearchableBlockMeta
+	compactedBlockLists map[string][]encoding.SearchableBlockMeta
 	blockListsMtx       sync.Mutex
 }
 
@@ -119,8 +120,8 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 		cfg:                 cfg,
 		logger:              logger,
 		pool:                pool.NewPool(cfg.Pool),
-		blockLists:          make(map[string][]searchableBlockMeta),
-		compactedBlockLists: make(map[string][]searchableBlockMeta),
+		blockLists:          make(map[string][]encoding.SearchableBlockMeta),
+		compactedBlockLists: make(map[string][]encoding.SearchableBlockMeta),
 	}
 
 	go rw.pollBlocklist()
@@ -130,7 +131,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
 	uuid, tenantID, records, blockFilePath := c.writeInfo()
-	indexBytes, err := marshalRecords(records)
+	indexBytes, err := encoding.MarshalRecords(records)
 	if err != nil {
 		return err
 	}
@@ -160,7 +161,7 @@ func (rw *readerWriter) WAL() (WAL, error) {
 	})
 }
 
-func (rw *readerWriter) Find(tenantID string, id ID) ([]byte, EstimatedMetrics, error) {
+func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, EstimatedMetrics, error) {
 	metrics := EstimatedMetrics{} // we are purposefully not locking when updating this struct.  that's why they are "estimated"
 
 	rw.blockListsMtx.Lock()
@@ -179,7 +180,7 @@ func (rw *readerWriter) Find(tenantID string, id ID) ([]byte, EstimatedMetrics, 
 	}
 
 	foundBytes, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) ([]byte, error) {
-		meta := payload.(searchableBlockMeta)
+		meta := payload.(encoding.SearchableBlockMeta)
 
 		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
 		if err != nil {
@@ -200,7 +201,7 @@ func (rw *readerWriter) Find(tenantID string, id ID) ([]byte, EstimatedMetrics, 
 			return nil, err
 		}
 
-		record, err := findRecord(id, indexBytes)
+		record, err := encoding.FindRecord(id, indexBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -217,7 +218,7 @@ func (rw *readerWriter) Find(tenantID string, id ID) ([]byte, EstimatedMetrics, 
 		}
 
 		var foundObject []byte
-		err = iterateObjects(bytes.NewReader(objectBytes), func(iterID ID, iterObject []byte) (bool, error) {
+		err = iterateObjects(bytes.NewReader(objectBytes), func(iterID encoding.ID, iterObject []byte) (bool, error) {
 			if bytes.Equal(iterID, id) {
 				foundObject = iterObject
 				return false, nil
@@ -280,11 +281,11 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 		}
 
 		listMutex := sync.Mutex{}
-		blocklist := make([]searchableBlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]searchableBlockMeta, 0, len(blockIDs)) // jpe: this is dumb. put both kinds of block metas in the same list?
+		blocklist := make([]encoding.SearchableBlockMeta, 0, len(blockIDs))
+		compactedBlocklist := make([]encoding.SearchableBlockMeta, 0, len(blockIDs)) // jpe: this is dumb. put both kinds of block metas in the same list?
 		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
-			meta := &searchableBlockMeta{}
+			meta := &encoding.SearchableBlockMeta{}
 			isCompacted := false
 
 			metaBytes, err := rw.r.BlockMeta(blockID, tenantID)

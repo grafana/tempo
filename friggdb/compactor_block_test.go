@@ -11,6 +11,7 @@ import (
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
+	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,12 +31,12 @@ func TestCompactorBlockWrite(t *testing.T) {
 		bloomFP:         .01,
 	}
 
-	metas := []*blockMeta{
-		&blockMeta{
+	metas := []*encoding.BlockMeta{
+		&encoding.BlockMeta{
 			StartTime: time.Unix(10000, 0),
 			EndTime:   time.Unix(20000, 0),
 		},
-		&blockMeta{
+		&encoding.BlockMeta{
 			StartTime: time.Unix(15000, 0),
 			EndTime:   time.Unix(25000, 0),
 		},
@@ -44,8 +45,8 @@ func TestCompactorBlockWrite(t *testing.T) {
 	cb, err := newCompactorBlock(testTenantID, walCfg, metas)
 	assert.NoError(t, err)
 
-	var minID ID
-	var maxID ID
+	var minID encoding.ID
+	var maxID encoding.ID
 
 	numObjects := (rand.Int() % 20) + 1
 	ids := make([][]byte, 0)
@@ -79,7 +80,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 	metaBytes, err := cb.meta()
 	assert.NoError(t, err)
 
-	meta := &blockMeta{}
+	meta := &encoding.BlockMeta{}
 	err = json.Unmarshal(metaBytes, meta)
 	assert.NoError(t, err)
 
@@ -103,6 +104,6 @@ func TestCompactorBlockWrite(t *testing.T) {
 	indexBytes, err := cb.index()
 	assert.NoError(t, err)
 
-	_, err = unmarshalRecords(indexBytes)
+	_, err = encoding.UnmarshalRecords(indexBytes)
 	assert.NoError(t, err)
 }

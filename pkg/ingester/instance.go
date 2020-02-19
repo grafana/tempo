@@ -15,6 +15,7 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 
 	"github.com/grafana/frigg/friggdb"
+	friggdb_encoding "github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util"
 )
@@ -87,7 +88,7 @@ func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
 }
 
 // PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushBytes(ctx context.Context, id friggdb.ID, object []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id friggdb_encoding.ID, object []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
