@@ -21,17 +21,17 @@ type readerWriter struct {
 	bucket *storage.BucketHandle
 }
 
-func New(cfg *Config) (backend.Reader, backend.Writer, error) {
+func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	ctx := context.Background()
 
 	option, err := instrumentation(ctx, storage.ScopeReadWrite)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	client, err := storage.NewClient(ctx, option)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	bucket := client.Bucket(cfg.BucketName)
@@ -42,7 +42,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, error) {
 		bucket: bucket,
 	}
 
-	return rw, rw, nil
+	return rw, rw, rw, nil
 }
 
 func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID string, bMeta []byte, bBloom []byte, bIndex []byte, objectFilePath string) error {
