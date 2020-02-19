@@ -3,7 +3,6 @@ package friggdb
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -22,42 +21,16 @@ const (
 	chunkSizeBytes = 1024 * 1024 * 10
 )
 
-func (rw *readerWriter) blocksToCompact(tenantID string) []uuid.UUID {
+func (rw *readerWriter) blocksToCompact(tenantID string) []*encoding.BlockMeta {
 	return nil
 }
 
 // jpe : this method is brittle and has weird failure conditions.  if at any point it fails it can't clean up the old blocks and just leaves them around
-func (rw *readerWriter) compact(ids []uuid.UUID, tenantID string) error {
+func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID string) error {
 	var err error
-	bookmarks := make([]*bookmark, 0, len(ids))
-	blockMetas := make([]*encoding.BlockMeta, 0, len(ids))
+	bookmarks := make([]*bookmark, 0, len(blockMetas))
 
 	totalRecords := 0
-	for _, id := range ids {
-		index, err := rw.r.Index(id, tenantID)
-		if err != nil {
-			return err
-		}
-
-		totalRecords += encoding.RecordCount(index)
-		bookmarks = append(bookmarks, &bookmark{
-			id:    id,
-			index: index,
-		})
-
-		metaBytes, err := rw.r.BlockMeta(id, tenantID)
-		if err != nil {
-			return err
-		}
-
-		meta := &encoding.BlockMeta{}
-		err = json.Unmarshal(metaBytes, meta)
-		if err != nil {
-			return err
-		}
-		blockMetas = append(blockMetas, meta)
-	}
-
 	recordsPerBlock := (totalRecords / outputBlocks) + 1
 	var currentBlock *compactorBlock
 
