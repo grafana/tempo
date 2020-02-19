@@ -7,12 +7,28 @@ import (
 	"io"
 	"math"
 
+	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/pool"
 )
 
 type compactorConfig struct {
+}
+
+/*
+metrics:
+ - time to stop jobs
+ - compaction time
+*/
+
+type compactor struct {
+	c backend.Compactor
+
+	jobStopper *pool.Stopper
+
+	compactedBlockLists map[string][]*encoding.BlockMeta
 }
 
 const (
@@ -21,18 +37,51 @@ const (
 	chunkSizeBytes = 1024 * 1024 * 10
 )
 
-func (rw *readerWriter) doCompactionThings() {
-	// stop crazy jobs currently doing compaction
-
-	// wait
-
-	// start crazy jobs to do compaction with new list
-
-	// iterate through compacted list looking for blocks to clear
+func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encoding.BlockMeta, int) {
+	return nil, 0
 }
 
-func (rw *readerWriter) blocksToCompact(tenantID string) []*encoding.BlockMeta {
-	return nil
+func (rw *readerWriter) doCompaction() {
+	// stop any existing compaction jobs
+	if rw.jobStopper != nil {
+		err := rw.jobStopper.Stop()
+		if err != nil {
+			// jpe : log
+		}
+	}
+
+	// start crazy jobs to do compaction with new list
+	rw.blockListsMtx.Lock()
+	tenants := make([]interface{}, 0, len(rw.blockLists))
+	for tenant := range rw.blockLists {
+		tenants = append(tenants, tenant)
+	}
+	rw.blockListsMtx.Unlock()
+
+	var err error
+	rw.jobStopper, err = rw.pool.RunStoppableJobs(tenants, func(payload interface{}, stopCh <-chan struct{}) error {
+		var warning error
+		tenantID := payload.(string)
+
+		cursor := 0
+		for {
+			select {
+			case <-stopCh:
+				return warning
+			default:
+				var blocks []*encoding.BlockMeta
+				blocks, cursor = rw.blocksToCompact(tenantID, cursor)
+				if blocks == nil {
+					break
+				}
+				warning = rw.compact(blocks, tenantID)
+			}
+		}
+	})
+
+	if err != nil {
+		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next polling cycle.")
+	}
 }
 
 // jpe : this method is brittle and has weird failure conditions.  if at any point it fails it can't clean up the old blocks and just leaves them around
@@ -125,8 +174,8 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	}
 
 	// mark old blocks compacted so they don't show up in polling
-	for _, blockID := range ids {
-		if err := rw.c.MarkBlockCompacted(blockID, tenantID); err != nil {
+	for _, meta := range blockMetas {
+		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
 			// jpe: log
 		}
 	}

@@ -19,5 +19,5 @@ type Config struct {
 	WAL       *wal.Config      `yaml:"wal"`
 	Compactor *compactorConfig `yaml:"compactor"`
 
-	BlocklistRefreshRate time.Duration `yaml:"blocklistRefreshRate"`
+	MaintenanceCycle time.Duration `yaml:"maintenanceCycle"`
 }

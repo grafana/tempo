@@ -45,6 +45,25 @@ func TestStoppableJobs(t *testing.T) {
 	wg.Wait()
 }
 
+func TestStoppableReturnImmediate(t *testing.T) {
+	p := NewPool(&Config{
+		MaxWorkers: 10,
+		QueueDepth: 100,
+	})
+	ret := []byte{0x01, 0x03, 0x04}
+	fn := func(payload interface{}, stopCh <-chan struct{}) error {
+		return nil
+	}
+	payloads := []interface{}{1, 2, 3, 4, 5}
+	time.Sleep(time.Duration(30 * time.Millisecond))
+
+	stopper, err := p.RunStoppableJobs(payloads, fn)
+	assert.NoError(t, err)
+	assert.NotNil(t, ret, stopper)
+	err = stopper.Stop()
+	assert.NoError(t, err)
+}
+
 func TestStoppableErrorImmediate(t *testing.T) {
 	p := NewPool(&Config{
 		MaxWorkers: 10,

@@ -39,7 +39,7 @@ func TestDB(t *testing.T) {
 			IndexDownsample: 17,
 			BloomFP:         .01,
 		},
-		BlocklistRefreshRate: 30 * time.Minute,
+		MaintenanceCycle: 30 * time.Minute,
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
@@ -74,7 +74,7 @@ func TestDB(t *testing.T) {
 	assert.NoError(t, err)
 
 	// force poll the blocklist now that we've written something
-	r.(*readerWriter).actuallyPollBlocklist()
+	r.(*readerWriter).pollBlocklist()
 
 	for i, id := range ids {
 		bFound, _, err := r.Find(testTenantID, id)

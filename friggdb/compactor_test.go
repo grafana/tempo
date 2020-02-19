@@ -14,7 +14,7 @@ func TestCompactor(t *testing.T) {
 		WALFilepath:              path.Join(tempDir, "wal"),
 		IndexDownsample:          17,
 		BloomFilterFalsePositive: .01,
-		BlocklistRefreshRate:     30 * time.Minute,
+		MaintenanceCycle:     30 * time.Minute,
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 

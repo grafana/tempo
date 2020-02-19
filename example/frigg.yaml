@@ -25,11 +25,12 @@ ingester:
 
 storage_config:
   trace:
-    walpath: /tmp/frigg/wal
-    bloom-filter-false-positive: .05
-    blocklistRefreshRate: 30s
+    maintenanceCycle: 30s
     backend: local
-    index-downsample: 10
+    wal:
+      path: /tmp/frigg/wal
+      bloom-filter-false-positive: .05
+      index-downsample: 10
     local:
       path: /tmp/frigg/traces
     query_pool:

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -70,18 +71,18 @@ type EstimatedMetrics struct {
 }
 
 type readerWriter struct {
-	r   backend.Reader
-	w   backend.Writer
-	c   backend.Compactor
-	wal wal.WAL
+	compactor
 
+	r backend.Reader
+	w backend.Writer
+
+	wal  wal.WAL
 	pool *pool.Pool
 
-	logger              log.Logger
-	cfg                 *Config
-	blockLists          map[string][]*encoding.BlockMeta
-	compactedBlockLists map[string][]*encoding.BlockMeta
-	blockListsMtx       sync.Mutex
+	logger        log.Logger
+	cfg           *Config
+	blockLists    map[string][]*encoding.BlockMeta
+	blockListsMtx sync.Mutex
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
@@ -112,14 +113,16 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 	}
 
 	rw := &readerWriter{
-		r:                   r,
-		w:                   w,
-		c:                   c,
-		cfg:                 cfg,
-		logger:              logger,
-		pool:                pool.NewPool(cfg.Pool),
-		blockLists:          make(map[string][]*encoding.BlockMeta),
-		compactedBlockLists: make(map[string][]*encoding.BlockMeta),
+		compactor: compactor{
+			c:                   c,
+			compactedBlockLists: make(map[string][]*encoding.BlockMeta),
+		},
+		r:          r,
+		w:          w,
+		cfg:        cfg,
+		logger:     logger,
+		pool:       pool.NewPool(cfg.Pool),
+		blockLists: make(map[string][]*encoding.BlockMeta),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -127,7 +130,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 		return nil, nil, err
 	}
 
-	go rw.pollBlocklist()
+	go rw.maintenanceLoop()
 
 	return rw, rw, nil
 }
@@ -242,23 +245,29 @@ func (rw *readerWriter) Shutdown() {
 	rw.r.Shutdown()
 }
 
-func (rw *readerWriter) pollBlocklist() {
-	if rw.cfg.BlocklistRefreshRate == 0 {
-		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  friggdb querying effectively disabled.")
+func (rw *readerWriter) maintenanceLoop() {
+	if rw.cfg.MaintenanceCycle == 0 {
+		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  friggdb querying, compaction and retention effectively disabled.")
 		return
 	}
 
-	rw.actuallyPollBlocklist()
+	rw.doMaintenance()
 
-	ticker := time.NewTicker(rw.cfg.BlocklistRefreshRate)
+	ticker := time.NewTicker(rw.cfg.MaintenanceCycle)
 	for range ticker.C {
 		start := time.Now()
-		rw.actuallyPollBlocklist()
+		rw.doMaintenance()
 		metricBlocklistPollDuration.Observe(time.Since(start).Seconds())
 	}
 }
 
-func (rw *readerWriter) actuallyPollBlocklist() {
+func (rw *readerWriter) doMaintenance() {
+	rw.pollBlocklist()
+	rw.doCompaction()
+	rw.doRetention()
+}
+
+func (rw *readerWriter) pollBlocklist() {
 	metricBlocklistPoll.Inc()
 
 	tenants, err := rw.r.Tenants()
@@ -328,9 +337,21 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 
 		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
 
+		sort.Slice(blocklist, func(i, j int) bool {
+			return blocklist[i].StartTime.Before(blocklist[j].StartTime)
+		})
+		sort.Slice(compactedBlocklist, func(i, j int) bool {
+			return compactedBlocklist[i].StartTime.Before(compactedBlocklist[j].StartTime)
+		})
+
 		rw.blockListsMtx.Lock()
 		rw.blockLists[tenantID] = blocklist
 		rw.compactedBlockLists[tenantID] = compactedBlocklist
 		rw.blockListsMtx.Unlock()
 	}
+}
+
+func (rw *readerWriter) doRetention() {
+	// jpe : iterate through block list.  make compacted anything that is past retention.  use stoppable jobs?
+	// jpe : iterate through compacted list looking for blocks ready to be cleared
 }
