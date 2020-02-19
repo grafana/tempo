@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -69,25 +70,28 @@ type EstimatedMetrics struct {
 type readerWriter struct {
 	r backend.Reader
 	w backend.Writer
+	c backend.Compactor
 
 	pool *pool.Pool
 
-	logger        log.Logger
-	cfg           *Config
-	blockLists    map[string][]searchableBlockMeta // todo: evaluate for performance
-	blockListsMtx sync.Mutex
+	logger              log.Logger
+	cfg                 *Config
+	blockLists          map[string][]searchableBlockMeta
+	compactedBlockLists map[string][]searchableBlockMeta
+	blockListsMtx       sync.Mutex
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 	var err error
 	var r backend.Reader
 	var w backend.Writer
+	var c backend.Compactor
 
 	switch cfg.Backend {
 	case "local":
-		r, w, err = local.New(cfg.Local)
+		r, w, c, err = local.New(cfg.Local)
 	case "gcs":
-		r, w, err = gcs.New(cfg.GCS)
+		r, w, c, err = gcs.New(cfg.GCS)
 	default:
 		err = fmt.Errorf("unknown local %s", cfg.Backend)
 	}
@@ -109,12 +113,14 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 	}
 
 	rw := &readerWriter{
-		r:          r,
-		w:          w,
-		cfg:        cfg,
-		logger:     logger,
-		pool:       pool.NewPool(cfg.Pool),
-		blockLists: make(map[string][]searchableBlockMeta),
+		r:                   r,
+		w:                   w,
+		c:                   c,
+		cfg:                 cfg,
+		logger:              logger,
+		pool:                pool.NewPool(cfg.Pool),
+		blockLists:          make(map[string][]searchableBlockMeta),
+		compactedBlockLists: make(map[string][]searchableBlockMeta),
 	}
 
 	go rw.pollBlocklist()
@@ -275,11 +281,19 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 
 		listMutex := sync.Mutex{}
 		blocklist := make([]searchableBlockMeta, 0, len(blockIDs))
+		compactedBlocklist := make([]searchableBlockMeta, 0, len(blockIDs))
 		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
 			meta := &searchableBlockMeta{}
 
+			listToAppend := blocklist
 			metaBytes, err := rw.r.BlockMeta(blockID, tenantID)
+			// if the normal meta doesn't exist maybe it's compacted.
+			if os.IsNotExist(err) {
+				metaBytes, err = rw.c.CompactedBlockMeta(blockID, tenantID)
+				listToAppend = compactedBlocklist
+			}
+
 			if err != nil {
 				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 				level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)
@@ -296,7 +310,7 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 			// todo:  make this not terrible. this mutex is dumb we should be returning results with a channel. shoehorning this into the worker pool is silly.
 			//        make the worker pool more generic? and reusable in this case
 			listMutex.Lock()
-			blocklist = append(blocklist, *meta)
+			listToAppend = append(listToAppend, *meta)
 			listMutex.Unlock()
 
 			return nil, nil
@@ -312,6 +326,7 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 
 		rw.blockListsMtx.Lock()
 		rw.blockLists[tenantID] = blocklist
+		rw.compactedBlockLists[tenantID] = compactedBlocklist
 		rw.blockListsMtx.Unlock()
 	}
 }
