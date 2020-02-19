@@ -98,10 +98,7 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 	// which depends on it.
 	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
 
-	i.wal, err = i.store.WAL()
-	if err != nil {
-		return nil, err
-	}
+	i.wal = i.store.WAL()
 	err = i.replayWal()
 	if err != nil {
 		return nil, err

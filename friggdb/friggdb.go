@@ -52,7 +52,7 @@ var (
 
 type Writer interface {
 	WriteBlock(ctx context.Context, block wal.CompleteBlock) error
-	WAL() (wal.WAL, error)
+	WAL() wal.WAL
 }
 
 type Reader interface {
@@ -70,9 +70,10 @@ type EstimatedMetrics struct {
 }
 
 type readerWriter struct {
-	r backend.Reader
-	w backend.Writer
-	c backend.Compactor
+	r   backend.Reader
+	w   backend.Writer
+	c   backend.Compactor
+	wal wal.WAL
 
 	pool *pool.Pool
 
@@ -121,6 +122,11 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 		compactedBlockLists: make(map[string][]encoding.SearchableBlockMeta),
 	}
 
+	rw.wal, err = wal.New(rw.cfg.WAL)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	go rw.pollBlocklist()
 
 	return rw, rw, nil
@@ -150,8 +156,8 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.CompleteBlock) err
 	return nil
 }
 
-func (rw *readerWriter) WAL() (wal.WAL, error) {
-	return wal.New(rw.cfg.WAL)
+func (rw *readerWriter) WAL() wal.WAL {
+	return rw.wal
 }
 
 func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, EstimatedMetrics, error) {

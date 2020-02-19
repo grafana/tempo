@@ -1,6 +1,11 @@
 package friggdb
 
 import (
+	"encoding/json"
+	"fmt"
+
+	bloom "github.com/dgraph-io/ristretto/z"
+	"github.com/dgryski/go-farm"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/friggdb/wal"
@@ -14,23 +19,32 @@ type compactorBlock struct {
 	h     wal.HeadBlock
 	metas []*encoding.BlockMeta
 
-	cfg *wal.Config // todo: these config elements are being used by more than the wal, change their location?
+	bloomFP         float64
+	indexDownsample int
 }
 
-func newCompactorBlock(tenantID string, cfg *wal.Config, metas []*encoding.BlockMeta) (*compactorBlock, error) {
-	/*h, err := NewBlock(uuid.New(), tenantID) //, cfg.workFilepath) jpe - dumb
-	if err != nil {
-		return nil, err
+func newCompactorBlock(h wal.HeadBlock, bloomFP float64, indexDownsample int, metas []*encoding.BlockMeta) (*compactorBlock, error) {
+	if h == nil {
+		return nil, fmt.Errorf("headblock should not be nil")
 	}
 
 	if len(metas) == 0 {
 		return nil, fmt.Errorf("empty block meta list")
-	}*/
+	}
+
+	if bloomFP <= 0.0 {
+		return nil, fmt.Errorf("invalid bloomFP rate")
+	}
+
+	if indexDownsample <= 0 {
+		return nil, fmt.Errorf("invalid index downsample rate")
+	}
 
 	return &compactorBlock{
-		//h:     h,
-		cfg:   cfg,
-		metas: metas,
+		h:               h,
+		bloomFP:         bloomFP,
+		indexDownsample: indexDownsample,
+		metas:           metas,
 	}, nil
 }
 
@@ -39,12 +53,11 @@ func (c *compactorBlock) write(id encoding.ID, object []byte) error {
 }
 
 func (c *compactorBlock) id() uuid.UUID {
-	return uuid.New()
-	//return c.h.meta.BlockI jpe
+	return c.h.BlockMeta().BlockID
 }
 
 func (c *compactorBlock) meta() ([]byte, error) {
-	/*meta := c.h.meta
+	meta := c.h.BlockMeta()
 
 	meta.StartTime = c.metas[0].StartTime
 	meta.EndTime = c.metas[0].EndTime
@@ -59,33 +72,35 @@ func (c *compactorBlock) meta() ([]byte, error) {
 		}
 	}
 
-	return json.Marshal(meta)*/
-	return nil, nil
+	return json.Marshal(meta)
 }
 
 func (c *compactorBlock) bloom() ([]byte, error) {
-	/*length := c.length()
+	length := c.length()
 	if length == 0 {
 		return nil, fmt.Errorf("cannot create bloom without records")
 	}
 
-	b := bloom.NewBloomFilter(float64(length), c.cfg.bloomFP)
+	b := bloom.NewBloomFilter(float64(length), c.bloomFP)
+
+	_, _, records, _ := c.h.WriteInfo()
 
 	// add all ids
-	for _, r := range c.h.records {
+	for _, r := range records {
 		b.Add(farm.Fingerprint64(r.ID))
 	}
 
-	return b.JSONMarshal(), nil*/
-	return nil, nil
+	return b.JSONMarshal(), nil
 }
 
 func (c *compactorBlock) index() ([]byte, error) {
-	/*numRecords := (len(c.h.records) / c.cfg.indexDownsample) + 1
+	_, _, records, _ := c.h.WriteInfo()
+
+	numRecords := (len(records) / c.indexDownsample) + 1
 	downsampledRecords := make([]*encoding.Record, 0, numRecords)
 	// downsample index and then marshal
 	var currentRecord *encoding.Record
-	for i, r := range c.h.records {
+	for i, r := range records {
 		// start or continue working on a record
 		if currentRecord == nil {
 			currentRecord = &encoding.Record{
@@ -98,25 +113,23 @@ func (c *compactorBlock) index() ([]byte, error) {
 		}
 
 		// if this is the last record to be included by the downsample config OR is simply the last record
-		if i%c.cfg.indexDownsample == c.cfg.indexDownsample-1 || i == len(c.h.records)-1 {
+		if i%c.indexDownsample == c.indexDownsample-1 || i == len(records)-1 {
 			currentRecord.ID = r.ID
 			downsampledRecords = append(downsampledRecords, currentRecord)
 			currentRecord = nil
 		}
 	}
 
-	return encoding.MarshalRecords(downsampledRecords)*/
-	return nil, nil
+	return encoding.MarshalRecords(downsampledRecords)
 }
 
 func (c *compactorBlock) length() int {
-	//return len(c.h.records)
-	return 0
+	return c.h.Length()
 }
 
 func (c *compactorBlock) objectFilePath() string {
-	//return c.h.fullFilename()
-	return ""
+	_, _, _, filepath := c.h.WriteInfo()
+	return filepath
 }
 
 func (c *compactorBlock) clear() error {

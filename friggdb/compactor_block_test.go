@@ -1,8 +1,25 @@
 package friggdb
 
-/*
-func TestCompactorBlockNoMeta(t *testing.T) {
-	_, err := newCompactorBlock(testTenantID, &walConfig{}, nil)
+import (
+	"bytes"
+	"encoding/json"
+	"io/ioutil"
+	"math/rand"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/grafana/frigg/friggdb/wal"
+
+	bloom "github.com/dgraph-io/ristretto/z"
+	"github.com/dgryski/go-farm"
+	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestCompactorBlockError(t *testing.T) {
+	_, err := newCompactorBlock(nil, 0, 0, nil)
 	assert.Error(t, err)
 }
 
@@ -11,11 +28,13 @@ func TestCompactorBlockWrite(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	walCfg := &walConfig{
-		workFilepath:    tempDir,
-		indexDownsample: 3,
-		bloomFP:         .01,
+	walCfg := &wal.Config{
+		Filepath:        tempDir,
+		IndexDownsample: 3,
+		BloomFP:         .01,
 	}
+	wal, err := wal.New(walCfg)
+	assert.NoError(t, err)
 
 	metas := []*encoding.BlockMeta{
 		&encoding.BlockMeta{
@@ -28,7 +47,10 @@ func TestCompactorBlockWrite(t *testing.T) {
 		},
 	}
 
-	cb, err := newCompactorBlock(testTenantID, walCfg, metas)
+	h, err := wal.NewWorkingBlock(uuid.New(), testTenantID)
+	assert.NoError(t, err)
+
+	cb, err := newCompactorBlock(h, .01, 3, metas)
 	assert.NoError(t, err)
 
 	var minID encoding.ID
@@ -93,4 +115,3 @@ func TestCompactorBlockWrite(t *testing.T) {
 	_, err = encoding.UnmarshalRecords(indexBytes)
 	assert.NoError(t, err)
 }
-*/

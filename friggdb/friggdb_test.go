@@ -45,7 +45,7 @@ func TestDB(t *testing.T) {
 
 	blockID := uuid.New()
 
-	wal, err := w.WAL()
+	wal := w.WAL()
 	assert.NoError(t, err)
 
 	head, err := wal.NewBlock(blockID, testTenantID)

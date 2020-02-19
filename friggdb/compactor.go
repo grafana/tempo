@@ -11,47 +11,30 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/encoding"
-	"github.com/grafana/frigg/friggdb/wal"
 )
 
 type compactorConfig struct {
-	BlocksAtOnce int    `yaml:"blocks-per"`
-	BytesAtOnce  uint32 `yaml:"bytes-per"`
-	BlocksOut    int    `yaml:"blocks-out"`
 }
 
-type compactor struct {
-	cfg    *compactorConfig
-	walCfg *wal.Config
+const (
+	inputBlocks    = 4
+	outputBlocks   = 2
+	chunkSizeBytes = 1024 * 1024 * 10
+)
 
-	r backend.Reader
-	w backend.Writer
-	c backend.Compactor
-}
-
-func newCompactor(cfg *compactorConfig, walCfg *wal.Config, r backend.Reader, w backend.Writer, c backend.Compactor) *compactor {
-	return &compactor{
-		cfg:    cfg,
-		r:      r,
-		w:      w,
-		c:      c,
-		walCfg: walCfg,
-	}
-}
-
-func (c *compactor) blocksToCompact(tenantID string) []uuid.UUID {
+func (rw *readerWriter) blocksToCompact(tenantID string) []uuid.UUID {
 	return nil
 }
 
 // jpe : this method is brittle and has weird failure conditions.  if at any point it fails it can't clean up the old blocks and just leaves them around
-func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
+func (rw *readerWriter) compact(ids []uuid.UUID, tenantID string) error {
 	var err error
 	bookmarks := make([]*bookmark, 0, len(ids))
 	blockMetas := make([]*encoding.BlockMeta, 0, len(ids))
 
 	totalRecords := 0
 	for _, id := range ids {
-		index, err := c.r.Index(id, tenantID)
+		index, err := rw.r.Index(id, tenantID)
 		if err != nil {
 			return err
 		}
@@ -62,7 +45,7 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 			index: index,
 		})
 
-		metaBytes, err := c.r.BlockMeta(id, tenantID)
+		metaBytes, err := rw.r.BlockMeta(id, tenantID)
 		if err != nil {
 			return err
 		}
@@ -75,7 +58,7 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 		blockMetas = append(blockMetas, meta)
 	}
 
-	recordsPerBlock := (totalRecords / c.cfg.BlocksOut) + 1
+	recordsPerBlock := (totalRecords / outputBlocks) + 1
 	var currentBlock *compactorBlock
 
 	for !allDone(bookmarks) {
@@ -84,7 +67,7 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 
 		// find lowest ID of the new object
 		for _, b := range bookmarks {
-			currentID, currentObject, err := c.currentObject(b, tenantID)
+			currentID, currentObject, err := currentObject(b, tenantID, rw.r)
 			if err == io.EOF {
 				continue
 			} else if err != nil {
@@ -111,7 +94,12 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 
 		// make a new block if necessary
 		if currentBlock == nil {
-			currentBlock, err = newCompactorBlock(tenantID, c.walCfg, blockMetas)
+			h, err := rw.wal.NewWorkingBlock(uuid.New(), tenantID)
+			if err != nil {
+				return err
+			}
+
+			currentBlock, err = newCompactorBlock(h, rw.cfg.WAL.BloomFP, rw.cfg.WAL.IndexDownsample, blockMetas)
 			if err != nil {
 				return err
 			}
@@ -140,7 +128,7 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 				return err
 			}
 
-			err = c.w.Write(context.TODO(), currentBlock.id(), tenantID, currentMeta, currentBloom, currentIndex, currentBlock.objectFilePath())
+			err = rw.w.Write(context.TODO(), currentBlock.id(), tenantID, currentMeta, currentBloom, currentIndex, currentBlock.objectFilePath())
 			if err != nil {
 				return err
 			}
@@ -155,7 +143,7 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 
 	// mark old blocks compacted so they don't show up in polling
 	for _, blockID := range ids {
-		if err := c.c.MarkBlockCompacted(blockID, tenantID); err != nil {
+		if err := rw.c.MarkBlockCompacted(blockID, tenantID); err != nil {
 			// jpe: log
 		}
 	}
@@ -163,13 +151,13 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 	return nil
 }
 
-func (c *compactor) currentObject(b *bookmark, tenantID string) ([]byte, []byte, error) {
+func currentObject(b *bookmark, tenantID string, r backend.Reader) ([]byte, []byte, error) {
 	if len(b.currentID) != 0 && len(b.currentObject) != 0 {
 		return b.currentID, b.currentObject, nil
 	}
 
 	var err error
-	b.currentID, b.currentObject, err = c.nextObject(b, tenantID)
+	b.currentID, b.currentObject, err = nextObject(b, tenantID, r)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -177,7 +165,7 @@ func (c *compactor) currentObject(b *bookmark, tenantID string) ([]byte, []byte,
 	return b.currentID, b.currentObject, nil
 }
 
-func (c *compactor) nextObject(b *bookmark, tenantID string) ([]byte, []byte, error) {
+func nextObject(b *bookmark, tenantID string, r backend.Reader) ([]byte, []byte, error) {
 	var err error
 
 	// if no objects, pull objects
@@ -195,7 +183,7 @@ func (c *compactor) nextObject(b *bookmark, tenantID string) ([]byte, []byte, er
 		var length uint32
 
 		start = math.MaxUint64
-		for length < c.cfg.BytesAtOnce {
+		for length < chunkSizeBytes {
 			b.index = encoding.MarshalRecordAndAdvance(rec, b.index)
 
 			if start == math.MaxUint64 {
@@ -204,7 +192,7 @@ func (c *compactor) nextObject(b *bookmark, tenantID string) ([]byte, []byte, er
 			length += rec.Length
 		}
 
-		b.objects, err = c.r.Object(b.id, tenantID, start, length)
+		b.objects, err = r.Object(b.id, tenantID, start, length)
 		if err != nil {
 			return nil, nil, err
 		}

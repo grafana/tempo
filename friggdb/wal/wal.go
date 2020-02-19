@@ -18,6 +18,7 @@ const (
 type WAL interface {
 	AllBlocks() ([]ReplayBlock, error)
 	NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
+	NewWorkingBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
 	config() *Config
 }
 
@@ -101,6 +102,10 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 
 func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
 	return newBlock(id, tenantID, w.c.Filepath)
+}
+
+func (w *wal) NewWorkingBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
+	return newBlock(id, tenantID, w.c.WorkFilepath)
 }
 
 func (w *wal) config() *Config {
