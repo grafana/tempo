@@ -14,8 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
 
-	"github.com/grafana/frigg/friggdb"
 	friggdb_encoding "github.com/grafana/frigg/friggdb/encoding"
+	friggdb_wal "github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util"
 )
@@ -45,17 +45,17 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blockTracesMtx sync.RWMutex
-	headBlock      friggdb.HeadBlock
-	completeBlocks []friggdb.CompleteBlock
+	headBlock      friggdb_wal.HeadBlock
+	completeBlocks []friggdb_wal.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	limiter            *Limiter
-	wal                friggdb.WAL
+	wal                friggdb_wal.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal friggdb.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal friggdb_wal.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[traceFingerprint]*trace{},
 
@@ -150,7 +150,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return ready, nil
 }
 
-func (i *instance) GetBlockToBeFlushed() friggdb.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed() friggdb_wal.CompleteBlock {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 

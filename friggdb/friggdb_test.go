@@ -14,6 +14,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend/local"
+	"github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util/test"
 	"github.com/stretchr/testify/assert"
@@ -33,10 +34,12 @@ func TestDB(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WALFilepath:              path.Join(tempDir, "wal"),
-		IndexDownsample:          17,
-		BloomFilterFalsePositive: .01,
-		BlocklistRefreshRate:     30 * time.Minute,
+		WAL: &wal.Config{
+			Filepath:        path.Join(tempDir, "wal"),
+			IndexDownsample: 17,
+			BloomFP:         .01,
+		},
+		BlocklistRefreshRate: 30 * time.Minute,
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 

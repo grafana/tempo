@@ -17,8 +17,8 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/grafana/frigg/friggdb"
 	friggdb_encoding "github.com/grafana/frigg/friggdb/encoding"
+	friggdb_wal "github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
 	"github.com/grafana/frigg/pkg/storage"
@@ -61,7 +61,7 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
-	wal     friggdb.WAL
+	wal     friggdb_wal.WAL
 }
 
 // New makes a new Ingester.

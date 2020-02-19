@@ -1,20 +1,6 @@
 package friggdb
 
-import (
-	"bytes"
-	"encoding/json"
-	"io/ioutil"
-	"math/rand"
-	"os"
-	"testing"
-	"time"
-
-	bloom "github.com/dgraph-io/ristretto/z"
-	"github.com/dgryski/go-farm"
-	"github.com/grafana/frigg/friggdb/encoding"
-	"github.com/stretchr/testify/assert"
-)
-
+/*
 func TestCompactorBlockNoMeta(t *testing.T) {
 	_, err := newCompactorBlock(testTenantID, &walConfig{}, nil)
 	assert.Error(t, err)
@@ -107,3 +93,4 @@ func TestCompactorBlockWrite(t *testing.T) {
 	_, err = encoding.UnmarshalRecords(indexBytes)
 	assert.NoError(t, err)
 }
+*/

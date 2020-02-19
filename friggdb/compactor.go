@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/wal"
 )
 
 type compactorConfig struct {
@@ -21,14 +22,14 @@ type compactorConfig struct {
 
 type compactor struct {
 	cfg    *compactorConfig
-	walCfg *walConfig
+	walCfg *wal.Config
 
 	r backend.Reader
 	w backend.Writer
 	c backend.Compactor
 }
 
-func newCompactor(cfg *compactorConfig, walCfg *walConfig, r backend.Reader, w backend.Writer, c backend.Compactor) *compactor {
+func newCompactor(cfg *compactorConfig, walCfg *wal.Config, r backend.Reader, w backend.Writer, c backend.Compactor) *compactor {
 	return &compactor{
 		cfg:    cfg,
 		r:      r,

@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/frigg/friggdb/backend/local"
 	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/friggdb/pool"
+	"github.com/grafana/frigg/friggdb/wal"
 )
 
 var (
@@ -50,8 +51,8 @@ var (
 )
 
 type Writer interface {
-	WriteBlock(ctx context.Context, block CompleteBlock) error
-	WAL() (WAL, error)
+	WriteBlock(ctx context.Context, block wal.CompleteBlock) error
+	WAL() (wal.WAL, error)
 }
 
 type Reader interface {
@@ -109,10 +110,6 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 		}
 	}
 
-	if cfg.BloomFilterFalsePositive <= 0.0 {
-		return nil, nil, fmt.Errorf("invalid bloom filter fp rate %v", cfg.BloomFilterFalsePositive)
-	}
-
 	rw := &readerWriter{
 		r:                   r,
 		w:                   w,
@@ -129,36 +126,32 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 	return rw, rw, nil
 }
 
-func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
-	uuid, tenantID, records, blockFilePath := c.writeInfo()
+func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.CompleteBlock) error {
+	uuid, tenantID, records, blockFilePath := c.WriteInfo()
 	indexBytes, err := encoding.MarshalRecords(records)
 	if err != nil {
 		return err
 	}
 
-	metaBytes, err := json.Marshal(c.blockMeta())
+	metaBytes, err := json.Marshal(c.BlockMeta())
 	if err != nil {
 		return err
 	}
 
-	bloomBytes := c.bloomFilter().JSONMarshal()
+	bloomBytes := c.BloomFilter().JSONMarshal()
 
 	err = rw.w.Write(ctx, uuid, tenantID, metaBytes, bloomBytes, indexBytes, blockFilePath)
 	if err != nil {
 		return err
 	}
 
-	c.blockWroteSuccessfully(time.Now())
+	c.BlockWroteSuccessfully(time.Now())
 
 	return nil
 }
 
-func (rw *readerWriter) WAL() (WAL, error) {
-	return newWAL(&walConfig{
-		filepath:        rw.cfg.WALFilepath,
-		indexDownsample: rw.cfg.IndexDownsample,
-		bloomFP:         rw.cfg.BloomFilterFalsePositive,
-	})
+func (rw *readerWriter) WAL() (wal.WAL, error) {
+	return wal.New(rw.cfg.WAL)
 }
 
 func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, EstimatedMetrics, error) {
@@ -218,7 +211,7 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, Estimated
 		}
 
 		var foundObject []byte
-		err = iterateObjects(bytes.NewReader(objectBytes), func(iterID encoding.ID, iterObject []byte) (bool, error) {
+		err = encoding.IterateObjects(bytes.NewReader(objectBytes), func(iterID encoding.ID, iterObject []byte) (bool, error) {
 			if bytes.Equal(iterID, id) {
 				foundObject = iterObject
 				return false, nil

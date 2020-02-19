@@ -1,4 +1,4 @@
-package friggdb
+package wal
 
 import (
 	"fmt"
@@ -18,37 +18,41 @@ const (
 type WAL interface {
 	AllBlocks() ([]ReplayBlock, error)
 	NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
-	config() *walConfig
+	config() *Config
 }
 
 type wal struct {
-	c *walConfig
+	c *Config
 }
 
-type walConfig struct {
-	filepath        string
-	workFilepath    string
-	indexDownsample int
-	bloomFP         float64
+type Config struct {
+	Filepath        string `yaml:"path"`
+	WorkFilepath    string
+	IndexDownsample int     `yaml:"index-downsample"`
+	BloomFP         float64 `yaml:"bloom-filter-false-positive"`
 }
 
-func newWAL(c *walConfig) (WAL, error) {
-	if c.filepath == "" {
+func New(c *Config) (WAL, error) {
+	if c.Filepath == "" {
 		return nil, fmt.Errorf("please provide a path for the WAL")
 	}
 
-	if c.indexDownsample == 0 {
+	if c.IndexDownsample == 0 {
 		return nil, fmt.Errorf("Non-zero index downsample required")
 	}
 
+	if c.BloomFP <= 0.0 {
+		return nil, fmt.Errorf("invalid bloom filter fp rate %v", c.BloomFP)
+	}
+
 	// make folder
-	err := os.MkdirAll(c.filepath, os.ModePerm)
+	err := os.MkdirAll(c.Filepath, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
 
-	if c.workFilepath == "" {
-		workFilepath := path.Join(c.filepath, workDir)
+	if c.WorkFilepath == "" {
+		workFilepath := path.Join(c.Filepath, workDir)
 		err = os.RemoveAll(workFilepath)
 		if err != nil {
 			return nil, err
@@ -58,7 +62,7 @@ func newWAL(c *walConfig) (WAL, error) {
 			return nil, err
 		}
 
-		c.workFilepath = workFilepath
+		c.WorkFilepath = workFilepath
 	}
 
 	return &wal{
@@ -67,7 +71,7 @@ func newWAL(c *walConfig) (WAL, error) {
 }
 
 func (w *wal) AllBlocks() ([]ReplayBlock, error) {
-	files, err := ioutil.ReadDir(w.c.filepath)
+	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +91,7 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 		blocks = append(blocks, &headBlock{
 			completeBlock: completeBlock{
 				meta:     encoding.NewBlockMeta(tenantID, blockID),
-				filepath: w.c.filepath,
+				filepath: w.c.Filepath,
 			},
 		})
 	}
@@ -96,10 +100,10 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 }
 
 func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
-	return newBlock(id, tenantID, w.c.filepath)
+	return newBlock(id, tenantID, w.c.Filepath)
 }
 
-func (w *wal) config() *walConfig {
+func (w *wal) config() *Config {
 	return w.c
 }
 

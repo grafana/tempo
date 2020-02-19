@@ -13,7 +13,5 @@ type Config struct {
 
 // RegisterFlags adds the flags required to configure this flag set.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
-	// todo:  flesh out cli
-	f.StringVar(&cfg.Trace.Backend, "tracestore.backend", "local", "The trace storage backend to use.")
-	f.Float64Var(&cfg.Trace.BloomFilterFalsePositive, "tracestore.bloom-filter-false-positive", .01, "Target false positive rate for the bloom filters.")
+	// todo:  figure out if i want cli
 }

@@ -1,4 +1,4 @@
-package friggdb
+package wal
 
 import (
 	"bytes"
@@ -68,9 +68,9 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	orderedBlock := &headBlock{
 		completeBlock: completeBlock{
 			meta:     encoding.NewBlockMeta(h.meta.TenantID, uuid.New()),
-			filepath: walConfig.workFilepath,
-			records:  make([]*encoding.Record, 0, len(h.records)/walConfig.indexDownsample+1),
-			bloom:    bloom.NewBloomFilter(float64(len(h.records)), walConfig.bloomFP),
+			filepath: walConfig.WorkFilepath,
+			records:  make([]*encoding.Record, 0, len(h.records)/walConfig.IndexDownsample+1),
+			bloom:    bloom.NewBloomFilter(float64(len(h.records)), walConfig.BloomFP),
 		},
 	}
 	orderedBlock.meta.StartTime = h.meta.StartTime
@@ -110,7 +110,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 		}
 
 		// if this is the last record to be included by hte downsample config OR is simply the last record
-		if i%walConfig.indexDownsample == walConfig.indexDownsample-1 ||
+		if i%walConfig.IndexDownsample == walConfig.IndexDownsample-1 ||
 			i == len(h.records)-1 {
 			currentRecord.ID = r.ID
 			orderedBlock.records = append(orderedBlock.records, currentRecord)

@@ -1,13 +1,9 @@
 package friggdb
 
 import (
-	"encoding/json"
-	"fmt"
-
-	bloom "github.com/dgraph-io/ristretto/z"
-	"github.com/dgryski/go-farm"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/wal"
 )
 
 // compactor block wraps a headblock to facilitate compaction.  it primarily needs the headblock
@@ -15,24 +11,24 @@ import (
 // feel like this is kind of not worth it.  if tests start failing probably a good idea to just
 //   split this functionality entirely
 type compactorBlock struct {
-	h     *headBlock
+	h     wal.HeadBlock
 	metas []*encoding.BlockMeta
 
-	cfg *walConfig // todo: these config elements are being used by more than the wal, change their location?
+	cfg *wal.Config // todo: these config elements are being used by more than the wal, change their location?
 }
 
-func newCompactorBlock(tenantID string, cfg *walConfig, metas []*encoding.BlockMeta) (*compactorBlock, error) {
-	h, err := newBlock(uuid.New(), tenantID, cfg.workFilepath)
+func newCompactorBlock(tenantID string, cfg *wal.Config, metas []*encoding.BlockMeta) (*compactorBlock, error) {
+	/*h, err := NewBlock(uuid.New(), tenantID) //, cfg.workFilepath) jpe - dumb
 	if err != nil {
 		return nil, err
 	}
 
 	if len(metas) == 0 {
 		return nil, fmt.Errorf("empty block meta list")
-	}
+	}*/
 
 	return &compactorBlock{
-		h:     h,
+		//h:     h,
 		cfg:   cfg,
 		metas: metas,
 	}, nil
@@ -43,11 +39,12 @@ func (c *compactorBlock) write(id encoding.ID, object []byte) error {
 }
 
 func (c *compactorBlock) id() uuid.UUID {
-	return c.h.meta.BlockID
+	return uuid.New()
+	//return c.h.meta.BlockI jpe
 }
 
 func (c *compactorBlock) meta() ([]byte, error) {
-	meta := c.h.meta
+	/*meta := c.h.meta
 
 	meta.StartTime = c.metas[0].StartTime
 	meta.EndTime = c.metas[0].EndTime
@@ -62,11 +59,12 @@ func (c *compactorBlock) meta() ([]byte, error) {
 		}
 	}
 
-	return json.Marshal(meta)
+	return json.Marshal(meta)*/
+	return nil, nil
 }
 
 func (c *compactorBlock) bloom() ([]byte, error) {
-	length := c.length()
+	/*length := c.length()
 	if length == 0 {
 		return nil, fmt.Errorf("cannot create bloom without records")
 	}
@@ -78,11 +76,12 @@ func (c *compactorBlock) bloom() ([]byte, error) {
 		b.Add(farm.Fingerprint64(r.ID))
 	}
 
-	return b.JSONMarshal(), nil
+	return b.JSONMarshal(), nil*/
+	return nil, nil
 }
 
 func (c *compactorBlock) index() ([]byte, error) {
-	numRecords := (len(c.h.records) / c.cfg.indexDownsample) + 1
+	/*numRecords := (len(c.h.records) / c.cfg.indexDownsample) + 1
 	downsampledRecords := make([]*encoding.Record, 0, numRecords)
 	// downsample index and then marshal
 	var currentRecord *encoding.Record
@@ -106,15 +105,18 @@ func (c *compactorBlock) index() ([]byte, error) {
 		}
 	}
 
-	return encoding.MarshalRecords(downsampledRecords)
+	return encoding.MarshalRecords(downsampledRecords)*/
+	return nil, nil
 }
 
 func (c *compactorBlock) length() int {
-	return len(c.h.records)
+	//return len(c.h.records)
+	return 0
 }
 
 func (c *compactorBlock) objectFilePath() string {
-	return c.h.fullFilename()
+	//return c.h.fullFilename()
+	return ""
 }
 
 func (c *compactorBlock) clear() error {
