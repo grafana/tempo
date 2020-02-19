@@ -32,4 +32,6 @@ func TestBlockMeta(t *testing.T) {
 	b.ObjectAdded(randID2)
 	assert.True(t, b.EndTime.After(b.StartTime))
 	assert.Equal(t, 1, bytes.Compare(b.MaxID, b.MinID))
+
+	assert.Equal(t, 2, b.TotalObjects)
 }

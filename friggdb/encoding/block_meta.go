@@ -8,13 +8,14 @@ import (
 )
 
 type BlockMeta struct {
-	Version   string    `json:"format"`
-	BlockID   uuid.UUID `json:"blockID"`
-	MinID     ID        `json:"minID"`
-	MaxID     ID        `json:"maxID"`
-	TenantID  string    `json:"tenantID"`
-	StartTime time.Time `json:"startTime"`
-	EndTime   time.Time `json:"endTime"`
+	Version      string    `json:"format"`
+	BlockID      uuid.UUID `json:"blockID"`
+	MinID        ID        `json:"minID"`
+	MaxID        ID        `json:"maxID"`
+	TenantID     string    `json:"tenantID"`
+	StartTime    time.Time `json:"startTime"`
+	EndTime      time.Time `json:"endTime"`
+	TotalObjects uint32    `json:"totalObjects"`
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
@@ -42,4 +43,6 @@ func (b *BlockMeta) ObjectAdded(id ID) {
 	if len(b.MaxID) == 0 || bytes.Compare(id, b.MaxID) == 1 {
 		b.MaxID = id
 	}
+
+	b.TotalObjects++
 }

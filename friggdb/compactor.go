@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"time"
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
@@ -35,18 +36,17 @@ const (
 	inputBlocks    = 4
 	outputBlocks   = 2
 	chunkSizeBytes = 1024 * 1024 * 10
-)
 
-func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encoding.BlockMeta, int) {
-	return nil, 0
-}
+	candidateBlocks    = inputBlocks * 3
+	maxCompactionRange = 1 * time.Hour
+)
 
 func (rw *readerWriter) doCompaction() {
 	// stop any existing compaction jobs
 	if rw.jobStopper != nil {
 		err := rw.jobStopper.Stop()
 		if err != nil {
-			// jpe : log
+			level.Warn(rw.logger).Log("msg", "error during compaction cycle", "err", err)
 		}
 	}
 
@@ -74,14 +74,25 @@ func (rw *readerWriter) doCompaction() {
 				if blocks == nil {
 					break
 				}
-				warning = rw.compact(blocks, tenantID)
+				err := rw.compact(blocks, tenantID)
+				if err != nil {
+					warning = err
+				}
 			}
 		}
 	})
 
 	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next polling cycle.")
+		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next polling cycle.", "err", err)
 	}
+}
+
+func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encoding.BlockMeta, int) {
+	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
+	//   - consider candidateBlocks at a time.
+	//   - find the blocks with the fewest records that are within the compaction range
+
+	return nil, 0
 }
 
 // jpe : this method is brittle and has weird failure conditions.  if at any point it fails it can't clean up the old blocks and just leaves them around
