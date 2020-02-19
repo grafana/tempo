@@ -24,13 +24,15 @@ type compactor struct {
 
 	r backend.Reader
 	w backend.Writer
+	c backend.Compactor
 }
 
-func newCompactor(cfg *compactorConfig, walCfg *walConfig, r backend.Reader, w backend.Writer) *compactor {
+func newCompactor(cfg *compactorConfig, walCfg *walConfig, r backend.Reader, w backend.Writer, c backend.Compactor) *compactor {
 	return &compactor{
 		cfg:    cfg,
 		r:      r,
 		w:      w,
+		c:      c,
 		walCfg: walCfg,
 	}
 }
@@ -39,6 +41,7 @@ func (c *compactor) blocksToCompact(tenantID string) []uuid.UUID {
 	return nil
 }
 
+// jpe : this method is brittle and has weird failure conditions.  if at any point it fails it can't clean up the old blocks and just leaves them around
 func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 	var err error
 	bookmarks := make([]*bookmark, 0, len(ids))
@@ -145,6 +148,13 @@ func (c *compactor) compact(ids []uuid.UUID, tenantID string) error {
 				// jpe: log?  return warning?
 			}
 			currentBlock = nil
+		}
+	}
+
+	// mark old blocks compacted so they don't show up in polling
+	for _, blockID := range ids {
+		if err := c.c.MarkBlockCompacted(blockID, tenantID); err != nil {
+			// jpe: log
 		}
 	}
 
