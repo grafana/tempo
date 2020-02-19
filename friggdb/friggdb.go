@@ -79,8 +79,8 @@ type readerWriter struct {
 
 	logger              log.Logger
 	cfg                 *Config
-	blockLists          map[string][]encoding.SearchableBlockMeta
-	compactedBlockLists map[string][]encoding.SearchableBlockMeta
+	blockLists          map[string][]*encoding.BlockMeta
+	compactedBlockLists map[string][]*encoding.BlockMeta
 	blockListsMtx       sync.Mutex
 }
 
@@ -118,8 +118,8 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 		cfg:                 cfg,
 		logger:              logger,
 		pool:                pool.NewPool(cfg.Pool),
-		blockLists:          make(map[string][]encoding.SearchableBlockMeta),
-		compactedBlockLists: make(map[string][]encoding.SearchableBlockMeta),
+		blockLists:          make(map[string][]*encoding.BlockMeta),
+		compactedBlockLists: make(map[string][]*encoding.BlockMeta),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -179,7 +179,7 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, Estimated
 	}
 
 	foundBytes, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) ([]byte, error) {
-		meta := payload.(encoding.SearchableBlockMeta)
+		meta := payload.(*encoding.BlockMeta)
 
 		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
 		if err != nil {
@@ -280,11 +280,11 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 		}
 
 		listMutex := sync.Mutex{}
-		blocklist := make([]encoding.SearchableBlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]encoding.SearchableBlockMeta, 0, len(blockIDs)) // jpe: this is dumb. put both kinds of block metas in the same list?
+		blocklist := make([]*encoding.BlockMeta, 0, len(blockIDs))
+		compactedBlocklist := make([]*encoding.BlockMeta, 0, len(blockIDs)) // jpe: this is dumb. put both kinds of block metas in the same list?
 		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
-			meta := &encoding.SearchableBlockMeta{}
+			meta := &encoding.BlockMeta{}
 			isCompacted := false
 
 			metaBytes, err := rw.r.BlockMeta(blockID, tenantID)
@@ -311,9 +311,9 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 			//        make the worker pool more generic? and reusable in this case
 			listMutex.Lock()
 			if isCompacted {
-				compactedBlocklist = append(compactedBlocklist, *meta)
+				compactedBlocklist = append(compactedBlocklist, meta)
 			} else {
-				blocklist = append(blocklist, *meta)
+				blocklist = append(blocklist, meta)
 			}
 			listMutex.Unlock()
 

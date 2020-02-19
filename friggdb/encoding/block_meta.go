@@ -7,15 +7,11 @@ import (
 	"github.com/google/uuid"
 )
 
-type SearchableBlockMeta struct {
-	Version string    `json:"format"`
-	BlockID uuid.UUID `json:"blockID"`
-	MinID   ID        `json:"minID"`
-	MaxID   ID        `json:"maxID"`
-}
-
 type BlockMeta struct {
-	SearchableBlockMeta
+	Version   string    `json:"format"`
+	BlockID   uuid.UUID `json:"blockID"`
+	MinID     ID        `json:"minID"`
+	MaxID     ID        `json:"maxID"`
 	TenantID  string    `json:"tenantID"`
 	StartTime time.Time `json:"startTime"`
 	EndTime   time.Time `json:"endTime"`
@@ -24,12 +20,10 @@ type BlockMeta struct {
 func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
 	now := time.Now()
 	b := &BlockMeta{
-		SearchableBlockMeta: SearchableBlockMeta{
-			Version: "v0",
-			BlockID: blockID,
-			MinID:   []byte{},
-			MaxID:   []byte{},
-		},
+		Version:   "v0",
+		BlockID:   blockID,
+		MinID:     []byte{},
+		MaxID:     []byte{},
 		TenantID:  tenantID,
 		StartTime: now,
 		EndTime:   now,
