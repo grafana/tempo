@@ -48,7 +48,7 @@ func TestDB(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err)
 
-	numMsgs := 1
+	numMsgs := 10
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {

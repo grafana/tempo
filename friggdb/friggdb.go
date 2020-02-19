@@ -281,17 +281,17 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 
 		listMutex := sync.Mutex{}
 		blocklist := make([]searchableBlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]searchableBlockMeta, 0, len(blockIDs))
+		compactedBlocklist := make([]searchableBlockMeta, 0, len(blockIDs)) // jpe: this is dumb. put both kinds of block metas in the same list?
 		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
 			meta := &searchableBlockMeta{}
+			isCompacted := false
 
-			listToAppend := blocklist
 			metaBytes, err := rw.r.BlockMeta(blockID, tenantID)
 			// if the normal meta doesn't exist maybe it's compacted.
 			if os.IsNotExist(err) {
 				metaBytes, err = rw.c.CompactedBlockMeta(blockID, tenantID)
-				listToAppend = compactedBlocklist
+				isCompacted = true
 			}
 
 			if err != nil {
@@ -310,7 +310,11 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 			// todo:  make this not terrible. this mutex is dumb we should be returning results with a channel. shoehorning this into the worker pool is silly.
 			//        make the worker pool more generic? and reusable in this case
 			listMutex.Lock()
-			listToAppend = append(listToAppend, *meta)
+			if isCompacted {
+				compactedBlocklist = append(compactedBlocklist, *meta)
+			} else {
+				blocklist = append(blocklist, *meta)
+			}
 			listMutex.Unlock()
 
 			return nil, nil
