@@ -34,10 +34,10 @@ type job struct {
 	payload interface{}
 	fn      JobFunc
 
-	wg      *sync.WaitGroup
-	results chan []byte
-	stopped *atomic.Bool
-	err     *atomic.Error
+	wg        *sync.WaitGroup
+	resultsCh chan []byte
+	stopCh    chan struct{}
+	err       *atomic.Error
 }
 
 type Pool struct {
@@ -80,28 +80,28 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 		return nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
-	results := make(chan []byte, 1)
+	resultsCh := make(chan []byte, 1)
+	stopCh := make(chan struct{}, 0)
 	wg := &sync.WaitGroup{}
-	stopped := atomic.NewBool(false)
 	err := atomic.NewError(nil)
 
 	wg.Add(totalJobs)
 	// add each job one at a time.  even though we checked length above these might still fail
 	for _, payload := range payloads {
 		j := &job{
-			fn:      fn,
-			payload: payload,
-			wg:      wg,
-			results: results,
-			stopped: stopped,
-			err:     err,
+			fn:        fn,
+			payload:   payload,
+			wg:        wg,
+			resultsCh: resultsCh,
+			stopCh:    stopCh,
+			err:       err,
 		}
 
 		select {
 		case p.workQueue <- j:
 			p.size.Inc()
 		default:
-			stopped.Store(true)
+			close(stopCh)
 			return nil, fmt.Errorf("failed to add a job to work queue")
 		}
 	}
@@ -113,9 +113,9 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 	}()
 
 	select {
-	case msg := <-results:
+	case msg := <-resultsCh:
+		close(stopCh)
 		wg.Done()
-		stopped.Store(true) // todo: use stopCh instead?
 		return msg, nil
 	case <-allDone:
 		return nil, err.Load()
@@ -130,6 +130,8 @@ func (p *Pool) Shutdown() {
 func (p *Pool) worker(j <-chan *job) {
 	for {
 		select {
+		case <-p.stopCh:
+			return
 		case job, ok := <-j:
 			if !ok {
 				return
@@ -137,28 +139,26 @@ func (p *Pool) worker(j <-chan *job) {
 
 			p.size.Dec()
 
-			if job.stopped.Load() {
+			select {
+			case <-job.stopCh:
 				job.wg.Done()
 				continue
-			}
+			default:
+				msg, err := job.fn(job.payload)
 
-			msg, err := job.fn(job.payload)
-
-			if msg != nil {
-				select {
-				case job.results <- msg:
-					// not signalling done here to dodge race condition between results chan and done
-					continue
-				default:
-					// this is weird.  found the id twice?
+				if msg != nil {
+					select {
+					case job.resultsCh <- msg:
+						// not signalling done here to dodge race condition between results chan and done
+						continue
+					default:
+					}
 				}
+				if err != nil {
+					job.err.Store(err)
+				}
+				job.wg.Done()
 			}
-			if err != nil {
-				job.err.Store(err)
-			}
-			job.wg.Done()
-		case <-p.stopCh:
-			return
 		}
 	}
 }
