@@ -143,17 +143,16 @@ func TestRetention(t *testing.T) {
 
 func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
 	rw.pollBlocklist()
-	time.Sleep(100 * time.Millisecond)
 
 	blocklist := rw.blockLists[testTenantID]
 	assert.Len(t, blocklist, expectedB)
-	if expectedB > 0 {
+	if expectedB > 0 && expectedID != uuid.Nil {
 		assert.Equal(t, expectedID, blocklist[0].BlockID)
 	}
 
 	compactedBlocklist := rw.compactedBlockLists[testTenantID]
 	assert.Len(t, compactedBlocklist, expectedCB)
-	if expectedCB > 0 {
+	if expectedCB > 0 && expectedID != uuid.Nil {
 		assert.Equal(t, expectedID, compactedBlocklist[0].BlockID)
 	}
 }
