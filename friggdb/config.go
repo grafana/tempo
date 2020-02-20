@@ -20,4 +20,5 @@ type Config struct {
 	Compactor *compactorConfig `yaml:"compactor"`
 
 	MaintenanceCycle time.Duration `yaml:"maintenanceCycle"`
+	BlockRetention   time.Duration `yaml:"blockRetention"`
 }

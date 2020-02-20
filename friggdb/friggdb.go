@@ -352,6 +352,50 @@ func (rw *readerWriter) pollBlocklist() {
 }
 
 func (rw *readerWriter) doRetention() {
-	// jpe : iterate through block list.  make compacted anything that is past retention.  use stoppable jobs?
-	// jpe : iterate through compacted list looking for blocks ready to be cleared
+	tenants := rw.blocklistTenants()
+
+	cutoff := time.Now().Add(-rw.cfg.BlockRetention)
+	// todo: continued abuse of runJobs.  need a runAllJobs() method or something
+	_, err := rw.pool.RunJobs(tenants, func(payload interface{}) ([]byte, error) {
+		tenantID := payload.(string)
+		blocklist := rw.blocklist(tenantID)
+
+		for _, b := range blocklist {
+			if b.EndTime.Before(cutoff) {
+				err := rw.c.MarkBlockCompacted(b.BlockID, tenantID)
+				if err != nil {
+					// jpe : log
+				}
+			}
+		}
+
+		return nil, nil
+	})
+
+	if err != nil {
+		// jpe: log/metric
+	}
+
+	// iterate through block list.  make compacted anything that is past retention.
+
+	// iterate through compacted list looking for blocks ready to be cleared
+}
+
+func (rw *readerWriter) blocklistTenants() []interface{} {
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	tenants := make([]interface{}, 0, len(rw.blockLists))
+	for tenant := range rw.blockLists {
+		tenants = append(tenants, tenant)
+	}
+
+	return tenants
+}
+
+func (rw *readerWriter) blocklist(tenantID string) []*encoding.BlockMeta {
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	return rw.blockLists[tenantID]
 }

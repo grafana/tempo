@@ -22,6 +22,9 @@ type compactorConfig struct {
 metrics:
  - time to stop jobs
  - compaction time
+ - compaction block count
+ - blocks compacted due to retention
+ - blocks deleted
 */
 
 type compactor struct {
@@ -52,12 +55,7 @@ func (rw *readerWriter) doCompaction() {
 	}
 
 	// start crazy jobs to do compaction with new list
-	rw.blockListsMtx.Lock()
-	tenants := make([]interface{}, 0, len(rw.blockLists))
-	for tenant := range rw.blockLists {
-		tenants = append(tenants, tenant)
-	}
-	rw.blockListsMtx.Unlock()
+	tenants := rw.blocklistTenants()
 
 	var err error
 	rw.jobStopper, err = rw.pool.RunStoppableJobs(tenants, func(payload interface{}, stopCh <-chan struct{}) error {
