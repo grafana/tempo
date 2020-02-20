@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,13 +35,11 @@ func TestReadWrite(t *testing.T) {
 		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
 	}
 
-	fakeMeta := make([]byte, 20)
+	fakeMeta := &encoding.BlockMeta{}
 	fakeBloom := make([]byte, 20)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
 
-	_, err = rand.Read(fakeMeta)
-	assert.NoError(t, err, "unexpected error creating fakeMeta")
 	_, err = rand.Read(fakeBloom)
 	assert.NoError(t, err, "unexpected error creating fakeBloom")
 	_, err = rand.Read(fakeIndex)
@@ -122,13 +121,11 @@ func TestCompaction(t *testing.T) {
 		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
 	}
 
-	fakeMeta := make([]byte, 20)
+	fakeMeta := &encoding.BlockMeta{}
 	fakeBloom := make([]byte, 20)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
 
-	_, err = rand.Read(fakeMeta)
-	assert.NoError(t, err, "unexpected error creating fakeMeta")
 	_, err = rand.Read(fakeBloom)
 	assert.NoError(t, err, "unexpected error creating fakeBloom")
 	_, err = rand.Read(fakeIndex)
@@ -142,30 +139,29 @@ func TestCompaction(t *testing.T) {
 		err = w.Write(context.Background(), blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
 		assert.NoError(t, err, "unexpected error writing")
 
-		b, err := c.CompactedBlockMeta(blockID, id)
+		compactedMeta, err := c.CompactedBlockMeta(blockID, id)
 		assert.True(t, os.IsNotExist(err))
-		assert.Nil(t, b)
+		assert.Nil(t, compactedMeta)
 
 		err = c.MarkBlockCompacted(blockID, id)
 		assert.NoError(t, err)
 
-		b, err = c.CompactedBlockMeta(blockID, id)
+		compactedMeta, err = c.CompactedBlockMeta(blockID, id)
 		assert.NoError(t, err)
-		assert.Equal(t, fakeMeta, b)
 
-		b, err = r.BlockMeta(blockID, id)
+		meta, err := r.BlockMeta(blockID, id)
 		assert.True(t, os.IsNotExist(err))
-		assert.Nil(t, b)
+		assert.Nil(t, meta)
 
 		err = c.ClearBlock(blockID, id)
 		assert.NoError(t, err)
 
-		b, err = c.CompactedBlockMeta(blockID, id)
+		compactedMeta, err = c.CompactedBlockMeta(blockID, id)
 		assert.True(t, os.IsNotExist(err))
-		assert.Nil(t, b)
+		assert.Nil(t, compactedMeta)
 
-		b, err = r.BlockMeta(blockID, id)
+		meta, err = r.BlockMeta(blockID, id)
 		assert.True(t, os.IsNotExist(err))
-		assert.Nil(t, b)
+		assert.Nil(t, meta)
 	}
 }

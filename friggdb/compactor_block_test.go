@@ -2,7 +2,6 @@ package friggdb
 
 import (
 	"bytes"
-	"encoding/json"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -85,12 +84,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 	assert.Equal(t, numObjects, cb.length())
 
 	// test meta
-	metaBytes, err := cb.meta()
-	assert.NoError(t, err)
-
-	meta := &encoding.BlockMeta{}
-	err = json.Unmarshal(metaBytes, meta)
-	assert.NoError(t, err)
+	meta := cb.meta()
 
 	assert.Equal(t, time.Unix(10000, 0), meta.StartTime)
 	assert.Equal(t, time.Unix(25000, 0), meta.EndTime)

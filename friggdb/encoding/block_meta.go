@@ -7,6 +7,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type CompactedBlockMeta struct {
+	BlockMeta
+
+	CompactedTime time.Time `json:"-"`
+}
+
 type BlockMeta struct {
 	Version      string    `json:"format"`
 	BlockID      uuid.UUID `json:"blockID"`

@@ -1,7 +1,6 @@
 package friggdb
 
 import (
-	"encoding/json"
 	"fmt"
 
 	bloom "github.com/dgraph-io/ristretto/z"
@@ -56,7 +55,7 @@ func (c *compactorBlock) id() uuid.UUID {
 	return c.h.BlockMeta().BlockID
 }
 
-func (c *compactorBlock) meta() ([]byte, error) {
+func (c *compactorBlock) meta() *encoding.BlockMeta {
 	meta := c.h.BlockMeta()
 
 	meta.StartTime = c.metas[0].StartTime
@@ -72,7 +71,7 @@ func (c *compactorBlock) meta() ([]byte, error) {
 		}
 	}
 
-	return json.Marshal(meta)
+	return meta
 }
 
 func (c *compactorBlock) bloom() ([]byte, error) {
@@ -82,9 +81,7 @@ func (c *compactorBlock) bloom() ([]byte, error) {
 	}
 
 	b := bloom.NewBloomFilter(float64(length), c.bloomFP)
-
 	_, _, records, _ := c.h.WriteInfo()
-
 	// add all ids
 	for _, r := range records {
 		b.Add(farm.Fingerprint64(r.ID))

@@ -19,6 +19,7 @@ type Config struct {
 	WAL       *wal.Config      `yaml:"wal"`
 	Compactor *compactorConfig `yaml:"compactor"`
 
-	MaintenanceCycle time.Duration `yaml:"maintenanceCycle"`
-	BlockRetention   time.Duration `yaml:"blockRetention"`
+	MaintenanceCycle        time.Duration `yaml:"maintenanceCycle"`
+	BlockRetention          time.Duration `yaml:"blockRetention"`
+	CompactedBlockRetention time.Duration `yaml:"compactedBlockRetention"`
 }

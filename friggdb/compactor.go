@@ -32,7 +32,7 @@ type compactor struct {
 
 	jobStopper *pool.Stopper
 
-	compactedBlockLists map[string][]*encoding.BlockMeta
+	compactedBlockLists map[string][]*encoding.CompactedBlockMeta
 }
 
 const (
@@ -191,11 +191,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 
 		// ship block to backend if done
 		if currentBlock.length() >= recordsPerBlock {
-			currentMeta, err := currentBlock.meta()
-			if err != nil {
-				return err
-			}
-
+			currentMeta := currentBlock.meta()
 			currentIndex, err := currentBlock.index()
 			if err != nil {
 				return err

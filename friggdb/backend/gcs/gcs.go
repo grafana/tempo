@@ -2,16 +2,19 @@ package gcs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/friggdb/encoding"
 	"google.golang.org/api/iterator"
 )
 
@@ -45,7 +48,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID string, bMeta []byte, bBloom []byte, bIndex []byte, objectFilePath string) error {
+func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID string, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
 
 	err := rw.writeAll(ctx, rw.bloomFileName(blockID, tenantID), bBloom)
 	if err != nil {
@@ -71,6 +74,11 @@ func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID s
 	w := rw.writer(ctx, rw.objectFileName(blockID, tenantID))
 	defer w.Close()
 	_, err = io.Copy(w, src)
+	if err != nil {
+		return err
+	}
+
+	bMeta, err := json.Marshal(meta)
 	if err != nil {
 		return err
 	}
@@ -142,9 +150,21 @@ func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 	return blocks, warning
 }
 
-func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
 	name := rw.metaFileName(blockID, tenantID)
-	return rw.readAll(context.Background(), name)
+
+	bytes, err := rw.readAll(context.Background(), name)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &encoding.BlockMeta{}
+	err = json.Unmarshal(bytes, out)
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }
 
 func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {
@@ -213,6 +233,21 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	defer r.Close()
 
 	return ioutil.ReadAll(r)
+}
+
+func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
+	r, err := rw.bucket.Object(name).NewReader(ctx)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	defer r.Close()
+
+	bytes, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
+	return bytes, r.Attrs.LastModified, nil
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, length int64) ([]byte, error) {

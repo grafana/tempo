@@ -2,11 +2,13 @@ package gcs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
+	"github.com/grafana/frigg/friggdb/encoding"
 	"google.golang.org/api/iterator"
 )
 
@@ -58,9 +60,22 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return nil
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*encoding.CompactedBlockMeta, error) {
 	name := rw.compactedMetaFileName(blockID, tenantID)
-	return rw.readAll(context.Background(), name)
+
+	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &encoding.CompactedBlockMeta{}
+	err = json.Unmarshal(bytes, out)
+	if err != nil {
+		return nil, err
+	}
+	out.CompactedTime = modTime
+
+	return out, err
 }
 
 func (rw *readerWriter) compactedMetaFileName(blockID uuid.UUID, tenantID string) string {

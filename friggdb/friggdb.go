@@ -3,7 +3,6 @@ package friggdb
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -115,7 +114,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 	rw := &readerWriter{
 		compactor: compactor{
 			c:                   c,
-			compactedBlockLists: make(map[string][]*encoding.BlockMeta),
+			compactedBlockLists: make(map[string][]*encoding.CompactedBlockMeta),
 		},
 		r:          r,
 		w:          w,
@@ -142,14 +141,9 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.CompleteBlock) err
 		return err
 	}
 
-	metaBytes, err := json.Marshal(c.BlockMeta())
-	if err != nil {
-		return err
-	}
-
 	bloomBytes := c.BloomFilter().JSONMarshal()
 
-	err = rw.w.Write(ctx, uuid, tenantID, metaBytes, bloomBytes, indexBytes, blockFilePath)
+	err = rw.w.Write(ctx, uuid, tenantID, c.BlockMeta(), bloomBytes, indexBytes, blockFilePath)
 	if err != nil {
 		return err
 	}
@@ -290,17 +284,16 @@ func (rw *readerWriter) pollBlocklist() {
 
 		listMutex := sync.Mutex{}
 		blocklist := make([]*encoding.BlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]*encoding.BlockMeta, 0, len(blockIDs)) // jpe: this is dumb. put both kinds of block metas in the same list?
+		compactedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(blockIDs)) // jpe: this is dumb. put both kinds of block metas in the same list?
 		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
-			meta := &encoding.BlockMeta{}
-			isCompacted := false
 
-			metaBytes, err := rw.r.BlockMeta(blockID, tenantID)
+			var compactedBlockMeta *encoding.CompactedBlockMeta
+			blockMeta, err := rw.r.BlockMeta(blockID, tenantID)
 			// if the normal meta doesn't exist maybe it's compacted.
 			if os.IsNotExist(err) {
-				metaBytes, err = rw.c.CompactedBlockMeta(blockID, tenantID)
-				isCompacted = true
+				blockMeta = nil
+				compactedBlockMeta, err = rw.c.CompactedBlockMeta(blockID, tenantID)
 			}
 
 			if err != nil {
@@ -309,20 +302,14 @@ func (rw *readerWriter) pollBlocklist() {
 				return nil, nil
 			}
 
-			err = json.Unmarshal(metaBytes, meta)
-			if err != nil {
-				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-				level.Error(rw.logger).Log("msg", "failed to unmarshal json blocklist", "tenantID", tenantID, "blockID", blockID, "err", err)
-				return nil, nil
-			}
-
 			// todo:  make this not terrible. this mutex is dumb we should be returning results with a channel. shoehorning this into the worker pool is silly.
 			//        make the worker pool more generic? and reusable in this case
 			listMutex.Lock()
-			if isCompacted {
-				compactedBlocklist = append(compactedBlocklist, meta)
-			} else {
-				blocklist = append(blocklist, meta)
+			if blockMeta != nil {
+				blocklist = append(blocklist, blockMeta)
+
+			} else if compactedBlockMeta != nil {
+				compactedBlocklist = append(compactedBlocklist, compactedBlockMeta)
 			}
 			listMutex.Unlock()
 
@@ -354,15 +341,28 @@ func (rw *readerWriter) pollBlocklist() {
 func (rw *readerWriter) doRetention() {
 	tenants := rw.blocklistTenants()
 
-	cutoff := time.Now().Add(-rw.cfg.BlockRetention)
 	// todo: continued abuse of runJobs.  need a runAllJobs() method or something
 	_, err := rw.pool.RunJobs(tenants, func(payload interface{}) ([]byte, error) {
 		tenantID := payload.(string)
-		blocklist := rw.blocklist(tenantID)
 
+		// iterate through block list.  make compacted anything that is past retention.
+		cutoff := time.Now().Add(-rw.cfg.BlockRetention)
+		blocklist := rw.blocklist(tenantID)
 		for _, b := range blocklist {
 			if b.EndTime.Before(cutoff) {
 				err := rw.c.MarkBlockCompacted(b.BlockID, tenantID)
+				if err != nil {
+					// jpe : log
+				}
+			}
+		}
+
+		// iterate through compacted list looking for blocks ready to be cleared
+		cutoff = time.Now().Add(-rw.cfg.CompactedBlockRetention)
+		compactedBlocklist := rw.compactedBlocklist(tenantID)
+		for _, b := range compactedBlocklist {
+			if b.CompactedTime.Before(cutoff) {
+				err := rw.c.ClearBlock(b.BlockID, tenantID)
 				if err != nil {
 					// jpe : log
 				}
@@ -375,10 +375,6 @@ func (rw *readerWriter) doRetention() {
 	if err != nil {
 		// jpe: log/metric
 	}
-
-	// iterate through block list.  make compacted anything that is past retention.
-
-	// iterate through compacted list looking for blocks ready to be cleared
 }
 
 func (rw *readerWriter) blocklistTenants() []interface{} {
@@ -398,4 +394,12 @@ func (rw *readerWriter) blocklist(tenantID string) []*encoding.BlockMeta {
 	defer rw.blockListsMtx.Unlock()
 
 	return rw.blockLists[tenantID]
+}
+
+// todo:  make separate compacted list mutex?
+func (rw *readerWriter) compactedBlocklist(tenantID string) []*encoding.CompactedBlockMeta {
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	return rw.compactedBlockLists[tenantID]
 }
