@@ -120,6 +120,10 @@ func TestCompaction(t *testing.T) {
 
 	blockCount := 10
 	recordCount := 10
+
+	allReqs := make([]*friggpb.PushRequest, 0, blockCount*recordCount)
+	allIds := make([][]byte, 0, blockCount*recordCount)
+
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
 		head, err := wal.NewBlock(blockID, testTenantID)
@@ -139,6 +143,8 @@ func TestCompaction(t *testing.T) {
 			err = head.Write(id, bReq)
 			assert.NoError(t, err, "unexpected error writing req")
 		}
+		allReqs = append(allReqs, reqs...)
+		allIds = append(allIds, ids...)
 
 		complete, err := head.Complete(wal)
 		assert.NoError(t, err)
@@ -173,5 +179,17 @@ func TestCompaction(t *testing.T) {
 		expectedBlockCount -= blocksPerCompaction
 		expectedCompactedCount += inputBlocks
 		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
+	}
+
+	// now see if we can find our ids
+	for i, id := range allIds {
+		b, _, err := rw.Find(testTenantID, id)
+		assert.NoError(t, err)
+
+		out := &friggpb.PushRequest{}
+		err = proto.Unmarshal(b, out)
+		assert.NoError(t, err)
+
+		assert.True(t, proto.Equal(allReqs[i], out))
 	}
 }
