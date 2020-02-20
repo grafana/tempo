@@ -1,4 +1,0 @@
-scrape_configs:
-- openstack_sd_configs:
-  - role: invalid
-

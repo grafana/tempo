@@ -1,4 +1,0 @@
-alerting:
-  alertmanagers:
-  - relabel_configs:
-    -

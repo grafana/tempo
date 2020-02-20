@@ -1,8 +1,0 @@
-./.git*
-./tools*
-./vendor*
-./pkg/configs/legacy_promql*
-./.pkg*
-./website/themes*
-./website/public*
-./website/resources*

@@ -1,4 +1,0 @@
-daysUntilStale: 60
-daysUntilClose: 7
-onlyLabels:
-  - needs-info

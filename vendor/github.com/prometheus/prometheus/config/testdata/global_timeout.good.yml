@@ -1,3 +1,0 @@
-global:
-  scrape_timeout: 1h
-  scrape_interval: 1h
