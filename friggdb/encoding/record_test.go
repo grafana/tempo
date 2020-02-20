@@ -12,11 +12,10 @@ func TestEncodeDecodeRecord(t *testing.T) {
 	expected, err := makeRecord(t)
 	assert.NoError(t, err, "unexpected error making trace record")
 
-	actual := newRecord()
 	buff := make([]byte, recordLength)
 
 	marshalRecord(expected, buff)
-	unmarshalRecord(buff, actual)
+	actual := unmarshalRecord(buff)
 
 	assert.Equal(t, expected, actual)
 }

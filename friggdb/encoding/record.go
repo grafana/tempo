@@ -73,8 +73,7 @@ func UnmarshalRecords(recordBytes []byte) ([]*Record, error) {
 	for i := 0; i < numRecords; i++ {
 		buff := recordBytes[i*recordLength : (i+1)*recordLength]
 
-		r := newRecord()
-		unmarshalRecord(buff, r)
+		r := unmarshalRecord(buff)
 
 		records = append(records, r)
 	}
@@ -90,18 +89,18 @@ func FindRecord(id ID, recordBytes []byte) (*Record, error) {
 	}
 
 	numRecords := RecordCount(recordBytes)
-	record := newRecord()
+	var record *Record
 
 	i := sort.Search(numRecords, func(i int) bool {
 		buff := recordBytes[i*recordLength : (i+1)*recordLength]
-		unmarshalRecord(buff, record)
+		record = unmarshalRecord(buff)
 
 		return bytes.Compare(record.ID, id) >= 0
 	})
 
 	if i >= 0 && i < numRecords {
 		buff := recordBytes[i*recordLength : (i+1)*recordLength]
-		unmarshalRecord(buff, record)
+		record = unmarshalRecord(buff)
 
 		return record, nil
 	}
@@ -113,11 +112,10 @@ func RecordCount(b []byte) int {
 	return len(b) / recordLength
 }
 
-func MarshalRecordAndAdvance(rec *Record, buff []byte) []byte {
+func UnmarshalRecordAndAdvance(buff []byte) (*Record, []byte) {
 	readBuff := buff[:recordLength]
-	marshalRecord(rec, readBuff)
 
-	return buff[recordLength:]
+	return unmarshalRecord(readBuff), buff[recordLength:]
 }
 
 func marshalRecord(r *Record, buff []byte) {
@@ -127,10 +125,14 @@ func marshalRecord(r *Record, buff []byte) {
 	binary.LittleEndian.PutUint32(buff[24:], r.Length)
 }
 
-func unmarshalRecord(buff []byte, r *Record) {
+func unmarshalRecord(buff []byte) *Record {
+	r := newRecord()
+
 	copy(r.ID, buff[:16])
 	r.Start = binary.LittleEndian.Uint64(buff[16:24])
 	r.Length = binary.LittleEndian.Uint32(buff[24:])
+
+	return r
 }
 
 func newRecord() *Record {

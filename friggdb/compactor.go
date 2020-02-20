@@ -164,6 +164,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	for !allDone(bookmarks) {
 		var lowestID []byte
 		var lowestObject []byte
+		var lowestBookmark *bookmark
 
 		// find lowest ID of the new object
 		for _, b := range bookmarks {
@@ -181,14 +182,16 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 				if len(currentObject) > len(lowestObject) {
 					lowestID = currentID
 					lowestObject = currentObject
+					lowestBookmark = b
 				}
 			} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
 				lowestID = currentID
 				lowestObject = currentObject
+				lowestBookmark = b
 			}
 		}
 
-		if len(lowestID) == 0 || len(lowestObject) == 0 {
+		if len(lowestID) == 0 || len(lowestObject) == 0 || lowestBookmark == nil {
 			return fmt.Errorf("failed to find a lowest object in compaction")
 		}
 
@@ -210,6 +213,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		if err != nil {
 			return err
 		}
+		lowestBookmark.clearObject()
 
 		// ship block to backend if done
 		if uint32(currentBlock.length()) >= recordsPerBlock {
@@ -273,14 +277,13 @@ func nextObject(b *bookmark, tenantID string, chunkSizeBytes uint32, r backend.R
 		}
 
 		// pull next n bytes into objects
-		rec := &encoding.Record{}
-
 		var start uint64
 		var length uint32
 
 		start = math.MaxUint64
-		for length < chunkSizeBytes {
-			b.index = encoding.MarshalRecordAndAdvance(rec, b.index)
+		for length < chunkSizeBytes && len(b.index) > 0 {
+			var rec *encoding.Record
+			rec, b.index = encoding.UnmarshalRecordAndAdvance(b.index)
 
 			if start == math.MaxUint64 {
 				start = rec.Start
