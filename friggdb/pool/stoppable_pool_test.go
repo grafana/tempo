@@ -79,6 +79,7 @@ func TestStoppableErrorImmediate(t *testing.T) {
 	stopper, err := p.RunStoppableJobs(payloads, fn)
 	assert.NoError(t, err)
 	assert.NotNil(t, ret, stopper)
+	time.Sleep(10 * time.Millisecond)
 	err = stopper.Stop()
 	assert.Equal(t, expectedErr, err)
 }
@@ -105,6 +106,7 @@ func TestStoppableErrors(t *testing.T) {
 	stopper, err := p.RunStoppableJobs(payloads, fn)
 	assert.NoError(t, err)
 	assert.NotNil(t, ret, stopper)
+	time.Sleep(10 * time.Millisecond)
 	err = stopper.Stop()
 	assert.Equal(t, expectedErr, err)
 }
