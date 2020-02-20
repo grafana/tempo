@@ -37,8 +37,9 @@ const (
 	outputBlocks   = 2
 	chunkSizeBytes = 1024 * 1024 * 10
 
-	candidateBlocks    = inputBlocks * 3
 	maxCompactionRange = 1 * time.Hour
+
+	cursorDone = -1
 )
 
 func (rw *readerWriter) doCompaction() {
@@ -64,6 +65,7 @@ func (rw *readerWriter) doCompaction() {
 		tenantID := payload.(string)
 
 		cursor := 0
+	L:
 		for {
 			select {
 			case <-stopCh:
@@ -71,8 +73,11 @@ func (rw *readerWriter) doCompaction() {
 			default:
 				var blocks []*encoding.BlockMeta
 				blocks, cursor = rw.blocksToCompact(tenantID, cursor)
+				if cursor == cursorDone {
+					break L
+				}
 				if blocks == nil {
-					break
+					continue
 				}
 				err := rw.compact(blocks, tenantID)
 				if err != nil {
@@ -80,6 +85,8 @@ func (rw *readerWriter) doCompaction() {
 				}
 			}
 		}
+
+		return warning
 	})
 
 	if err != nil {
@@ -87,12 +94,42 @@ func (rw *readerWriter) doCompaction() {
 	}
 }
 
+// jpe - race condition - polling hits and refreshes block list then compaction finishes.  new blocklist is pulled into compaction.  this is fine for
+//         querying but compaction will have an outdated list.  repull block meta before compacting to prove they're there?
 func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encoding.BlockMeta, int) {
 	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
 	//   - consider candidateBlocks at a time.
 	//   - find the blocks with the fewest records that are within the compaction range
+	rw.blockListsMtx.Lock() // jpe - lot of contention on this list.  think about it
+	defer rw.blockListsMtx.Unlock()
 
-	return nil, 0
+	blocklist := rw.blockLists[tenantID]
+	if inputBlocks > len(blocklist) {
+		return nil, cursorDone
+	}
+
+	if cursor < 0 {
+		return nil, cursorDone
+	}
+
+	cursorEnd := cursor + inputBlocks
+	for {
+		if cursorEnd >= len(blocklist) {
+			break
+		}
+
+		blockStart := blocklist[cursor]
+		blockEnd := blocklist[cursorEnd]
+
+		if blockEnd.EndTime.Sub(blockStart.StartTime) < maxCompactionRange {
+			return blocklist[cursor:cursorEnd], cursorEnd + 1
+		}
+
+		cursor++
+		cursorEnd = cursor + inputBlocks
+	}
+
+	return nil, cursorDone
 }
 
 // jpe : this method is brittle and has weird failure conditions.  if at any point it fails it can't clean up the old blocks and just leaves them around
