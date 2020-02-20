@@ -39,7 +39,7 @@ func TestDB(t *testing.T) {
 			IndexDownsample: 17,
 			BloomFP:         .01,
 		},
-		MaintenanceCycle:        30 * time.Minute,
+		MaintenanceCycle:        0,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, log.NewNopLogger())
@@ -107,7 +107,7 @@ func TestRetention(t *testing.T) {
 			IndexDownsample: 17,
 			BloomFP:         .01,
 		},
-		MaintenanceCycle:        30 * time.Minute,
+		MaintenanceCycle:        0,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, log.NewNopLogger())
@@ -150,9 +150,22 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 		assert.Equal(t, expectedID, blocklist[0].BlockID)
 	}
 
+	//confirm blocklists are in starttime ascending order
+	lastTime := time.Time{}
+	for _, b := range blocklist {
+		assert.True(t, lastTime.Before(b.StartTime))
+		lastTime = b.StartTime
+	}
+
 	compactedBlocklist := rw.compactedBlockLists[testTenantID]
 	assert.Len(t, compactedBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
 		assert.Equal(t, expectedID, compactedBlocklist[0].BlockID)
+	}
+
+	lastTime = time.Time{}
+	for _, b := range compactedBlocklist {
+		assert.True(t, lastTime.Before(b.StartTime))
+		lastTime = b.StartTime
 	}
 }
