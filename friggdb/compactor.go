@@ -217,27 +217,19 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 
 		// ship block to backend if done
 		if uint32(currentBlock.length()) >= recordsPerBlock {
-			currentMeta := currentBlock.meta()
-			currentIndex, err := currentBlock.index()
+			err = rw.writeCompactedBlock(currentBlock, tenantID)
 			if err != nil {
 				return err
-			}
-
-			currentBloom, err := currentBlock.bloom()
-			if err != nil {
-				return err
-			}
-
-			err = rw.w.Write(context.TODO(), currentBlock.id(), tenantID, currentMeta, currentBloom, currentIndex, currentBlock.objectFilePath())
-			if err != nil {
-				return err
-			}
-
-			currentBlock.clear()
-			if err != nil {
-				// jpe: log?  return warning?
 			}
 			currentBlock = nil
+		}
+	}
+
+	// ship final block to backend
+	if currentBlock != nil {
+		err = rw.writeCompactedBlock(currentBlock, tenantID)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -246,6 +238,31 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
 			// jpe: log
 		}
+	}
+
+	return nil
+}
+
+func (rw *readerWriter) writeCompactedBlock(b *compactorBlock, tenantID string) error {
+	currentMeta := b.meta()
+	currentIndex, err := b.index()
+	if err != nil {
+		return err
+	}
+
+	currentBloom, err := b.bloom()
+	if err != nil {
+		return err
+	}
+
+	err = rw.w.Write(context.TODO(), b.id(), tenantID, currentMeta, currentBloom, currentIndex, b.objectFilePath())
+	if err != nil {
+		return err
+	}
+
+	b.clear()
+	if err != nil {
+		// jpe: log?  return warning?
 	}
 
 	return nil

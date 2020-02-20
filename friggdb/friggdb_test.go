@@ -153,7 +153,7 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 	//confirm blocklists are in starttime ascending order
 	lastTime := time.Time{}
 	for _, b := range blocklist {
-		assert.True(t, lastTime.Before(b.StartTime))
+		assert.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
 		lastTime = b.StartTime
 	}
 
@@ -165,7 +165,7 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 
 	lastTime = time.Time{}
 	for _, b := range compactedBlocklist {
-		assert.True(t, lastTime.Before(b.StartTime))
+		assert.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
 		lastTime = b.StartTime
 	}
 }
