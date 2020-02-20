@@ -39,7 +39,9 @@ func TestDB(t *testing.T) {
 			IndexDownsample: 17,
 			BloomFP:         .01,
 		},
-		MaintenanceCycle: 30 * time.Minute,
+		MaintenanceCycle:        30 * time.Minute,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
@@ -51,6 +53,7 @@ func TestDB(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err)
 
+	// write
 	numMsgs := 10
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
@@ -73,9 +76,10 @@ func TestDB(t *testing.T) {
 	err = w.WriteBlock(context.Background(), complete)
 	assert.NoError(t, err)
 
-	// force poll the blocklist now that we've written something
+	// poll
 	r.(*readerWriter).pollBlocklist()
 
+	// read
 	for i, id := range ids {
 		bFound, _, err := r.Find(testTenantID, id)
 		assert.NoError(t, err)
@@ -85,5 +89,71 @@ func TestDB(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))
+	}
+}
+
+func TestRetention(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	r, w, err := New(&Config{
+		Backend: "local",
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		WAL: &wal.Config{
+			Filepath:        path.Join(tempDir, "wal"),
+			IndexDownsample: 17,
+			BloomFP:         .01,
+		},
+		MaintenanceCycle:        30 * time.Minute,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	blockID := uuid.New()
+
+	wal := w.WAL()
+	assert.NoError(t, err)
+
+	head, err := wal.NewBlock(blockID, testTenantID)
+	assert.NoError(t, err)
+
+	complete, err := head.Complete(wal)
+	assert.NoError(t, err)
+	blockID = complete.BlockMeta().BlockID
+
+	err = w.WriteBlock(context.Background(), complete)
+	assert.NoError(t, err)
+
+	rw := r.(*readerWriter)
+	// poll
+	checkBlocklists(t, blockID, 1, 0, rw)
+
+	// retention should mark it compacted
+	r.(*readerWriter).doRetention()
+	checkBlocklists(t, blockID, 0, 1, rw)
+
+	// retention again should clear it
+	r.(*readerWriter).doRetention()
+	checkBlocklists(t, blockID, 0, 0, rw)
+}
+
+func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
+	rw.pollBlocklist()
+	time.Sleep(100 * time.Millisecond)
+
+	blocklist := rw.blockLists[testTenantID]
+	assert.Len(t, blocklist, expectedB)
+	if expectedB > 0 {
+		assert.Equal(t, expectedID, blocklist[0].BlockID)
+	}
+
+	compactedBlocklist := rw.compactedBlockLists[testTenantID]
+	assert.Len(t, compactedBlocklist, expectedCB)
+	if expectedCB > 0 {
+		assert.Equal(t, expectedID, compactedBlocklist[0].BlockID)
 	}
 }
