@@ -35,6 +35,9 @@ func TestCompaction(t *testing.T) {
 			IndexDownsample: 17,
 			BloomFP:         .01,
 		},
+		Compactor: &compactorConfig{
+			ChunkSizeBytes: 10,
+		},
 		MaintenanceCycle:        0,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -100,4 +103,8 @@ func TestCompaction(t *testing.T) {
 		expectedCompactedCount += inputBlocks
 		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 	}
+}
+
+func TestNextObject(t *testing.T) {
+
 }

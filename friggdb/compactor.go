@@ -17,6 +17,7 @@ import (
 )
 
 type compactorConfig struct {
+	ChunkSizeBytes uint32 `yaml:"chunkSizeBytes"`
 }
 
 /*
@@ -37,9 +38,8 @@ type compactor struct {
 }
 
 const (
-	inputBlocks    = 4
-	outputBlocks   = 2
-	chunkSizeBytes = 1024 * 1024 * 10
+	inputBlocks  = 4
+	outputBlocks = 2
 
 	maxCompactionRange = 1 * time.Hour
 
@@ -167,7 +167,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 
 		// find lowest ID of the new object
 		for _, b := range bookmarks {
-			currentID, currentObject, err := currentObject(b, tenantID, rw.r)
+			currentID, currentObject, err := currentObject(b, tenantID, rw.cfg.Compactor.ChunkSizeBytes, rw.r)
 			if err == io.EOF {
 				continue
 			} else if err != nil {
@@ -247,13 +247,13 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	return nil
 }
 
-func currentObject(b *bookmark, tenantID string, r backend.Reader) ([]byte, []byte, error) {
+func currentObject(b *bookmark, tenantID string, chunkSizeBytes uint32, r backend.Reader) ([]byte, []byte, error) {
 	if len(b.currentID) != 0 && len(b.currentObject) != 0 {
 		return b.currentID, b.currentObject, nil
 	}
 
 	var err error
-	b.currentID, b.currentObject, err = nextObject(b, tenantID, r)
+	b.currentID, b.currentObject, err = nextObject(b, tenantID, chunkSizeBytes, r)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -261,7 +261,7 @@ func currentObject(b *bookmark, tenantID string, r backend.Reader) ([]byte, []by
 	return b.currentID, b.currentObject, nil
 }
 
-func nextObject(b *bookmark, tenantID string, r backend.Reader) ([]byte, []byte, error) {
+func nextObject(b *bookmark, tenantID string, chunkSizeBytes uint32, r backend.Reader) ([]byte, []byte, error) {
 	var err error
 
 	// if no objects, pull objects
