@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"time"
 
 	"github.com/go-kit/kit/log/level"
@@ -92,8 +93,6 @@ func (rw *readerWriter) doCompaction() {
 	}
 }
 
-// jpe - race condition - polling hits and refreshes block list then compaction finishes.  new blocklist is pulled into compaction.  this is fine for
-//         querying but compaction will have an outdated list.  repull block meta before compacting to prove they're there?
 func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encoding.BlockMeta, int) {
 	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
 	//   - consider candidateBlocks at a time.
@@ -135,7 +134,30 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
 
-	totalRecords := 0
+	var totalRecords uint32
+	for _, blockMeta := range blockMetas {
+		totalRecords += blockMeta.TotalObjects
+
+		index, err := rw.r.Index(blockMeta.BlockID, tenantID)
+		if err != nil {
+			return err
+		}
+
+		bookmarks = append(bookmarks, &bookmark{
+			id:    blockMeta.BlockID,
+			index: index,
+		})
+
+		_, err = rw.r.BlockMeta(blockMeta.BlockID, tenantID)
+		if os.IsNotExist(err) {
+			// if meta doesn't exist right now it probably means this block was compacted.  warn and bail
+			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction", "blockID", blockMeta.BlockID, "tenantID", tenantID, "err", err)
+			return nil
+		} else if err != nil {
+			return err
+		}
+	}
+
 	recordsPerBlock := (totalRecords / outputBlocks) + 1
 	var currentBlock *compactorBlock
 
@@ -190,7 +212,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		}
 
 		// ship block to backend if done
-		if currentBlock.length() >= recordsPerBlock {
+		if uint32(currentBlock.length()) >= recordsPerBlock {
 			currentMeta := currentBlock.meta()
 			currentIndex, err := currentBlock.index()
 			if err != nil {

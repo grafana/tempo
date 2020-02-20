@@ -12,6 +12,10 @@ type bookmark struct {
 	currentObject []byte
 }
 
+func (b *bookmark) newBookmark() {
+
+}
+
 func (b *bookmark) done() bool {
 	return len(b.index) == 0 && len(b.objects) == 0 && len(b.currentID) == 0 && len(b.currentObject) == 0
 }
