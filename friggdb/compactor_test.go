@@ -14,7 +14,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend/local"
+	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/friggdb/wal"
+	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 )
@@ -67,8 +69,9 @@ func TestNextObject(t *testing.T) {
 	err = w.WriteBlock(context.Background(), complete)
 	assert.NoError(t, err)
 
+	blockID = complete.BlockMeta().BlockID
 	rw := r.(*readerWriter)
-	bIndex, err := rw.r.Index(complete.BlockMeta().BlockID, testTenantID)
+	bIndex, err := rw.r.Index(blockID, testTenantID)
 	assert.NoError(t, err)
 	bm := &bookmark{
 		id:    blockID,
@@ -83,11 +86,12 @@ func TestNextObject(t *testing.T) {
 		}
 		assert.NoError(t, err)
 		i++
+		bm.clearObject()
 	}
 	assert.Equal(t, recordCount, i)
 }
 
-/*func TestCompaction(t *testing.T) {
+func TestCompaction(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
@@ -171,4 +175,3 @@ func TestNextObject(t *testing.T) {
 		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 	}
 }
-*/

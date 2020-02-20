@@ -77,6 +77,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	orderedBlock.meta.EndTime = h.meta.EndTime
 	orderedBlock.meta.MinID = h.meta.MinID
 	orderedBlock.meta.MaxID = h.meta.MaxID
+	orderedBlock.meta.TotalObjects = h.meta.TotalObjects
 
 	_, err := os.Create(orderedBlock.fullFilename())
 	if err != nil {
