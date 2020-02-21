@@ -37,7 +37,8 @@ func TestStoppableJobs(t *testing.T) {
 			stopper, err := p.RunStoppableJobs(payloads, fn)
 			assert.NoError(t, err)
 			assert.NotNil(t, ret, stopper)
-			stopper.Stop()
+			err = stopper.Stop()
+			assert.NoError(t, err)
 			wg.Done()
 		}()
 	}
@@ -55,7 +56,7 @@ func TestStoppableReturnImmediate(t *testing.T) {
 		return nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
-	time.Sleep(time.Duration(30 * time.Millisecond))
+	time.Sleep(30 * time.Millisecond)
 
 	stopper, err := p.RunStoppableJobs(payloads, fn)
 	assert.NoError(t, err)

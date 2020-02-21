@@ -81,7 +81,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 	}
 
 	resultsCh := make(chan []byte, 1)
-	stopCh := make(chan struct{}, 0)
+	stopCh := make(chan struct{})
 	wg := &sync.WaitGroup{}
 	err := atomic.NewError(nil)
 

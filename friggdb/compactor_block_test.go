@@ -36,11 +36,11 @@ func TestCompactorBlockWrite(t *testing.T) {
 	assert.NoError(t, err)
 
 	metas := []*encoding.BlockMeta{
-		&encoding.BlockMeta{
+		{
 			StartTime: time.Unix(10000, 0),
 			EndTime:   time.Unix(20000, 0),
 		},
-		&encoding.BlockMeta{
+		{
 			StartTime: time.Unix(15000, 0),
 			EndTime:   time.Unix(25000, 0),
 		},
@@ -57,7 +57,6 @@ func TestCompactorBlockWrite(t *testing.T) {
 
 	numObjects := (rand.Int() % 20) + 1
 	ids := make([][]byte, 0)
-	objects := make([][]byte, 0)
 	for i := 0; i < numObjects; i++ {
 		id := make([]byte, 16)
 		_, err = rand.Read(id)
@@ -68,7 +67,6 @@ func TestCompactorBlockWrite(t *testing.T) {
 		assert.NoError(t, err)
 
 		ids = append(ids, id)
-		objects = append(objects, object)
 
 		err = cb.write(id, object)
 		assert.NoError(t, err)

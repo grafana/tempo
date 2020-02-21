@@ -32,7 +32,7 @@ func (p *Pool) RunStoppableJobs(payloads []interface{}, fn StoppableJobFunc) (*S
 		return nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
-	stopCh := make(chan struct{}, 0)
+	stopCh := make(chan struct{})
 	wg := &sync.WaitGroup{}
 	err := atomic.NewError(nil)
 

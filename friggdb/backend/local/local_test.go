@@ -148,6 +148,7 @@ func TestCompaction(t *testing.T) {
 
 		compactedMeta, err = c.CompactedBlockMeta(blockID, id)
 		assert.NoError(t, err)
+		assert.NotNil(t, compactedMeta)
 
 		meta, err := r.BlockMeta(blockID, id)
 		assert.True(t, os.IsNotExist(err))

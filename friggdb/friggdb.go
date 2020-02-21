@@ -97,10 +97,9 @@ type FindMetrics struct {
 }
 
 type readerWriter struct {
-	compactor
-
 	r backend.Reader
 	w backend.Writer
+	c backend.Compactor
 
 	wal  wal.WAL
 	pool *pool.Pool
@@ -109,6 +108,9 @@ type readerWriter struct {
 	cfg           *Config
 	blockLists    map[string][]*encoding.BlockMeta
 	blockListsMtx sync.Mutex
+
+	jobStopper          *pool.Stopper
+	compactedBlockLists map[string][]*encoding.CompactedBlockMeta
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
@@ -139,16 +141,14 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 	}
 
 	rw := &readerWriter{
-		compactor: compactor{
-			c:                   c,
-			compactedBlockLists: make(map[string][]*encoding.CompactedBlockMeta),
-		},
-		r:          r,
-		w:          w,
-		cfg:        cfg,
-		logger:     logger,
-		pool:       pool.NewPool(cfg.Pool),
-		blockLists: make(map[string][]*encoding.BlockMeta),
+		c:                   c,
+		compactedBlockLists: make(map[string][]*encoding.CompactedBlockMeta),
+		r:                   r,
+		w:                   w,
+		cfg:                 cfg,
+		logger:              logger,
+		pool:                pool.NewPool(cfg.Pool),
+		blockLists:          make(map[string][]*encoding.BlockMeta),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)

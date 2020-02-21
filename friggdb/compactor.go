@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/encoding"
-	"github.com/grafana/frigg/friggdb/pool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -38,17 +37,9 @@ var (
 	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "friggdb",
 		Name:      "compaction_errors_total",
-		Help:      "Total number of errors occuring during compaction.",
+		Help:      "Total number of errors occurring during compaction.",
 	})
 )
-
-type compactor struct {
-	c backend.Compactor
-
-	jobStopper *pool.Stopper
-
-	compactedBlockLists map[string][]*encoding.CompactedBlockMeta
-}
 
 const (
 	inputBlocks  = 4
@@ -286,7 +277,7 @@ func (rw *readerWriter) writeCompactedBlock(b *compactorBlock, tenantID string) 
 		return err
 	}
 
-	b.clear()
+	err = b.clear()
 	if err != nil {
 		level.Warn(rw.logger).Log("msg", "failed to clear compacted bloc", "blockID", currentMeta.BlockID, "tenantID", tenantID, "err", err)
 	}

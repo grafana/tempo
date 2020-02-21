@@ -3,17 +3,12 @@ package friggdb
 import "github.com/google/uuid"
 
 type bookmark struct {
-	id       uuid.UUID
-	location uint64
-	index    []byte
-	objects  []byte
+	id      uuid.UUID
+	index   []byte
+	objects []byte
 
 	currentID     []byte
 	currentObject []byte
-}
-
-func (b *bookmark) newBookmark() {
-
 }
 
 func (b *bookmark) done() bool {
