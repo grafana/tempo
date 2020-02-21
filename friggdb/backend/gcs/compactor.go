@@ -22,8 +22,11 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 
 	ctx := context.TODO()
 	_, err := dst.CopierFrom(src).Run(ctx)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return src.Delete(ctx)
 }
 
 func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
