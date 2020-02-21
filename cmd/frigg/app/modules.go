@@ -12,6 +12,7 @@ import (
 	"github.com/weaveworks/common/server"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/grafana/frigg/pkg/compactor"
 	"github.com/grafana/frigg/pkg/distributor"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester"
@@ -30,6 +31,7 @@ const (
 	Distributor
 	Ingester
 	Querier
+	Compactor
 	Store
 	All
 )
@@ -59,6 +61,8 @@ func (m moduleName) String() string {
 		return "ingester"
 	case Querier:
 		return "querier"
+	case Compactor:
+		return "compactor"
 	case All:
 		return "all"
 	default:
@@ -88,6 +92,9 @@ func (m *moduleName) Set(s string) error {
 		return nil
 	case "querier":
 		*m = Querier
+		return nil
+	case "compactor":
+		*m = Compactor
 		return nil
 	case "all":
 		*m = All
@@ -176,6 +183,11 @@ func (t *App) initQuerier() (err error) {
 	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
 	return
+}
+
+func (t *App) initCompactor() (err error) {
+	t.compactor, err = compactor.New(t.cfg.Compactor, t.store)
+	return err
 }
 
 func (t *App) initStore() (err error) {
@@ -285,6 +297,11 @@ var modules = map[moduleName]module{
 		init: (*App).initQuerier,
 	},
 
+	Compactor: {
+		deps: []moduleName{Store, Server},
+		init: (*App).initCompactor,
+	},
+
 	Store: {
 		deps: []moduleName{Overrides},
 		init: (*App).initStore,
@@ -292,6 +309,6 @@ var modules = map[moduleName]module{
 	},
 
 	All: {
-		deps: []moduleName{Querier, Ingester, Distributor},
+		deps: []moduleName{Compactor, Querier, Ingester, Distributor},
 	},
 }
