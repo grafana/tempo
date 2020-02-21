@@ -284,7 +284,7 @@ func (rw *readerWriter) pollBlocklist() {
 
 		listMutex := sync.Mutex{}
 		blocklist := make([]*encoding.BlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(blockIDs)) // jpe: this is dumb. put both kinds of block metas in the same list?
+		compactedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(blockIDs))
 		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
 
@@ -352,7 +352,7 @@ func (rw *readerWriter) doRetention() {
 			if b.EndTime.Before(cutoff) {
 				err := rw.c.MarkBlockCompacted(b.BlockID, tenantID)
 				if err != nil {
-					// jpe : log
+					level.Error(rw.logger).Log("msg", "failed to mark block compacted during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
 				}
 			}
 		}
@@ -364,7 +364,7 @@ func (rw *readerWriter) doRetention() {
 			if b.CompactedTime.Before(cutoff) {
 				err := rw.c.ClearBlock(b.BlockID, tenantID)
 				if err != nil {
-					// jpe : log
+					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
 				}
 			}
 		}
@@ -373,7 +373,7 @@ func (rw *readerWriter) doRetention() {
 	})
 
 	if err != nil {
-		// jpe: log/metric
+		level.Error(rw.logger).Log("msg", "failure to start retention.  retention disabled until the next maintenance cycle", "err", err)
 	}
 }
 

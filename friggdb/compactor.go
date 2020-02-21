@@ -89,7 +89,7 @@ func (rw *readerWriter) doCompaction() {
 	})
 
 	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next polling cycle.", "err", err)
+		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next maintenance cycle.", "err", err)
 	}
 }
 
@@ -236,7 +236,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	// mark old blocks compacted so they don't show up in polling
 	for _, meta := range blockMetas {
 		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
-			// jpe: log
+			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 		}
 	}
 
@@ -262,7 +262,7 @@ func (rw *readerWriter) writeCompactedBlock(b *compactorBlock, tenantID string) 
 
 	b.clear()
 	if err != nil {
-		// jpe: log?  return warning?
+		level.Warn(rw.logger).Log("msg", "failed to clear compacted bloc", "blockID", currentMeta.BlockID, "tenantID", tenantID, "err", err)
 	}
 
 	return nil
