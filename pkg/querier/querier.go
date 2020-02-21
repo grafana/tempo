@@ -125,12 +125,12 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDReque
 		}
 
 		trace = out
-		metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads))
-		metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead))
-		metricQueryReads.WithLabelValues("index").Observe(float64(metrics.IndexReads))
-		metricQueryBytesRead.WithLabelValues("index").Observe(float64(metrics.IndexBytesRead))
-		metricQueryReads.WithLabelValues("block").Observe(float64(metrics.BlockReads))
-		metricQueryBytesRead.WithLabelValues("block").Observe(float64(metrics.BlockBytesRead))
+		metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads.Load()))
+		metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead.Load()))
+		metricQueryReads.WithLabelValues("index").Observe(float64(metrics.IndexReads.Load()))
+		metricQueryBytesRead.WithLabelValues("index").Observe(float64(metrics.IndexBytesRead.Load()))
+		metricQueryReads.WithLabelValues("block").Observe(float64(metrics.BlockReads.Load()))
+		metricQueryBytesRead.WithLabelValues("block").Observe(float64(metrics.BlockBytesRead.Load()))
 	}
 
 	return &friggpb.TraceByIDResponse{

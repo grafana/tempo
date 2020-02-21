@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/backend/cache"
@@ -82,17 +83,17 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(tenantID string, id encoding.ID) ([]byte, EstimatedMetrics, error)
+	Find(tenantID string, id encoding.ID) ([]byte, FindMetrics, error)
 	Shutdown()
 }
 
-type EstimatedMetrics struct {
-	BloomFilterReads     int
-	BloomFilterBytesRead int
-	IndexReads           int
-	IndexBytesRead       int
-	BlockReads           int
-	BlockBytesRead       int
+type FindMetrics struct {
+	BloomFilterReads     *atomic.Int32
+	BloomFilterBytesRead *atomic.Int32
+	IndexReads           *atomic.Int32
+	IndexBytesRead       *atomic.Int32
+	BlockReads           *atomic.Int32
+	BlockBytesRead       *atomic.Int32
 }
 
 type readerWriter struct {
@@ -183,8 +184,15 @@ func (rw *readerWriter) WAL() wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, EstimatedMetrics, error) {
-	metrics := EstimatedMetrics{} // we are purposefully not locking when updating this struct.  that's why they are "estimated"
+func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetrics, error) {
+	metrics := FindMetrics{
+		BloomFilterReads:     atomic.NewInt32(0),
+		BloomFilterBytesRead: atomic.NewInt32(0),
+		IndexReads:           atomic.NewInt32(0),
+		IndexBytesRead:       atomic.NewInt32(0),
+		BlockReads:           atomic.NewInt32(0),
+		BlockBytesRead:       atomic.NewInt32(0),
+	}
 
 	rw.blockListsMtx.Lock()
 	blocklist, found := rw.blockLists[tenantID]
@@ -210,15 +218,15 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, Estimated
 		}
 
 		filter := bloom.JSONUnmarshal(bloomBytes)
-		metrics.BloomFilterReads++
-		metrics.BloomFilterBytesRead += len(bloomBytes)
+		metrics.BloomFilterReads.Inc()
+		metrics.BloomFilterBytesRead.Add(int32(len(bloomBytes)))
 		if !filter.Has(farm.Fingerprint64(id)) {
 			return nil, nil
 		}
 
 		indexBytes, err := rw.r.Index(meta.BlockID, tenantID)
-		metrics.IndexReads++
-		metrics.IndexBytesRead += len(indexBytes)
+		metrics.IndexReads.Inc()
+		metrics.IndexBytesRead.Add(int32(len(indexBytes)))
 		if err != nil {
 			return nil, err
 		}
@@ -233,8 +241,8 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, Estimated
 		}
 
 		objectBytes, err := rw.r.Object(meta.BlockID, tenantID, record.Start, record.Length)
-		metrics.BlockReads++
-		metrics.BlockBytesRead += len(objectBytes)
+		metrics.BlockReads.Inc()
+		metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 		if err != nil {
 			return nil, err
 		}

@@ -30,6 +30,7 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/uber-go/atomic v1.4.0
 	github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d
+	go.uber.org/atomic v1.4.0
 	go.uber.org/zap v1.10.0
 	golang.org/x/net v0.0.0-20191112182307-2180aed22343
 	google.golang.org/api v0.11.0

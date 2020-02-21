@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend/local"
 	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/pool"
 	"github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util/test"
@@ -98,6 +99,10 @@ func TestCompaction(t *testing.T) {
 
 	r, w, err := New(&Config{
 		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
