@@ -18,7 +18,8 @@ import (
 )
 
 type compactorConfig struct {
-	ChunkSizeBytes uint32 `yaml:"chunkSizeBytes"`
+	ChunkSizeBytes     uint32        `yaml:"chunkSizeBytes"`
+	MaxCompactionRange time.Duration `yaml:"maxCompactionRange"`
 }
 
 var (
@@ -44,8 +45,6 @@ var (
 const (
 	inputBlocks  = 4
 	outputBlocks = 2
-
-	maxCompactionRange = 1 * time.Hour
 
 	cursorDone = -1
 )
@@ -129,7 +128,7 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encodin
 		blockStart := blocklist[cursor]
 		blockEnd := blocklist[cursorEnd]
 
-		if blockEnd.EndTime.Sub(blockStart.StartTime) < maxCompactionRange {
+		if blockEnd.EndTime.Sub(blockStart.StartTime) < rw.cfg.Compactor.MaxCompactionRange {
 			return blocklist[cursor:cursorEnd], cursorEnd + 1
 		}
 

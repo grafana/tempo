@@ -45,6 +45,7 @@ storage_config:
       disk-clean-rate: 30s
     compactor:
       chunkSizeBytes: 1048576 # 1024 * 1024
+      maxCompactionRange: 1h
 
 limits_config:
   enforce_metric_name: false
