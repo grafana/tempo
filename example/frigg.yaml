@@ -18,14 +18,16 @@ ingester:
       replication_factor: 1
     final_sleep: 0s
   trace_idle_period: 10s
-  traces_per_block: 10000
+  traces_per_block: 100
   max_block_duration: 1h
   max_transfer_retries: 1
-  complete_block_timeout: 1m
+  complete_block_timeout: 2m
 
 storage_config:
   trace:
     maintenanceCycle: 30s
+    blockRetention: 1h
+    compactedBlockRetention: 2m
     backend: local
     wal:
       path: /tmp/frigg/wal
@@ -41,7 +43,8 @@ storage_config:
       disk-max-mbs: 5
       disk-prune-count: 10
       disk-clean-rate: 30s
-      
+    compactor:
+      chunkSizeBytes: 1048576 # 1024 * 1024
 
 limits_config:
   enforce_metric_name: false

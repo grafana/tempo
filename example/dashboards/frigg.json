@@ -16,7 +16,7 @@
   "gnetId": null,
   "graphTooltip": 1,
   "id": 1425,
-  "iteration": 1581605691383,
+  "iteration": 1582290443976,
   "links": [],
   "panels": [
     {
@@ -1051,12 +1051,12 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "friggdb_query_queue_length",
+          "expr": "friggdb_work_queue_length",
           "legendFormat": "length",
           "refId": "A"
         },
         {
-          "expr": "friggdb_query_queue_max",
+          "expr": "friggdb_work_queue_max",
           "legendFormat": "max",
           "refId": "B"
         }
@@ -2890,7 +2890,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Latency By Operation",
+      "title": "Requests/Second",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -2936,7 +2936,7 @@
     "list": [
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "ops-cortex",
           "value": "ops-cortex"
         },

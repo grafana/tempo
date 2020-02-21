@@ -604,27 +604,27 @@
       {
         "service": "frontend",
         "route": "/product",
-        "tracesPerHour": 28800
+        "tracesPerHour": 2880
       },
       {
         "service": "frontend",
         "route": "/cart",
-        "tracesPerHour": 144000
+        "tracesPerHour": 14400
       },
       {
         "service": "frontend",
         "route": "/shipping",
-        "tracesPerHour": 4800
+        "tracesPerHour": 480
       },
       {
         "service": "frontend",
         "route": "/currency",
-        "tracesPerHour": 2000
+        "tracesPerHour": 200
       },
       {
         "service": "frontend",
         "route": "/checkout",
-        "tracesPerHour": 4800
+        "tracesPerHour": 480
       }
     ]
   }
