@@ -97,7 +97,7 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encodin
 	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
 	//   - consider candidateBlocks at a time.
 	//   - find the blocks with the fewest records that are within the compaction range
-	rw.blockListsMtx.Lock() // jpe - lot of contention on this list.  think about it
+	rw.blockListsMtx.Lock() // todo: there's lots of contention on this mutex.  keep an eye on this
 	defer rw.blockListsMtx.Unlock()
 
 	blocklist := rw.blockLists[tenantID]
@@ -129,7 +129,8 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encodin
 	return nil, cursorDone
 }
 
-// jpe : this method is brittle and has weird failure conditions.  if at any point it fails it can't clean up the old blocks and just leaves them around
+// todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
+//   in these cases it's possible that the compact method actually will start making more blocks.
 func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID string) error {
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
