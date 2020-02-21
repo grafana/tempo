@@ -13,6 +13,7 @@ import (
 	"github.com/weaveworks/common/server"
 	"google.golang.org/grpc"
 
+	"github.com/grafana/frigg/pkg/compactor"
 	"github.com/grafana/frigg/pkg/distributor"
 	"github.com/grafana/frigg/pkg/ingester"
 	"github.com/grafana/frigg/pkg/ingester/client"
@@ -31,6 +32,7 @@ type Config struct {
 	Distributor    distributor.Config `yaml:"distributor,omitempty"`
 	IngesterClient client.Config      `yaml:"ingester_client,omitempty"`
 	Querier        querier.Config     `yaml:"querier,omitempty"`
+	Compactor      compactor.Config   `yaml:"compactor,omitempty"`
 	Ingester       ingester.Config    `yaml:"ingester,omitempty"`
 	StorageConfig  storage.Config     `yaml:"storage_config,omitempty"`
 	LimitsConfig   validation.Limits  `yaml:"limits_config,omitempty"`
@@ -48,6 +50,7 @@ func (c *Config) RegisterFlags(f *flag.FlagSet) {
 	c.Distributor.RegisterFlags(f)
 	c.IngesterClient.RegisterFlags(f)
 	c.Querier.RegisterFlags(f)
+	c.Compactor.RegisterFlags(f)
 	c.Ingester.RegisterFlags(f)
 	c.StorageConfig.RegisterFlags(f)
 	c.LimitsConfig.RegisterFlags(f)
@@ -62,6 +65,7 @@ type App struct {
 	overrides   *validation.Overrides
 	distributor *distributor.Distributor
 	querier     *querier.Querier
+	compactor   *compactor.Compactor
 	ingester    *ingester.Ingester
 	store       storage.Store
 

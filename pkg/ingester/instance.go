@@ -14,7 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
 
-	"github.com/grafana/frigg/friggdb"
+	friggdb_encoding "github.com/grafana/frigg/friggdb/encoding"
+	friggdb_wal "github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util"
 )
@@ -44,17 +45,17 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blockTracesMtx sync.RWMutex
-	headBlock      friggdb.HeadBlock
-	completeBlocks []friggdb.CompleteBlock
+	headBlock      friggdb_wal.HeadBlock
+	completeBlocks []friggdb_wal.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	limiter            *Limiter
-	wal                friggdb.WAL
+	wal                friggdb_wal.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal friggdb.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal friggdb_wal.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[traceFingerprint]*trace{},
 
@@ -87,7 +88,7 @@ func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
 }
 
 // PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushBytes(ctx context.Context, id friggdb.ID, object []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id friggdb_encoding.ID, object []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -149,7 +150,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return ready, nil
 }
 
-func (i *instance) GetBlockToBeFlushed() friggdb.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed() friggdb_wal.CompleteBlock {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
@@ -222,6 +223,8 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 		}
 		if foundBytes != nil {
 			out := &friggpb.Trace{}
+
+			err = proto.Unmarshal(foundBytes, out)
 			if err != nil {
 				return nil, err
 			}

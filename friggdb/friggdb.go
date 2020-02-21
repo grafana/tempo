@@ -3,8 +3,9 @@ package friggdb
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
+	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -15,19 +16,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/backend/cache"
 	"github.com/grafana/frigg/friggdb/backend/gcs"
 	"github.com/grafana/frigg/friggdb/backend/local"
+	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/friggdb/pool"
+	"github.com/grafana/frigg/friggdb/wal"
 )
 
 var (
-	metricBlocklistPoll = promauto.NewCounter(prometheus.CounterOpts{
+	metricMaintenanceTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "friggdb",
-		Name:      "blocklist_poll_total",
-		Help:      "Total number of times blocklist polling has occurred.",
+		Name:      "maintenance_total",
+		Help:      "Total number of times the maintenance cycle has occurred.",
 	})
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "friggdb",
@@ -45,49 +49,81 @@ var (
 		Name:      "blocklist_length",
 		Help:      "Total number of blocks per tenant.",
 	}, []string{"tenant"})
+	metricCompactedBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "friggdb",
+		Name:      "compaction_blocklist_length",
+		Help:      "Total number of compacted blocks per tenant.",
+	}, []string{"tenant"})
+	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "friggdb",
+		Name:      "retention_duration_seconds",
+		Help:      "Records the amount of time to perform retention tasks.",
+		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+	})
+	metricRetentionErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "retention_errors_total",
+		Help:      "Total number of times an error occurred while performing retention tasks.",
+	})
+	metricMarkedForDeletion = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "retention_marked_for_deletion_total",
+		Help:      "Total number of blocks marked for deletion.",
+	})
+	metricDeleted = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "retention_deleted_total",
+		Help:      "Total number of blocks deleted.",
+	})
 )
 
 type Writer interface {
-	WriteBlock(ctx context.Context, block CompleteBlock) error
-	WAL() (WAL, error)
+	WriteBlock(ctx context.Context, block wal.CompleteBlock) error
+	WAL() wal.WAL
 }
 
 type Reader interface {
-	Find(tenantID string, id ID) ([]byte, EstimatedMetrics, error)
+	Find(tenantID string, id encoding.ID) ([]byte, FindMetrics, error)
 	Shutdown()
 }
 
-type EstimatedMetrics struct {
-	BloomFilterReads     int
-	BloomFilterBytesRead int
-	IndexReads           int
-	IndexBytesRead       int
-	BlockReads           int
-	BlockBytesRead       int
+type FindMetrics struct {
+	BloomFilterReads     *atomic.Int32
+	BloomFilterBytesRead *atomic.Int32
+	IndexReads           *atomic.Int32
+	IndexBytesRead       *atomic.Int32
+	BlockReads           *atomic.Int32
+	BlockBytesRead       *atomic.Int32
 }
 
 type readerWriter struct {
 	r backend.Reader
 	w backend.Writer
+	c backend.Compactor
 
+	wal  wal.WAL
 	pool *pool.Pool
 
 	logger        log.Logger
 	cfg           *Config
-	blockLists    map[string][]searchableBlockMeta // todo: evaluate for performance
+	blockLists    map[string][]*encoding.BlockMeta
 	blockListsMtx sync.Mutex
+
+	jobStopper          *pool.Stopper
+	compactedBlockLists map[string][]*encoding.CompactedBlockMeta
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 	var err error
 	var r backend.Reader
 	var w backend.Writer
+	var c backend.Compactor
 
 	switch cfg.Backend {
 	case "local":
-		r, w, err = local.New(cfg.Local)
+		r, w, c, err = local.New(cfg.Local)
 	case "gcs":
-		r, w, err = gcs.New(cfg.GCS)
+		r, w, c, err = gcs.New(cfg.GCS)
 	default:
 		err = fmt.Errorf("unknown local %s", cfg.Backend)
 	}
@@ -104,58 +140,59 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 		}
 	}
 
-	if cfg.BloomFilterFalsePositive <= 0.0 {
-		return nil, nil, fmt.Errorf("invalid bloom filter fp rate %v", cfg.BloomFilterFalsePositive)
-	}
-
 	rw := &readerWriter{
-		r:          r,
-		w:          w,
-		cfg:        cfg,
-		logger:     logger,
-		pool:       pool.NewPool(cfg.Pool),
-		blockLists: make(map[string][]searchableBlockMeta),
+		c:                   c,
+		compactedBlockLists: make(map[string][]*encoding.CompactedBlockMeta),
+		r:                   r,
+		w:                   w,
+		cfg:                 cfg,
+		logger:              logger,
+		pool:                pool.NewPool(cfg.Pool),
+		blockLists:          make(map[string][]*encoding.BlockMeta),
 	}
 
-	go rw.pollBlocklist()
+	rw.wal, err = wal.New(rw.cfg.WAL)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	go rw.maintenanceLoop()
 
 	return rw, rw, nil
 }
 
-func (rw *readerWriter) WriteBlock(ctx context.Context, c CompleteBlock) error {
-	uuid, tenantID, records, blockFilePath := c.writeInfo()
-	indexBytes, err := marshalRecords(records)
+func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.CompleteBlock) error {
+	uuid, tenantID, records, blockFilePath := c.WriteInfo()
+	indexBytes, err := encoding.MarshalRecords(records)
 	if err != nil {
 		return err
 	}
 
-	metaBytes, err := json.Marshal(c.blockMeta())
+	bloomBytes := c.BloomFilter().JSONMarshal()
+
+	err = rw.w.Write(ctx, uuid, tenantID, c.BlockMeta(), bloomBytes, indexBytes, blockFilePath)
 	if err != nil {
 		return err
 	}
 
-	bloomBytes := c.bloomFilter().JSONMarshal()
-
-	err = rw.w.Write(ctx, uuid, tenantID, metaBytes, bloomBytes, indexBytes, blockFilePath)
-	if err != nil {
-		return err
-	}
-
-	c.blockWroteSuccessfully(time.Now())
+	c.BlockWroteSuccessfully(time.Now())
 
 	return nil
 }
 
-func (rw *readerWriter) WAL() (WAL, error) {
-	return newWAL(&walConfig{
-		filepath:        rw.cfg.WALFilepath,
-		indexDownsample: rw.cfg.IndexDownsample,
-		bloomFP:         rw.cfg.BloomFilterFalsePositive,
-	})
+func (rw *readerWriter) WAL() wal.WAL {
+	return rw.wal
 }
 
-func (rw *readerWriter) Find(tenantID string, id ID) ([]byte, EstimatedMetrics, error) {
-	metrics := EstimatedMetrics{} // we are purposefully not locking when updating this struct.  that's why they are "estimated"
+func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetrics, error) {
+	metrics := FindMetrics{
+		BloomFilterReads:     atomic.NewInt32(0),
+		BloomFilterBytesRead: atomic.NewInt32(0),
+		IndexReads:           atomic.NewInt32(0),
+		IndexBytesRead:       atomic.NewInt32(0),
+		BlockReads:           atomic.NewInt32(0),
+		BlockBytesRead:       atomic.NewInt32(0),
+	}
 
 	rw.blockListsMtx.Lock()
 	blocklist, found := rw.blockLists[tenantID]
@@ -173,7 +210,7 @@ func (rw *readerWriter) Find(tenantID string, id ID) ([]byte, EstimatedMetrics, 
 	}
 
 	foundBytes, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) ([]byte, error) {
-		meta := payload.(searchableBlockMeta)
+		meta := payload.(*encoding.BlockMeta)
 
 		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
 		if err != nil {
@@ -181,20 +218,20 @@ func (rw *readerWriter) Find(tenantID string, id ID) ([]byte, EstimatedMetrics, 
 		}
 
 		filter := bloom.JSONUnmarshal(bloomBytes)
-		metrics.BloomFilterReads++
-		metrics.BloomFilterBytesRead += len(bloomBytes)
+		metrics.BloomFilterReads.Inc()
+		metrics.BloomFilterBytesRead.Add(int32(len(bloomBytes)))
 		if !filter.Has(farm.Fingerprint64(id)) {
 			return nil, nil
 		}
 
 		indexBytes, err := rw.r.Index(meta.BlockID, tenantID)
-		metrics.IndexReads++
-		metrics.IndexBytesRead += len(indexBytes)
+		metrics.IndexReads.Inc()
+		metrics.IndexBytesRead.Add(int32(len(indexBytes)))
 		if err != nil {
 			return nil, err
 		}
 
-		record, err := findRecord(id, indexBytes)
+		record, err := encoding.FindRecord(id, indexBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -204,14 +241,14 @@ func (rw *readerWriter) Find(tenantID string, id ID) ([]byte, EstimatedMetrics, 
 		}
 
 		objectBytes, err := rw.r.Object(meta.BlockID, tenantID, record.Start, record.Length)
-		metrics.BlockReads++
-		metrics.BlockBytesRead += len(objectBytes)
+		metrics.BlockReads.Inc()
+		metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 		if err != nil {
 			return nil, err
 		}
 
 		var foundObject []byte
-		err = iterateObjects(bytes.NewReader(objectBytes), func(iterID ID, iterObject []byte) (bool, error) {
+		err = encoding.IterateObjects(bytes.NewReader(objectBytes), func(iterID encoding.ID, iterObject []byte) (bool, error) {
 			if bytes.Equal(iterID, id) {
 				foundObject = iterObject
 				return false, nil
@@ -236,24 +273,31 @@ func (rw *readerWriter) Shutdown() {
 	rw.r.Shutdown()
 }
 
-func (rw *readerWriter) pollBlocklist() {
-	if rw.cfg.BlocklistRefreshRate == 0 {
-		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  friggdb querying effectively disabled.")
+func (rw *readerWriter) maintenanceLoop() {
+	if rw.cfg.MaintenanceCycle == 0 {
+		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  friggdb querying, compaction and retention effectively disabled.")
 		return
 	}
 
-	rw.actuallyPollBlocklist()
+	rw.doMaintenance()
 
-	ticker := time.NewTicker(rw.cfg.BlocklistRefreshRate)
+	ticker := time.NewTicker(rw.cfg.MaintenanceCycle)
 	for range ticker.C {
-		start := time.Now()
-		rw.actuallyPollBlocklist()
-		metricBlocklistPollDuration.Observe(time.Since(start).Seconds())
+		rw.doMaintenance()
 	}
 }
 
-func (rw *readerWriter) actuallyPollBlocklist() {
-	metricBlocklistPoll.Inc()
+func (rw *readerWriter) doMaintenance() {
+	metricMaintenanceTotal.Inc()
+
+	rw.pollBlocklist()
+	rw.doCompaction()
+	rw.doRetention()
+}
+
+func (rw *readerWriter) pollBlocklist() {
+	start := time.Now()
+	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
 
 	tenants, err := rw.r.Tenants()
 	if err != nil {
@@ -274,29 +318,34 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 		}
 
 		listMutex := sync.Mutex{}
-		blocklist := make([]searchableBlockMeta, 0, len(blockIDs))
+		blocklist := make([]*encoding.BlockMeta, 0, len(blockIDs))
+		compactedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(blockIDs))
 		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
-			meta := &searchableBlockMeta{}
 
-			metaBytes, err := rw.r.BlockMeta(blockID, tenantID)
+			var compactedBlockMeta *encoding.CompactedBlockMeta
+			blockMeta, err := rw.r.BlockMeta(blockID, tenantID)
+			// if the normal meta doesn't exist maybe it's compacted.
+			if os.IsNotExist(err) {
+				blockMeta = nil
+				compactedBlockMeta, err = rw.c.CompactedBlockMeta(blockID, tenantID)
+			}
+
 			if err != nil {
 				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 				level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)
 				return nil, nil
 			}
 
-			err = json.Unmarshal(metaBytes, meta)
-			if err != nil {
-				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-				level.Error(rw.logger).Log("msg", "failed to unmarshal json blocklist", "tenantID", tenantID, "blockID", blockID, "err", err)
-				return nil, nil
-			}
-
 			// todo:  make this not terrible. this mutex is dumb we should be returning results with a channel. shoehorning this into the worker pool is silly.
 			//        make the worker pool more generic? and reusable in this case
 			listMutex.Lock()
-			blocklist = append(blocklist, *meta)
+			if blockMeta != nil {
+				blocklist = append(blocklist, blockMeta)
+
+			} else if compactedBlockMeta != nil {
+				compactedBlocklist = append(compactedBlocklist, compactedBlockMeta)
+			}
 			listMutex.Unlock()
 
 			return nil, nil
@@ -309,9 +358,94 @@ func (rw *readerWriter) actuallyPollBlocklist() {
 		}
 
 		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
+		metricCompactedBlocklistLength.WithLabelValues(tenantID).Set(float64(len(compactedBlocklist)))
+
+		sort.Slice(blocklist, func(i, j int) bool {
+			return blocklist[i].StartTime.Before(blocklist[j].StartTime)
+		})
+		sort.Slice(compactedBlocklist, func(i, j int) bool {
+			return compactedBlocklist[i].StartTime.Before(compactedBlocklist[j].StartTime)
+		})
 
 		rw.blockListsMtx.Lock()
 		rw.blockLists[tenantID] = blocklist
+		rw.compactedBlockLists[tenantID] = compactedBlocklist
 		rw.blockListsMtx.Unlock()
 	}
+}
+
+func (rw *readerWriter) doRetention() {
+	tenants := rw.blocklistTenants()
+
+	// todo: continued abuse of runJobs.  need a runAllJobs() method or something
+	_, err := rw.pool.RunJobs(tenants, func(payload interface{}) ([]byte, error) {
+		start := time.Now()
+		defer func() { metricRetentionDuration.Observe(time.Since(start).Seconds()) }()
+
+		tenantID := payload.(string)
+
+		// iterate through block list.  make compacted anything that is past retention.
+		cutoff := time.Now().Add(-rw.cfg.BlockRetention)
+		blocklist := rw.blocklist(tenantID)
+		for _, b := range blocklist {
+			if b.EndTime.Before(cutoff) {
+				err := rw.c.MarkBlockCompacted(b.BlockID, tenantID)
+				if err != nil {
+					level.Error(rw.logger).Log("msg", "failed to mark block compacted during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
+					metricRetentionErrors.Inc()
+				} else {
+					metricMarkedForDeletion.Inc()
+				}
+			}
+		}
+
+		// iterate through compacted list looking for blocks ready to be cleared
+		cutoff = time.Now().Add(-rw.cfg.CompactedBlockRetention)
+		compactedBlocklist := rw.compactedBlocklist(tenantID)
+		for _, b := range compactedBlocklist {
+			if b.CompactedTime.Before(cutoff) {
+				err := rw.c.ClearBlock(b.BlockID, tenantID)
+				if err != nil {
+					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
+					metricRetentionErrors.Inc()
+				} else {
+					metricDeleted.Inc()
+				}
+			}
+		}
+
+		return nil, nil
+	})
+
+	if err != nil {
+		level.Error(rw.logger).Log("msg", "failure to start retention.  retention disabled until the next maintenance cycle", "err", err)
+		metricRetentionErrors.Inc()
+	}
+}
+
+func (rw *readerWriter) blocklistTenants() []interface{} {
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	tenants := make([]interface{}, 0, len(rw.blockLists))
+	for tenant := range rw.blockLists {
+		tenants = append(tenants, tenant)
+	}
+
+	return tenants
+}
+
+func (rw *readerWriter) blocklist(tenantID string) []*encoding.BlockMeta {
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	return rw.blockLists[tenantID]
+}
+
+// todo:  make separate compacted list mutex?
+func (rw *readerWriter) compactedBlocklist(tenantID string) []*encoding.CompactedBlockMeta {
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	return rw.compactedBlockLists[tenantID]
 }

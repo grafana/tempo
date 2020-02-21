@@ -1,4 +1,4 @@
-package friggdb
+package encoding
 
 import (
 	"bytes"
@@ -12,11 +12,10 @@ func TestEncodeDecodeRecord(t *testing.T) {
 	expected, err := makeRecord(t)
 	assert.NoError(t, err, "unexpected error making trace record")
 
-	actual := newRecord()
-	buff := make([]byte, 28)
+	buff := make([]byte, recordLength)
 
 	marshalRecord(expected, buff)
-	unmarshalRecord(buff, actual)
+	actual := unmarshalRecord(buff)
 
 	assert.Equal(t, expected, actual)
 }
@@ -33,11 +32,11 @@ func TestMarshalUnmarshalRecords(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	recordBytes, err := marshalRecords(expected)
+	recordBytes, err := MarshalRecords(expected)
 	assert.NoError(t, err, "unexpected error encoding records")
 	assert.Equal(t, len(expected)*28, len(recordBytes))
 
-	actual, err := unmarshalRecords(recordBytes)
+	actual, err := UnmarshalRecords(recordBytes)
 	assert.NoError(t, err, "unexpected error decoding records")
 
 	assert.Equal(t, expected, actual)
@@ -57,11 +56,11 @@ func TestFindRecord(t *testing.T) {
 
 	sortRecords(expected)
 
-	recordBytes, err := marshalRecords(expected)
+	recordBytes, err := MarshalRecords(expected)
 	assert.NoError(t, err, "unexpected error encoding records")
 
 	for _, r := range expected {
-		found, err := findRecord(r.ID, recordBytes)
+		found, err := FindRecord(r.ID, recordBytes)
 
 		assert.NoError(t, err, "unexpected error finding records")
 		assert.Equal(t, r, found)

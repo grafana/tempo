@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +23,7 @@ func TestReadWrite(t *testing.T) {
 	defer os.Remove(fakeTracesFile.Name())
 	assert.NoError(t, err, "unexpected error creating temp file")
 
-	r, w, err := New(&Config{
+	r, w, _, err := New(&Config{
 		Path: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating local backend")
@@ -34,13 +35,11 @@ func TestReadWrite(t *testing.T) {
 		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
 	}
 
-	fakeMeta := make([]byte, 20)
+	fakeMeta := &encoding.BlockMeta{}
 	fakeBloom := make([]byte, 20)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
 
-	_, err = rand.Read(fakeMeta)
-	assert.NoError(t, err, "unexpected error creating fakeMeta")
 	_, err = rand.Read(fakeBloom)
 	assert.NoError(t, err, "unexpected error creating fakeBloom")
 	_, err = rand.Read(fakeIndex)
@@ -86,7 +85,7 @@ func TestWriteFail(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	_, w, err := New(&Config{
+	_, w, _, err := New(&Config{
 		Path: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating local backend")
@@ -99,4 +98,71 @@ func TestWriteFail(t *testing.T) {
 
 	_, err = os.Stat(path.Join(tempDir, tenantID, blockID.String()))
 	assert.True(t, os.IsNotExist(err))
+}
+
+func TestCompaction(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	fakeTracesFile, err := ioutil.TempFile("/tmp", "")
+	defer os.Remove(fakeTracesFile.Name())
+	assert.NoError(t, err, "unexpected error creating temp file")
+
+	r, w, c, err := New(&Config{
+		Path: tempDir,
+	})
+	assert.NoError(t, err, "unexpected error creating local backend")
+
+	blockID := uuid.New()
+	tenantIDs := []string{"fake"}
+
+	for i := 0; i < 10; i++ {
+		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
+	}
+
+	fakeMeta := &encoding.BlockMeta{}
+	fakeBloom := make([]byte, 20)
+	fakeIndex := make([]byte, 20)
+	fakeTraces := make([]byte, 200)
+
+	_, err = rand.Read(fakeBloom)
+	assert.NoError(t, err, "unexpected error creating fakeBloom")
+	_, err = rand.Read(fakeIndex)
+	assert.NoError(t, err, "unexpected error creating fakeIndex")
+	_, err = rand.Read(fakeTraces)
+	assert.NoError(t, err, "unexpected error creating fakeTraces")
+	_, err = fakeTracesFile.Write(fakeTraces)
+	assert.NoError(t, err, "unexpected error writing fakeTraces")
+
+	for _, id := range tenantIDs {
+		err = w.Write(context.Background(), blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		assert.NoError(t, err, "unexpected error writing")
+
+		compactedMeta, err := c.CompactedBlockMeta(blockID, id)
+		assert.True(t, os.IsNotExist(err))
+		assert.Nil(t, compactedMeta)
+
+		err = c.MarkBlockCompacted(blockID, id)
+		assert.NoError(t, err)
+
+		compactedMeta, err = c.CompactedBlockMeta(blockID, id)
+		assert.NoError(t, err)
+		assert.NotNil(t, compactedMeta)
+
+		meta, err := r.BlockMeta(blockID, id)
+		assert.True(t, os.IsNotExist(err))
+		assert.Nil(t, meta)
+
+		err = c.ClearBlock(blockID, id)
+		assert.NoError(t, err)
+
+		compactedMeta, err = c.CompactedBlockMeta(blockID, id)
+		assert.True(t, os.IsNotExist(err))
+		assert.Nil(t, compactedMeta)
+
+		meta, err = r.BlockMeta(blockID, id)
+		assert.True(t, os.IsNotExist(err))
+		assert.Nil(t, meta)
+	}
 }

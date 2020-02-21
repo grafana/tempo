@@ -15,8 +15,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
-  "id": 1425,
-  "iteration": 1581605691383,
+  "iteration": 1582293789060,
   "links": [],
   "panels": [
     {
@@ -730,9 +729,9 @@
         "x": 0,
         "y": 6
       },
-      "id": 21,
+      "id": 49,
       "panels": [],
-      "title": "Read",
+      "title": "Maintenance",
       "type": "row"
     },
     {
@@ -776,20 +775,31 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(friggdb_blocklist_poll_total[$interval])",
-          "legendFormat": "poll",
+          "expr": "increase(friggdb_maintenance_total[$interval])",
+          "legendFormat": "maint",
           "refId": "A"
         },
         {
-          "expr": "rate(friggdb_blocklist_poll_errors_total[$interval])",
+          "expr": "increase(friggdb_compaction_errors_total[$interval])",
+          "legendFormat": "compaction_err",
           "refId": "B"
+        },
+        {
+          "expr": "increase(friggdb_retention_errors_total[$interval])",
+          "legendFormat": "retention_err",
+          "refId": "C"
+        },
+        {
+          "expr": "increase(friggdb_blocklist_poll_errors_total[$interval])",
+          "legendFormat": "blocklist_err",
+          "refId": "D"
         }
       ],
       "thresholds": [],
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "blocklist polling",
+      "title": "maintenance cycles",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -839,6 +849,403 @@
         "w": 3,
         "x": 3,
         "y": 7
+      },
+      "hiddenSeries": false,
+      "id": 51,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "histogram_quantile(.99, sum(rate(friggdb_retention_duration_seconds_bucket[$interval])) by (le))",
+          "legendFormat": ".99",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(.9, sum(rate(friggdb_retention_duration_seconds_bucket[$interval])) by (le))",
+          "legendFormat": ".9",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(.5, sum(rate(friggdb_retention_duration_seconds_bucket[$interval])) by (le))",
+          "legendFormat": ".5",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "retention duration",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "s",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 6,
+        "y": 7
+      },
+      "hiddenSeries": false,
+      "id": 52,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "histogram_quantile(.99, sum(rate(friggdb_compaction_duration_seconds_bucket[$interval])) by (le))",
+          "legendFormat": ".99",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(.9, sum(rate(friggdb_compaction_duration_seconds_bucket[$interval])) by (le))",
+          "legendFormat": ".9",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(.5, sum(rate(friggdb_compaction_duration_seconds_bucket[$interval])) by (le))",
+          "legendFormat": ".5",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "compaction duration",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "s",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 9,
+        "y": 7
+      },
+      "hiddenSeries": false,
+      "id": 54,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "histogram_quantile(.99, sum(rate(friggdb_compaction_duration_stop_seconds_bucket[$interval])) by (le))",
+          "legendFormat": ".99",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(.9, sum(rate(friggdb_compaction_duration_stop_seconds_bucket[$interval])) by (le))",
+          "legendFormat": ".9",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(.5, sum(rate(friggdb_compaction_duration_stop_seconds_bucket[$interval])) by (le))",
+          "legendFormat": ".5",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "compaction stop duration",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "s",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 12,
+        "y": 7
+      },
+      "hiddenSeries": false,
+      "id": 53,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "increase(friggdb_retention_deleted_total[$interval])",
+          "legendFormat": "deleted",
+          "refId": "A"
+        },
+        {
+          "expr": "increase(friggdb_retention_marked_for_deletion_total[$interval])",
+          "legendFormat": "marked_for_deletion",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "retention",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 21,
+      "panels": [],
+      "title": "Read",
+      "type": "row"
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 3,
+        "y": 13
       },
       "hiddenSeries": false,
       "id": 35,
@@ -935,7 +1342,7 @@
         "h": 5,
         "w": 3,
         "x": 6,
-        "y": 7
+        "y": 13
       },
       "hiddenSeries": false,
       "id": 47,
@@ -965,8 +1372,13 @@
       "targets": [
         {
           "expr": "friggdb_blocklist_length",
-          "legendFormat": "{{tenant}}",
+          "legendFormat": "{{tenant}}-blocklist",
           "refId": "A"
+        },
+        {
+          "expr": "friggdb_compaction_blocklist_length",
+          "legendFormat": "{{tenant}}-compacted",
+          "refId": "B"
         }
       ],
       "thresholds": [],
@@ -1022,7 +1434,7 @@
         "h": 5,
         "w": 3,
         "x": 9,
-        "y": 7
+        "y": 13
       },
       "hiddenSeries": false,
       "id": 33,
@@ -1051,12 +1463,12 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "friggdb_query_queue_length",
+          "expr": "friggdb_work_queue_length",
           "legendFormat": "length",
           "refId": "A"
         },
         {
-          "expr": "friggdb_query_queue_max",
+          "expr": "friggdb_work_queue_max",
           "legendFormat": "max",
           "refId": "B"
         }
@@ -1114,7 +1526,7 @@
         "h": 5,
         "w": 3,
         "x": 12,
-        "y": 7
+        "y": 13
       },
       "hiddenSeries": false,
       "id": 40,
@@ -1201,7 +1613,7 @@
         "h": 5,
         "w": 3,
         "x": 15,
-        "y": 7
+        "y": 13
       },
       "hiddenSeries": false,
       "id": 39,
@@ -1288,7 +1700,7 @@
         "h": 5,
         "w": 3,
         "x": 18,
-        "y": 7
+        "y": 13
       },
       "hiddenSeries": false,
       "id": 41,
@@ -1375,7 +1787,7 @@
         "h": 5,
         "w": 3,
         "x": 21,
-        "y": 7
+        "y": 13
       },
       "hiddenSeries": false,
       "id": 13,
@@ -1472,7 +1884,7 @@
         "h": 10,
         "w": 8,
         "x": 0,
-        "y": 12
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 34,
@@ -1560,7 +1972,7 @@
         "h": 10,
         "w": 7,
         "x": 8,
-        "y": 12
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 5,
@@ -1646,7 +2058,7 @@
         "h": 5,
         "w": 6,
         "x": 15,
-        "y": 12
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 17,
@@ -1743,7 +2155,7 @@
         "h": 5,
         "w": 3,
         "x": 21,
-        "y": 12
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 14,
@@ -1831,7 +2243,7 @@
         "h": 5,
         "w": 6,
         "x": 15,
-        "y": 17
+        "y": 23
       },
       "hiddenSeries": false,
       "id": 3,
@@ -1928,7 +2340,7 @@
         "h": 5,
         "w": 3,
         "x": 21,
-        "y": 17
+        "y": 23
       },
       "hiddenSeries": false,
       "id": 15,
@@ -2011,7 +2423,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 28
       },
       "id": 19,
       "panels": [],
@@ -2030,7 +2442,7 @@
         "h": 5,
         "w": 3,
         "x": 0,
-        "y": 23
+        "y": 29
       },
       "hiddenSeries": false,
       "id": 10,
@@ -2117,7 +2529,7 @@
         "h": 5,
         "w": 3,
         "x": 3,
-        "y": 23
+        "y": 29
       },
       "hiddenSeries": false,
       "id": 9,
@@ -2203,7 +2615,7 @@
         "h": 5,
         "w": 3,
         "x": 6,
-        "y": 23
+        "y": 29
       },
       "hiddenSeries": false,
       "id": 8,
@@ -2289,7 +2701,7 @@
         "h": 5,
         "w": 3,
         "x": 9,
-        "y": 23
+        "y": 29
       },
       "hiddenSeries": false,
       "id": 12,
@@ -2375,7 +2787,7 @@
         "h": 5,
         "w": 3,
         "x": 12,
-        "y": 23
+        "y": 29
       },
       "hiddenSeries": false,
       "id": 26,
@@ -2461,7 +2873,7 @@
         "h": 5,
         "w": 3,
         "x": 15,
-        "y": 23
+        "y": 29
       },
       "hiddenSeries": false,
       "id": 36,
@@ -2558,7 +2970,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 28
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 6,
@@ -2644,7 +3056,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 28
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 2,
@@ -2736,7 +3148,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 36
+        "y": 42
       },
       "id": 28,
       "panels": [],
@@ -2755,7 +3167,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 37
+        "y": 43
       },
       "hiddenSeries": false,
       "id": 30,
@@ -2852,7 +3264,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 37
+        "y": 43
       },
       "hiddenSeries": false,
       "id": 31,
@@ -2890,7 +3302,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Latency By Operation",
+      "title": "Requests/Second",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -2936,9 +3348,8 @@
     "list": [
       {
         "current": {
-          "selected": true,
-          "text": "ops-cortex",
-          "value": "ops-cortex"
+          "text": "prometheus",
+          "value": "prometheus"
         },
         "hide": 0,
         "includeAll": false,
@@ -3003,5 +3414,5 @@
   "timezone": "",
   "title": "Frigg",
   "uid": "AOFXrRUZz",
-  "version": 7
+  "version": 3
 }

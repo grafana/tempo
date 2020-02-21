@@ -17,7 +17,8 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/grafana/frigg/friggdb"
+	friggdb_encoding "github.com/grafana/frigg/friggdb/encoding"
+	friggdb_wal "github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
 	"github.com/grafana/frigg/pkg/storage"
@@ -60,7 +61,7 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
-	wal     friggdb.WAL
+	wal     friggdb_wal.WAL
 }
 
 // New makes a new Ingester.
@@ -97,10 +98,7 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 	// which depends on it.
 	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
 
-	i.wal, err = i.store.WAL()
-	if err != nil {
-		return nil, err
-	}
+	i.wal = i.store.WAL()
 	err = i.replayWal()
 	if err != nil {
 		return nil, err
@@ -277,7 +275,7 @@ func (i *Ingester) replayWal() error {
 	}
 
 	for _, b := range blocks {
-		err = b.Iterator(func(id friggdb.ID, object []byte) (bool, error) {
+		err = b.Iterator(func(id friggdb_encoding.ID, object []byte) (bool, error) {
 			tenantID := b.TenantID()
 			instance, err := i.getOrCreateInstance(tenantID)
 			if err != nil {

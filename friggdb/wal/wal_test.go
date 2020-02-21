@@ -1,4 +1,4 @@
-package friggdb
+package wal
 
 import (
 	"bytes"
@@ -13,8 +13,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dgryski/go-farm"
+	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util/test"
+)
+
+const (
+	testTenantID = "fake"
 )
 
 func TestCreateBlock(t *testing.T) {
@@ -22,9 +27,10 @@ func TestCreateBlock(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal, err := newWAL(&walConfig{
-		filepath:        tempDir,
-		indexDownsample: 2,
+	wal, err := New(&Config{
+		Filepath:        tempDir,
+		IndexDownsample: 2,
+		BloomFP:         0.1,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -45,9 +51,10 @@ func TestReadWrite(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal, err := newWAL(&walConfig{
-		filepath:        tempDir,
-		indexDownsample: 2,
+	wal, err := New(&Config{
+		Filepath:        tempDir,
+		IndexDownsample: 2,
+		BloomFP:         0.1,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -76,9 +83,10 @@ func TestIterator(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	wal, err := newWAL(&walConfig{
-		filepath:        tempDir,
-		indexDownsample: 2,
+	wal, err := New(&Config{
+		Filepath:        tempDir,
+		IndexDownsample: 2,
+		BloomFP:         0.1,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -99,7 +107,7 @@ func TestIterator(t *testing.T) {
 	}
 
 	i := 0
-	err = block.(*headBlock).Iterator(func(id ID, msg []byte) (bool, error) {
+	err = block.(*headBlock).Iterator(func(id encoding.ID, msg []byte) (bool, error) {
 		req := &friggpb.PushRequest{}
 		err = proto.Unmarshal(msg, req)
 		assert.NoError(t, err)
@@ -120,10 +128,10 @@ func TestCompleteBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
 	indexDownsample := 13
-	wal, err := newWAL(&walConfig{
-		filepath:        tempDir,
-		indexDownsample: indexDownsample,
-		bloomFP:         .01,
+	wal, err := New(&Config{
+		Filepath:        tempDir,
+		IndexDownsample: indexDownsample,
+		BloomFP:         .01,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -167,11 +175,11 @@ func TestCompleteBlock(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))
-		assert.True(t, complete.bloomFilter().Has(farm.Fingerprint64(id)))
+		assert.True(t, complete.BloomFilter().Has(farm.Fingerprint64(id)))
 	}
 
 	// confirm order
-	var prev *Record
+	var prev *encoding.Record
 	for _, r := range complete.(*headBlock).records {
 		if prev != nil {
 			assert.Greater(t, r.Start, prev.Start)
@@ -192,9 +200,10 @@ func TestWorkDir(t *testing.T) {
 	_, err = os.Create(path.Join(tempDir, workDir, "testfile"))
 	assert.NoError(t, err, "unexpected error creating testfile")
 
-	_, err = newWAL(&walConfig{
-		filepath:        tempDir,
-		indexDownsample: 2,
+	_, err = New(&Config{
+		Filepath:        tempDir,
+		IndexDownsample: 2,
+		BloomFP:         0.1,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -211,9 +220,10 @@ func BenchmarkWriteRead(b *testing.B) {
 	tempDir, _ := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 
-	wal, _ := newWAL(&walConfig{
-		filepath:        tempDir,
-		indexDownsample: 2,
+	wal, _ := New(&Config{
+		Filepath:        tempDir,
+		IndexDownsample: 2,
+		BloomFP:         0.1,
 	})
 
 	blockID := uuid.New()

@@ -28,7 +28,7 @@ var (
 		Namespace: "frigg",
 		Name:      "ingester_flush_duration_seconds",
 		Help:      "Records the amount of time to flush a complete block.",
-		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
 	})
 )
 

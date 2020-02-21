@@ -19,6 +19,7 @@ import (
 
 	"github.com/grafana/frigg/friggdb"
 	"github.com/grafana/frigg/friggdb/backend/local"
+	"github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
 	"github.com/grafana/frigg/pkg/storage"
@@ -102,13 +103,15 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, 
 
 	s, err := storage.NewStore(storage.Config{
 		Trace: friggdb.Config{
-			Backend:                  "local",
-			BloomFilterFalsePositive: .01,
+			Backend: "local",
 			Local: &local.Config{
 				Path: tmpDir,
 			},
-			WALFilepath:     tmpDir,
-			IndexDownsample: 2,
+			WAL: &wal.Config{
+				Filepath:        tmpDir,
+				IndexDownsample: 2,
+				BloomFP:         .01,
+			},
 		},
 	}, limits, log.NewNopLogger())
 	assert.NoError(t, err, "unexpected error store")

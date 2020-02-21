@@ -1,4 +1,4 @@
-package friggdb
+package wal
 
 import (
 	"bytes"
@@ -8,12 +8,13 @@ import (
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
 	"github.com/google/uuid"
+	"github.com/grafana/frigg/friggdb/encoding"
 )
 
 type HeadBlock interface {
 	CompleteBlock
 
-	Write(id ID, b []byte) error
+	Write(id encoding.ID, b []byte) error
 	Complete(w WAL) (CompleteBlock, error)
 	Length() int
 }
@@ -24,7 +25,7 @@ type headBlock struct {
 	appendFile *os.File
 }
 
-func (h *headBlock) Write(id ID, b []byte) error {
+func (h *headBlock) Write(id encoding.ID, b []byte) error {
 	start, length, err := h.appendObject(id, b)
 	if err != nil {
 		return err
@@ -36,13 +37,13 @@ func (h *headBlock) Write(id ID, b []byte) error {
 	})
 	h.records = append(h.records, nil)
 	copy(h.records[i+1:], h.records[i:])
-	h.records[i] = &Record{
+	h.records[i] = &encoding.Record{
 		ID:     id,
 		Start:  start,
 		Length: length,
 	}
 
-	h.meta.objectAdded(id)
+	h.meta.ObjectAdded(id)
 	return nil
 }
 
@@ -66,16 +67,17 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	// 4) remove old
 	orderedBlock := &headBlock{
 		completeBlock: completeBlock{
-			meta:     newBlockMeta(h.meta.TenantID, uuid.New()),
-			filepath: walConfig.workFilepath,
-			records:  make([]*Record, 0, len(h.records)/walConfig.indexDownsample+1),
-			bloom:    bloom.NewBloomFilter(float64(len(h.records)), walConfig.bloomFP),
+			meta:     encoding.NewBlockMeta(h.meta.TenantID, uuid.New()),
+			filepath: walConfig.WorkFilepath,
+			records:  make([]*encoding.Record, 0, len(h.records)/walConfig.IndexDownsample+1),
+			bloom:    bloom.NewBloomFilter(float64(len(h.records)), walConfig.BloomFP),
 		},
 	}
 	orderedBlock.meta.StartTime = h.meta.StartTime
 	orderedBlock.meta.EndTime = h.meta.EndTime
 	orderedBlock.meta.MinID = h.meta.MinID
 	orderedBlock.meta.MaxID = h.meta.MaxID
+	orderedBlock.meta.TotalObjects = h.meta.TotalObjects
 
 	_, err := os.Create(orderedBlock.fullFilename())
 	if err != nil {
@@ -83,7 +85,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	}
 
 	// records are already sorted
-	var currentRecord *Record
+	var currentRecord *encoding.Record
 	for i, r := range h.records {
 		b, err := h.readRecordBytes(r)
 		if err != nil {
@@ -99,7 +101,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 
 		// start or continue working on a record
 		if currentRecord == nil {
-			currentRecord = &Record{
+			currentRecord = &encoding.Record{
 				ID:     r.ID,
 				Start:  start,
 				Length: length,
@@ -109,7 +111,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 		}
 
 		// if this is the last record to be included by hte downsample config OR is simply the last record
-		if i%walConfig.indexDownsample == walConfig.indexDownsample-1 ||
+		if i%walConfig.IndexDownsample == walConfig.IndexDownsample-1 ||
 			i == len(h.records)-1 {
 			currentRecord.ID = r.ID
 			orderedBlock.records = append(orderedBlock.records, currentRecord)
@@ -134,7 +136,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	return orderedBlock, nil
 }
 
-func (h *headBlock) appendObject(id ID, b []byte) (uint64, uint32, error) {
+func (h *headBlock) appendObject(id encoding.ID, b []byte) (uint64, uint32, error) {
 	if h.appendFile == nil {
 		name := h.fullFilename()
 
@@ -150,7 +152,7 @@ func (h *headBlock) appendObject(id ID, b []byte) (uint64, uint32, error) {
 		return 0, 0, err
 	}
 
-	length, err := marshalObjectToWriter(id, b, h.appendFile)
+	length, err := encoding.MarshalObjectToWriter(id, b, h.appendFile)
 	if err != nil {
 		return 0, 0, err
 	}

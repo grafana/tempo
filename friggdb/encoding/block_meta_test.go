@@ -1,4 +1,4 @@
-package friggdb
+package encoding
 
 import (
 	"bytes"
@@ -9,9 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testTenantID = "fake"
+)
+
 func TestBlockMeta(t *testing.T) {
 	id := uuid.New()
-	b := newBlockMeta(testTenantID, id)
+	b := NewBlockMeta(testTenantID, id)
 
 	assert.Equal(t, id, b.BlockID)
 	assert.Equal(t, testTenantID, b.TenantID)
@@ -24,8 +28,10 @@ func TestBlockMeta(t *testing.T) {
 
 	assert.Equal(t, b.StartTime, b.EndTime)
 
-	b.objectAdded(randID1)
-	b.objectAdded(randID2)
+	b.ObjectAdded(randID1)
+	b.ObjectAdded(randID2)
 	assert.True(t, b.EndTime.After(b.StartTime))
 	assert.Equal(t, 1, bytes.Compare(b.MaxID, b.MinID))
+
+	assert.Equal(t, uint32(2), b.TotalObjects)
 }
