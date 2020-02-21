@@ -14,20 +14,33 @@ import (
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/friggdb/pool"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 type compactorConfig struct {
 	ChunkSizeBytes uint32 `yaml:"chunkSizeBytes"`
 }
 
-/*
-metrics:
- - time to stop jobs
- - compaction time
- - compaction block count
- - blocks compacted due to retention
- - blocks deleted
-*/
+var (
+	metricCompactionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "friggdb",
+		Name:      "compaction_duration_seconds",
+		Help:      "Records the amount of time to compact a set of blocks.",
+		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
+	})
+	metricCompactionStopDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "friggdb",
+		Name:      "compaction_duration_stop_seconds",
+		Help:      "Records the amount of time waiting on compaction jobs to stop.",
+		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
+	})
+	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "compaction_errors_total",
+		Help:      "Total number of errors occuring during compaction.",
+	})
+)
 
 type compactor struct {
 	c backend.Compactor
@@ -49,10 +62,13 @@ const (
 func (rw *readerWriter) doCompaction() {
 	// stop any existing compaction jobs
 	if rw.jobStopper != nil {
+		start := time.Now()
 		err := rw.jobStopper.Stop()
 		if err != nil {
 			level.Warn(rw.logger).Log("msg", "error during compaction cycle", "err", err)
+			metricCompactionErrors.Inc()
 		}
+		metricCompactionStopDuration.Observe(time.Since(start).Seconds())
 	}
 
 	// start crazy jobs to do compaction with new list
@@ -71,7 +87,7 @@ func (rw *readerWriter) doCompaction() {
 				return warning
 			default:
 				var blocks []*encoding.BlockMeta
-				blocks, cursor = rw.blocksToCompact(tenantID, cursor)
+				blocks, cursor = rw.blocksToCompact(tenantID, cursor) // todo: pass a context with a deadline?
 				if cursor == cursorDone {
 					break L
 				}
@@ -81,6 +97,7 @@ func (rw *readerWriter) doCompaction() {
 				err := rw.compact(blocks, tenantID)
 				if err != nil {
 					warning = err
+					metricCompactionErrors.Inc()
 				}
 			}
 		}
@@ -90,9 +107,12 @@ func (rw *readerWriter) doCompaction() {
 
 	if err != nil {
 		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next maintenance cycle.", "err", err)
+		metricCompactionErrors.Inc()
 	}
 }
 
+// todo: metric to determine "effectiveness" of compaction.  i.e. total key overlap of blocks that is being eliminated?
+//       switch to iterator pattern?
 func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encoding.BlockMeta, int) {
 	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
 	//   - consider candidateBlocks at a time.
@@ -132,6 +152,9 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encodin
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
 func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID string) error {
+	start := time.Now()
+	defer func() { metricCompactionDuration.Observe(time.Since(start).Seconds()) }()
+
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
 
@@ -153,6 +176,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		if os.IsNotExist(err) {
 			// if meta doesn't exist right now it probably means this block was compacted.  warn and bail
 			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction", "blockID", blockMeta.BlockID, "tenantID", tenantID, "err", err)
+			metricCompactionErrors.Inc()
 			return nil
 		} else if err != nil {
 			return err
@@ -238,6 +262,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	for _, meta := range blockMetas {
 		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
+			metricCompactionErrors.Inc()
 		}
 	}
 
@@ -301,7 +326,7 @@ func nextObject(b *bookmark, tenantID string, chunkSizeBytes uint32, r backend.R
 		start = math.MaxUint64
 		for length < chunkSizeBytes && len(b.index) > 0 {
 			var rec *encoding.Record
-			rec, b.index = encoding.UnmarshalRecordAndAdvance(b.index)
+			rec, b.index = encoding.UnmarshalRecordAndAdvance(b.index) // todo: add object/index iterator to encoding?
 
 			if start == math.MaxUint64 {
 				start = rec.Start

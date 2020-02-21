@@ -27,10 +27,10 @@ import (
 )
 
 var (
-	metricBlocklistPoll = promauto.NewCounter(prometheus.CounterOpts{
+	metricMaintenanceTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "friggdb",
-		Name:      "blocklist_poll_total",
-		Help:      "Total number of times blocklist polling has occurred.",
+		Name:      "maintenance_total",
+		Help:      "Total number of times the maintenance cycle has occurred.",
 	})
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "friggdb",
@@ -48,6 +48,32 @@ var (
 		Name:      "blocklist_length",
 		Help:      "Total number of blocks per tenant.",
 	}, []string{"tenant"})
+	metricCompactedBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "friggdb",
+		Name:      "compaction_blocklist_length",
+		Help:      "Total number of compacted blocks per tenant.",
+	}, []string{"tenant"})
+	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "friggdb",
+		Name:      "retention_duration_seconds",
+		Help:      "Records the amount of time to perform retention tasks.",
+		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+	})
+	metricRetentionErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "retention_errors_total",
+		Help:      "Total number of times an error occurred while performing retention tasks.",
+	})
+	metricMarkedForDeletion = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "retention_marked_for_deletion_total",
+		Help:      "Total number of blocks marked for deletion.",
+	})
+	metricDeleted = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "friggdb",
+		Name:      "retention_deleted_total",
+		Help:      "Total number of blocks deleted.",
+	})
 )
 
 type Writer interface {
@@ -249,20 +275,21 @@ func (rw *readerWriter) maintenanceLoop() {
 
 	ticker := time.NewTicker(rw.cfg.MaintenanceCycle)
 	for range ticker.C {
-		start := time.Now()
 		rw.doMaintenance()
-		metricBlocklistPollDuration.Observe(time.Since(start).Seconds())
 	}
 }
 
 func (rw *readerWriter) doMaintenance() {
+	metricMaintenanceTotal.Inc()
+
 	rw.pollBlocklist()
 	rw.doCompaction()
 	rw.doRetention()
 }
 
 func (rw *readerWriter) pollBlocklist() {
-	metricBlocklistPoll.Inc()
+	start := time.Now()
+	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
 
 	tenants, err := rw.r.Tenants()
 	if err != nil {
@@ -323,6 +350,7 @@ func (rw *readerWriter) pollBlocklist() {
 		}
 
 		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
+		metricCompactedBlocklistLength.WithLabelValues(tenantID).Set(float64(len(compactedBlocklist)))
 
 		sort.Slice(blocklist, func(i, j int) bool {
 			return blocklist[i].StartTime.Before(blocklist[j].StartTime)
@@ -343,6 +371,9 @@ func (rw *readerWriter) doRetention() {
 
 	// todo: continued abuse of runJobs.  need a runAllJobs() method or something
 	_, err := rw.pool.RunJobs(tenants, func(payload interface{}) ([]byte, error) {
+		start := time.Now()
+		defer func() { metricRetentionDuration.Observe(time.Since(start).Seconds()) }()
+
 		tenantID := payload.(string)
 
 		// iterate through block list.  make compacted anything that is past retention.
@@ -353,6 +384,9 @@ func (rw *readerWriter) doRetention() {
 				err := rw.c.MarkBlockCompacted(b.BlockID, tenantID)
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "failed to mark block compacted during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
+					metricRetentionErrors.Inc()
+				} else {
+					metricMarkedForDeletion.Inc()
 				}
 			}
 		}
@@ -365,6 +399,9 @@ func (rw *readerWriter) doRetention() {
 				err := rw.c.ClearBlock(b.BlockID, tenantID)
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
+					metricRetentionErrors.Inc()
+				} else {
+					metricDeleted.Inc()
 				}
 			}
 		}
@@ -374,6 +411,7 @@ func (rw *readerWriter) doRetention() {
 
 	if err != nil {
 		level.Error(rw.logger).Log("msg", "failure to start retention.  retention disabled until the next maintenance cycle", "err", err)
+		metricRetentionErrors.Inc()
 	}
 }
 
