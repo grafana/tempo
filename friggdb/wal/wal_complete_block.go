@@ -25,7 +25,7 @@ type completeBlock struct {
 }
 
 type ReplayBlock interface {
-	Iterator(fn encoding.IterFunc) error
+	Iterator() encoding.Iterator
 	TenantID() string
 	Clear() error
 }
@@ -84,15 +84,15 @@ func (c *completeBlock) Find(id encoding.ID) ([]byte, error) {
 	return foundObject, nil
 }
 
-func (c *completeBlock) Iterator(fn encoding.IterFunc) error {
+func (c *completeBlock) Iterator() Iterator, error {
 	name := c.fullFilename()
 	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 
-	return encoding.IterateObjects(f, fn)
+	return encoding.NewIterator(f), nil
 }
 
 func (c *completeBlock) Clear() error {

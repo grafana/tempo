@@ -10,8 +10,6 @@ const (
 	uint32Size = 4
 )
 
-type IterFunc func(id ID, b []byte) (bool, error)
-
 /*
 	|          -- totalLength --                   |
 	| total length | id length | id | object bytes |
@@ -71,28 +69,4 @@ func UnmarshalObjectFromReader(r io.Reader) (ID, []byte, error) {
 	bytesObject := b[idLength:]
 
 	return bytesID, bytesObject, nil
-}
-
-func IterateObjects(reader io.Reader, fn IterFunc) error {
-	for {
-		id, b, err := UnmarshalObjectFromReader(reader)
-		if err != nil {
-			return err
-		}
-		if id == nil {
-			// there are no more objects in the reader
-			break
-		}
-
-		more, err := fn(id, b)
-		if err != nil {
-			return err
-		}
-		if !more {
-			// the calling code doesn't need any more objects
-			break
-		}
-	}
-
-	return nil
 }

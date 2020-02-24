@@ -107,16 +107,24 @@ func TestIterator(t *testing.T) {
 	}
 
 	i := 0
-	err = block.(*headBlock).Iterator(func(id encoding.ID, msg []byte) (bool, error) {
+	iterator, err := block.(*headBlock).Iterator()
+	assert.NoError(t, err)
+
+	for {
+		_, msg, err := iterator.Next()
+		assert.NoError(t, err)
+
+		if id == nil {
+			break
+		}
+
 		req := &friggpb.PushRequest{}
 		err = proto.Unmarshal(msg, req)
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(req, reqs[i]))
 		i++
-
-		return true, nil
-	})
+	}
 
 	assert.NoError(t, err, "unexpected error iterating")
 	assert.Equal(t, numMsgs, i)

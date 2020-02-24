@@ -17,7 +17,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	friggdb_encoding "github.com/grafana/frigg/friggdb/encoding"
 	friggdb_wal "github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/ingester/client"
@@ -285,18 +284,9 @@ func (i *Ingester) replayWal() error {
 			return err
 		}
 
-		err = b.Iterator(func(id friggdb_encoding.ID, object []byte) (bool, error) {
-			// todo:  we are currently building the new block in the wal folder.  the block we are replaying is here too!
-			//   need to move replay blocks out of this folder before beginning replay
-			err = instance.PushBytes(context.Background(), id, object)
-			if err != nil {
-				return false, err
-			}
-
-			return true, nil
-		})
+		err = i.replacyBlock(b, instance)
 		if err != nil {
-			// there was an error, wipe this headblock, but keep on keeping on
+			// there was an error, wipe this hedblock, but keep on keeping on
 			level.Error(util.Logger).Log("msg", "error replaying block.  wiping headblock ", "error", err)
 			err = instance.headBlock.Clear()
 			if err != nil {
@@ -305,6 +295,29 @@ func (i *Ingester) replayWal() error {
 			}
 		}
 		err = b.Clear()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (i *Ingester) replayBlock(b friggdb_wal.ReplayBlock, instance *instance) error {
+	iterator, err := b.Iterator()
+	if err != nil {
+		return err
+	}
+	for {
+		id, obj, err := iterator.Next()
+		if id == nil {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		err = instance.PushBytes(context.Background(), id, object)
 		if err != nil {
 			return err
 		}
