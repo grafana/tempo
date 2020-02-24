@@ -274,14 +274,20 @@ func (i *Ingester) replayWal() error {
 		return nil
 	}
 
-	for _, b := range blocks {
-		err = b.Iterator(func(id friggdb_encoding.ID, object []byte) (bool, error) {
-			tenantID := b.TenantID()
-			instance, err := i.getOrCreateInstance(tenantID)
-			if err != nil {
-				return false, err
-			}
+	level.Info(util.Logger).Log("msg", "beginning wal replay", "numBlocks", len(blocks))
 
+	for _, b := range blocks {
+		tenantID := b.TenantID()
+		level.Info(util.Logger).Log("msg", "beginning block replay", "tenantID", tenantID)
+
+		instance, err := i.getOrCreateInstance(tenantID)
+		if err != nil {
+			return err
+		}
+
+		err = b.Iterator(func(id friggdb_encoding.ID, object []byte) (bool, error) {
+			// todo:  we are currently building the new block in the wal folder.  the block we are replaying is here too!
+			//   need to move replay blocks out of this folder before beginning replay
 			err = instance.PushBytes(context.Background(), id, object)
 			if err != nil {
 				return false, err
@@ -290,14 +296,13 @@ func (i *Ingester) replayWal() error {
 			return true, nil
 		})
 		if err != nil {
-			// todo:  this is gorpy and error prone.  change to use the wal work dir?
-			// clean up any instance headblocks that were created to keep from replaying again and again
-			for _, instance := range i.instances {
-				err := instance.headBlock.Clear()
+			// there was an error, wipe this headblock, but keep on keeping on
+			level.Error(util.Logger).Log("msg", "error replaying block.  wiping headblock ", "error", err)
+			err = instance.headBlock.Clear()
+			if err != nil {
 				level.Error(util.Logger).Log("msg", "error cleaning up headblock", "error", err)
+				return err
 			}
-
-			return err
 		}
 		err = b.Clear()
 		if err != nil {
