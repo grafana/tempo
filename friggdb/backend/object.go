@@ -40,7 +40,7 @@ func MarshalObjectToWriter(id ID, b []byte, w io.Writer) (int, error) {
 	return totalLength, err
 }
 
-func UnmarshalObjectFromReader(r io.Reader) (ID, []byte, error) {
+func unmarshalObjectFromReader(r io.Reader) (ID, []byte, error) {
 	var totalLength uint32
 	err := binary.Read(r, binary.LittleEndian, &totalLength)
 	if err == io.EOF {

@@ -51,7 +51,7 @@ func (i *lazyIterator) Next() (ID, []byte, error) {
 		for length < i.chunkSizeBytes && len(i.indexBuffer) > 0 {
 
 			var rec *Record
-			rec, i.indexBuffer = UnmarshalRecordAndAdvance(i.indexBuffer)
+			rec, i.indexBuffer = unmarshalRecordAndAdvance(i.indexBuffer)
 
 			if start == math.MaxUint64 {
 				start = rec.Start
@@ -67,7 +67,7 @@ func (i *lazyIterator) Next() (ID, []byte, error) {
 
 	// attempt to get next object from objects
 	objectReader := bytes.NewReader(i.objectsBuffer)
-	id, object, err := UnmarshalObjectFromReader(objectReader) // jpe UnmarshalObjectAndAdvance?s
+	id, object, err := unmarshalObjectFromReader(objectReader) // jpe UnmarshalObjectAndAdvance?s
 	if err != nil {
 		return nil, nil, err
 	}

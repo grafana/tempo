@@ -19,5 +19,5 @@ func NewIterator(reader io.Reader) Iterator {
 }
 
 func (i *iterator) Next() (ID, []byte, error) {
-	return UnmarshalObjectFromReader(i.reader)
+	return unmarshalObjectFromReader(i.reader)
 }

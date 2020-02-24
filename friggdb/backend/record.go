@@ -112,7 +112,7 @@ func RecordCount(b []byte) int {
 	return len(b) / recordLength
 }
 
-func UnmarshalRecordAndAdvance(buff []byte) (*Record, []byte) {
+func unmarshalRecordAndAdvance(buff []byte) (*Record, []byte) {
 	readBuff := buff[:recordLength]
 
 	return unmarshalRecord(readBuff), buff[recordLength:]
