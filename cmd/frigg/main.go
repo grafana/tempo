@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"runtime"
 
 	"github.com/grafana/frigg/cmd/frigg/app"
 	_ "github.com/grafana/frigg/cmd/frigg/build"
@@ -22,8 +23,13 @@ import (
 
 const appName = "frigg"
 
+var (
+	ballastMBs int
+)
+
 func init() {
 	prometheus.MustRegister(version.NewCollector(appName))
+	flag.IntVar(&ballastMBs, "mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
 }
 
 func main() {
@@ -55,6 +61,9 @@ func main() {
 		}
 	}()
 
+	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
+	ballast := make([]byte, ballastMBs*1024*1024)
+
 	// Start Frigg
 	t, err := app.New(config)
 	if err != nil {
@@ -68,6 +77,7 @@ func main() {
 		level.Error(util.Logger).Log("msg", "error running Frigg", "err", err)
 	}
 
+	runtime.KeepAlive(ballast)
 	if err := t.Stop(); err != nil {
 		level.Error(util.Logger).Log("msg", "error stopping Frigg", "err", err)
 		os.Exit(1)
