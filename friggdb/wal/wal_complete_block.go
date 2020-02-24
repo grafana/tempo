@@ -95,7 +95,6 @@ func (c *completeBlock) Iterator() (backend.Iterator, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 
 	return backend.NewIterator(f), nil
 }
