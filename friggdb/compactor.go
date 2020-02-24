@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"time"
 
@@ -151,15 +150,12 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	for _, blockMeta := range blockMetas {
 		totalRecords += blockMeta.TotalObjects
 
-		index, err := rw.r.Index(blockMeta.BlockID, tenantID)
+		iter, err := backend.NewLazyIterator(tenantID, blockMeta.BlockID, rw.cfg.Compactor.ChunkSizeBytes, rw.r)
 		if err != nil {
 			return err
 		}
 
-		bookmarks = append(bookmarks, &bookmark{
-			id:    blockMeta.BlockID,
-			index: index,
-		})
+		bookmarks = append(bookmarks, newBookmark(iter))
 
 		_, err = rw.r.BlockMeta(blockMeta.BlockID, tenantID)
 		if os.IsNotExist(err) {
@@ -182,7 +178,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 		// find lowest ID of the new object
 		for _, b := range bookmarks {
-			currentID, currentObject, err := currentObject(b, tenantID, rw.cfg.Compactor.ChunkSizeBytes, rw.r)
+			currentID, currentObject, err := b.current()
 			if err == io.EOF {
 				continue
 			} else if err != nil {
@@ -227,7 +223,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		if err != nil {
 			return err
 		}
-		lowestBookmark.clearObject()
+		lowestBookmark.clear()
 
 		// ship block to backend if done
 		if uint32(currentBlock.length()) >= recordsPerBlock {
@@ -283,72 +279,9 @@ func (rw *readerWriter) writeCompactedBlock(b *compactorBlock, tenantID string) 
 	return nil
 }
 
-func currentObject(b *bookmark, tenantID string, chunkSizeBytes uint32, r backend.Reader) ([]byte, []byte, error) {
-	if len(b.currentID) != 0 && len(b.currentObject) != 0 {
-		return b.currentID, b.currentObject, nil
-	}
-
-	var err error
-	b.currentID, b.currentObject, err = nextObject(b, tenantID, chunkSizeBytes, r)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return b.currentID, b.currentObject, nil
-}
-
-func nextObject(b *bookmark, tenantID string, chunkSizeBytes uint32, r backend.Reader) ([]byte, []byte, error) {
-	var err error
-
-	// if no objects, pull objects
-
-	if len(b.objects) == 0 {
-		// if no index left, EOF
-		if len(b.index) == 0 {
-			return nil, nil, io.EOF
-		}
-
-		// pull next n bytes into objects
-		var start uint64
-		var length uint32
-
-		start = math.MaxUint64
-		for length < chunkSizeBytes && len(b.index) > 0 {
-			var rec *backend.Record
-			rec, b.index = backend.UnmarshalRecordAndAdvance(b.index) // todo: add object/index iterator to encoding?
-
-			if start == math.MaxUint64 {
-				start = rec.Start
-			}
-			length += rec.Length
-		}
-
-		b.objects, err = r.Object(b.id, tenantID, start, length)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	// attempt to get next object from objects
-	objectReader := bytes.NewReader(b.objects)
-	id, object, err := backend.UnmarshalObjectFromReader(objectReader)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// advance the objects buffer
-	bytesRead := objectReader.Size() - int64(objectReader.Len())
-	if bytesRead < 0 || bytesRead > int64(len(b.objects)) {
-		return nil, nil, fmt.Errorf("bad object read during compaction")
-	}
-	b.objects = b.objects[bytesRead:]
-
-	return id, object, nil
-}
-
 func allDone(bookmarks []*bookmark) bool {
 	for _, b := range bookmarks {
-		if !b.done() {
+		if !b.done {
 			return false
 		}
 	}
