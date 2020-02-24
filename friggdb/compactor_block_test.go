@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/wal"
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
-	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,7 +35,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 	wal, err := wal.New(walCfg)
 	assert.NoError(t, err)
 
-	metas := []*encoding.BlockMeta{
+	metas := []*backend.BlockMeta{
 		{
 			StartTime: time.Unix(10000, 0),
 			EndTime:   time.Unix(20000, 0),
@@ -52,8 +52,8 @@ func TestCompactorBlockWrite(t *testing.T) {
 	cb, err := newCompactorBlock(h, .01, 3, metas)
 	assert.NoError(t, err)
 
-	var minID encoding.ID
-	var maxID encoding.ID
+	var minID backend.ID
+	var maxID backend.ID
 
 	numObjects := (rand.Int() % 20) + 1
 	ids := make([][]byte, 0)
@@ -105,6 +105,6 @@ func TestCompactorBlockWrite(t *testing.T) {
 	indexBytes, err := cb.index()
 	assert.NoError(t, err)
 
-	_, err = encoding.UnmarshalRecords(indexBytes)
+	_, err = backend.UnmarshalRecords(indexBytes)
 	assert.NoError(t, err)
 }

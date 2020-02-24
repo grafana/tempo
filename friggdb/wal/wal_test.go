@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dgryski/go-farm"
-	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util/test"
 )
@@ -111,7 +111,7 @@ func TestIterator(t *testing.T) {
 	assert.NoError(t, err)
 
 	for {
-		_, msg, err := iterator.Next()
+		id, msg, err := iterator.Next()
 		assert.NoError(t, err)
 
 		if id == nil {
@@ -187,7 +187,7 @@ func TestCompleteBlock(t *testing.T) {
 	}
 
 	// confirm order
-	var prev *encoding.Record
+	var prev *backend.Record
 	for _, r := range complete.(*headBlock).records {
 		if prev != nil {
 			assert.Greater(t, r.Start, prev.Start)

@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
-	"github.com/grafana/frigg/friggdb/encoding"
 )
 
 type readerWriter struct {
@@ -31,7 +30,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID string, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte, tracesFilePath string) error {
+func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID string, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, tracesFilePath string) error {
 	blockFolder := rw.rootPath(blockID, tenantID)
 	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
@@ -132,14 +131,14 @@ func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 	return blocks, warning
 }
 
-func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	filename := rw.metaFileName(blockID, tenantID)
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	out := &encoding.BlockMeta{}
+	out := &backend.BlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err

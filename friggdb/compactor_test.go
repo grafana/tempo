@@ -13,8 +13,8 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"github.com/google/uuid"
+	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/backend/local"
-	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/friggdb/pool"
 	"github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
@@ -168,7 +168,7 @@ func TestCompaction(t *testing.T) {
 	blocksPerCompaction := (inputBlocks - outputBlocks)
 	for {
 		cursor := 0
-		var blocks []*encoding.BlockMeta
+		var blocks []*backend.BlockMeta
 		blocks, cursor = rw.blocksToCompact(testTenantID, cursor)
 		if cursor == cursorDone {
 			break

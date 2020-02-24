@@ -12,7 +12,6 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
-	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -76,7 +75,7 @@ func (rw *readerWriter) doCompaction() {
 			case <-stopCh:
 				return warning
 			default:
-				var blocks []*encoding.BlockMeta
+				var blocks []*backend.BlockMeta
 				blocks, cursor = rw.blocksToCompact(tenantID, cursor) // todo: pass a context with a deadline?
 				if cursor == cursorDone {
 					break L
@@ -103,7 +102,7 @@ func (rw *readerWriter) doCompaction() {
 
 // todo: metric to determine "effectiveness" of compaction.  i.e. total key overlap of blocks that is being eliminated?
 //       switch to iterator pattern?
-func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encoding.BlockMeta, int) {
+func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend.BlockMeta, int) {
 	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
 	//   - consider candidateBlocks at a time.
 	//   - find the blocks with the fewest records that are within the compaction range
@@ -141,7 +140,7 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*encodin
 
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
-func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID string) error {
+func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
 	start := time.Now()
 	defer func() { metricCompactionDuration.Observe(time.Since(start).Seconds()) }()
 
@@ -315,8 +314,8 @@ func nextObject(b *bookmark, tenantID string, chunkSizeBytes uint32, r backend.R
 
 		start = math.MaxUint64
 		for length < chunkSizeBytes && len(b.index) > 0 {
-			var rec *encoding.Record
-			rec, b.index = encoding.UnmarshalRecordAndAdvance(b.index) // todo: add object/index iterator to encoding?
+			var rec *backend.Record
+			rec, b.index = backend.UnmarshalRecordAndAdvance(b.index) // todo: add object/index iterator to encoding?
 
 			if start == math.MaxUint64 {
 				start = rec.Start
@@ -332,7 +331,7 @@ func nextObject(b *bookmark, tenantID string, chunkSizeBytes uint32, r backend.R
 
 	// attempt to get next object from objects
 	objectReader := bytes.NewReader(b.objects)
-	id, object, err := encoding.UnmarshalObjectFromReader(objectReader)
+	id, object, err := backend.UnmarshalObjectFromReader(objectReader)
 	if err != nil {
 		return nil, nil, err
 	}

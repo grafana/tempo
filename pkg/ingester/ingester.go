@@ -284,7 +284,7 @@ func (i *Ingester) replayWal() error {
 			return err
 		}
 
-		err = i.replacyBlock(b, instance)
+		err = i.replayBlock(b, instance)
 		if err != nil {
 			// there was an error, wipe this hedblock, but keep on keeping on
 			level.Error(util.Logger).Log("msg", "error replaying block.  wiping headblock ", "error", err)
@@ -317,7 +317,7 @@ func (i *Ingester) replayBlock(b friggdb_wal.ReplayBlock, instance *instance) er
 			return err
 		}
 
-		err = instance.PushBytes(context.Background(), id, object)
+		err = instance.PushBytes(context.Background(), id, obj)
 		if err != nil {
 			return err
 		}

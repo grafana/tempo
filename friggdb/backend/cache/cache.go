@@ -6,10 +6,9 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/grafana/frigg/friggdb/backend"
 
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/backend"
-	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -90,7 +89,7 @@ func (r *reader) Blocks(tenantID string) ([]uuid.UUID, error) {
 	return r.next.Blocks(tenantID)
 }
 
-func (r *reader) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (r *reader) BlockMeta(blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	return r.next.BlockMeta(blockID, tenantID)
 }
 

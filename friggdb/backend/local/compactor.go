@@ -8,7 +8,7 @@ import (
 	"path"
 
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/backend"
 )
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
@@ -31,7 +31,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return os.RemoveAll(rw.rootPath(blockID, tenantID))
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*encoding.CompactedBlockMeta, error) {
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	filename := rw.compactedMetaFileName(blockID, tenantID)
 
 	fi, err := os.Stat(filename)
@@ -44,7 +44,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 		return nil, err
 	}
 
-	out := &encoding.CompactedBlockMeta{}
+	out := &backend.CompactedBlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
