@@ -219,7 +219,9 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		}
 
 		// write to new block
-		err = currentBlock.write(lowestID, lowestObject)
+		idBuffer := make([]byte, len(lowestID))
+		copy(idBuffer, lowestID) // we can't pass and store the lowestID b/c this slice references an array owned by the lazy iterator.  make a copy of it here
+		err = currentBlock.write(idBuffer, lowestObject)
 		if err != nil {
 			return err
 		}

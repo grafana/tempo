@@ -38,7 +38,7 @@ func TestCompaction(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath:        path.Join(tempDir, "wal"),
-			IndexDownsample: 17,
+			IndexDownsample: 13,
 			BloomFP:         .01,
 		},
 		Compactor: &compactorConfig{
@@ -69,8 +69,10 @@ func TestCompaction(t *testing.T) {
 		ids := make([][]byte, 0, recordCount)
 		for j := 0; j < recordCount; j++ {
 			id := make([]byte, 16)
-			rand.Read(id)
-			req := test.MakeRequest(rand.Int()%1000, id)
+			_, err = rand.Read(id)
+			assert.NoError(t, err, "unexpected creating random id")
+
+			req := test.MakeRequest(1000, id)
 			reqs = append(reqs, req)
 			ids = append(ids, id)
 

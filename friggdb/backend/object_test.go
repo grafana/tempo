@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"math/rand"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -34,7 +35,8 @@ func TestMarshalUnmarshal(t *testing.T) {
 
 func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 	buffer := &bytes.Buffer{}
-	id := []byte{0x00, 0x01}
+	id := []byte{0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01}
+	rand.Read(id)
 
 	var reqs []*friggpb.PushRequest
 	for i := 0; i < 10; i++ {
