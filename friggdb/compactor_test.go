@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
@@ -41,7 +42,8 @@ func TestCompaction(t *testing.T) {
 			BloomFP:         .01,
 		},
 		Compactor: &compactorConfig{
-			ChunkSizeBytes: 10,
+			ChunkSizeBytes:     10,
+			MaxCompactionRange: time.Hour,
 		},
 		MaintenanceCycle:        0,
 		BlockRetention:          0,

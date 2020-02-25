@@ -157,22 +157,21 @@ func (rw *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error
 	return ioutil.ReadFile(filename)
 }
 
-func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error) {
+func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
 	filename := rw.tracesFileName(blockID, tenantID)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer f.Close()
 
-	b := make([]byte, length)
-	_, err = f.ReadAt(b, int64(start))
+	_, err = f.ReadAt(buffer, int64(start))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return b, nil
+	return nil
 }
 
 func (rw *readerWriter) Shutdown() {

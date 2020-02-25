@@ -16,7 +16,7 @@ type Reader interface {
 	BlockMeta(blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	Bloom(blockID uuid.UUID, tenantID string) ([]byte, error)
 	Index(blockID uuid.UUID, tenantID string) ([]byte, error)
-	Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error)
+	Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error
 
 	Shutdown()
 }

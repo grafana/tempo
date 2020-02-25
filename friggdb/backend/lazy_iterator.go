@@ -2,7 +2,6 @@ package backend
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"math"
 
@@ -14,9 +13,9 @@ type lazyIterator struct {
 	blockID  uuid.UUID
 	r        Reader
 
-	indexBuffer    []byte
-	objectsBuffer  []byte
-	chunkSizeBytes uint32
+	indexBuffer   []byte
+	objectsBuffer []byte
+	objectsReader *bytes.Reader
 }
 
 func NewLazyIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader Reader) (Iterator, error) {
@@ -26,58 +25,68 @@ func NewLazyIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, 
 	}
 
 	return &lazyIterator{
-		tenantID:       tenantID,
-		blockID:        blockID,
-		r:              reader,
-		chunkSizeBytes: chunkSizeBytes,
-		indexBuffer:    index,
+		tenantID:      tenantID,
+		blockID:       blockID,
+		r:             reader,
+		indexBuffer:   index,
+		objectsBuffer: make([]byte, chunkSizeBytes),
 	}, err
 }
 
 func (i *lazyIterator) Next() (ID, []byte, error) {
 	var err error
 
-	if len(i.objectsBuffer) == 0 {
-		// if no index left, EOF
-		if len(i.indexBuffer) == 0 {
-			return nil, nil, io.EOF
-		}
-
-		// pull next n bytes into objects
-		var start uint64
-		var length uint32
-
-		start = math.MaxUint64
-		for length < i.chunkSizeBytes && len(i.indexBuffer) > 0 {
-
-			var rec *Record
-			rec, i.indexBuffer = unmarshalRecordAndAdvance(i.indexBuffer)
-
-			if start == math.MaxUint64 {
-				start = rec.Start
-			}
-			length += rec.Length
-		}
-
-		i.objectsBuffer, err = i.r.Object(i.blockID, i.tenantID, start, length) // jpe : pass in
+	if i.objectsReader != nil {
+		id, object, err := unmarshalObjectFromReader(i.objectsReader)
 		if err != nil {
 			return nil, nil, err
 		}
+		if id != nil {
+			return id, object, nil
+		}
 	}
 
-	// attempt to get next object from objects
-	objectReader := bytes.NewReader(i.objectsBuffer)
-	id, object, err := unmarshalObjectFromReader(objectReader) // jpe UnmarshalObjectAndAdvance?s
+	// objects reader was empty, check the index
+	// if no index left, EOF
+	if len(i.indexBuffer) == 0 {
+		return nil, nil, io.EOF
+	}
+
+	// pull next n bytes into objects
+	var start uint64
+	var length uint32
+
+	start = math.MaxUint64
+	for len(i.indexBuffer) > 0 {
+		record := unmarshalRecord(i.indexBuffer[:recordLength])
+
+		// see if we can fit this record in.  we have to get at least one record in
+		if length+record.Length > uint32(len(i.objectsBuffer)) && start != math.MaxUint64 {
+			break
+		}
+		// advance index buffer
+		i.indexBuffer = i.indexBuffer[recordLength:]
+
+		if start == math.MaxUint64 {
+			start = record.Start
+		}
+		length += record.Length
+	}
+	if length > uint32(len(i.objectsBuffer)) {
+		i.objectsBuffer = make([]byte, length)
+	}
+	objects := i.objectsBuffer[:length]
+	err = i.r.Object(i.blockID, i.tenantID, start, objects)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// advance the objects buffer
-	bytesRead := objectReader.Size() - int64(objectReader.Len())
-	if bytesRead < 0 || bytesRead > int64(len(i.objectsBuffer)) {
-		return nil, nil, fmt.Errorf("bad object read during compaction")
+	// attempt to get next object from objects
+	i.objectsReader = bytes.NewReader(objects)
+	id, object, err := unmarshalObjectFromReader(i.objectsReader)
+	if err != nil {
+		return nil, nil, err
 	}
-	i.objectsBuffer = i.objectsBuffer[bytesRead:]
 
 	return id, object, nil
 }

@@ -119,9 +119,9 @@ func (r *reader) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
 	return b, err
 }
 
-func (r *reader) Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error) {
+func (r *reader) Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
 	// not attempting to cache these...yet...
-	return r.next.Object(blockID, tenantID, start, length)
+	return r.next.Object(blockID, tenantID, start, buffer)
 }
 
 func (r *reader) Shutdown() {

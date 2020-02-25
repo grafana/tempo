@@ -239,7 +239,8 @@ func (rw *readerWriter) Find(tenantID string, id backend.ID) ([]byte, FindMetric
 			return nil, nil
 		}
 
-		objectBytes, err := rw.r.Object(meta.BlockID, tenantID, record.Start, record.Length)
+		objectBytes := make([]byte, record.Length)
+		err = rw.r.Object(meta.BlockID, tenantID, record.Start, objectBytes)
 		metrics.BlockReads.Inc()
 		metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 		if err != nil {

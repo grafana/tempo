@@ -176,9 +176,9 @@ func (rw *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error
 	return rw.readAll(context.Background(), name)
 }
 
-func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error) {
+func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
 	name := rw.objectFileName(blockID, tenantID)
-	return rw.readRange(context.Background(), name, int64(start), int64(length))
+	return rw.readRange(context.Background(), name, int64(start), buffer)
 }
 
 func (rw *readerWriter) Shutdown() {
@@ -249,14 +249,19 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 	return bytes, r.Attrs.LastModified, nil
 }
 
-func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, length int64) ([]byte, error) {
-	r, err := rw.bucket.Object(name).NewRangeReader(ctx, offset, length)
+func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, buffer []byte) error {
+	r, err := rw.bucket.Object(name).NewRangeReader(ctx, offset, int64(len(buffer)))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer r.Close()
 
-	return ioutil.ReadAll(r)
+	_, err = r.Read(buffer)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func fileExists(filename string) bool {
