@@ -256,12 +256,20 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	}
 	defer r.Close()
 
-	_, err = r.Read(buffer)
-	if err != nil {
-		return err
+	totalBytes := 0
+	for {
+		byteCount, err := r.Read(buffer[totalBytes:])
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if byteCount == 0 {
+			return nil
+		}
+		totalBytes += byteCount
 	}
-
-	return nil
 }
 
 func fileExists(filename string) bool {
