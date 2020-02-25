@@ -43,7 +43,6 @@ func (i *lazyIterator) Next() (ID, []byte, error) {
 	} else if err != io.EOF {
 		return id, object, nil
 	}
-	err = nil
 
 	// objects reader was empty, check the index
 	// if no index left, EOF
