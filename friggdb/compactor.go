@@ -281,7 +281,7 @@ func (rw *readerWriter) writeCompactedBlock(b *compactorBlock, tenantID string) 
 
 func allDone(bookmarks []*bookmark) bool {
 	for _, b := range bookmarks {
-		if !b.done {
+		if !b.done() {
 			return false
 		}
 	}

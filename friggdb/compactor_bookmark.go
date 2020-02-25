@@ -5,7 +5,6 @@ import (
 )
 
 type bookmark struct {
-	done bool
 	iter backend.Iterator
 
 	currentID     []byte
@@ -30,6 +29,12 @@ func (b *bookmark) current() ([]byte, []byte, error) {
 	}
 
 	return b.currentID, b.currentObject, nil
+}
+
+func (b *bookmark) done() bool {
+	_, _, err := b.current()
+
+	return err != nil
 }
 
 func (b *bookmark) clear() {
