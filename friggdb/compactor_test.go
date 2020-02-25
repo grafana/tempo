@@ -38,7 +38,7 @@ func TestCompaction(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath:        path.Join(tempDir, "wal"),
-			IndexDownsample: 13,
+			IndexDownsample: rand.Int()%20 + 1,
 			BloomFP:         .01,
 		},
 		Compactor: &compactorConfig{
@@ -54,8 +54,8 @@ func TestCompaction(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	blockCount := 10
-	recordCount := 10
+	blockCount := rand.Int() % 20
+	recordCount := rand.Int() % 20
 
 	allReqs := make([]*friggpb.PushRequest, 0, blockCount*recordCount)
 	allIds := make([][]byte, 0, blockCount*recordCount)
@@ -72,7 +72,7 @@ func TestCompaction(t *testing.T) {
 			_, err = rand.Read(id)
 			assert.NoError(t, err, "unexpected creating random id")
 
-			req := test.MakeRequest(1000, id)
+			req := test.MakeRequest(rand.Int()%1000, id)
 			reqs = append(reqs, req)
 			ids = append(ids, id)
 
