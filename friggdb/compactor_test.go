@@ -54,8 +54,8 @@ func TestCompaction(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	blockCount := rand.Int() % 20
-	recordCount := rand.Int() % 20
+	blockCount := rand.Int()%20 + 1
+	recordCount := rand.Int()%20 + 1
 
 	allReqs := make([]*friggpb.PushRequest, 0, blockCount*recordCount)
 	allIds := make([][]byte, 0, blockCount*recordCount)

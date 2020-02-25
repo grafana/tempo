@@ -12,9 +12,8 @@ type lazyIterator struct {
 	blockID  uuid.UUID
 	r        Reader
 
-	indexBuffer         []byte
-	objectsBuffer       []byte
-	activeObjectsBuffer []byte
+	indexBuffer   []byte
+	objectsBuffer []byte
 }
 
 func NewLazyIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader Reader) (Iterator, error) {
@@ -24,11 +23,10 @@ func NewLazyIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, 
 	}
 
 	return &lazyIterator{
-		tenantID:      tenantID,
-		blockID:       blockID,
-		r:             reader,
-		indexBuffer:   index,
-		objectsBuffer: make([]byte, chunkSizeBytes),
+		tenantID:    tenantID,
+		blockID:     blockID,
+		r:           reader,
+		indexBuffer: index,
 	}, err
 }
 
@@ -37,7 +35,7 @@ func (i *lazyIterator) Next() (ID, []byte, error) {
 	var id ID
 	var object []byte
 
-	i.activeObjectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.activeObjectsBuffer)
+	i.objectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.objectsBuffer)
 	if err != nil && err != io.EOF {
 		return nil, nil, err
 	} else if err != io.EOF {
@@ -70,17 +68,14 @@ func (i *lazyIterator) Next() (ID, []byte, error) {
 		}
 		length += record.Length
 	}
-	if length > uint32(len(i.objectsBuffer)) {
-		i.objectsBuffer = make([]byte, length)
-	}
-	i.activeObjectsBuffer = i.objectsBuffer[:length]
-	err = i.r.Object(i.blockID, i.tenantID, start, i.activeObjectsBuffer)
+	i.objectsBuffer = make([]byte, length)
+	err = i.r.Object(i.blockID, i.tenantID, start, i.objectsBuffer)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// attempt to get next object from objects
-	i.activeObjectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.activeObjectsBuffer)
+	i.objectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.objectsBuffer)
 	if err != nil {
 		return nil, nil, err
 	}
