@@ -117,6 +117,13 @@ func TestCompaction(t *testing.T) {
 		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 	}
 
+	// do we have the right number of records
+	var records uint32
+	for _, meta := range rw.blockLists[testTenantID] {
+		records += meta.TotalObjects
+	}
+	assert.Equal(t, uint32(blockCount*recordCount), records)
+
 	// now see if we can find our ids
 	for i, id := range allIds {
 		b, _, err := rw.Find(testTenantID, id)

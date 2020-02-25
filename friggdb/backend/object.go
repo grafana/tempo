@@ -70,3 +70,36 @@ func unmarshalObjectFromReader(r io.Reader) (ID, []byte, error) {
 
 	return bytesID, bytesObject, nil
 }
+
+func unmarshalAndAdvanceBuffer(buffer []byte) ([]byte, ID, []byte, error) {
+	var totalLength uint32
+
+	if len(buffer) == 0 {
+		return nil, nil, nil, io.EOF
+	}
+
+	if len(buffer) < uint32Size {
+		return nil, nil, nil, fmt.Errorf("unable to read totalLength from buffer")
+	}
+	totalLength = binary.LittleEndian.Uint32(buffer)
+	buffer = buffer[uint32Size:]
+
+	var idLength uint32
+	if len(buffer) < uint32Size {
+		return nil, nil, nil, fmt.Errorf("unable to read idLength from buffer")
+	}
+	idLength = binary.LittleEndian.Uint32(buffer)
+	buffer = buffer[uint32Size:]
+
+	restLength := totalLength - uint32Size*2
+	if uint32(len(buffer)) < restLength {
+		return nil, nil, nil, fmt.Errorf("unable to read id/object from buffer")
+	}
+
+	bytesID := buffer[:idLength]
+	bytesObject := buffer[idLength:restLength]
+
+	buffer = buffer[restLength:]
+
+	return buffer, bytesID, bytesObject, nil
+}

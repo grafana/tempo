@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"bytes"
 	"io"
 	"math"
 
@@ -13,9 +12,9 @@ type lazyIterator struct {
 	blockID  uuid.UUID
 	r        Reader
 
-	indexBuffer   []byte
-	objectsBuffer []byte
-	objectsReader *bytes.Reader
+	indexBuffer         []byte
+	objectsBuffer       []byte
+	activeObjectsBuffer []byte
 }
 
 func NewLazyIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader Reader) (Iterator, error) {
@@ -35,16 +34,16 @@ func NewLazyIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, 
 
 func (i *lazyIterator) Next() (ID, []byte, error) {
 	var err error
+	var id ID
+	var object []byte
 
-	if i.objectsReader != nil {
-		id, object, err := unmarshalObjectFromReader(i.objectsReader)
-		if err != nil {
-			return nil, nil, err
-		}
-		if id != nil {
-			return id, object, nil
-		}
+	i.activeObjectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.activeObjectsBuffer)
+	if err != nil && err != io.EOF {
+		return nil, nil, err
+	} else if err != io.EOF {
+		return id, object, nil
 	}
+	err = nil
 
 	// objects reader was empty, check the index
 	// if no index left, EOF
@@ -75,15 +74,14 @@ func (i *lazyIterator) Next() (ID, []byte, error) {
 	if length > uint32(len(i.objectsBuffer)) {
 		i.objectsBuffer = make([]byte, length)
 	}
-	objects := i.objectsBuffer[:length]
-	err = i.r.Object(i.blockID, i.tenantID, start, objects)
+	i.activeObjectsBuffer = i.objectsBuffer[:length]
+	err = i.r.Object(i.blockID, i.tenantID, start, i.activeObjectsBuffer)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// attempt to get next object from objects
-	i.objectsReader = bytes.NewReader(objects)
-	id, object, err := unmarshalObjectFromReader(i.objectsReader)
+	i.activeObjectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.activeObjectsBuffer)
 	if err != nil {
 		return nil, nil, err
 	}
