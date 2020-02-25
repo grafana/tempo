@@ -22,7 +22,6 @@ import (
 	"github.com/grafana/frigg/friggdb/backend/cache"
 	"github.com/grafana/frigg/friggdb/backend/gcs"
 	"github.com/grafana/frigg/friggdb/backend/local"
-	"github.com/grafana/frigg/friggdb/encoding"
 	"github.com/grafana/frigg/friggdb/pool"
 	"github.com/grafana/frigg/friggdb/wal"
 )
@@ -83,7 +82,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(tenantID string, id encoding.ID) ([]byte, FindMetrics, error)
+	Find(tenantID string, id backend.ID) ([]byte, FindMetrics, error)
 	Shutdown()
 }
 
@@ -106,11 +105,11 @@ type readerWriter struct {
 
 	logger        log.Logger
 	cfg           *Config
-	blockLists    map[string][]*encoding.BlockMeta
+	blockLists    map[string][]*backend.BlockMeta
 	blockListsMtx sync.Mutex
 
 	jobStopper          *pool.Stopper
-	compactedBlockLists map[string][]*encoding.CompactedBlockMeta
+	compactedBlockLists map[string][]*backend.CompactedBlockMeta
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
@@ -142,13 +141,13 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 
 	rw := &readerWriter{
 		c:                   c,
-		compactedBlockLists: make(map[string][]*encoding.CompactedBlockMeta),
+		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
 		r:                   r,
 		w:                   w,
 		cfg:                 cfg,
 		logger:              logger,
 		pool:                pool.NewPool(cfg.Pool),
-		blockLists:          make(map[string][]*encoding.BlockMeta),
+		blockLists:          make(map[string][]*backend.BlockMeta),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -163,7 +162,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.CompleteBlock) error {
 	uuid, tenantID, records, blockFilePath := c.WriteInfo()
-	indexBytes, err := encoding.MarshalRecords(records)
+	indexBytes, err := backend.MarshalRecords(records)
 	if err != nil {
 		return err
 	}
@@ -184,7 +183,7 @@ func (rw *readerWriter) WAL() wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetrics, error) {
+func (rw *readerWriter) Find(tenantID string, id backend.ID) ([]byte, FindMetrics, error) {
 	metrics := FindMetrics{
 		BloomFilterReads:     atomic.NewInt32(0),
 		BloomFilterBytesRead: atomic.NewInt32(0),
@@ -210,7 +209,7 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetri
 	}
 
 	foundBytes, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) ([]byte, error) {
-		meta := payload.(*encoding.BlockMeta)
+		meta := payload.(*backend.BlockMeta)
 
 		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
 		if err != nil {
@@ -231,7 +230,7 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetri
 			return nil, err
 		}
 
-		record, err := encoding.FindRecord(id, indexBytes)
+		record, err := backend.FindRecord(id, indexBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -240,27 +239,29 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetri
 			return nil, nil
 		}
 
-		objectBytes, err := rw.r.Object(meta.BlockID, tenantID, record.Start, record.Length)
+		objectBytes := make([]byte, record.Length)
+		err = rw.r.Object(meta.BlockID, tenantID, record.Start, objectBytes)
 		metrics.BlockReads.Inc()
 		metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 		if err != nil {
 			return nil, err
 		}
 
+		iter := backend.NewIterator(bytes.NewReader(objectBytes))
 		var foundObject []byte
-		err = encoding.IterateObjects(bytes.NewReader(objectBytes), func(iterID encoding.ID, iterObject []byte) (bool, error) {
+		for {
+			iterID, iterObject, err := iter.Next()
+			if iterID == nil {
+				break
+			}
+			if err != nil {
+				return nil, err
+			}
 			if bytes.Equal(iterID, id) {
 				foundObject = iterObject
-				return false, nil
+				break
 			}
-
-			return true, nil
-
-		})
-		if err != nil {
-			return nil, err
 		}
-
 		return foundObject, nil
 	})
 
@@ -318,12 +319,12 @@ func (rw *readerWriter) pollBlocklist() {
 		}
 
 		listMutex := sync.Mutex{}
-		blocklist := make([]*encoding.BlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(blockIDs))
+		blocklist := make([]*backend.BlockMeta, 0, len(blockIDs))
+		compactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
 		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
 
-			var compactedBlockMeta *encoding.CompactedBlockMeta
+			var compactedBlockMeta *backend.CompactedBlockMeta
 			blockMeta, err := rw.r.BlockMeta(blockID, tenantID)
 			// if the normal meta doesn't exist maybe it's compacted.
 			if os.IsNotExist(err) {
@@ -435,7 +436,7 @@ func (rw *readerWriter) blocklistTenants() []interface{} {
 	return tenants
 }
 
-func (rw *readerWriter) blocklist(tenantID string) []*encoding.BlockMeta {
+func (rw *readerWriter) blocklist(tenantID string) []*backend.BlockMeta {
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 
@@ -443,7 +444,7 @@ func (rw *readerWriter) blocklist(tenantID string) []*encoding.BlockMeta {
 }
 
 // todo:  make separate compacted list mutex?
-func (rw *readerWriter) compactedBlocklist(tenantID string) []*encoding.CompactedBlockMeta {
+func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.CompactedBlockMeta {
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 

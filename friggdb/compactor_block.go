@@ -6,7 +6,7 @@ import (
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/wal"
 )
 
@@ -16,13 +16,13 @@ import (
 //   split this functionality entirely
 type compactorBlock struct {
 	h     wal.HeadBlock
-	metas []*encoding.BlockMeta
+	metas []*backend.BlockMeta
 
 	bloomFP         float64
 	indexDownsample int
 }
 
-func newCompactorBlock(h wal.HeadBlock, bloomFP float64, indexDownsample int, metas []*encoding.BlockMeta) (*compactorBlock, error) {
+func newCompactorBlock(h wal.HeadBlock, bloomFP float64, indexDownsample int, metas []*backend.BlockMeta) (*compactorBlock, error) {
 	if h == nil {
 		return nil, fmt.Errorf("headblock should not be nil")
 	}
@@ -47,7 +47,7 @@ func newCompactorBlock(h wal.HeadBlock, bloomFP float64, indexDownsample int, me
 	}, nil
 }
 
-func (c *compactorBlock) write(id encoding.ID, object []byte) error {
+func (c *compactorBlock) write(id backend.ID, object []byte) error {
 	return c.h.Write(id, object)
 }
 
@@ -55,7 +55,7 @@ func (c *compactorBlock) id() uuid.UUID {
 	return c.h.BlockMeta().BlockID
 }
 
-func (c *compactorBlock) meta() *encoding.BlockMeta {
+func (c *compactorBlock) meta() *backend.BlockMeta {
 	meta := c.h.BlockMeta()
 
 	meta.StartTime = c.metas[0].StartTime
@@ -94,13 +94,13 @@ func (c *compactorBlock) index() ([]byte, error) {
 	_, _, records, _ := c.h.WriteInfo()
 
 	numRecords := (len(records) / c.indexDownsample) + 1
-	downsampledRecords := make([]*encoding.Record, 0, numRecords)
+	downsampledRecords := make([]*backend.Record, 0, numRecords)
 	// downsample index and then marshal
-	var currentRecord *encoding.Record
+	var currentRecord *backend.Record
 	for i, r := range records {
 		// start or continue working on a record
 		if currentRecord == nil {
-			currentRecord = &encoding.Record{
+			currentRecord = &backend.Record{
 				ID:     r.ID,
 				Start:  r.Start,
 				Length: r.Length,
@@ -117,7 +117,7 @@ func (c *compactorBlock) index() ([]byte, error) {
 		}
 	}
 
-	return encoding.MarshalRecords(downsampledRecords)
+	return backend.MarshalRecords(downsampledRecords)
 }
 
 func (c *compactorBlock) length() int {

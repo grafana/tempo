@@ -14,7 +14,6 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
-	"github.com/grafana/frigg/friggdb/encoding"
 	"google.golang.org/api/iterator"
 )
 
@@ -48,7 +47,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID string, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
+func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID string, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
 
 	err := rw.writeAll(ctx, rw.bloomFileName(blockID, tenantID), bBloom)
 	if err != nil {
@@ -150,7 +149,7 @@ func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 	return blocks, warning
 }
 
-func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	name := rw.metaFileName(blockID, tenantID)
 
 	bytes, err := rw.readAll(context.Background(), name)
@@ -158,7 +157,7 @@ func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding
 		return nil, err
 	}
 
-	out := &encoding.BlockMeta{}
+	out := &backend.BlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
@@ -177,9 +176,9 @@ func (rw *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error
 	return rw.readAll(context.Background(), name)
 }
 
-func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, length uint32) ([]byte, error) {
+func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
 	name := rw.objectFileName(blockID, tenantID)
-	return rw.readRange(context.Background(), name, int64(start), int64(length))
+	return rw.readRange(context.Background(), name, int64(start), buffer)
 }
 
 func (rw *readerWriter) Shutdown() {
@@ -250,14 +249,19 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 	return bytes, r.Attrs.LastModified, nil
 }
 
-func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, length int64) ([]byte, error) {
-	r, err := rw.bucket.Object(name).NewRangeReader(ctx, offset, length)
+func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, buffer []byte) error {
+	r, err := rw.bucket.Object(name).NewRangeReader(ctx, offset, int64(len(buffer)))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer r.Close()
 
-	return ioutil.ReadAll(r)
+	_, err = r.Read(buffer)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func fileExists(filename string) bool {

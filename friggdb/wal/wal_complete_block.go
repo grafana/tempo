@@ -7,25 +7,24 @@ import (
 	"sort"
 	"time"
 
-	"github.com/grafana/frigg/friggdb/encoding"
-
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/google/uuid"
+	"github.com/grafana/frigg/friggdb/backend"
 )
 
 // complete block has all of the fields
 type completeBlock struct {
-	meta        *encoding.BlockMeta
+	meta        *backend.BlockMeta
 	bloom       *bloom.Bloom
 	filepath    string
-	records     []*encoding.Record
+	records     []*backend.Record
 	timeWritten time.Time
 
 	readFile *os.File
 }
 
 type ReplayBlock interface {
-	Iterator(fn encoding.IterFunc) error
+	Iterator() (backend.Iterator, error)
 	TenantID() string
 	Clear() error
 }
@@ -33,24 +32,24 @@ type ReplayBlock interface {
 type CompleteBlock interface {
 	ReplayBlock
 
-	Find(id encoding.ID) ([]byte, error)
+	Find(id backend.ID) ([]byte, error)
 	TimeWritten() time.Time
 
-	BlockMeta() *encoding.BlockMeta
+	BlockMeta() *backend.BlockMeta
 	BloomFilter() *bloom.Bloom
 	BlockWroteSuccessfully(t time.Time)
-	WriteInfo() (blockID uuid.UUID, tenantID string, records []*encoding.Record, filepath string) // todo:  i hate this method.  do something better.
+	WriteInfo() (blockID uuid.UUID, tenantID string, records []*backend.Record, filepath string) // todo:  i hate this method.  do something better.
 }
 
 func (c *completeBlock) TenantID() string {
 	return c.meta.TenantID
 }
 
-func (c *completeBlock) WriteInfo() (uuid.UUID, string, []*encoding.Record, string) {
+func (c *completeBlock) WriteInfo() (uuid.UUID, string, []*backend.Record, string) {
 	return c.meta.BlockID, c.meta.TenantID, c.records, c.fullFilename()
 }
 
-func (c *completeBlock) Find(id encoding.ID) ([]byte, error) {
+func (c *completeBlock) Find(id backend.ID) ([]byte, error) {
 
 	i := sort.Search(len(c.records), func(idx int) bool {
 		return bytes.Compare(c.records[idx].ID, id) >= 0
@@ -67,16 +66,22 @@ func (c *completeBlock) Find(id encoding.ID) ([]byte, error) {
 		return nil, err
 	}
 
+	iter := backend.NewIterator(bytes.NewReader(b))
 	var foundObject []byte
-	err = encoding.IterateObjects(bytes.NewReader(b), func(foundID encoding.ID, b []byte) (bool, error) {
+	for {
+		foundID, b, err := iter.Next()
+		if foundID == nil {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
 		if bytes.Equal(foundID, id) {
 			foundObject = b
-			return false, nil
+			break
 		}
+	}
 
-		return true, nil
-
-	})
 	if err != nil {
 		return nil, err
 	}
@@ -84,15 +89,14 @@ func (c *completeBlock) Find(id encoding.ID) ([]byte, error) {
 	return foundObject, nil
 }
 
-func (c *completeBlock) Iterator(fn encoding.IterFunc) error {
+func (c *completeBlock) Iterator() (backend.Iterator, error) {
 	name := c.fullFilename()
 	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer f.Close()
 
-	return encoding.IterateObjects(f, fn)
+	return backend.NewIterator(f), nil
 }
 
 func (c *completeBlock) Clear() error {
@@ -115,7 +119,7 @@ func (c *completeBlock) BlockWroteSuccessfully(t time.Time) {
 	c.timeWritten = t
 }
 
-func (c *completeBlock) BlockMeta() *encoding.BlockMeta {
+func (c *completeBlock) BlockMeta() *backend.BlockMeta {
 	return c.meta
 }
 
@@ -127,7 +131,7 @@ func (c *completeBlock) fullFilename() string {
 	return fmt.Sprintf("%s/%v:%v", c.filepath, c.meta.BlockID, c.meta.TenantID)
 }
 
-func (c *completeBlock) readRecordBytes(r *encoding.Record) ([]byte, error) {
+func (c *completeBlock) readRecordBytes(r *backend.Record) ([]byte, error) {
 	if c.readFile == nil {
 		name := c.fullFilename()
 

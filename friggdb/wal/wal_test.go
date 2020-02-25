@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dgryski/go-farm"
-	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util/test"
 )
@@ -107,16 +107,24 @@ func TestIterator(t *testing.T) {
 	}
 
 	i := 0
-	err = block.(*headBlock).Iterator(func(id encoding.ID, msg []byte) (bool, error) {
+	iterator, err := block.(*headBlock).Iterator()
+	assert.NoError(t, err)
+
+	for {
+		id, msg, err := iterator.Next()
+		assert.NoError(t, err)
+
+		if id == nil {
+			break
+		}
+
 		req := &friggpb.PushRequest{}
 		err = proto.Unmarshal(msg, req)
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(req, reqs[i]))
 		i++
-
-		return true, nil
-	})
+	}
 
 	assert.NoError(t, err, "unexpected error iterating")
 	assert.Equal(t, numMsgs, i)
@@ -179,7 +187,7 @@ func TestCompleteBlock(t *testing.T) {
 	}
 
 	// confirm order
-	var prev *encoding.Record
+	var prev *backend.Record
 	for _, r := range complete.(*headBlock).records {
 		if prev != nil {
 			assert.Greater(t, r.Start, prev.Start)

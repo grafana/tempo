@@ -1,4 +1,4 @@
-package encoding
+package backend
 
 import (
 	"encoding/binary"
@@ -9,8 +9,6 @@ import (
 const (
 	uint32Size = 4
 )
-
-type IterFunc func(id ID, b []byte) (bool, error)
 
 /*
 	|          -- totalLength --                   |
@@ -42,7 +40,7 @@ func MarshalObjectToWriter(id ID, b []byte, w io.Writer) (int, error) {
 	return totalLength, err
 }
 
-func UnmarshalObjectFromReader(r io.Reader) (ID, []byte, error) {
+func unmarshalObjectFromReader(r io.Reader) (ID, []byte, error) {
 	var totalLength uint32
 	err := binary.Read(r, binary.LittleEndian, &totalLength)
 	if err == io.EOF {
@@ -73,26 +71,35 @@ func UnmarshalObjectFromReader(r io.Reader) (ID, []byte, error) {
 	return bytesID, bytesObject, nil
 }
 
-func IterateObjects(reader io.Reader, fn IterFunc) error {
-	for {
-		id, b, err := UnmarshalObjectFromReader(reader)
-		if err != nil {
-			return err
-		}
-		if id == nil {
-			// there are no more objects in the reader
-			break
-		}
+func unmarshalAndAdvanceBuffer(buffer []byte) ([]byte, ID, []byte, error) {
+	var totalLength uint32
 
-		more, err := fn(id, b)
-		if err != nil {
-			return err
-		}
-		if !more {
-			// the calling code doesn't need any more objects
-			break
-		}
+	if len(buffer) == 0 {
+		return nil, nil, nil, io.EOF
 	}
 
-	return nil
+	if len(buffer) < uint32Size {
+		return nil, nil, nil, fmt.Errorf("unable to read totalLength from buffer")
+	}
+	totalLength = binary.LittleEndian.Uint32(buffer)
+	buffer = buffer[uint32Size:]
+
+	var idLength uint32
+	if len(buffer) < uint32Size {
+		return nil, nil, nil, fmt.Errorf("unable to read idLength from buffer")
+	}
+	idLength = binary.LittleEndian.Uint32(buffer)
+	buffer = buffer[uint32Size:]
+
+	restLength := totalLength - uint32Size*2
+	if uint32(len(buffer)) < restLength {
+		return nil, nil, nil, fmt.Errorf("unable to read id/object from buffer")
+	}
+
+	bytesID := buffer[:idLength]
+	bytesObject := buffer[idLength:restLength]
+
+	buffer = buffer[restLength:]
+
+	return buffer, bytesID, bytesObject, nil
 }

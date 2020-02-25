@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
 
-	friggdb_encoding "github.com/grafana/frigg/friggdb/encoding"
+	friggdb_backend "github.com/grafana/frigg/friggdb/backend"
 	friggdb_wal "github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util"
@@ -88,7 +88,7 @@ func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
 }
 
 // PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushBytes(ctx context.Context, id friggdb_encoding.ID, object []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id friggdb_backend.ID, object []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 

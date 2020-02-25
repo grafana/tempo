@@ -1,4 +1,4 @@
-package encoding
+package backend
 
 import (
 	"bytes"
@@ -110,12 +110,6 @@ func FindRecord(id ID, recordBytes []byte) (*Record, error) {
 
 func RecordCount(b []byte) int {
 	return len(b) / recordLength
-}
-
-func UnmarshalRecordAndAdvance(buff []byte) (*Record, []byte) {
-	readBuff := buff[:recordLength]
-
-	return unmarshalRecord(readBuff), buff[recordLength:]
 }
 
 func marshalRecord(r *Record, buff []byte) {

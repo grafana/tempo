@@ -8,13 +8,13 @@ import (
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/backend"
 )
 
 type HeadBlock interface {
 	CompleteBlock
 
-	Write(id encoding.ID, b []byte) error
+	Write(id backend.ID, b []byte) error
 	Complete(w WAL) (CompleteBlock, error)
 	Length() int
 }
@@ -25,7 +25,7 @@ type headBlock struct {
 	appendFile *os.File
 }
 
-func (h *headBlock) Write(id encoding.ID, b []byte) error {
+func (h *headBlock) Write(id backend.ID, b []byte) error {
 	start, length, err := h.appendObject(id, b)
 	if err != nil {
 		return err
@@ -37,7 +37,7 @@ func (h *headBlock) Write(id encoding.ID, b []byte) error {
 	})
 	h.records = append(h.records, nil)
 	copy(h.records[i+1:], h.records[i:])
-	h.records[i] = &encoding.Record{
+	h.records[i] = &backend.Record{
 		ID:     id,
 		Start:  start,
 		Length: length,
@@ -67,9 +67,9 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	// 4) remove old
 	orderedBlock := &headBlock{
 		completeBlock: completeBlock{
-			meta:     encoding.NewBlockMeta(h.meta.TenantID, uuid.New()),
+			meta:     backend.NewBlockMeta(h.meta.TenantID, uuid.New()),
 			filepath: walConfig.WorkFilepath,
-			records:  make([]*encoding.Record, 0, len(h.records)/walConfig.IndexDownsample+1),
+			records:  make([]*backend.Record, 0, len(h.records)/walConfig.IndexDownsample+1),
 			bloom:    bloom.NewBloomFilter(float64(len(h.records)), walConfig.BloomFP),
 		},
 	}
@@ -85,7 +85,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	}
 
 	// records are already sorted
-	var currentRecord *encoding.Record
+	var currentRecord *backend.Record
 	for i, r := range h.records {
 		b, err := h.readRecordBytes(r)
 		if err != nil {
@@ -101,7 +101,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 
 		// start or continue working on a record
 		if currentRecord == nil {
-			currentRecord = &encoding.Record{
+			currentRecord = &backend.Record{
 				ID:     r.ID,
 				Start:  start,
 				Length: length,
@@ -136,7 +136,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	return orderedBlock, nil
 }
 
-func (h *headBlock) appendObject(id encoding.ID, b []byte) (uint64, uint32, error) {
+func (h *headBlock) appendObject(id backend.ID, b []byte) (uint64, uint32, error) {
 	if h.appendFile == nil {
 		name := h.fullFilename()
 
@@ -152,7 +152,7 @@ func (h *headBlock) appendObject(id encoding.ID, b []byte) (uint64, uint32, erro
 		return 0, 0, err
 	}
 
-	length, err := encoding.MarshalObjectToWriter(id, b, h.appendFile)
+	length, err := backend.MarshalObjectToWriter(id, b, h.appendFile)
 	if err != nil {
 		return 0, 0, err
 	}

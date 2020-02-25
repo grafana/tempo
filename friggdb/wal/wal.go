@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/backend"
 )
 
 const (
@@ -91,7 +91,7 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 
 		blocks = append(blocks, &headBlock{
 			completeBlock: completeBlock{
-				meta:     encoding.NewBlockMeta(tenantID, blockID),
+				meta:     backend.NewBlockMeta(tenantID, blockID),
 				filepath: w.c.Filepath,
 			},
 		})
@@ -115,7 +115,7 @@ func (w *wal) config() *Config {
 func newBlock(id uuid.UUID, tenantID string, filepath string) (*headBlock, error) {
 	h := &headBlock{
 		completeBlock: completeBlock{
-			meta:     encoding.NewBlockMeta(tenantID, id),
+			meta:     backend.NewBlockMeta(tenantID, id),
 			filepath: filepath,
 		},
 	}

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/encoding"
+	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,7 +35,7 @@ func TestReadWrite(t *testing.T) {
 		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
 	}
 
-	fakeMeta := &encoding.BlockMeta{}
+	fakeMeta := &backend.BlockMeta{}
 	fakeBloom := make([]byte, 20)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
@@ -62,7 +62,8 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error reading indexes")
 	assert.Equal(t, fakeIndex, actualIndex)
 
-	actualTrace, err := r.Object(blockID, tenantIDs[0], 100, 20)
+	actualTrace := make([]byte, 20)
+	err = r.Object(blockID, tenantIDs[0], 100, actualTrace)
 	assert.NoError(t, err, "unexpected error reading traces")
 	assert.Equal(t, fakeTraces[100:120], actualTrace)
 
@@ -121,7 +122,7 @@ func TestCompaction(t *testing.T) {
 		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
 	}
 
-	fakeMeta := &encoding.BlockMeta{}
+	fakeMeta := &backend.BlockMeta{}
 	fakeBloom := make([]byte, 20)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
