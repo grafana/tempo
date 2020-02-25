@@ -23,11 +23,16 @@ ingester:
   max_transfer_retries: 1
   complete_block_timeout: 2m
 
+compactor:
+  compactor:
+    chunkSizeBytes: 1048576 # 1024 * 1024
+    maxCompactionRange: 1h
+    blockRetention: 1h
+    compactedBlockRetention: 2m
+
 storage_config:
   trace:
     maintenanceCycle: 30s
-    blockRetention: 1h
-    compactedBlockRetention: 2m
     backend: local
     wal:
       path: /tmp/frigg/wal
@@ -43,9 +48,7 @@ storage_config:
       disk-max-mbs: 5
       disk-prune-count: 10
       disk-clean-rate: 30s
-    compactor:
-      chunkSizeBytes: 1048576 # 1024 * 1024
-      maxCompactionRange: 1h
+    
 
 limits_config:
   enforce_metric_name: false

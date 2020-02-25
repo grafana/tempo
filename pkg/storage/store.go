@@ -10,6 +10,7 @@ import (
 type Store interface {
 	friggdb.Reader
 	friggdb.Writer
+	friggdb.Compactor
 }
 
 type store struct {
@@ -17,18 +18,20 @@ type store struct {
 
 	friggdb.Reader
 	friggdb.Writer
+	friggdb.Compactor
 }
 
 // NewStore creates a new Frigg Store using configuration supplied.
 func NewStore(cfg Config, limits storage.StoreLimits, logger log.Logger) (Store, error) {
-	r, w, err := friggdb.New(&cfg.Trace, logger)
+	r, w, c, err := friggdb.New(&cfg.Trace, logger)
 	if err != nil {
 		return nil, err
 	}
 
 	return &store{
-		cfg:    cfg,
-		Reader: r,
-		Writer: w,
+		cfg:       cfg,
+		Reader:    r,
+		Writer:    w,
+		Compactor: c,
 	}, nil
 }

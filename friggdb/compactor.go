@@ -15,11 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-type compactorConfig struct {
-	ChunkSizeBytes     uint32        `yaml:"chunkSizeBytes"`
-	MaxCompactionRange time.Duration `yaml:"maxCompactionRange"`
-}
-
 var (
 	metricCompactionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "friggdb",
@@ -126,7 +121,7 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend
 		blockStart := blocklist[cursor]
 		blockEnd := blocklist[cursorEnd]
 
-		if blockEnd.EndTime.Sub(blockStart.StartTime) < rw.cfg.Compactor.MaxCompactionRange {
+		if blockEnd.EndTime.Sub(blockStart.StartTime) < rw.compactorCfg.MaxCompactionRange {
 			return blocklist[cursor:cursorEnd], cursorEnd + 1
 		}
 
@@ -150,7 +145,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	for _, blockMeta := range blockMetas {
 		totalRecords += blockMeta.TotalObjects
 
-		iter, err := backend.NewLazyIterator(tenantID, blockMeta.BlockID, rw.cfg.Compactor.ChunkSizeBytes, rw.r)
+		iter, err := backend.NewLazyIterator(tenantID, blockMeta.BlockID, rw.compactorCfg.ChunkSizeBytes, rw.r)
 		if err != nil {
 			return err
 		}

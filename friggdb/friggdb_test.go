@@ -29,7 +29,7 @@ func TestDB(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	r, w, err := New(&Config{
+	r, w, c, err := New(&Config{
 		Backend: "local",
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
@@ -39,11 +39,16 @@ func TestDB(t *testing.T) {
 			IndexDownsample: 17,
 			BloomFP:         .01,
 		},
-		MaintenanceCycle:        0,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
+		MaintenanceCycle: 0,
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	})
 
 	blockID := uuid.New()
 
@@ -97,7 +102,7 @@ func TestRetention(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	r, w, err := New(&Config{
+	r, w, c, err := New(&Config{
 		Backend: "local",
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
@@ -107,11 +112,16 @@ func TestRetention(t *testing.T) {
 			IndexDownsample: 17,
 			BloomFP:         .01,
 		},
-		MaintenanceCycle:        0,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
+		MaintenanceCycle: 0,
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	})
 
 	blockID := uuid.New()
 

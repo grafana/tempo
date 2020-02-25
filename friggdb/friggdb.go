@@ -86,6 +86,10 @@ type Reader interface {
 	Shutdown()
 }
 
+type Compactor interface {
+	EnableCompaction(cfg *CompactorConfig)
+}
+
 type FindMetrics struct {
 	BloomFilterReads     *atomic.Int32
 	BloomFilterBytesRead *atomic.Int32
@@ -105,6 +109,7 @@ type readerWriter struct {
 
 	logger        log.Logger
 	cfg           *Config
+	compactorCfg  *CompactorConfig
 	blockLists    map[string][]*backend.BlockMeta
 	blockListsMtx sync.Mutex
 
@@ -112,7 +117,7 @@ type readerWriter struct {
 	compactedBlockLists map[string][]*backend.CompactedBlockMeta
 }
 
-func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
+func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	var err error
 	var r backend.Reader
 	var w backend.Writer
@@ -128,14 +133,14 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 	}
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if cfg.Cache != nil {
 		r, err = cache.New(r, cfg.Cache, logger)
 
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
@@ -152,12 +157,12 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, error) {
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	go rw.maintenanceLoop()
 
-	return rw, rw, nil
+	return rw, rw, rw, nil
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.CompleteBlock) error {
@@ -274,6 +279,13 @@ func (rw *readerWriter) Shutdown() {
 	rw.r.Shutdown()
 }
 
+func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig) {
+	if cfg != nil {
+		level.Info(rw.logger).Log("msg", "compaction enabled.")
+	}
+	rw.compactorCfg = cfg
+}
+
 func (rw *readerWriter) maintenanceLoop() {
 	if rw.cfg.MaintenanceCycle == 0 {
 		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  friggdb querying, compaction and retention effectively disabled.")
@@ -292,8 +304,11 @@ func (rw *readerWriter) doMaintenance() {
 	metricMaintenanceTotal.Inc()
 
 	rw.pollBlocklist()
-	rw.doCompaction()
-	rw.doRetention()
+
+	if rw.cfg != nil {
+		rw.doCompaction()
+		rw.doRetention()
+	}
 }
 
 func (rw *readerWriter) pollBlocklist() {
@@ -386,7 +401,7 @@ func (rw *readerWriter) doRetention() {
 		tenantID := payload.(string)
 
 		// iterate through block list.  make compacted anything that is past retention.
-		cutoff := time.Now().Add(-rw.cfg.BlockRetention)
+		cutoff := time.Now().Add(-rw.compactorCfg.BlockRetention)
 		blocklist := rw.blocklist(tenantID)
 		for _, b := range blocklist {
 			if b.EndTime.Before(cutoff) {
@@ -401,7 +416,7 @@ func (rw *readerWriter) doRetention() {
 		}
 
 		// iterate through compacted list looking for blocks ready to be cleared
-		cutoff = time.Now().Add(-rw.cfg.CompactedBlockRetention)
+		cutoff = time.Now().Add(-rw.compactorCfg.CompactedBlockRetention)
 		compactedBlocklist := rw.compactedBlocklist(tenantID)
 		for _, b := range compactedBlocklist {
 			if b.CompactedTime.Before(cutoff) {
