@@ -7,7 +7,7 @@ import (
 )
 
 type Config struct {
-	Compactor *friggdb.CompactorConfig `yaml:"compactor"`
+	Compactor *friggdb.CompactorConfig `yaml:"compaction"`
 }
 
 // RegisterFlags registers the flags.

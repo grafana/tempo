@@ -24,7 +24,7 @@ ingester:
   complete_block_timeout: 2m
 
 compactor:
-  compactor:
+  compaction:
     chunkSizeBytes: 1048576 # 1024 * 1024
     maxCompactionRange: 1h
     blockRetention: 1h
