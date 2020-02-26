@@ -67,6 +67,9 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	name := rw.compactedMetaFileName(blockID, tenantID)
 
 	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
+	if err == storage.ErrObjectNotExist {
+		return nil, backend.ErrMetaDoesNotExist
+	}
 	if err != nil {
 		return nil, err
 	}

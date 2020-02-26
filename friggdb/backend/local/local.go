@@ -134,6 +134,9 @@ func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	filename := rw.metaFileName(blockID, tenantID)
 	bytes, err := ioutil.ReadFile(filename)
+	if os.IsNotExist(err) {
+		return nil, backend.ErrMetaDoesNotExist
+	}
 	if err != nil {
 		return nil, err
 	}

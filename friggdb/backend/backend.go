@@ -2,9 +2,12 @@ package backend
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 )
+
+var ErrMetaDoesNotExist = fmt.Errorf("meta does not exist")
 
 type Writer interface {
 	Write(ctx context.Context, blockID uuid.UUID, tenantID string, meta *BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error

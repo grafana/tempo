@@ -153,6 +153,9 @@ func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*backend.
 	name := rw.metaFileName(blockID, tenantID)
 
 	bytes, err := rw.readAll(context.Background(), name)
+	if err == storage.ErrObjectNotExist {
+		return nil, backend.ErrMetaDoesNotExist
+	}
 	if err != nil {
 		return nil, err
 	}

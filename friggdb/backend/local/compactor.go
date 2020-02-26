@@ -35,6 +35,9 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	filename := rw.compactedMetaFileName(blockID, tenantID)
 
 	fi, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return nil, backend.ErrMetaDoesNotExist
+	}
 	if err != nil {
 		return nil, err
 	}

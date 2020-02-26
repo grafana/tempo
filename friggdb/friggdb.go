@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"sort"
 	"sync"
 	"time"
@@ -342,7 +341,7 @@ func (rw *readerWriter) pollBlocklist() {
 			var compactedBlockMeta *backend.CompactedBlockMeta
 			blockMeta, err := rw.r.BlockMeta(blockID, tenantID)
 			// if the normal meta doesn't exist maybe it's compacted.
-			if os.IsNotExist(err) {
+			if err == backend.ErrMetaDoesNotExist {
 				blockMeta = nil
 				compactedBlockMeta, err = rw.c.CompactedBlockMeta(blockID, tenantID)
 			}
