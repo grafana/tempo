@@ -16,7 +16,7 @@
   "gnetId": null,
   "graphTooltip": 1,
   "id": 1425,
-  "iteration": 1582751975856,
+  "iteration": 1582834624514,
   "links": [],
   "panels": [
     {
@@ -161,7 +161,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "go_memstats_heap_alloc_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", job=~\"jaeger/frigg$component\"}",
+          "expr": "go_memstats_heap_inuse_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", job=~\"jaeger/frigg$component\"}",
           "legendFormat": "{{job}}",
           "refId": "A"
         }
@@ -3356,7 +3356,7 @@
     "list": [
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "ops-cortex",
           "value": "ops-cortex"
         },
@@ -3436,7 +3436,7 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {
@@ -3456,5 +3456,5 @@
   "timezone": "",
   "title": "Frigg",
   "uid": "AOFXrRUZz",
-  "version": 11
+  "version": 12
 }
