@@ -8,9 +8,10 @@ require (
 	github.com/cortexproject/cortex v0.4.1-0.20191217132644-cd4009e2f8e7
 	github.com/dgraph-io/ristretto v0.0.1
 	github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2
+	github.com/fatih/color v1.9.0 // indirect
 	github.com/go-kit/kit v0.9.0
 	github.com/gogo/protobuf v1.3.0
-	github.com/golang/protobuf v1.3.2
+	github.com/golang/protobuf v1.3.4
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.3
@@ -19,6 +20,7 @@ require (
 	github.com/hashicorp/go-plugin v1.0.1 // indirect
 	github.com/jaegertracing/jaeger v1.16.0
 	github.com/karrick/godirwalk v1.15.3
+	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/open-telemetry/opentelemetry-collector v0.2.3
 	github.com/open-telemetry/opentelemetry-proto v0.0.0-20200114203242-839beca37552
 	github.com/opentracing/opentracing-go v1.1.0
@@ -33,6 +35,7 @@ require (
 	go.uber.org/atomic v1.4.0
 	go.uber.org/zap v1.10.0
 	golang.org/x/net v0.0.0-20191112182307-2180aed22343
+	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
 	google.golang.org/api v0.11.0
 	google.golang.org/grpc v1.25.1
 	gopkg.in/yaml.v2 v2.2.5
