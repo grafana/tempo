@@ -22,6 +22,7 @@ import (
 	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
 
 	"github.com/grafana/frigg/pkg/friggpb"
+	frigg_util "github.com/grafana/frigg/pkg/util"
 )
 
 type Receivers interface {
@@ -113,7 +114,7 @@ func (r *receiversShim) Shutdown() error {
 // implements consumer.TraceConsumer
 func (r *receiversShim) ConsumeTraceData(ctx context.Context, td consumerdata.TraceData) error {
 	if !r.authEnabled {
-		ctx = user.InjectOrgID(ctx, "fake")
+		ctx = user.InjectOrgID(ctx, frigg_util.FakeTenantID)
 	}
 
 	// todo: eventually otel collector intends to start using otel proto internally instead of opencensus
