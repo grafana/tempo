@@ -148,7 +148,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	var totalRecords uint32
 	for _, blockMeta := range blockMetas {
-		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", meta))
+		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
 		totalRecords += blockMeta.TotalObjects
 
 		iter, err := backend.NewLazyIterator(tenantID, blockMeta.BlockID, rw.compactorCfg.ChunkSizeBytes, rw.r)
