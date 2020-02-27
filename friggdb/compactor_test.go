@@ -197,9 +197,8 @@ func TestSameIDCompaction(t *testing.T) {
 	// poll
 	checkBlocklists(t, uuid.Nil, 5, 0, rw)
 
-	cursor := 0
 	var blocks []*backend.BlockMeta
-	blocks, cursor = rw.blocksToCompact(testTenantID, cursor)
+	blocks, _ = rw.blocksToCompact(testTenantID, 0)
 	assert.Len(t, blocks, inputBlocks)
 
 	err = rw.compact(blocks, testTenantID)

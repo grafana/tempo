@@ -66,11 +66,18 @@ ifndef COMPONENT
 	$(error COMPONENT variable was not defined)
 endif
 
-.PHONY: vendor
-vendor:
-	go mod tidy
+.PHONY: gen-proto
+gen-proto:
 	vend -package
+	protoc -I vendor/github.com/open-telemetry/opentelemetry-proto -I pkg/friggpb/ pkg/friggpb/frigg.proto --go_out=plugins=grpc:pkg/friggpb
+	$(MAKE) vendor-dependencies
+
+.PHONY: vendor-dependencies
+vendor-dependencies:
+	go mod tidy
+	go mod vendor
 
 .PHONY: install-tools
 install-tools:
 	go get -u github.com/nomad-software/vend
+	go get -u github.com/golang/protobuf/protoc-gen-go

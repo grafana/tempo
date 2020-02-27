@@ -141,7 +141,7 @@ func TestCompaction(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing")
 
 		compactedMeta, err := c.CompactedBlockMeta(blockID, id)
-		assert.True(t, os.IsNotExist(err))
+		assert.Equal(t, backend.ErrMetaDoesNotExist, err)
 		assert.Nil(t, compactedMeta)
 
 		err = c.MarkBlockCompacted(blockID, id)
@@ -152,18 +152,18 @@ func TestCompaction(t *testing.T) {
 		assert.NotNil(t, compactedMeta)
 
 		meta, err := r.BlockMeta(blockID, id)
-		assert.True(t, os.IsNotExist(err))
+		assert.Equal(t, backend.ErrMetaDoesNotExist, err)
 		assert.Nil(t, meta)
 
 		err = c.ClearBlock(blockID, id)
 		assert.NoError(t, err)
 
 		compactedMeta, err = c.CompactedBlockMeta(blockID, id)
-		assert.True(t, os.IsNotExist(err))
+		assert.Equal(t, backend.ErrMetaDoesNotExist, err)
 		assert.Nil(t, compactedMeta)
 
 		meta, err = r.BlockMeta(blockID, id)
-		assert.True(t, os.IsNotExist(err))
+		assert.Equal(t, backend.ErrMetaDoesNotExist, err)
 		assert.Nil(t, meta)
 	}
 }

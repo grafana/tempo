@@ -24,7 +24,7 @@ jobs:
       run: make install-tools
 
     - name: Install Dependencies
-      run: PATH="$(go env GOPATH)/bin":$PATH make vendor
+      run: PATH="$(go env GOPATH)/bin":$PATH make vendor-dependencies
 
     - name: Lint
       run: make lint

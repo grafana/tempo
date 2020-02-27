@@ -144,7 +144,7 @@ github.com/dustin/go-humanize
 github.com/edsrzf/mmap-go
 # github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb
 github.com/facette/natsort
-# github.com/fatih/color v1.7.0
+# github.com/fatih/color v1.9.0
 github.com/fatih/color
 # github.com/fluent/fluent-logger-golang v1.2.1
 github.com/fluent/fluent-logger-golang/fluent
@@ -212,7 +212,7 @@ github.com/gogo/protobuf/types
 github.com/gogo/status
 # github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6
 github.com/golang/groupcache/lru
-# github.com/golang/protobuf v1.3.2
+# github.com/golang/protobuf v1.3.4
 github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/protoc-gen-go/descriptor
@@ -437,7 +437,7 @@ github.com/matoous/godox
 github.com/mattn/go-colorable
 # github.com/mattn/go-ieproxy v0.0.0-20190805055040-f9202b1cfdeb
 github.com/mattn/go-ieproxy
-# github.com/mattn/go-isatty v0.0.10
+# github.com/mattn/go-isatty v0.0.12
 github.com/mattn/go-isatty
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
@@ -797,7 +797,7 @@ golang.org/x/oauth2/jwt
 # golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.0.0-20191220142924-d4481acd189f
+# golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
