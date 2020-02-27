@@ -148,7 +148,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	var totalRecords uint32
 	for _, blockMeta := range blockMetas {
-		level.Info(rw.logger).Log("msg", "compacting block", "blockID", blockMeta.BlockID, "objects", blockMeta.TotalObjects)
+		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", meta))
 		totalRecords += blockMeta.TotalObjects
 
 		iter, err := backend.NewLazyIterator(tenantID, blockMeta.BlockID, rw.compactorCfg.ChunkSizeBytes, rw.r)
@@ -259,6 +259,8 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 func (rw *readerWriter) writeCompactedBlock(b *compactorBlock, tenantID string) error {
 	currentMeta := b.meta()
+	level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentMeta))
+
 	currentIndex, err := b.index()
 	if err != nil {
 		return err
