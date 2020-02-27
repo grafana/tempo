@@ -112,7 +112,7 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend
 		return nil, cursorDone
 	}
 
-	cursorEnd := cursor + inputBlocks
+	cursorEnd := cursor + inputBlocks - 1
 	for {
 		if cursorEnd >= len(blocklist) {
 			break
@@ -122,11 +122,11 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend
 		blockEnd := blocklist[cursorEnd]
 
 		if blockEnd.EndTime.Sub(blockStart.StartTime) < rw.compactorCfg.MaxCompactionRange {
-			return blocklist[cursor:cursorEnd], cursorEnd + 1
+			return blocklist[cursor : cursorEnd+1], cursorEnd + 1
 		}
 
 		cursor++
-		cursorEnd = cursor + inputBlocks
+		cursorEnd = cursor + inputBlocks - 1
 	}
 
 	return nil, cursorDone
