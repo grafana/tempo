@@ -136,13 +136,19 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend
 //   in these cases it's possible that the compact method actually will start making more blocks.
 func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
 	start := time.Now()
-	defer func() { metricCompactionDuration.Observe(time.Since(start).Seconds()) }()
+	defer func() {
+		level.Info(rw.logger).Log("msg", "compaction complete")
+		metricCompactionDuration.Observe(time.Since(start).Seconds())
+	}()
+
+	level.Info(rw.logger).Log("msg", "beginning compaction")
 
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
 
 	var totalRecords uint32
 	for _, blockMeta := range blockMetas {
+		level.Info(rw.logger).Log("msg", "compacting block", "blockID", blockMeta.BlockID, "objects", blockMeta.TotalObjects)
 		totalRecords += blockMeta.TotalObjects
 
 		iter, err := backend.NewLazyIterator(tenantID, blockMeta.BlockID, rw.compactorCfg.ChunkSizeBytes, rw.r)
