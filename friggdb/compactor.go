@@ -213,8 +213,10 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			}
 		}
 
-		// write to new block
-		err = currentBlock.write(lowestID, lowestObject)
+		// writing to the current block will cause the id is going to escape the iterator so we need to make a copy of it
+		// lowestObject is going to be written to disk so we don't need to make a copy
+		writeID := append([]byte(nil), lowestID...)
+		err = currentBlock.write(writeID, lowestObject)
 		if err != nil {
 			return err
 		}

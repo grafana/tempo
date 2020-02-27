@@ -12,8 +12,9 @@ type lazyIterator struct {
 	blockID  uuid.UUID
 	r        Reader
 
-	indexBuffer   []byte
-	objectsBuffer []byte
+	indexBuffer         []byte
+	objectsBuffer       []byte
+	activeObjectsBuffer []byte
 }
 
 func NewLazyIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader Reader) (Iterator, error) {
@@ -23,19 +24,23 @@ func NewLazyIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, 
 	}
 
 	return &lazyIterator{
-		tenantID:    tenantID,
-		blockID:     blockID,
-		r:           reader,
-		indexBuffer: index,
+		tenantID:      tenantID,
+		blockID:       blockID,
+		r:             reader,
+		indexBuffer:   index,
+		objectsBuffer: make([]byte, chunkSizeBytes),
 	}, err
 }
 
+// For performance reasons the ID and object slices returned from this method are owned by
+// the iterator.  If you have need to keep these values for longer than a single iteration
+// you need to make a copy of them.
 func (i *lazyIterator) Next() (ID, []byte, error) {
 	var err error
 	var id ID
 	var object []byte
 
-	i.objectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.objectsBuffer)
+	i.activeObjectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.activeObjectsBuffer)
 	if err != nil && err != io.EOF {
 		return nil, nil, err
 	} else if err != io.EOF {
@@ -68,14 +73,17 @@ func (i *lazyIterator) Next() (ID, []byte, error) {
 		}
 		length += record.Length
 	}
-	i.objectsBuffer = make([]byte, length)
-	err = i.r.Object(i.blockID, i.tenantID, start, i.objectsBuffer)
+	if length > uint32(len(i.objectsBuffer)) {
+		i.objectsBuffer = make([]byte, length)
+	}
+	i.activeObjectsBuffer = i.objectsBuffer[:length]
+	err = i.r.Object(i.blockID, i.tenantID, start, i.activeObjectsBuffer)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// attempt to get next object from objects
-	i.objectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.objectsBuffer)
+	i.activeObjectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.activeObjectsBuffer)
 	if err != nil {
 		return nil, nil, err
 	}
