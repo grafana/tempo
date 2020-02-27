@@ -15,7 +15,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
-  "iteration": 1582293789060,
+  "id": 1425,
+  "iteration": 1582751975856,
   "links": [],
   "panels": [
     {
@@ -73,7 +74,8 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(go_gc_duration_seconds_count{cluster=\"ops-tools1\", namespace=\"jaeger\", job=\"jaeger/frigg\"}[$interval])",
+          "expr": "rate(go_gc_duration_seconds_count{cluster=\"ops-tools1\", namespace=\"jaeger\", job=~\"jaeger/frigg$component\"}[$interval])",
+          "legendFormat": "{{job}}",
           "refId": "A"
         }
       ],
@@ -159,7 +161,8 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "go_memstats_heap_alloc_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", job=\"jaeger/frigg\"}",
+          "expr": "go_memstats_heap_alloc_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", job=~\"jaeger/frigg$component\"}",
+          "legendFormat": "{{job}}",
           "refId": "A"
         }
       ],
@@ -245,7 +248,8 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "go_goroutines{cluster=\"ops-tools1\", namespace=\"jaeger\", job=\"jaeger/frigg\"}",
+          "expr": "go_goroutines{cluster=\"ops-tools1\", namespace=\"jaeger\", job=~\"jaeger/frigg$component\"}",
+          "legendFormat": "{{job}}",
           "refId": "A"
         }
       ],
@@ -331,7 +335,8 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(container_cpu_usage_seconds_total{cluster=\"ops-tools1\", namespace=\"jaeger\", container_name=\"frigg\"}[$interval])",
+          "expr": "rate(container_cpu_usage_seconds_total{cluster=\"ops-tools1\", namespace=\"jaeger\", pod_name=~\"frigg$component.*\"}[$interval])",
+          "legendFormat": "{{container_name}}",
           "refId": "A"
         }
       ],
@@ -417,7 +422,8 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "\ncontainer_memory_working_set_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", container_name=\"frigg\"}",
+          "expr": "container_memory_working_set_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", pod_name=~\"frigg$component.*\"}",
+          "legendFormat": "{{pod_name}}",
           "refId": "A"
         }
       ],
@@ -503,7 +509,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(container_network_receive_bytes_total{cluster=\"ops-tools1\", namespace=\"jaeger\", pod_name=~\"frigg.*\"}[$interval])",
+          "expr": "rate(container_network_receive_bytes_total{cluster=\"ops-tools1\", namespace=\"jaeger\", pod_name=~\"frigg$component.*\"}[$interval])",
           "refId": "A"
         }
       ],
@@ -589,7 +595,8 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "kubelet_volume_stats_available_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", persistentvolumeclaim=~'frigg.*'}",
+          "expr": "kubelet_volume_stats_available_bytes{cluster=\"ops-tools1\", namespace=\"jaeger\", persistentvolumeclaim=~\"frigg.*\"}",
+          "legendFormat": "{{persistentvolumeclaim}}",
           "refId": "A"
         }
       ],
@@ -675,7 +682,8 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(promtail_custom_bad_words_total{cluster=\"ops-tools1\", exported_namespace=\"jaeger\", app=\"frigg\"}[$interval])",
+          "expr": "rate(promtail_custom_bad_words_total{cluster=\"ops-tools1\", exported_namespace=\"jaeger\", app=~\"frigg$component.*\"}[$interval])",
+          "legendFormat": "{{app}}",
           "refId": "A"
         }
       ],
@@ -749,6 +757,98 @@
         "y": 7
       },
       "hiddenSeries": false,
+      "id": 33,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "friggdb_work_queue_length{job=~\"jaeger/frigg$component\"}",
+          "legendFormat": "length",
+          "refId": "A"
+        },
+        {
+          "expr": "friggdb_work_queue_max{job=~\"jaeger/frigg$component\"}",
+          "legendFormat": "max",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Work Queue",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 3,
+        "y": 7
+      },
+      "hiddenSeries": false,
       "id": 32,
       "legend": {
         "avg": false,
@@ -775,22 +875,22 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "increase(friggdb_maintenance_total[$interval])",
-          "legendFormat": "maint",
+          "expr": "increase(friggdb_maintenance_total{job=~\"jaeger/frigg$component\"}[$interval])",
+          "legendFormat": "maint-{{job}}",
           "refId": "A"
         },
         {
-          "expr": "increase(friggdb_compaction_errors_total[$interval])",
+          "expr": "increase(friggdb_compaction_errors_total{job=~\"jaeger/frigg$component\"}[$interval])",
           "legendFormat": "compaction_err",
           "refId": "B"
         },
         {
-          "expr": "increase(friggdb_retention_errors_total[$interval])",
+          "expr": "increase(friggdb_retention_errors_total{job=~\"jaeger/frigg$component\"}[$interval])",
           "legendFormat": "retention_err",
           "refId": "C"
         },
         {
-          "expr": "increase(friggdb_blocklist_poll_errors_total[$interval])",
+          "expr": "increase(friggdb_blocklist_poll_errors_total{job=~\"jaeger/frigg$component\"}[$interval])",
           "legendFormat": "blocklist_err",
           "refId": "D"
         }
@@ -847,7 +947,196 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 3,
+        "x": 6,
+        "y": 7
+      },
+      "hiddenSeries": false,
+      "id": 35,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "histogram_quantile(.99, sum(rate(friggdb_blocklist_poll_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
+          "legendFormat": ".99",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(.9, sum(rate(friggdb_blocklist_poll_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
+          "legendFormat": ".9",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(.5, sum(rate(friggdb_blocklist_poll_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
+          "legendFormat": ".5",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Blocklist Poll Duration",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "s",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 9,
+        "y": 7
+      },
+      "hiddenSeries": false,
+      "id": 47,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "friggdb_blocklist_length{job=~\"jaeger/frigg$component\"}",
+          "legendFormat": "{{tenant}}-blocklist",
+          "refId": "A"
+        },
+        {
+          "expr": "friggdb_compaction_blocklist_length{job=~\"jaeger/frigg$component\"}",
+          "legendFormat": "{{tenant}}-compacted",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Blocklist Length",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 12,
         "y": 7
       },
       "hiddenSeries": false,
@@ -877,17 +1166,17 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "histogram_quantile(.99, sum(rate(friggdb_retention_duration_seconds_bucket[$interval])) by (le))",
+          "expr": "histogram_quantile(.99, sum(rate(friggdb_retention_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
           "legendFormat": ".99",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(.9, sum(rate(friggdb_retention_duration_seconds_bucket[$interval])) by (le))",
+          "expr": "histogram_quantile(.9, sum(rate(friggdb_retention_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
           "legendFormat": ".9",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(.5, sum(rate(friggdb_retention_duration_seconds_bucket[$interval])) by (le))",
+          "expr": "histogram_quantile(.5, sum(rate(friggdb_retention_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
           "legendFormat": ".5",
           "refId": "C"
         }
@@ -944,7 +1233,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 6,
+        "x": 15,
         "y": 7
       },
       "hiddenSeries": false,
@@ -974,17 +1263,17 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "histogram_quantile(.99, sum(rate(friggdb_compaction_duration_seconds_bucket[$interval])) by (le))",
+          "expr": "histogram_quantile(.99, sum(rate(friggdb_compaction_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
           "legendFormat": ".99",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(.9, sum(rate(friggdb_compaction_duration_seconds_bucket[$interval])) by (le))",
+          "expr": "histogram_quantile(.9, sum(rate(friggdb_compaction_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
           "legendFormat": ".9",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(.5, sum(rate(friggdb_compaction_duration_seconds_bucket[$interval])) by (le))",
+          "expr": "histogram_quantile(.5, sum(rate(friggdb_compaction_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
           "legendFormat": ".5",
           "refId": "C"
         }
@@ -1041,7 +1330,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 9,
+        "x": 18,
         "y": 7
       },
       "hiddenSeries": false,
@@ -1071,17 +1360,17 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "histogram_quantile(.99, sum(rate(friggdb_compaction_duration_stop_seconds_bucket[$interval])) by (le))",
+          "expr": "histogram_quantile(.99, sum(rate(friggdb_compaction_duration_stop_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
           "legendFormat": ".99",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(.9, sum(rate(friggdb_compaction_duration_stop_seconds_bucket[$interval])) by (le))",
+          "expr": "histogram_quantile(.9, sum(rate(friggdb_compaction_duration_stop_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
           "legendFormat": ".9",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(.5, sum(rate(friggdb_compaction_duration_stop_seconds_bucket[$interval])) by (le))",
+          "expr": "histogram_quantile(.5, sum(rate(friggdb_compaction_duration_stop_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (le))",
           "legendFormat": ".5",
           "refId": "C"
         }
@@ -1138,7 +1427,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 12,
+        "x": 21,
         "y": 7
       },
       "hiddenSeries": false,
@@ -1168,12 +1457,12 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "increase(friggdb_retention_deleted_total[$interval])",
+          "expr": "increase(friggdb_retention_deleted_total{job=~\"jaeger/frigg$component\"}[$interval])",
           "legendFormat": "deleted",
           "refId": "A"
         },
         {
-          "expr": "increase(friggdb_retention_marked_for_deletion_total[$interval])",
+          "expr": "increase(friggdb_retention_marked_for_deletion_total{job=~\"jaeger/frigg$component\"}[$interval])",
           "legendFormat": "marked_for_deletion",
           "refId": "B"
         }
@@ -1245,287 +1534,6 @@
         "h": 5,
         "w": 3,
         "x": 3,
-        "y": 13
-      },
-      "hiddenSeries": false,
-      "id": 35,
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": true,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "options": {
-        "dataLinks": []
-      },
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
-        {
-          "expr": "histogram_quantile(.99, sum(rate(friggdb_blocklist_poll_duration_seconds_bucket[$interval])) by (le))",
-          "legendFormat": ".99",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(.9, sum(rate(friggdb_blocklist_poll_duration_seconds_bucket[$interval])) by (le))",
-          "legendFormat": ".9",
-          "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(.5, sum(rate(friggdb_blocklist_poll_duration_seconds_bucket[$interval])) by (le))",
-          "legendFormat": ".5",
-          "refId": "C"
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "Blocklist Poll Duration",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "s",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
-      "datasource": "$ds",
-      "fill": 1,
-      "fillGradient": 0,
-      "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 6,
-        "y": 13
-      },
-      "hiddenSeries": false,
-      "id": 47,
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": false,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "options": {
-        "dataLinks": []
-      },
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
-        {
-          "expr": "friggdb_blocklist_length",
-          "legendFormat": "{{tenant}}-blocklist",
-          "refId": "A"
-        },
-        {
-          "expr": "friggdb_compaction_blocklist_length",
-          "legendFormat": "{{tenant}}-compacted",
-          "refId": "B"
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "Blocklist Length",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
-      "datasource": "$ds",
-      "fill": 1,
-      "fillGradient": 0,
-      "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 9,
-        "y": 13
-      },
-      "hiddenSeries": false,
-      "id": 33,
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": false,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "options": {
-        "dataLinks": []
-      },
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
-        {
-          "expr": "friggdb_work_queue_length",
-          "legendFormat": "length",
-          "refId": "A"
-        },
-        {
-          "expr": "friggdb_work_queue_max",
-          "legendFormat": "max",
-          "refId": "B"
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "Query Queue",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
-      "datasource": "$ds",
-      "fill": 1,
-      "fillGradient": 0,
-      "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 12,
         "y": 13
       },
       "hiddenSeries": false,
@@ -1612,7 +1620,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 15,
+        "x": 6,
         "y": 13
       },
       "hiddenSeries": false,
@@ -1699,7 +1707,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 18,
+        "x": 9,
         "y": 13
       },
       "hiddenSeries": false,
@@ -1786,7 +1794,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 21,
+        "x": 12,
         "y": 13
       },
       "hiddenSeries": false,
@@ -1852,6 +1860,182 @@
       "yaxes": [
         {
           "format": "decbytes",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 15,
+        "y": 13
+      },
+      "hiddenSeries": false,
+      "id": 14,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "histogram_quantile(.99, sum(rate(frigg_query_reads_bucket[$interval])) by (layer, le))",
+          "hide": false,
+          "legendFormat": "{{layer}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "p99 Reads",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 18,
+        "y": 13
+      },
+      "hiddenSeries": false,
+      "id": 15,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "histogram_quantile(.5, sum(rate(frigg_query_reads_bucket[$interval])) by (layer, le))",
+          "hide": false,
+          "legendFormat": "{{layer}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "p50 Reads",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
           "label": null,
           "logBase": 1,
           "max": null,
@@ -2153,94 +2337,6 @@
       "fillGradient": 0,
       "gridPos": {
         "h": 5,
-        "w": 3,
-        "x": 21,
-        "y": 18
-      },
-      "hiddenSeries": false,
-      "id": 14,
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": false,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "options": {
-        "dataLinks": []
-      },
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
-        {
-          "expr": "histogram_quantile(.99, sum(rate(frigg_query_reads_bucket[$interval])) by (layer, le))",
-          "hide": false,
-          "legendFormat": "{{layer}}",
-          "refId": "A"
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "p99 Reads",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
-      "datasource": "$ds",
-      "fill": 1,
-      "fillGradient": 0,
-      "gridPos": {
-        "h": 5,
         "w": 6,
         "x": 15,
         "y": 23
@@ -2308,94 +2404,6 @@
       "yaxes": [
         {
           "format": "s",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
-      "datasource": "$ds",
-      "fill": 1,
-      "fillGradient": 0,
-      "gridPos": {
-        "h": 5,
-        "w": 3,
-        "x": 21,
-        "y": 23
-      },
-      "hiddenSeries": false,
-      "id": 15,
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": false,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "options": {
-        "dataLinks": []
-      },
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
-        {
-          "expr": "histogram_quantile(.5, sum(rate(frigg_query_reads_bucket[$interval])) by (layer, le))",
-          "hide": false,
-          "legendFormat": "{{layer}}",
-          "refId": "A"
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "p50 Reads",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "short",
           "label": null,
           "logBase": 1,
           "max": null,
@@ -3196,17 +3204,17 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "histogram_quantile(.99, sum(rate(friggdb_gcs_request_duration_seconds_bucket[$interval])) by (operation, le))",
+          "expr": "histogram_quantile(.99, sum(rate(friggdb_gcs_request_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (operation, le))",
           "legendFormat": ".99-{{operation}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(.9, sum(rate(friggdb_gcs_request_duration_seconds_bucket[$interval])) by (operation, le))",
+          "expr": "histogram_quantile(.9, sum(rate(friggdb_gcs_request_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (operation, le))",
           "legendFormat": ".9-{{operation}}",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(.5, sum(rate(friggdb_gcs_request_duration_seconds_bucket[$interval])) by (operation, le))",
+          "expr": "histogram_quantile(.5, sum(rate(friggdb_gcs_request_duration_seconds_bucket{job=~\"jaeger/frigg$component\"}[$interval])) by (operation, le))",
           "legendFormat": ".5-{{operation}}",
           "refId": "C"
         }
@@ -3293,7 +3301,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(friggdb_gcs_request_duration_seconds_count[$interval])) by (status_code, operation)",
+          "expr": "sum(rate(friggdb_gcs_request_duration_seconds_count{job=~\"jaeger/frigg$component\"}[$interval])) by (status_code, operation)",
           "legendFormat": "{{status_code}}-{{operation}}",
           "refId": "A"
         }
@@ -3348,8 +3356,9 @@
     "list": [
       {
         "current": {
-          "text": "prometheus",
-          "value": "prometheus"
+          "selected": true,
+          "text": "ops-cortex",
+          "value": "ops-cortex"
         },
         "hide": 0,
         "includeAll": false,
@@ -3390,6 +3399,39 @@
         "query": "1m,5m",
         "skipUrlSync": false,
         "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": null,
+        "multi": false,
+        "name": "component",
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "-all-in-one",
+            "value": "-all-in-one"
+          },
+          {
+            "selected": false,
+            "text": "-compactor",
+            "value": "-compactor"
+          }
+        ],
+        "query": "-all-in-one,-compactor",
+        "skipUrlSync": false,
+        "type": "custom"
       }
     ]
   },
@@ -3414,5 +3456,5 @@
   "timezone": "",
   "title": "Frigg",
   "uid": "AOFXrRUZz",
-  "version": 3
+  "version": 11
 }

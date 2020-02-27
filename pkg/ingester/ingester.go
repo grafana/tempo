@@ -317,7 +317,9 @@ func (i *Ingester) replayBlock(b friggdb_wal.ReplayBlock, instance *instance) er
 			return err
 		}
 
-		err = instance.PushBytes(context.Background(), id, obj)
+		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
+		writeID := append([]byte(nil), id...)
+		err = instance.PushBytes(context.Background(), writeID, obj)
 		if err != nil {
 			return err
 		}

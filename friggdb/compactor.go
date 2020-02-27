@@ -136,13 +136,19 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend
 //   in these cases it's possible that the compact method actually will start making more blocks.
 func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
 	start := time.Now()
-	defer func() { metricCompactionDuration.Observe(time.Since(start).Seconds()) }()
+	defer func() {
+		level.Info(rw.logger).Log("msg", "compaction complete")
+		metricCompactionDuration.Observe(time.Since(start).Seconds())
+	}()
+
+	level.Info(rw.logger).Log("msg", "beginning compaction")
 
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
 
 	var totalRecords uint32
 	for _, blockMeta := range blockMetas {
+		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", meta))
 		totalRecords += blockMeta.TotalObjects
 
 		iter, err := backend.NewLazyIterator(tenantID, blockMeta.BlockID, rw.compactorCfg.ChunkSizeBytes, rw.r)
@@ -213,8 +219,10 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			}
 		}
 
-		// write to new block
-		err = currentBlock.write(lowestID, lowestObject)
+		// writing to the current block will cause the id is going to escape the iterator so we need to make a copy of it
+		// lowestObject is going to be written to disk so we don't need to make a copy
+		writeID := append([]byte(nil), lowestID...)
+		err = currentBlock.write(writeID, lowestObject)
 		if err != nil {
 			return err
 		}
@@ -251,6 +259,8 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 func (rw *readerWriter) writeCompactedBlock(b *compactorBlock, tenantID string) error {
 	currentMeta := b.meta()
+	level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentMeta))
+
 	currentIndex, err := b.index()
 	if err != nil {
 		return err
