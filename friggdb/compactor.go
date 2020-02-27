@@ -191,9 +191,13 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			//   such as combining traces if they're both incomplete
 			if bytes.Equal(currentID, lowestID) {
 				if len(currentObject) > len(lowestObject) {
+					lowestBookmark.clear()
+
 					lowestID = currentID
 					lowestObject = currentObject
 					lowestBookmark = b
+				} else {
+					b.clear()
 				}
 			} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
 				lowestID = currentID

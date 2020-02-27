@@ -139,3 +139,78 @@ func TestCompaction(t *testing.T) {
 		assert.True(t, proto.Equal(allReqs[i], out))
 	}
 }
+
+func TestSameIDCompaction(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	r, w, c, err := New(&Config{
+		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		WAL: &wal.Config{
+			Filepath:        path.Join(tempDir, "wal"),
+			IndexDownsample: rand.Int()%20 + 1,
+			BloomFP:         .01,
+		},
+		MaintenanceCycle: 0,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	})
+
+	wal := w.WAL()
+	assert.NoError(t, err)
+
+	blockCount := 5
+
+	for i := 0; i < blockCount; i++ {
+		blockID := uuid.New()
+		head, err := wal.NewBlock(blockID, testTenantID)
+		assert.NoError(t, err)
+		id := []byte{0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02}
+		rec := []byte{0x01, 0x02, 0x03}
+
+		err = head.Write(id, rec)
+		assert.NoError(t, err, "unexpected error writing req")
+
+		complete, err := head.Complete(wal)
+		assert.NoError(t, err)
+
+		err = w.WriteBlock(context.Background(), complete)
+		assert.NoError(t, err)
+	}
+
+	rw := r.(*readerWriter)
+
+	// poll
+	checkBlocklists(t, uuid.Nil, 5, 0, rw)
+
+	cursor := 0
+	var blocks []*backend.BlockMeta
+	blocks, cursor = rw.blocksToCompact(testTenantID, cursor)
+	assert.Len(t, blocks, inputBlocks)
+
+	err = rw.compact(blocks, testTenantID)
+	assert.NoError(t, err)
+
+	checkBlocklists(t, uuid.Nil, 2, 4, rw)
+
+	// do we have the right number of records
+	var records uint32
+	for _, meta := range rw.blockLists[testTenantID] {
+		records += meta.TotalObjects
+	}
+	assert.Equal(t, uint32(2), records)
+}
