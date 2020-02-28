@@ -4,7 +4,6 @@ import (
 	"math/rand"
 
 	"github.com/grafana/frigg/pkg/friggpb"
-	opentelemetry_proto_collector_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/collector/traces/v1"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 )
 
@@ -20,7 +19,7 @@ func MakeRequest(spans int, traceID []byte) *friggpb.PushRequest {
 	}
 
 	req := &friggpb.PushRequest{
-		Batch: &opentelemetry_proto_collector_trace_v1.ResourceSpans{},
+		Batch: &opentelemetry_proto_trace_v1.ResourceSpans{},
 	}
 
 	for i := 0; i < spans; i++ {
@@ -32,7 +31,7 @@ func MakeRequest(spans int, traceID []byte) *friggpb.PushRequest {
 
 func MakeTrace(requests int, traceID []byte) *friggpb.Trace {
 	trace := &friggpb.Trace{
-		Batches: make([]*opentelemetry_proto_collector_trace_v1.ResourceSpans, 0),
+		Batches: make([]*opentelemetry_proto_trace_v1.ResourceSpans, 0),
 	}
 
 	for i := 0; i < requests; i++ {

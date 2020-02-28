@@ -12,7 +12,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/limiter"
 
 	"github.com/go-kit/kit/log/level"
-	opentelemetry_proto_collector_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/collector/traces/v1"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -264,7 +263,7 @@ func (d *Distributor) routeRequest(req *friggpb.PushRequest, userID string, span
 		routedReq, ok := requests[key]
 		if !ok {
 			routedReq = &friggpb.PushRequest{
-				Batch: &opentelemetry_proto_collector_trace_v1.ResourceSpans{
+				Batch: &opentelemetry_proto_trace_v1.ResourceSpans{
 					Spans:    make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace
 					Resource: req.Batch.Resource,
 				},
