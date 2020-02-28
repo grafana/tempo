@@ -45,6 +45,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/open-telemetry/opentelemetry-collector/client"
 	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/consumer"
 	"github.com/open-telemetry/opentelemetry-collector/observability"
@@ -102,8 +103,6 @@ const (
 	defaultAgentQueueSize     = 1000
 	defaultAgentMaxPacketSize = 65000
 	defaultAgentServerWorkers = 10
-
-	traceSource string = "Jaeger"
 )
 
 // New creates a TraceReceiver that receives traffic as a collector with both Thrift and HTTP transports.
@@ -193,10 +192,6 @@ func (jr *jReceiver) collectorThriftAddr() string {
 
 func (jr *jReceiver) collectorThriftEnabled() bool {
 	return jr.config != nil && jr.config.CollectorThriftPort > 0
-}
-
-func (jr *jReceiver) TraceSource() string {
-	return traceSource
 }
 
 func (jr *jReceiver) Start(host component.Host) error {
@@ -353,6 +348,10 @@ func (jr *jReceiver) GetBaggageRestrictions(serviceName string) ([]*baggage.Bagg
 }
 
 func (jr *jReceiver) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+	if c, ok := client.FromGRPC(ctx); ok {
+		ctx = client.NewContext(ctx, c)
+	}
+
 	ctxWithReceiverName := observability.ContextWithReceiverName(ctx, collectorReceiverTagValue)
 
 	td, err := jaegertranslator.ProtoBatchToOCProto(r.Batch)

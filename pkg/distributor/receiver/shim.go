@@ -11,7 +11,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
-	opentelemetry_proto_collector_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/collector/traces/v1"
 	opentelemetry_proto_common_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
 	opentelemetry_proto_resource_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
@@ -140,8 +139,8 @@ func (r *receiversShim) Context() context.Context {
 	return context.Background()
 }
 
-func convertTraceData(td consumerdata.TraceData) *opentelemetry_proto_collector_trace_v1.ResourceSpans {
-	batch := &opentelemetry_proto_collector_trace_v1.ResourceSpans{
+func convertTraceData(td consumerdata.TraceData) *opentelemetry_proto_trace_v1.ResourceSpans {
+	batch := &opentelemetry_proto_trace_v1.ResourceSpans{
 		Spans: make([]*opentelemetry_proto_trace_v1.Span, 0, len(td.Spans)),
 		Resource: &opentelemetry_proto_resource_v1.Resource{
 			Attributes: make([]*opentelemetry_proto_common_v1.AttributeKeyValue, 0, len(td.Node.Attributes)+2),

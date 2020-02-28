@@ -467,10 +467,9 @@ github.com/nbutton23/zxcvbn-go/utils/math
 github.com/oklog/run
 # github.com/oklog/ulid v1.3.1
 github.com/oklog/ulid
-# github.com/open-telemetry/opentelemetry-collector v0.2.3
+# github.com/open-telemetry/opentelemetry-collector v0.2.6
+github.com/open-telemetry/opentelemetry-collector/client
 github.com/open-telemetry/opentelemetry-collector/component
-github.com/open-telemetry/opentelemetry-collector/compression
-github.com/open-telemetry/opentelemetry-collector/compression/grpc
 github.com/open-telemetry/opentelemetry-collector/config/configerror
 github.com/open-telemetry/opentelemetry-collector/config/configmodels
 github.com/open-telemetry/opentelemetry-collector/consumer
@@ -487,8 +486,7 @@ github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver
 github.com/open-telemetry/opentelemetry-collector/translator/trace
 github.com/open-telemetry/opentelemetry-collector/translator/trace/jaeger
 github.com/open-telemetry/opentelemetry-collector/translator/trace/zipkin
-# github.com/open-telemetry/opentelemetry-proto v0.0.0-20200114203242-839beca37552
-github.com/open-telemetry/opentelemetry-proto/gen/go/collector/common/v1
+# github.com/open-telemetry/opentelemetry-proto v0.0.0-20200206071824-8310c432e51c
 github.com/open-telemetry/opentelemetry-proto/gen/go/collector/traces/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1

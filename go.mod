@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	cloud.google.com/go v0.44.1
+	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.2.1
 	github.com/cortexproject/cortex v0.4.1-0.20191217132644-cd4009e2f8e7
 	github.com/dgraph-io/ristretto v0.0.1
@@ -21,8 +22,8 @@ require (
 	github.com/jaegertracing/jaeger v1.16.0
 	github.com/karrick/godirwalk v1.15.3
 	github.com/mattn/go-isatty v0.0.12 // indirect
-	github.com/open-telemetry/opentelemetry-collector v0.2.3
-	github.com/open-telemetry/opentelemetry-proto v0.0.0-20200114203242-839beca37552
+	github.com/open-telemetry/opentelemetry-collector v0.2.6
+	github.com/open-telemetry/opentelemetry-proto v0.0.0-20200206071824-8310c432e51c
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v1.3.0
