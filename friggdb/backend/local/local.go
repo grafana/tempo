@@ -11,27 +11,35 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/pkg/util"
 )
 
 type readerWriter struct {
 	cfg *Config
 }
 
-func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
+func newReaderWriter(cfg *Config) (*readerWriter, error) {
 	err := os.MkdirAll(cfg.Path, os.ModePerm)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	rw := &readerWriter{
+	return &readerWriter{
 		cfg: cfg,
+	}, nil
+}
+
+func New(cfg *Config) (backend.Reader, backend.Writer, error) {
+	rw, err := newReaderWriter(cfg)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return rw, rw, rw, nil
+	return rw, rw, nil
 }
 
 func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID string, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, tracesFilePath string) error {
-	blockFolder := rw.rootPath(blockID, tenantID)
+	blockFolder := util.RootPath(rw.cfg.Path, tenantID, blockID)
 	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
 		return err
@@ -182,23 +190,19 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) metaFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "meta.json")
+	return path.Join(util.RootPath(rw.cfg.Path, tenantID, blockID), "meta.json")
 }
 
 func (rw *readerWriter) bloomFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "bloom")
+	return path.Join(util.RootPath(rw.cfg.Path, tenantID, blockID), "bloom")
 }
 
 func (rw *readerWriter) indexFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "index")
+	return path.Join(util.RootPath(rw.cfg.Path, tenantID, blockID), "index")
 }
 
 func (rw *readerWriter) tracesFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "traces")
-}
-
-func (rw *readerWriter) rootPath(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.cfg.Path, tenantID, blockID.String())
+	return path.Join(util.RootPath(rw.cfg.Path, tenantID, blockID), "traces")
 }
 
 func fileExists(filename string) bool {

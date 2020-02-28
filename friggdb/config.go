@@ -18,12 +18,5 @@ type Config struct {
 	Pool    *pool.Config  `yaml:"query_pool,omitempty"`
 	WAL     *wal.Config   `yaml:"wal"`
 
-	MaintenanceCycle time.Duration `yaml:"maintenanceCycle"`
-}
-
-type CompactorConfig struct {
-	ChunkSizeBytes          uint32        `yaml:"chunkSizeBytes"`
-	MaxCompactionRange      time.Duration `yaml:"maxCompactionRange"`
-	BlockRetention          time.Duration `yaml:"blockRetention"`
-	CompactedBlockRetention time.Duration `yaml:"compactedBlockRetention"`
+	BlockListPollDuration time.Duration `yaml:"blocklist_poll_duration"`
 }

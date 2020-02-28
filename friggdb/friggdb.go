@@ -3,7 +3,10 @@ package friggdb
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -23,13 +26,14 @@ import (
 	"github.com/grafana/frigg/friggdb/backend/local"
 	"github.com/grafana/frigg/friggdb/pool"
 	"github.com/grafana/frigg/friggdb/wal"
+	"github.com/grafana/frigg/pkg/util"
 )
 
 var (
-	metricMaintenanceTotal = promauto.NewCounter(prometheus.CounterOpts{
+	metricBlockListPollTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "friggdb",
-		Name:      "maintenance_total",
-		Help:      "Total number of times the maintenance cycle has occurred.",
+		Name:      "blocklist_poll_count_total",
+		Help:      "Total number of times the blocklist poll has occurred.",
 	})
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "friggdb",
@@ -52,41 +56,32 @@ var (
 		Name:      "compaction_blocklist_length",
 		Help:      "Total number of compacted blocks per tenant.",
 	}, []string{"tenant"})
-	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "friggdb",
-		Name:      "retention_duration_seconds",
-		Help:      "Records the amount of time to perform retention tasks.",
-		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
-	})
-	metricRetentionErrors = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "friggdb",
-		Name:      "retention_errors_total",
-		Help:      "Total number of times an error occurred while performing retention tasks.",
-	})
-	metricMarkedForDeletion = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "friggdb",
-		Name:      "retention_marked_for_deletion_total",
-		Help:      "Total number of blocks marked for deletion.",
-	})
-	metricDeleted = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "friggdb",
-		Name:      "retention_deleted_total",
-		Help:      "Total number of blocks deleted.",
-	})
 )
 
-type Writer interface {
+const (
+	inputBlocks  = 4
+	outputBlocks = 2
+
+	cursorDone = -1
+)
+
+type BlockStore interface {
+	// Writer interface
+	Write(ctx context.Context, blockID uuid.UUID, tenantID string, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error
 	WriteBlock(ctx context.Context, block wal.CompleteBlock) error
 	WAL() wal.WAL
-}
 
-type Reader interface {
+	// Reader interface
 	Find(tenantID string, id backend.ID) ([]byte, FindMetrics, error)
 	Shutdown()
-}
 
-type Compactor interface {
-	EnableCompaction(cfg *CompactorConfig)
+	// BlockStore utilities
+	Backend() string
+	BlocklistTenants() []interface{}
+	Blocklist(tenantID string) []*backend.BlockMeta
+	CompactedBlocklist(tenantID string) []*backend.CompactedBlockMeta
+	BlocksToCompact(tenantID string, cursor int, maxCompactionRange time.Duration) ([]*backend.BlockMeta, int) // Technically BlocksInGivenTimeRange
+	GetBackendReader() backend.Reader
 }
 
 type FindMetrics struct {
@@ -101,50 +96,44 @@ type FindMetrics struct {
 type readerWriter struct {
 	r backend.Reader
 	w backend.Writer
-	c backend.Compactor
 
 	wal  wal.WAL
 	pool *pool.Pool
 
-	logger        log.Logger
-	cfg           *Config
-	compactorCfg  *CompactorConfig
-	blockLists    map[string][]*backend.BlockMeta
-	blockListsMtx sync.Mutex
-
-	jobStopper          *pool.Stopper
+	logger              log.Logger
+	cfg                 *Config
+	blockLists          map[string][]*backend.BlockMeta
+	blockListsMtx       sync.Mutex
 	compactedBlockLists map[string][]*backend.CompactedBlockMeta
 }
 
-func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
+func New(cfg *Config, logger log.Logger) (BlockStore, error) {
 	var err error
 	var r backend.Reader
 	var w backend.Writer
-	var c backend.Compactor
 
 	switch cfg.Backend {
 	case "local":
-		r, w, c, err = local.New(cfg.Local)
+		r, w, err = local.New(cfg.Local)
 	case "gcs":
-		r, w, c, err = gcs.New(cfg.GCS)
+		r, w, err = gcs.New(cfg.GCS)
 	default:
 		err = fmt.Errorf("unknown local %s", cfg.Backend)
 	}
 
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	if cfg.Cache != nil {
 		r, err = cache.New(r, cfg.Cache, logger)
 
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 	}
 
 	rw := &readerWriter{
-		c:                   c,
 		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
 		r:                   r,
 		w:                   w,
@@ -156,12 +145,209 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	go rw.maintenanceLoop()
+	go rw.runBlockListPollLoop()
 
-	return rw, rw, rw, nil
+	return rw, nil
+}
+
+func (rw *readerWriter) Backend() string {
+	return rw.cfg.Backend
+}
+
+func (rw *readerWriter) runBlockListPollLoop() {
+	metricBlockListPollTotal.Inc()
+	if rw.cfg.BlockListPollDuration == 0 {
+		level.Warn(rw.logger).Log("msg", "blocklist Refresh Rate unset.  friggdb querying, compaction and retention effectively disabled.")
+		return
+	}
+
+	rw.pollBlocklist()
+
+	ticker := time.NewTicker(rw.cfg.BlockListPollDuration)
+	for range ticker.C {
+		rw.pollBlocklist()
+	}
+}
+
+func (rw *readerWriter) Blocklist(tenantID string) []*backend.BlockMeta {
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	return rw.blockLists[tenantID]
+}
+
+// todo:  make separate compacted list mutex?
+func (rw *readerWriter) CompactedBlocklist(tenantID string) []*backend.CompactedBlockMeta {
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	return rw.compactedBlockLists[tenantID]
+}
+
+func (rw *readerWriter) BlocklistTenants() []interface{} {
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	tenants := make([]interface{}, 0, len(rw.blockLists))
+	for tenant := range rw.blockLists {
+		tenants = append(tenants, tenant)
+	}
+
+	return tenants
+}
+
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+	filename := util.CompactedMetaFileName(blockID, tenantID)
+
+	fi, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return nil, backend.ErrMetaDoesNotExist
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	bytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &backend.CompactedBlockMeta{}
+	err = json.Unmarshal(bytes, out)
+	if err != nil {
+		return nil, err
+	}
+	out.CompactedTime = fi.ModTime()
+
+	return out, err
+}
+
+func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID string, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
+	return rw.Write(ctx, blockID, tenantID, meta, bBloom, bIndex, objectFilePath)
+}
+
+func (rw *readerWriter) GetBackendReader() backend.Reader {
+	return rw.r
+}
+
+func (rw *readerWriter) pollBlocklist() {
+	start := time.Now()
+	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
+
+	tenants, err := rw.r.Tenants()
+	if err != nil {
+		metricBlocklistErrors.WithLabelValues("").Inc()
+		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
+	}
+
+	for _, tenantID := range tenants {
+		blockIDs, err := rw.r.Blocks(tenantID)
+		if err != nil {
+			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
+		}
+
+		interfaceSlice := make([]interface{}, 0, len(blockIDs))
+		for _, id := range blockIDs {
+			interfaceSlice = append(interfaceSlice, id)
+		}
+
+		listMutex := sync.Mutex{}
+		blocklist := make([]*backend.BlockMeta, 0, len(blockIDs))
+		compactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
+		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
+			blockID := payload.(uuid.UUID)
+
+			var compactedBlockMeta *backend.CompactedBlockMeta
+			blockMeta, err := rw.r.BlockMeta(blockID, tenantID)
+			// if the normal meta doesn't exist maybe it's compacted.
+			if err == backend.ErrMetaDoesNotExist {
+				blockMeta = nil
+				compactedBlockMeta, err = rw.CompactedBlockMeta(blockID, tenantID)
+			}
+
+			if err != nil {
+				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+				level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)
+				return nil, nil
+			}
+
+			// todo:  make this not terrible. this mutex is dumb we should be returning results with a channel. shoehorning this into the worker pool is silly.
+			//        make the worker pool more generic? and reusable in this case
+			listMutex.Lock()
+			if blockMeta != nil {
+				blocklist = append(blocklist, blockMeta)
+
+			} else if compactedBlockMeta != nil {
+				compactedBlocklist = append(compactedBlocklist, compactedBlockMeta)
+			}
+			listMutex.Unlock()
+
+			return nil, nil
+		})
+
+		if err != nil {
+			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+			level.Error(rw.logger).Log("msg", "run blocklist jobs", "tenantID", tenantID, "err", err)
+			continue
+		}
+
+		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
+		metricCompactedBlocklistLength.WithLabelValues(tenantID).Set(float64(len(compactedBlocklist)))
+
+		sort.Slice(blocklist, func(i, j int) bool {
+			return blocklist[i].StartTime.Before(blocklist[j].StartTime)
+		})
+		sort.Slice(compactedBlocklist, func(i, j int) bool {
+			return compactedBlocklist[i].StartTime.Before(compactedBlocklist[j].StartTime)
+		})
+
+		rw.blockListsMtx.Lock()
+		rw.blockLists[tenantID] = blocklist
+		rw.compactedBlockLists[tenantID] = compactedBlocklist
+		rw.blockListsMtx.Unlock()
+	}
+}
+
+// todo: metric to determine "effectiveness" of compaction.  i.e. total key overlap of blocks that is being eliminated?
+//       switch to iterator pattern?
+func (rw *readerWriter) BlocksToCompact(tenantID string, cursor int, maxCompactionRange time.Duration) ([]*backend.BlockMeta, int) {
+	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
+	//   - consider candidateBlocks at a time.
+	//   - find the blocks with the fewest records that are within the compaction range
+	rw.blockListsMtx.Lock() // todo: there's lots of contention on this mutex.  keep an eye on this
+	defer rw.blockListsMtx.Unlock()
+
+	blocklist := rw.blockLists[tenantID]
+	if inputBlocks > len(blocklist) {
+		return nil, cursorDone
+	}
+
+	if cursor < 0 {
+		return nil, cursorDone
+	}
+
+	cursorEnd := cursor + inputBlocks
+	for {
+		if cursorEnd >= len(blocklist) {
+			break
+		}
+
+		blockStart := blocklist[cursor]
+		blockEnd := blocklist[cursorEnd]
+
+		if blockEnd.EndTime.Sub(blockStart.StartTime) < maxCompactionRange {
+			return blocklist[cursor:cursorEnd], cursorEnd + 1
+		}
+
+		cursor++
+		cursorEnd = cursor + inputBlocks
+	}
+
+	return nil, cursorDone
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.CompleteBlock) error {
@@ -276,191 +462,4 @@ func (rw *readerWriter) Shutdown() {
 	// todo: stop blocklist poll
 	rw.pool.Shutdown()
 	rw.r.Shutdown()
-}
-
-func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig) {
-	if cfg != nil {
-		level.Info(rw.logger).Log("msg", "compaction enabled.")
-	}
-	rw.compactorCfg = cfg
-}
-
-func (rw *readerWriter) maintenanceLoop() {
-	if rw.cfg.MaintenanceCycle == 0 {
-		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  friggdb querying, compaction and retention effectively disabled.")
-		return
-	}
-
-	rw.doMaintenance()
-
-	ticker := time.NewTicker(rw.cfg.MaintenanceCycle)
-	for range ticker.C {
-		rw.doMaintenance()
-	}
-}
-
-func (rw *readerWriter) doMaintenance() {
-	metricMaintenanceTotal.Inc()
-
-	rw.pollBlocklist()
-
-	if rw.cfg != nil {
-		rw.doCompaction()
-		rw.doRetention()
-	}
-}
-
-func (rw *readerWriter) pollBlocklist() {
-	start := time.Now()
-	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
-
-	tenants, err := rw.r.Tenants()
-	if err != nil {
-		metricBlocklistErrors.WithLabelValues("").Inc()
-		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
-	}
-
-	for _, tenantID := range tenants {
-		blockIDs, err := rw.r.Blocks(tenantID)
-		if err != nil {
-			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
-		}
-
-		interfaceSlice := make([]interface{}, 0, len(blockIDs))
-		for _, id := range blockIDs {
-			interfaceSlice = append(interfaceSlice, id)
-		}
-
-		listMutex := sync.Mutex{}
-		blocklist := make([]*backend.BlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
-		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
-			blockID := payload.(uuid.UUID)
-
-			var compactedBlockMeta *backend.CompactedBlockMeta
-			blockMeta, err := rw.r.BlockMeta(blockID, tenantID)
-			// if the normal meta doesn't exist maybe it's compacted.
-			if err == backend.ErrMetaDoesNotExist {
-				blockMeta = nil
-				compactedBlockMeta, err = rw.c.CompactedBlockMeta(blockID, tenantID)
-			}
-
-			if err != nil {
-				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-				level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)
-				return nil, nil
-			}
-
-			// todo:  make this not terrible. this mutex is dumb we should be returning results with a channel. shoehorning this into the worker pool is silly.
-			//        make the worker pool more generic? and reusable in this case
-			listMutex.Lock()
-			if blockMeta != nil {
-				blocklist = append(blocklist, blockMeta)
-
-			} else if compactedBlockMeta != nil {
-				compactedBlocklist = append(compactedBlocklist, compactedBlockMeta)
-			}
-			listMutex.Unlock()
-
-			return nil, nil
-		})
-
-		if err != nil {
-			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-			level.Error(rw.logger).Log("msg", "run blocklist jobs", "tenantID", tenantID, "err", err)
-			continue
-		}
-
-		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
-		metricCompactedBlocklistLength.WithLabelValues(tenantID).Set(float64(len(compactedBlocklist)))
-
-		sort.Slice(blocklist, func(i, j int) bool {
-			return blocklist[i].StartTime.Before(blocklist[j].StartTime)
-		})
-		sort.Slice(compactedBlocklist, func(i, j int) bool {
-			return compactedBlocklist[i].StartTime.Before(compactedBlocklist[j].StartTime)
-		})
-
-		rw.blockListsMtx.Lock()
-		rw.blockLists[tenantID] = blocklist
-		rw.compactedBlockLists[tenantID] = compactedBlocklist
-		rw.blockListsMtx.Unlock()
-	}
-}
-
-func (rw *readerWriter) doRetention() {
-	tenants := rw.blocklistTenants()
-
-	// todo: continued abuse of runJobs.  need a runAllJobs() method or something
-	_, err := rw.pool.RunJobs(tenants, func(payload interface{}) ([]byte, error) {
-		start := time.Now()
-		defer func() { metricRetentionDuration.Observe(time.Since(start).Seconds()) }()
-
-		tenantID := payload.(string)
-
-		// iterate through block list.  make compacted anything that is past retention.
-		cutoff := time.Now().Add(-rw.compactorCfg.BlockRetention)
-		blocklist := rw.blocklist(tenantID)
-		for _, b := range blocklist {
-			if b.EndTime.Before(cutoff) {
-				err := rw.c.MarkBlockCompacted(b.BlockID, tenantID)
-				if err != nil {
-					level.Error(rw.logger).Log("msg", "failed to mark block compacted during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
-					metricRetentionErrors.Inc()
-				} else {
-					metricMarkedForDeletion.Inc()
-				}
-			}
-		}
-
-		// iterate through compacted list looking for blocks ready to be cleared
-		cutoff = time.Now().Add(-rw.compactorCfg.CompactedBlockRetention)
-		compactedBlocklist := rw.compactedBlocklist(tenantID)
-		for _, b := range compactedBlocklist {
-			if b.CompactedTime.Before(cutoff) {
-				err := rw.c.ClearBlock(b.BlockID, tenantID)
-				if err != nil {
-					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
-					metricRetentionErrors.Inc()
-				} else {
-					metricDeleted.Inc()
-				}
-			}
-		}
-
-		return nil, nil
-	})
-
-	if err != nil {
-		level.Error(rw.logger).Log("msg", "failure to start retention.  retention disabled until the next maintenance cycle", "err", err)
-		metricRetentionErrors.Inc()
-	}
-}
-
-func (rw *readerWriter) blocklistTenants() []interface{} {
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	tenants := make([]interface{}, 0, len(rw.blockLists))
-	for tenant := range rw.blockLists {
-		tenants = append(tenants, tenant)
-	}
-
-	return tenants
-}
-
-func (rw *readerWriter) blocklist(tenantID string) []*backend.BlockMeta {
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	return rw.blockLists[tenantID]
-}
-
-// todo:  make separate compacted list mutex?
-func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.CompactedBlockMeta {
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	return rw.compactedBlockLists[tenantID]
 }

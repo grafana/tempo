@@ -1,4 +1,4 @@
-package friggdb
+package compactor
 
 import (
 	"fmt"

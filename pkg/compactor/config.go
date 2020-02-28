@@ -2,12 +2,15 @@ package compactor
 
 import (
 	"flag"
-
-	"github.com/grafana/frigg/friggdb"
+	"time"
 )
 
 type Config struct {
-	Compactor *friggdb.CompactorConfig `yaml:"compaction"`
+	ChunkSizeBytes          uint32        `yaml:"chunkSizeBytes"`
+	MaxCompactionRange      time.Duration `yaml:"maxCompactionRange"`
+	BlockRetention          time.Duration `yaml:"blockRetention"`
+	CompactedBlockRetention time.Duration `yaml:"compactedBlockRetention"`
+	MaintenanceCycle        time.Duration `yaml:"maintenanceCycle"`
 }
 
 // RegisterFlags registers the flags.

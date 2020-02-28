@@ -14,6 +14,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/pkg/util"
 	"google.golang.org/api/iterator"
 )
 
@@ -23,28 +24,35 @@ type readerWriter struct {
 	bucket *storage.BucketHandle
 }
 
-func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
+func newReaderWriter(cfg *Config) (*readerWriter, error) {
 	ctx := context.Background()
 
 	option, err := instrumentation(ctx, storage.ScopeReadWrite)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	client, err := storage.NewClient(ctx, option)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	bucket := client.Bucket(cfg.BucketName)
 
-	rw := &readerWriter{
+	return &readerWriter{
 		cfg:    cfg,
 		client: client,
 		bucket: bucket,
+	}, nil
+}
+
+func New(cfg *Config) (backend.Reader, backend.Writer, error) {
+	rw, err := newReaderWriter(cfg)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return rw, rw, rw, nil
+	return rw, rw, nil
 }
 
 func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID string, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
@@ -189,23 +197,19 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) metaFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "meta.json")
+	return path.Join(util.RootPath("", tenantID, blockID), "meta.json")
 }
 
 func (rw *readerWriter) bloomFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "bloom")
+	return path.Join(util.RootPath("", tenantID, blockID), "bloom")
 }
 
 func (rw *readerWriter) indexFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "index")
+	return path.Join(util.RootPath("", tenantID, blockID), "index")
 }
 
 func (rw *readerWriter) objectFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "data")
-}
-
-func (rw *readerWriter) rootPath(blockID uuid.UUID, tenantID string) string {
-	return path.Join(tenantID, blockID.String())
+	return path.Join(util.RootPath("", tenantID, blockID), "data")
 }
 
 func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {

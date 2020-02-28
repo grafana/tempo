@@ -1,8 +1,6 @@
-package friggdb
+package compactor
 
-import (
-	"github.com/grafana/frigg/friggdb/backend"
-)
+import "github.com/grafana/frigg/friggdb/backend"
 
 type bookmark struct {
 	iter backend.Iterator

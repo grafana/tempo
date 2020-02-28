@@ -2,23 +2,37 @@ package gcs
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"path"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/pkg/util"
 	"google.golang.org/api/iterator"
 )
 
-func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
-	// move meta file to a new location
-	metaFilename := rw.metaFileName(blockID, tenantID)
-	compactedMetaFilename := rw.compactedMetaFileName(blockID, tenantID)
+type compactor struct {
+	rw *readerWriter
+}
 
-	src := rw.bucket.Object(metaFilename)
-	dst := rw.bucket.Object(compactedMetaFilename)
+func NewCompactor(cfg *Config) (backend.Compactor, error) {
+	rw, err := newReaderWriter(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &compactor{
+		rw: rw,
+	}, nil
+}
+
+func (c *compactor) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+	// move meta file to a new location
+	metaFilename := c.rw.metaFileName(blockID, tenantID)
+	compactedMetaFilename := util.CompactedMetaFileName(blockID, tenantID)
+
+	src := c.rw.bucket.Object(metaFilename)
+	dst := c.rw.bucket.Object(compactedMetaFilename)
 
 	ctx := context.TODO()
 	_, err := dst.CopierFrom(src).Run(ctx)
@@ -29,7 +43,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	return src.Delete(ctx)
 }
 
-func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
+func (c *compactor) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
 		return fmt.Errorf("empty tenant id")
 	}
@@ -39,8 +53,8 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	}
 
 	ctx := context.TODO()
-	iter := rw.bucket.Objects(ctx, &storage.Query{
-		Prefix:   rw.rootPath(blockID, tenantID),
+	iter := c.rw.bucket.Objects(ctx, &storage.Query{
+		Prefix:   util.RootPath("", tenantID, blockID),
 		Versions: false,
 	})
 
@@ -53,7 +67,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 			return err
 		}
 
-		o := rw.bucket.Object(attrs.Name)
+		o := c.rw.bucket.Object(attrs.Name)
 		err = o.Delete(ctx)
 		if err != nil {
 			return err
@@ -61,29 +75,4 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	}
 
 	return nil
-}
-
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
-	name := rw.compactedMetaFileName(blockID, tenantID)
-
-	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
-	if err == storage.ErrObjectNotExist {
-		return nil, backend.ErrMetaDoesNotExist
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	out := &backend.CompactedBlockMeta{}
-	err = json.Unmarshal(bytes, out)
-	if err != nil {
-		return nil, err
-	}
-	out.CompactedTime = modTime
-
-	return out, err
-}
-
-func (rw *readerWriter) compactedMetaFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "meta.compacted.json")
 }
