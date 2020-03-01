@@ -22,6 +22,7 @@ type compactorBlock struct {
 	indexDownsample int
 }
 
+//jpe use buffered appender
 func newCompactorBlock(h wal.HeadBlock, bloomFP float64, indexDownsample int, metas []*backend.BlockMeta) (*compactorBlock, error) {
 	if h == nil {
 		return nil, fmt.Errorf("headblock should not be nil")

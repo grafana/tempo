@@ -89,8 +89,8 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 			return nil, err
 		}
 
-		blocks = append(blocks, &headBlock{
-			completeBlock: completeBlock{
+		blocks = append(blocks, &completeBlock{
+			block: block{
 				meta:     backend.NewBlockMeta(tenantID, blockID),
 				filepath: w.c.Filepath,
 			},
@@ -101,32 +101,15 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 }
 
 func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
-	return newBlock(id, tenantID, w.c.Filepath)
+	return newHeadBlock(id, tenantID, w.c.Filepath)
 }
 
 func (w *wal) NewWorkingBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
-	return newBlock(id, tenantID, w.c.WorkFilepath)
+	return newHeadBlock(id, tenantID, w.c.WorkFilepath)
 }
 
 func (w *wal) config() *Config {
 	return w.c
-}
-
-func newBlock(id uuid.UUID, tenantID string, filepath string) (*headBlock, error) {
-	h := &headBlock{
-		completeBlock: completeBlock{
-			meta:     backend.NewBlockMeta(tenantID, id),
-			filepath: filepath,
-		},
-	}
-
-	name := h.fullFilename()
-	_, err := os.Create(name)
-	if err != nil {
-		return nil, err
-	}
-
-	return h, nil
 }
 
 func parseFilename(name string) (uuid.UUID, string, error) {

@@ -11,44 +11,61 @@ import (
 	"github.com/grafana/frigg/friggdb/backend"
 )
 
-type HeadBlock interface {
-	CompleteBlock
+// Appendlock
+//  wal.CompleteBlock(AppendBlock)
+//    creates AppendBlock with Buffered Appender and iterates through "HeadBlock" and appends
+//    returns as CompleteBlock
+// CompactorBlock is append block with bufferedappender?  how is bloom handled?
 
+type HeadBlock interface { // jpe HeadBlock => AppendBlock.  takes appender factory?  CompactorBlock becomes AppendBlock with different buffered appender?
 	Write(id backend.ID, b []byte) error
 	Complete(w WAL) (CompleteBlock, error)
 	Length() int
+	Find(id backend.ID) ([]byte, error)
 }
 
 type headBlock struct {
-	completeBlock
+	block
 
 	appendFile *os.File
+	appender   backend.Appender
+}
+
+func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*headBlock, error) {
+	h := &headBlock{
+		block: block{
+			meta:     backend.NewBlockMeta(tenantID, id),
+			filepath: filepath,
+		},
+	}
+
+	name := h.fullFilename()
+	_, err := os.Create(name)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	h.appendFile = f
+	h.appender = backend.NewAppender(f)
+
+	return h, nil
 }
 
 func (h *headBlock) Write(id backend.ID, b []byte) error {
-	start, length, err := h.appendObject(id, b)
+	err := h.appender.Append(id, b)
 	if err != nil {
 		return err
 	}
-
-	// insert sorted to records
-	i := sort.Search(len(h.records), func(idx int) bool {
-		return bytes.Compare(h.records[idx].ID, id) == 1
-	})
-	h.records = append(h.records, nil)
-	copy(h.records[i+1:], h.records[i:])
-	h.records[i] = &backend.Record{
-		ID:     id,
-		Start:  start,
-		Length: length,
-	}
-
 	h.meta.ObjectAdded(id)
 	return nil
 }
 
 func (h *headBlock) Length() int {
-	return len(h.records)
+	return h.appender.Length()
 }
 
 func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
@@ -65,13 +82,13 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	// 2) append all objects from this block in order
 	// 3) move from workdir -> realdir
 	// 4) remove old
-	orderedBlock := &headBlock{
-		completeBlock: completeBlock{
+	records := h.appender.Records()
+	orderedBlock := &completeBlock{
+		block: block{
 			meta:     backend.NewBlockMeta(h.meta.TenantID, uuid.New()),
 			filepath: walConfig.WorkFilepath,
-			records:  make([]*backend.Record, 0, len(h.records)/walConfig.IndexDownsample+1),
-			bloom:    bloom.NewBloomFilter(float64(len(h.records)), walConfig.BloomFP),
 		},
+		bloom: bloom.NewBloomFilter(float64(len(records)), walConfig.BloomFP),
 	}
 	orderedBlock.meta.StartTime = h.meta.StartTime
 	orderedBlock.meta.EndTime = h.meta.EndTime
@@ -85,39 +102,28 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	}
 
 	// records are already sorted
-	var currentRecord *backend.Record
-	for i, r := range h.records {
-		b, err := h.readRecordBytes(r)
-		if err != nil {
-			return nil, err
-		}
-
-		start, length, err := orderedBlock.appendBytes(b)
-		if err != nil {
-			return nil, err
-		}
-
-		orderedBlock.bloom.Add(farm.Fingerprint64(r.ID))
-
-		// start or continue working on a record
-		if currentRecord == nil {
-			currentRecord = &backend.Record{
-				ID:     r.ID,
-				Start:  start,
-				Length: length,
-			}
-		} else {
-			currentRecord.Length += length
-		}
-
-		// if this is the last record to be included by hte downsample config OR is simply the last record
-		if i%walConfig.IndexDownsample == walConfig.IndexDownsample-1 ||
-			i == len(h.records)-1 {
-			currentRecord.ID = r.ID
-			orderedBlock.records = append(orderedBlock.records, currentRecord)
-			currentRecord = nil
-		}
+	appendFile, err := os.OpenFile(orderedBlock.fullFilename(), os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
 	}
+	appender := backend.NewBufferedAppender(appendFile, walConfig.IndexDownsample, len(records))
+	for _, r := range records {
+		b, err := h.readRecordBytes(r) // jpe iterator_record.go -> RecordIterator
+		if err != nil {
+			return nil, err
+		}
+
+		bytesID, bytesObject, err := backend.UnmarshalFromBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+
+		orderedBlock.bloom.Add(farm.Fingerprint64(bytesID))
+		appender.Append(bytesID, bytesObject)
+	}
+	appender.Complete()
+	appendFile.Close()
+	orderedBlock.records = appender.Records()
 
 	workFilename := orderedBlock.fullFilename()
 	orderedBlock.filepath = h.filepath
@@ -136,50 +142,43 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	return orderedBlock, nil
 }
 
-func (h *headBlock) appendObject(id backend.ID, b []byte) (uint64, uint32, error) {
-	if h.appendFile == nil {
-		name := h.fullFilename()
+func (h *headBlock) Find(id backend.ID) ([]byte, error) { // jpe gets replaced with finder methods in backend package
 
-		f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
-		if err != nil {
-			return 0, 0, err
+	records := h.appender.Records()
+	i := sort.Search(len(records), func(idx int) bool {
+		return bytes.Compare(records[idx].ID, id) >= 0
+	})
+
+	if i < 0 || i >= len(records) {
+		return nil, nil
+	}
+
+	rec := records[i]
+
+	b, err := h.readRecordBytes(rec)
+	if err != nil {
+		return nil, err
+	}
+
+	iter := backend.NewIterator(bytes.NewReader(b))
+	var foundObject []byte
+	for {
+		foundID, b, err := iter.Next()
+		if foundID == nil {
+			break
 		}
-		h.appendFile = f
-	}
-
-	info, err := h.appendFile.Stat()
-	if err != nil {
-		return 0, 0, err
-	}
-
-	length, err := backend.MarshalObjectToWriter(id, b, h.appendFile)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return uint64(info.Size()), uint32(length), nil
-}
-
-func (h *headBlock) appendBytes(b []byte) (uint64, uint32, error) {
-	if h.appendFile == nil {
-		name := h.fullFilename()
-
-		f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
-			return 0, 0, err
+			return nil, err
 		}
-		h.appendFile = f
+		if bytes.Equal(foundID, id) {
+			foundObject = b
+			break
+		}
 	}
 
-	info, err := h.appendFile.Stat()
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
-	_, err = h.appendFile.Write(b)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return uint64(info.Size()), uint32(len(b)), nil
+	return foundObject, nil
 }

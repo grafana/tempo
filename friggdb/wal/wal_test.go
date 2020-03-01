@@ -43,7 +43,7 @@ func TestCreateBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error getting blocks")
 	assert.Len(t, blocks, 1)
 
-	assert.Equal(t, block.(*headBlock).fullFilename(), blocks[0].(*headBlock).fullFilename())
+	assert.Equal(t, block.(*headBlock).fullFilename(), blocks[0].(*completeBlock).fullFilename())
 }
 
 func TestReadWrite(t *testing.T) {
@@ -78,6 +78,53 @@ func TestReadWrite(t *testing.T) {
 	assert.True(t, proto.Equal(req, outReq))
 }
 
+func TestAppend(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	wal, err := New(&Config{
+		Filepath:        tempDir,
+		IndexDownsample: 2,
+		BloomFP:         0.1,
+	})
+	assert.NoError(t, err, "unexpected error creating temp wal")
+
+	blockID := uuid.New()
+
+	block, err := wal.NewBlock(blockID, testTenantID)
+	assert.NoError(t, err, "unexpected error creating block")
+
+	numMsgs := 1
+	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
+	for i := 0; i < numMsgs; i++ {
+		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
+		reqs = append(reqs, req)
+		bReq, err := proto.Marshal(req)
+		assert.NoError(t, err)
+		err = block.Write([]byte{0x01}, bReq)
+		assert.NoError(t, err, "unexpected error writing req")
+	}
+
+	records := block.(*headBlock).appender.Records()
+	i := 0
+	for _, r := range records {
+		buffer, err := block.(*headBlock).readRecordBytes(r)
+		assert.NoError(t, err)
+
+		_, bytesObject, err := backend.UnmarshalFromBuffer(buffer)
+		assert.NoError(t, err)
+
+		req := &friggpb.PushRequest{}
+		err = proto.Unmarshal(bytesObject, req)
+		assert.NoError(t, err)
+
+		assert.True(t, proto.Equal(req, reqs[i]))
+		i++
+	}
+	assert.Equal(t, numMsgs, i)
+}
+
 func TestIterator(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -98,16 +145,19 @@ func TestIterator(t *testing.T) {
 	numMsgs := 10
 	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(rand.Int()%1000, []byte{})
+		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
 		reqs = append(reqs, req)
 		bReq, err := proto.Marshal(req)
 		assert.NoError(t, err)
-		err = block.Write([]byte{}, bReq)
+		err = block.Write([]byte{0x01}, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
 	i := 0
-	iterator, err := block.(*headBlock).Iterator()
+	completeBlock, err := block.Complete(wal)
+	assert.NoError(t, err)
+
+	iterator, err := completeBlock.Iterator()
 	assert.NoError(t, err)
 
 	for {
@@ -121,8 +171,6 @@ func TestIterator(t *testing.T) {
 		req := &friggpb.PushRequest{}
 		err = proto.Unmarshal(msg, req)
 		assert.NoError(t, err)
-
-		assert.True(t, proto.Equal(req, reqs[i]))
 		i++
 	}
 
@@ -163,16 +211,13 @@ func TestCompleteBlock(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	assert.True(t, bytes.Equal(block.(*headBlock).records[0].ID, block.(*headBlock).meta.MinID))
-	assert.True(t, bytes.Equal(block.(*headBlock).records[numMsgs-1].ID, block.(*headBlock).meta.MaxID))
-
 	complete, err := block.Complete(wal)
 	assert.NoError(t, err, "unexpected error completing block")
 	// test downsample config
-	assert.Equal(t, numMsgs/indexDownsample+1, len(complete.(*headBlock).records))
+	assert.Equal(t, numMsgs/indexDownsample+1, len(complete.(*completeBlock).records))
 
-	assert.True(t, bytes.Equal(complete.(*headBlock).meta.MinID, block.(*headBlock).meta.MinID))
-	assert.True(t, bytes.Equal(complete.(*headBlock).meta.MaxID, block.(*headBlock).meta.MaxID))
+	assert.True(t, bytes.Equal(complete.(*completeBlock).meta.MinID, block.(*headBlock).meta.MinID))
+	assert.True(t, bytes.Equal(complete.(*completeBlock).meta.MaxID, block.(*headBlock).meta.MaxID))
 
 	for i, id := range ids {
 		out := &friggpb.PushRequest{}
@@ -188,7 +233,7 @@ func TestCompleteBlock(t *testing.T) {
 
 	// confirm order
 	var prev *backend.Record
-	for _, r := range complete.(*headBlock).records {
+	for _, r := range complete.(*completeBlock).records {
 		if prev != nil {
 			assert.Greater(t, r.Start, prev.Start)
 		}

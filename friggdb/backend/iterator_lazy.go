@@ -17,7 +17,7 @@ type lazyIterator struct {
 	activeObjectsBuffer []byte
 }
 
-func NewLazyIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader Reader) (Iterator, error) {
+func NewLazyIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader Reader) (Iterator, error) { // jpe LazyIterator => BackendIterator
 	index, err := reader.Index(blockID, tenantID)
 	if err != nil {
 		return nil, err

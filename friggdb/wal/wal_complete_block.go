@@ -2,7 +2,6 @@ package wal
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"sort"
 	"time"
@@ -12,15 +11,13 @@ import (
 	"github.com/grafana/frigg/friggdb/backend"
 )
 
-// complete block has all of the fields
+// complete block has all of the fields jpe - make this comment not suck
 type completeBlock struct {
-	meta        *backend.BlockMeta
+	block
+
 	bloom       *bloom.Bloom
-	filepath    string
 	records     []*backend.Record
 	timeWritten time.Time
-
-	readFile *os.File
 }
 
 type ReplayBlock interface {
@@ -38,7 +35,7 @@ type CompleteBlock interface {
 	BlockMeta() *backend.BlockMeta
 	BloomFilter() *bloom.Bloom
 	BlockWroteSuccessfully(t time.Time)
-	WriteInfo() (blockID uuid.UUID, tenantID string, records []*backend.Record, filepath string) // todo:  i hate this method.  do something better.
+	WriteInfo() (blockID uuid.UUID, tenantID string, records []*backend.Record, filepath string) // todo:  i hate this method.  do something better. jpe. this goes now
 }
 
 func (c *completeBlock) TenantID() string {
@@ -125,28 +122,4 @@ func (c *completeBlock) BlockMeta() *backend.BlockMeta {
 
 func (c *completeBlock) BloomFilter() *bloom.Bloom {
 	return c.bloom
-}
-
-func (c *completeBlock) fullFilename() string {
-	return fmt.Sprintf("%s/%v:%v", c.filepath, c.meta.BlockID, c.meta.TenantID)
-}
-
-func (c *completeBlock) readRecordBytes(r *backend.Record) ([]byte, error) {
-	if c.readFile == nil {
-		name := c.fullFilename()
-
-		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
-		if err != nil {
-			return nil, err
-		}
-		c.readFile = f
-	}
-
-	b := make([]byte, r.Length)
-	_, err := c.readFile.ReadAt(b, int64(r.Start))
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
 }

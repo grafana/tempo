@@ -15,7 +15,7 @@ const (
 	| total length | id length | id | object bytes |
 */
 
-func MarshalObjectToWriter(id ID, b []byte, w io.Writer) (int, error) {
+func marshalObjectToWriter(id ID, b []byte, w io.Writer) (int, error) {
 	idLength := len(id)
 	totalLength := len(b) + idLength + uint32Size*2
 
@@ -102,4 +102,9 @@ func unmarshalAndAdvanceBuffer(buffer []byte) ([]byte, ID, []byte, error) {
 	buffer = buffer[restLength:]
 
 	return buffer, bytesID, bytesObject, nil
+}
+
+func UnmarshalFromBuffer(buffer []byte) (ID, []byte, error) {
+	_, bytesID, bytesObject, err := unmarshalAndAdvanceBuffer(buffer)
+	return bytesID, bytesObject, err
 }
