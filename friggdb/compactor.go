@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/frigg/friggdb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -170,7 +171,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	}
 
 	recordsPerBlock := (totalRecords / outputBlocks) + 1
-	var currentBlock *compactorBlock
+	var currentBlock *wal.CompactorBlock
 
 	for !allDone(bookmarks) {
 		var lowestID []byte
@@ -212,12 +213,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 		// make a new block if necessary
 		if currentBlock == nil {
-			h, err := rw.wal.NewWorkingBlock(uuid.New(), tenantID)
-			if err != nil {
-				return err
-			}
-
-			currentBlock, err = newCompactorBlock(h, rw.cfg.WAL.BloomFP, rw.cfg.WAL.IndexDownsample, blockMetas)
+			currentBlock, err = rw.wal.NewCompactorBlock(uuid.New(), tenantID, blockMetas, int(recordsPerBlock)) // jpe scary conversion?
 			if err != nil {
 				return err
 			}
@@ -226,17 +222,22 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		// writing to the current block will cause the id is going to escape the iterator so we need to make a copy of it
 		// lowestObject is going to be written to disk so we don't need to make a copy
 		writeID := append([]byte(nil), lowestID...)
-		err = currentBlock.write(writeID, lowestObject)
+		err = currentBlock.Write(writeID, lowestObject)
 		if err != nil {
 			return err
 		}
 		lowestBookmark.clear()
 
 		// ship block to backend if done
-		if uint32(currentBlock.length()) >= recordsPerBlock {
-			err = rw.writeCompactedBlock(currentBlock, tenantID)
+		if uint32(currentBlock.Length()) >= recordsPerBlock {
+			currentBlock.Complete()
+			err = rw.WriteBlock(context.TODO(), currentBlock) //jpe timeouts?
 			if err != nil {
 				return err
+			}
+			err = currentBlock.Clear()
+			if err != nil {
+				level.Error(rw.logger).Log("msg", "error cleaning up currentBlock in compaction", "err", err)
 			}
 			currentBlock = nil
 		}
@@ -244,9 +245,14 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	// ship final block to backend
 	if currentBlock != nil {
-		err = rw.writeCompactedBlock(currentBlock, tenantID)
+		currentBlock.Complete()
+		err = rw.WriteBlock(context.TODO(), currentBlock) //jpe timeouts?
 		if err != nil {
 			return err
+		}
+		err = currentBlock.Clear()
+		if err != nil {
+			level.Error(rw.logger).Log("msg", "error cleaning up currentBlock in compaction", "err", err)
 		}
 	}
 
@@ -256,33 +262,6 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()
 		}
-	}
-
-	return nil
-}
-
-func (rw *readerWriter) writeCompactedBlock(b *compactorBlock, tenantID string) error {
-	currentMeta := b.meta()
-	level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentMeta))
-
-	currentIndex, err := b.index()
-	if err != nil {
-		return err
-	}
-
-	currentBloom, err := b.bloom()
-	if err != nil {
-		return err
-	}
-
-	err = rw.w.Write(context.TODO(), b.id(), tenantID, currentMeta, currentBloom, currentIndex, b.objectFilePath())
-	if err != nil {
-		return err
-	}
-
-	err = b.clear()
-	if err != nil {
-		level.Warn(rw.logger).Log("msg", "failed to clear compacted bloc", "blockID", currentMeta.BlockID, "tenantID", tenantID, "err", err)
 	}
 
 	return nil

@@ -1,8 +1,9 @@
-package friggdb
+package wal
 
 import (
 	"bytes"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"os"
 	"testing"
@@ -10,15 +11,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
-	"github.com/grafana/frigg/friggdb/wal"
 
-	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCompactorBlockError(t *testing.T) {
-	_, err := newCompactorBlock(nil, 0, 0, nil)
+	_, err := newCompactorBlock(uuid.New(), "", 0, 0, nil, "", 0)
 	assert.Error(t, err)
 }
 
@@ -27,12 +26,12 @@ func TestCompactorBlockWrite(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	walCfg := &wal.Config{
+	walCfg := &Config{
 		Filepath:        tempDir,
 		IndexDownsample: 3,
 		BloomFP:         .01,
 	}
-	wal, err := wal.New(walCfg)
+	wal, err := New(walCfg)
 	assert.NoError(t, err)
 
 	metas := []*backend.BlockMeta{
@@ -46,16 +45,13 @@ func TestCompactorBlockWrite(t *testing.T) {
 		},
 	}
 
-	h, err := wal.NewWorkingBlock(uuid.New(), testTenantID)
-	assert.NoError(t, err)
-
-	cb, err := newCompactorBlock(h, .01, 3, metas)
+	numObjects := (rand.Int() % 20) + 1
+	cb, err := wal.NewCompactorBlock(uuid.New(), testTenantID, metas, numObjects)
 	assert.NoError(t, err)
 
 	var minID backend.ID
 	var maxID backend.ID
 
-	numObjects := (rand.Int() % 20) + 1
 	ids := make([][]byte, 0)
 	for i := 0; i < numObjects; i++ {
 		id := make([]byte, 16)
@@ -68,7 +64,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 
 		ids = append(ids, id)
 
-		err = cb.write(id, object)
+		err = cb.Write(id, object)
 		assert.NoError(t, err)
 
 		if len(minID) == 0 || bytes.Compare(id, minID) == -1 {
@@ -78,11 +74,12 @@ func TestCompactorBlockWrite(t *testing.T) {
 			maxID = id
 		}
 	}
+	cb.Complete()
 
-	assert.Equal(t, numObjects, cb.length())
+	assert.Equal(t, numObjects, cb.Length())
 
 	// test meta
-	meta := cb.meta()
+	meta := cb.BlockMeta()
 
 	assert.Equal(t, time.Unix(10000, 0), meta.StartTime)
 	assert.Equal(t, time.Unix(25000, 0), meta.EndTime)
@@ -92,19 +89,12 @@ func TestCompactorBlockWrite(t *testing.T) {
 	assert.Equal(t, numObjects, int(meta.TotalObjects))
 
 	// bloom
-	bloomBytes, err := cb.bloom()
-	assert.NoError(t, err)
-
-	bloom := bloom.JSONUnmarshal(bloomBytes)
+	bloom := cb.BloomFilter()
 	for _, id := range ids {
 		has := bloom.Has(farm.Fingerprint64(id))
 		assert.True(t, has)
 	}
 
-	// index
-	indexBytes, err := cb.index()
-	assert.NoError(t, err)
-
-	_, err = backend.UnmarshalRecords(indexBytes)
-	assert.NoError(t, err)
+	_, _, records, _ := cb.WriteInfo()
+	assert.Equal(t, math.Ceil(float64(numObjects)/3), float64(len(records)))
 }

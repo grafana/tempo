@@ -15,10 +15,10 @@ const (
 	workDir = "work"
 )
 
-type WAL interface {
+type WAL interface { // jpe get rid of unnecessary interfaces
 	AllBlocks() ([]ReplayBlock, error)
 	NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
-	NewWorkingBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
+	NewCompactorBlock(id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error)
 	config() *Config
 }
 
@@ -104,8 +104,8 @@ func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
 	return newHeadBlock(id, tenantID, w.c.Filepath)
 }
 
-func (w *wal) NewWorkingBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
-	return newHeadBlock(id, tenantID, w.c.WorkFilepath)
+func (w *wal) NewCompactorBlock(id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
+	return newCompactorBlock(id, tenantID, w.c.BloomFP, w.c.IndexDownsample, metas, w.c.WorkFilepath, estimatedObjects)
 }
 
 func (w *wal) config() *Config {

@@ -56,6 +56,9 @@ func (a *bufferedAppender) Length() int {
 }
 
 func (a *bufferedAppender) Complete() {
+	if a.currentRecord == nil {
+		return
+	}
 	a.records = append(a.records, a.currentRecord)
 	a.currentRecord = nil
 }

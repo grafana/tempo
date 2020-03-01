@@ -76,7 +76,7 @@ var (
 )
 
 type Writer interface {
-	WriteBlock(ctx context.Context, block wal.CompleteBlock) error
+	WriteBlock(ctx context.Context, block wal.WriteableBlock) error
 	WAL() wal.WAL
 }
 
@@ -164,7 +164,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.CompleteBlock) error {
+func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) error {
 	uuid, tenantID, records, blockFilePath := c.WriteInfo()
 	indexBytes, err := backend.MarshalRecords(records)
 	if err != nil {

@@ -27,11 +27,14 @@ type ReplayBlock interface {
 }
 
 type CompleteBlock interface {
+	WriteableBlock
 	ReplayBlock
 
 	Find(id backend.ID) ([]byte, error)
 	TimeWritten() time.Time
+}
 
+type WriteableBlock interface {
 	BlockMeta() *backend.BlockMeta
 	BloomFilter() *bloom.Bloom
 	BlockWroteSuccessfully(t time.Time)

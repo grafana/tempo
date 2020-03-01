@@ -17,6 +17,7 @@ import (
 //    returns as CompleteBlock
 // CompactorBlock is append block with bufferedappender?  how is bloom handled?
 
+// jpe: get rid of unnecessary block interfaces
 type HeadBlock interface { // jpe HeadBlock => AppendBlock.  takes appender factory?  CompactorBlock becomes AppendBlock with different buffered appender?
 	Write(id backend.ID, b []byte) error
 	Complete(w WAL) (CompleteBlock, error)
