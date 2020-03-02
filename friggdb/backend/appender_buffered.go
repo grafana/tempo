@@ -36,7 +36,7 @@ func (a *bufferedAppender) Append(id ID, b []byte) error {
 	a.totalObjects++
 	a.currentOffset += uint64(length)
 
-	a.currentRecord.ID = id // jpe consider memory leak issues here
+	a.currentRecord.ID = id
 	a.currentRecord.Length += uint32(length)
 
 	if a.totalObjects%a.indexDownsample == 0 {

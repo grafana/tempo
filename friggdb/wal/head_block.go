@@ -108,7 +108,9 @@ func (h *HeadBlock) Complete(w *WAL) (*CompleteBlock, error) {
 		}
 
 		orderedBlock.bloom.Add(farm.Fingerprint64(bytesID))
-		err = appender.Append(bytesID, bytesObject)
+		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
+		writeID := append([]byte(nil), bytesID...)
+		err = appender.Append(writeID, bytesObject)
 		if err != nil {
 			return nil, err
 		}
