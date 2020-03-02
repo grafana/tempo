@@ -121,11 +121,11 @@ func TestCompaction(t *testing.T) {
 	}
 
 	// do we have the right number of records
-	var records uint32
+	var records int
 	for _, meta := range rw.blockLists[testTenantID] {
 		records += meta.TotalObjects
 	}
-	assert.Equal(t, uint32(blockCount*recordCount), records)
+	assert.Equal(t, blockCount*recordCount, records)
 
 	// now see if we can find our ids
 	for i, id := range allIds {
@@ -207,9 +207,9 @@ func TestSameIDCompaction(t *testing.T) {
 	checkBlocklists(t, uuid.Nil, 2, 4, rw)
 
 	// do we have the right number of records
-	var records uint32
+	var records int
 	for _, meta := range rw.blockLists[testTenantID] {
 		records += meta.TotalObjects
 	}
-	assert.Equal(t, uint32(2), records)
+	assert.Equal(t, 2, records)
 }

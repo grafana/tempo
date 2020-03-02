@@ -147,7 +147,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
 
-	var totalRecords uint32
+	var totalRecords int
 	for _, blockMeta := range blockMetas {
 		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
 		totalRecords += blockMeta.TotalObjects
@@ -213,7 +213,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 		// make a new block if necessary
 		if currentBlock == nil {
-			currentBlock, err = rw.wal.NewCompactorBlock(uuid.New(), tenantID, blockMetas, int(recordsPerBlock)) // jpe scary conversion?
+			currentBlock, err = rw.wal.NewCompactorBlock(uuid.New(), tenantID, blockMetas, recordsPerBlock)
 			if err != nil {
 				return err
 			}
@@ -229,7 +229,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		lowestBookmark.clear()
 
 		// ship block to backend if done
-		if uint32(currentBlock.Length()) >= recordsPerBlock {
+		if currentBlock.Length() >= recordsPerBlock {
 			currentBlock.Complete()
 			err = rw.WriteBlock(context.TODO(), currentBlock) //jpe timeouts?
 			if err != nil {

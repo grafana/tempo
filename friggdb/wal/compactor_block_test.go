@@ -86,7 +86,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 	assert.Equal(t, minID, meta.MinID)
 	assert.Equal(t, maxID, meta.MaxID)
 	assert.Equal(t, testTenantID, meta.TenantID)
-	assert.Equal(t, numObjects, int(meta.TotalObjects))
+	assert.Equal(t, numObjects, meta.TotalObjects)
 
 	// bloom
 	bloom := cb.BloomFilter()
