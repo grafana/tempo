@@ -9,7 +9,7 @@ type bufferedAppender struct {
 	records []*Record
 
 	totalObjects    int
-	currentOffset   int //jpe uint64?
+	currentOffset   uint64
 	currentRecord   *Record
 	indexDownsample int
 }
@@ -30,11 +30,11 @@ func (a *bufferedAppender) Append(id ID, b []byte) error {
 
 	if a.currentRecord == nil {
 		a.currentRecord = &Record{
-			Start: uint64(a.currentOffset),
+			Start: a.currentOffset,
 		}
 	}
 	a.totalObjects++
-	a.currentOffset += length
+	a.currentOffset += uint64(length)
 
 	a.currentRecord.ID = id // jpe consider memory leak issues here
 	a.currentRecord.Length += uint32(length)
