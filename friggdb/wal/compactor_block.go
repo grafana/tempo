@@ -31,7 +31,7 @@ func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	}
 
 	if estimatedObjects <= 0 {
-		return nil, fmt.Errorf("must have non-zero positive estimated objects for a reliable bloom filter.")
+		return nil, fmt.Errorf("must have non-zero positive estimated objects for a reliable bloom filter")
 	}
 
 	c := &CompactorBlock{

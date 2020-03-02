@@ -122,7 +122,10 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 		}
 
 		orderedBlock.bloom.Add(farm.Fingerprint64(bytesID))
-		appender.Append(bytesID, bytesObject)
+		err = appender.Append(bytesID, bytesObject)
+		if err != nil {
+			return nil, err
+		}
 	}
 	appender.Complete()
 	appendFile.Close()

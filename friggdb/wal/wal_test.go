@@ -147,10 +147,8 @@ func TestIterator(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 10
-	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
 		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
-		reqs = append(reqs, req)
 		bReq, err := proto.Marshal(req)
 		assert.NoError(t, err)
 		err = block.Write([]byte{0x01}, bReq)
