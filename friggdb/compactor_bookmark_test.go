@@ -73,7 +73,7 @@ func TestCurrentClear(t *testing.T) {
 	blockID = complete.BlockMeta().BlockID
 	rw := r.(*readerWriter)
 
-	iter, err := backend.NewLazyIterator(testTenantID, blockID, 10, rw.r)
+	iter, err := backend.NewBackendIterator(testTenantID, blockID, 10, rw.r)
 	assert.NoError(t, err)
 	bm := newBookmark(iter)
 

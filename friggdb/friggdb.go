@@ -234,7 +234,7 @@ func (rw *readerWriter) Find(tenantID string, id backend.ID) ([]byte, FindMetric
 			return nil, err
 		}
 
-		record, err := backend.FindRecord(id, indexBytes)
+		record, err := backend.FindRecord(id, indexBytes) // todo: replace with backend.Finder
 		if err != nil {
 			return nil, err
 		}
