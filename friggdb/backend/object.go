@@ -103,8 +103,3 @@ func unmarshalAndAdvanceBuffer(buffer []byte) ([]byte, ID, []byte, error) {
 
 	return buffer, bytesID, bytesObject, nil
 }
-
-func UnmarshalFromBuffer(buffer []byte) (ID, []byte, error) { // jpe get rid of me
-	_, bytesID, bytesObject, err := unmarshalAndAdvanceBuffer(buffer)
-	return bytesID, bytesObject, err
-}

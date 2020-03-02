@@ -107,13 +107,17 @@ func TestAppend(t *testing.T) {
 	}
 
 	records := block.(*headBlock).appender.Records()
+	file, err := block.(*headBlock).file()
+	assert.NoError(t, err)
+	iterator := backend.NewRecordIterator(records, file)
 	i := 0
-	for _, r := range records {
-		buffer, err := block.(*headBlock).readRecordBytes(r)
-		assert.NoError(t, err)
 
-		_, bytesObject, err := backend.UnmarshalFromBuffer(buffer)
+	for {
+		bytesID, bytesObject, err := iterator.Next()
 		assert.NoError(t, err)
+		if bytesID == nil {
+			break
+		}
 
 		req := &friggpb.PushRequest{}
 		err = proto.Unmarshal(bytesObject, req)
