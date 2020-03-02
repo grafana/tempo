@@ -9,12 +9,6 @@ import (
 	"github.com/grafana/frigg/friggdb/backend"
 )
 
-// Appendlock jpe
-//  wal.CompleteBlock(AppendBlock)
-//    creates AppendBlock with Buffered Appender and iterates through "HeadBlock" and appends
-//    returns as CompleteBlock
-// CompactorBlock is append block with bufferedappender?  how is bloom handled?
-
 type HeadBlock struct {
 	block
 

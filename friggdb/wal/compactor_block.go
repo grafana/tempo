@@ -11,17 +11,13 @@ import (
 	"github.com/grafana/frigg/friggdb/backend"
 )
 
-// compactor block wraps a headblock to facilitate compaction.  it primarily needs the headblock
-//   append code and then provides helper methods to massage the
-// feel like this is kind of not worth it.  if tests start failing probably a good idea to just
-//   split this functionality entirely
 type CompactorBlock struct {
 	block
 
 	metas []*backend.BlockMeta
 
 	bloom      *bloom.Bloom
-	appendFile *os.File //jpe : consolidate in block?
+	appendFile *os.File
 	appender   backend.Appender
 }
 
