@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/frigg/friggdb/backend"
 )
 
-// complete block has all of the fields jpe - make this comment not suck
+// completeBlock represent a block that has been "cut", is ready to be flushed and is not appendable
 type completeBlock struct {
 	block
 

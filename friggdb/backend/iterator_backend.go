@@ -17,7 +17,7 @@ type backendIterator struct {
 	activeObjectsBuffer []byte
 }
 
-func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader Reader) (Iterator, error) { // jpe backendIterator => BackendIterator
+func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader Reader) (Iterator, error) {
 	index, err := reader.Index(blockID, tenantID)
 	if err != nil {
 		return nil, err

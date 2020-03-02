@@ -43,7 +43,7 @@ func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 		metas: metas,
 	}
 
-	name := c.fullFilename() // jpe consolidate below with headblock?
+	name := c.fullFilename()
 	_, err := os.Create(name)
 	if err != nil {
 		return nil, err

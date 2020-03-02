@@ -148,7 +148,7 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	return orderedBlock, nil
 }
 
-func (h *headBlock) Find(id backend.ID) ([]byte, error) { // jpe gets replaced with finder methods in backend package
+func (h *headBlock) Find(id backend.ID) ([]byte, error) {
 	records := h.appender.Records()
 	file, err := h.file()
 	if err != nil {
