@@ -13,7 +13,7 @@ ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
 #jpe re-add -race
 GO_OPT= -mod vendor
-GOTEST_OPT?= -timeout 30s -count=1
+GOTEST_OPT?= -race -timeout 30s -count=1
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint
