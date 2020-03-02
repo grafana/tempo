@@ -107,16 +107,20 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 	if err != nil {
 		return nil, err
 	}
+	readFile, err := h.file()
+	if err != nil {
+		return nil, err
+	}
+
+	iterator := backend.NewRecordIterator(records, readFile)
 	appender := backend.NewBufferedAppender(appendFile, walConfig.IndexDownsample, len(records))
-	for _, r := range records {
-		b, err := h.readRecordBytes(r) // jpe iterator_record.go -> RecordIterator
+	for {
+		bytesID, bytesObject, err := iterator.Next()
 		if err != nil {
 			return nil, err
 		}
-
-		bytesID, bytesObject, err := backend.UnmarshalFromBuffer(b)
-		if err != nil {
-			return nil, err
+		if bytesID == nil {
+			break
 		}
 
 		orderedBlock.bloom.Add(farm.Fingerprint64(bytesID))
