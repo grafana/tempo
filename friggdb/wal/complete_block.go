@@ -1,9 +1,7 @@
 package wal
 
 import (
-	"bytes"
 	"os"
-	"sort"
 	"time"
 
 	bloom "github.com/dgraph-io/ristretto/z"
@@ -50,43 +48,14 @@ func (c *completeBlock) WriteInfo() (uuid.UUID, string, []*backend.Record, strin
 }
 
 func (c *completeBlock) Find(id backend.ID) ([]byte, error) {
-
-	i := sort.Search(len(c.records), func(idx int) bool {
-		return bytes.Compare(c.records[idx].ID, id) >= 0
-	})
-
-	if i < 0 || i >= len(c.records) {
-		return nil, nil
-	}
-
-	rec := c.records[i]
-
-	b, err := c.readRecordBytes(rec)
+	file, err := c.file()
 	if err != nil {
 		return nil, err
 	}
 
-	iter := backend.NewIterator(bytes.NewReader(b))
-	var foundObject []byte
-	for {
-		foundID, b, err := iter.Next()
-		if foundID == nil {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		if bytes.Equal(foundID, id) {
-			foundObject = b
-			break
-		}
-	}
+	finder := backend.NewFinder(c.records, file)
 
-	if err != nil {
-		return nil, err
-	}
-
-	return foundObject, nil
+	return finder.Find(id)
 }
 
 func (c *completeBlock) Iterator() (backend.Iterator, error) {

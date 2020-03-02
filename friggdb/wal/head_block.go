@@ -1,9 +1,7 @@
 package wal
 
 import (
-	"bytes"
 	"os"
-	"sort"
 
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
@@ -148,42 +146,13 @@ func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
 }
 
 func (h *headBlock) Find(id backend.ID) ([]byte, error) { // jpe gets replaced with finder methods in backend package
-
 	records := h.appender.Records()
-	i := sort.Search(len(records), func(idx int) bool {
-		return bytes.Compare(records[idx].ID, id) >= 0
-	})
-
-	if i < 0 || i >= len(records) {
-		return nil, nil
-	}
-
-	rec := records[i]
-
-	b, err := h.readRecordBytes(rec)
+	file, err := h.file()
 	if err != nil {
 		return nil, err
 	}
 
-	iter := backend.NewIterator(bytes.NewReader(b))
-	var foundObject []byte
-	for {
-		foundID, b, err := iter.Next()
-		if foundID == nil {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		if bytes.Equal(foundID, id) {
-			foundObject = b
-			break
-		}
-	}
+	finder := backend.NewFinder(records, file)
 
-	if err != nil {
-		return nil, err
-	}
-
-	return foundObject, nil
+	return finder.Find(id)
 }
