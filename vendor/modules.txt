@@ -433,7 +433,7 @@ github.com/kr/logfmt
 github.com/magiconair/properties
 # github.com/matoous/godox v0.0.0-20190911065817-5d6d842e92eb
 github.com/matoous/godox
-# github.com/mattn/go-colorable v0.1.4
+# github.com/mattn/go-colorable v0.1.6
 github.com/mattn/go-colorable
 # github.com/mattn/go-ieproxy v0.0.0-20190805055040-f9202b1cfdeb
 github.com/mattn/go-ieproxy
@@ -487,7 +487,6 @@ github.com/open-telemetry/opentelemetry-collector/translator/trace
 github.com/open-telemetry/opentelemetry-collector/translator/trace/jaeger
 github.com/open-telemetry/opentelemetry-collector/translator/trace/zipkin
 # github.com/open-telemetry/opentelemetry-proto v0.0.0-20200206071824-8310c432e51c
-github.com/open-telemetry/opentelemetry-proto/gen/go/collector/traces/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1
@@ -576,7 +575,7 @@ github.com/spf13/afero
 github.com/spf13/afero/mem
 # github.com/spf13/cast v1.3.0
 github.com/spf13/cast
-# github.com/spf13/cobra v0.0.5
+# github.com/spf13/cobra v0.0.6
 github.com/spf13/cobra
 # github.com/spf13/jwalterweatherman v1.0.0
 github.com/spf13/jwalterweatherman
@@ -807,7 +806,7 @@ golang.org/x/text/unicode/norm
 golang.org/x/text/width
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20191010075000-0337d82405ff
+# golang.org/x/tools v0.0.0-20191127201027-ecd32218bd7f
 golang.org/x/tools/go/analysis
 golang.org/x/tools/go/analysis/passes/asmdecl
 golang.org/x/tools/go/analysis/passes/assign
@@ -862,6 +861,7 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/module
 golang.org/x/tools/internal/semver
+golang.org/x/tools/internal/span
 # google.golang.org/api v0.11.0
 google.golang.org/api/cloudresourcemanager/v1
 google.golang.org/api/googleapi
@@ -957,7 +957,7 @@ google.golang.org/grpc/tap
 gopkg.in/inf.v0
 # gopkg.in/ini.v1 v1.51.0
 gopkg.in/ini.v1
-# gopkg.in/yaml.v2 v2.2.5
+# gopkg.in/yaml.v2 v2.2.8
 gopkg.in/yaml.v2
 # honnef.co/go/tools v0.0.1-2019.2.3
 honnef.co/go/tools/arg

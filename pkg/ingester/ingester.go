@@ -60,7 +60,7 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
-	wal     friggdb_wal.WAL
+	wal     *friggdb_wal.WAL
 }
 
 // New makes a new Ingester.
@@ -286,13 +286,8 @@ func (i *Ingester) replayWal() error {
 
 		err = i.replayBlock(b, instance)
 		if err != nil {
-			// there was an error, wipe this hedblock, but keep on keeping on
+			// there was an error, log and keep on keeping on
 			level.Error(util.Logger).Log("msg", "error replaying block.  wiping headblock ", "error", err)
-			err = instance.headBlock.Clear()
-			if err != nil {
-				level.Error(util.Logger).Log("msg", "error cleaning up headblock", "error", err)
-				return err
-			}
 		}
 		err = b.Clear()
 		if err != nil {

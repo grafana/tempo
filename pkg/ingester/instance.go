@@ -45,17 +45,17 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blockTracesMtx sync.RWMutex
-	headBlock      friggdb_wal.HeadBlock
-	completeBlocks []friggdb_wal.CompleteBlock
+	headBlock      *friggdb_wal.HeadBlock
+	completeBlocks []*friggdb_wal.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	limiter            *Limiter
-	wal                friggdb_wal.WAL
+	wal                *friggdb_wal.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal friggdb_wal.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal *friggdb_wal.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[traceFingerprint]*trace{},
 
@@ -150,7 +150,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return ready, nil
 }
 
-func (i *instance) GetBlockToBeFlushed() friggdb_wal.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed() *friggdb_wal.CompleteBlock {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
