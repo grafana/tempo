@@ -15,14 +15,7 @@ const (
 	workDir = "work"
 )
 
-type WAL interface { // jpe get rid of unnecessary interfaces
-	AllBlocks() ([]ReplayBlock, error)
-	NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
-	NewCompactorBlock(id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error)
-	config() *Config
-}
-
-type wal struct {
+type WAL struct {
 	c *Config
 }
 
@@ -33,7 +26,7 @@ type Config struct {
 	BloomFP         float64 `yaml:"bloom-filter-false-positive"`
 }
 
-func New(c *Config) (WAL, error) {
+func New(c *Config) (*WAL, error) {
 	if c.Filepath == "" {
 		return nil, fmt.Errorf("please provide a path for the WAL")
 	}
@@ -66,12 +59,12 @@ func New(c *Config) (WAL, error) {
 		c.WorkFilepath = workFilepath
 	}
 
-	return &wal{
+	return &WAL{
 		c: c,
 	}, nil
 }
 
-func (w *wal) AllBlocks() ([]ReplayBlock, error) {
+func (w *WAL) AllBlocks() ([]ReplayBlock, error) {
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
@@ -100,15 +93,15 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 	return blocks, nil
 }
 
-func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
+func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
 	return newHeadBlock(id, tenantID, w.c.Filepath)
 }
 
-func (w *wal) NewCompactorBlock(id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
+func (w *WAL) NewCompactorBlock(id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
 	return newCompactorBlock(id, tenantID, w.c.BloomFP, w.c.IndexDownsample, metas, w.c.WorkFilepath, estimatedObjects)
 }
 
-func (w *wal) config() *Config {
+func (w *WAL) config() *Config {
 	return w.c
 }
 

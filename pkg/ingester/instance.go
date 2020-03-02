@@ -52,10 +52,10 @@ type instance struct {
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	limiter            *Limiter
-	wal                friggdb_wal.WAL
+	wal                *friggdb_wal.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal friggdb_wal.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal *friggdb_wal.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[traceFingerprint]*trace{},
 

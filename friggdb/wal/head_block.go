@@ -18,7 +18,7 @@ import (
 // jpe: get rid of unnecessary block interfaces
 type HeadBlock interface { // jpe HeadBlock => AppendBlock.  takes appender factory?  CompactorBlock becomes AppendBlock with different buffered appender?
 	Write(id backend.ID, b []byte) error
-	Complete(w WAL) (CompleteBlock, error)
+	Complete(w *WAL) (CompleteBlock, error)
 	Length() int
 	Find(id backend.ID) ([]byte, error)
 }
@@ -67,7 +67,7 @@ func (h *headBlock) Length() int {
 	return h.appender.Length()
 }
 
-func (h *headBlock) Complete(w WAL) (CompleteBlock, error) {
+func (h *headBlock) Complete(w *WAL) (CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {

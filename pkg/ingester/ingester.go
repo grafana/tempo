@@ -60,7 +60,7 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
-	wal     friggdb_wal.WAL
+	wal     *friggdb_wal.WAL
 }
 
 // New makes a new Ingester.

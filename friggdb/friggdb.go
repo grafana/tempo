@@ -77,7 +77,7 @@ var (
 
 type Writer interface {
 	WriteBlock(ctx context.Context, block wal.WriteableBlock) error
-	WAL() wal.WAL
+	WAL() *wal.WAL
 }
 
 type Reader interface {
@@ -103,7 +103,7 @@ type readerWriter struct {
 	w backend.Writer
 	c backend.Compactor
 
-	wal  wal.WAL
+	wal  *wal.WAL
 	pool *pool.Pool
 
 	logger        log.Logger
@@ -183,7 +183,7 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 	return nil
 }
 
-func (rw *readerWriter) WAL() wal.WAL {
+func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
