@@ -76,8 +76,8 @@ var (
 )
 
 type Writer interface {
-	WriteBlock(ctx context.Context, block wal.CompleteBlock) error
-	WAL() wal.WAL
+	WriteBlock(ctx context.Context, block wal.WriteableBlock) error
+	WAL() *wal.WAL
 }
 
 type Reader interface {
@@ -103,7 +103,7 @@ type readerWriter struct {
 	w backend.Writer
 	c backend.Compactor
 
-	wal  wal.WAL
+	wal  *wal.WAL
 	pool *pool.Pool
 
 	logger        log.Logger
@@ -164,16 +164,16 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.CompleteBlock) error {
-	uuid, tenantID, records, blockFilePath := c.WriteInfo()
+func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) error {
+	records := c.Records()
 	indexBytes, err := backend.MarshalRecords(records)
 	if err != nil {
 		return err
 	}
 
 	bloomBytes := c.BloomFilter().JSONMarshal()
-
-	err = rw.w.Write(ctx, uuid, tenantID, c.BlockMeta(), bloomBytes, indexBytes, blockFilePath)
+	meta := c.BlockMeta()
+	err = rw.w.Write(ctx, meta.BlockID, meta.TenantID, meta, bloomBytes, indexBytes, c.ObjectFilePath())
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.CompleteBlock) err
 	return nil
 }
 
-func (rw *readerWriter) WAL() wal.WAL {
+func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
@@ -234,7 +234,7 @@ func (rw *readerWriter) Find(tenantID string, id backend.ID) ([]byte, FindMetric
 			return nil, err
 		}
 
-		record, err := backend.FindRecord(id, indexBytes)
+		record, err := backend.FindRecord(id, indexBytes) // todo: replace with backend.Finder
 		if err != nil {
 			return nil, err
 		}

@@ -15,14 +15,7 @@ const (
 	workDir = "work"
 )
 
-type WAL interface {
-	AllBlocks() ([]ReplayBlock, error)
-	NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
-	NewWorkingBlock(id uuid.UUID, tenantID string) (HeadBlock, error)
-	config() *Config
-}
-
-type wal struct {
+type WAL struct {
 	c *Config
 }
 
@@ -33,7 +26,7 @@ type Config struct {
 	BloomFP         float64 `yaml:"bloom-filter-false-positive"`
 }
 
-func New(c *Config) (WAL, error) {
+func New(c *Config) (*WAL, error) {
 	if c.Filepath == "" {
 		return nil, fmt.Errorf("please provide a path for the WAL")
 	}
@@ -66,12 +59,12 @@ func New(c *Config) (WAL, error) {
 		c.WorkFilepath = workFilepath
 	}
 
-	return &wal{
+	return &WAL{
 		c: c,
 	}, nil
 }
 
-func (w *wal) AllBlocks() ([]ReplayBlock, error) {
+func (w *WAL) AllBlocks() ([]ReplayBlock, error) {
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
@@ -89,8 +82,8 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 			return nil, err
 		}
 
-		blocks = append(blocks, &headBlock{
-			completeBlock: completeBlock{
+		blocks = append(blocks, &CompleteBlock{
+			block: block{
 				meta:     backend.NewBlockMeta(tenantID, blockID),
 				filepath: w.c.Filepath,
 			},
@@ -100,33 +93,16 @@ func (w *wal) AllBlocks() ([]ReplayBlock, error) {
 	return blocks, nil
 }
 
-func (w *wal) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
-	return newBlock(id, tenantID, w.c.Filepath)
+func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*HeadBlock, error) {
+	return newHeadBlock(id, tenantID, w.c.Filepath)
 }
 
-func (w *wal) NewWorkingBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
-	return newBlock(id, tenantID, w.c.WorkFilepath)
+func (w *WAL) NewCompactorBlock(id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
+	return newCompactorBlock(id, tenantID, w.c.BloomFP, w.c.IndexDownsample, metas, w.c.WorkFilepath, estimatedObjects)
 }
 
-func (w *wal) config() *Config {
+func (w *WAL) config() *Config {
 	return w.c
-}
-
-func newBlock(id uuid.UUID, tenantID string, filepath string) (*headBlock, error) {
-	h := &headBlock{
-		completeBlock: completeBlock{
-			meta:     backend.NewBlockMeta(tenantID, id),
-			filepath: filepath,
-		},
-	}
-
-	name := h.fullFilename()
-	_, err := os.Create(name)
-	if err != nil {
-		return nil, err
-	}
-
-	return h, nil
 }
 
 func parseFilename(name string) (uuid.UUID, string, error) {

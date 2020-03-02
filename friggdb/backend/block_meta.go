@@ -21,7 +21,7 @@ type BlockMeta struct {
 	TenantID     string    `json:"tenantID"`
 	StartTime    time.Time `json:"startTime"`
 	EndTime      time.Time `json:"endTime"`
-	TotalObjects uint32    `json:"totalObjects"`
+	TotalObjects int       `json:"totalObjects"`
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
