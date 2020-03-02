@@ -165,15 +165,15 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) error {
-	uuid, tenantID, records, blockFilePath := c.WriteInfo()
+	records := c.Records()
 	indexBytes, err := backend.MarshalRecords(records)
 	if err != nil {
 		return err
 	}
 
 	bloomBytes := c.BloomFilter().JSONMarshal()
-
-	err = rw.w.Write(ctx, uuid, tenantID, c.BlockMeta(), bloomBytes, indexBytes, blockFilePath)
+	meta := c.BlockMeta()
+	err = rw.w.Write(ctx, meta.BlockID, meta.TenantID, meta, bloomBytes, indexBytes, c.ObjectFilePath())
 	if err != nil {
 		return err
 	}

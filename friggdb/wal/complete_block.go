@@ -5,7 +5,6 @@ import (
 	"time"
 
 	bloom "github.com/dgraph-io/ristretto/z"
-	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
 )
 
@@ -36,15 +35,20 @@ type WriteableBlock interface {
 	BlockMeta() *backend.BlockMeta
 	BloomFilter() *bloom.Bloom
 	BlockWroteSuccessfully(t time.Time)
-	WriteInfo() (blockID uuid.UUID, tenantID string, records []*backend.Record, filepath string) // todo:  i hate this method.  do something better. jpe. this goes now
+	Records() []*backend.Record
+	ObjectFilePath() string
 }
 
 func (c *completeBlock) TenantID() string {
 	return c.meta.TenantID
 }
 
-func (c *completeBlock) WriteInfo() (uuid.UUID, string, []*backend.Record, string) {
-	return c.meta.BlockID, c.meta.TenantID, c.records, c.fullFilename()
+func (c *completeBlock) Records() []*backend.Record {
+	return c.records
+}
+
+func (c *completeBlock) ObjectFilePath() string {
+	return c.fullFilename()
 }
 
 func (c *completeBlock) Find(id backend.ID) ([]byte, error) {

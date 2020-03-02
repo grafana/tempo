@@ -112,6 +112,10 @@ func (c *CompactorBlock) BlockWroteSuccessfully(t time.Time) {
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) WriteInfo() (blockID uuid.UUID, tenantID string, records []*backend.Record, filepath string) {
-	return c.meta.BlockID, c.meta.TenantID, c.appender.Records(), c.fullFilename()
+func (c *CompactorBlock) Records() []*backend.Record {
+	return c.appender.Records()
+}
+
+func (c *CompactorBlock) ObjectFilePath() string {
+	return c.fullFilename()
 }

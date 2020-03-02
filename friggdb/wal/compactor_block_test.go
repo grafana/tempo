@@ -95,6 +95,6 @@ func TestCompactorBlockWrite(t *testing.T) {
 		assert.True(t, has)
 	}
 
-	_, _, records, _ := cb.WriteInfo()
+	records := cb.Records()
 	assert.Equal(t, math.Ceil(float64(numObjects)/3), float64(len(records)))
 }
