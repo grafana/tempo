@@ -59,7 +59,7 @@ func (h *HeadBlock) Length() int {
 	return h.appender.Length()
 }
 
-func (h *HeadBlock) Complete(w *WAL) (CompleteBlock, error) {
+func (h *HeadBlock) Complete(w *WAL) (*CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -74,7 +74,7 @@ func (h *HeadBlock) Complete(w *WAL) (CompleteBlock, error) {
 	// 3) move from workdir -> realdir
 	// 4) remove old
 	records := h.appender.Records()
-	orderedBlock := &completeBlock{
+	orderedBlock := &CompleteBlock{
 		block: block{
 			meta:     backend.NewBlockMeta(h.meta.TenantID, uuid.New()),
 			filepath: walConfig.WorkFilepath,

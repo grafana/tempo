@@ -43,7 +43,7 @@ func TestCreateBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error getting blocks")
 	assert.Len(t, blocks, 1)
 
-	assert.Equal(t, block.fullFilename(), blocks[0].(*completeBlock).fullFilename())
+	assert.Equal(t, block.fullFilename(), blocks[0].(*CompleteBlock).fullFilename())
 }
 
 func TestReadWrite(t *testing.T) {
@@ -216,10 +216,10 @@ func TestCompleteBlock(t *testing.T) {
 	complete, err := block.Complete(wal)
 	assert.NoError(t, err, "unexpected error completing block")
 	// test downsample config
-	assert.Equal(t, numMsgs/indexDownsample+1, len(complete.(*completeBlock).records))
+	assert.Equal(t, numMsgs/indexDownsample+1, len(complete.records))
 
-	assert.True(t, bytes.Equal(complete.(*completeBlock).meta.MinID, block.meta.MinID))
-	assert.True(t, bytes.Equal(complete.(*completeBlock).meta.MaxID, block.meta.MaxID))
+	assert.True(t, bytes.Equal(complete.meta.MinID, block.meta.MinID))
+	assert.True(t, bytes.Equal(complete.meta.MaxID, block.meta.MaxID))
 
 	for i, id := range ids {
 		out := &friggpb.PushRequest{}
@@ -235,7 +235,7 @@ func TestCompleteBlock(t *testing.T) {
 
 	// confirm order
 	var prev *backend.Record
-	for _, r := range complete.(*completeBlock).records {
+	for _, r := range complete.records {
 		if prev != nil {
 			assert.Greater(t, r.Start, prev.Start)
 		}

@@ -82,7 +82,7 @@ func (w *WAL) AllBlocks() ([]ReplayBlock, error) {
 			return nil, err
 		}
 
-		blocks = append(blocks, &completeBlock{
+		blocks = append(blocks, &CompleteBlock{
 			block: block{
 				meta:     backend.NewBlockMeta(tenantID, blockID),
 				filepath: w.c.Filepath,

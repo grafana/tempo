@@ -46,7 +46,7 @@ type instance struct {
 
 	blockTracesMtx sync.RWMutex
 	headBlock      *friggdb_wal.HeadBlock
-	completeBlocks []friggdb_wal.CompleteBlock
+	completeBlocks []*friggdb_wal.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
@@ -150,7 +150,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return ready, nil
 }
 
-func (i *instance) GetBlockToBeFlushed() friggdb_wal.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed() *friggdb_wal.CompleteBlock {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
