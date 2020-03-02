@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/dgryski/go-farm"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
@@ -32,6 +33,11 @@ var (
 		Namespace: "friggdb",
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
+	})
+	metricRangeOfCompaction = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "friggdb",
+		Name:      "compaction_id_range",
+		Help:      "Total range of IDs compacted into a single block. (The smaller the better)",
 	})
 )
 
@@ -244,6 +250,10 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	// ship final block to backend
 	if currentBlock != nil {
+		// Set the range of IDs as the metricRangeOfCompaction
+		metricRangeOfCompaction.Set(
+			float64(farm.Fingerprint64(currentBlock.meta().MaxID) - farm.Fingerprint64(currentBlock.meta().MinID)),
+		)
 		err = rw.writeCompactedBlock(currentBlock, tenantID)
 		if err != nil {
 			return err
