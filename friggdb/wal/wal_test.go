@@ -43,7 +43,7 @@ func TestCreateBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error getting blocks")
 	assert.Len(t, blocks, 1)
 
-	assert.Equal(t, block.(*headBlock).fullFilename(), blocks[0].(*completeBlock).fullFilename())
+	assert.Equal(t, block.fullFilename(), blocks[0].(*completeBlock).fullFilename())
 }
 
 func TestReadWrite(t *testing.T) {
@@ -106,8 +106,8 @@ func TestAppend(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	records := block.(*headBlock).appender.Records()
-	file, err := block.(*headBlock).file()
+	records := block.appender.Records()
+	file, err := block.file()
 	assert.NoError(t, err)
 	iterator := backend.NewRecordIterator(records, file)
 	i := 0
@@ -218,8 +218,8 @@ func TestCompleteBlock(t *testing.T) {
 	// test downsample config
 	assert.Equal(t, numMsgs/indexDownsample+1, len(complete.(*completeBlock).records))
 
-	assert.True(t, bytes.Equal(complete.(*completeBlock).meta.MinID, block.(*headBlock).meta.MinID))
-	assert.True(t, bytes.Equal(complete.(*completeBlock).meta.MaxID, block.(*headBlock).meta.MaxID))
+	assert.True(t, bytes.Equal(complete.(*completeBlock).meta.MinID, block.meta.MinID))
+	assert.True(t, bytes.Equal(complete.(*completeBlock).meta.MaxID, block.meta.MaxID))
 
 	for i, id := range ids {
 		out := &friggpb.PushRequest{}

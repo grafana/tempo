@@ -45,7 +45,7 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blockTracesMtx sync.RWMutex
-	headBlock      friggdb_wal.HeadBlock
+	headBlock      *friggdb_wal.HeadBlock
 	completeBlocks []friggdb_wal.CompleteBlock
 	lastBlockCut   time.Time
 

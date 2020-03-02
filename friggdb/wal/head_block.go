@@ -9,29 +9,21 @@ import (
 	"github.com/grafana/frigg/friggdb/backend"
 )
 
-// Appendlock
+// Appendlock jpe
 //  wal.CompleteBlock(AppendBlock)
 //    creates AppendBlock with Buffered Appender and iterates through "HeadBlock" and appends
 //    returns as CompleteBlock
 // CompactorBlock is append block with bufferedappender?  how is bloom handled?
 
-// jpe: get rid of unnecessary block interfaces
-type HeadBlock interface { // jpe HeadBlock => AppendBlock.  takes appender factory?  CompactorBlock becomes AppendBlock with different buffered appender?
-	Write(id backend.ID, b []byte) error
-	Complete(w *WAL) (CompleteBlock, error)
-	Length() int
-	Find(id backend.ID) ([]byte, error)
-}
-
-type headBlock struct {
+type HeadBlock struct {
 	block
 
 	appendFile *os.File
 	appender   backend.Appender
 }
 
-func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*headBlock, error) {
-	h := &headBlock{
+func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*HeadBlock, error) {
+	h := &HeadBlock{
 		block: block{
 			meta:     backend.NewBlockMeta(tenantID, id),
 			filepath: filepath,
@@ -54,7 +46,7 @@ func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*headBlock, e
 	return h, nil
 }
 
-func (h *headBlock) Write(id backend.ID, b []byte) error {
+func (h *HeadBlock) Write(id backend.ID, b []byte) error {
 	err := h.appender.Append(id, b)
 	if err != nil {
 		return err
@@ -63,11 +55,11 @@ func (h *headBlock) Write(id backend.ID, b []byte) error {
 	return nil
 }
 
-func (h *headBlock) Length() int {
+func (h *HeadBlock) Length() int {
 	return h.appender.Length()
 }
 
-func (h *headBlock) Complete(w *WAL) (CompleteBlock, error) {
+func (h *HeadBlock) Complete(w *WAL) (CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -148,7 +140,7 @@ func (h *headBlock) Complete(w *WAL) (CompleteBlock, error) {
 	return orderedBlock, nil
 }
 
-func (h *headBlock) Find(id backend.ID) ([]byte, error) {
+func (h *HeadBlock) Find(id backend.ID) ([]byte, error) {
 	records := h.appender.Records()
 	file, err := h.file()
 	if err != nil {

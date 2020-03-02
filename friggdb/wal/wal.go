@@ -93,7 +93,7 @@ func (w *WAL) AllBlocks() ([]ReplayBlock, error) {
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (HeadBlock, error) {
+func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*HeadBlock, error) {
 	return newHeadBlock(id, tenantID, w.c.Filepath)
 }
 
