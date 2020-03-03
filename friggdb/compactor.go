@@ -8,11 +8,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/dgryski/go-farm"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/wal"
+	"github.com/grafana/frigg/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -253,7 +253,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	if currentBlock != nil {
 		// Set the range of IDs as the metricRangeOfCompaction
 		metricRangeOfCompaction.Set(
-			float64(farm.Fingerprint64(currentBlock.meta().MaxID) - farm.Fingerprint64(currentBlock.meta().MinID)),
+			util.Float64fromID(currentBlock.BlockMeta().MaxID) - util.Float64fromID(currentBlock.BlockMeta().MinID),
 		)
 		currentBlock.Complete()
 		err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout
