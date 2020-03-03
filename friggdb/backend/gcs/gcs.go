@@ -47,7 +47,9 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, blockID uuid.UUID, tenantID string, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
+func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
+	blockID := meta.BlockID
+	tenantID := meta.TenantID
 
 	err := rw.writeAll(ctx, rw.bloomFileName(blockID, tenantID), bBloom)
 	if err != nil {

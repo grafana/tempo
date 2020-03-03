@@ -10,7 +10,7 @@ import (
 var ErrMetaDoesNotExist = fmt.Errorf("meta does not exist")
 
 type Writer interface {
-	Write(ctx context.Context, blockID uuid.UUID, tenantID string, meta *BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error
+	Write(ctx context.Context, meta *BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error
 }
 
 type Reader interface {
