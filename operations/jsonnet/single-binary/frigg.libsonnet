@@ -27,7 +27,6 @@
   frigg_container::
     container.new('frigg', $._images.frigg) +
     container.withPorts([
-      containerPort.new('jaeger-grpc', 14250),
       containerPort.new('prom-metrics', 3100),
     ]) +
     container.withArgs([

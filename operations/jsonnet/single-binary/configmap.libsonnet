@@ -7,14 +7,7 @@
       http_listen_port: 3100
     },
     distributor: {
-      receivers: {
-        jaeger: {
-          protocols: {
-            grpc: null
-          }
-        },
-        opencensus: null
-      }
+      receivers: $._config.receivers
     },
     ingester: {
       lifecycler: {
