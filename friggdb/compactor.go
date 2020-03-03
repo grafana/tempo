@@ -46,7 +46,8 @@ const (
 	inputBlocks  = 4
 	outputBlocks = 2
 
-	cursorDone = -1
+	cursorRetry = -1
+	cursorBreak = -2
 )
 
 func (rw *readerWriter) doCompaction() {
@@ -78,7 +79,11 @@ func (rw *readerWriter) doCompaction() {
 			default:
 				var blocks []*backend.BlockMeta
 				blocks, cursor = rw.blocksToCompact(tenantID, cursor) // todo: pass a context with a deadline?
-				if cursor == cursorDone {
+				if cursor == cursorBreak {
+					break
+				}
+				if cursor == cursorRetry {
+					cursor = 0
 					break L
 				}
 				if blocks == nil {
@@ -112,11 +117,8 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend
 
 	blocklist := rw.blockLists[tenantID]
 	if inputBlocks > len(blocklist) {
-		return nil, cursorDone
-	}
-
-	if cursor < 0 {
-		return nil, cursorDone
+		// Want to retry in case blocklist has been updated
+		return nil, cursorRetry
 	}
 
 	cursorEnd := cursor + inputBlocks - 1
@@ -136,7 +138,8 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend
 		cursorEnd = cursor + inputBlocks - 1
 	}
 
-	return nil, cursorDone
+	// Could not find blocks suitable for compaction, break
+	return nil, cursorBreak
 }
 
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
