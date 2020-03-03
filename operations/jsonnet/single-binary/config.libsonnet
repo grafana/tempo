@@ -1,16 +1,16 @@
 {
-    _config+: {
-        pvc_size: '',
-        pvc_storage_class: '',
-        ballast_size_mbs: '1024',
-        jaeger_ui: {
-            query_base_path: '',
-        }
-    },
-
-    _images+: {
+    _images+:: {
         frigg: 'joeelliott/canary-frigg:de4f5e36',
         frigg_query: 'joeelliott/canary-frigg-query:de4f5e36',
+    },
+
+    _config+:: {
+        pvc_size: error 'Must specify a pvc size',
+        pvc_storage_class: error 'Must specify a pvc storage class',
+        ballast_size_mbs: '1024',
+        jaeger_ui: {
+            base_path: '/',
+        }
     },
 
     frigg_container+::

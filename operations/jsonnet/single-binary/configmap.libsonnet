@@ -37,14 +37,13 @@
         storage_config:
           trace:
             maintenanceCycle: 5m
-            backend: gcs
+            backend: local
             wal:
               path: /var/frigg/wal
               bloom-filter-false-positive: .05
               index-downsample: 100
-            gcs:
-              bucket_name: ops-tools-frigg
-              chunk_buffer_size: 10485760 # 1024 * 1024 * 10
+            local:
+              path: /tmp/frigg/traces
             query_pool:
               max_workers: 50
               queue_depth: 10000
