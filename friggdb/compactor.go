@@ -231,6 +231,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		// ship block to backend if done
 		if currentBlock.Length() >= recordsPerBlock {
 			currentBlock.Complete()
+			level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
 			err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout
 			if err != nil {
 				return err
@@ -246,6 +247,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	// ship final block to backend
 	if currentBlock != nil {
 		currentBlock.Complete()
+		level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
 		err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout
 		if err != nil {
 			return err
