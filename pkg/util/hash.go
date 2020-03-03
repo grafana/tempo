@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"hash/fnv"
-	"math"
 
 	"github.com/grafana/frigg/friggdb/backend"
 )
@@ -38,13 +37,20 @@ func HexStringToTraceID(id string) ([]byte, error) {
 	return byteID, nil
 }
 
-func Float64fromID(ID backend.ID) float64 {
-	bytes := []byte(ID)
+func BlockIDRange(maxID backend.ID, minID backend.ID) float64 {
+	maxIDHighBytes := []byte(maxID)[8:15]
+	maxIDLowBytes := []byte(maxID)[0:7]
+	minIDHighBytes := []byte(minID)[8:15]
+	minIDLowBytes := []byte(minID)[0:7]
 
-	// binary representation
-	bits := binary.LittleEndian.Uint64(bytes)
+	maxIDHigh := float64(binary.LittleEndian.Uint64(maxIDHighBytes))
+	maxIDLow := float64(binary.LittleEndian.Uint64(maxIDLowBytes))
+	minIDHigh := float64(binary.LittleEndian.Uint64(minIDHighBytes))
+	minIDLow := float64(binary.LittleEndian.Uint64(minIDLowBytes))
 
-	// float64 from binary rep. Pretty cool
-	float := math.Float64frombits(bits)
-	return float
+	if maxIDHigh-minIDHigh > 0 {
+		return (2 ^ 64) - 1
+	}
+
+	return maxIDLow - minIDLow
 }
