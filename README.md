@@ -4,10 +4,10 @@
 
 ```
 make install-tools
-make vendor
+make vendor-dependencies
 make docker-frigg
 make docker-frigg-query
-cd example
+cd example/docker-compose
 docker-compose up
 ```
 
@@ -25,7 +25,7 @@ docker-compose up
 
 - [x] GCS Support
 - [x] Concurrent Queries
-- [ ] Caching
-- [ ] Compactor
+- [x] Caching
+- [x] Compactor
 - [ ] Optimize!
 
