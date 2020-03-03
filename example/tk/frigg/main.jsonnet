@@ -1,6 +1,7 @@
 local frigg = import '../../../operations/jsonnet/single-binary/frigg.libsonnet';
+local load = import 'synthetic-load-generator/main.libsonnet';
 
-frigg {
+load + frigg {
     _config +:: {
         namespace: 'default',
         pvc_size: '30Gi',
