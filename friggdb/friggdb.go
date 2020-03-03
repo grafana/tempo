@@ -114,6 +114,7 @@ type readerWriter struct {
 
 	jobStopper          *pool.Stopper
 	compactedBlockLists map[string][]*backend.CompactedBlockMeta
+	blockSelector       CompactionBlockSelector
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
