@@ -11,15 +11,15 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
-
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/backend/local"
 	"github.com/grafana/frigg/friggdb/pool"
 	"github.com/grafana/frigg/friggdb/wal"
 	"github.com/grafana/frigg/pkg/friggpb"
 	"github.com/grafana/frigg/pkg/util/test"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCompaction(t *testing.T) {
@@ -104,7 +104,7 @@ func TestCompaction(t *testing.T) {
 		cursor := 0
 		var blocks []*backend.BlockMeta
 		blocks, cursor = rw.blocksToCompact(testTenantID, cursor)
-		if cursor == cursorDone {
+		if cursor == cursorBreak || cursor == cursorRetry {
 			break
 		}
 		if blocks == nil {
