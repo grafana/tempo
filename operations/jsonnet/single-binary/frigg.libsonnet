@@ -11,6 +11,10 @@
   local service = $.core.v1.service,
   local servicePort = service.mixin.spec.portsType,
 
+  local frigg_config_volume = 'frigg-conf',
+  local frigg_query_config_volume = 'frigg-query-conf',
+  local frigg_data_volume = 'frigg-data',
+
   frigg_pvc:
     pvc.new() +
     pvc.mixin.spec.resources
@@ -34,8 +38,8 @@
       '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
     container.withVolumeMounts([
-      volumeMount.new('frigg-conf', '/conf'),
-      volumeMount.new('frigg-data', '/var/frigg'),
+      volumeMount.new(frigg_config_volume, '/conf'),
+      volumeMount.new(frigg_data_volume, '/var/frigg'),
     ]),
 
   frigg_query_container::
@@ -48,7 +52,7 @@
       '--grpc-storage-plugin.configuration-file=/conf/frigg-query.yaml',
     ]) +
     container.withVolumeMounts([
-      volumeMount.new('frigg-query-conf', '/conf'),
+      volumeMount.new(frigg_query_config_volume, '/conf'),
     ]),
 
   frigg_deployment:
@@ -65,9 +69,9 @@
     deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(0) +
     deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
     deployment.mixin.spec.template.spec.withVolumes([
-      volume.fromConfigMap('frigg-query-conf', 'frigg-query'),
-      volume.fromConfigMap('frigg-conf', 'frigg'),
-      volume.fromPersistentVolumeClaim('frigg-data', 'frigg-pvc'),
+      volume.fromConfigMap(frigg_query_config_volume, $.frigg_query_configmap.metadata.name),
+      volume.fromConfigMap(frigg_config_volume, $.frigg_configmap.metadata.name),
+      volume.fromPersistentVolumeClaim(frigg_data_volume, $.frigg_pvc.metadata.name),
     ]),
 
   frigg_service:
