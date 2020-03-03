@@ -29,7 +29,7 @@ To test the jsonnet locally requires
 ```
 cd tk
 k3d create --name frigg \
-           --publish 16686:16686
+           --publish 16686:80
 
 export KUBECONFIG="$(k3d get-kubeconfig --name='frigg')"
 
