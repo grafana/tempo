@@ -30,7 +30,10 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(_ context.Context, blockID uuid.UUID, tenantID string, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, tracesFilePath string) error {
+func (rw *readerWriter) Write(_ context.Context, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, tracesFilePath string) error {
+	blockID := meta.BlockID
+	tenantID := meta.TenantID
+
 	blockFolder := rw.rootPath(blockID, tenantID)
 	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
