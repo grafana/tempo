@@ -104,11 +104,8 @@ func TestCompaction(t *testing.T) {
 		cursor := 0
 		var blocks []*backend.BlockMeta
 		blocks, cursor = rw.blocksToCompact(testTenantID, cursor)
-		if cursor == cursorBreak || cursor == cursorRetry {
-			break
-		}
 		if blocks == nil {
-			continue
+			break
 		}
 		assert.Len(t, blocks, inputBlocks)
 
