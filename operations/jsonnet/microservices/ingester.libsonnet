@@ -3,14 +3,14 @@
   local containerPort = $.core.v1.containerPort,
   local volumeMount = $.core.v1.volumeMount,
   local pvc = $.core.v1.persistentVolumeClaim,
-  local deployment = $.apps.v1.deployment,
+  local statefulset = $.apps.v1.statefulSet,
   local volume = $.core.v1.volume,
   local service = $.core.v1.service,
   local servicePort = service.mixin.spec.portsType,
 
   local target_name = "ingester",
   local frigg_config_volume = 'frigg-conf',
-  local frigg_data_volume = 'frigg-data',
+  local frigg_data_volume = 'ingester-data',
 
   frigg_ingester_pvc:
     pvc.new() +
@@ -22,7 +22,7 @@
     pvc.mixin.metadata
     .withLabels({ app: target_name })
     .withNamespace($._config.namespace)
-    .withName(target_name) +
+    .withName(frigg_data_volume) +
     { kind: 'PersistentVolumeClaim', apiVersion: 'v1' },
 
   frigg_ingester_container::
@@ -40,19 +40,22 @@
       volumeMount.new(frigg_data_volume, '/var/frigg'),
     ]),
 
-  frigg_ingester_deployment:
-    deployment.new(target_name,
+  frigg_ingester_statefulset:
+    statefulset.new(target_name,
                    $._config.ingester.replicas,
                    [
                      $.frigg_ingester_container,
                    ],
-                   { app: target_name }) +
-    deployment.mixin.spec.template.metadata.withAnnotations({
+                   [
+                     $.frigg_ingester_pvc
+                   ],
+                   { app: target_name })
+    .withServiceName(target_name) +
+    statefulset.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.frigg_configmap)),
     }) +
-    deployment.mixin.spec.template.spec.withVolumes([
+    statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(frigg_config_volume, $.frigg_configmap.metadata.name),
-      volume.fromPersistentVolumeClaim(frigg_data_volume, $.frigg_compactor_pvc.metadata.name),
     ]),
 
   frigg_service:
