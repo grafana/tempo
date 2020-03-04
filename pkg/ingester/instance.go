@@ -2,8 +2,8 @@ package ingester
 
 import (
 	"context"
-	"crypto/sha1"
 	"fmt"
+	"hash/maphash"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -57,6 +57,8 @@ type instance struct {
 	tracesInMemory     uint64
 	limiter            *Limiter
 	wal                friggdb.WAL
+
+	seed maphash.Seed
 }
 
 func newInstance(instanceID string, limiter *Limiter, wal friggdb.WAL) (*instance, error) {
@@ -68,6 +70,7 @@ func newInstance(instanceID string, limiter *Limiter, wal friggdb.WAL) (*instanc
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
 		limiter:            limiter,
 		wal:                wal,
+		seed:               maphash.MakeSeed(),
 	}
 	err := i.resetHeadBlock()
 	if err != nil {
@@ -78,9 +81,11 @@ func newInstance(instanceID string, limiter *Limiter, wal friggdb.WAL) (*instanc
 
 func (i *instance) getOrCreateShard(ctx context.Context, traceID []byte) (*traceMapShard, bool) {
 	// Hash to evenly distribute search space
-	hasher := sha1.New()
+	hasher := maphash.Hash{}
+	hasher.SetSeed(i.seed)
 	hasher.Write(traceID)
-	shardKey := fmt.Sprintf("%x", hasher.Sum(nil))[0:1]
+	idSum := []byte{}
+	shardKey := fmt.Sprintf("%x", hasher.Sum(idSum))[0:1]
 
 	// Check if shard exists
 	// After a first few requests this should always be true
@@ -233,9 +238,11 @@ func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error
 func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 	// First search live traces being assembled in the ingester instance.
 	// Find shard
-	hasher := sha1.New()
+	hasher := maphash.Hash{}
+	hasher.SetSeed(i.seed)
 	hasher.Write(id)
-	shard, ok := i.traceMapShards[fmt.Sprintf("%x", hasher.Sum(nil))[0:1]]
+	idSum := []byte{}
+	shard, ok := i.traceMapShards[fmt.Sprintf("%x", hasher.Sum(idSum))[0:1]]
 	if ok {
 		shard.tracesMtx.Lock()
 		if liveTrace, ok := shard.traces[traceFingerprint(util.Fingerprint(id))]; ok {
