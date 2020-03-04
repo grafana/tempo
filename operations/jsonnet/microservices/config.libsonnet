@@ -21,13 +21,13 @@
             replicas: 1,
         },
         distributor: {
+            receivers: error 'Must specify receivers',
             replicas: 1,
         },
-        receivers: error 'Must specify receivers',
-        ballast_size_mbs: '1024',
         jaeger_ui: {
             base_path: '/',
         },
+        ballast_size_mbs: '1024',
         port: 3100,
         gossip_ring_port: 7946,
     },

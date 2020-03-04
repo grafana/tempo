@@ -16,9 +16,11 @@ load + frigg {
             pvc_size: '5Gi',
             pvc_storage_class: 'local-path',
         },
-        receivers: {
-            opencensus: null
-        }
+        distributor+: {
+            receivers: {
+                opencensus: null
+            }
+        },
     },
 
     local container = $.core.v1.container,

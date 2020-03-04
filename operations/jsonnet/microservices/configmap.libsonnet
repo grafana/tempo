@@ -7,7 +7,7 @@
       http_listen_port: $._config.port
     },
     distributor: {
-      receivers: $._config.receivers,
+      receivers: $._config.distributor.receivers,
     },
     ingester: {
       trace_idle_period: "20s",
