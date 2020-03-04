@@ -1,8 +1,11 @@
 package util
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"hash/fnv"
+
+	"github.com/grafana/frigg/friggdb/backend"
 )
 
 // TokenFor generates a token used for finding ingesters from ring
@@ -32,4 +35,25 @@ func HexStringToTraceID(id string) ([]byte, error) {
 	}
 
 	return byteID, nil
+}
+
+func BlockIDRange(maxID backend.ID, minID backend.ID) float64 {
+	if len(maxID) > 8 {
+		maxIDHighBytes := []byte(maxID)[8:]
+		minIDHighBytes := []byte(minID)[8:]
+
+		maxIDHigh := float64(binary.LittleEndian.Uint64(maxIDHighBytes))
+		minIDHigh := float64(binary.LittleEndian.Uint64(minIDHighBytes))
+
+		if maxIDHigh-minIDHigh > 0 {
+			return (2 ^ 64) - 1
+		}
+	}
+	maxIDLowBytes := []byte(maxID)[0 : len(maxID)-1]
+	minIDLowBytes := []byte(minID)[0 : len(minID)-1]
+
+	maxIDLow := float64(binary.LittleEndian.Uint64(maxIDLowBytes))
+	minIDLow := float64(binary.LittleEndian.Uint64(minIDLowBytes))
+
+	return maxIDLow - minIDLow
 }

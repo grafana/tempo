@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/wal"
+	"github.com/grafana/frigg/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -33,6 +34,11 @@ var (
 		Namespace: "friggdb",
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
+	})
+	metricRangeOfCompaction = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "friggdb",
+		Name:      "compaction_id_range",
+		Help:      "Total range of IDs compacted into a single block. (The smaller the better)",
 	})
 )
 
@@ -246,6 +252,10 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	// ship final block to backend
 	if currentBlock != nil {
+		// Set the range of IDs as the metricRangeOfCompaction
+		metricRangeOfCompaction.Set(
+			util.BlockIDRange(currentBlock.BlockMeta().MaxID, currentBlock.BlockMeta().MinID),
+		)
 		currentBlock.Complete()
 		level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
 		err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout
