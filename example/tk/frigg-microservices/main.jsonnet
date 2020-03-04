@@ -15,6 +15,7 @@ load + frigg {
         ingester+: {
             pvc_size: '5Gi',
             pvc_storage_class: 'local-path',
+            replicas: 3,
         },
         distributor+: {
             receivers: {
