@@ -4,15 +4,15 @@ local load = import 'synthetic-load-generator/main.libsonnet';
 load + frigg {
     _config +:: {
         namespace: 'default',
-        compactor: {
+        compactor+: {
             pvc_size: '5Gi',
             pvc_storage_class: 'local-path',
         },
-        querier: {
+        querier+: {
             pvc_size: '5Gi',
             pvc_storage_class: 'local-path',
         },
-        ingester: {
+        ingester+: {
             pvc_size: '5Gi',
             pvc_storage_class: 'local-path',
         },

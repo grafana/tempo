@@ -27,7 +27,7 @@
 
   frigg_distributor_deployment:
     deployment.new(target_name,
-                   1,
+                   $._config.distributor.replicas,
                    [
                      $.frigg_distributor_container,
                    ],

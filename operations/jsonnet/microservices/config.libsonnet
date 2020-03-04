@@ -8,14 +8,20 @@
         compactor: {
             pvc_size: error 'Must specify a compactor pvc size',
             pvc_storage_class: error 'Must specify a compactor pvc storage class',
+            replicas: 1,
         },
         querier: {
             pvc_size: error 'Must specify a querier pvc size',
             pvc_storage_class: error 'Must specify a querier pvc storage class',
+            replicas: 1,
         },
         ingester: {
             pvc_size: error 'Must specify an ingester pvc size',
             pvc_storage_class: error 'Must specify an ingester pvc storage class',
+            replicas: 1,
+        },
+        distributor: {
+            replicas: 1,
         },
         receivers: error 'Must specify receivers',
         ballast_size_mbs: '1024',

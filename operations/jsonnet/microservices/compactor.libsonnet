@@ -42,7 +42,7 @@
 
   frigg_compactor_deployment:
     deployment.new(target_name,
-                   1,
+                   $._config.compactor.replicas,
                    [
                      $.frigg_compactor_container,
                    ],

@@ -56,7 +56,7 @@
 
   frigg_querier_deployment:
     deployment.new(target_name,
-                   1,
+                   $._config.querier.replicas,
                    [
                      $.frigg_querier_container,
                      $.frigg_query_container,

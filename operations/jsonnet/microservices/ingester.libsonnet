@@ -42,7 +42,7 @@
 
   frigg_ingester_deployment:
     deployment.new(target_name,
-                   1,
+                   $._config.ingester.replicas,
                    [
                      $.frigg_ingester_container,
                    ],
