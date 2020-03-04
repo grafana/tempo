@@ -18,8 +18,13 @@ load + frigg {
         },
         distributor+: {
             receivers: {
-                opencensus: null
-            }
+                opencensus: null,
+                jaeger: {
+                    protocols: {
+                        thrift_http: null,
+                    },
+                },
+            },
         },
     },
 
@@ -37,6 +42,7 @@ load + frigg {
         $.util.resourcesRequests('500m', '500Mi') +
         container.withPortsMixin([
             containerPort.new('opencensus', 55678),
+            containerPort.new('jaeger-http', 14268),
         ]),
 
     frigg_ingester_container+::

@@ -12,7 +12,7 @@
   local frigg_config_volume = 'frigg-conf',
   local frigg_data_volume = 'ingester-data',
 
-  frigg_ingester_pvc:
+  frigg_ingester_pvc::
     pvc.new() +
     pvc.mixin.spec.resources
     .withRequests({ storage: $._config.ingester.pvc_size }) +
@@ -22,8 +22,7 @@
     pvc.mixin.metadata
     .withLabels({ app: target_name })
     .withNamespace($._config.namespace)
-    .withName(frigg_data_volume) +
-    { kind: 'PersistentVolumeClaim', apiVersion: 'v1' },
+    .withName(frigg_data_volume),
 
   frigg_ingester_container::
     container.new(target_name, $._images.frigg) +
