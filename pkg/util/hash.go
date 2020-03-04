@@ -49,8 +49,8 @@ func BlockIDRange(maxID backend.ID, minID backend.ID) float64 {
 			return (2 ^ 64) - 1
 		}
 	}
-	maxIDLowBytes := []byte(maxID)[0:7]
-	minIDLowBytes := []byte(minID)[0:7]
+	maxIDLowBytes := []byte(maxID)[0 : len(maxID)-1]
+	minIDLowBytes := []byte(minID)[0 : len(minID)-1]
 
 	maxIDLow := float64(binary.LittleEndian.Uint64(maxIDLowBytes))
 	minIDLow := float64(binary.LittleEndian.Uint64(minIDLowBytes))
