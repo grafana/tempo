@@ -23,6 +23,11 @@ load + frigg {
         },
     },
 
+    local service = $.core.v1.service,
+    frigg_service:
+        $.util.serviceFor($.frigg_distributor_deployment)
+        + service.mixin.metadata.withName('frigg'),
+
     local container = $.core.v1.container,
     local containerPort = $.core.v1.containerPort,
     frigg_compactor_container+::

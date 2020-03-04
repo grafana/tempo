@@ -51,9 +51,6 @@
                    ],
                    { app: target_name })
     .withServiceName(target_name) +
-    statefulset.mixin.spec.template.metadata.withAnnotations({
-      config_hash: std.md5(std.toString($.frigg_configmap)),
-    }) +
     statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(frigg_config_volume, $.frigg_configmap.metadata.name),
     ]),
