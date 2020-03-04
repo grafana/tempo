@@ -30,7 +30,8 @@ k3d create --name frigg \
 export KUBECONFIG="$(k3d get-kubeconfig --name='frigg')"
 
 # double check you're applying to your local k3d before running this!
-tk apply frigg
+#   deployment_type can be frigg-single-binary or frigg-microservices
+tk apply <deployment_type>
 ```
 
 After the applications are running check the load generators logs
