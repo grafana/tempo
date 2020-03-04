@@ -31,7 +31,7 @@
   frigg_container::
     container.new('frigg', $._images.frigg) +
     container.withPorts([
-      containerPort.new('prom-metrics', 3100),
+      containerPort.new('prom-metrics', $._config.port),
     ]) +
     container.withArgs([
       '-config.file=/conf/frigg.yaml',

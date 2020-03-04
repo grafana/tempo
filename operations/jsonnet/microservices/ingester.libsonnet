@@ -28,7 +28,7 @@
   frigg_ingester_container::
     container.new(target_name, $._images.frigg) +
     container.withPorts([
-      containerPort.new('prom-metrics', 3100),
+      containerPort.new('prom-metrics', $._config.port),
     ]) +
     container.withArgs([
       '-target=' + target_name,

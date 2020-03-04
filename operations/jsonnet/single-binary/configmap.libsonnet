@@ -4,7 +4,7 @@
   frigg_config:: {
     auth_enabled: false,
     server: {
-      http_listen_port: 3100
+      http_listen_port: $._config.port
     },
     distributor: {
       receivers: $._config.receivers
@@ -81,8 +81,8 @@
   frigg_query_configmap:
     configMap.new('frigg-query') +
     configMap.withData({
-      'frigg-query.yaml': |||
-        backend: "localhost:3100"
-      |||,
+      'frigg-query.yaml': $.util.manifestYaml({
+        backend: 'localhost:%d' % $._config.port
+      })
     }),
 }

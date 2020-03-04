@@ -28,6 +28,7 @@
         jaeger_ui: {
             base_path: '/',
         },
+        port: 3100,
         gossip_ring_port: 7946,
     },
 
