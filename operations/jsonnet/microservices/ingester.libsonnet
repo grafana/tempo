@@ -56,5 +56,15 @@
     ]),
 
   frigg_service:
-    $.util.serviceFor($.frigg_ingester_deployment)
+    $.util.serviceFor($.frigg_ingester_deployment),
+
+  gossip_ring_service:
+    service.new(
+      'gossip-ring',  // name
+      { app: target_name },
+      [
+        servicePort.newNamed('gossip-ring', $._config.gossip_ring_port, $._config.gossip_ring_port) +
+        servicePort.withProtocol('TCP'),
+      ],
+      ) + service.mixin.spec.withClusterIp('None'),  // headless service
 }

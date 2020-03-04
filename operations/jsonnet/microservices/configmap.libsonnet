@@ -7,25 +7,31 @@
       http_listen_port: 3100
     },
     distributor: {
-      receivers: $._config.receivers
+      receivers: $._config.receivers,
     },
     ingester: {
-      lifecycler: {
-        address: "127.0.0.1",
-        ring: {
-          kvstore: {
-            store: "inmemory"
-          },
-          replication_factor: 1
-        },
-        final_sleep: "0s"
-      },
       trace_idle_period: "20s",
       traces_per_block: 100000,
       max_block_duration: "2h",
       flush_op_timeout: "1m",
       max_transfer_retries: 1,
-      complete_block_timeout: "10m"
+      complete_block_timeout: "10m",
+      lifecycler: {
+        num_tokens: 512,
+        heartbeat_period: '5s',
+        join_after: '5s',
+        ring: {
+          heartbeat_timeout: '10m',
+          kvstore: {
+            store: 'memberlist',
+            memberlist: {
+              abort_if_join_fails: false,
+              bind_port: $._config.gossip_ring_port,
+              join: 'gossip-ring.%s.svc.cluster.local:%d' % [$._config.namespace, $._config.gossip_ring_port],
+            },
+          },
+        }
+      }
     },
     compactor: null,
     storage_config: {

@@ -21,7 +21,8 @@
         ballast_size_mbs: '1024',
         jaeger_ui: {
             base_path: '/',
-        }
+        },
+        gossip_ring_port: 7946,
     },
 
     frigg_compactor_container+::
