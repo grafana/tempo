@@ -38,14 +38,15 @@
     storage_config: {
       trace: {
         maintenanceCycle: "5m",
-        backend: "local",
+        backend: "gcs",
         wal: {
           path: "/var/frigg/wal",
           "bloom-filter-false-positive": 0.05,
           "index-downsample": 100
         },
-        "local": {
-          path: "/tmp/frigg/traces"
+        gcs: {
+          bucket_name: $._config.gcs_bucket,
+          chunk_buffer_size: 10485760 # 1024 * 1024 * 10
         },
         query_pool: {
           max_workers: 50,

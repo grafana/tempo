@@ -18,7 +18,7 @@
         ingester: {
             pvc_size: error 'Must specify an ingester pvc size',
             pvc_storage_class: error 'Must specify an ingester pvc storage class',
-            replicas: 1,
+            replicas: 3,
         },
         distributor: {
             receivers: error 'Must specify receivers',
@@ -30,6 +30,7 @@
         ballast_size_mbs: '1024',
         port: 3100,
         gossip_ring_port: 7946,
+        gcs_bucket: error 'Must specify a bucket',
     },
 
     frigg_compactor_container+::

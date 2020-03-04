@@ -15,7 +15,6 @@ load + frigg {
         ingester+: {
             pvc_size: '5Gi',
             pvc_storage_class: 'local-path',
-            replicas: 3,
         },
         distributor+: {
             receivers: {
@@ -27,8 +26,22 @@ load + frigg {
                 },
             },
         },
+        gcs_bucket: 'overriding_for_local_testing',
     },
 
+    // manually overriding for local testing.  technically once a trace is flushed to the backend it
+    //  will not be queryable with this config
+    frigg_config +:: {
+        storage_config+: {
+            trace+: {
+                backend: 'local',
+                'local': {
+                   path: '/tmp/frigg/traces',
+                },
+            },
+        },
+    },
+    
     local service = $.core.v1.service,
     frigg_service:
         $.util.serviceFor($.frigg_distributor_deployment)
