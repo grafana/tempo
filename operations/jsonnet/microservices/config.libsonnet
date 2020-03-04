@@ -30,13 +30,13 @@
 
     frigg_distributor_container+::
         $.util.resourcesRequests('3', '3Gi') +
-        $.util.resourcesLimits('5', '5Gi')
+        $.util.resourcesLimits('5', '5Gi'),
 
     frigg_ingester_container+::
         $.util.resourcesRequests('3', '3Gi') +
-        $.util.resourcesLimits('5', '5Gi')
+        $.util.resourcesLimits('5', '5Gi'),
 
     frigg_querier_container+::
         $.util.resourcesRequests('500m', '1Gi') +
-        $.util.resourcesLimits('1', '2Gi')
+        $.util.resourcesLimits('1', '2Gi'),
 }

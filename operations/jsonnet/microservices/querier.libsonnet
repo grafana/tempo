@@ -2,7 +2,7 @@
   local container = $.core.v1.container,
   local containerPort = $.core.v1.containerPort,
   local volumeMount = $.core.v1.volumeMount,
-  local pv = $.core.v1.persistentVolume,
+  local pvc = $.core.v1.persistentVolumeClaim,
   local deployment = $.apps.v1.deployment,
   local volume = $.core.v1.volume,
   local service = $.core.v1.service,

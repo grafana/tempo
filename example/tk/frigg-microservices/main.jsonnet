@@ -24,7 +24,7 @@ load + frigg {
     local container = $.core.v1.container,
     local containerPort = $.core.v1.containerPort,
     frigg_compactor_container+::
-        $.util.resourcesRequests('500m', '500Mi')
+        $.util.resourcesRequests('500m', '500Mi'),
 
     frigg_distributor_container+::
         $.util.resourcesRequests('500m', '500Mi') +
@@ -33,10 +33,10 @@ load + frigg {
         ]),
 
     frigg_ingester_container+::
-        $.util.resourcesRequests('500m', '500Mi')
+        $.util.resourcesRequests('500m', '500Mi'),
 
     frigg_querier_container+::
-        $.util.resourcesRequests('500m', '500Mi')
+        $.util.resourcesRequests('500m', '500Mi'),
 
     local ingress = $.extensions.v1beta1.ingress,
     ingress:
