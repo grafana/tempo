@@ -71,7 +71,7 @@
       volume.fromPersistentVolumeClaim(frigg_data_volume, $.frigg_querier_pvc.metadata.name),
     ]),
 
-  frigg_service:
+  frigg_querier_service:
     $.util.serviceFor($.frigg_querier_deployment)
     + service.mixin.spec.withPortsMixin([
       servicePort.withName('http').withPort(80).withTargetPort(16686),

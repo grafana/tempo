@@ -39,6 +39,6 @@
       volume.fromConfigMap(frigg_config_volume, $.frigg_configmap.metadata.name),
     ]),
 
-  frigg_service:
+  frigg_distributor_service:
     $.util.serviceFor($.frigg_distributor_deployment)
 }

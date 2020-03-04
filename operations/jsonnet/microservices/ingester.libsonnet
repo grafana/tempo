@@ -58,8 +58,8 @@
       volume.fromConfigMap(frigg_config_volume, $.frigg_configmap.metadata.name),
     ]),
 
-  frigg_service:
-    $.util.serviceFor($.frigg_ingester_deployment),
+  frigg_ingester_service:
+    $.util.serviceFor($.frigg_ingester_statefulset),
 
   gossip_ring_service:
     service.new(
