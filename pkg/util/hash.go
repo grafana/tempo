@@ -38,19 +38,22 @@ func HexStringToTraceID(id string) ([]byte, error) {
 }
 
 func BlockIDRange(maxID backend.ID, minID backend.ID) float64 {
-	maxIDHighBytes := []byte(maxID)[8:15]
+	if len(maxID) > 8 {
+		maxIDHighBytes := []byte(maxID)[8:]
+		minIDHighBytes := []byte(minID)[8:]
+
+		maxIDHigh := float64(binary.LittleEndian.Uint64(maxIDHighBytes))
+		minIDHigh := float64(binary.LittleEndian.Uint64(minIDHighBytes))
+
+		if maxIDHigh-minIDHigh > 0 {
+			return (2 ^ 64) - 1
+		}
+	}
 	maxIDLowBytes := []byte(maxID)[0:7]
-	minIDHighBytes := []byte(minID)[8:15]
 	minIDLowBytes := []byte(minID)[0:7]
 
-	maxIDHigh := float64(binary.LittleEndian.Uint64(maxIDHighBytes))
 	maxIDLow := float64(binary.LittleEndian.Uint64(maxIDLowBytes))
-	minIDHigh := float64(binary.LittleEndian.Uint64(minIDHighBytes))
 	minIDLow := float64(binary.LittleEndian.Uint64(minIDLowBytes))
-
-	if maxIDHigh-minIDHigh > 0 {
-		return (2 ^ 64) - 1
-	}
 
 	return maxIDLow - minIDLow
 }
