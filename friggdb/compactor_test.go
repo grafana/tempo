@@ -103,7 +103,7 @@ func TestCompaction(t *testing.T) {
 	for {
 		cursor := 0
 		var blocks []*backend.BlockMeta
-		blocks, cursor = rw.blocksToCompact(testTenantID, cursor)
+		blocks, _ = rw.blocksToCompact(testTenantID, cursor)
 		if blocks == nil {
 			break
 		}
