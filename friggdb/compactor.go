@@ -45,60 +45,7 @@ var (
 const (
 	inputBlocks  = 4
 	outputBlocks = 2
-
-	cursorRetry = -1
-	cursorBreak = -2
 )
-
-type CompactionBlockSelector interface {
-	BlocksToCompact(blocklist []*backend.BlockMeta) ([]*backend.BlockMeta, int)
-}
-
-type simpleBlockSelector struct {
-	// no need for a lock around this.
-	// simpleBlockSelector will never run concurrently.
-	cursor             int // need a per-tenant cursor
-	MaxCompactionRange time.Duration
-}
-
-// todo: write newSimpleBlockSelector()
-
-type distributedBlockSelector struct {
-	// will eventually hold ring state
-}
-
-var _ (CompactionBlockSelector) = (*simpleBlockSelector)(nil)
-
-// todo: switch to iterator pattern?
-func (sbs *simpleBlockSelector) BlocksToCompact(blocklist []*backend.BlockMeta) ([]*backend.BlockMeta, int) {
-	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
-	//   - consider candidateBlocks at a time.
-	//   - find the blocks with the fewest records that are within the compaction range
-	if inputBlocks > len(blocklist) {
-		// Want to retry in case blocklist has been updated
-		return nil, cursorRetry
-	}
-
-	cursorEnd := sbs.cursor + inputBlocks - 1
-	for {
-		if cursorEnd >= len(blocklist) {
-			break
-		}
-
-		blockStart := blocklist[sbs.cursor]
-		blockEnd := blocklist[cursorEnd]
-
-		if blockEnd.EndTime.Sub(blockStart.StartTime) < sbs.MaxCompactionRange {
-			return blocklist[sbs.cursor : cursorEnd+1], cursorEnd + 1
-		}
-
-		sbs.cursor++
-		cursorEnd = sbs.cursor + inputBlocks - 1
-	}
-
-	// Could not find blocks suitable for compaction, break
-	return nil, cursorBreak
-}
 
 func (rw *readerWriter) doCompaction() {
 	// stop any existing compaction jobs
@@ -120,7 +67,10 @@ func (rw *readerWriter) doCompaction() {
 		var warning error
 		tenantID := payload.(string)
 
-		cursor := 0
+		if rw.blockSelector.IsRunning(tenantID) {
+			level.Warn(rw.logger).Log("msg", "Previous cycle has not finished. Skipping maintenance cycle.")
+			return nil
+		}
 	L:
 		for {
 			select {
@@ -129,20 +79,10 @@ func (rw *readerWriter) doCompaction() {
 			default:
 				var blocks []*backend.BlockMeta
 
-				rw.blockListsMtx.Lock() // todo: there's lots of contention on this mutex.  keep an eye on this
-				blocklist := rw.blockLists[tenantID]
-				blocks, cursor = rw.blockSelector.BlocksToCompact(blocklist) // todo: pass a context with a deadline?
-				rw.blockListsMtx.Unlock()
-
-				if cursor == cursorBreak {
-					break
-				}
-				if cursor == cursorRetry {
-					cursor = 0
-					break L
-				}
+				blocklist := rw.blocklist(tenantID)
+				blocks = rw.blockSelector.BlocksToCompact(blocklist) // todo: pass a context with a deadline?
 				if blocks == nil {
-					continue
+					break L
 				}
 				err := rw.compact(blocks, tenantID)
 				if err != nil {

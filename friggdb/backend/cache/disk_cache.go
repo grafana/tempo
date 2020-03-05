@@ -145,7 +145,7 @@ func (h FileInfoHeap) Less(i, j int) bool {
 	jStat, jOK := jInfo.Sys().(*syscall.Stat_t)
 
 	if iOK && jOK {
-		return iStat.Atim.Nano() > jStat.Atim.Nano()
+		return iStat.Atimespec.Nano() > jStat.Atimespec.Nano()
 	}
 
 	return iInfo.ModTime().After(jInfo.ModTime())

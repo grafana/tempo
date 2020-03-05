@@ -101,14 +101,12 @@ func TestCompaction(t *testing.T) {
 
 	blocksPerCompaction := (inputBlocks - outputBlocks)
 	for {
-		cursor := 0
 		var blocks []*backend.BlockMeta
-		blocks, cursor = rw.blocksToCompact(testTenantID, cursor)
-		if cursor == cursorBreak || cursor == cursorRetry {
-			break
-		}
+		allBlocksOfTenant := rw.blocklist(testTenantID)
+		assert.Len(t, allBlocksOfTenant, 4)
+		blocks = rw.blockSelector.BlocksToCompact(allBlocksOfTenant)
 		if blocks == nil {
-			continue
+			break
 		}
 		assert.Len(t, blocks, inputBlocks)
 
@@ -198,7 +196,10 @@ func TestSameIDCompaction(t *testing.T) {
 	checkBlocklists(t, uuid.Nil, 5, 0, rw)
 
 	var blocks []*backend.BlockMeta
-	blocks, _ = rw.blocksToCompact(testTenantID, 0)
+
+	allBlocksOfTenant := rw.blocklist(testTenantID)
+	blocks = rw.blockSelector.BlocksToCompact(allBlocksOfTenant)
+
 	assert.Len(t, blocks, inputBlocks)
 
 	err = rw.compact(blocks, testTenantID)

@@ -284,6 +284,8 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig) {
 		level.Info(rw.logger).Log("msg", "compaction enabled.")
 	}
 	rw.compactorCfg = cfg
+
+	rw.blockSelector = newSimpleBlockSelector(rw.compactorCfg.MaxCompactionRange)
 }
 
 func (rw *readerWriter) maintenanceLoop() {
