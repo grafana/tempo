@@ -15,6 +15,9 @@
   local frigg_query_config_volume = 'frigg-query-conf',
   local frigg_data_volume = 'frigg-data',
 
+  namespace:
+    $.core.v1.namespace.new($._config.namespace),
+
   frigg_pvc:
     pvc.new() +
     pvc.mixin.spec.resources
