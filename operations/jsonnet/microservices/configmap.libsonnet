@@ -22,7 +22,7 @@
         join_after: '5s',
         ring: {
           heartbeat_timeout: '10m',
-          replication_factor: 3,
+          replication_factor: 1,
           kvstore: {
             store: 'memberlist',
             memberlist: {
