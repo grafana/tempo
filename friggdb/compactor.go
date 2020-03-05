@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/frigg/friggdb/backend"
 	"github.com/grafana/frigg/friggdb/wal"
+	"github.com/grafana/frigg/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -34,13 +35,16 @@ var (
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
 	})
+	metricRangeOfCompaction = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "friggdb",
+		Name:      "compaction_id_range",
+		Help:      "Total range of IDs compacted into a single block. (The smaller the better)",
+	})
 )
 
 const (
 	inputBlocks  = 4
 	outputBlocks = 2
-
-	cursorDone = -1
 )
 
 func (rw *readerWriter) doCompaction() {
@@ -72,11 +76,8 @@ func (rw *readerWriter) doCompaction() {
 			default:
 				var blocks []*backend.BlockMeta
 				blocks, cursor = rw.blocksToCompact(tenantID, cursor) // todo: pass a context with a deadline?
-				if cursor == cursorDone {
-					break L
-				}
 				if blocks == nil {
-					continue
+					break L
 				}
 				err := rw.compact(blocks, tenantID)
 				if err != nil {
@@ -106,11 +107,7 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend
 
 	blocklist := rw.blockLists[tenantID]
 	if inputBlocks > len(blocklist) {
-		return nil, cursorDone
-	}
-
-	if cursor < 0 {
-		return nil, cursorDone
+		return nil, 0
 	}
 
 	cursorEnd := cursor + inputBlocks - 1
@@ -130,7 +127,8 @@ func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend
 		cursorEnd = cursor + inputBlocks - 1
 	}
 
-	return nil, cursorDone
+	// Could not find blocks suitable for compaction, break
+	return nil, 0
 }
 
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
@@ -246,6 +244,10 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	// ship final block to backend
 	if currentBlock != nil {
+		// Set the range of IDs as the metricRangeOfCompaction
+		metricRangeOfCompaction.Set(
+			util.BlockIDRange(currentBlock.BlockMeta().MaxID, currentBlock.BlockMeta().MinID),
+		)
 		currentBlock.Complete()
 		level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
 		err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout

@@ -15,8 +15,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
-  "id": 1425,
-  "iteration": 1582834624514,
+  "iteration": 1583310798045,
   "links": [],
   "panels": [
     {
@@ -1509,13 +1508,100 @@
       }
     },
     {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 6,
+        "y": 12
+      },
+      "hiddenSeries": false,
+      "id": 55,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": false,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "friggdb_compaction_id_range{job=~\"jaeger/frigg$component\"}",
+          "legendFormat": "compacted_range",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Compaction ID range",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
       "collapsed": false,
       "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 17
       },
       "id": 21,
       "panels": [],
@@ -1534,7 +1620,7 @@
         "h": 5,
         "w": 3,
         "x": 3,
-        "y": 13
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 40,
@@ -1621,7 +1707,7 @@
         "h": 5,
         "w": 3,
         "x": 6,
-        "y": 13
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 39,
@@ -1708,7 +1794,7 @@
         "h": 5,
         "w": 3,
         "x": 9,
-        "y": 13
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 41,
@@ -1795,7 +1881,7 @@
         "h": 5,
         "w": 3,
         "x": 12,
-        "y": 13
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 13,
@@ -1892,7 +1978,7 @@
         "h": 5,
         "w": 3,
         "x": 15,
-        "y": 13
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 14,
@@ -1980,7 +2066,7 @@
         "h": 5,
         "w": 3,
         "x": 18,
-        "y": 13
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 15,
@@ -2068,7 +2154,7 @@
         "h": 10,
         "w": 8,
         "x": 0,
-        "y": 18
+        "y": 23
       },
       "hiddenSeries": false,
       "id": 34,
@@ -2156,7 +2242,7 @@
         "h": 10,
         "w": 7,
         "x": 8,
-        "y": 18
+        "y": 23
       },
       "hiddenSeries": false,
       "id": 5,
@@ -2242,7 +2328,7 @@
         "h": 5,
         "w": 6,
         "x": 15,
-        "y": 18
+        "y": 23
       },
       "hiddenSeries": false,
       "id": 17,
@@ -2339,7 +2425,7 @@
         "h": 5,
         "w": 6,
         "x": 15,
-        "y": 23
+        "y": 28
       },
       "hiddenSeries": false,
       "id": 3,
@@ -2431,7 +2517,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 33
       },
       "id": 19,
       "panels": [],
@@ -2450,7 +2536,7 @@
         "h": 5,
         "w": 3,
         "x": 0,
-        "y": 29
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 10,
@@ -2537,7 +2623,7 @@
         "h": 5,
         "w": 3,
         "x": 3,
-        "y": 29
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 9,
@@ -2623,7 +2709,7 @@
         "h": 5,
         "w": 3,
         "x": 6,
-        "y": 29
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 8,
@@ -2709,7 +2795,7 @@
         "h": 5,
         "w": 3,
         "x": 9,
-        "y": 29
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 12,
@@ -2795,7 +2881,7 @@
         "h": 5,
         "w": 3,
         "x": 12,
-        "y": 29
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 26,
@@ -2881,7 +2967,7 @@
         "h": 5,
         "w": 3,
         "x": 15,
-        "y": 29
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 36,
@@ -2978,7 +3064,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 34
+        "y": 39
       },
       "hiddenSeries": false,
       "id": 6,
@@ -3064,7 +3150,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 34
+        "y": 39
       },
       "hiddenSeries": false,
       "id": 2,
@@ -3156,7 +3242,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 42
+        "y": 47
       },
       "id": 28,
       "panels": [],
@@ -3175,7 +3261,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 48
       },
       "hiddenSeries": false,
       "id": 30,
@@ -3272,7 +3358,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 48
       },
       "hiddenSeries": false,
       "id": 31,
@@ -3456,5 +3542,5 @@
   "timezone": "",
   "title": "Frigg",
   "uid": "AOFXrRUZz",
-  "version": 12
+  "version": 4
 }
