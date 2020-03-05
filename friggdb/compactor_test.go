@@ -103,7 +103,6 @@ func TestCompaction(t *testing.T) {
 	for {
 		var blocks []*backend.BlockMeta
 		allBlocksOfTenant := rw.blocklist(testTenantID)
-		assert.Len(t, allBlocksOfTenant, 4)
 		blocks = rw.blockSelector.BlocksToCompact(allBlocksOfTenant)
 		if blocks == nil {
 			break

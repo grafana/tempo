@@ -47,6 +47,10 @@ func (sbs *simpleBlockSelector) BlocksToCompact(blocklist []*backend.BlockMeta) 
 		return nil
 	}
 
+	if _, ok := sbs.cursor[myTenant]; !ok {
+		sbs.cursor[myTenant] = 0
+	}
+
 	cursorEnd := sbs.cursor[myTenant] + inputBlocks - 1
 	for {
 		if cursorEnd >= len(blocklist) {
