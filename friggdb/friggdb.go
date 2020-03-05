@@ -174,7 +174,7 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 
 	bloomBytes := c.BloomFilter().JSONMarshal()
 	meta := c.BlockMeta()
-	err = rw.w.Write(ctx, meta.BlockID, meta.TenantID, meta, bloomBytes, indexBytes, c.ObjectFilePath())
+	err = rw.w.Write(ctx, meta, bloomBytes, indexBytes, c.ObjectFilePath())
 	if err != nil {
 		return err
 	}

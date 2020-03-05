@@ -35,7 +35,9 @@ func TestReadWrite(t *testing.T) {
 		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
 	}
 
-	fakeMeta := &backend.BlockMeta{}
+	fakeMeta := &backend.BlockMeta{
+		BlockID: blockID,
+	}
 	fakeBloom := make([]byte, 20)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
@@ -50,11 +52,12 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error writing fakeTraces")
 
 	for _, id := range tenantIDs {
-		err = w.Write(context.Background(), blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		fakeMeta.TenantID = id
+		err = w.Write(context.Background(), fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
 		assert.NoError(t, err, "unexpected error writing")
 	}
 
-	actualMeta, err := r.BlockMeta(blockID, tenantIDs[0])
+	actualMeta, err := r.BlockMeta(blockID, fakeMeta.TenantID)
 	assert.NoError(t, err, "unexpected error reading indexes")
 	assert.Equal(t, fakeMeta, actualMeta)
 
@@ -93,8 +96,12 @@ func TestWriteFail(t *testing.T) {
 
 	blockID := uuid.New()
 	tenantID := "fake"
+	fakeMeta := &backend.BlockMeta{
+		BlockID:  blockID,
+		TenantID: tenantID,
+	}
 
-	err = w.Write(context.Background(), blockID, tenantID, nil, nil, nil, "file-that-doesnt-exist")
+	err = w.Write(context.Background(), fakeMeta, nil, nil, "file-that-doesnt-exist")
 	assert.Error(t, err)
 
 	_, err = os.Stat(path.Join(tempDir, tenantID, blockID.String()))
@@ -122,7 +129,9 @@ func TestCompaction(t *testing.T) {
 		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
 	}
 
-	fakeMeta := &backend.BlockMeta{}
+	fakeMeta := &backend.BlockMeta{
+		BlockID: blockID,
+	}
 	fakeBloom := make([]byte, 20)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
@@ -137,7 +146,9 @@ func TestCompaction(t *testing.T) {
 	assert.NoError(t, err, "unexpected error writing fakeTraces")
 
 	for _, id := range tenantIDs {
-		err = w.Write(context.Background(), blockID, id, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		fakeMeta.TenantID = id
+
+		err = w.Write(context.Background(), fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
 		assert.NoError(t, err, "unexpected error writing")
 
 		compactedMeta, err := c.CompactedBlockMeta(blockID, id)
