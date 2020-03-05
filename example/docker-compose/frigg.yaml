@@ -7,7 +7,7 @@ distributor:
   receivers:
     jaeger:
       protocols:
-        thrift-http:  # newer otelcol is thrift_http.  will need to change on update
+        thrift_http:
 
 ingester:
   lifecycler:
