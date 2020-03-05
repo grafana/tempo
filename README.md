@@ -1,31 +1,14 @@
 # Frigg
 
-## To Run
+## Getting Started
 
-```
-make install-tools
-make vendor
-make docker-frigg
-make docker-frigg-query
-cd example
-docker-compose up
-```
-
-- Frigg
-  - http://localhost:3100
-- Frigg-Query
-  - http://localhost:16686
-- Grafana
-  - http://localhost:3000
-- Prometheus
-  - http://localhost:9090
-
+See the [example folder](./example) for various ways to get started running frigg locally.
 
 ## To Do
 
 - [x] GCS Support
 - [x] Concurrent Queries
-- [ ] Caching
-- [ ] Compactor
+- [x] Caching
+- [x] Compactor
 - [ ] Optimize!
 

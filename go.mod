@@ -3,49 +3,42 @@ module github.com/grafana/frigg
 go 1.13
 
 require (
-	cloud.google.com/go v0.44.1
+	cloud.google.com/go/storage v1.3.0
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.2.1
-	github.com/cortexproject/cortex v0.4.1-0.20191217132644-cd4009e2f8e7
-	github.com/cosiner/argv v0.0.1 // indirect
+	github.com/cortexproject/cortex v0.6.1
 	github.com/dgraph-io/ristretto v0.0.1
 	github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2
 	github.com/fatih/color v1.9.0 // indirect
-	github.com/go-delve/delve v1.4.0 // indirect
 	github.com/go-kit/kit v0.9.0
-	github.com/gogo/protobuf v1.3.0
+	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.3.4
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.3
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340 // indirect
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v0.12.0
 	github.com/hashicorp/go-plugin v1.0.1 // indirect
 	github.com/jaegertracing/jaeger v1.16.0
 	github.com/karrick/godirwalk v1.15.3
 	github.com/mattn/go-colorable v0.1.6 // indirect
-	github.com/mattn/go-isatty v0.0.12 // indirect
-	github.com/mattn/go-runewidth v0.0.8 // indirect
 	github.com/open-telemetry/opentelemetry-collector v0.2.6
 	github.com/open-telemetry/opentelemetry-proto v0.0.0-20200206071824-8310c432e51c
 	github.com/opentracing/opentracing-go v1.1.0
-	github.com/peterh/liner v1.2.0 // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v1.3.0
 	github.com/prometheus/common v0.8.0
-	github.com/prometheus/prometheus v1.8.2-0.20191126064551-80ba03c67da1 // indirect
 	github.com/spf13/cobra v0.0.6 // indirect
 	github.com/spf13/viper v1.6.2
 	github.com/stretchr/testify v1.4.0
 	github.com/uber-go/atomic v1.4.0
 	github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d
-	go.starlark.net v0.0.0-20200203144150-6677ee5c7211 // indirect
-	go.uber.org/atomic v1.4.0
+	go.uber.org/atomic v1.5.0
 	go.uber.org/zap v1.10.0
-	golang.org/x/arch v0.0.0-20191126211547-368ea8f32fff // indirect
 	golang.org/x/net v0.0.0-20191112182307-2180aed22343
-	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
-	google.golang.org/api v0.11.0
+	golang.org/x/tools v0.0.0-20191127201027-ecd32218bd7f // indirect
+	google.golang.org/api v0.14.0
 	google.golang.org/grpc v1.25.1
 	gopkg.in/yaml.v2 v2.2.8
 )
