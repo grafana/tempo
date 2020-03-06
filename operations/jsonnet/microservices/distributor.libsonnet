@@ -8,7 +8,7 @@
   local service = $.core.v1.service,
   local servicePort = service.mixin.spec.portsType,
 
-  local target_name = "distributor",
+  local target_name = 'distributor',
   local frigg_config_volume = 'frigg-conf',
 
   frigg_distributor_container::
@@ -31,7 +31,10 @@
                    [
                      $.frigg_distributor_container,
                    ],
-                   { app: target_name }) +
+                   {
+                     app: target_name,
+                     [$._config.gossip_member_label]: 'true',
+                   }) +
     deployment.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.frigg_configmap)),
     }) +
@@ -40,5 +43,10 @@
     ]),
 
   frigg_distributor_service:
+    $.util.serviceFor($.frigg_distributor_deployment),
+
+  ingest_service:
     $.util.serviceFor($.frigg_distributor_deployment)
+    + service.mixin.metadata.withName('ingest')
+    + service.mixin.spec.withClusterIp('None'),
 }

@@ -8,7 +8,7 @@
   local service = $.core.v1.service,
   local servicePort = service.mixin.spec.portsType,
 
-  local target_name = "compactor",
+  local target_name = 'compactor',
   local frigg_config_volume = 'frigg-conf',
   local frigg_data_volume = 'frigg-data',
 
@@ -47,6 +47,8 @@
                      $.frigg_compactor_container,
                    ],
                    { app: target_name }) +
+    deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(0) +
+    deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
     deployment.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.frigg_compactor_configmap)),
     }) +

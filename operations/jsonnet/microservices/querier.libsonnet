@@ -8,7 +8,7 @@
   local service = $.core.v1.service,
   local servicePort = service.mixin.spec.portsType,
 
-  local target_name = "querier",
+  local target_name = 'querier',
   local frigg_config_volume = 'frigg-conf',
   local frigg_query_config_volume = 'frigg-query-conf',
   local frigg_data_volume = 'frigg-data',
@@ -61,7 +61,12 @@
                      $.frigg_querier_container,
                      $.frigg_query_container,
                    ],
-                   { app: target_name }) +
+                   {
+                     app: target_name,
+                     [$._config.gossip_member_label]: 'true',
+                   }) +
+    deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(0) +
+    deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
     deployment.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.frigg_compactor_configmap)),
     }) +

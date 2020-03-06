@@ -8,7 +8,7 @@
   local service = $.core.v1.service,
   local servicePort = service.mixin.spec.portsType,
 
-  local target_name = "ingester",
+  local target_name = 'ingester',
   local frigg_config_volume = 'frigg-conf',
   local frigg_data_volume = 'ingester-data',
 
@@ -41,14 +41,17 @@
 
   frigg_ingester_statefulset:
     statefulset.new(target_name,
-                   $._config.ingester.replicas,
-                   [
-                     $.frigg_ingester_container,
-                   ],
-                   [
-                     $.frigg_ingester_pvc
-                   ],
-                   { app: target_name })
+                    $._config.ingester.replicas,
+                    [
+                      $.frigg_ingester_container,
+                    ],
+                    [
+                      $.frigg_ingester_pvc,
+                    ],
+                    {
+                      app: target_name,
+                      [$._config.gossip_member_label]: 'true',
+                    })
     .withServiceName(target_name) +
     statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(frigg_config_volume, $.frigg_configmap.metadata.name),
@@ -60,10 +63,12 @@
   gossip_ring_service:
     service.new(
       'gossip-ring',  // name
-      { app: target_name },
+      {
+        [$._config.gossip_member_label]: 'true',
+      },
       [
         servicePort.newNamed('gossip-ring', $._config.gossip_ring_port, $._config.gossip_ring_port) +
         servicePort.withProtocol('TCP'),
       ],
-      ) + service.mixin.spec.withClusterIp('None'),  // headless service
+    ) + service.mixin.spec.withClusterIp('None'),  // headless service
 }
