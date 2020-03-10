@@ -78,6 +78,12 @@
         compactedBlockRetention: '2m',
       },
     },
+    storage_config+: {
+      trace+: {
+        maintenanceCycle: '10m',
+        cache:: null,
+      },
+    },
   },
 
   frigg_configmap:
