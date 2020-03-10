@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dgryski/go-farm"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (

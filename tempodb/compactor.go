@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
