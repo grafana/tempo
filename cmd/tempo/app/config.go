@@ -40,7 +40,7 @@ type Config struct {
 
 // RegisterFlags registers flag.
 func (c *Config) RegisterFlags(f *flag.FlagSet) {
-	c.Server.MetricsNamespace = "frigg"
+	c.Server.MetricsNamespace = "tempo"
 	c.Target = All
 	c.Server.ExcludeRequestInLog = true
 	f.Var(&c.Target, "target", "target module (default All)")
@@ -145,7 +145,7 @@ func (t *App) Run() error {
 	return t.server.Run()
 }
 
-// Stop gracefully stops Frigg.
+// Stop gracefully stops Tempo.
 func (t *App) Stop() error {
 	t.stopping(t.cfg.Target)
 	t.stop(t.cfg.Target)

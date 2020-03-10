@@ -14,16 +14,16 @@ import (
 
 	"github.com/grafana/tempo/pkg/compactor"
 	"github.com/grafana/tempo/pkg/distributor"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/ingester"
 	"github.com/grafana/tempo/pkg/querier"
-	frigg_storage "github.com/grafana/tempo/pkg/storage"
+	tempo_storage "github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/validation"
 )
 
 type moduleName int
 
-// The various modules that make up Frigg.
+// The various modules that make up tempo.
 const (
 	Ring moduleName = iota
 	Overrides
@@ -191,7 +191,7 @@ func (t *App) initCompactor() (err error) {
 }
 
 func (t *App) initStore() (err error) {
-	t.store, err = frigg_storage.NewStore(t.cfg.StorageConfig, t.overrides, util.Logger)
+	t.store, err = tempo_storage.NewStore(t.cfg.StorageConfig, t.overrides, util.Logger)
 	return
 }
 

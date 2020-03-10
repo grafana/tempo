@@ -15,7 +15,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&host, "host", "localhost:3100", "frigg host to connect to")
+	flag.StringVar(&host, "host", "localhost:3100", "tempo host to connect to")
 	flag.StringVar(&findTraceID, "find-trace", "", "finds a trace by id.  expected to be a hex value")
 }
 

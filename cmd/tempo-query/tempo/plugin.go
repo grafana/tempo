@@ -17,12 +17,12 @@ import (
 )
 
 type Backend struct {
-	friggEndpoint string
+	tempoEndpoint string
 }
 
 func New(cfg *Config) *Backend {
 	return &Backend{
-		friggEndpoint: "http://" + cfg.Backend + "/api/traces/",
+		tempoEndpoint: "http://" + cfg.Backend + "/api/traces/",
 	}
 }
 
@@ -31,7 +31,7 @@ func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]mo
 }
 func (b *Backend) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
-	resp, err := http.Get(b.friggEndpoint + hexID)
+	resp, err := http.Get(b.tempoEndpoint + hexID)
 	if err != nil {
 		return nil, err
 	}

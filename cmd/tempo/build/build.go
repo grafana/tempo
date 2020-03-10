@@ -4,7 +4,7 @@ import "github.com/prometheus/common/version"
 
 // Version information passed to Prometheus version package.
 // Package path as used by linker changes based on vendoring being used or not,
-// so it's easier just to use stable Frigg path, and pass it to
+// so it's easier just to use stable Tempo path, and pass it to
 // Prometheus in the code.
 var (
 	Version   string

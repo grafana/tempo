@@ -1,18 +1,18 @@
 version: "2"
 services:
 
-  frigg:
-    image: frigg:latest
+  tempo:
+    image: tempo:latest
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
       - /tmp/tempo:/tmp/tempo
     ports:
       - "14268"      # jaeger
-      - "3100:3100"  # frigg
+      - "3100:3100"  # tempo
 
-  frigg-query:
-    image: frigg-query:latest
+  tempo-query:
+    image: tempo-query:latest
     command: ["--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml"]
     volumes:
       - ./tempo-query.yaml:/etc/tempo-query.yaml
@@ -27,7 +27,7 @@ services:
       - TOPOLOGY_FILE=/etc/load-generator.json
       - JAEGER_COLLECTOR_URL=http://tempo:14268
     depends_on:
-      - frigg
+      - tempo
 
   prometheus:
     image: prom/prometheus:latest

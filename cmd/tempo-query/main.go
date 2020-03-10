@@ -15,7 +15,7 @@ import (
 
 func main() {
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:       "jaeger-frigg",
+		Name:       "jaeger-tempo",
 		Level:      hclog.Error, // Jaeger only captures >= Warn, so don't bother logging below Warn
 		JSONFormat: true,
 	})
@@ -39,15 +39,15 @@ func main() {
 		}
 	}
 
-	cfg := &frigg.Config{}
+	cfg := &tempo.Config{}
 	cfg.InitFromViper(v)
 
-	backend := frigg.New(cfg)
+	backend := tempo.New(cfg)
 	grpc.Serve(&plugin{backend: backend})
 }
 
 type plugin struct {
-	backend *frigg.Backend
+	backend *tempo.Backend
 }
 
 func (p *plugin) DependencyReader() dependencystore.Reader {
