@@ -16,6 +16,8 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
+	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
+	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 type traceFingerprint uint64
