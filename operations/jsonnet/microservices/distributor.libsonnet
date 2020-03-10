@@ -18,7 +18,7 @@
     ]) +
     container.withArgs([
       '-target=' + target_name,
-      '-config.file=/conf/frigg.yaml',
+      '-config.file=/conf/tempo.yaml',
       '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
     container.withVolumeMounts([

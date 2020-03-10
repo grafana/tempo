@@ -17,11 +17,11 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	friggdb_wal "github.com/grafana/frigg/friggdb/wal"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/ingester/client"
-	"github.com/grafana/frigg/pkg/storage"
-	"github.com/grafana/frigg/pkg/util/validation"
+	friggdb_wal "github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/ingester/client"
+	"github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/pkg/util/validation"
 )
 
 // ErrReadOnly is returned when the ingester is shutting down and a push was
@@ -139,8 +139,8 @@ func (i *Ingester) Stopping() {
 	close(i.quitting)
 }
 
-// Push implements friggpb.Pusher.
-func (i *Ingester) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb.PushResponse, error) {
+// Push implements tempopb.Pusher.
+func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -154,11 +154,11 @@ func (i *Ingester) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb
 	}
 
 	err = instance.Push(ctx, req)
-	return &friggpb.PushResponse{}, err
+	return &tempopb.PushResponse{}, err
 }
 
-// FindTraceByID implements friggpb.Querier.f
-func (i *Ingester) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDRequest) (*friggpb.TraceByIDResponse, error) {
+// FindTraceByID implements tempopb.Querier.f
+func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, fmt.Errorf("invalid trace id")
 	}
@@ -169,7 +169,7 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDRequ
 	}
 	inst, ok := i.getInstanceByID(instanceID)
 	if !ok || inst == nil {
-		return &friggpb.TraceByIDResponse{}, nil
+		return &tempopb.TraceByIDResponse{}, nil
 	}
 
 	trace, err := inst.FindTraceByID(req.TraceID)
@@ -177,7 +177,7 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDRequ
 		return nil, err
 	}
 
-	return &friggpb.TraceByIDResponse{
+	return &tempopb.TraceByIDResponse{
 		Trace: trace,
 	}, nil
 }

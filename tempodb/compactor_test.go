@@ -1,4 +1,4 @@
-package friggdb
+package tempodb
 
 import (
 	"context"
@@ -14,12 +14,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/frigg/friggdb/backend"
-	"github.com/grafana/frigg/friggdb/backend/local"
-	"github.com/grafana/frigg/friggdb/pool"
-	"github.com/grafana/frigg/friggdb/wal"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/pool"
+	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 func TestCompaction(t *testing.T) {
@@ -58,7 +58,7 @@ func TestCompaction(t *testing.T) {
 	blockCount := rand.Int()%20 + 1
 	recordCount := rand.Int()%20 + 1
 
-	allReqs := make([]*friggpb.PushRequest, 0, blockCount*recordCount)
+	allReqs := make([]*tempopb.PushRequest, 0, blockCount*recordCount)
 	allIds := make([][]byte, 0, blockCount*recordCount)
 
 	for i := 0; i < blockCount; i++ {
@@ -66,7 +66,7 @@ func TestCompaction(t *testing.T) {
 		head, err := wal.NewBlock(blockID, testTenantID)
 		assert.NoError(t, err)
 
-		reqs := make([]*friggpb.PushRequest, 0, recordCount)
+		reqs := make([]*tempopb.PushRequest, 0, recordCount)
 		ids := make([][]byte, 0, recordCount)
 		for j := 0; j < recordCount; j++ {
 			id := make([]byte, 16)
@@ -129,7 +129,7 @@ func TestCompaction(t *testing.T) {
 		b, _, err := rw.Find(testTenantID, id)
 		assert.NoError(t, err)
 
-		out := &friggpb.PushRequest{}
+		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(b, out)
 		assert.NoError(t, err)
 

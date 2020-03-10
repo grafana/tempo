@@ -1,4 +1,4 @@
-package friggdb
+package tempodb
 
 import (
 	"bytes"
@@ -17,59 +17,59 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/frigg/friggdb/backend"
-	"github.com/grafana/frigg/friggdb/backend/cache"
-	"github.com/grafana/frigg/friggdb/backend/gcs"
-	"github.com/grafana/frigg/friggdb/backend/local"
-	"github.com/grafana/frigg/friggdb/pool"
-	"github.com/grafana/frigg/friggdb/wal"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/cache"
+	"github.com/grafana/tempo/tempodb/backend/gcs"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/pool"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 var (
 	metricMaintenanceTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "maintenance_total",
 		Help:      "Total number of times the maintenance cycle has occurred.",
 	})
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "blocklist_poll_errors_total",
 		Help:      "Total number of times an error occurred while polling the blocklist.",
 	}, []string{"tenant"})
 	metricBlocklistPollDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "blocklist_poll_duration_seconds",
 		Help:      "Records the amount of time to poll and update the blocklist.",
 		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
 	})
 	metricBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "blocklist_length",
 		Help:      "Total number of blocks per tenant.",
 	}, []string{"tenant"})
 	metricCompactedBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "compaction_blocklist_length",
 		Help:      "Total number of compacted blocks per tenant.",
 	}, []string{"tenant"})
 	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "retention_duration_seconds",
 		Help:      "Records the amount of time to perform retention tasks.",
 		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
 	})
 	metricRetentionErrors = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "retention_errors_total",
 		Help:      "Total number of times an error occurred while performing retention tasks.",
 	})
 	metricMarkedForDeletion = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "retention_marked_for_deletion_total",
 		Help:      "Total number of blocks marked for deletion.",
 	})
 	metricDeleted = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "retention_deleted_total",
 		Help:      "Total number of blocks deleted.",
 	})

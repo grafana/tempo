@@ -1,13 +1,13 @@
-package friggdb
+package tempodb
 
 import (
 	"time"
 
-	"github.com/grafana/frigg/friggdb/backend/cache"
-	"github.com/grafana/frigg/friggdb/backend/gcs"
-	"github.com/grafana/frigg/friggdb/backend/local"
-	"github.com/grafana/frigg/friggdb/pool"
-	"github.com/grafana/frigg/friggdb/wal"
+	"github.com/grafana/tempo/tempodb/backend/cache"
+	"github.com/grafana/tempo/tempodb/backend/gcs"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/pool"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 type Config struct {

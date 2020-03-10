@@ -1,4 +1,4 @@
-package frigg
+package tempo
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/tempo/pkg/tempopb"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -36,7 +36,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID model.TraceID) (*model.T
 		return nil, err
 	}
 
-	out := &friggpb.Trace{}
+	out := &tempopb.Trace{}
 	err = json.NewDecoder(resp.Body).Decode(out)
 	resp.Body.Close()
 	if err != nil {

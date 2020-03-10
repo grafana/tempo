@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (

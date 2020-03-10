@@ -1,4 +1,4 @@
-local frigg = import '../../../operations/jsonnet/microservices/frigg.libsonnet';
+local frigg = import '../../../operations/jsonnet/microservices/tempo.libsonnet';
 local load = import 'synthetic-load-generator/main.libsonnet';
 
 load + frigg {
@@ -36,7 +36,7 @@ load + frigg {
             trace+: {
                 backend: 'local',
                 'local': {
-                   path: '/tmp/frigg/traces',
+                   path: '/tmp/tempo/traces',
                 },
             },
         },

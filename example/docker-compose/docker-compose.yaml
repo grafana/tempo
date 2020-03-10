@@ -3,19 +3,19 @@ services:
 
   frigg:
     image: frigg:latest
-    command: ["-config.file=/etc/frigg.yaml"]
+    command: ["-config.file=/etc/tempo.yaml"]
     volumes:
-      - ./frigg.yaml:/etc/frigg.yaml
-      - /tmp/frigg:/tmp/frigg
+      - ./tempo.yaml:/etc/tempo.yaml
+      - /tmp/tempo:/tmp/tempo
     ports:
       - "14268"      # jaeger
       - "3100:3100"  # frigg
 
   frigg-query:
     image: frigg-query:latest
-    command: ["--grpc-storage-plugin.configuration-file=/etc/frigg-query.yaml"]
+    command: ["--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml"]
     volumes:
-      - ./frigg-query.yaml:/etc/frigg-query.yaml
+      - ./tempo-query.yaml:/etc/tempo-query.yaml
     ports:
       - "16686:16686"  # jaeger-ui
 
@@ -25,7 +25,7 @@ services:
       - ./load-generator.json:/etc/load-generator.json
     environment:
       - TOPOLOGY_FILE=/etc/load-generator.json
-      - JAEGER_COLLECTOR_URL=http://frigg:14268
+      - JAEGER_COLLECTOR_URL=http://tempo:14268
     depends_on:
       - frigg
 

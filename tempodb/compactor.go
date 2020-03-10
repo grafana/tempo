@@ -1,4 +1,4 @@
-package friggdb
+package tempodb
 
 import (
 	"bytes"
@@ -10,33 +10,33 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/backend"
-	"github.com/grafana/frigg/friggdb/wal"
-	"github.com/grafana/frigg/pkg/util"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
 	metricCompactionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "compaction_duration_seconds",
 		Help:      "Records the amount of time to compact a set of blocks.",
 		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
 	})
 	metricCompactionStopDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "compaction_duration_stop_seconds",
 		Help:      "Records the amount of time waiting on compaction jobs to stop.",
 		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
 	})
 	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
 	})
 	metricRangeOfCompaction = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "compaction_id_range",
 		Help:      "Total range of IDs compacted into a single block. (The smaller the better)",
 	})

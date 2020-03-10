@@ -2,7 +2,7 @@
 // source: frigg.proto
 
 /*
-Package friggpb is a generated protocol buffer package.
+package tempopb is a generated protocol buffer package.
 
 It is generated from these files:
 	frigg.proto
@@ -14,7 +14,7 @@ It has these top-level messages:
 	PushRequest
 	PushResponse
 */
-package friggpb
+package tempopb
 
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
@@ -110,11 +110,11 @@ func (*PushResponse) ProtoMessage()               {}
 func (*PushResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 func init() {
-	proto.RegisterType((*TraceByIDRequest)(nil), "friggpb.TraceByIDRequest")
-	proto.RegisterType((*TraceByIDResponse)(nil), "friggpb.TraceByIDResponse")
-	proto.RegisterType((*Trace)(nil), "friggpb.Trace")
-	proto.RegisterType((*PushRequest)(nil), "friggpb.PushRequest")
-	proto.RegisterType((*PushResponse)(nil), "friggpb.PushResponse")
+	proto.RegisterType((*TraceByIDRequest)(nil), "tempopb.TraceByIDRequest")
+	proto.RegisterType((*TraceByIDResponse)(nil), "tempopb.TraceByIDResponse")
+	proto.RegisterType((*Trace)(nil), "tempopb.Trace")
+	proto.RegisterType((*PushRequest)(nil), "tempopb.PushRequest")
+	proto.RegisterType((*PushResponse)(nil), "tempopb.PushResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -141,7 +141,7 @@ func NewPusherClient(cc *grpc.ClientConn) PusherClient {
 
 func (c *pusherClient) Push(ctx context.Context, in *PushRequest, opts ...grpc.CallOption) (*PushResponse, error) {
 	out := new(PushResponse)
-	err := grpc.Invoke(ctx, "/friggpb.Pusher/Push", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/tempopb.Pusher/Push", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func _Pusher_Push_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/friggpb.Pusher/Push",
+		FullMethod: "/tempopb.Pusher/Push",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PusherServer).Push(ctx, req.(*PushRequest))
@@ -177,7 +177,7 @@ func _Pusher_Push_Handler(srv interface{}, ctx context.Context, dec func(interfa
 }
 
 var _Pusher_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "friggpb.Pusher",
+	ServiceName: "tempopb.Pusher",
 	HandlerType: (*PusherServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -205,7 +205,7 @@ func NewQuerierClient(cc *grpc.ClientConn) QuerierClient {
 
 func (c *querierClient) FindTraceByID(ctx context.Context, in *TraceByIDRequest, opts ...grpc.CallOption) (*TraceByIDResponse, error) {
 	out := new(TraceByIDResponse)
-	err := grpc.Invoke(ctx, "/friggpb.Querier/FindTraceByID", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/tempopb.Querier/FindTraceByID", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func _Querier_FindTraceByID_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/friggpb.Querier/FindTraceByID",
+		FullMethod: "/tempopb.Querier/FindTraceByID",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(QuerierServer).FindTraceByID(ctx, req.(*TraceByIDRequest))
@@ -241,7 +241,7 @@ func _Querier_FindTraceByID_Handler(srv interface{}, ctx context.Context, dec fu
 }
 
 var _Querier_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "friggpb.Querier",
+	ServiceName: "tempopb.Querier",
 	HandlerType: (*QuerierServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

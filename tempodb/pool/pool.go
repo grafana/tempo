@@ -16,13 +16,13 @@ const (
 
 var (
 	metricQueryQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "work_queue_length",
 		Help:      "Current length of the work queue.",
 	})
 
 	metricQueryQueueMax = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "work_queue_max",
 		Help:      "Maximum number of items in the work queue.",
 	})

@@ -3,11 +3,11 @@ package compactor
 import (
 	"flag"
 
-	"github.com/grafana/frigg/friggdb"
+	"github.com/grafana/tempo/tempodb"
 )
 
 type Config struct {
-	Compactor *friggdb.CompactorConfig `yaml:"compaction"`
+	Compactor *tempodb.CompactorConfig `yaml:"compaction"`
 }
 
 // RegisterFlags registers the flags.

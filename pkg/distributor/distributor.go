@@ -21,11 +21,11 @@ import (
 	uber_atomic "go.uber.org/atomic"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/frigg/pkg/distributor/receiver"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/ingester/client"
-	"github.com/grafana/frigg/pkg/util"
-	"github.com/grafana/frigg/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/distributor/receiver"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/ingester/client"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/validation"
 )
 
 var (
@@ -148,7 +148,7 @@ func (d *Distributor) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Push a set of streams.
-func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb.PushResponse, error) {
+func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -156,11 +156,11 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 
 	// Track metrics.
 	if req.Batch == nil {
-		return &friggpb.PushResponse{}, nil
+		return &tempopb.PushResponse{}, nil
 	}
 	spanCount := len(req.Batch.Spans)
 	if spanCount == 0 {
-		return &friggpb.PushResponse{}, nil
+		return &tempopb.PushResponse{}, nil
 	}
 	metricSpansIngested.WithLabelValues(userID).Add(float64(spanCount))
 
@@ -182,7 +182,7 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	wg := sync.WaitGroup{}
 	for ingester, reqs := range requestsByIngester {
 		wg.Add(1)
-		go func(ingesterAddr string, reqs []*friggpb.PushRequest) {
+		go func(ingesterAddr string, reqs []*tempopb.PushRequest) {
 			// Use a background context to make sure all ingesters get samples even if we return early
 			localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
 			defer cancel()
@@ -204,7 +204,7 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 	select {
 	case <-done:
 		resetPushRequests(requestsByIngester)
-		return &friggpb.PushResponse{}, atomicErr.Load()
+		return &tempopb.PushResponse{}, atomicErr.Load()
 	case <-ctx.Done():
 		resetPushRequests(requestsByIngester)
 		return nil, ctx.Err()
@@ -212,7 +212,7 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 }
 
 // TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
-func (d *Distributor) sendSamples(ctx context.Context, ingesterAddr string, batches []*friggpb.PushRequest) error {
+func (d *Distributor) sendSamples(ctx context.Context, ingesterAddr string, batches []*tempopb.PushRequest) error {
 	var warning error
 
 	for _, b := range batches {
@@ -227,13 +227,13 @@ func (d *Distributor) sendSamples(ctx context.Context, ingesterAddr string, batc
 }
 
 // TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
-func (d *Distributor) sendSamplesErr(ctx context.Context, ingesterAddr string, req *friggpb.PushRequest) error {
+func (d *Distributor) sendSamplesErr(ctx context.Context, ingesterAddr string, req *tempopb.PushRequest) error {
 	c, err := d.pool.GetClientFor(ingesterAddr)
 	if err != nil {
 		return err
 	}
 
-	_, err = c.(friggpb.PusherClient).Push(ctx, req)
+	_, err = c.(tempopb.PusherClient).Push(ctx, req)
 	metricIngesterAppends.WithLabelValues(ingesterAddr).Inc()
 	if err != nil {
 		metricIngesterAppendFailures.WithLabelValues(ingesterAddr).Inc()
@@ -246,12 +246,12 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
 }
 
-func (d *Distributor) routeRequest(req *friggpb.PushRequest, userID string, spanCount int) (map[string][]*friggpb.PushRequest, error) {
+func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, spanCount int) (map[string][]*tempopb.PushRequest, error) {
 	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
 	var descs [maxExpectedReplicationSet]ring.IngesterDesc
 
 	// todo: add a metric to track traces per batch
-	requests := make(map[uint32]*friggpb.PushRequest)
+	requests := make(map[uint32]*tempopb.PushRequest)
 	for _, span := range req.Batch.Spans {
 		if !validation.ValidTraceID(span.TraceId) {
 			return nil, httpgrpc.Errorf(http.StatusBadRequest, "trace ids must be 128 bit")
@@ -261,7 +261,7 @@ func (d *Distributor) routeRequest(req *friggpb.PushRequest, userID string, span
 
 		routedReq, ok := requests[key]
 		if !ok {
-			routedReq = pushRequestPool.Get().(*friggpb.PushRequest)
+			routedReq = pushRequestPool.Get().(*tempopb.PushRequest)
 			resourceSpans := resourceSpansPool.Get().(*opentelemetry_proto_trace_v1.ResourceSpans)
 
 			resourceSpans.Spans = make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount) // assume most spans belong to the same trace
@@ -273,7 +273,7 @@ func (d *Distributor) routeRequest(req *friggpb.PushRequest, userID string, span
 		routedReq.Batch.Spans = append(routedReq.Batch.Spans, span)
 	}
 
-	requestsByIngester := make(map[string][]*friggpb.PushRequest)
+	requestsByIngester := make(map[string][]*tempopb.PushRequest)
 	for key, routedReq := range requests {
 		// now map to ingesters
 		replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])

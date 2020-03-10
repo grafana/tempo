@@ -40,7 +40,7 @@
         maintenanceCycle: '5m',
         backend: 'gcs',
         wal: {
-          path: '/var/frigg/wal',
+          path: '/var/tempo/wal',
           'bloom-filter-false-positive': 0.05,
           'index-downsample': 100,
         },
@@ -53,7 +53,7 @@
           queue_depth: 10000,
         },
         cache: {
-          'disk-path': '/var/frigg/cache',
+          'disk-path': '/var/tempo/cache',
           'disk-max-mbs': 1024,
           'disk-prune-count': 100,
           'disk-clean-rate': '1m',

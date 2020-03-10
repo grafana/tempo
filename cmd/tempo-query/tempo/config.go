@@ -1,4 +1,4 @@
-package frigg
+package tempo
 
 import (
 	"github.com/spf13/viper"

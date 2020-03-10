@@ -7,7 +7,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/frigg/pkg/ingester/client"
+	"github.com/grafana/tempo/pkg/ingester/client"
 )
 
 // Config for an ingester.

@@ -6,7 +6,7 @@ import (
 	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/dgryski/go-farm"
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type HeadBlock struct {

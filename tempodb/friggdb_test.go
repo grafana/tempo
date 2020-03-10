@@ -1,4 +1,4 @@
-package friggdb
+package tempodb
 
 import (
 	"context"
@@ -13,10 +13,10 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/backend/local"
-	"github.com/grafana/frigg/friggdb/wal"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,7 +60,7 @@ func TestDB(t *testing.T) {
 
 	// write
 	numMsgs := 10
-	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
+	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
 		id := make([]byte, 16)
@@ -89,7 +89,7 @@ func TestDB(t *testing.T) {
 		bFound, _, err := r.Find(testTenantID, id)
 		assert.NoError(t, err)
 
-		out := &friggpb.PushRequest{}
+		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(bFound, out)
 		assert.NoError(t, err)
 

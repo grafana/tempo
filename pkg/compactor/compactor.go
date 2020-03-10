@@ -1,7 +1,7 @@
 package compactor
 
 import (
-	"github.com/grafana/frigg/pkg/storage"
+	"github.com/grafana/tempo/pkg/storage"
 )
 
 type Compactor struct {

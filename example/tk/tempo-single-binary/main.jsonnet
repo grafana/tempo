@@ -1,4 +1,4 @@
-local frigg = import '../../../operations/jsonnet/single-binary/frigg.libsonnet';
+local frigg = import '../../../operations/jsonnet/single-binary/tempo.libsonnet';
 local load = import 'synthetic-load-generator/main.libsonnet';
 
 load + frigg {

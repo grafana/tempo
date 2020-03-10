@@ -5,7 +5,7 @@ import (
 	"time"
 
 	bloom "github.com/dgraph-io/ristretto/z"
-	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type ReplayBlock interface {

@@ -8,7 +8,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/tempo/tempodb/backend"
 	"google.golang.org/api/iterator"
 )
 

@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"hash/fnv"
 
-	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 // TokenFor generates a token used for finding ingesters from ring

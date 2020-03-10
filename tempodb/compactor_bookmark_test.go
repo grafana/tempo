@@ -1,4 +1,4 @@
-package friggdb
+package tempodb
 
 import (
 	"context"
@@ -13,10 +13,10 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/backend"
-	"github.com/grafana/frigg/friggdb/backend/local"
-	"github.com/grafana/frigg/friggdb/wal"
-	"github.com/grafana/frigg/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 )
 

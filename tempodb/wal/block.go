@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type block struct {

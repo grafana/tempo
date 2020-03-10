@@ -20,8 +20,8 @@ import (
 
 	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
 
-	"github.com/grafana/frigg/pkg/friggpb"
-	frigg_util "github.com/grafana/frigg/pkg/util"
+	"github.com/grafana/tempo/pkg/tempopb"
+	frigg_util "github.com/grafana/tempo/pkg/util"
 )
 
 type Receivers interface {
@@ -32,10 +32,10 @@ type Receivers interface {
 type receiversShim struct {
 	authEnabled bool
 	receivers   []receiver.TraceReceiver
-	pusher      friggpb.PusherServer
+	pusher      tempopb.PusherServer
 }
 
-func New(receiverCfg map[string]interface{}, pusher friggpb.PusherServer, authEnabled bool) (Receivers, error) {
+func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEnabled bool) (Receivers, error) {
 	shim := &receiversShim{
 		authEnabled: authEnabled,
 		pusher:      pusher,
@@ -119,7 +119,7 @@ func (r *receiversShim) ConsumeTraceData(ctx context.Context, td consumerdata.Tr
 	// todo: eventually otel collector intends to start using otel proto internally instead of opencensus
 	//  when that happens we need to update our dependency and we can remove all of this translation logic
 	// also note: this translation logic is woefully incomplete and is meant as a stopgap while we wait for the otel collector
-	_, err := r.pusher.Push(ctx, &friggpb.PushRequest{
+	_, err := r.pusher.Push(ctx, &tempopb.PushRequest{
 		Batch: convertTraceData(td),
 	})
 

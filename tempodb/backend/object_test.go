@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/util/test"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,7 +26,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, bytes.Equal(id, outID))
 
-	outReq := &friggpb.PushRequest{}
+	outReq := &tempopb.PushRequest{}
 	err = proto.Unmarshal(outObject, outReq)
 	assert.NoError(t, err)
 
@@ -38,7 +38,7 @@ func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 	id := []byte{0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01}
 	rand.Read(id)
 
-	var reqs []*friggpb.PushRequest
+	var reqs []*tempopb.PushRequest
 	for i := 0; i < 10; i++ {
 		req := test.MakeRequest(10, id)
 		reqs = append(reqs, req)
@@ -58,7 +58,7 @@ func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 		actualBuffer, outID, outObject, err = unmarshalAndAdvanceBuffer(actualBuffer)
 		assert.NoError(t, err)
 
-		outReq := &friggpb.PushRequest{}
+		outReq := &tempopb.PushRequest{}
 		err = proto.Unmarshal(outObject, outReq)
 		assert.NoError(t, err)
 

@@ -14,10 +14,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
 
-	friggdb_backend "github.com/grafana/frigg/friggdb/backend"
-	friggdb_wal "github.com/grafana/frigg/friggdb/wal"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/util"
+	friggdb_backend "github.com/grafana/tempo/tempodb/backend"
+	friggdb_wal "github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type traceFingerprint uint64
@@ -71,7 +71,7 @@ func newInstance(instanceID string, limiter *Limiter, wal *friggdb_wal.WAL) (*in
 	return i, nil
 }
 
-func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
+func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -188,7 +188,7 @@ func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error
 	return err
 }
 
-func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
+func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	// First search live traces being assembled in the ingester instance.
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[traceFingerprint(util.Fingerprint(id))]; ok {
@@ -206,7 +206,7 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 		return nil, err
 	}
 	if foundBytes != nil {
-		out := &friggpb.Trace{}
+		out := &tempopb.Trace{}
 
 		err = proto.Unmarshal(foundBytes, out)
 		if err != nil {
@@ -222,7 +222,7 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 			return nil, err
 		}
 		if foundBytes != nil {
-			out := &friggpb.Trace{}
+			out := &tempopb.Trace{}
 
 			err = proto.Unmarshal(foundBytes, out)
 			if err != nil {
@@ -235,7 +235,7 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 	return nil, nil
 }
 
-func (i *instance) getOrCreateTrace(req *friggpb.PushRequest) (*trace, error) {
+func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	if len(req.Batch.Spans) == 0 {
 		return nil, fmt.Errorf("invalid request received with 0 spans")
 	}

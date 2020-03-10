@@ -37,12 +37,12 @@
       containerPort.new('prom-metrics', $._config.port),
     ]) +
     container.withArgs([
-      '-config.file=/conf/frigg.yaml',
+      '-config.file=/conf/tempo.yaml',
       '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
     container.withVolumeMounts([
       volumeMount.new(frigg_config_volume, '/conf'),
-      volumeMount.new(frigg_data_volume, '/var/frigg'),
+      volumeMount.new(frigg_data_volume, '/var/tempo'),
     ]),
 
   frigg_query_container::
@@ -52,7 +52,7 @@
     ]) +
     container.withArgs([
       '--query.base-path=' + $._config.jaeger_ui.base_path,
-      '--grpc-storage-plugin.configuration-file=/conf/frigg-query.yaml',
+      '--grpc-storage-plugin.configuration-file=/conf/tempo-query.yaml',
     ]) +
     container.withVolumeMounts([
       volumeMount.new(frigg_query_config_volume, '/conf'),

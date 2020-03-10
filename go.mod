@@ -1,4 +1,4 @@
-module github.com/grafana/frigg
+module github.com/grafana/tempo
 
 go 1.13
 

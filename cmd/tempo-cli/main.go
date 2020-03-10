@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 var (
@@ -48,7 +48,7 @@ func findTraceByID(host string, id string) error {
 		return err
 	}
 
-	out := &friggpb.Trace{}
+	out := &tempopb.Trace{}
 	err = json.NewDecoder(resp.Body).Decode(out)
 	if err != nil {
 		return err

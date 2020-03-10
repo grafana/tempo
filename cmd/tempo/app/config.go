@@ -13,13 +13,13 @@ import (
 	"github.com/weaveworks/common/server"
 	"google.golang.org/grpc"
 
-	"github.com/grafana/frigg/pkg/compactor"
-	"github.com/grafana/frigg/pkg/distributor"
-	"github.com/grafana/frigg/pkg/ingester"
-	"github.com/grafana/frigg/pkg/ingester/client"
-	"github.com/grafana/frigg/pkg/querier"
-	"github.com/grafana/frigg/pkg/storage"
-	"github.com/grafana/frigg/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/compactor"
+	"github.com/grafana/tempo/pkg/distributor"
+	"github.com/grafana/tempo/pkg/ingester"
+	"github.com/grafana/tempo/pkg/ingester/client"
+	"github.com/grafana/tempo/pkg/querier"
+	"github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/pkg/util/validation"
 )
 
 // Config is the root config for App.

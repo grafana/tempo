@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/util"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -35,7 +35,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := q.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
+	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID: byteID,
 	})
 

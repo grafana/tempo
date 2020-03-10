@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dgryski/go-farm"
-	"github.com/grafana/frigg/friggdb/backend"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 const (
@@ -72,7 +72,7 @@ func TestReadWrite(t *testing.T) {
 	foundBytes, err := block.Find([]byte{0x00, 0x01})
 	assert.NoError(t, err, "unexpected error creating reading req")
 
-	outReq := &friggpb.PushRequest{}
+	outReq := &tempopb.PushRequest{}
 	err = proto.Unmarshal(foundBytes, outReq)
 	assert.NoError(t, err)
 	assert.True(t, proto.Equal(req, outReq))
@@ -96,7 +96,7 @@ func TestAppend(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 1
-	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
+	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
 		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
 		reqs = append(reqs, req)
@@ -119,7 +119,7 @@ func TestAppend(t *testing.T) {
 			break
 		}
 
-		req := &friggpb.PushRequest{}
+		req := &tempopb.PushRequest{}
 		err = proto.Unmarshal(bytesObject, req)
 		assert.NoError(t, err)
 
@@ -170,7 +170,7 @@ func TestIterator(t *testing.T) {
 			break
 		}
 
-		req := &friggpb.PushRequest{}
+		req := &tempopb.PushRequest{}
 		err = proto.Unmarshal(msg, req)
 		assert.NoError(t, err)
 		i++
@@ -199,7 +199,7 @@ func TestCompleteBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 100
-	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
+	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
 		id := make([]byte, 16)
@@ -222,7 +222,7 @@ func TestCompleteBlock(t *testing.T) {
 	assert.True(t, bytes.Equal(complete.meta.MaxID, block.meta.MaxID))
 
 	for i, id := range ids {
-		out := &friggpb.PushRequest{}
+		out := &tempopb.PushRequest{}
 		foundBytes, err := complete.Find(id)
 		assert.NoError(t, err)
 
@@ -286,7 +286,7 @@ func BenchmarkWriteRead(b *testing.B) {
 	// 1 million requests, 10k spans per request
 	block, _ := wal.NewBlock(blockID, testTenantID)
 	numMsgs := 100
-	reqs := make([]*friggpb.PushRequest, 0, numMsgs)
+	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
 		req := test.MakeRequest(100, []byte{})
 		reqs = append(reqs, req)

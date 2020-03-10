@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/tempo/tempodb/backend"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -22,17 +22,17 @@ const (
 
 var (
 	metricDiskCacheMiss = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "disk_cache_miss_total",
 		Help:      "Total number of times the disk cache missed.",
 	}, []string{"type"})
 	metricDiskCache = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "disk_cache_total",
 		Help:      "Total number of times there were errors checking the disk cache.",
 	}, []string{"type", "status"})
 	metricDiskCacheClean = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "friggdb",
+		Namespace: "tempodb",
 		Name:      "disk_cache_clean_total",
 		Help:      "Total number of times a disk clean has occurred.",
 	}, []string{"status"})

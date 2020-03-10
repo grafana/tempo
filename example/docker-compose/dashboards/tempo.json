@@ -2094,7 +2094,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(frigg_request_duration_seconds_sum{route=\"/friggpb.Querier/FindTraceByID\"}[$interval])",
+              "expr": "rate(frigg_request_duration_seconds_sum{route=\"/tempopb.Querier/FindTraceByID\"}[$interval])",
               "hide": false,
               "legendFormat": "{{layer}}",
               "refId": "A"
@@ -2182,7 +2182,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "frigg_request_duration_seconds_sum{route=\"/friggpb.Querier/FindTraceByID\", status_code=\"success\"} / frigg_request_duration_seconds_sum{route=\"/friggpb.Querier/FindTraceByID\"}",
+              "expr": "frigg_request_duration_seconds_sum{route=\"/tempopb.Querier/FindTraceByID\", status_code=\"success\"} / frigg_request_duration_seconds_sum{route=\"/tempopb.Querier/FindTraceByID\"}",
               "refId": "A"
             }
           ],
@@ -2365,17 +2365,17 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "histogram_quantile(.99, sum(rate(frigg_request_duration_seconds_bucket{route=\"/friggpb.Querier/FindTraceByID\"}[$interval])) by (le))",
+              "expr": "histogram_quantile(.99, sum(rate(frigg_request_duration_seconds_bucket{route=\"/tempopb.Querier/FindTraceByID\"}[$interval])) by (le))",
               "legendFormat": ".99",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(.9, sum(rate(frigg_request_duration_seconds_bucket{route=\"/friggpb.Querier/FindTraceByID\"}[$interval])) by (le))",
+              "expr": "histogram_quantile(.9, sum(rate(frigg_request_duration_seconds_bucket{route=\"/tempopb.Querier/FindTraceByID\"}[$interval])) by (le))",
               "legendFormat": ".9",
               "refId": "B"
             },
             {
-              "expr": "histogram_quantile(.5, sum(rate(frigg_request_duration_seconds_bucket{route=\"/friggpb.Querier/FindTraceByID\"}[$interval])) by (le))",
+              "expr": "histogram_quantile(.5, sum(rate(frigg_request_duration_seconds_bucket{route=\"/tempopb.Querier/FindTraceByID\"}[$interval])) by (le))",
               "legendFormat": ".5",
               "refId": "C"
             }
@@ -3008,7 +3008,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "frigg_request_duration_seconds_sum{route=\"/friggpb.Pusher/Push\", status_code=\"success\"} / frigg_request_duration_seconds_sum{route=\"/friggpb.Pusher/Push\"}",
+          "expr": "frigg_request_duration_seconds_sum{route=\"/tempopb.Pusher/Push\", status_code=\"success\"} / frigg_request_duration_seconds_sum{route=\"/tempopb.Pusher/Push\"}",
           "refId": "A"
         }
       ],
@@ -3094,17 +3094,17 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "histogram_quantile(.99, sum(rate(frigg_request_duration_seconds_bucket{route=\"/friggpb.Pusher/Push\"}[$interval])) by (le))",
+          "expr": "histogram_quantile(.99, sum(rate(frigg_request_duration_seconds_bucket{route=\"/tempopb.Pusher/Push\"}[$interval])) by (le))",
           "legendFormat": ".99",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(.9, sum(rate(frigg_request_duration_seconds_bucket{route=\"/friggpb.Pusher/Push\"}[$interval])) by (le))",
+          "expr": "histogram_quantile(.9, sum(rate(frigg_request_duration_seconds_bucket{route=\"/tempopb.Pusher/Push\"}[$interval])) by (le))",
           "legendFormat": ".9",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(.5, sum(rate(frigg_request_duration_seconds_bucket{route=\"/friggpb.Pusher/Push\"}[$interval])) by (le))",
+          "expr": "histogram_quantile(.5, sum(rate(frigg_request_duration_seconds_bucket{route=\"/tempopb.Pusher/Push\"}[$interval])) by (le))",
           "legendFormat": ".5",
           "refId": "C"
         }

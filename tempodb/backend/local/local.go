@@ -10,7 +10,7 @@ import (
 	"path"
 
 	"github.com/google/uuid"
-	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type readerWriter struct {

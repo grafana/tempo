@@ -1,7 +1,7 @@
-package friggdb
+package tempodb
 
 import (
-	"github.com/grafana/frigg/friggdb/backend"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type bookmark struct {

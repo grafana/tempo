@@ -35,16 +35,16 @@ storage_config:
     maintenanceCycle: 30s
     backend: local
     wal:
-      path: /tmp/frigg/wal
+      path: /tmp/tempo/wal
       bloom-filter-false-positive: .05
       index-downsample: 10
     local:
-      path: /tmp/frigg/traces
+      path: /tmp/tempo/traces
     query_pool:
       max_workers: 100
       queue_depth: 10000
     cache:
-      disk-path: /tmp/frigg/cache
+      disk-path: /tmp/tempo/cache
       disk-max-mbs: 5
       disk-prune-count: 10
       disk-clean-rate: 30s

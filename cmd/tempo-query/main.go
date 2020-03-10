@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/grafana/frigg/cmd/frigg-query/frigg"
+	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 	"github.com/hashicorp/go-hclog"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"

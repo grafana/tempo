@@ -12,13 +12,13 @@ import (
 	"github.com/weaveworks/common/server"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/frigg/pkg/compactor"
-	"github.com/grafana/frigg/pkg/distributor"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/ingester"
-	"github.com/grafana/frigg/pkg/querier"
-	frigg_storage "github.com/grafana/frigg/pkg/storage"
-	"github.com/grafana/frigg/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/compactor"
+	"github.com/grafana/tempo/pkg/distributor"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/ingester"
+	"github.com/grafana/tempo/pkg/querier"
+	frigg_storage "github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/pkg/util/validation"
 )
 
 type moduleName int
@@ -151,8 +151,8 @@ func (t *App) initIngester() (err error) {
 		return
 	}
 
-	friggpb.RegisterPusherServer(t.server.GRPC, t.ingester)
-	friggpb.RegisterQuerierServer(t.server.GRPC, t.ingester)
+	tempopb.RegisterPusherServer(t.server.GRPC, t.ingester)
+	tempopb.RegisterQuerierServer(t.server.GRPC, t.ingester)
 	grpc_health_v1.RegisterHealthServer(t.server.GRPC, t.ingester)
 	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.ingester.ReadinessHandler))
 	t.server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))

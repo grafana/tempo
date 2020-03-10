@@ -40,19 +40,19 @@
         maintenanceCycle: "5m",
         backend: "local",
         wal: {
-          path: "/var/frigg/wal",
+          path: "/var/tempo/wal",
           "bloom-filter-false-positive": 0.05,
           "index-downsample": 100
         },
         "local": {
-          path: "/tmp/frigg/traces"
+          path: "/tmp/tempo/traces"
         },
         query_pool: {
           max_workers: 50,
           queue_depth: 10000
         },
         cache: {
-          "disk-path": "/var/frigg/cache",
+          "disk-path": "/var/tempo/cache",
           "disk-max-mbs": 1024,
           "disk-prune-count": 100,
           "disk-clean-rate": "1m"

@@ -7,12 +7,12 @@ import (
 	"reflect"
 	"runtime"
 
-	"github.com/grafana/frigg/cmd/frigg/app"
-	_ "github.com/grafana/frigg/cmd/frigg/build"
+	"github.com/grafana/tempo/cmd/tempo/app"
+	_ "github.com/grafana/tempo/cmd/tempo/build"
 
 	"github.com/go-kit/kit/log/level"
 
-	"github.com/grafana/frigg/cmd/frigg/cfg"
+	"github.com/grafana/tempo/cmd/tempo/cfg"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	"github.com/weaveworks/common/logging"
@@ -21,7 +21,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 )
 
-const appName = "frigg"
+const appName = "tempo"
 
 var (
 	ballastMBs int
@@ -64,22 +64,22 @@ func main() {
 	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
 	ballast := make([]byte, ballastMBs*1024*1024)
 
-	// Start Frigg
+	// Start Tempo
 	t, err := app.New(config)
 	if err != nil {
-		level.Error(util.Logger).Log("msg", "error initialising Frigg", "err", err)
+		level.Error(util.Logger).Log("msg", "error initialising Tempo", "err", err)
 		os.Exit(1)
 	}
 
-	level.Info(util.Logger).Log("msg", "Starting Frigg", "version", version.Info())
+	level.Info(util.Logger).Log("msg", "Starting Tempo", "version", version.Info())
 
 	if err := t.Run(); err != nil {
-		level.Error(util.Logger).Log("msg", "error running Frigg", "err", err)
+		level.Error(util.Logger).Log("msg", "error running Tempo", "err", err)
 	}
 
 	runtime.KeepAlive(ballast)
 	if err := t.Stop(); err != nil {
-		level.Error(util.Logger).Log("msg", "error stopping Frigg", "err", err)
+		level.Error(util.Logger).Log("msg", "error stopping Tempo", "err", err)
 		os.Exit(1)
 	}
 }
