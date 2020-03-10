@@ -13,15 +13,17 @@ var pushRequestPool = sync.Pool{
 	},
 }
 
-var pushResourceSpansPool = sync.Pool{
+var resourceSpansPool = sync.Pool{
 	New: func() interface{} {
 		return &opentelemetry_proto_trace_v1.ResourceSpans{}
 	},
 }
 
-func resetPushRequests(reqs map[string][]*friggpb.PushRequest) {
-	for _, req := range reqs {
-		req.Batch.Spans = nil
-		req.Batch.Resource = nil
+func resetPushRequests(reqsPerIngester map[string][]*friggpb.PushRequest) {
+	for _, reqs := range reqsPerIngester {
+		for _, req := range reqs {
+			req.Batch.Spans = nil
+			req.Batch.Resource = nil
+		}
 	}
 }

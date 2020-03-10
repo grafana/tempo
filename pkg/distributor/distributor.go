@@ -264,7 +264,7 @@ func (d *Distributor) routeRequest(req *friggpb.PushRequest, userID string, span
 			routedReq = pushRequestPool.Get().(*friggpb.PushRequest)
 			resourceSpans := resourceSpansPool.Get().(*opentelemetry_proto_trace_v1.ResourceSpans)
 
-			resourceSpans.Spans = make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace
+			resourceSpans.Spans = make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount) // assume most spans belong to the same trace
 			resourceSpans.Resource = req.Batch.Resource
 			routedReq.Batch = resourceSpans
 
