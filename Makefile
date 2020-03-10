@@ -70,7 +70,7 @@ endif
 .PHONY: gen-proto
 gen-proto:
 	vend -package
-	protoc -I vendor/github.com/open-telemetry/opentelemetry-proto -I pkg/friggpb/ pkg/friggpb/frigg.proto --gogoslick_out=plugins=grpc:pkg/friggpb
+	protoc -I vendor/github.com/open-telemetry/opentelemetry-proto -I pkg/friggpb/ pkg/friggpb/frigg.proto --go_out=plugins=grpc:pkg/friggpb
 	$(MAKE) vendor-dependencies
 
 .PHONY: vendor-dependencies
