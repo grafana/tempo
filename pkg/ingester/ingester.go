@@ -17,11 +17,11 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	friggdb_wal "github.com/grafana/tempo/tempodb/wal"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/ingester/client"
 	"github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/validation"
+	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 // ErrReadOnly is returned when the ingester is shutting down and a push was
@@ -31,7 +31,7 @@ var ErrReadOnly = errors.New("Ingester is shutting down")
 var readinessProbeSuccess = []byte("Ready")
 
 var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
-	Namespace: "frigg",
+	Namespace: "tempo",
 	Name:      "ingester_flush_queue_length",
 	Help:      "The total number of series pending in the flush queue.",
 })
@@ -60,7 +60,7 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
-	wal     *friggdb_wal.WAL
+	wal     *tempodb_wal.WAL
 }
 
 // New makes a new Ingester.
@@ -298,7 +298,7 @@ func (i *Ingester) replayWal() error {
 	return nil
 }
 
-func (i *Ingester) replayBlock(b friggdb_wal.ReplayBlock, instance *instance) error {
+func (i *Ingester) replayBlock(b tempodb_wal.ReplayBlock, instance *instance) error {
 	iterator, err := b.Iterator()
 	if err != nil {
 		return err

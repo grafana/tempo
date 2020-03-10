@@ -6,7 +6,7 @@ import (
 	"github.com/grafana/tempo/tempodb"
 )
 
-// Config is the Frigg storage configuration
+// Config is the Tempo storage configuration
 type Config struct {
 	Trace tempodb.Config `yaml:"trace"`
 }

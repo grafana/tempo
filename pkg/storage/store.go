@@ -6,7 +6,7 @@ import (
 	"github.com/grafana/tempo/tempodb"
 )
 
-// Store is the Frigg chunk store to retrieve and save chunks.
+// Store is the Tempo chunk store to retrieve and save chunks.
 type Store interface {
 	tempodb.Reader
 	tempodb.Writer
@@ -21,7 +21,7 @@ type store struct {
 	tempodb.Compactor
 }
 
-// NewStore creates a new Frigg Store using configuration supplied.
+// NewStore creates a new Tempo Store using configuration supplied.
 func NewStore(cfg Config, limits storage.StoreLimits, logger log.Logger) (Store, error) {
 	r, w, c, err := tempodb.New(&cfg.Trace, logger)
 	if err != nil {

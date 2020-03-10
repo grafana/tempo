@@ -1,7 +1,7 @@
-local frigg = import '../../../operations/jsonnet/single-binary/tempo.libsonnet';
+local tempo = import '../../../operations/jsonnet/single-binary/tempo.libsonnet';
 local load = import 'synthetic-load-generator/main.libsonnet';
 
-load + frigg {
+load + tempo {
     _config +:: {
         namespace: 'default',
         pvc_size: '30Gi',
@@ -17,7 +17,7 @@ load + frigg {
 
     local container = $.core.v1.container,
     local containerPort = $.core.v1.containerPort,
-    frigg_container+::
+    tempo_container+::
         $.util.resourcesRequests('1', '500Mi') +
         container.withPortsMixin([
             containerPort.new('jaeger-http', 14268),
@@ -34,7 +34,7 @@ load + frigg {
         ingress.mixin.spec.withRules(
             ingress.mixin.specType.rulesType.mixin.http.withPaths(
                 ingress.mixin.spec.rulesType.mixin.httpType.pathsType.withPath('/') +
-                ingress.mixin.specType.mixin.backend.withServiceName('frigg') +
+                ingress.mixin.specType.mixin.backend.withServiceName('tempo') +
                 ingress.mixin.specType.mixin.backend.withServicePort(16686)
             ),
         ),

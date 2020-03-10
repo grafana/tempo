@@ -16,10 +16,10 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/ingester/client"
 	"github.com/grafana/tempo/pkg/storage"
-	frigg_util "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/tempopb"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/validation"
 )
 
@@ -27,13 +27,13 @@ var (
 	readinessProbeSuccess = []byte("Ready")
 
 	metricQueryReads = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "query_reads",
 		Help:      "count of reads",
 		Buckets:   prometheus.ExponentialBuckets(0.5, 2, 10),
 	}, []string{"layer"})
 	metricQueryBytesRead = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "query_bytes_read",
 		Help:      "bytes read",
 		Buckets:   prometheus.ExponentialBuckets(512, 2, 10),
@@ -86,7 +86,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, err
 	}
 
-	key := frigg_util.TokenFor(userID, req.TraceID)
+	key := tempo_util.TokenFor(userID, req.TraceID)
 
 	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
 	var descs [maxExpectedReplicationSet]ring.IngesterDesc

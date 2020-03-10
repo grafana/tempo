@@ -22,25 +22,25 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/tempo/pkg/distributor/receiver"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/ingester/client"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/validation"
 )
 
 var (
 	metricIngesterAppends = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "distributor_ingester_appends_total",
 		Help:      "The total number of batch appends sent to ingesters.",
 	}, []string{"ingester"})
 	metricIngesterAppendFailures = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "distributor_ingester_append_failures_total",
 		Help:      "The total number of failed batch appends sent to ingesters.",
 	}, []string{"ingester"})
 	metricSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "distributor_spans_received_total",
 		Help:      "The total number of spans received per tenant",
 	}, []string{"tenant"})

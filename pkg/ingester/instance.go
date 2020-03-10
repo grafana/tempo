@@ -14,8 +14,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
 
-	friggdb_backend "github.com/grafana/tempo/tempodb/backend"
-	friggdb_wal "github.com/grafana/tempo/tempodb/wal"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -29,12 +27,12 @@ var (
 
 var (
 	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "ingester_traces_created_total",
 		Help:      "The total number of traces created per tenant.",
 	}, []string{"tenant"})
 	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "ingester_blocks_cleared_total",
 		Help:      "The total number of blocks cleared.",
 	})
@@ -45,17 +43,17 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blockTracesMtx sync.RWMutex
-	headBlock      *friggdb_wal.HeadBlock
-	completeBlocks []*friggdb_wal.CompleteBlock
+	headBlock      *tempodb_wal.HeadBlock
+	completeBlocks []*tempodb_wal.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	limiter            *Limiter
-	wal                *friggdb_wal.WAL
+	wal                *tempodb_wal.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal *friggdb_wal.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[traceFingerprint]*trace{},
 
@@ -88,7 +86,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 }
 
 // PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushBytes(ctx context.Context, id friggdb_backend.ID, object []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id tempodb_backend.ID, object []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -150,7 +148,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return ready, nil
 }
 
-func (i *instance) GetBlockToBeFlushed() *friggdb_wal.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 

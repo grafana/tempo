@@ -1,7 +1,7 @@
-local frigg = import '../../../operations/jsonnet/microservices/tempo.libsonnet';
+local tempo = import '../../../operations/jsonnet/microservices/tempo.libsonnet';
 local load = import 'synthetic-load-generator/main.libsonnet';
 
-load + frigg {
+load + tempo {
     _config +:: {
         namespace: 'default',
         compactor+: {
@@ -31,7 +31,7 @@ load + frigg {
 
     // manually overriding for local testing.  technically once a trace is flushed to the backend it
     //  will not be queryable with this config
-    frigg_config +:: {
+    tempo_config +:: {
         storage_config+: {
             trace+: {
                 backend: 'local',
@@ -43,26 +43,26 @@ load + frigg {
     },
     
     local service = $.core.v1.service,
-    frigg_service:
-        $.util.serviceFor($.frigg_distributor_deployment)
-        + service.mixin.metadata.withName('frigg'),
+    tempo_service:
+        $.util.serviceFor($.tempo_distributor_deployment)
+        + service.mixin.metadata.withName('tempo'),
 
     local container = $.core.v1.container,
     local containerPort = $.core.v1.containerPort,
-    frigg_compactor_container+::
+    tempo_compactor_container+::
         $.util.resourcesRequests('500m', '500Mi'),
 
-    frigg_distributor_container+::
+    tempo_distributor_container+::
         $.util.resourcesRequests('500m', '500Mi') +
         container.withPortsMixin([
             containerPort.new('opencensus', 55678),
             containerPort.new('jaeger-http', 14268),
         ]),
 
-    frigg_ingester_container+::
+    tempo_ingester_container+::
         $.util.resourcesRequests('500m', '500Mi'),
 
-    frigg_querier_container+::
+    tempo_querier_container+::
         $.util.resourcesRequests('500m', '500Mi'),
 
     local ingress = $.extensions.v1beta1.ingress,
