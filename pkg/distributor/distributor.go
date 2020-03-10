@@ -67,13 +67,6 @@ type Distributor struct {
 	ingestionRateLimiter *limiter.RateLimiter
 }
 
-// TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
-type pushTracker struct {
-	samplesPending int32
-	done           chan struct{}
-	err            chan error
-}
-
 // New a distributor creates.
 func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overrides *validation.Overrides, authEnabled bool) (*Distributor, error) {
 	factory := cfg.factory
