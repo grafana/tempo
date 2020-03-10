@@ -203,8 +203,10 @@ func (d *Distributor) Push(ctx context.Context, req *friggpb.PushRequest) (*frig
 
 	select {
 	case <-done:
+		resetPushRequests(requestsByIngester)
 		return &friggpb.PushResponse{}, atomicErr.Load()
 	case <-ctx.Done():
+		resetPushRequests(requestsByIngester)
 		return nil, ctx.Err()
 	}
 }
@@ -259,12 +261,13 @@ func (d *Distributor) routeRequest(req *friggpb.PushRequest, userID string, span
 
 		routedReq, ok := requests[key]
 		if !ok {
-			routedReq = &friggpb.PushRequest{
-				Batch: &opentelemetry_proto_trace_v1.ResourceSpans{
-					Spans:    make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace
-					Resource: req.Batch.Resource,
-				},
-			}
+			routedReq = pushRequestPool.Get().(*friggpb.PushRequest)
+			resourceSpans := resourceSpansPool.Get().(*opentelemetry_proto_trace_v1.ResourceSpans)
+
+			resourceSpans.Spans = make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount) // assume most spans belong to the same trace
+			resourceSpans.Resource = req.Batch.Resource
+			routedReq.Batch = resourceSpans
+
 			requests[key] = routedReq
 		}
 		routedReq.Batch.Spans = append(routedReq.Batch.Spans, span)
