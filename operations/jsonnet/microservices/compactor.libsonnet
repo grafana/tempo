@@ -9,10 +9,10 @@
   local servicePort = service.mixin.spec.portsType,
 
   local target_name = 'compactor',
-  local frigg_config_volume = 'frigg-conf',
-  local frigg_data_volume = 'frigg-data',
+  local tempo_config_volume = 'tempo-conf',
+  local tempo_data_volume = 'tempo-data',
 
-  frigg_compactor_pvc:
+  tempo_compactor_pvc:
     pvc.new() +
     pvc.mixin.spec.resources
     .withRequests({ storage: $._config.compactor.pvc_size }) +
@@ -25,8 +25,8 @@
     .withName(target_name) +
     { kind: 'PersistentVolumeClaim', apiVersion: 'v1' },
 
-  frigg_compactor_container::
-    container.new(target_name, $._images.frigg) +
+  tempo_compactor_container::
+    container.new(target_name, $._images.tempo) +
     container.withPorts([
       containerPort.new('prom-metrics', $._config.port),
     ]) +
@@ -36,24 +36,24 @@
       '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
     container.withVolumeMounts([
-      volumeMount.new(frigg_config_volume, '/conf'),
-      volumeMount.new(frigg_data_volume, '/var/tempo'),
+      volumeMount.new(tempo_config_volume, '/conf'),
+      volumeMount.new(tempo_data_volume, '/var/tempo'),
     ]),
 
-  frigg_compactor_deployment:
+  tempo_compactor_deployment:
     deployment.new(target_name,
                    $._config.compactor.replicas,
                    [
-                     $.frigg_compactor_container,
+                     $.tempo_compactor_container,
                    ],
                    { app: target_name }) +
     deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(0) +
     deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
     deployment.mixin.spec.template.metadata.withAnnotations({
-      config_hash: std.md5(std.toString($.frigg_compactor_configmap)),
+      config_hash: std.md5(std.toString($.tempo_compactor_configmap)),
     }) +
     deployment.mixin.spec.template.spec.withVolumes([
-      volume.fromConfigMap(frigg_config_volume, $.frigg_compactor_configmap.metadata.name),
-      volume.fromPersistentVolumeClaim(frigg_data_volume, $.frigg_compactor_pvc.metadata.name),
+      volume.fromConfigMap(tempo_config_volume, $.tempo_compactor_configmap.metadata.name),
+      volume.fromPersistentVolumeClaim(tempo_data_volume, $.tempo_compactor_pvc.metadata.name),
     ]),
 }

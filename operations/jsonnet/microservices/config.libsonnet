@@ -1,7 +1,7 @@
 {
   _images+:: {
-    frigg: 'joeelliott/canary-frigg:cd845049',
-    frigg_query: 'joeelliott/canary-frigg-query:cd845049',
+    tempo: 'joeelliott/canary-tempo:cd845049',
+    tempo_query: 'joeelliott/canary-tempo-query:cd845049',
   },
 
   _config+:: {
@@ -34,19 +34,19 @@
     gcs_bucket: error 'Must specify a bucket',
   },
 
-  frigg_compactor_container+::
+  tempo_compactor_container+::
     $.util.resourcesRequests('500m', '3Gi') +
     $.util.resourcesLimits('1', '5Gi'),
 
-  frigg_distributor_container+::
+  tempo_distributor_container+::
     $.util.resourcesRequests('3', '3Gi') +
     $.util.resourcesLimits('5', '5Gi'),
 
-  frigg_ingester_container+::
+  tempo_ingester_container+::
     $.util.resourcesRequests('3', '3Gi') +
     $.util.resourcesLimits('5', '5Gi'),
 
-  frigg_querier_container+::
+  tempo_querier_container+::
     $.util.resourcesRequests('500m', '1Gi') +
     $.util.resourcesLimits('1', '2Gi'),
 }

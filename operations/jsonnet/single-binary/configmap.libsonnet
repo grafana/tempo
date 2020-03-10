@@ -1,7 +1,7 @@
 {
   local configMap = $.core.v1.configMap,
 
-  frigg_config:: {
+  tempo_config:: {
     auth_enabled: false,
     server: {
       http_listen_port: $._config.port
@@ -67,10 +67,10 @@
     }
   },
 
-  frigg_configmap:
-    configMap.new('frigg') +
+  tempo_configmap:
+    configMap.new('tempo') +
     configMap.withData({
-      'frigg.yaml': $.util.manifestYaml($.frigg_config),
+      'tempo.yaml': $.util.manifestYaml($.tempo_config),
     }) +
     configMap.withDataMixin({
       'overrides.yaml': |||
@@ -78,10 +78,10 @@
       |||,
     }),
 
-  frigg_query_configmap:
-    configMap.new('frigg-query') +
+  tempo_query_configmap:
+    configMap.new('tempo-query') +
     configMap.withData({
-      'frigg-query.yaml': $.util.manifestYaml({
+      'tempo-query.yaml': $.util.manifestYaml({
         backend: 'localhost:%d' % $._config.port
       })
     }),
