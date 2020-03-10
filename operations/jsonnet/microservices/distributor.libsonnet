@@ -9,44 +9,44 @@
   local servicePort = service.mixin.spec.portsType,
 
   local target_name = 'distributor',
-  local frigg_config_volume = 'frigg-conf',
+  local tempo_config_volume = 'tempo-conf',
 
-  frigg_distributor_container::
-    container.new(target_name, $._images.frigg) +
+  tempo_distributor_container::
+    container.new(target_name, $._images.tempo) +
     container.withPorts([
       containerPort.new('prom-metrics', $._config.port),
     ]) +
     container.withArgs([
       '-target=' + target_name,
-      '-config.file=/conf/frigg.yaml',
+      '-config.file=/conf/tempo.yaml',
       '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
     container.withVolumeMounts([
-      volumeMount.new(frigg_config_volume, '/conf'),
+      volumeMount.new(tempo_config_volume, '/conf'),
     ]),
 
-  frigg_distributor_deployment:
+  tempo_distributor_deployment:
     deployment.new(target_name,
                    $._config.distributor.replicas,
                    [
-                     $.frigg_distributor_container,
+                     $.tempo_distributor_container,
                    ],
                    {
                      app: target_name,
                      [$._config.gossip_member_label]: 'true',
                    }) +
     deployment.mixin.spec.template.metadata.withAnnotations({
-      config_hash: std.md5(std.toString($.frigg_configmap)),
+      config_hash: std.md5(std.toString($.tempo_configmap)),
     }) +
     deployment.mixin.spec.template.spec.withVolumes([
-      volume.fromConfigMap(frigg_config_volume, $.frigg_configmap.metadata.name),
+      volume.fromConfigMap(tempo_config_volume, $.tempo_configmap.metadata.name),
     ]),
 
-  frigg_distributor_service:
-    $.util.serviceFor($.frigg_distributor_deployment),
+  tempo_distributor_service:
+    $.util.serviceFor($.tempo_distributor_deployment),
 
   ingest_service:
-    $.util.serviceFor($.frigg_distributor_deployment)
+    $.util.serviceFor($.tempo_distributor_deployment)
     + service.mixin.metadata.withName('ingest')
     + service.mixin.spec.withClusterIp('None'),
 }

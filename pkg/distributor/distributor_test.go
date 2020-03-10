@@ -20,10 +20,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/ingester/client"
-	"github.com/grafana/frigg/pkg/util/test"
-	"github.com/grafana/frigg/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/ingester/client"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/util/validation"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	success = &friggpb.PushResponse{}
+	success = &tempopb.PushResponse{}
 	ctx     = user.InjectOrgID(context.Background(), "test")
 )
 
@@ -39,7 +39,7 @@ func TestDistributor(t *testing.T) {
 
 	for i, tc := range []struct {
 		lines            int
-		expectedResponse *friggpb.PushResponse
+		expectedResponse *tempopb.PushResponse
 		expectedError    error
 	}{
 		{
@@ -109,10 +109,10 @@ func prepare(t *testing.T, limits *validation.Limits, kvStore kv.Client) *Distri
 
 type mockIngester struct {
 	grpc_health_v1.HealthClient
-	friggpb.PusherClient
+	tempopb.PusherClient
 }
 
-func (i *mockIngester) Push(ctx context.Context, in *friggpb.PushRequest, opts ...grpc.CallOption) (*friggpb.PushResponse, error) {
+func (i *mockIngester) Push(ctx context.Context, in *tempopb.PushRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
 	return nil, nil
 }
 

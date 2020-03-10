@@ -6,9 +6,9 @@
 cd docker-compose
 docker-compose up
 ```
-- Frigg
+- Tempo
   - http://localhost:3100
-- Frigg-Query
+- Tempo-Query
   - http://localhost:16686
 - Grafana
   - http://localhost:3000
@@ -24,13 +24,13 @@ The Jsonnet is meant to be applied to with (tanka)[https://github.com/grafana/ta
 
 ```
 cd tk
-k3d create --name frigg \
+k3d create --name tempo \
            --publish 16686:80
 
-export KUBECONFIG="$(k3d get-kubeconfig --name='frigg')"
+export KUBECONFIG="$(k3d get-kubeconfig --name='tempo')"
 
 # double check you're applying to your local k3d before running this!
-#   deployment_type can be frigg-single-binary or frigg-microservices
+#   deployment_type can be tempo-single-binary or tempo-microservices
 tk apply <deployment_type>
 ```
 
@@ -50,5 +50,5 @@ Extract a trace id and view it in your browser at `http://localhost:16686/trace/
 
 Clean up:
 ```
-k3d delete --name frigg
+k3d delete --name tempo
 ```

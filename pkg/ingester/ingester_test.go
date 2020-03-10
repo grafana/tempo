@@ -17,14 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/weaveworks/common/user"
 
-	"github.com/grafana/frigg/friggdb"
-	"github.com/grafana/frigg/friggdb/backend/local"
-	"github.com/grafana/frigg/friggdb/wal"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/ingester/client"
-	"github.com/grafana/frigg/pkg/storage"
-	"github.com/grafana/frigg/pkg/util/test"
-	"github.com/grafana/frigg/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/ingester/client"
+	"github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 func TestPushQuery(t *testing.T) {
@@ -36,7 +36,7 @@ func TestPushQuery(t *testing.T) {
 	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
 
 	for pos, traceID := range traceIDs {
-		foundTrace, err := ingester.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
+		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
 		assert.NoError(t, err, "unexpected error querying")
@@ -51,7 +51,7 @@ func TestPushQuery(t *testing.T) {
 
 	// should be able to find them now
 	for i, traceID := range traceIDs {
-		foundTrace, err := ingester.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
+		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
 		assert.NoError(t, err, "unexpected error querying")
@@ -69,7 +69,7 @@ func TestWal(t *testing.T) {
 	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
 
 	for pos, traceID := range traceIDs {
-		foundTrace, err := ingester.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
+		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
 		assert.NoError(t, err, "unexpected error querying")
@@ -87,7 +87,7 @@ func TestWal(t *testing.T) {
 
 	// should be able to find old traces that were replayed
 	for i, traceID := range traceIDs {
-		foundTrace, err := ingester.FindTraceByID(ctx, &friggpb.TraceByIDRequest{
+		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
 		assert.NoError(t, err, "unexpected error querying")
@@ -96,13 +96,13 @@ func TestWal(t *testing.T) {
 	}
 }
 
-func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, [][]byte) {
+func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
 	ingesterConfig := defaultIngesterTestConfig(t)
 	limits, err := validation.NewOverrides(defaultLimitsTestConfig())
 	assert.NoError(t, err, "unexpected error creating overrides")
 
 	s, err := storage.NewStore(storage.Config{
-		Trace: friggdb.Config{
+		Trace: tempodb.Config{
 			Backend: "local",
 			Local: &local.Config{
 				Path: tmpDir,
@@ -120,7 +120,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, 
 	assert.NoError(t, err, "unexpected error creating ingester")
 
 	// make some fake traceIDs/requests
-	traces := make([]*friggpb.Trace, 0)
+	traces := make([]*tempopb.Trace, 0)
 
 	traceIDs := make([][]byte, 0)
 	for i := 0; i < 10; i++ {
@@ -136,7 +136,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*friggpb.Trace, 
 	for _, trace := range traces {
 		for _, batch := range trace.Batches {
 			_, err := ingester.Push(ctx,
-				&friggpb.PushRequest{
+				&tempopb.PushRequest{
 					Batch: batch,
 				})
 			assert.NoError(t, err, "unexpected error pushing")

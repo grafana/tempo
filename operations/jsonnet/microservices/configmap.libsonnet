@@ -1,7 +1,7 @@
 {
   local configMap = $.core.v1.configMap,
 
-  frigg_config:: {
+  tempo_config:: {
     auth_enabled: false,
     server: {
       http_listen_port: $._config.port,
@@ -40,7 +40,7 @@
         maintenanceCycle: '5m',
         backend: 'gcs',
         wal: {
-          path: '/var/frigg/wal',
+          path: '/var/tempo/wal',
           'bloom-filter-false-positive': 0.05,
           'index-downsample': 100,
         },
@@ -53,7 +53,7 @@
           queue_depth: 10000,
         },
         cache: {
-          'disk-path': '/var/frigg/cache',
+          'disk-path': '/var/tempo/cache',
           'disk-max-mbs': 1024,
           'disk-prune-count': 100,
           'disk-clean-rate': '1m',
@@ -68,22 +68,28 @@
     },
   },
 
-  frigg_compactor_config:: $.frigg_config
+  tempo_compactor_config:: $.tempo_config
                            {
     compactor: {
       compaction: {
         chunkSizeBytes: 10485760,
-        maxCompactionRange: '2h',
+        maxCompactionRange: '1h',
         blockRetention: '144h',
         compactedBlockRetention: '2m',
       },
     },
+    storage_config+: {
+      trace+: {
+        maintenanceCycle: '10m',
+        cache:: null,
+      },
+    },
   },
 
-  frigg_configmap:
-    configMap.new('frigg') +
+  tempo_configmap:
+    configMap.new('tempo') +
     configMap.withData({
-      'frigg.yaml': $.util.manifestYaml($.frigg_config),
+      'tempo.yaml': $.util.manifestYaml($.tempo_config),
     }) +
     configMap.withDataMixin({
       'overrides.yaml': |||
@@ -91,10 +97,10 @@
       |||,
     }),
 
-  frigg_compactor_configmap:
-    configMap.new('frigg-compactor') +
+  tempo_compactor_configmap:
+    configMap.new('tempo-compactor') +
     configMap.withData({
-      'frigg.yaml': $.util.manifestYaml($.frigg_compactor_config),
+      'tempo.yaml': $.util.manifestYaml($.tempo_compactor_config),
     }) +
     configMap.withDataMixin({
       'overrides.yaml': |||
@@ -102,10 +108,10 @@
       |||,
     }),
 
-  frigg_query_configmap:
-    configMap.new('frigg-query') +
+  tempo_query_configmap:
+    configMap.new('tempo-query') +
     configMap.withData({
-      'frigg-query.yaml': $.util.manifestYaml({
+      'tempo-query.yaml': $.util.manifestYaml({
         backend: 'localhost:%d' % $._config.port,
       }),
     }),

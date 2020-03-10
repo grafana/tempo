@@ -9,7 +9,7 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 var contentType = http.CanonicalHeaderKey("Content-Type")
@@ -18,7 +18,7 @@ const applicationJSON = "application/json"
 
 // PushHandler reads a snappy-compressed proto from the HTTP body.
 func (d *Distributor) PushHandler(w http.ResponseWriter, r *http.Request) {
-	var req friggpb.PushRequest
+	var req tempopb.PushRequest
 
 	switch r.Header.Get(contentType) {
 	case applicationJSON:

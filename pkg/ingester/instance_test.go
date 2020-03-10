@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/frigg/pkg/util/test"
-	"github.com/grafana/frigg/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/util/validation"
 
 	"github.com/stretchr/testify/assert"
 )

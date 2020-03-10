@@ -3,12 +3,12 @@ package storage
 import (
 	"flag"
 
-	"github.com/grafana/frigg/friggdb"
+	"github.com/grafana/tempo/tempodb"
 )
 
-// Config is the Frigg storage configuration
+// Config is the Tempo storage configuration
 type Config struct {
-	Trace friggdb.Config `yaml:"trace"`
+	Trace tempodb.Config `yaml:"trace"`
 }
 
 // RegisterFlags adds the flags required to configure this flag set.

@@ -18,17 +18,17 @@ GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint
 
-.PHONY: frigg
-frigg:
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/frigg $(BUILD_INFO) ./cmd/frigg
+.PHONY: tempo
+tempo:
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo $(BUILD_INFO) ./cmd/tempo
 
-.PHONY: frigg-query
-frigg-query:
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/frigg-query $(BUILD_INFO) ./cmd/frigg-query
+.PHONY: tempo-query
+tempo-query:
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-query $(BUILD_INFO) ./cmd/tempo-query
 
-.PHONY: frigg-cli
-frigg-cli:
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/frigg-cli $(BUILD_INFO) ./cmd/frigg-cli
+.PHONY: tempo-cli
+tempo-cli:
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-cli $(BUILD_INFO) ./cmd/tempo-cli
 
 .PHONY: test
 test:
@@ -53,13 +53,13 @@ docker-component: check-component
 	docker build -t $(COMPONENT) ./cmd/$(COMPONENT)/
 	rm ./cmd/$(COMPONENT)/$(COMPONENT)
 
-.PHONY: docker-frigg
-docker-frigg:
-	COMPONENT=frigg $(MAKE) docker-component
+.PHONY: docker-tempo
+docker-tempo:
+	COMPONENT=tempo $(MAKE) docker-component
 
-.PHONY: docker-frigg-query
-docker-frigg-query:
-	COMPONENT=frigg-query $(MAKE) docker-component
+.PHONY: docker-tempo-query
+docker-tempo-query:
+	COMPONENT=tempo-query $(MAKE) docker-component
 
 .PHONY: check-component
 check-component:
@@ -70,7 +70,7 @@ endif
 .PHONY: gen-proto
 gen-proto:
 	vend -package
-	protoc -I vendor/github.com/open-telemetry/opentelemetry-proto -I pkg/friggpb/ pkg/friggpb/frigg.proto --go_out=plugins=grpc:pkg/friggpb
+	protoc -I vendor/github.com/open-telemetry/opentelemetry-proto -I pkg/tempopb/ pkg/tempopb/tempo.proto --go_out=plugins=grpc:pkg/tempopb
 	$(MAKE) vendor-dependencies
 
 .PHONY: vendor-dependencies

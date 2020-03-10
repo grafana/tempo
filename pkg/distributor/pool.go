@@ -3,13 +3,13 @@ package distributor
 import (
 	"sync"
 
-	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/tempo/pkg/tempopb"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 )
 
 var pushRequestPool = sync.Pool{
 	New: func() interface{} {
-		return &friggpb.PushRequest{}
+		return &tempopb.PushRequest{}
 	},
 }
 
@@ -19,7 +19,7 @@ var resourceSpansPool = sync.Pool{
 	},
 }
 
-func resetPushRequests(reqsPerIngester map[string][]*friggpb.PushRequest) {
+func resetPushRequests(reqsPerIngester map[string][]*tempopb.PushRequest) {
 	for _, reqs := range reqsPerIngester {
 		for _, req := range reqs {
 			req.Batch.Spans = nil

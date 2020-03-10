@@ -9,10 +9,10 @@
   local servicePort = service.mixin.spec.portsType,
 
   local target_name = 'ingester',
-  local frigg_config_volume = 'frigg-conf',
-  local frigg_data_volume = 'ingester-data',
+  local tempo_config_volume = 'tempo-conf',
+  local tempo_data_volume = 'ingester-data',
 
-  frigg_ingester_pvc::
+  tempo_ingester_pvc::
     pvc.new() +
     pvc.mixin.spec.resources
     .withRequests({ storage: $._config.ingester.pvc_size }) +
@@ -22,31 +22,31 @@
     pvc.mixin.metadata
     .withLabels({ app: target_name })
     .withNamespace($._config.namespace)
-    .withName(frigg_data_volume),
+    .withName(tempo_data_volume),
 
-  frigg_ingester_container::
-    container.new(target_name, $._images.frigg) +
+  tempo_ingester_container::
+    container.new(target_name, $._images.tempo) +
     container.withPorts([
       containerPort.new('prom-metrics', $._config.port),
     ]) +
     container.withArgs([
       '-target=' + target_name,
-      '-config.file=/conf/frigg.yaml',
+      '-config.file=/conf/tempo.yaml',
       '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
     container.withVolumeMounts([
-      volumeMount.new(frigg_config_volume, '/conf'),
-      volumeMount.new(frigg_data_volume, '/var/frigg'),
+      volumeMount.new(tempo_config_volume, '/conf'),
+      volumeMount.new(tempo_data_volume, '/var/tempo'),
     ]),
 
-  frigg_ingester_statefulset:
+  tempo_ingester_statefulset:
     statefulset.new(target_name,
                     $._config.ingester.replicas,
                     [
-                      $.frigg_ingester_container,
+                      $.tempo_ingester_container,
                     ],
                     [
-                      $.frigg_ingester_pvc,
+                      $.tempo_ingester_pvc,
                     ],
                     {
                       app: target_name,
@@ -54,11 +54,11 @@
                     })
     .withServiceName(target_name) +
     statefulset.mixin.spec.template.spec.withVolumes([
-      volume.fromConfigMap(frigg_config_volume, $.frigg_configmap.metadata.name),
+      volume.fromConfigMap(tempo_config_volume, $.tempo_configmap.metadata.name),
     ]),
 
-  frigg_ingester_service:
-    $.util.serviceFor($.frigg_ingester_statefulset),
+  tempo_ingester_service:
+    $.util.serviceFor($.tempo_ingester_statefulset),
 
   gossip_ring_service:
     service.new(

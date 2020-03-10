@@ -14,10 +14,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
 
-	friggdb_backend "github.com/grafana/frigg/friggdb/backend"
-	friggdb_wal "github.com/grafana/frigg/friggdb/wal"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/util"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
+	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
+	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 type traceFingerprint uint64
@@ -29,12 +29,12 @@ var (
 
 var (
 	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "ingester_traces_created_total",
 		Help:      "The total number of traces created per tenant.",
 	}, []string{"tenant"})
 	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "ingester_blocks_cleared_total",
 		Help:      "The total number of blocks cleared.",
 	})
@@ -45,17 +45,17 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blockTracesMtx sync.RWMutex
-	headBlock      *friggdb_wal.HeadBlock
-	completeBlocks []*friggdb_wal.CompleteBlock
+	headBlock      *tempodb_wal.HeadBlock
+	completeBlocks []*tempodb_wal.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	limiter            *Limiter
-	wal                *friggdb_wal.WAL
+	wal                *tempodb_wal.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal *friggdb_wal.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[traceFingerprint]*trace{},
 
@@ -71,7 +71,7 @@ func newInstance(instanceID string, limiter *Limiter, wal *friggdb_wal.WAL) (*in
 	return i, nil
 }
 
-func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
+func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -88,7 +88,7 @@ func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
 }
 
 // PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushBytes(ctx context.Context, id friggdb_backend.ID, object []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id tempodb_backend.ID, object []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -150,7 +150,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return ready, nil
 }
 
-func (i *instance) GetBlockToBeFlushed() *friggdb_wal.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
@@ -188,7 +188,7 @@ func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error
 	return err
 }
 
-func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
+func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	// First search live traces being assembled in the ingester instance.
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[traceFingerprint(util.Fingerprint(id))]; ok {
@@ -206,7 +206,7 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 		return nil, err
 	}
 	if foundBytes != nil {
-		out := &friggpb.Trace{}
+		out := &tempopb.Trace{}
 
 		err = proto.Unmarshal(foundBytes, out)
 		if err != nil {
@@ -222,7 +222,7 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 			return nil, err
 		}
 		if foundBytes != nil {
-			out := &friggpb.Trace{}
+			out := &tempopb.Trace{}
 
 			err = proto.Unmarshal(foundBytes, out)
 			if err != nil {
@@ -235,7 +235,7 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 	return nil, nil
 }
 
-func (i *instance) getOrCreateTrace(req *friggpb.PushRequest) (*trace, error) {
+func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	if len(req.Batch.Spans) == 0 {
 		return nil, fmt.Errorf("invalid request received with 0 spans")
 	}

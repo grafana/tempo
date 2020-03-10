@@ -18,7 +18,7 @@
     ]) +
     container.withEnvMap({
       TOPOLOGY_FILE: '/conf/load-generator.json',
-      JAEGER_COLLECTOR_URL: 'http://frigg:14268',
+      JAEGER_COLLECTOR_URL: 'http://tempo:14268',
     }),
 
   synthetic_load_generator_deployment:

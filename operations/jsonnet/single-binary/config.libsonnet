@@ -1,7 +1,7 @@
 {
     _images+:: {
-        frigg: 'joeelliott/canary-frigg:0d2678e4',
-        frigg_query: 'joeelliott/canary-frigg-query:0d2678e4',
+        tempo: 'joeelliott/canary-frigg:e8fb635e',
+        tempo_query: 'joeelliott/canary-frigg-query:e8fb635e',
     },
 
     _config+:: {
@@ -15,7 +15,7 @@
         }
     },
 
-    frigg_container+::
+    tempo_container+::
         $.util.resourcesRequests('3', '3Gi') +
         $.util.resourcesLimits('5', '5Gi')
 }
