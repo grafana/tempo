@@ -1,74 +1,37 @@
 package util
 
 import (
-	"fmt"
-	"os"
-	"strings"
-
 	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"go.uber.org/ratelimit"
 )
 
-type LogAdapater struct {
-	log.Logger
+type RateLimitedLogger struct {
+	logChan chan []interface{}
 }
 
-func NewLogAdapater(l log.Logger) LogAdapater {
-	return LogAdapater{
-		Logger: l,
+func NewRateLimitedLogger(logsPerSecond int, logger log.Logger) *RateLimitedLogger {
+	r := &RateLimitedLogger{
+		logChan: make(chan []interface{}),
+	}
+
+	go func() {
+		limiter := ratelimit.New(logsPerSecond)
+		for keyvals := range r.logChan {
+			limiter.Take()
+			logger.Log(keyvals...)
+		}
+	}()
+
+	return r
+}
+
+func (l *RateLimitedLogger) Log(keyvals ...interface{}) {
+	select {
+	case l.logChan <- keyvals:
+	default:
 	}
 }
 
-// Fatal implements tail.logger
-func (l LogAdapater) Fatal(v ...interface{}) {
-	level.Error(l).Log("msg", fmt.Sprint(v...))
-	os.Exit(1)
-}
-
-// Fatalf implements tail.logger
-func (l LogAdapater) Fatalf(format string, v ...interface{}) {
-	level.Error(l).Log("msg", fmt.Sprintf(strings.TrimSuffix(format, "\n"), v...))
-	os.Exit(1)
-}
-
-// Fatalln implements tail.logger
-func (l LogAdapater) Fatalln(v ...interface{}) {
-	level.Error(l).Log("msg", fmt.Sprint(v...))
-	os.Exit(1)
-}
-
-// Panic implements tail.logger
-func (l LogAdapater) Panic(v ...interface{}) {
-	s := fmt.Sprint(v...)
-	level.Error(l).Log("msg", s)
-	panic(s)
-}
-
-// Panicf implements tail.logger
-func (l LogAdapater) Panicf(format string, v ...interface{}) {
-	s := fmt.Sprintf(strings.TrimSuffix(format, "\n"), v...)
-	level.Error(l).Log("msg", s)
-	panic(s)
-}
-
-// Panicln implements tail.logger
-func (l LogAdapater) Panicln(v ...interface{}) {
-	s := fmt.Sprint(v...)
-	level.Error(l).Log("msg", s)
-	panic(s)
-}
-
-// Print implements tail.logger
-func (l LogAdapater) Print(v ...interface{}) {
-	level.Info(l).Log("msg", fmt.Sprint(v...))
-}
-
-// Printf implements tail.logger
-func (l LogAdapater) Printf(format string, v ...interface{}) {
-	level.Info(l).Log("msg", fmt.Sprintf(strings.TrimSuffix(format, "\n"), v...))
-}
-
-// Println implements tail.logger
-func (l LogAdapater) Println(v ...interface{}) {
-	level.Info(l).Log("msg", fmt.Sprint(v...))
+func (l *RateLimitedLogger) Stop() {
+	close(l.logChan)
 }
