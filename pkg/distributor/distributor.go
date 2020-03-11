@@ -203,10 +203,8 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 
 	select {
 	case <-done:
-		resetPushRequests(requestsByIngester)
 		return &tempopb.PushResponse{}, atomicErr.Load()
 	case <-ctx.Done():
-		resetPushRequests(requestsByIngester)
 		return nil, ctx.Err()
 	}
 }
@@ -261,8 +259,8 @@ func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, span
 
 		routedReq, ok := requests[key]
 		if !ok {
-			routedReq = pushRequestPool.Get().(*tempopb.PushRequest)
-			resourceSpans := resourceSpansPool.Get().(*opentelemetry_proto_trace_v1.ResourceSpans)
+			routedReq = &tempopb.PushRequest{}
+			resourceSpans := &opentelemetry_proto_trace_v1.ResourceSpans{}
 
 			resourceSpans.Spans = make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount) // assume most spans belong to the same trace
 			resourceSpans.Resource = req.Batch.Resource
