@@ -87,7 +87,8 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 		go i.flushLoop(j)
 	}
 
-	// ingesters
+	// ingesters are generally deployed as a statefulset which means that the hostnames of new entries will conflict with the hostnames of old entries
+	//  as they come into memberlist.  adding a guid will prevent this
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve hostname %v", hostname)
