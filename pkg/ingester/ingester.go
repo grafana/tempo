@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/go-kit/kit/log/level"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -85,7 +87,13 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 		go i.flushLoop(j)
 	}
 
-	var err error
+	// ingesters
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve hostname %v", hostname)
+	}
+	cfg.LifecyclerConfig.ID = hostname + "-" + uuid.New().String()
+
 	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, false)
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %v", err)
