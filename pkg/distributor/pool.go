@@ -24,6 +24,9 @@ func resetPushRequests(reqsPerIngester map[string][]*tempopb.PushRequest) {
 		for _, req := range reqs {
 			req.Batch.Spans = nil
 			req.Batch.Resource = nil
+
+			resourceSpansPool.Put(req.Batch)
+			pushRequestPool.Put(req)
 		}
 	}
 }
