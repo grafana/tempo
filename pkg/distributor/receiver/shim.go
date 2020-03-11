@@ -24,6 +24,10 @@ import (
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
+const (
+	logsPerSecond = 10
+)
+
 type Receivers interface {
 	Start() error
 	Shutdown() error
@@ -33,12 +37,14 @@ type receiversShim struct {
 	authEnabled bool
 	receivers   []receiver.TraceReceiver
 	pusher      tempopb.PusherServer
+	logger      *tempo_util.RateLimitedLogger
 }
 
 func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEnabled bool) (Receivers, error) {
 	shim := &receiversShim{
 		authEnabled: authEnabled,
 		pusher:      pusher,
+		logger:      tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(util.Logger)),
 	}
 
 	v := viper.New()
@@ -106,6 +112,7 @@ func (r *receiversShim) Shutdown() error {
 			level.Error(util.Logger).Log("msg", "failed to stop receiver", "err", err)
 		}
 	}
+	r.logger.Stop()
 
 	return nil
 }
@@ -122,6 +129,10 @@ func (r *receiversShim) ConsumeTraceData(ctx context.Context, td consumerdata.Tr
 	_, err := r.pusher.Push(ctx, &tempopb.PushRequest{
 		Batch: convertTraceData(td),
 	})
+
+	if err != nil {
+		r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
+	}
 
 	// todo:  confirm/deny if this error propagates back to the caller
 	return err

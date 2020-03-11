@@ -44,6 +44,18 @@ var (
 		Name:      "distributor_spans_received_total",
 		Help:      "The total number of spans received per tenant",
 	}, []string{"tenant"})
+	metricReplicasFound = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "distributor_replicas_found",
+		Help:      "The number of replicas found per request",
+		Buckets:   prometheus.LinearBuckets(0, 2, 3),
+	})
+	metricTracesPerBatch = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "distributor_traces_per_batch",
+		Help:      "The number of traces in each batch",
+		Buckets:   prometheus.LinearBuckets(0, 3, 5),
+	})
 
 	readinessProbeSuccess = []byte("Ready")
 )
@@ -271,6 +283,7 @@ func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, span
 		routedReq.Batch.Spans = append(routedReq.Batch.Spans, span)
 	}
 
+	metricTracesPerBatch.Observe(float64(len(requests)))
 	requestsByIngester := make(map[string][]*tempopb.PushRequest)
 	for key, routedReq := range requests {
 		// now map to ingesters
@@ -278,6 +291,7 @@ func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, span
 		if err != nil {
 			return nil, err
 		}
+		metricReplicasFound.Observe(float64(len(replicationSet.Ingesters)))
 		for _, ingester := range replicationSet.Ingesters {
 			requestsByIngester[ingester.Addr] = append(requestsByIngester[ingester.Addr], routedReq)
 		}

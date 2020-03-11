@@ -35,6 +35,7 @@ require (
 	github.com/uber-go/atomic v1.4.0
 	github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d
 	go.uber.org/atomic v1.5.0
+	go.uber.org/ratelimit v0.1.0
 	go.uber.org/zap v1.10.0
 	golang.org/x/net v0.0.0-20191112182307-2180aed22343
 	golang.org/x/tools v0.0.0-20191127201027-ecd32218bd7f // indirect
