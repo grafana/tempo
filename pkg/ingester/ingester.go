@@ -88,12 +88,13 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 	}
 
 	// ingesters are generally deployed as a statefulset which means that the hostnames of new entries will conflict with the hostnames of old entries
-	//  as they come into memberlist.  adding a guid will prevent this
+	//  as they come into memberlist.  adding a guid will prevent this.
+	// todo: lock tempo down to gossip only?  this logic impacts gossip only
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve hostname %v", hostname)
 	}
-	cfg.LifecyclerConfig.ID = hostname + "-" + uuid.New().String()
+	cfg.LifecyclerConfig.RingConfig.KVStore.Memberlist.NodeName = hostname + "-" + uuid.New().String()
 
 	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, false)
 	if err != nil {
