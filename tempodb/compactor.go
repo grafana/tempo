@@ -248,6 +248,8 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		metricRangeOfCompaction.Set(
 			util.BlockIDRange(currentBlock.BlockMeta().MaxID, currentBlock.BlockMeta().MinID),
 		)
+		// Increment compaction level
+		currentBlock.BlockMeta().CompactionLevel = blockMetas[0].CompactionLevel + 1
 		currentBlock.Complete()
 		level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
 		err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout

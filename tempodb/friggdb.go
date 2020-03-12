@@ -114,6 +114,7 @@ type readerWriter struct {
 
 	jobStopper          *pool.Stopper
 	compactedBlockLists map[string][]*backend.CompactedBlockMeta
+	blockSelector       CompactionBlockSelector
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
@@ -283,6 +284,8 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig) {
 		level.Info(rw.logger).Log("msg", "compaction enabled.")
 	}
 	rw.compactorCfg = cfg
+
+	rw.blockSelector = newSimpleBlockSelector(rw.compactorCfg.MaxCompactionRange)
 }
 
 func (rw *readerWriter) maintenanceLoop() {
@@ -305,7 +308,7 @@ func (rw *readerWriter) doMaintenance() {
 	rw.pollBlocklist()
 
 	if rw.compactorCfg != nil {
-		rw.doCompaction()
+		rw.doLevelledCompaction()
 		rw.doRetention()
 	}
 }
