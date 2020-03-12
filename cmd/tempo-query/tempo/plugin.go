@@ -94,7 +94,7 @@ func protoSpanToJaegerSpan(in *opentelemetry_proto_trace_v1.Span, resource *open
 		StartTime:     time.Unix(0, int64(in.StartTimeUnixnano)),
 		Duration:      time.Unix(0, int64(in.EndTimeUnixnano)).Sub(time.Unix(0, int64(in.StartTimeUnixnano))),
 		Tags:          protoAttsToJaegerTags(in.Attributes),
-		Events:        protoEventsToJaegerLogs(in.Events),
+		Logs:          protoEventsToJaegerLogs(in.Events),
 	}
 
 	for _, link := range in.Links {
