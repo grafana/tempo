@@ -16,7 +16,7 @@
   "gnetId": null,
   "graphTooltip": 1,
   "id": 1425,
-  "iteration": 1583935798536,
+  "iteration": 1584014500230,
   "links": [],
   "panels": [
     {
@@ -1071,12 +1071,12 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "avg(tempodb_blocklist_length{job=~\"$namespace/$component\"})",
+          "expr": "avg(tempodb_blocklist_length{job=~\"$namespace/$component\"}) by (tenant)",
           "legendFormat": "{{tenant}}-blocklist",
           "refId": "A"
         },
         {
-          "expr": "avg(tempodb_compaction_blocklist_length{job=~\"$namespace/$component\"})",
+          "expr": "avg(tempodb_compaction_blocklist_length{job=~\"$namespace/$component\"}) by (tenant)",
           "legendFormat": "{{tenant}}-compacted",
           "refId": "B"
         }
@@ -2943,6 +2943,103 @@
       "yaxes": [
         {
           "format": "s",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 18,
+        "y": 29
+      },
+      "hiddenSeries": false,
+      "id": 64,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "histogram_quantile(.9, sum(rate(tempo_distributor_traces_per_batch_bucket[$interval])) by (le))",
+          "legendFormat": ".9",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(.5, sum(rate(tempo_distributor_traces_per_batch_bucket[$interval])) by (le))",
+          "legendFormat": ".5",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(.1, sum(rate(tempo_distributor_traces_per_batch_bucket[$interval])) by (le))",
+          "legendFormat": ".1",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Traces/Batch",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
           "label": null,
           "logBase": 1,
           "max": null,
