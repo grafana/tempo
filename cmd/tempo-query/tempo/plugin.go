@@ -12,9 +12,10 @@ import (
 
 	jaeger "github.com/jaegertracing/jaeger/model"
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
-	opentelemetry_proto_common_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
-	opentelemetry_resource_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
-	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
+	"github.com/open-telemetry/opentelemetry-collector/translator/conventions"
+	ot_common "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
+	ot_resource "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
+	ot_trace "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 )
 
 type Backend struct {
@@ -57,7 +58,17 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	// todo: remove custom code in favor of otelcol once it's complete
 	for _, batch := range out.Batches {
 		for _, span := range batch.Spans {
-			jaegerTrace.Spans = append(jaegerTrace.Spans, protoSpanToJaegerSpan(span, batch.Resource))
+			jSpan := protoSpanToJaegerSpan(span)
+			jProcess, processID := protoResourceToJaegerProcess(batch.Resource)
+
+			jSpan.ProcessID = processID
+			jSpan.Process = &jProcess
+
+			jaegerTrace.Spans = append(jaegerTrace.Spans, jSpan)
+			jaegerTrace.ProcessMap = append(jaegerTrace.ProcessMap, jaeger.Trace_ProcessMapping{
+				Process:   jProcess,
+				ProcessID: processID,
+			})
 		}
 	}
 
@@ -80,8 +91,33 @@ func (b *Backend) WriteSpan(span *jaeger.Span) error {
 	return nil
 }
 
-func protoSpanToJaegerSpan(in *opentelemetry_proto_trace_v1.Span, resource *opentelemetry_resource_trace_v1.Resource) *jaeger.Span {
+func protoResourceToJaegerProcess(in *ot_resource.Resource) (jaeger.Process, string) {
+	processName := ""
+	p := jaeger.Process{
+		Tags: make([]jaeger.KeyValue, 0, len(in.Attributes)),
+	}
 
+	for _, att := range in.Attributes {
+		if att == nil {
+			continue
+		}
+
+		tag := protoAttToJaegerTag(att)
+		if tag.Key == conventions.AttributeServiceName {
+			p.ServiceName = tag.VStr
+		}
+
+		if tag.Key == conventions.AttributeHostHostname {
+			processName = tag.VStr
+		}
+
+		p.Tags = append(p.Tags, tag)
+	}
+
+	return p, processName
+}
+
+func protoSpanToJaegerSpan(in *ot_trace.Span) *jaeger.Span {
 	traceID := jaeger.TraceID{
 		High: binary.BigEndian.Uint64(in.TraceId[:8]),
 		Low:  binary.BigEndian.Uint64(in.TraceId[8:]),
@@ -105,60 +141,58 @@ func protoSpanToJaegerSpan(in *opentelemetry_proto_trace_v1.Span, resource *open
 		})
 	}
 
-	s.Process = &jaeger.Process{}
-	for _, att := range resource.Attributes {
-		if att.Key == "process_name" {
-			s.Process.ServiceName = att.StringValue
-		}
-	}
-
 	return s
 }
 
-func protoAttsToJaegerTags(ocAttribs []*opentelemetry_proto_common_v1.AttributeKeyValue) []jaeger.KeyValue {
+func protoAttsToJaegerTags(ocAttribs []*ot_common.AttributeKeyValue) []jaeger.KeyValue {
 	if ocAttribs == nil {
 		return nil
 	}
 
 	// Pre-allocate assuming that few attributes, if any at all, are nil.
 	jTags := make([]jaeger.KeyValue, 0, len(ocAttribs))
-	for _, attrib := range ocAttribs {
-		if attrib == nil {
+	for _, att := range ocAttribs {
+		if att == nil {
 			continue
 		}
 
-		jTag := jaeger.KeyValue{Key: attrib.Key}
-		switch attrib.Type {
-		case opentelemetry_proto_common_v1.AttributeKeyValue_STRING:
-			// Jaeger-to-OC maps binary tags to string attributes and encodes them as
-			// base64 strings. Blindingly attempting to decode base64 seems too much.
-			str := attrib.StringValue
-			jTag.VStr = str
-			jTag.VType = jaeger.ValueType_STRING
-		case opentelemetry_proto_common_v1.AttributeKeyValue_INT:
-			i := attrib.IntValue
-			jTag.VInt64 = i
-			jTag.VType = jaeger.ValueType_INT64
-		case opentelemetry_proto_common_v1.AttributeKeyValue_BOOL:
-			b := attrib.BoolValue
-			jTag.VBool = b
-			jTag.VType = jaeger.ValueType_BOOL
-		case opentelemetry_proto_common_v1.AttributeKeyValue_DOUBLE:
-			d := attrib.DoubleValue
-			jTag.VFloat64 = d
-			jTag.VType = jaeger.ValueType_FLOAT64
-		default:
-			str := "<Unknown OpenTelemetry Attribute for key \"" + attrib.Key + "\">"
-			jTag.VStr = str
-			jTag.VType = jaeger.ValueType_STRING
-		}
-		jTags = append(jTags, jTag)
+		jTags = append(jTags, protoAttToJaegerTag(att))
 	}
 
 	return jTags
 }
 
-func protoEventsToJaegerLogs(ocSpanTimeEvents []*opentelemetry_proto_trace_v1.Span_Event) []jaeger.Log {
+func protoAttToJaegerTag(attrib *ot_common.AttributeKeyValue) jaeger.KeyValue {
+	jTag := jaeger.KeyValue{Key: attrib.Key}
+	switch attrib.Type {
+	case ot_common.AttributeKeyValue_STRING:
+		// Jaeger-to-OC maps binary tags to string attributes and encodes them as
+		// base64 strings. Blindingly attempting to decode base64 seems too much.
+		str := attrib.StringValue
+		jTag.VStr = str
+		jTag.VType = jaeger.ValueType_STRING
+	case ot_common.AttributeKeyValue_INT:
+		i := attrib.IntValue
+		jTag.VInt64 = i
+		jTag.VType = jaeger.ValueType_INT64
+	case ot_common.AttributeKeyValue_BOOL:
+		b := attrib.BoolValue
+		jTag.VBool = b
+		jTag.VType = jaeger.ValueType_BOOL
+	case ot_common.AttributeKeyValue_DOUBLE:
+		d := attrib.DoubleValue
+		jTag.VFloat64 = d
+		jTag.VType = jaeger.ValueType_FLOAT64
+	default:
+		str := "<Unknown OpenTelemetry Attribute for key \"" + attrib.Key + "\">"
+		jTag.VStr = str
+		jTag.VType = jaeger.ValueType_STRING
+	}
+
+	return jTag
+}
+
+func protoEventsToJaegerLogs(ocSpanTimeEvents []*ot_trace.Span_Event) []jaeger.Log {
 	if ocSpanTimeEvents == nil {
 		return nil
 	}
