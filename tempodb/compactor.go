@@ -142,6 +142,18 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	level.Info(rw.logger).Log("msg", "beginning compaction")
 
+	if blockMetas == nil {
+		return nil
+	}
+
+	compactionLevel := blockMetas[0].CompactionLevel
+	for _, block := range blockMetas {
+		if compactionLevel != block.CompactionLevel {
+			return fmt.Errorf("Not all blocks are of the same compaction level")
+		}
+	}
+	nextCompactionLevel := compactionLevel + 1
+
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
 
@@ -249,7 +261,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			util.BlockIDRange(currentBlock.BlockMeta().MaxID, currentBlock.BlockMeta().MinID),
 		)
 		// Increment compaction level
-		currentBlock.BlockMeta().CompactionLevel = blockMetas[0].CompactionLevel + 1
+		currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 		currentBlock.Complete()
 		level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
 		err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout

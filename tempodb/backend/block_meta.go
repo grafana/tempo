@@ -22,13 +22,13 @@ type BlockMeta struct {
 	StartTime       time.Time `json:"startTime"`
 	EndTime         time.Time `json:"endTime"`
 	TotalObjects    int       `json:"totalObjects"`
-	CompactionLevel int       `json:compactionLevel`
+	CompactionLevel int       `json:"compactionLevel"`
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
 	now := time.Now()
 	b := &BlockMeta{
-		Version:   "v1",
+		Version:   "v0",
 		BlockID:   blockID,
 		MinID:     []byte{},
 		MaxID:     []byte{},

@@ -8,7 +8,7 @@ import (
 
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction
 type CompactionBlockSelector interface {
-	ResetCursor() error
+	ResetCursor()
 	BlocksToCompactInSameLevel(blocklist []*backend.BlockMeta) int
 	// BlocksToCompactAcrossLevels(block *backend.BlockMeta, blocklist []*backend.BlockMeta) []*backend.BlockMeta
 }
@@ -28,9 +28,9 @@ func newSimpleBlockSelector(maxCompactionRange time.Duration) CompactionBlockSel
 	}
 }
 
-func (sbs *simpleBlockSelector) ResetCursor() error {
+func (sbs *simpleBlockSelector) ResetCursor() {
 	sbs.cursor = 0
-	return nil
+	return
 }
 
 // todo: switch to iterator pattern?
