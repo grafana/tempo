@@ -114,7 +114,6 @@ type readerWriter struct {
 
 	jobStopper          *pool.Stopper
 	compactedBlockLists map[string][]*backend.CompactedBlockMeta
-	blockSelector       CompactionBlockSelector //jpe : remove : jpe : add blocklist lvl metrics
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {

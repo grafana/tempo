@@ -73,14 +73,14 @@ func (rw *readerWriter) doCompaction() {
 		blocksPerLevel := blocklistPerLevel(blocklist)
 
 		for l := 0; l < maxNumLevels-1; l++ {
-			rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
+			blockSelector := newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
 		L:
 			for {
 				select {
 				case <-stopCh:
 					return warning
 				default:
-					toBeCompacted := rw.blockSelector.BlocksToCompact()
+					toBeCompacted := blockSelector.BlocksToCompact()
 					if len(toBeCompacted) == 0 {
 						// If none are suitable, bail
 						break L
