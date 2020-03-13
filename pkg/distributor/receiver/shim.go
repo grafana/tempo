@@ -11,17 +11,16 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
-	opentelemetry_proto_common_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
-	opentelemetry_proto_resource_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
-	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/zap"
 
-	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
-
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempo_util "github.com/grafana/tempo/pkg/util"
+)
+
+const (
+	logsPerSecond = 10
 )
 
 type Receivers interface {
@@ -33,12 +32,14 @@ type receiversShim struct {
 	authEnabled bool
 	receivers   []receiver.TraceReceiver
 	pusher      tempopb.PusherServer
+	logger      *tempo_util.RateLimitedLogger
 }
 
 func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEnabled bool) (Receivers, error) {
 	shim := &receiversShim{
 		authEnabled: authEnabled,
 		pusher:      pusher,
+		logger:      tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(util.Logger)),
 	}
 
 	v := viper.New()
@@ -106,6 +107,7 @@ func (r *receiversShim) Shutdown() error {
 			level.Error(util.Logger).Log("msg", "failed to stop receiver", "err", err)
 		}
 	}
+	r.logger.Stop()
 
 	return nil
 }
@@ -119,9 +121,18 @@ func (r *receiversShim) ConsumeTraceData(ctx context.Context, td consumerdata.Tr
 	// todo: eventually otel collector intends to start using otel proto internally instead of opencensus
 	//  when that happens we need to update our dependency and we can remove all of this translation logic
 	// also note: this translation logic is woefully incomplete and is meant as a stopgap while we wait for the otel collector
-	_, err := r.pusher.Push(ctx, &tempopb.PushRequest{
-		Batch: convertTraceData(td),
-	})
+	batches := ocToOtlp(td)
+
+	var err error
+	for _, b := range batches {
+		_, err = r.pusher.Push(ctx, &tempopb.PushRequest{
+			Batch: b,
+		})
+		if err != nil {
+			r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
+			break
+		}
+	}
 
 	// todo:  confirm/deny if this error propagates back to the caller
 	return err
@@ -137,75 +148,4 @@ func (r *receiversShim) ReportFatalError(err error) {
 func (r *receiversShim) Context() context.Context {
 	// todo: something better here?
 	return context.Background()
-}
-
-func convertTraceData(td consumerdata.TraceData) *opentelemetry_proto_trace_v1.ResourceSpans {
-	batch := &opentelemetry_proto_trace_v1.ResourceSpans{
-		Spans: make([]*opentelemetry_proto_trace_v1.Span, 0, len(td.Spans)),
-		Resource: &opentelemetry_proto_resource_v1.Resource{
-			Attributes: make([]*opentelemetry_proto_common_v1.AttributeKeyValue, 0, len(td.Node.Attributes)+2),
-		},
-	}
-
-	for _, fromSpan := range td.Spans {
-		toSpan := &opentelemetry_proto_trace_v1.Span{
-			TraceId:      fromSpan.TraceId,
-			SpanId:       fromSpan.SpanId,
-			Tracestate:   fromSpan.Tracestate.String(),
-			ParentSpanId: fromSpan.ParentSpanId,
-			Name:         fromSpan.Name.String(),
-			// Kind: fromSpan.Kind,
-			StartTimeUnixnano: uint64(fromSpan.StartTime.GetNanos()),
-			EndTimeUnixnano:   uint64(fromSpan.EndTime.GetNanos()),
-		}
-
-		if fromSpan.Attributes != nil {
-			toSpan.Attributes = make([]*opentelemetry_proto_common_v1.AttributeKeyValue, 0, len(fromSpan.Attributes.AttributeMap))
-
-			for key, att := range fromSpan.Attributes.AttributeMap {
-				toAtt := &opentelemetry_proto_common_v1.AttributeKeyValue{
-					Key: key,
-				}
-
-				switch att.Value.(type) {
-				case *tracepb.AttributeValue_StringValue:
-					toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_STRING
-					toAtt.StringValue = att.GetStringValue().String()
-				case *tracepb.AttributeValue_IntValue:
-					toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_INT
-					toAtt.IntValue = att.GetIntValue()
-				case *tracepb.AttributeValue_BoolValue:
-					toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_BOOL
-					toAtt.BoolValue = att.GetBoolValue()
-				case *tracepb.AttributeValue_DoubleValue:
-					toAtt.Type = opentelemetry_proto_common_v1.AttributeKeyValue_BOOL
-					toAtt.DoubleValue = att.GetDoubleValue()
-				}
-
-				toSpan.Attributes = append(toSpan.Attributes, toAtt)
-			}
-		}
-
-		batch.Spans = append(batch.Spans, toSpan)
-	}
-
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &opentelemetry_proto_common_v1.AttributeKeyValue{
-		Key:         "process_name",
-		Type:        opentelemetry_proto_common_v1.AttributeKeyValue_STRING,
-		StringValue: td.Node.ServiceInfo.Name,
-	})
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &opentelemetry_proto_common_v1.AttributeKeyValue{
-		Key:         "host_name",
-		Type:        opentelemetry_proto_common_v1.AttributeKeyValue_STRING,
-		StringValue: td.Node.Identifier.HostName,
-	})
-	for key, att := range td.Node.Attributes {
-		batch.Resource.Attributes = append(batch.Resource.Attributes, &opentelemetry_proto_common_v1.AttributeKeyValue{
-			Key:         key,
-			Type:        opentelemetry_proto_common_v1.AttributeKeyValue_STRING,
-			StringValue: att,
-		})
-	}
-
-	return batch
 }

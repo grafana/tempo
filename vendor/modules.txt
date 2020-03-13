@@ -381,7 +381,7 @@ github.com/hashicorp/serf/coordinate
 github.com/hashicorp/yamux
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
-# github.com/jaegertracing/jaeger v1.16.0
+# github.com/jaegertracing/jaeger v1.17.0
 github.com/jaegertracing/jaeger/cmd/agent/app/configmanager
 github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc
 github.com/jaegertracing/jaeger/cmd/agent/app/customtransports
@@ -391,20 +391,23 @@ github.com/jaegertracing/jaeger/cmd/agent/app/reporter
 github.com/jaegertracing/jaeger/cmd/agent/app/servers
 github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp
 github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext
-github.com/jaegertracing/jaeger/cmd/collector/app
-github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer
-github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/cache
+github.com/jaegertracing/jaeger/cmd/collector/app/handler
+github.com/jaegertracing/jaeger/cmd/collector/app/processor
+github.com/jaegertracing/jaeger/cmd/collector/app/sampling
+github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore
 github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin
 github.com/jaegertracing/jaeger/cmd/flags
 github.com/jaegertracing/jaeger/model
 github.com/jaegertracing/jaeger/model/converter/thrift/jaeger
 github.com/jaegertracing/jaeger/model/converter/thrift/zipkin
+github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp
 github.com/jaegertracing/jaeger/pkg/healthcheck
 github.com/jaegertracing/jaeger/pkg/metrics
 github.com/jaegertracing/jaeger/pkg/multierror
-github.com/jaegertracing/jaeger/pkg/queue
+github.com/jaegertracing/jaeger/pkg/netutils
 github.com/jaegertracing/jaeger/pkg/recoveryhandler
 github.com/jaegertracing/jaeger/pkg/version
+github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static
 github.com/jaegertracing/jaeger/plugin/storage/grpc
 github.com/jaegertracing/jaeger/plugin/storage/grpc/config
 github.com/jaegertracing/jaeger/plugin/storage/grpc/shared
@@ -473,7 +476,7 @@ github.com/nbutton23/zxcvbn-go/utils/math
 github.com/oklog/run
 # github.com/oklog/ulid v1.3.1
 github.com/oklog/ulid
-# github.com/open-telemetry/opentelemetry-collector v0.2.6
+# github.com/open-telemetry/opentelemetry-collector v0.2.7-0.20200311232134-5334b3a8ff08
 github.com/open-telemetry/opentelemetry-collector/client
 github.com/open-telemetry/opentelemetry-collector/component
 github.com/open-telemetry/opentelemetry-collector/config/configerror
@@ -481,7 +484,9 @@ github.com/open-telemetry/opentelemetry-collector/config/configmodels
 github.com/open-telemetry/opentelemetry-collector/consumer
 github.com/open-telemetry/opentelemetry-collector/consumer/consumerdata
 github.com/open-telemetry/opentelemetry-collector/internal
+github.com/open-telemetry/opentelemetry-collector/internal/data
 github.com/open-telemetry/opentelemetry-collector/observability
+github.com/open-telemetry/opentelemetry-collector/obsreport
 github.com/open-telemetry/opentelemetry-collector/oterr
 github.com/open-telemetry/opentelemetry-collector/receiver
 github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver
@@ -489,11 +494,13 @@ github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver
 github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver/ocmetrics
 github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver/octrace
 github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver
+github.com/open-telemetry/opentelemetry-collector/translator/conventions
 github.com/open-telemetry/opentelemetry-collector/translator/trace
 github.com/open-telemetry/opentelemetry-collector/translator/trace/jaeger
 github.com/open-telemetry/opentelemetry-collector/translator/trace/zipkin
-# github.com/open-telemetry/opentelemetry-proto v0.0.0-20200206071824-8310c432e51c
+# github.com/open-telemetry/opentelemetry-proto v0.0.0-20200308012146-674ae1c8703f
 github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1
+github.com/open-telemetry/opentelemetry-proto/gen/go/metrics/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1
 # github.com/opentracing-contrib/go-grpc v0.0.0-20180928155321-4b5a12d3ff02
@@ -764,6 +771,9 @@ go.opencensus.io/trace/tracestate
 go.uber.org/atomic
 # go.uber.org/multierr v1.1.0
 go.uber.org/multierr
+# go.uber.org/ratelimit v0.1.0
+go.uber.org/ratelimit
+go.uber.org/ratelimit/internal/clock
 # go.uber.org/zap v1.10.0
 go.uber.org/zap
 go.uber.org/zap/buffer
@@ -806,7 +816,6 @@ golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
 # golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 golang.org/x/sync/errgroup
-golang.org/x/sync/semaphore
 # golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae
 golang.org/x/sys/unix
 golang.org/x/sys/windows
@@ -886,7 +895,6 @@ google.golang.org/api/internal/third_party/uritemplates
 google.golang.org/api/iterator
 google.golang.org/api/option
 google.golang.org/api/storage/v1
-google.golang.org/api/support/bundler
 google.golang.org/api/transport
 google.golang.org/api/transport/grpc
 google.golang.org/api/transport/http

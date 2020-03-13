@@ -30,13 +30,13 @@ var (
 		Namespace: "tempo",
 		Name:      "query_reads",
 		Help:      "count of reads",
-		Buckets:   prometheus.ExponentialBuckets(0.5, 2, 10),
+		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
 	}, []string{"layer"})
 	metricQueryBytesRead = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
 		Name:      "query_bytes_read",
 		Help:      "bytes read",
-		Buckets:   prometheus.ExponentialBuckets(512, 2, 10),
+		Buckets:   prometheus.ExponentialBuckets(1024, 2, 10),
 	}, []string{"layer"})
 )
 
