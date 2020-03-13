@@ -55,8 +55,8 @@ func TestCompaction(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	blockCount := rand.Int()%20 + 1
-	recordCount := rand.Int()%20 + 1
+	blockCount := 20
+	recordCount := 20
 
 	allReqs := make([]*tempopb.PushRequest, 0, blockCount*recordCount)
 	allIds := make([][]byte, 0, blockCount*recordCount)
@@ -101,32 +101,32 @@ func TestCompaction(t *testing.T) {
 
 	blocksPerCompaction := (inputBlocks - outputBlocks)
 
-	for {
-		var blocks []*backend.BlockMeta
+	for l := 0; l < maxNumLevels-1; l++ {
+		rw.pollBlocklist()
+
 		blocklist := rw.blocklist(testTenantID)
+		blocksPerLevel := blocklistPerLevel(blocklist)
+		blockSelector := newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
 
-		blocksPerLevel := make([][]*backend.BlockMeta, maxNumLevels)
-		for k := 0; k < maxNumLevels; k++ {
-			blocksPerLevel[k] = make([]*backend.BlockMeta, 0)
+		expectedCompactions := len(blocksPerLevel[l]) / inputBlocks
+		compactions := 0
+		for {
+			blocks := blockSelector.BlocksToCompact()
+			if len(blocks) == 0 {
+				break
+			}
+			assert.Len(t, blocks, inputBlocks)
+
+			compactions++
+			err := rw.compact(blocks, testTenantID)
+			assert.NoError(t, err)
+
+			expectedBlockCount -= blocksPerCompaction
+			expectedCompactedCount += inputBlocks
+			checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 		}
 
-		for _, block := range blocklist {
-			blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
-		}
-
-		rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[0], rw.compactorCfg.MaxCompactionRange)
-		blocks = rw.blockSelector.BlocksToCompact()
-		if len(blocks) == 0 {
-			break
-		}
-		assert.Len(t, blocks, inputBlocks)
-
-		err := rw.compact(blocks, testTenantID)
-		assert.NoError(t, err)
-
-		expectedBlockCount -= blocksPerCompaction
-		expectedCompactedCount += inputBlocks
-		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
+		assert.Equal(t, expectedCompactions, compactions)
 	}
 
 	// do we have the right number of records
@@ -208,8 +208,8 @@ func TestSameIDCompaction(t *testing.T) {
 
 	var blocks []*backend.BlockMeta
 	blocklist := rw.blocklist(testTenantID)
-	rw.blockSelector = newSimpleBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange)
-	blocks = rw.blockSelector.BlocksToCompact()
+	blockSelector := newSimpleBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange)
+	blocks = blockSelector.BlocksToCompact()
 	assert.Len(t, blocks, inputBlocks)
 
 	err = rw.compact(blocks, testTenantID)

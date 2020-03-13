@@ -114,7 +114,6 @@ type readerWriter struct {
 
 	jobStopper          *pool.Stopper
 	compactedBlockLists map[string][]*backend.CompactedBlockMeta
-	blockSelector       CompactionBlockSelector
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
@@ -469,5 +468,12 @@ func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.Compacted
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 
-	return rw.compactedBlockLists[tenantID]
+	if tenantID == "" {
+		return nil
+	}
+
+	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(rw.compactedBlockLists[tenantID]))
+	copiedBlocklist = append(copiedBlocklist, rw.compactedBlockLists[tenantID]...)
+
+	return copiedBlocklist
 }
