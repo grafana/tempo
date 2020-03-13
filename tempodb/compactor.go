@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-kit/kit/log/level"
@@ -18,17 +19,17 @@ import (
 )
 
 var (
-	metricCompactionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+	metricCompactionDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_duration_seconds",
 		Help:      "Records the amount of time to compact a set of blocks.",
-		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
-	})
+		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
+	}, []string{"level"})
 	metricCompactionStopDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_duration_stop_seconds",
 		Help:      "Records the amount of time waiting on compaction jobs to stop.",
-		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
+		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
 	})
 	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
@@ -46,16 +47,12 @@ const (
 	inputBlocks  = 4
 	outputBlocks = 2
 
-	// Number of blocks at a level L = blockNumberMultiplier^L
-	// blockNumberMultiplier = 10
-
 	// Number of levels in the levelled compaction strategy
 	maxNumLevels = 3
 )
 
 func (rw *readerWriter) doCompaction() {
 	// stop any existing compaction jobs
-	// TODO(@annanay25): ideally would want to wait for existing jobs to finish
 	if rw.jobStopper != nil {
 		start := time.Now()
 		err := rw.jobStopper.Stop()
@@ -74,25 +71,17 @@ func (rw *readerWriter) doCompaction() {
 		var warning error
 		tenantID := payload.(string)
 		blocklist := rw.blocklist(tenantID)
-		blocksPerLevel := make([][]*backend.BlockMeta, maxNumLevels)
-		for k := 0; k < maxNumLevels; k++ {
-			blocksPerLevel[k] = make([]*backend.BlockMeta, 0)
-		}
+		blocksPerLevel := blocklistPerLevel(blocklist)
 
-		for _, block := range blocklist {
-			blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
-		}
-
-	L:
-		// Right now run this loop only for level 0. We don't compact anything at the top level.
 		for l := 0; l < maxNumLevels-1; l++ {
-			rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
+			blockSelector := newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
+		L:
 			for {
 				select {
 				case <-stopCh:
 					return warning
 				default:
-					toBeCompacted := rw.blockSelector.BlocksToCompact()
+					toBeCompacted := blockSelector.BlocksToCompact()
 					if len(toBeCompacted) == 0 {
 						// If none are suitable, bail
 						break L
@@ -118,12 +107,6 @@ func (rw *readerWriter) doCompaction() {
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
 func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
-	start := time.Now()
-	defer func() {
-		level.Info(rw.logger).Log("msg", "compaction complete")
-		metricCompactionDuration.Observe(time.Since(start).Seconds())
-	}()
-
 	level.Info(rw.logger).Log("msg", "beginning compaction")
 
 	if len(blockMetas) == 0 {
@@ -137,6 +120,12 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		}
 	}
 	nextCompactionLevel := compactionLevel + 1
+
+	start := time.Now()
+	defer func() {
+		level.Info(rw.logger).Log("msg", "compaction complete")
+		metricCompactionDuration.WithLabelValues(strconv.Itoa(int(compactionLevel))).Observe(time.Since(start).Seconds())
+	}()
 
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
@@ -224,6 +213,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 		// ship block to backend if done
 		if currentBlock.Length() >= recordsPerBlock {
+			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 			currentBlock.Complete()
 			level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
 			err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout
@@ -277,4 +267,21 @@ func allDone(bookmarks []*bookmark) bool {
 	}
 
 	return true
+}
+
+func blocklistPerLevel(blocklist []*backend.BlockMeta) [][]*backend.BlockMeta {
+	blocksPerLevel := make([][]*backend.BlockMeta, maxNumLevels)
+	for k := 0; k < maxNumLevels; k++ {
+		blocksPerLevel[k] = make([]*backend.BlockMeta, 0)
+	}
+
+	for _, block := range blocklist {
+		if block.CompactionLevel >= maxNumLevels {
+			continue
+		}
+
+		blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
+	}
+
+	return blocksPerLevel
 }
