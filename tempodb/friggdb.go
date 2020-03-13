@@ -469,5 +469,12 @@ func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.Compacted
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 
+	if tenantID == "" {
+		return nil
+	}
+
+	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(rw.compactedBlockLists[tenantID]))
+	copiedBlocklist = append(copiedBlocklist, rw.compactedBlockLists[tenantID]...)
+
 	return rw.compactedBlockLists[tenantID]
 }
