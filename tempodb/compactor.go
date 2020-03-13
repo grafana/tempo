@@ -106,7 +106,7 @@ func (rw *readerWriter) doCompaction() {
 			}
 		}
 
-		return nil
+		return warning
 	})
 
 	if err != nil {
