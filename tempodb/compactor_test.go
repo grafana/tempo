@@ -104,15 +104,7 @@ func TestCompaction(t *testing.T) {
 	for {
 		var blocks []*backend.BlockMeta
 		blocklist := rw.blocklist(testTenantID)
-
-		blocksPerLevel := make([][]*backend.BlockMeta, maxNumLevels)
-		for k := 0; k < maxNumLevels; k++ {
-			blocksPerLevel[k] = make([]*backend.BlockMeta, 0)
-		}
-
-		for _, block := range blocklist {
-			blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
-		}
+		blocksPerLevel := blocklistPerLevel(blocklist)
 
 		rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[0], rw.compactorCfg.MaxCompactionRange)
 		blocks = rw.blockSelector.BlocksToCompact()

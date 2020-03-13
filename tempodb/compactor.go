@@ -70,18 +70,7 @@ func (rw *readerWriter) doCompaction() {
 		var warning error
 		tenantID := payload.(string)
 		blocklist := rw.blocklist(tenantID)
-		blocksPerLevel := make([][]*backend.BlockMeta, maxNumLevels)
-		for k := 0; k < maxNumLevels; k++ {
-			blocksPerLevel[k] = make([]*backend.BlockMeta, 0)
-		}
-
-		for _, block := range blocklist {
-			if block.CompactionLevel >= maxNumLevels {
-				continue
-			}
-
-			blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
-		}
+		blocksPerLevel := blocklistPerLevel(blocklist)
 
 		for l := 0; l < maxNumLevels; l++ {
 			rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
@@ -276,4 +265,21 @@ func allDone(bookmarks []*bookmark) bool {
 	}
 
 	return true
+}
+
+func blocklistPerLevel(blocklist []*backend.BlockMeta) [][]*backend.BlockMeta {
+	blocksPerLevel := make([][]*backend.BlockMeta, maxNumLevels)
+	for k := 0; k < maxNumLevels; k++ {
+		blocksPerLevel[k] = make([]*backend.BlockMeta, 0)
+	}
+
+	for _, block := range blocklist {
+		if block.CompactionLevel >= maxNumLevels {
+			continue
+		}
+
+		blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
+	}
+
+	return blocksPerLevel
 }
