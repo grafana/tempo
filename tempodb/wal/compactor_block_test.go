@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 
-	"github.com/dgryski/go-farm"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -91,7 +90,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 	// bloom
 	bloom := cb.BloomFilter()
 	for _, id := range ids {
-		has := bloom.Has(farm.Fingerprint64(id))
+		has := bloom.Test(id)
 		assert.True(t, has)
 	}
 

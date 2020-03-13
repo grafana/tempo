@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dgryski/go-farm"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -230,7 +229,7 @@ func TestCompleteBlock(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))
-		assert.True(t, complete.BloomFilter().Has(farm.Fingerprint64(id)))
+		assert.True(t, complete.BloomFilter().Test(id))
 	}
 
 	// confirm order
