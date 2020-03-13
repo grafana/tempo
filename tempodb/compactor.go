@@ -83,9 +83,9 @@ func (rw *readerWriter) doCompaction() {
 			blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
 		}
 
-	L:
 		for l := 0; l < maxNumLevels; l++ {
 			rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
+		L:
 			for {
 				select {
 				case <-stopCh:
