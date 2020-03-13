@@ -72,7 +72,7 @@ func (rw *readerWriter) doCompaction() {
 		blocklist := rw.blocklist(tenantID)
 		blocksPerLevel := blocklistPerLevel(blocklist)
 
-		for l := 0; l < maxNumLevels; l++ {
+		for l := 0; l < maxNumLevels-1; l++ {
 			rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
 		L:
 			for {
@@ -212,6 +212,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 		// ship block to backend if done
 		if currentBlock.Length() >= recordsPerBlock {
+			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 			currentBlock.Complete()
 			level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
 			err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout

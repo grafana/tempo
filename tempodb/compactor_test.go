@@ -55,8 +55,8 @@ func TestCompaction(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	blockCount := rand.Int()%20 + 1
-	recordCount := rand.Int()%20 + 1
+	blockCount := 20
+	recordCount := 20
 
 	allReqs := make([]*tempopb.PushRequest, 0, blockCount*recordCount)
 	allIds := make([][]byte, 0, blockCount*recordCount)
@@ -101,24 +101,32 @@ func TestCompaction(t *testing.T) {
 
 	blocksPerCompaction := (inputBlocks - outputBlocks)
 
-	for {
-		var blocks []*backend.BlockMeta
+	for l := 0; l < maxNumLevels-1; l++ {
+		rw.pollBlocklist()
+
 		blocklist := rw.blocklist(testTenantID)
 		blocksPerLevel := blocklistPerLevel(blocklist)
+		rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
 
-		rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[0], rw.compactorCfg.MaxCompactionRange)
-		blocks = rw.blockSelector.BlocksToCompact()
-		if len(blocks) == 0 {
-			break
+		expectedCompactions := len(blocksPerLevel[l]) / inputBlocks
+		compactions := 0
+		for {
+			blocks := rw.blockSelector.BlocksToCompact()
+			if len(blocks) == 0 {
+				break
+			}
+			assert.Len(t, blocks, inputBlocks)
+
+			compactions++
+			err := rw.compact(blocks, testTenantID)
+			assert.NoError(t, err)
+
+			expectedBlockCount -= blocksPerCompaction
+			expectedCompactedCount += inputBlocks
+			checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 		}
-		assert.Len(t, blocks, inputBlocks)
 
-		err := rw.compact(blocks, testTenantID)
-		assert.NoError(t, err)
-
-		expectedBlockCount -= blocksPerCompaction
-		expectedCompactedCount += inputBlocks
-		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
+		assert.Equal(t, expectedCompactions, compactions)
 	}
 
 	// do we have the right number of records
