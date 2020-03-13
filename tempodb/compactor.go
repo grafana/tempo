@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-kit/kit/log/level"
@@ -18,17 +19,17 @@ import (
 )
 
 var (
-	metricCompactionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+	metricCompactionDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_duration_seconds",
 		Help:      "Records the amount of time to compact a set of blocks.",
-		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
-	})
+		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
+	}, []string{"level"})
 	metricCompactionStopDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_duration_stop_seconds",
 		Help:      "Records the amount of time waiting on compaction jobs to stop.",
-		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
+		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
 	})
 	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
@@ -106,12 +107,6 @@ func (rw *readerWriter) doCompaction() {
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
 func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
-	start := time.Now()
-	defer func() {
-		level.Info(rw.logger).Log("msg", "compaction complete")
-		metricCompactionDuration.Observe(time.Since(start).Seconds())
-	}()
-
 	level.Info(rw.logger).Log("msg", "beginning compaction")
 
 	if len(blockMetas) == 0 {
@@ -125,6 +120,12 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		}
 	}
 	nextCompactionLevel := compactionLevel + 1
+
+	start := time.Now()
+	defer func() {
+		level.Info(rw.logger).Log("msg", "compaction complete")
+		metricCompactionDuration.WithLabelValues(strconv.Itoa(int(compactionLevel))).Observe(time.Since(start).Seconds())
+	}()
 
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
