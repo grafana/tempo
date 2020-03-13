@@ -30,7 +30,6 @@ func newSimpleBlockSelector(maxCompactionRange time.Duration) CompactionBlockSel
 
 func (sbs *simpleBlockSelector) ResetCursor() {
 	sbs.cursor = 0
-	return
 }
 
 // todo: switch to iterator pattern?

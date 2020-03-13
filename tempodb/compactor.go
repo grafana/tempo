@@ -47,89 +47,89 @@ const (
 	outputBlocks = 2
 )
 
-func (rw *readerWriter) doCompaction() {
-	// stop any existing compaction jobs
-	if rw.jobStopper != nil {
-		start := time.Now()
-		err := rw.jobStopper.Stop()
-		if err != nil {
-			level.Warn(rw.logger).Log("msg", "error during compaction cycle", "err", err)
-			metricCompactionErrors.Inc()
-		}
-		metricCompactionStopDuration.Observe(time.Since(start).Seconds())
-	}
+// func (rw *readerWriter) doCompaction() {
+// 	// stop any existing compaction jobs
+// 	if rw.jobStopper != nil {
+// 		start := time.Now()
+// 		err := rw.jobStopper.Stop()
+// 		if err != nil {
+// 			level.Warn(rw.logger).Log("msg", "error during compaction cycle", "err", err)
+// 			metricCompactionErrors.Inc()
+// 		}
+// 		metricCompactionStopDuration.Observe(time.Since(start).Seconds())
+// 	}
 
-	// start crazy jobs to do compaction with new list
-	tenants := rw.blocklistTenants()
+// 	// start crazy jobs to do compaction with new list
+// 	tenants := rw.blocklistTenants()
 
-	var err error
-	rw.jobStopper, err = rw.pool.RunStoppableJobs(tenants, func(payload interface{}, stopCh <-chan struct{}) error {
-		var warning error
-		tenantID := payload.(string)
+// 	var err error
+// 	rw.jobStopper, err = rw.pool.RunStoppableJobs(tenants, func(payload interface{}, stopCh <-chan struct{}) error {
+// 		var warning error
+// 		tenantID := payload.(string)
 
-		cursor := 0
-	L:
-		for {
-			select {
-			case <-stopCh:
-				return warning
-			default:
-				var blocks []*backend.BlockMeta
-				blocks, cursor = rw.blocksToCompact(tenantID, cursor) // todo: pass a context with a deadline?
-				if blocks == nil {
-					break L
-				}
-				err := rw.compact(blocks, tenantID)
-				if err != nil {
-					warning = err
-					metricCompactionErrors.Inc()
-				}
-			}
-		}
+// 		cursor := 0
+// 	L:
+// 		for {
+// 			select {
+// 			case <-stopCh:
+// 				return warning
+// 			default:
+// 				var blocks []*backend.BlockMeta
+// 				blocks, cursor = rw.blocksToCompact(tenantID, cursor) // todo: pass a context with a deadline?
+// 				if blocks == nil {
+// 					break L
+// 				}
+// 				err := rw.compact(blocks, tenantID)
+// 				if err != nil {
+// 					warning = err
+// 					metricCompactionErrors.Inc()
+// 				}
+// 			}
+// 		}
 
-		return warning
-	})
+// 		return warning
+// 	})
 
-	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next maintenance cycle.", "err", err)
-		metricCompactionErrors.Inc()
-	}
-}
+// 	if err != nil {
+// 		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next maintenance cycle.", "err", err)
+// 		metricCompactionErrors.Inc()
+// 	}
+// }
 
-// todo: metric to determine "effectiveness" of compaction.  i.e. total key overlap of blocks that is being eliminated?
-//       switch to iterator pattern?
-func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend.BlockMeta, int) {
-	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
-	//   - consider candidateBlocks at a time.
-	//   - find the blocks with the fewest records that are within the compaction range
-	rw.blockListsMtx.Lock() // todo: there's lots of contention on this mutex.  keep an eye on this
-	defer rw.blockListsMtx.Unlock()
+// // todo: metric to determine "effectiveness" of compaction.  i.e. total key overlap of blocks that is being eliminated?
+// //       switch to iterator pattern?
+// func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend.BlockMeta, int) {
+// 	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
+// 	//   - consider candidateBlocks at a time.
+// 	//   - find the blocks with the fewest records that are within the compaction range
+// 	rw.blockListsMtx.Lock() // todo: there's lots of contention on this mutex.  keep an eye on this
+// 	defer rw.blockListsMtx.Unlock()
 
-	blocklist := rw.blockLists[tenantID]
-	if inputBlocks > len(blocklist) {
-		return nil, 0
-	}
+// 	blocklist := rw.blockLists[tenantID]
+// 	if inputBlocks > len(blocklist) {
+// 		return nil, 0
+// 	}
 
-	cursorEnd := cursor + inputBlocks - 1
-	for {
-		if cursorEnd >= len(blocklist) {
-			break
-		}
+// 	cursorEnd := cursor + inputBlocks - 1
+// 	for {
+// 		if cursorEnd >= len(blocklist) {
+// 			break
+// 		}
 
-		blockStart := blocklist[cursor]
-		blockEnd := blocklist[cursorEnd]
+// 		blockStart := blocklist[cursor]
+// 		blockEnd := blocklist[cursorEnd]
 
-		if blockEnd.EndTime.Sub(blockStart.StartTime) < rw.compactorCfg.MaxCompactionRange {
-			return blocklist[cursor : cursorEnd+1], cursorEnd + 1
-		}
+// 		if blockEnd.EndTime.Sub(blockStart.StartTime) < rw.compactorCfg.MaxCompactionRange {
+// 			return blocklist[cursor : cursorEnd+1], cursorEnd + 1
+// 		}
 
-		cursor++
-		cursorEnd = cursor + inputBlocks - 1
-	}
+// 		cursor++
+// 		cursorEnd = cursor + inputBlocks - 1
+// 	}
 
-	// Could not find blocks suitable for compaction, break
-	return nil, 0
-}
+// 	// Could not find blocks suitable for compaction, break
+// 	return nil, 0
+// }
 
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
