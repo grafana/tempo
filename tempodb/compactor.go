@@ -45,7 +45,75 @@ var (
 const (
 	inputBlocks  = 4
 	outputBlocks = 2
+
+	// Number of blocks at a level L = blockNumberMultiplier^L
+	// blockNumberMultiplier = 10
+
+	// Number of levels in the levelled compaction strategy
+	maxNumLevels = 2
 )
+
+func (rw *readerWriter) doCompaction() {
+	// stop any existing compaction jobs
+	// TODO(@annanay25): ideally would want to wait for existing jobs to finish
+	if rw.jobStopper != nil {
+		start := time.Now()
+		err := rw.jobStopper.Stop()
+		if err != nil {
+			level.Warn(rw.logger).Log("msg", "error during compaction cycle", "err", err)
+			metricCompactionErrors.Inc()
+		}
+		metricCompactionStopDuration.Observe(time.Since(start).Seconds())
+	}
+
+	// start crazy jobs to do compaction with new list
+	tenants := rw.blocklistTenants()
+
+	var err error
+	rw.jobStopper, err = rw.pool.RunStoppableJobs(tenants, func(payload interface{}, stopCh <-chan struct{}) error {
+		var warning error
+		tenantID := payload.(string)
+		blocklist := rw.blocklist(tenantID)
+		blocksPerLevel := make([][]*backend.BlockMeta, maxNumLevels)
+		for k := 0; k < maxNumLevels; k++ {
+			blocksPerLevel[k] = make([]*backend.BlockMeta, 0)
+		}
+
+		for _, block := range blocklist {
+			blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
+		}
+
+	L:
+		// Right now run this loop only for level 0. We don't compact anything at the top level.
+		for l := 0; l < maxNumLevels-1; l++ {
+			rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
+			for {
+				select {
+				case <-stopCh:
+					return warning
+				default:
+					toBeCompacted := rw.blockSelector.BlocksToCompact()
+					if len(toBeCompacted) == 0 {
+						// If none are suitable, bail
+						break L
+					}
+					if err := rw.compact(toBeCompacted, tenantID); err != nil {
+						warning = err
+						level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
+						metricCompactionErrors.Inc()
+					}
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next maintenance cycle.", "err", err)
+		metricCompactionErrors.Inc()
+	}
+}
 
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
@@ -58,7 +126,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	level.Info(rw.logger).Log("msg", "beginning compaction")
 
-	if blockMetas == nil {
+	if len(blockMetas) == 0 {
 		return nil
 	}
 

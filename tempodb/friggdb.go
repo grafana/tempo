@@ -284,8 +284,6 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig) {
 		level.Info(rw.logger).Log("msg", "compaction enabled.")
 	}
 	rw.compactorCfg = cfg
-
-	rw.blockSelector = newSimpleBlockSelector(rw.compactorCfg.MaxCompactionRange)
 }
 
 func (rw *readerWriter) maintenanceLoop() {
@@ -457,7 +455,15 @@ func (rw *readerWriter) blocklist(tenantID string) []*backend.BlockMeta {
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 
-	return rw.blockLists[tenantID]
+	if tenantID == "" {
+		return nil
+	}
+
+	copiedBlocklist := make([]*backend.BlockMeta, 0, len(rw.blockLists[tenantID]))
+	for _, b := range rw.blockLists[tenantID] {
+		copiedBlocklist = append(copiedBlocklist, b)
+	}
+	return copiedBlocklist
 }
 
 // todo:  make separate compacted list mutex?
