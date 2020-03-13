@@ -28,7 +28,6 @@ func newSimpleBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange t
 	}
 }
 
-// todo: switch to iterator pattern?
 func (sbs *simpleBlockSelector) BlocksToCompact() []*backend.BlockMeta {
 	// should never happen
 	if inputBlocks > len(sbs.blocklist) {

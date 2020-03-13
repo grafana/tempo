@@ -46,16 +46,12 @@ const (
 	inputBlocks  = 4
 	outputBlocks = 2
 
-	// Number of blocks at a level L = blockNumberMultiplier^L
-	// blockNumberMultiplier = 10
-
 	// Number of levels in the levelled compaction strategy
 	maxNumLevels = 3
 )
 
 func (rw *readerWriter) doCompaction() {
 	// stop any existing compaction jobs
-	// TODO(@annanay25): ideally would want to wait for existing jobs to finish
 	if rw.jobStopper != nil {
 		start := time.Now()
 		err := rw.jobStopper.Stop()
@@ -80,12 +76,15 @@ func (rw *readerWriter) doCompaction() {
 		}
 
 		for _, block := range blocklist {
+			if block.CompactionLevel >= maxNumLevels {
+				continue
+			}
+
 			blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
 		}
 
 	L:
-		// Right now run this loop only for level 0. We don't compact anything at the top level.
-		for l := 0; l < maxNumLevels-1; l++ {
+		for l := 0; l < maxNumLevels; l++ {
 			rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
 			for {
 				select {
