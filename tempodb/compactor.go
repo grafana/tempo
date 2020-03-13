@@ -116,7 +116,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	level.Info(rw.logger).Log("msg", "beginning compaction")
 
 	if len(blockMetas) == 0 {
-		return fmt.Errorf("Empty blocklist")
+		return nil
 	}
 
 	compactionLevel := blockMetas[0].CompactionLevel
