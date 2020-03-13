@@ -57,7 +57,7 @@ func (rw *readerWriter) doLevelledCompaction() {
 					// If none are suitable, bail
 					break
 				}
-				toBeCompacted := blocksPerLevel[l][pos : pos+inputBlocks-1]
+				toBeCompacted := blocksPerLevel[l][pos : pos+inputBlocks]
 				if err := rw.compact(toBeCompacted, tenantID); err != nil {
 					level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
 					break

@@ -39,10 +39,13 @@ func (sbs *simpleBlockSelector) BlocksToCompactInSameLevel(blocklist []*backend.
 		return -1
 	}
 
-	for cursor := 0; cursor < len(blocklist)-inputBlocks+1; cursor++ {
-		if blocklist[cursor+inputBlocks-1].EndTime.Sub(blocklist[cursor].StartTime) < sbs.MaxCompactionRange {
-			return cursor
+	for sbs.cursor < len(blocklist)-inputBlocks+1 {
+		if blocklist[sbs.cursor+inputBlocks-1].EndTime.Sub(blocklist[sbs.cursor].StartTime) < sbs.MaxCompactionRange {
+			retMe := sbs.cursor
+			sbs.cursor++
+			return retMe
 		}
+		sbs.cursor++
 	}
 
 	// Could not find blocks suitable for compaction, break
