@@ -460,9 +460,7 @@ func (rw *readerWriter) blocklist(tenantID string) []*backend.BlockMeta {
 	}
 
 	copiedBlocklist := make([]*backend.BlockMeta, 0, len(rw.blockLists[tenantID]))
-	for _, b := range rw.blockLists[tenantID] {
-		copiedBlocklist = append(copiedBlocklist, b)
-	}
+	copiedBlocklist = append(copiedBlocklist, rw.blockLists[tenantID]...)
 	return copiedBlocklist
 }
 

@@ -50,7 +50,7 @@ const (
 	// blockNumberMultiplier = 10
 
 	// Number of levels in the levelled compaction strategy
-	maxNumLevels = 2
+	maxNumLevels = 3
 )
 
 func (rw *readerWriter) doCompaction() {
