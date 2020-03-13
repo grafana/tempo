@@ -170,13 +170,14 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 		return err
 	}
 
-	bloomBytes, err := c.BloomFilter().MarshalJSON()
+	bloomBuffer := &bytes.Buffer{}
+	_, err = c.BloomFilter().WriteTo(bloomBuffer)
 	if err != nil {
 		return err
 	}
 
 	meta := c.BlockMeta()
-	err = rw.w.Write(ctx, meta, bloomBytes, indexBytes, c.ObjectFilePath())
+	err = rw.w.Write(ctx, meta, bloomBuffer.Bytes(), indexBytes, c.ObjectFilePath())
 	if err != nil {
 		return err
 	}
@@ -224,7 +225,7 @@ func (rw *readerWriter) Find(tenantID string, id backend.ID) ([]byte, FindMetric
 		}
 
 		filter := &bloom.BloomFilter{}
-		err = filter.UnmarshalJSON(bloomBytes)
+		_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
 		if err != nil {
 			return nil, err
 		}
