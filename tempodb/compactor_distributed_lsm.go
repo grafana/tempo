@@ -16,7 +16,7 @@ const (
 )
 
 // For now it just adds blocks prefixed by tenantID to redis
-func (rw *readerWriter) doLevelledCompaction() {
+func (rw *readerWriter) doCompaction() {
 	// stop any existing compaction jobs
 	// TODO(@annanay25): ideally would want to wait for existing jobs to finish
 	if rw.jobStopper != nil {

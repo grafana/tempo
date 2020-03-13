@@ -308,7 +308,7 @@ func (rw *readerWriter) doMaintenance() {
 	rw.pollBlocklist()
 
 	if rw.compactorCfg != nil {
-		rw.doLevelledCompaction()
+		rw.doCompaction()
 		rw.doRetention()
 	}
 }

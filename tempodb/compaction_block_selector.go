@@ -10,7 +10,6 @@ import (
 type CompactionBlockSelector interface {
 	ResetCursor()
 	BlocksToCompactInSameLevel(blocklist []*backend.BlockMeta) int
-	// BlocksToCompactAcrossLevels(block *backend.BlockMeta, blocklist []*backend.BlockMeta) []*backend.BlockMeta
 }
 
 /*************************** Simple Block Selector **************************/
@@ -50,5 +49,4 @@ func (sbs *simpleBlockSelector) BlocksToCompactInSameLevel(blocklist []*backend.
 
 	// Could not find blocks suitable for compaction, break
 	return -1
-
 }
