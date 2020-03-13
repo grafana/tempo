@@ -8,13 +8,12 @@ import (
 	"sync"
 	"time"
 
-	bloom "github.com/dgraph-io/ristretto/z"
-	"github.com/dgryski/go-farm"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/willf/bloom"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -171,7 +170,11 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 		return err
 	}
 
-	bloomBytes := c.BloomFilter().JSONMarshal()
+	bloomBytes, err := c.BloomFilter().MarshalJSON()
+	if err != nil {
+		return err
+	}
+
 	meta := c.BlockMeta()
 	err = rw.w.Write(ctx, meta, bloomBytes, indexBytes, c.ObjectFilePath())
 	if err != nil {
@@ -220,10 +223,15 @@ func (rw *readerWriter) Find(tenantID string, id backend.ID) ([]byte, FindMetric
 			return nil, err
 		}
 
-		filter := bloom.JSONUnmarshal(bloomBytes)
+		filter := &bloom.BloomFilter{}
+		err = filter.UnmarshalJSON(bloomBytes)
+		if err != nil {
+			return nil, err
+		}
+
 		metrics.BloomFilterReads.Inc()
 		metrics.BloomFilterBytesRead.Add(int32(len(bloomBytes)))
-		if !filter.Has(farm.Fingerprint64(id)) {
+		if !filter.Test(id) {
 			return nil, nil
 		}
 
