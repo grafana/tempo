@@ -18,12 +18,12 @@ import (
 )
 
 var (
-	metricCompactionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+	metricCompactionDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_duration_seconds",
 		Help:      "Records the amount of time to compact a set of blocks.",
 		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
-	})
+	}, []string{"0", "1", "2"})
 	metricCompactionStopDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_duration_stop_seconds",
@@ -40,6 +40,11 @@ var (
 		Name:      "compaction_id_range",
 		Help:      "Total range of IDs compacted into a single block. (The smaller the better)",
 	})
+	metricBlockCountAtLevel = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_block_count_at_level",
+		Help:      "Number of blocks at a given compaction level",
+	}, []string{"0", "1", "2"})
 )
 
 const (
@@ -86,6 +91,7 @@ func (rw *readerWriter) doCompaction() {
 	L:
 		// Right now run this loop only for level 0. We don't compact anything at the top level.
 		for l := 0; l < maxNumLevels-1; l++ {
+			metricBlockCountAtLevel.WithLabelValues(string(l)).Set(float64(len(blocksPerLevel[l]))) // if a loop is stopCh'ed before completing all levels there might be gaps in this metrics
 			rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
 			for {
 				select {
@@ -119,15 +125,10 @@ func (rw *readerWriter) doCompaction() {
 //   in these cases it's possible that the compact method actually will start making more blocks.
 func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
 	start := time.Now()
-	defer func() {
-		level.Info(rw.logger).Log("msg", "compaction complete")
-		metricCompactionDuration.Observe(time.Since(start).Seconds())
-	}()
-
 	level.Info(rw.logger).Log("msg", "beginning compaction")
 
 	if len(blockMetas) == 0 {
-		return nil
+		return fmt.Errorf("Empty blocklist")
 	}
 
 	compactionLevel := blockMetas[0].CompactionLevel
@@ -137,6 +138,11 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		}
 	}
 	nextCompactionLevel := compactionLevel + 1
+
+	defer func() {
+		level.Info(rw.logger).Log("msg", "compaction complete")
+		metricCompactionDuration.WithLabelValues(string(compactionLevel)).Observe(time.Since(start).Seconds())
+	}()
 
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
