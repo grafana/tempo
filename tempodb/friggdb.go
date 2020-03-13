@@ -475,5 +475,5 @@ func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.Compacted
 	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(rw.compactedBlockLists[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, rw.compactedBlockLists[tenantID]...)
 
-	return rw.compactedBlockLists[tenantID]
+	return copiedBlocklist
 }
