@@ -114,6 +114,7 @@ type readerWriter struct {
 
 	jobStopper          *pool.Stopper
 	compactedBlockLists map[string][]*backend.CompactedBlockMeta
+	blockSelector       CompactionBlockSelector
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
@@ -454,7 +455,13 @@ func (rw *readerWriter) blocklist(tenantID string) []*backend.BlockMeta {
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 
-	return rw.blockLists[tenantID]
+	if tenantID == "" {
+		return nil
+	}
+
+	copiedBlocklist := make([]*backend.BlockMeta, 0, len(rw.blockLists[tenantID]))
+	copiedBlocklist = append(copiedBlocklist, rw.blockLists[tenantID]...)
+	return copiedBlocklist
 }
 
 // todo:  make separate compacted list mutex?

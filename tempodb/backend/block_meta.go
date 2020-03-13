@@ -14,14 +14,15 @@ type CompactedBlockMeta struct {
 }
 
 type BlockMeta struct {
-	Version      string    `json:"format"`
-	BlockID      uuid.UUID `json:"blockID"`
-	MinID        ID        `json:"minID"`
-	MaxID        ID        `json:"maxID"`
-	TenantID     string    `json:"tenantID"`
-	StartTime    time.Time `json:"startTime"`
-	EndTime      time.Time `json:"endTime"`
-	TotalObjects int       `json:"totalObjects"`
+	Version         string    `json:"format"`
+	BlockID         uuid.UUID `json:"blockID"`
+	MinID           ID        `json:"minID"`
+	MaxID           ID        `json:"maxID"`
+	TenantID        string    `json:"tenantID"`
+	StartTime       time.Time `json:"startTime"`
+	EndTime         time.Time `json:"endTime"`
+	TotalObjects    int       `json:"totalObjects"`
+	CompactionLevel uint8     `json:"compactionLevel"`
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {

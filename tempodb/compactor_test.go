@@ -100,11 +100,23 @@ func TestCompaction(t *testing.T) {
 	checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 
 	blocksPerCompaction := (inputBlocks - outputBlocks)
+
 	for {
-		cursor := 0
 		var blocks []*backend.BlockMeta
-		blocks, _ = rw.blocksToCompact(testTenantID, cursor)
-		if blocks == nil {
+		blocklist := rw.blocklist(testTenantID)
+
+		blocksPerLevel := make([][]*backend.BlockMeta, maxNumLevels)
+		for k := 0; k < maxNumLevels; k++ {
+			blocksPerLevel[k] = make([]*backend.BlockMeta, 0)
+		}
+
+		for _, block := range blocklist {
+			blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
+		}
+
+		rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[0], rw.compactorCfg.MaxCompactionRange)
+		blocks = rw.blockSelector.BlocksToCompact()
+		if len(blocks) == 0 {
 			break
 		}
 		assert.Len(t, blocks, inputBlocks)
@@ -195,7 +207,9 @@ func TestSameIDCompaction(t *testing.T) {
 	checkBlocklists(t, uuid.Nil, 5, 0, rw)
 
 	var blocks []*backend.BlockMeta
-	blocks, _ = rw.blocksToCompact(testTenantID, 0)
+	blocklist := rw.blocklist(testTenantID)
+	rw.blockSelector = newSimpleBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange)
+	blocks = rw.blockSelector.BlocksToCompact()
 	assert.Len(t, blocks, inputBlocks)
 
 	err = rw.compact(blocks, testTenantID)

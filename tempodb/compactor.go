@@ -45,10 +45,17 @@ var (
 const (
 	inputBlocks  = 4
 	outputBlocks = 2
+
+	// Number of blocks at a level L = blockNumberMultiplier^L
+	// blockNumberMultiplier = 10
+
+	// Number of levels in the levelled compaction strategy
+	maxNumLevels = 3
 )
 
 func (rw *readerWriter) doCompaction() {
 	// stop any existing compaction jobs
+	// TODO(@annanay25): ideally would want to wait for existing jobs to finish
 	if rw.jobStopper != nil {
 		start := time.Now()
 		err := rw.jobStopper.Stop()
@@ -66,23 +73,35 @@ func (rw *readerWriter) doCompaction() {
 	rw.jobStopper, err = rw.pool.RunStoppableJobs(tenants, func(payload interface{}, stopCh <-chan struct{}) error {
 		var warning error
 		tenantID := payload.(string)
+		blocklist := rw.blocklist(tenantID)
+		blocksPerLevel := make([][]*backend.BlockMeta, maxNumLevels)
+		for k := 0; k < maxNumLevels; k++ {
+			blocksPerLevel[k] = make([]*backend.BlockMeta, 0)
+		}
 
-		cursor := 0
+		for _, block := range blocklist {
+			blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
+		}
+
 	L:
-		for {
-			select {
-			case <-stopCh:
-				return warning
-			default:
-				var blocks []*backend.BlockMeta
-				blocks, cursor = rw.blocksToCompact(tenantID, cursor) // todo: pass a context with a deadline?
-				if blocks == nil {
-					break L
-				}
-				err := rw.compact(blocks, tenantID)
-				if err != nil {
-					warning = err
-					metricCompactionErrors.Inc()
+		// Right now run this loop only for level 0. We don't compact anything at the top level.
+		for l := 0; l < maxNumLevels-1; l++ {
+			rw.blockSelector = newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
+			for {
+				select {
+				case <-stopCh:
+					return warning
+				default:
+					toBeCompacted := rw.blockSelector.BlocksToCompact()
+					if len(toBeCompacted) == 0 {
+						// If none are suitable, bail
+						break L
+					}
+					if err := rw.compact(toBeCompacted, tenantID); err != nil {
+						warning = err
+						level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
+						metricCompactionErrors.Inc()
+					}
 				}
 			}
 		}
@@ -96,41 +115,6 @@ func (rw *readerWriter) doCompaction() {
 	}
 }
 
-// todo: metric to determine "effectiveness" of compaction.  i.e. total key overlap of blocks that is being eliminated?
-//       switch to iterator pattern?
-func (rw *readerWriter) blocksToCompact(tenantID string, cursor int) ([]*backend.BlockMeta, int) {
-	// loop through blocks starting at cursor for the given tenant, blocks are sorted by start date so candidates for compaction should be near each other
-	//   - consider candidateBlocks at a time.
-	//   - find the blocks with the fewest records that are within the compaction range
-	rw.blockListsMtx.Lock() // todo: there's lots of contention on this mutex.  keep an eye on this
-	defer rw.blockListsMtx.Unlock()
-
-	blocklist := rw.blockLists[tenantID]
-	if inputBlocks > len(blocklist) {
-		return nil, 0
-	}
-
-	cursorEnd := cursor + inputBlocks - 1
-	for {
-		if cursorEnd >= len(blocklist) {
-			break
-		}
-
-		blockStart := blocklist[cursor]
-		blockEnd := blocklist[cursorEnd]
-
-		if blockEnd.EndTime.Sub(blockStart.StartTime) < rw.compactorCfg.MaxCompactionRange {
-			return blocklist[cursor : cursorEnd+1], cursorEnd + 1
-		}
-
-		cursor++
-		cursorEnd = cursor + inputBlocks - 1
-	}
-
-	// Could not find blocks suitable for compaction, break
-	return nil, 0
-}
-
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
 func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
@@ -141,6 +125,18 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	}()
 
 	level.Info(rw.logger).Log("msg", "beginning compaction")
+
+	if len(blockMetas) == 0 {
+		return nil
+	}
+
+	compactionLevel := blockMetas[0].CompactionLevel
+	for _, block := range blockMetas {
+		if compactionLevel != block.CompactionLevel {
+			return fmt.Errorf("Not all blocks are of the same compaction level")
+		}
+	}
+	nextCompactionLevel := compactionLevel + 1
 
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
@@ -248,6 +244,8 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		metricRangeOfCompaction.Set(
 			util.BlockIDRange(currentBlock.BlockMeta().MaxID, currentBlock.BlockMeta().MinID),
 		)
+		// Increment compaction level
+		currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 		currentBlock.Complete()
 		level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
 		err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout

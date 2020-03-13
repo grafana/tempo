@@ -17,7 +17,7 @@ func NewRateLimitedLogger(logsPerSecond int, logger log.Logger) *RateLimitedLogg
 	go func() {
 		limiter := ratelimit.New(logsPerSecond)
 		for keyvals := range r.logChan {
-			logger.Log(keyvals...)
+			_ = logger.Log(keyvals...)
 			limiter.Take()
 		}
 	}()
