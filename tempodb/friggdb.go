@@ -46,7 +46,7 @@ var (
 		Namespace: "tempodb",
 		Name:      "blocklist_length",
 		Help:      "Total number of blocks per tenant.",
-	}, []string{"tenant"})
+	}, []string{"tenant", "level"})
 	metricCompactedBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_blocklist_length",

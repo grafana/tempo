@@ -41,11 +41,6 @@ var (
 		Name:      "compaction_id_range",
 		Help:      "Total range of IDs compacted into a single block. (The smaller the better)",
 	})
-	metricBlockCountAtLevel = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_block_count_at_level",
-		Help:      "Number of blocks at a given compaction level",
-	}, []string{"level"})
 )
 
 const (
