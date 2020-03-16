@@ -32,6 +32,8 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/uber-go/atomic v1.4.0
 	github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d
+	github.com/willf/bitset v1.1.10 // indirect
+	github.com/willf/bloom v2.0.3+incompatible
 	go.uber.org/atomic v1.5.0
 	go.uber.org/ratelimit v0.1.0
 	go.uber.org/zap v1.10.0

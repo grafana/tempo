@@ -5,10 +5,9 @@ import (
 	"os"
 	"time"
 
-	bloom "github.com/dgraph-io/ristretto/z"
-	"github.com/dgryski/go-farm"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/willf/bloom"
 )
 
 type CompactorBlock struct {
@@ -16,7 +15,7 @@ type CompactorBlock struct {
 
 	metas []*backend.BlockMeta
 
-	bloom      *bloom.Bloom
+	bloom      *bloom.BloomFilter
 	appendFile *os.File
 	appender   backend.Appender
 }
@@ -35,7 +34,7 @@ func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 			meta:     backend.NewBlockMeta(tenantID, id),
 			filepath: filepath,
 		},
-		bloom: bloom.NewBloomFilter(float64(estimatedObjects), bloomFP),
+		bloom: bloom.NewWithEstimates(uint(estimatedObjects), bloomFP),
 		metas: metas,
 	}
 
@@ -61,7 +60,7 @@ func (c *CompactorBlock) Write(id backend.ID, object []byte) error {
 		return err
 	}
 	c.meta.ObjectAdded(id)
-	c.bloom.Add(farm.Fingerprint64(id))
+	c.bloom.Add(id)
 	return nil
 }
 
@@ -98,7 +97,7 @@ func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) BloomFilter() *bloom.Bloom {
+func (c *CompactorBlock) BloomFilter() *bloom.BloomFilter {
 	return c.bloom
 }
 

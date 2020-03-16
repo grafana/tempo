@@ -16,7 +16,7 @@
   "gnetId": null,
   "graphTooltip": 1,
   "id": 1425,
-  "iteration": 1584014500230,
+  "iteration": 1584118194338,
   "links": [],
   "panels": [
     {
@@ -1260,18 +1260,18 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "histogram_quantile(.99, sum(rate(tempodb_compaction_duration_seconds_bucket{job=~\"$namespace/$component\"}[$interval])) by (le))",
-          "legendFormat": ".99",
+          "expr": "histogram_quantile(.99, sum(rate(tempodb_compaction_duration_seconds_bucket{job=~\"$namespace/$component\"}[$interval])) by (le, level))",
+          "legendFormat": ".99-{{level}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(.9, sum(rate(tempodb_compaction_duration_seconds_bucket{job=~\"$namespace/$component\"}[$interval])) by (le))",
-          "legendFormat": ".9",
+          "expr": "histogram_quantile(.9, sum(rate(tempodb_compaction_duration_seconds_bucket{job=~\"$namespace/$component\"}[$interval])) by (le, level))",
+          "legendFormat": ".9-{{level}}",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(.5, sum(rate(tempodb_compaction_duration_seconds_bucket{job=~\"$namespace/$component\"}[$interval])) by (le))",
-          "legendFormat": ".5",
+          "expr": "histogram_quantile(.5, sum(rate(tempodb_compaction_duration_seconds_bucket{job=~\"$namespace/$component\"}[$interval])) by (le, level))",
+          "legendFormat": ".5-{{level}}",
           "refId": "C"
         }
       ],
@@ -3023,7 +3023,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Traces/Batch",
+      "title": "Traces / Batch",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -3824,7 +3824,6 @@
     "list": [
       {
         "current": {
-          "selected": true,
           "text": "ops-cortex",
           "value": "ops-cortex"
         },
@@ -3871,7 +3870,7 @@
       {
         "allValue": ".*",
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "All",
           "value": "$__all"
         },
@@ -3913,7 +3912,7 @@
       },
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "ops-tools1",
           "value": "ops-tools1"
         },
@@ -3934,7 +3933,6 @@
       {
         "allValue": null,
         "current": {
-          "selected": true,
           "text": "tracing-ops",
           "value": "tracing-ops"
         },

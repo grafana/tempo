@@ -3,10 +3,9 @@ package wal
 import (
 	"os"
 
-	bloom "github.com/dgraph-io/ristretto/z"
-	"github.com/dgryski/go-farm"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/willf/bloom"
 )
 
 type HeadBlock struct {
@@ -73,7 +72,7 @@ func (h *HeadBlock) Complete(w *WAL) (*CompleteBlock, error) {
 			meta:     backend.NewBlockMeta(h.meta.TenantID, uuid.New()),
 			filepath: walConfig.WorkFilepath,
 		},
-		bloom: bloom.NewBloomFilter(float64(len(records)), walConfig.BloomFP),
+		bloom: bloom.NewWithEstimates(uint(len(records)), walConfig.BloomFP),
 	}
 	orderedBlock.meta.StartTime = h.meta.StartTime
 	orderedBlock.meta.EndTime = h.meta.EndTime
@@ -107,7 +106,7 @@ func (h *HeadBlock) Complete(w *WAL) (*CompleteBlock, error) {
 			break
 		}
 
-		orderedBlock.bloom.Add(farm.Fingerprint64(bytesID))
+		orderedBlock.bloom.Add(bytesID)
 		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
 		writeID := append([]byte(nil), bytesID...)
 		err = appender.Append(writeID, bytesObject)

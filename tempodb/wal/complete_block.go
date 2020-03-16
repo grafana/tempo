@@ -4,8 +4,8 @@ import (
 	"os"
 	"time"
 
-	bloom "github.com/dgraph-io/ristretto/z"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/willf/bloom"
 )
 
 type ReplayBlock interface {
@@ -16,7 +16,7 @@ type ReplayBlock interface {
 
 type WriteableBlock interface {
 	BlockMeta() *backend.BlockMeta
-	BloomFilter() *bloom.Bloom
+	BloomFilter() *bloom.BloomFilter
 	BlockWroteSuccessfully(t time.Time)
 	Records() []*backend.Record
 	ObjectFilePath() string
@@ -26,7 +26,7 @@ type WriteableBlock interface {
 type CompleteBlock struct {
 	block
 
-	bloom       *bloom.Bloom
+	bloom       *bloom.BloomFilter
 	records     []*backend.Record
 	timeWritten time.Time
 }
@@ -88,6 +88,6 @@ func (c *CompleteBlock) BlockMeta() *backend.BlockMeta {
 	return c.meta
 }
 
-func (c *CompleteBlock) BloomFilter() *bloom.Bloom {
+func (c *CompleteBlock) BloomFilter() *bloom.BloomFilter {
 	return c.bloom
 }
