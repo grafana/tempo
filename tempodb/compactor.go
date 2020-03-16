@@ -74,7 +74,6 @@ func (rw *readerWriter) doCompaction() {
 		blocksPerLevel := blocklistPerLevel(blocklist)
 
 		for l := 0; l < maxNumLevels-1; l++ {
-			metricBlockCountAtLevel.WithLabelValues(strconv.Itoa(l)).Set(float64(len(blocksPerLevel[l]))) // if a loop is stopCh'ed before completing all levels there might be gaps in this metrics
 			blockSelector := newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
 		L:
 			for {
