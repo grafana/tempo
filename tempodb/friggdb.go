@@ -47,6 +47,11 @@ var (
 		Name:      "blocklist_length",
 		Help:      "Total number of blocks per tenant.",
 	}, []string{"tenant", "level"})
+	metricBlocksRetired = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "blocks_retired_total",
+		Help:      "Total number of blocks marked to retire(delete) per tenant.",
+	}, []string{"tenant"})
 	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "retention_duration_seconds",
@@ -377,19 +382,19 @@ func (rw *readerWriter) pollBlocklist() {
 			continue
 		}
 
-		// Get compacted block metrics from compactedBlocklist (for level>0)
+		// Get compacted block metrics from blocklist (for level>0)
 		metricsPerLevel := make([]int, maxNumLevels)
-		for _, block := range compactedBlocklist {
+		for _, block := range blocklist {
 			if block.CompactionLevel >= maxNumLevels {
 				continue
 			}
 			metricsPerLevel[block.CompactionLevel]++
 		}
 
-		metricBlocklistLength.WithLabelValues(tenantID, "0").Set(float64(len(blocklist)))
-		for i := 1; i < maxNumLevels; i++ {
+		for i := 0; i < maxNumLevels; i++ {
 			metricBlocklistLength.WithLabelValues(tenantID, strconv.Itoa(i)).Set(float64(metricsPerLevel[i]))
 		}
+		metricBlocksRetired.WithLabelValues(tenantID).Add(float64(len(compactedBlocklist)))
 
 		sort.Slice(blocklist, func(i, j int) bool {
 			return blocklist[i].StartTime.Before(blocklist[j].StartTime)
