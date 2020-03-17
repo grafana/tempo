@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
@@ -35,11 +34,6 @@ var (
 		Namespace: "tempodb",
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
-	})
-	metricRangeOfCompaction = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_id_range",
-		Help:      "Total range of IDs compacted into a single block. (The smaller the better)",
 	})
 )
 
@@ -230,10 +224,6 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	// ship final block to backend
 	if currentBlock != nil {
-		// Set the range of IDs as the metricRangeOfCompaction
-		metricRangeOfCompaction.Set(
-			util.BlockIDRange(currentBlock.BlockMeta().MaxID, currentBlock.BlockMeta().MinID),
-		)
 		// Increment compaction level
 		currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 		currentBlock.Complete()
