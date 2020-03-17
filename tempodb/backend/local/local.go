@@ -118,9 +118,13 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 
 	var dst *os.File
 	if tracker == nil {
-		tracesFileName := rw.tracesFileName(blockID, tenantID)
+		blockFolder := rw.rootPath(blockID, tenantID)
+		err := os.MkdirAll(blockFolder, os.ModePerm)
+		if err != nil {
+			return nil, err
+		}
 
-		var err error
+		tracesFileName := rw.tracesFileName(blockID, tenantID)
 		dst, err = os.Create(tracesFileName)
 		if err != nil {
 			return nil, err
