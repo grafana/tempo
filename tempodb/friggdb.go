@@ -177,7 +177,31 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 	}
 
 	meta := c.BlockMeta()
-	err = rw.w.Write(ctx, meta, bloomBuffer.Bytes(), indexBytes, c.ObjectFilePath()) // jpe:if objectfilepath == "" that needs to be ok
+	err = rw.w.Write(ctx, meta, bloomBuffer.Bytes(), indexBytes, c.ObjectFilePath())
+	if err != nil {
+		return err
+	}
+
+	c.BlockWroteSuccessfully(time.Now())
+
+	return nil
+}
+
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, c wal.WriteableBlock) error {
+	records := c.Records()
+	indexBytes, err := backend.MarshalRecords(records)
+	if err != nil {
+		return err
+	}
+
+	bloomBuffer := &bytes.Buffer{}
+	_, err = c.BloomFilter().WriteTo(bloomBuffer)
+	if err != nil {
+		return err
+	}
+
+	meta := c.BlockMeta()
+	err = rw.w.WriteBlockMeta(ctx, tracker, meta, bloomBuffer.Bytes(), indexBytes)
 	if err != nil {
 		return err
 	}

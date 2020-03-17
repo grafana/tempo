@@ -41,6 +41,8 @@ const (
 	inputBlocks  = 4
 	outputBlocks = 2
 
+	recordsPerBatch = 10000
+
 	// Number of levels in the levelled compaction strategy
 	maxNumLevels = 3
 )
@@ -149,6 +151,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	recordsPerBlock := (totalRecords / outputBlocks) + 1
 	var currentBlock *wal.CompactorBlock
+	var tracker backend.AppendTracker
 
 	for !allDone(bookmarks) {
 		var lowestID []byte
@@ -191,6 +194,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		// make a new block if necessary
 		if currentBlock == nil {
 			currentBlock, err = rw.wal.NewCompactorBlock(uuid.New(), tenantID, blockMetas, recordsPerBlock)
+			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 			if err != nil {
 				return err
 			}
@@ -205,37 +209,24 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		}
 		lowestBookmark.clear()
 
-		// ship block to backend if done
-		if currentBlock.Length() >= recordsPerBlock {
-			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
-			currentBlock.Complete()
-			level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
-			err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout
+		// write partial block
+		if currentBlock.Length()%recordsPerBatch == 0 {
+			tracker, err = appendBlock(rw, tracker, currentBlock)
 			if err != nil {
 				return err
 			}
-			err = currentBlock.Clear()
-			if err != nil {
-				level.Error(rw.logger).Log("msg", "error cleaning up currentBlock in compaction", "err", err)
-			}
-			currentBlock = nil
+		}
+
+		// ship block to backend if done
+		if currentBlock.Length() >= recordsPerBlock {
+			finishBlock(rw, tracker, currentBlock)
+			tracker = nil
 		}
 	}
 
 	// ship final block to backend
 	if currentBlock != nil {
-		// Increment compaction level
-		currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
-		currentBlock.Complete()
-		level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", currentBlock.BlockMeta()))
-		err = rw.WriteBlock(context.TODO(), currentBlock) // todo:  add timeout
-		if err != nil {
-			return err
-		}
-		err = currentBlock.Clear()
-		if err != nil {
-			level.Error(rw.logger).Log("msg", "error cleaning up currentBlock in compaction", "err", err)
-		}
+		finishBlock(rw, tracker, currentBlock)
 	}
 
 	// mark old blocks compacted so they don't show up in polling
@@ -244,6 +235,34 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()
 		}
+	}
+
+	return nil
+}
+
+func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.CompactorBlock) (backend.AppendTracker, error) {
+	tracker, err := rw.w.AppendObject(context.TODO(), tracker, block.BlockMeta(), block.CurrentBuffer())
+	if err != nil {
+		return nil, err
+	}
+	block.Reset()
+
+	return tracker, nil
+}
+
+func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.CompactorBlock) error {
+	level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", block.BlockMeta()))
+
+	_, err := appendBlock(rw, tracker, block)
+	block.Complete()
+
+	err = rw.WriteBlockMeta(context.TODO(), tracker, block) // todo:  add timeout
+	if err != nil {
+		return err
+	}
+	err = block.Clear()
+	if err != nil {
+		level.Error(rw.logger).Log("msg", "error cleaning up currentBlock in compaction", "err", err)
 	}
 
 	return nil
