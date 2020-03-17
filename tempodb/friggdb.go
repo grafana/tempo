@@ -245,13 +245,13 @@ func (rw *readerWriter) Find(tenantID string, id backend.ID) ([]byte, FindMetric
 
 		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error retrieving bloom %v", err)
 		}
 
 		filter := &bloom.BloomFilter{}
 		_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error parsing bloom %v", err)
 		}
 
 		metrics.BloomFilterReads.Inc()
@@ -264,12 +264,12 @@ func (rw *readerWriter) Find(tenantID string, id backend.ID) ([]byte, FindMetric
 		metrics.IndexReads.Inc()
 		metrics.IndexBytesRead.Add(int32(len(indexBytes)))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error reading index %v", err)
 		}
 
 		record, err := backend.FindRecord(id, indexBytes) // todo: replace with backend.Finder
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error finding record %v", err)
 		}
 
 		if record == nil {
@@ -281,7 +281,7 @@ func (rw *readerWriter) Find(tenantID string, id backend.ID) ([]byte, FindMetric
 		metrics.BlockReads.Inc()
 		metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error reading object %v", err)
 		}
 
 		iter := backend.NewIterator(bytes.NewReader(objectBytes))

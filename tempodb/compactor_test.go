@@ -38,12 +38,11 @@ func TestCompaction(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath:        path.Join(tempDir, "wal"),
-			IndexDownsample: rand.Int()%20 + 1,
+			IndexDownsample: 11,
 			BloomFP:         .01,
 		},
 		MaintenanceCycle: 0,
 	}, log.NewNopLogger())
-	assert.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -56,7 +55,7 @@ func TestCompaction(t *testing.T) {
 	assert.NoError(t, err)
 
 	blockCount := 4
-	recordCount := 10
+	recordCount := 21
 
 	allReqs := make([]*tempopb.PushRequest, 0, blockCount*recordCount)
 	allIds := make([][]byte, 0, blockCount*recordCount)
@@ -73,7 +72,7 @@ func TestCompaction(t *testing.T) {
 			_, err = rand.Read(id)
 			assert.NoError(t, err, "unexpected creating random id")
 
-			req := test.MakeRequest(rand.Int()%1000, id)
+			req := test.MakeRequest(1000, id)
 			reqs = append(reqs, req)
 			ids = append(ids, id)
 

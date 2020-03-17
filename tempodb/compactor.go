@@ -149,7 +149,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		}
 	}
 
-	recordsPerBlock := (totalRecords / outputBlocks) + 1
+	recordsPerBlock := (totalRecords / outputBlocks)
 	var currentBlock *wal.CompactorBlock
 	var tracker backend.AppendTracker
 
@@ -230,7 +230,10 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	// ship final block to backend
 	if currentBlock != nil {
-		finishBlock(rw, tracker, currentBlock)
+		err = finishBlock(rw, tracker, currentBlock)
+		if err != nil {
+			return err
+		}
 	}
 
 	// mark old blocks compacted so they don't show up in polling
