@@ -177,7 +177,7 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 	}
 
 	meta := c.BlockMeta()
-	err = rw.w.Write(ctx, meta, bloomBuffer.Bytes(), indexBytes, c.ObjectFilePath())
+	err = rw.w.Write(ctx, meta, bloomBuffer.Bytes(), indexBytes, c.ObjectFilePath()) // jpe:if objectfilepath == "" that needs to be ok
 	if err != nil {
 		return err
 	}
