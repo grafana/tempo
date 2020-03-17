@@ -245,7 +245,7 @@ func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 	if err != nil {
 		return nil, err
 	}
-	block.Reset()
+	block.ResetBuffer()
 
 	return tracker, nil
 }

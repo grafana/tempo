@@ -67,7 +67,7 @@ func (c *CompactorBlock) CurrentBuffer() []byte {
 	return c.appendBuffer.Bytes()
 }
 
-func (c *CompactorBlock) Reset() {
+func (c *CompactorBlock) ResetBuffer() {
 	c.appendBuffer.Reset()
 }
 
