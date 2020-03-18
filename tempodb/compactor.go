@@ -44,7 +44,7 @@ const (
 	recordsPerBatch = 10000
 
 	// Number of levels in the levelled compaction strategy
-	maxNumLevels = 3
+	maxNumLevels = 5
 )
 
 func (rw *readerWriter) doCompaction() {
