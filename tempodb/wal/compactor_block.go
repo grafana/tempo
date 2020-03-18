@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"time"
@@ -15,9 +16,10 @@ type CompactorBlock struct {
 
 	metas []*backend.BlockMeta
 
-	bloom      *bloom.BloomFilter
-	appendFile *os.File
-	appender   backend.Appender
+	bloom *bloom.BloomFilter
+
+	appendBuffer *bytes.Buffer
+	appender     backend.Appender
 }
 
 func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*backend.BlockMeta, filepath string, estimatedObjects int) (*CompactorBlock, error) {
@@ -44,12 +46,8 @@ func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 		return nil, err
 	}
 
-	f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
-	c.appendFile = f
-	c.appender = backend.NewBufferedAppender(c.appendFile, indexDownsample, estimatedObjects)
+	c.appendBuffer = &bytes.Buffer{}
+	c.appender = backend.NewBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
 
 	return c, nil
 }
@@ -62,6 +60,14 @@ func (c *CompactorBlock) Write(id backend.ID, object []byte) error {
 	c.meta.ObjectAdded(id)
 	c.bloom.Add(id)
 	return nil
+}
+
+func (c *CompactorBlock) CurrentBuffer() []byte {
+	return c.appendBuffer.Bytes()
+}
+
+func (c *CompactorBlock) ResetBuffer() {
+	c.appendBuffer.Reset()
 }
 
 func (c *CompactorBlock) Length() int {
@@ -111,6 +117,7 @@ func (c *CompactorBlock) Records() []*backend.Record {
 	return c.appender.Records()
 }
 
+// implements WriteableBlock
 func (c *CompactorBlock) ObjectFilePath() string {
-	return c.fullFilename()
+	return ""
 }

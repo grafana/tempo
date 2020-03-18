@@ -36,14 +36,17 @@ func TestCompaction(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
+		/*GCS: &gcs.Config{
+			BucketName:      "temp-jelliott",
+			ChunkBufferSize: 10 * 1024 * 1024,
+		},*/
 		WAL: &wal.Config{
 			Filepath:        path.Join(tempDir, "wal"),
-			IndexDownsample: rand.Int()%20 + 1,
+			IndexDownsample: 11,
 			BloomFP:         .01,
 		},
 		MaintenanceCycle: 0,
 	}, log.NewNopLogger())
-	assert.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -55,8 +58,8 @@ func TestCompaction(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	blockCount := 20
-	recordCount := 20
+	blockCount := 4
+	recordCount := 100
 
 	allReqs := make([]*tempopb.PushRequest, 0, blockCount*recordCount)
 	allIds := make([][]byte, 0, blockCount*recordCount)
@@ -73,7 +76,7 @@ func TestCompaction(t *testing.T) {
 			_, err = rand.Read(id)
 			assert.NoError(t, err, "unexpected creating random id")
 
-			req := test.MakeRequest(rand.Int()%1000, id)
+			req := test.MakeRequest(i*10, id)
 			reqs = append(reqs, req)
 			ids = append(ids, id)
 

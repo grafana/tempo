@@ -51,16 +51,6 @@ func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBlo
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
-	err := rw.writeAll(ctx, rw.bloomFileName(blockID, tenantID), bBloom)
-	if err != nil {
-		return err
-	}
-
-	err = rw.writeAll(ctx, rw.indexFileName(blockID, tenantID), bIndex)
-	if err != nil {
-		return err
-	}
-
 	// copy traces file.
 	if !fileExists(objectFilePath) {
 		return fmt.Errorf("object file not found %s", objectFilePath)
@@ -79,6 +69,33 @@ func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBlo
 		return err
 	}
 
+	err = rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom []byte, bIndex []byte) error {
+	if tracker != nil {
+		w := tracker.(*storage.Writer)
+		_ = w.Close()
+	}
+
+	blockID := meta.BlockID
+	tenantID := meta.TenantID
+
+	err := rw.writeAll(ctx, rw.bloomFileName(blockID, tenantID), bBloom)
+	if err != nil {
+		return err
+	}
+
+	err = rw.writeAll(ctx, rw.indexFileName(blockID, tenantID), bIndex)
+	if err != nil {
+		return err
+	}
+
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
 		return err
@@ -91,6 +108,25 @@ func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBlo
 	}
 
 	return nil
+}
+
+func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
+	var w *storage.Writer
+	if tracker == nil {
+		blockID := meta.BlockID
+		tenantID := meta.TenantID
+
+		w = rw.writer(ctx, rw.objectFileName(blockID, tenantID))
+	} else {
+		w = tracker.(*storage.Writer)
+	}
+
+	_, err := w.Write(bObject)
+	if err != nil {
+		return nil, err
+	}
+
+	return w, nil
 }
 
 func (rw *readerWriter) Tenants() ([]string, error) {
