@@ -1,12 +1,7 @@
 # MAKEFILE
 #
 # @author      Nicola Asuni <info@tecnick.com>
-# @link        https://github.com/dgryski/go-farm
-#
-# This file is intended to be executed in a Linux-compatible system.
-# It also assumes that the project has been cloned in the right path under GOPATH:
-# $GOPATH/src/github.com/dgryski/go-farm
-#
+# @link        https://github.com/willf/bloom
 # ------------------------------------------------------------------------------
 
 # List special make targets that are not associated with files
@@ -16,16 +11,16 @@
 SHELL=/bin/bash
 
 # CVS path (path to the parent dir containing the project)
-CVSPATH=github.com/dgryski
+CVSPATH=github.com/willf
 
 # Project owner
-OWNER=dgryski
+OWNER=willf
 
 # Project vendor
-VENDOR=dgryski
+VENDOR=willf
 
 # Project name
-PROJECT=go-farm
+PROJECT=bloom
 
 # Project version
 VERSION=$(shell cat VERSION)
@@ -80,7 +75,6 @@ help:
 	@echo "    make clean       : Remove any build artifact"
 	@echo "    make nuke        : Deletes any intermediate file"
 	@echo ""
-
 
 # Alias for help target
 all: help
@@ -164,7 +158,7 @@ gosimple:
 # AST scanner
 astscan:
 	@mkdir -p target/report
-	GOPATH=$(GOPATH) gas .//*.go | tee target/report/astscan.txt
+	GOPATH=$(GOPATH) gas .//*.go | tee target/report/astscan.txt ; test $${PIPESTATUS[0]} -eq 0
 
 # Generate source docs
 docs:
@@ -181,7 +175,7 @@ qa: fmtcheck test vet lint coverage cyclo ineffassign misspell structcheck varch
 # Get the dependencies
 deps:
 	GOPATH=$(GOPATH) go get ./...
-	GOPATH=$(GOPATH) go get golang.org/x/lint/golint
+	GOPATH=$(GOPATH) go get github.com/golang/lint/golint
 	GOPATH=$(GOPATH) go get github.com/jstemmer/go-junit-report
 	GOPATH=$(GOPATH) go get github.com/axw/gocov/gocov
 	GOPATH=$(GOPATH) go get github.com/fzipp/gocyclo
