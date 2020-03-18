@@ -1,7 +1,6 @@
 package wal
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -48,7 +47,7 @@ func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender = backend.NewBufferedAppender(bufio.NewWriter(c.appendBuffer), indexDownsample, estimatedObjects)
+	c.appender = backend.NewBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
 
 	return c, nil
 }

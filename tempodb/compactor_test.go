@@ -55,7 +55,7 @@ func TestCompaction(t *testing.T) {
 	assert.NoError(t, err)
 
 	blockCount := 4
-	recordCount := 21
+	recordCount := 100
 
 	allReqs := make([]*tempopb.PushRequest, 0, blockCount*recordCount)
 	allIds := make([][]byte, 0, blockCount*recordCount)
@@ -72,7 +72,7 @@ func TestCompaction(t *testing.T) {
 			_, err = rand.Read(id)
 			assert.NoError(t, err, "unexpected creating random id")
 
-			req := test.MakeRequest(1000, id)
+			req := test.MakeRequest(i*10, id)
 			reqs = append(reqs, req)
 			ids = append(ids, id)
 
