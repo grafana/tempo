@@ -30,8 +30,8 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(_ context.Context, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, tracesFilePath string) error {
-	err := rw.WriteBlockMeta(nil, nil, meta, bBloom, bIndex)
+func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, tracesFilePath string) error {
+	err := rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
 	if err != nil {
 		return err
 	}

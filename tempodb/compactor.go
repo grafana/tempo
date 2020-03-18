@@ -261,6 +261,9 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 	level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", block.BlockMeta()))
 
 	tracker, err := appendBlock(rw, tracker, block)
+	if err != nil {
+		return err
+	}
 	block.Complete()
 
 	err = rw.WriteBlockMeta(context.TODO(), tracker, block) // todo:  add timeout

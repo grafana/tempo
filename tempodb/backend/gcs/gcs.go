@@ -69,7 +69,10 @@ func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBlo
 		return err
 	}
 
-	rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
+	err = rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
