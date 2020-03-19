@@ -3,7 +3,7 @@ package ingester
 import (
 	"context"
 	"fmt"
-	"hash/maphash"
+	"hash/fnv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,8 +46,7 @@ type traceMapShard struct {
 }
 
 type instance struct {
-	traceMapShardMtx *sync.RWMutex
-	traceMapShards   map[string]*traceMapShard
+	traceMapShards [256]*traceMapShard
 
 	blockTracesMtx sync.RWMutex
 	headBlock      *tempodb_wal.HeadBlock
@@ -63,15 +62,18 @@ type instance struct {
 
 func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*instance, error) {
 	i := &instance{
-		traceMapShardMtx: new(sync.RWMutex),
-		traceMapShards:   make(map[string]*traceMapShard, 256),
-
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
 		limiter:            limiter,
 		wal:                wal,
-		seed:               maphash.MakeSeed(),
 	}
+	for s := range i.traceMapShards {
+		i.traceMapShards[s] = &traceMapShard{
+			tracesMtx: new(sync.RWMutex),
+			traces:    make(map[traceFingerprint]*trace),
+		}
+	}
+
 	err := i.resetHeadBlock()
 	if err != nil {
 		return nil, err
@@ -79,44 +81,16 @@ func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*in
 	return i, nil
 }
 
-func (i *instance) getOrCreateShard(ctx context.Context, traceID []byte) (*traceMapShard, bool) {
+func (i *instance) getShard(ctx context.Context, traceID []byte) *traceMapShard {
 	// Hash to evenly distribute search space
-	hasher := maphash.Hash{}
-	hasher.SetSeed(i.seed)
+	hasher := fnv.New64a()
 	hasher.Write(traceID)
-	idSum := []byte{}
-	shardKey := fmt.Sprintf("%x", hasher.Sum(idSum))[0:1]
-
-	// Check if shard exists
-	// After a first few requests this should always be true
-	i.traceMapShardMtx.RLock()
-	shard, ok := i.traceMapShards[shardKey]
-	i.traceMapShardMtx.RUnlock()
-
-	if ok {
-		return shard, false
-	}
-
-	// Create a shard. Need a write lock here
-	i.traceMapShardMtx.Lock()
-	defer i.traceMapShardMtx.Unlock()
-
-	// Shard might've been created by another process
-	shard, ok = i.traceMapShards[shardKey]
-	if ok {
-		return shard, false
-	}
-
-	shard = &traceMapShard{
-		tracesMtx: new(sync.RWMutex),
-		traces:    make(map[traceFingerprint]*trace),
-	}
-	i.traceMapShards[shardKey] = shard
-	return shard, true
+	shardKey := hasher.Sum64() % 256
+	return i.traceMapShards[shardKey]
 }
 
 func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
-	trace, err := i.getOrCreateTrace(ctx, req)
+	trace, err := i.getOrCreateTrace(req)
 	if err != nil {
 		return err
 	}
@@ -133,8 +107,8 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 
 // PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
 func (i *instance) PushBytes(ctx context.Context, id tempodb_backend.ID, object []byte) error {
-	i.tracesMtx.Lock()
-	defer i.tracesMtx.Unlock()
+	i.blockTracesMtx.Lock()
+	defer i.blockTracesMtx.Unlock()
 
 	return i.headBlock.Write(id, object)
 }
@@ -238,19 +212,13 @@ func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error
 func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	// First search live traces being assembled in the ingester instance.
 	// Find shard
-	hasher := maphash.Hash{}
-	hasher.SetSeed(i.seed)
-	hasher.Write(id)
-	idSum := []byte{}
-	shard, ok := i.traceMapShards[fmt.Sprintf("%x", hasher.Sum(idSum))[0:1]]
-	if ok {
-		shard.tracesMtx.Lock()
-		if liveTrace, ok := shard.traces[traceFingerprint(util.Fingerprint(id))]; ok {
-			retMe := liveTrace.trace
-			shard.tracesMtx.Unlock()
-			return retMe, nil
-		}
-		shard.tracesMtx.Unlock()
+	shardKey := util.Fingerprint(id) % 256
+	shard := i.traceMapShards[shardKey]
+	shard.tracesMtx.RLock()
+	if liveTrace, ok := shard.traces[traceFingerprint(util.Fingerprint(id))]; ok {
+		retMe := liveTrace.trace
+		shard.tracesMtx.RUnlock()
+		return retMe, nil
 	}
 
 	i.blockTracesMtx.Lock()
@@ -297,11 +265,13 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 
 	// two assumptions here should hold.  distributor separates spans by traceid.  0 length span slices should be filtered before here
 	traceID := req.Batch.Spans[0].TraceId
-	fp := traceFingerprint(util.Fingerprint(traceID))
+	intFp := util.Fingerprint(traceID)
+	fp := traceFingerprint(intFp)
 
-	shard, _ := i.getOrCreateShard(ctx, traceID)
+	shardKey := intFp % 256
+	shard := i.traceMapShards[shardKey]
+
 	shard.tracesMtx.RLock()
-
 	trace, ok := shard.traces[fp]
 	if ok {
 		shard.tracesMtx.RUnlock()

@@ -110,9 +110,12 @@ func TestInstanceFind(t *testing.T) {
 
 func BenchmarkShardedTraceMap(b *testing.B) {
 	// benchmark instance.Push and instance.FindTraceByID
-	i := &instance{
-		traceMapShards:   make(map[string]*traceMapShard, 256),
-		traceMapShardMtx: new(sync.RWMutex),
+	i := &instance{}
+	for s := range i.traceMapShards {
+		i.traceMapShards[s] = &traceMapShard{
+			tracesMtx: new(sync.RWMutex),
+			traces:    make(map[traceFingerprint]*trace),
+		}
 	}
 
 	// make some fake traceIDs/requests
