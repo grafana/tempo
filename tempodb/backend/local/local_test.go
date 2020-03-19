@@ -151,16 +151,16 @@ func TestCompaction(t *testing.T) {
 		err = w.Write(context.Background(), fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
 		assert.NoError(t, err, "unexpected error writing")
 
-		compactedMeta, err := c.CompactedBlockMeta(blockID, id)
+		retiredMeta, err := c.RetiredBlockMeta(blockID, id)
 		assert.Equal(t, backend.ErrMetaDoesNotExist, err)
-		assert.Nil(t, compactedMeta)
+		assert.Nil(t, retiredMeta)
 
 		err = c.MarkBlockCompacted(blockID, id)
 		assert.NoError(t, err)
 
-		compactedMeta, err = c.CompactedBlockMeta(blockID, id)
+		retiredMeta, err = c.RetiredBlockMeta(blockID, id)
 		assert.NoError(t, err)
-		assert.NotNil(t, compactedMeta)
+		assert.NotNil(t, retiredMeta)
 
 		meta, err := r.BlockMeta(blockID, id)
 		assert.Equal(t, backend.ErrMetaDoesNotExist, err)
@@ -169,9 +169,9 @@ func TestCompaction(t *testing.T) {
 		err = c.ClearBlock(blockID, id)
 		assert.NoError(t, err)
 
-		compactedMeta, err = c.CompactedBlockMeta(blockID, id)
+		retiredMeta, err = c.RetiredBlockMeta(blockID, id)
 		assert.Equal(t, backend.ErrMetaDoesNotExist, err)
-		assert.Nil(t, compactedMeta)
+		assert.Nil(t, retiredMeta)
 
 		meta, err = r.BlockMeta(blockID, id)
 		assert.Equal(t, backend.ErrMetaDoesNotExist, err)

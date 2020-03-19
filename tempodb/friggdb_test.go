@@ -167,14 +167,14 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 		lastTime = b.StartTime
 	}
 
-	compactedBlocklist := rw.compactedBlockLists[testTenantID]
-	assert.Len(t, compactedBlocklist, expectedCB)
+	retiredBlocklist := rw.retiredBlockLists[testTenantID]
+	assert.Len(t, retiredBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
-		assert.Equal(t, expectedID, compactedBlocklist[0].BlockID)
+		assert.Equal(t, expectedID, retiredBlocklist[0].BlockID)
 	}
 
 	lastTime = time.Time{}
-	for _, b := range compactedBlocklist {
+	for _, b := range retiredBlocklist {
 		assert.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
 		lastTime = b.StartTime
 	}

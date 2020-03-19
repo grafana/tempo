@@ -7,10 +7,10 @@ import (
 	"github.com/google/uuid"
 )
 
-type CompactedBlockMeta struct {
+type RetiredBlockMeta struct {
 	BlockMeta
 
-	CompactedTime time.Time `json:"-"`
+	RetiredTime time.Time `json:"-"`
 }
 
 type BlockMeta struct {

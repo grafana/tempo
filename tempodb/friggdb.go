@@ -112,8 +112,8 @@ type readerWriter struct {
 	blockLists    map[string][]*backend.BlockMeta
 	blockListsMtx sync.Mutex
 
-	jobStopper          *pool.Stopper
-	compactedBlockLists map[string][]*backend.CompactedBlockMeta
+	jobStopper        *pool.Stopper
+	retiredBlockLists map[string][]*backend.RetiredBlockMeta
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
@@ -144,14 +144,14 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	}
 
 	rw := &readerWriter{
-		c:                   c,
-		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
-		r:                   r,
-		w:                   w,
-		cfg:                 cfg,
-		logger:              logger,
-		pool:                pool.NewPool(cfg.Pool),
-		blockLists:          make(map[string][]*backend.BlockMeta),
+		c:                 c,
+		retiredBlockLists: make(map[string][]*backend.RetiredBlockMeta),
+		r:                 r,
+		w:                 w,
+		cfg:               cfg,
+		logger:            logger,
+		pool:              pool.NewPool(cfg.Pool),
+		blockLists:        make(map[string][]*backend.BlockMeta),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -344,16 +344,16 @@ func (rw *readerWriter) pollBlocklist() {
 
 		listMutex := sync.Mutex{}
 		blocklist := make([]*backend.BlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
+		retiredBlocklist := make([]*backend.RetiredBlockMeta, 0, len(blockIDs))
 		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
 
-			var compactedBlockMeta *backend.CompactedBlockMeta
+			var retiredBlockMeta *backend.RetiredBlockMeta
 			blockMeta, err := rw.r.BlockMeta(blockID, tenantID)
 			// if the normal meta doesn't exist maybe it's compacted.
 			if err == backend.ErrMetaDoesNotExist {
 				blockMeta = nil
-				compactedBlockMeta, err = rw.c.CompactedBlockMeta(blockID, tenantID)
+				retiredBlockMeta, err = rw.c.RetiredBlockMeta(blockID, tenantID)
 			}
 
 			if err != nil {
@@ -368,8 +368,8 @@ func (rw *readerWriter) pollBlocklist() {
 			if blockMeta != nil {
 				blocklist = append(blocklist, blockMeta)
 
-			} else if compactedBlockMeta != nil {
-				compactedBlocklist = append(compactedBlocklist, compactedBlockMeta)
+			} else if retiredBlockMeta != nil {
+				retiredBlocklist = append(retiredBlocklist, retiredBlockMeta)
 			}
 			listMutex.Unlock()
 
@@ -394,18 +394,18 @@ func (rw *readerWriter) pollBlocklist() {
 		for i := 0; i < maxNumLevels; i++ {
 			metricBlocklistLength.WithLabelValues(tenantID, strconv.Itoa(i)).Set(float64(metricsPerLevel[i]))
 		}
-		metricBlocksRetired.WithLabelValues(tenantID).Add(float64(len(compactedBlocklist)))
+		metricBlocksRetired.WithLabelValues(tenantID).Add(float64(len(retiredBlocklist)))
 
 		sort.Slice(blocklist, func(i, j int) bool {
 			return blocklist[i].StartTime.Before(blocklist[j].StartTime)
 		})
-		sort.Slice(compactedBlocklist, func(i, j int) bool {
-			return compactedBlocklist[i].StartTime.Before(compactedBlocklist[j].StartTime)
+		sort.Slice(retiredBlocklist, func(i, j int) bool {
+			return retiredBlocklist[i].StartTime.Before(retiredBlocklist[j].StartTime)
 		})
 
 		rw.blockListsMtx.Lock()
 		rw.blockLists[tenantID] = blocklist
-		rw.compactedBlockLists[tenantID] = compactedBlocklist
+		rw.retiredBlockLists[tenantID] = retiredBlocklist
 		rw.blockListsMtx.Unlock()
 	}
 }
@@ -437,9 +437,9 @@ func (rw *readerWriter) doRetention() {
 
 		// iterate through compacted list looking for blocks ready to be cleared
 		cutoff = time.Now().Add(-rw.compactorCfg.CompactedBlockRetention)
-		compactedBlocklist := rw.compactedBlocklist(tenantID)
-		for _, b := range compactedBlocklist {
-			if b.CompactedTime.Before(cutoff) {
+		retiredBlocklist := rw.retiredBlocklist(tenantID)
+		for _, b := range retiredBlocklist {
+			if b.RetiredTime.Before(cutoff) {
 				err := rw.c.ClearBlock(b.BlockID, tenantID)
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
@@ -485,7 +485,7 @@ func (rw *readerWriter) blocklist(tenantID string) []*backend.BlockMeta {
 }
 
 // todo:  make separate compacted list mutex?
-func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.CompactedBlockMeta {
+func (rw *readerWriter) retiredBlocklist(tenantID string) []*backend.RetiredBlockMeta {
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 
@@ -493,8 +493,8 @@ func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.Compacted
 		return nil
 	}
 
-	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(rw.compactedBlockLists[tenantID]))
-	copiedBlocklist = append(copiedBlocklist, rw.compactedBlockLists[tenantID]...)
+	copiedBlocklist := make([]*backend.RetiredBlockMeta, 0, len(rw.retiredBlockLists[tenantID]))
+	copiedBlocklist = append(copiedBlocklist, rw.retiredBlockLists[tenantID]...)
 
 	return copiedBlocklist
 }

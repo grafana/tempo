@@ -63,7 +63,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return nil
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (rw *readerWriter) RetiredBlockMeta(blockID uuid.UUID, tenantID string) (*backend.RetiredBlockMeta, error) {
 	name := rw.compactedMetaFileName(blockID, tenantID)
 
 	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
@@ -74,12 +74,12 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 		return nil, err
 	}
 
-	out := &backend.CompactedBlockMeta{}
+	out := &backend.RetiredBlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
 	}
-	out.CompactedTime = modTime
+	out.RetiredTime = modTime
 
 	return out, err
 }
