@@ -1,0 +1,83 @@
+local tempo = import '../../../operations/jsonnet/microservices/tempo.libsonnet';
+local load = import 'synthetic-load-generator/main.libsonnet';
+
+load + tempo {
+    _config +:: {
+        namespace: 'default',
+        compactor+: {
+            pvc_size: '5Gi',
+            pvc_storage_class: 'local-path',
+        },
+        querier+: {
+            pvc_size: '5Gi',
+            pvc_storage_class: 'local-path',
+        },
+        ingester+: {
+            pvc_size: '5Gi',
+            pvc_storage_class: 'local-path',
+        },
+        distributor+: {
+            receivers: {
+                opencensus: null,
+                jaeger: {
+                    protocols: {
+                        thrift_http: null,
+                    },
+                },
+            },
+        },
+        gcs_bucket: 'overriding_for_local_testing',
+    },
+
+    // manually overriding for local testing.  technically once a trace is flushed to the backend it
+    //  will not be queryable with this config
+    tempo_config +:: {
+        storage_config+: {
+            trace+: {
+                backend: 'local',
+                'local': {
+                   path: '/tmp/tempo/traces',
+                },
+            },
+        },
+    },
+    
+    local service = $.core.v1.service,
+    tempo_service:
+        $.util.serviceFor($.tempo_distributor_deployment)
+        + service.mixin.metadata.withName('tempo'),
+
+    local container = $.core.v1.container,
+    local containerPort = $.core.v1.containerPort,
+    tempo_compactor_container+::
+        $.util.resourcesRequests('500m', '500Mi'),
+
+    tempo_distributor_container+::
+        $.util.resourcesRequests('500m', '500Mi') +
+        container.withPortsMixin([
+            containerPort.new('opencensus', 55678),
+            containerPort.new('jaeger-http', 14268),
+        ]),
+
+    tempo_ingester_container+::
+        $.util.resourcesRequests('500m', '500Mi'),
+
+    tempo_querier_container+::
+        $.util.resourcesRequests('500m', '500Mi'),
+
+    local ingress = $.extensions.v1beta1.ingress,
+    ingress:
+        ingress.new() +
+        ingress.mixin.metadata
+            .withName('ingress')
+            .withAnnotations({
+                'ingress.kubernetes.io/ssl-redirect': 'false'
+            }) +
+        ingress.mixin.spec.withRules(
+            ingress.mixin.specType.rulesType.mixin.http.withPaths(
+                ingress.mixin.spec.rulesType.mixin.httpType.pathsType.withPath('/') +
+                ingress.mixin.specType.mixin.backend.withServiceName('querier') +
+                ingress.mixin.specType.mixin.backend.withServicePort(16686)
+            ),
+        ),
+}

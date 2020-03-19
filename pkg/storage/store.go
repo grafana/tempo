@@ -3,32 +3,35 @@ package storage
 import (
 	"github.com/cortexproject/cortex/pkg/chunk/storage"
 	"github.com/go-kit/kit/log"
-	"github.com/grafana/frigg/friggdb"
+	"github.com/grafana/tempo/tempodb"
 )
 
-// Store is the Frigg chunk store to retrieve and save chunks.
+// Store is the Tempo chunk store to retrieve and save chunks.
 type Store interface {
-	friggdb.Reader
-	friggdb.Writer
+	tempodb.Reader
+	tempodb.Writer
+	tempodb.Compactor
 }
 
 type store struct {
 	cfg Config
 
-	friggdb.Reader
-	friggdb.Writer
+	tempodb.Reader
+	tempodb.Writer
+	tempodb.Compactor
 }
 
-// NewStore creates a new Frigg Store using configuration supplied.
+// NewStore creates a new Tempo Store using configuration supplied.
 func NewStore(cfg Config, limits storage.StoreLimits, logger log.Logger) (Store, error) {
-	r, w, err := friggdb.New(&cfg.Trace, logger)
+	r, w, c, err := tempodb.New(&cfg.Trace, logger)
 	if err != nil {
 		return nil, err
 	}
 
 	return &store{
-		cfg:    cfg,
-		Reader: r,
-		Writer: w,
+		cfg:       cfg,
+		Reader:    r,
+		Writer:    w,
+		Compactor: c,
 	}, nil
 }

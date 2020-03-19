@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 type trace struct {
-	trace      *friggpb.Trace
+	trace      *tempopb.Trace
 	fp         traceFingerprint
 	lastAppend time.Time
 	traceID    []byte
@@ -17,13 +17,13 @@ type trace struct {
 func newTrace(fp traceFingerprint, traceID []byte) *trace {
 	return &trace{
 		fp:         fp,
-		trace:      &friggpb.Trace{},
+		trace:      &tempopb.Trace{},
 		lastAppend: time.Now(),
 		traceID:    traceID,
 	}
 }
 
-func (t *trace) Push(_ context.Context, req *friggpb.PushRequest) error {
+func (t *trace) Push(_ context.Context, req *tempopb.PushRequest) error {
 	t.trace.Batches = append(t.trace.Batches, req.Batch)
 	t.lastAppend = time.Now()
 

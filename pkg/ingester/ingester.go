@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/go-kit/kit/log/level"
-	"github.com/golang/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -18,11 +19,11 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/grafana/frigg/friggdb"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/ingester/client"
-	"github.com/grafana/frigg/pkg/storage"
-	"github.com/grafana/frigg/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/ingester/client"
+	"github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/validation"
+	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 // ErrReadOnly is returned when the ingester is shutting down and a push was
@@ -32,7 +33,7 @@ var ErrReadOnly = errors.New("Ingester is shutting down")
 var readinessProbeSuccess = []byte("Ready")
 
 var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
-	Namespace: "frigg",
+	Namespace: "tempo",
 	Name:      "ingester_flush_queue_length",
 	Help:      "The total number of series pending in the flush queue.",
 })
@@ -61,7 +62,7 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
-	wal     friggdb.WAL
+	wal     *tempodb_wal.WAL
 }
 
 // New makes a new Ingester.
@@ -86,8 +87,16 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 		go i.flushLoop(j)
 	}
 
-	var err error
-	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey)
+	// ingesters are generally deployed as a statefulset which means that the hostnames of new entries will conflict with the hostnames of old entries
+	//  as they come into memberlist.  adding a guid will prevent this.
+	// todo: lock tempo down to gossip only?  this logic impacts gossip only
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve hostname %v", hostname)
+	}
+	cfg.LifecyclerConfig.RingConfig.KVStore.Memberlist.NodeName = hostname + "-" + uuid.New().String()
+
+	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, false)
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %v", err)
 	}
@@ -98,10 +107,7 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 	// which depends on it.
 	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
 
-	i.wal, err = i.store.WAL()
-	if err != nil {
-		return nil, err
-	}
+	i.wal = i.store.WAL()
 	err = i.replayWal()
 	if err != nil {
 		return nil, err
@@ -143,8 +149,8 @@ func (i *Ingester) Stopping() {
 	close(i.quitting)
 }
 
-// Push implements friggpb.Pusher.
-func (i *Ingester) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb.PushResponse, error) {
+// Push implements tempopb.Pusher.
+func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -158,11 +164,11 @@ func (i *Ingester) Push(ctx context.Context, req *friggpb.PushRequest) (*friggpb
 	}
 
 	err = instance.Push(ctx, req)
-	return &friggpb.PushResponse{}, err
+	return &tempopb.PushResponse{}, err
 }
 
-// FindTraceByID implements friggpb.Querier.f
-func (i *Ingester) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDRequest) (*friggpb.TraceByIDResponse, error) {
+// FindTraceByID implements tempopb.Querier.f
+func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, fmt.Errorf("invalid trace id")
 	}
@@ -173,7 +179,7 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDRequ
 	}
 	inst, ok := i.getInstanceByID(instanceID)
 	if !ok || inst == nil {
-		return &friggpb.TraceByIDResponse{}, nil
+		return &tempopb.TraceByIDResponse{}, nil
 	}
 
 	trace, err := inst.FindTraceByID(req.TraceID)
@@ -181,7 +187,7 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDRequ
 		return nil, err
 	}
 
-	return &friggpb.TraceByIDResponse{
+	return &tempopb.TraceByIDResponse{
 		Trace: trace,
 	}, nil
 }
@@ -277,35 +283,48 @@ func (i *Ingester) replayWal() error {
 		return nil
 	}
 
-	read := &friggpb.Trace{}
+	level.Info(util.Logger).Log("msg", "beginning wal replay", "numBlocks", len(blocks))
+
 	for _, b := range blocks {
-		err = b.Iterator(read, func(id friggdb.ID, r proto.Message) (bool, error) {
-			req := r.(*friggpb.Trace)
+		tenantID := b.TenantID()
+		level.Info(util.Logger).Log("msg", "beginning block replay", "tenantID", tenantID)
 
-			tenantID := b.TenantID()
-			instance, err := i.getOrCreateInstance(tenantID)
-			if err != nil {
-				return false, err
-			}
-
-			err = instance.PushTrace(context.Background(), req)
-			if err != nil {
-				return false, err
-			}
-
-			return true, nil
-		})
+		instance, err := i.getOrCreateInstance(tenantID)
 		if err != nil {
-			// todo:  this is gorpy and error prone.  change to use the wal work dir?
-			// clean up any instance headblocks that were created to keep from replaying again and again
-			for _, instance := range i.instances {
-				err := instance.headBlock.Clear()
-				level.Error(util.Logger).Log("msg", "error cleaning up headblock", "error", err)
-			}
-
 			return err
 		}
+
+		err = i.replayBlock(b, instance)
+		if err != nil {
+			// there was an error, log and keep on keeping on
+			level.Error(util.Logger).Log("msg", "error replaying block.  wiping headblock ", "error", err)
+		}
 		err = b.Clear()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (i *Ingester) replayBlock(b tempodb_wal.ReplayBlock, instance *instance) error {
+	iterator, err := b.Iterator()
+	if err != nil {
+		return err
+	}
+	for {
+		id, obj, err := iterator.Next()
+		if id == nil {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
+		writeID := append([]byte(nil), id...)
+		err = instance.PushBytes(context.Background(), writeID, obj)
 		if err != nil {
 			return err
 		}

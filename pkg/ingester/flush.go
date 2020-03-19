@@ -15,20 +15,20 @@ import (
 
 var (
 	metricBlocksFlushed = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "ingester_blocks_flushed_total",
 		Help:      "The total number of blocks flushed",
 	})
 	metricFailedFlushes = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "ingester_failed_flushes_total",
 		Help:      "The total number of failed traces",
 	})
 	metricFlushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "ingester_flush_duration_seconds",
 		Help:      "Records the amount of time to flush a complete block.",
-		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
 	})
 )
 

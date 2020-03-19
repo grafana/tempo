@@ -24,7 +24,7 @@ jobs:
       run: make install-tools
 
     - name: Install Dependencies
-      run: PATH="$(go env GOPATH)/bin":$PATH make vendor
+      run: PATH="$(go env GOPATH)/bin":$PATH make vendor-dependencies
 
     - name: Lint
       run: make lint
@@ -32,8 +32,8 @@ jobs:
     - name: Test
       run: make test-with-cover
 
-    - name: Build Frigg
-      run: make frigg
+    - name: Build Tempo
+      run: make tempo
 
-    - name: Build Frigg-Query
-      run: make frigg-query
+    - name: Build Tempo-Query
+      run: make tempo-query

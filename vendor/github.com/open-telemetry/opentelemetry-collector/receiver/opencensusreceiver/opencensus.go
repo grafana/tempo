@@ -48,8 +48,7 @@ type Receiver struct {
 	corsOrigins       []string
 	grpcServerOptions []grpc.ServerOption
 
-	traceReceiverOpts   []octrace.Option
-	metricsReceiverOpts []ocmetrics.Option
+	traceReceiverOpts []octrace.Option
 
 	traceReceiver   *octrace.Receiver
 	metricsReceiver *ocmetrics.Receiver
@@ -61,19 +60,26 @@ type Receiver struct {
 	startServerOnce          sync.Once
 	startTraceReceiverOnce   sync.Once
 	startMetricsReceiverOnce sync.Once
+
+	instanceName string
 }
 
 var _ receiver.MetricsReceiver = (*Receiver)(nil)
 var _ receiver.TraceReceiver = (*Receiver)(nil)
 
-const source string = "OpenCensus"
-
 // New just creates the OpenCensus receiver services. It is the caller's
 // responsibility to invoke the respective Start*Reception methods as well
 // as the various Stop*Reception methods to end it.
-func New(addr string, tc consumer.TraceConsumer, mc consumer.MetricsConsumer, opts ...Option) (*Receiver, error) {
+func New(
+	instanceName string,
+	transport string,
+	addr string,
+	tc consumer.TraceConsumer,
+	mc consumer.MetricsConsumer,
+	opts ...Option,
+) (*Receiver, error) {
 	// TODO: (@odeke-em) use options to enable address binding changes.
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen(transport, addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind to address %q: %v", addr, err)
 	}
@@ -88,15 +94,11 @@ func New(addr string, tc consumer.TraceConsumer, mc consumer.MetricsConsumer, op
 		opt.withReceiver(ocr)
 	}
 
+	ocr.instanceName = instanceName
 	ocr.traceConsumer = tc
 	ocr.metricsConsumer = mc
 
 	return ocr, nil
-}
-
-// TraceSource returns the name of the trace data source.
-func (ocr *Receiver) TraceSource() string {
-	return source
 }
 
 // Start runs the trace receiver on the gRPC server. Currently
@@ -109,7 +111,8 @@ func (ocr *Receiver) registerTraceConsumer() error {
 	var err = oterr.ErrAlreadyStarted
 
 	ocr.startTraceReceiverOnce.Do(func() {
-		ocr.traceReceiver, err = octrace.New(ocr.traceConsumer, ocr.traceReceiverOpts...)
+		ocr.traceReceiver, err = octrace.New(
+			ocr.instanceName, ocr.traceConsumer, ocr.traceReceiverOpts...)
 		if err == nil {
 			srv := ocr.grpcServer()
 			agenttracepb.RegisterTraceServiceServer(srv, ocr.traceReceiver)
@@ -119,16 +122,12 @@ func (ocr *Receiver) registerTraceConsumer() error {
 	return err
 }
 
-// MetricsSource returns the name of the metrics data source.
-func (ocr *Receiver) MetricsSource() string {
-	return source
-}
-
 func (ocr *Receiver) registerMetricsConsumer() error {
 	var err = oterr.ErrAlreadyStarted
 
 	ocr.startMetricsReceiverOnce.Do(func() {
-		ocr.metricsReceiver, err = ocmetrics.New(ocr.metricsConsumer, ocr.metricsReceiverOpts...)
+		ocr.metricsReceiver, err = ocmetrics.New(
+			ocr.instanceName, ocr.metricsConsumer)
 		if err == nil {
 			srv := ocr.grpcServer()
 			agentmetricspb.RegisterMetricsServiceServer(srv, ocr.metricsReceiver)
@@ -237,6 +236,11 @@ func (ocr *Receiver) startServer(host component.Host) error {
 		c := context.Background()
 		opts := []grpc.DialOption{grpc.WithInsecure()}
 		endpoint := ocr.ln.Addr().String()
+
+		_, ok := ocr.ln.(*net.UnixListener)
+		if ok {
+			endpoint = "unix:" + endpoint
+		}
 
 		err = agenttracepb.RegisterTraceServiceHandlerFromEndpoint(c, ocr.gatewayMux, endpoint, opts)
 		if err != nil {

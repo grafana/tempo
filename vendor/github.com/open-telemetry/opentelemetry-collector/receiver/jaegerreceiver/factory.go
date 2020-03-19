@@ -38,20 +38,21 @@ const (
 
 	// Protocol values.
 	protoGRPC       = "grpc"
-	protoThriftHTTP = "thrift-http"
+	protoThriftHTTP = "thrift_http"
 	// TODO https://github.com/open-telemetry/opentelemetry-collector/issues/267
 	//	Remove ThriftTChannel support.
-	protoThriftTChannel = "thrift-tchannel"
-	protoThriftBinary   = "thrift-binary"
-	protoThriftCompact  = "thrift-compact"
+	protoThriftTChannel = "thrift_tchannel"
+	protoThriftBinary   = "thrift_binary"
+	protoThriftCompact  = "thrift_compact"
 
 	// Default endpoints to bind to.
 	defaultGRPCBindEndpoint     = "localhost:14250"
 	defaultHTTPBindEndpoint     = "localhost:14268"
 	defaultTChannelBindEndpoint = "localhost:14267"
 
-	defaultThriftCompactBindEndpoint = "localhost:6831"
-	defaultThriftBinaryBindEndpoint  = "localhost:6832"
+	defaultThriftCompactBindEndpoint   = "localhost:6831"
+	defaultThriftBinaryBindEndpoint    = "localhost:6832"
+	defaultAgentRemoteSamplingHTTPPort = 5778
 )
 
 // Factory is the factory for Jaeger receiver.
@@ -183,6 +184,25 @@ func (f *Factory) CreateTraceReceiver(
 
 	if remoteSamplingConfig != nil {
 		config.RemoteSamplingEndpoint = remoteSamplingConfig.FetchEndpoint
+
+		if len(remoteSamplingConfig.HostEndpoint) == 0 {
+			config.AgentHTTPPort = defaultAgentRemoteSamplingHTTPPort
+		} else {
+			var err error
+			config.AgentHTTPPort, err = extractPortFromEndpoint(remoteSamplingConfig.HostEndpoint)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// strategies are served over grpc so if grpc is not enabled and strategies are present return an error
+		if len(remoteSamplingConfig.StrategyFile) != 0 {
+			if config.CollectorGRPCPort == 0 {
+				return nil, fmt.Errorf("strategy file requires the GRPC protocol to be enabled")
+			}
+
+			config.RemoteSamplingStrategyFile = remoteSamplingConfig.StrategyFile
+		}
 	}
 
 	if (protoGRPC == nil && protoHTTP == nil && protoTChannel == nil && protoThriftBinary == nil && protoThriftCompact == nil) ||
@@ -199,7 +219,7 @@ func (f *Factory) CreateTraceReceiver(
 	}
 
 	// Create the receiver.
-	return New(ctx, &config, nextConsumer, logger)
+	return New(rCfg.Name(), &config, nextConsumer, logger)
 }
 
 // CreateMetricsReceiver creates a metrics receiver based on provided config.

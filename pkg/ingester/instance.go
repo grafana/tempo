@@ -8,14 +8,16 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/frigg/friggdb"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/util"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
+	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
+	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 type traceFingerprint uint64
@@ -27,12 +29,12 @@ var (
 
 var (
 	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "ingester_traces_created_total",
 		Help:      "The total number of traces created per tenant.",
 	}, []string{"tenant"})
 	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "ingester_blocks_cleared_total",
 		Help:      "The total number of blocks cleared.",
 	})
@@ -48,20 +50,18 @@ type instance struct {
 	traceMapShards   map[string]*traceMapShard
 
 	blockTracesMtx sync.RWMutex
-	headBlock      friggdb.HeadBlock
-	completeBlocks []friggdb.CompleteBlock
+	headBlock      *tempodb_wal.HeadBlock
+	completeBlocks []*tempodb_wal.CompleteBlock
 	lastBlockCut   time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	tracesInMemory     uint64
 	limiter            *Limiter
-	wal                friggdb.WAL
-
-	seed maphash.Seed
+	wal                *tempodb_wal.WAL
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal friggdb.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*instance, error) {
 	i := &instance{
 		traceMapShardMtx: new(sync.RWMutex),
 		traceMapShards:   make(map[string]*traceMapShard, 256),
@@ -115,7 +115,7 @@ func (i *instance) getOrCreateShard(ctx context.Context, traceID []byte) (*trace
 	return shard, true
 }
 
-func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
+func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	trace, err := i.getOrCreateTrace(ctx, req)
 	if err != nil {
 		return err
@@ -131,17 +131,12 @@ func (i *instance) Push(ctx context.Context, req *friggpb.PushRequest) error {
 	return nil
 }
 
-// PushTrace is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushTrace(ctx context.Context, t *friggpb.Trace) error {
-	if len(t.Batches) == 0 {
-		return fmt.Errorf("invalid trace received with 0 batches")
-	}
+// PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
+func (i *instance) PushBytes(ctx context.Context, id tempodb_backend.ID, object []byte) error {
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
 
-	if len(t.Batches[0].Spans) == 0 {
-		return fmt.Errorf("invalid batch received with 0 spans")
-	}
-
-	return i.headBlock.Write(t.Batches[0].Spans[0].TraceId, t)
+	return i.headBlock.Write(id, object)
 }
 
 // Moves any complete traces out of the map to complete traces
@@ -154,7 +149,12 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		shard.tracesMtx.Lock()
 		for key, trace := range shard.traces {
 			if now.Add(cutoff).After(trace.lastAppend) || immediate {
-				err := i.headBlock.Write(trace.traceID, trace.trace)
+				out, err := proto.Marshal(trace.trace)
+				if err != nil {
+					return err
+				}
+
+				err = i.headBlock.Write(trace.traceID, out)
 				if err != nil {
 					return err
 				}
@@ -197,7 +197,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return ready, nil
 }
 
-func (i *instance) GetBlockToBeFlushed() friggdb.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
@@ -235,7 +235,7 @@ func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error
 	return err
 }
 
-func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
+func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	// First search live traces being assembled in the ingester instance.
 	// Find shard
 	hasher := maphash.Hash{}
@@ -256,30 +256,41 @@ func (i *instance) FindTraceByID(id []byte) (*friggpb.Trace, error) {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
-	out := &friggpb.Trace{}
-
-	found, err := i.headBlock.Find(id, out)
+	foundBytes, err := i.headBlock.Find(id)
 	if err != nil {
 		return nil, err
 	}
-	if found {
+	if foundBytes != nil {
+		out := &tempopb.Trace{}
+
+		err = proto.Unmarshal(foundBytes, out)
+		if err != nil {
+			return nil, err
+		}
+
 		return out, nil
 	}
 
 	for _, c := range i.completeBlocks {
-		found, err = c.Find(id, out)
+		foundBytes, err = c.Find(id)
 		if err != nil {
 			return nil, err
 		}
-		if found {
-			return out, nil
+		if foundBytes != nil {
+			out := &tempopb.Trace{}
+
+			err = proto.Unmarshal(foundBytes, out)
+			if err != nil {
+				return nil, err
+			}
+			return out, err
 		}
 	}
 
 	return nil, nil
 }
 
-func (i *instance) getOrCreateTrace(ctx context.Context, req *friggpb.PushRequest) (*trace, error) {
+func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	if len(req.Batch.Spans) == 0 {
 		return nil, fmt.Errorf("invalid request received with 0 spans")
 	}

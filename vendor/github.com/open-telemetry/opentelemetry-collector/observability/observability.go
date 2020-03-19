@@ -25,7 +25,6 @@ import (
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
-	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
 )
 
@@ -131,7 +130,7 @@ var AllViews = []*view.View{
 	ViewExporterDroppedTimeSeries,
 }
 
-// ContextWithReceiverName adds the tag "otelsvc_receiver" and the name of the receiver as the value,
+// ContextWithReceiverName adds the tag "receiver" and the name of the receiver as the value,
 // and returns the newly created context. For receivers that can receive multiple signals it is
 // recommended to encode the signal as suffix (e.g. "oc_trace" and "oc_metrics").
 func ContextWithReceiverName(ctx context.Context, receiverName string) context.Context {
@@ -151,7 +150,7 @@ func RecordMetricsForMetricsReceiver(ctxWithTraceReceiverName context.Context, r
 	stats.Record(ctxWithTraceReceiverName, mReceiverReceivedTimeSeries.M(int64(receivedTimeSeries)), mReceiverDroppedTimeSeries.M(int64(droppedTimeSeries)))
 }
 
-// ContextWithExporterName adds the tag "otelsvc_exporter" and the name of the exporter as the value,
+// ContextWithExporterName adds the tag "exporter" and the name of the exporter as the value,
 // and returns the newly created context. For exporters that can export multiple signals it is
 // recommended to encode the signal as suffix (e.g. "oc_trace" and "oc_metrics").
 func ContextWithExporterName(ctx context.Context, exporterName string) context.Context {
@@ -177,22 +176,4 @@ func RecordMetricsForMetricsExporter(ctx context.Context, receivedTimeSeries int
 func GRPCServerWithObservabilityEnabled(extraOpts ...grpc.ServerOption) *grpc.Server {
 	opts := append(extraOpts, grpc.StatsHandler(&ocgrpc.ServerHandler{}))
 	return grpc.NewServer(opts...)
-}
-
-// SetParentLink tries to retrieve a span from sideCtx and if one exists
-// sets its SpanID, TraceID as a link in the span provided. It returns
-// true only if it retrieved a parent span from the context.
-func SetParentLink(sideCtx context.Context, span *trace.Span) bool {
-	parentSpanFromRPC := trace.FromContext(sideCtx)
-	if parentSpanFromRPC == nil {
-		return false
-	}
-
-	psc := parentSpanFromRPC.SpanContext()
-	span.AddLink(trace.Link{
-		SpanID:  psc.SpanID,
-		TraceID: psc.TraceID,
-		Type:    trace.LinkTypeParent,
-	})
-	return true
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-kit/kit/log/level"
+	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -15,28 +16,27 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 
-	"github.com/grafana/frigg/friggdb"
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/ingester/client"
-	"github.com/grafana/frigg/pkg/storage"
-	frigg_util "github.com/grafana/frigg/pkg/util"
-	"github.com/grafana/frigg/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/ingester/client"
+	"github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/pkg/tempopb"
+	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/validation"
 )
 
 var (
 	readinessProbeSuccess = []byte("Ready")
 
 	metricQueryReads = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "query_reads",
 		Help:      "count of reads",
-		Buckets:   prometheus.ExponentialBuckets(0.5, 2, 10),
+		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
 	}, []string{"layer"})
 	metricQueryBytesRead = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "frigg",
+		Namespace: "tempo",
 		Name:      "query_bytes_read",
 		Help:      "bytes read",
-		Buckets:   prometheus.ExponentialBuckets(512, 2, 10),
+		Buckets:   prometheus.ExponentialBuckets(1024, 2, 10),
 	}, []string{"layer"})
 )
 
@@ -75,8 +75,8 @@ func newQuerier(cfg Config, clientCfg client.Config, clientFactory cortex_client
 	}, nil
 }
 
-// FindTraceByID implements friggpb.Querier.
-func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDRequest) (*friggpb.TraceByIDResponse, error) {
+// FindTraceByID implements tempopb.Querier.
+func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, fmt.Errorf("invalid trace id")
 	}
@@ -86,7 +86,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDReque
 		return nil, err
 	}
 
-	key := frigg_util.TokenFor(userID, req.TraceID)
+	key := tempo_util.TokenFor(userID, req.TraceID)
 
 	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
 	var descs [maxExpectedReplicationSet]ring.IngesterDesc
@@ -96,16 +96,16 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDReque
 	}
 
 	// todo:  does this wait for every ingester?  we only need one successful return
-	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client friggpb.QuerierClient) (interface{}, error) {
+	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
 		return client.FindTraceByID(ctx, req)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	var trace *friggpb.Trace
+	var trace *tempopb.Trace
 	for _, r := range responses {
-		trace = r.response.(*friggpb.TraceByIDResponse).Trace
+		trace = r.response.(*tempopb.TraceByIDResponse).Trace
 		if trace != nil {
 			break
 		}
@@ -113,37 +113,41 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *friggpb.TraceByIDReque
 
 	// if the ingester didn't have it check the store.  todo: parallelize
 	if trace == nil {
-		var metrics friggdb.EstimatedMetrics
-		out := &friggpb.Trace{}
-		metrics, _, err = q.store.Find(userID, req.TraceID, out)
+		foundBytes, metrics, err := q.store.Find(userID, req.TraceID)
+		if err != nil {
+			return nil, err
+		}
+
+		out := &tempopb.Trace{}
+		err = proto.Unmarshal(foundBytes, out)
 		if err != nil {
 			return nil, err
 		}
 
 		trace = out
-		metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads))
-		metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead))
-		metricQueryReads.WithLabelValues("index").Observe(float64(metrics.IndexReads))
-		metricQueryBytesRead.WithLabelValues("index").Observe(float64(metrics.IndexBytesRead))
-		metricQueryReads.WithLabelValues("block").Observe(float64(metrics.BlockReads))
-		metricQueryBytesRead.WithLabelValues("block").Observe(float64(metrics.BlockBytesRead))
+		metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads.Load()))
+		metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead.Load()))
+		metricQueryReads.WithLabelValues("index").Observe(float64(metrics.IndexReads.Load()))
+		metricQueryBytesRead.WithLabelValues("index").Observe(float64(metrics.IndexBytesRead.Load()))
+		metricQueryReads.WithLabelValues("block").Observe(float64(metrics.BlockReads.Load()))
+		metricQueryBytesRead.WithLabelValues("block").Observe(float64(metrics.BlockBytesRead.Load()))
 	}
 
-	return &friggpb.TraceByIDResponse{
+	return &tempopb.TraceByIDResponse{
 		Trace: trace,
 	}, nil
 }
 
 // forGivenIngesters runs f, in parallel, for given ingesters
 // TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
-func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(friggpb.QuerierClient) (interface{}, error)) ([]responseFromIngesters, error) {
+func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(tempopb.QuerierClient) (interface{}, error)) ([]responseFromIngesters, error) {
 	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ingester *ring.IngesterDesc) (interface{}, error) {
 		client, err := q.pool.GetClientFor(ingester.Addr)
 		if err != nil {
 			return nil, err
 		}
 
-		resp, err := f(client.(friggpb.QuerierClient))
+		resp, err := f(client.(tempopb.QuerierClient))
 		if err != nil {
 			return nil, err
 		}

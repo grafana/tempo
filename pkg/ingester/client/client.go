@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/frigg/pkg/friggpb"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // Config for an ingester client.
@@ -46,13 +46,13 @@ func New(cfg Config, addr string) (grpc_health_v1.HealthClient, error) {
 		return nil, err
 	}
 	return struct {
-		friggpb.PusherClient
-		friggpb.QuerierClient
+		tempopb.PusherClient
+		tempopb.QuerierClient
 		grpc_health_v1.HealthClient
 		io.Closer
 	}{
-		PusherClient:  friggpb.NewPusherClient(conn),
-		QuerierClient: friggpb.NewQuerierClient(conn),
+		PusherClient:  tempopb.NewPusherClient(conn),
+		QuerierClient: tempopb.NewQuerierClient(conn),
 		Closer:        conn,
 	}, nil
 }

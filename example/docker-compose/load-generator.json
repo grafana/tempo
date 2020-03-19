@@ -1,0 +1,630 @@
+{
+    "topology": {
+      "services": [
+        {
+          "serviceName": "frontend",
+          "tagSets": [
+            {
+              "weight": 1,
+              "tags": {
+                "version": "v127",
+                "region": "us-east-1"
+              },
+              "tagGenerators": [],
+              "inherit": [],
+              "maxLatency": 100
+            },
+            {
+              "weight": 1,
+              "tags": {
+                "version": "v125",
+                "region": "us-east-1"
+              },
+              "tagGenerators": [],
+              "inherit": [],
+              "maxLatency": 100
+            },
+            {
+              "weight": 2,
+              "tags": {
+                "version": "v125",
+                "region": "us-west-1"
+              },
+              "tagGenerators": [],
+              "inherit": [],
+              "maxLatency": 100
+            }
+          ],
+          "routes": [
+            {
+              "route": "/product",
+              "downstreamCalls": {
+                "productcatalogservice": "/GetProducts",
+                "recommendationservice": "/GetRecommendations",
+                "adservice": "/AdRequest"
+              },
+              "tagSets": [
+                {
+                  "weight": 1,
+                  "tags": {
+                    "starter": "charmander"
+                  },
+                  "tagGenerators": [
+                    {
+                      "rand": {
+                        "seed": 179867746078676,
+                        "nextNextGaussian": 0,
+                        "haveNextNextGaussian": false
+                      },
+                      "tagGen": {},
+                      "valLength": 16,
+                      "numTags": 50,
+                      "numVals": 3000
+                    }
+                  ],
+                  "inherit": []
+                },
+                {
+                  "weight": 1,
+                  "tags": {
+                    "starter": "squirtle"
+                  },
+                  "tagGenerators": [],
+                  "inherit": []
+                },
+                {
+                  "weight": 1,
+                  "tags": {
+                    "starter": "bulbasaur"
+                  },
+                  "tagGenerators": [],
+                  "inherit": []
+                }
+              ]
+            },
+            {
+              "route": "/cart",
+              "downstreamCalls": {
+                "cartservice": "/GetCart",
+                "recommendationservice": "/GetRecommendations"
+              },
+              "tagSets": []
+            },
+            {
+              "route": "/checkout",
+              "downstreamCalls": {
+                "checkoutservice": "/PlaceOrder"
+              },
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 800
+                }
+              ]
+            },
+            {
+              "route": "/shipping",
+              "downstreamCalls": {
+                "shippingservice": "/GetQuote"
+              },
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 50
+                }
+              ]
+            },
+            {
+              "route": "/currency",
+              "downstreamCalls": {
+                "currencyservice": "/GetConversion"
+              },
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 50
+                }
+              ]
+            }
+          ],
+          "instances": [
+            "frontend-6b654dbf57-zq8dt",
+            "frontend-d847fdcf5-j6s2f",
+            "frontend-79d8c8d6c8-9sbff"
+          ],
+          "mergedTagSets": {},
+          "random": {
+            "seed": 187004238864083,
+            "nextNextGaussian": 0,
+            "haveNextNextGaussian": false
+          }
+        },
+        {
+          "serviceName": "productcatalogservice",
+          "tagSets": [
+            {
+              "tags": {
+                "version": "v52"
+              },
+              "tagGenerators": [],
+              "inherit": [
+                "region"
+              ]
+            }
+          ],
+          "routes": [
+            {
+              "route": "/GetProducts",
+              "downstreamCalls": {},
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [
+                    "starter"
+                  ],
+                  "maxLatency": 100
+                }
+              ]
+            },
+            {
+              "route": "/SearchProducts",
+              "downstreamCalls": {},
+              "tagSets": [
+                {
+                  "weight": 15,
+                  "tags": {
+                    "error": true,
+                    "http.status_code": 503
+                  },
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 400
+                },
+                {
+                  "weight": 85,
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 400
+                }
+              ]
+            }
+          ],
+          "instances": [
+            "productcatalogservice-6b654dbf57-zq8dt",
+            "productcatalogservice-d847fdcf5-j6s2f"
+          ],
+          "mergedTagSets": {},
+          "random": {
+            "seed": 238238032670139,
+            "nextNextGaussian": 0,
+            "haveNextNextGaussian": false
+          }
+        },
+        {
+          "serviceName": "recommendationservice",
+          "tagSets": [
+            {
+              "tags": {
+                "version": "v234",
+                "region": "us-east-1"
+              },
+              "tagGenerators": [],
+              "inherit": []
+            }
+          ],
+          "routes": [
+            {
+              "route": "/GetRecommendations",
+              "downstreamCalls": {
+                "productcatalogservice": "/GetProducts"
+              },
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 200
+                }
+              ]
+            }
+          ],
+          "instances": [
+            "recommendationservice-6b654dbf57-zq8dt",
+            "recommendationservice-d847fdcf5-j6s2f"
+          ],
+          "mergedTagSets": {},
+          "random": {
+            "seed": 66295214032801,
+            "nextNextGaussian": 0,
+            "haveNextNextGaussian": false
+          }
+        },
+        {
+          "serviceName": "cartservice",
+          "tagSets": [
+            {
+              "tags": {
+                "version": "v5",
+                "region": "us-east-1"
+              },
+              "tagGenerators": [],
+              "inherit": []
+            }
+          ],
+          "routes": [
+            {
+              "route": "/GetCart",
+              "downstreamCalls": {},
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 200
+                }
+              ]
+            }
+          ],
+          "instances": [
+            "cartservice-6b654dbf57-zq8dt",
+            "cartservice-d847fdcf5-j6s2f"
+          ],
+          "mergedTagSets": {},
+          "random": {
+            "seed": 234194353561392,
+            "nextNextGaussian": 0,
+            "haveNextNextGaussian": false
+          }
+        },
+        {
+          "serviceName": "checkoutservice",
+          "tagSets": [
+            {
+              "tags": {
+                "version": "v37",
+                "region": "us-east-1"
+              },
+              "tagGenerators": [],
+              "inherit": [],
+              "maxLatency": 500
+            }
+          ],
+          "routes": [
+            {
+              "route": "/PlaceOrder",
+              "downstreamCalls": {
+                "paymentservice": "/CreditCardInfo",
+                "shippingservice": "/Address",
+                "currencyservice": "/GetConversion",
+                "cartservice": "/GetCart",
+                "emailservice": "/SendOrderConfirmation"
+              },
+              "tagSets": [
+                {
+                  "weight": 25,
+                  "tags": {
+                    "error": true,
+                    "http.status_code": 503
+                  },
+                  "tagGenerators": [],
+                  "inherit": []
+                },
+                {
+                  "weight": 85,
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": []
+                }
+              ]
+            }
+          ],
+          "instances": [
+            "checkoutservice-6b654dbf57-zq8dt",
+            "checkoutservice-d847fdcf5-j6s2f"
+          ],
+          "mergedTagSets": {},
+          "random": {
+            "seed": 60782549660568,
+            "nextNextGaussian": 0,
+            "haveNextNextGaussian": false
+          }
+        },
+        {
+          "serviceName": "paymentservice",
+          "tagSets": [
+            {
+              "tags": {
+                "version": "v177",
+                "region": "us-east-1"
+              },
+              "tagGenerators": [],
+              "inherit": []
+            }
+          ],
+          "routes": [
+            {
+              "route": "/ChargeRequest",
+              "downstreamCalls": {
+                "paymentservice": "/CreditCardInfo"
+              },
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 700
+                }
+              ]
+            },
+            {
+              "route": "/CreditCardInfo",
+              "downstreamCalls": {},
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 50
+                }
+              ]
+            }
+          ],
+          "instances": [
+            "paymentservice-6b654dbf57-zq8dt",
+            "paymentservice-d847fdcf5-j6s2f"
+          ],
+          "mergedTagSets": {},
+          "random": {
+            "seed": 174850031049111,
+            "nextNextGaussian": 0,
+            "haveNextNextGaussian": false
+          }
+        },
+        {
+          "serviceName": "shippingservice",
+          "tagSets": [
+            {
+              "tags": {
+                "version": "v127",
+                "region": "us-east-1"
+              },
+              "tagGenerators": [],
+              "inherit": []
+            }
+          ],
+          "routes": [
+            {
+              "route": "/GetQuote",
+              "downstreamCalls": {
+                "shippingservice": "/Address"
+              },
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 250
+                }
+              ]
+            },
+            {
+              "route": "/ShipOrder",
+              "downstreamCalls": {
+                "shippingservice": "/Address"
+              },
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 500
+                }
+              ]
+            },
+            {
+              "route": "/Address",
+              "downstreamCalls": {},
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 100
+                }
+              ]
+            }
+          ],
+          "instances": [
+            "shippingservice-6b654dbf57-zq8dt",
+            "shippingservice-d847fdcf5-j6s2f"
+          ],
+          "mergedTagSets": {},
+          "random": {
+            "seed": 107892261530518,
+            "nextNextGaussian": 0,
+            "haveNextNextGaussian": false
+          }
+        },
+        {
+          "serviceName": "emailservice",
+          "tagSets": [
+            {
+              "tags": {
+                "version": "v27",
+                "region": "us-east-1"
+              },
+              "tagGenerators": [],
+              "inherit": [],
+              "maxLatency": 500
+            }
+          ],
+          "routes": [
+            {
+              "route": "/SendOrderConfirmation",
+              "downstreamCalls": {
+                "emailservice": "/OrderResult"
+              },
+              "tagSets": [
+                {
+                  "weight": 15,
+                  "tags": {
+                    "error": true,
+                    "http.status_code": 503
+                  },
+                  "tagGenerators": [],
+                  "inherit": []
+                },
+                {
+                  "weight": 85,
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": []
+                }
+              ]
+            },
+            {
+              "route": "/OrderResult",
+              "downstreamCalls": {},
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 100
+                }
+              ]
+            }
+          ],
+          "instances": [
+            "emailservice-6b654dbf57-zq8dt",
+            "emailservice-d847fdcf5-j6s2f"
+          ],
+          "mergedTagSets": {},
+          "random": {
+            "seed": 61175057559946,
+            "nextNextGaussian": 0,
+            "haveNextNextGaussian": false
+          }
+        },
+        {
+          "serviceName": "currencyservice",
+          "tagSets": [
+            {
+              "tags": {
+                "version": "v27",
+                "region": "us-east-1"
+              },
+              "tagGenerators": [],
+              "inherit": []
+            }
+          ],
+          "routes": [
+            {
+              "route": "/GetConversion",
+              "downstreamCalls": {
+                "currencyservice": "/Money"
+              },
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 100
+                }
+              ]
+            },
+            {
+              "route": "/Money",
+              "downstreamCalls": {},
+              "tagSets": [
+                {
+                  "tags": {},
+                  "tagGenerators": [],
+                  "inherit": [],
+                  "maxLatency": 100
+                }
+              ]
+            }
+          ],
+          "instances": [
+            "currencyservice-6b654dbf57-zq8dt",
+            "currencyservice-d847fdcf5-j6s2f"
+          ],
+          "mergedTagSets": {},
+          "random": {
+            "seed": 66219471499700,
+            "nextNextGaussian": 0,
+            "haveNextNextGaussian": false
+          }
+        },
+        {
+          "serviceName": "adservice",
+          "tagSets": [
+            {
+              "tags": {},
+              "tagGenerators": [],
+              "inherit": [],
+              "maxLatency": 500
+            }
+          ],
+          "routes": [
+            {
+              "route": "/AdRequest",
+              "downstreamCalls": {},
+              "tagSets": []
+            },
+            {
+              "route": "/Ad",
+              "downstreamCalls": {},
+              "tagSets": []
+            }
+          ],
+          "instances": [
+            "adservice-6b654dbf57-zq8dt",
+            "adservice-d847fdcf5-j6s2f"
+          ],
+          "mergedTagSets": {},
+          "random": {
+            "seed": 22694143111805,
+            "nextNextGaussian": 0,
+            "haveNextNextGaussian": false
+          }
+        }
+      ]
+    },
+    "rootRoutes": [
+      {
+        "service": "frontend",
+        "route": "/product",
+        "tracesPerHour": 2880
+      },
+      {
+        "service": "frontend",
+        "route": "/cart",
+        "tracesPerHour": 14400
+      },
+      {
+        "service": "frontend",
+        "route": "/shipping",
+        "tracesPerHour": 480
+      },
+      {
+        "service": "frontend",
+        "route": "/currency",
+        "tracesPerHour": 200
+      },
+      {
+        "service": "frontend",
+        "route": "/checkout",
+        "tracesPerHour": 480
+      }
+    ]
+  }

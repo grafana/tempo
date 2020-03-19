@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/frigg/pkg/friggpb"
-	"github.com/grafana/frigg/pkg/util/test"
-	"github.com/grafana/frigg/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/util/validation"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -116,7 +116,7 @@ func BenchmarkShardedTraceMap(b *testing.B) {
 	}
 
 	// make some fake traceIDs/requests
-	// traces := make([]*friggpb.Trace, 0)
+	// traces := make([]*tempopb.Trace, 0)
 
 	// traceIDs := make([][]byte, 0)
 	for n := 0; n < b.N; n++ {
@@ -133,7 +133,7 @@ func BenchmarkShardedTraceMap(b *testing.B) {
 		// for n := 0; n < b.N; n++ {
 		for _, batch := range trace.Batches {
 			err := i.Push(context.Background(),
-				&friggpb.PushRequest{
+				&tempopb.PushRequest{
 					Batch: batch,
 				})
 			assert.NoError(b, err, "unexpected error pushing")

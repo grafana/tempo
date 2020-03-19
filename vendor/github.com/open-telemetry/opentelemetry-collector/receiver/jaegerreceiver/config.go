@@ -23,7 +23,9 @@ const protocolsFieldName = "protocols"
 
 // RemoteSamplingConfig defines config key for remote sampling fetch endpoint
 type RemoteSamplingConfig struct {
+	HostEndpoint  string `mapstructure:"host_endpoint"`
 	FetchEndpoint string `mapstructure:"fetch_endpoint"`
+	StrategyFile  string `mapstructure:"strategy_file"`
 }
 
 // Config defines configuration for Jaeger receiver.
