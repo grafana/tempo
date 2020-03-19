@@ -70,9 +70,11 @@ func (rw *readerWriter) doCompaction() {
 	rw.jobStopper, err = rw.pool.RunStoppableJobs(tenants, func(payload interface{}, stopCh <-chan struct{}) error {
 		var warning error
 		tenantID := payload.(string)
+		blocklist := rw.blocklist(tenantID)
+		blocksPerLevel := blocklistPerLevel(blocklist)
 
 		for l := 0; l < maxNumLevels-1; l++ {
-			blockSelector := newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
+			blockSelector := newTimeWindowBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
 		L:
 			for {
 				select {
