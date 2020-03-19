@@ -50,9 +50,14 @@ func (sbs *simpleBlockSelector) BlocksToCompact() []*backend.BlockMeta {
 
 /*************************** Time Window Block Selector **************************/
 
+// Sharding will be based on time slot - not level. Since each compactor works on two levels.
+// Levels will be needed for id-range isolation
+// The timeWindowBlockSelector can be used ONLY ONCE PER TIMESLOT.
+// It needs to be reinitialized with updated blocklist.
+
 type timeWindowBlockSelector struct {
 	cursor             int
-	slotStartTime      time.Time
+	slotStartTime      time.Time // this will eventually be passed to the selector via ring selection
 	blocklist          []*backend.BlockMeta
 	MaxCompactionRange time.Duration // Size of the time window - say 6 hours
 }
@@ -71,24 +76,30 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 }
 
 func (twbs *timeWindowBlockSelector) BlocksToCompact() []*backend.BlockMeta {
-	// Pick the same time window as the start block
-	startTime := twbs.blocklist[twbs.cursor].StartTime
-	for twbs.slotStartTime.Add(twbs.MaxCompactionRange).Sub(startTime).Seconds() < 0 {
+	levelStartTime := twbs.blocklist[0].StartTime
+	i := twbs.slotStartTime
+	for i.Add(twbs.MaxCompactionRange).Before(levelStartTime) {
 		twbs.slotStartTime.Add(twbs.MaxCompactionRange)
 	}
+	slotEndTime := twbs.slotStartTime.Add(twbs.MaxCompactionRange)
 
 	for twbs.cursor < len(twbs.blocklist)-inputBlocks+1 {
 		// Pick blocks in slotStartTime <> slotEndTime
-		slotEndTime := twbs.slotStartTime.Add(twbs.MaxCompactionRange)
-		cursorEnd := twbs.cursor + inputBlocks - 1
-		if twbs.blocklist[cursorEnd].StartTime.Sub(slotEndTime).Seconds() <= 0 {
-			startPos := twbs.cursor
-			twbs.cursor = startPos + inputBlocks
-			return twbs.blocklist[startPos : startPos+inputBlocks]
+		cursorBlock := twbs.blocklist[twbs.cursor]
+		if cursorBlock.StartTime.After(twbs.slotStartTime) && cursorBlock.StartTime.Before(slotEndTime) {
+			// Pick inputBlocks and promote to next level
+			cursorEnd := twbs.cursor + inputBlocks - 1
+			if cursorEnd < len(twbs.blocklist) && twbs.blocklist[cursorEnd].StartTime.Before(slotEndTime) {
+				startPos := twbs.cursor
+				twbs.cursor = startPos + inputBlocks
+				return twbs.blocklist[startPos : startPos+inputBlocks]
+			}
 		}
 		twbs.cursor++
-		twbs.slotStartTime.Add(twbs.MaxCompactionRange)
+		if twbs.blocklist[twbs.cursor].StartTime.After(slotEndTime) {
+			twbs.slotStartTime.Add(twbs.MaxCompactionRange)
+			slotEndTime = twbs.slotStartTime.Add(twbs.MaxCompactionRange)
+		}
 	}
-
 	return nil
 }
