@@ -3,7 +3,7 @@ package ingester
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/weaveworks/common/httpgrpc"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -79,14 +80,6 @@ func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*in
 		return nil, err
 	}
 	return i, nil
-}
-
-func (i *instance) getShard(ctx context.Context, traceID []byte) *traceMapShard {
-	// Hash to evenly distribute search space
-	hasher := fnv.New64a()
-	hasher.Write(traceID)
-	shardKey := hasher.Sum64() % 256
-	return i.traceMapShards[shardKey]
 }
 
 func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
@@ -279,18 +272,18 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	}
 	shard.tracesMtx.RUnlock()
 
-	// err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.tracesInMemory))
-	// if err != nil {
-	// 	return nil, httpgrpc.Errorf(http.StatusTooManyRequests, err.Error())
-	// }
+	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.tracesInMemory))
+	if err != nil {
+		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, err.Error())
+	}
 
 	trace = newTrace(fp, traceID)
 	shard.tracesMtx.Lock()
 	shard.traces[fp] = trace
 	shard.tracesMtx.Unlock()
 
-	// atomic.AddUint64(&i.tracesInMemory, 1)
-	// i.tracesCreatedTotal.Inc()
+	atomic.AddUint64(&i.tracesInMemory, 1)
+	i.tracesCreatedTotal.Inc()
 
 	return trace, nil
 }
