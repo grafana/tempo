@@ -118,13 +118,21 @@ func BenchmarkShardedTraceMap(b *testing.B) {
 		}
 	}
 
-	id := make([]byte, 16)
-	_, err := rand.Read(id)
-	assert.NoError(b, err)
+	ids := [][]byte{}
+	traces := []*tempopb.Trace{}
+	for i := 0; i < 100000; i++ {
+		id := make([]byte, 16)
+		_, err := rand.Read(id)
+		assert.NoError(b, err)
 
-	trace := test.MakeTrace(10000, id)
+		ids = append(ids, id)
+		traces = append(traces, test.MakeTrace(10, id))
+	}
 
 	for n := 0; n < b.N; n++ {
+		id := ids[n]
+		trace := traces[n]
+
 		for _, batch := range trace.Batches {
 			err := i.Push(context.Background(),
 				&tempopb.PushRequest{
