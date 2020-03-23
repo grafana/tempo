@@ -44,6 +44,51 @@ func (sbs *simpleBlockSelector) BlocksToCompact() []*backend.BlockMeta {
 		sbs.cursor++
 	}
 
-	// Could not find blocks suitable for compaction, break
 	return nil
+}
+
+/*************************** Time Window Block Selector **************************/
+
+// Sharding will be based on time slot - not level. Since each compactor works on two levels.
+// Levels will be needed for id-range isolation
+// The timeWindowBlockSelector can be used ONLY ONCE PER TIMESLOT.
+// It needs to be reinitialized with updated blocklist.
+
+type timeWindowBlockSelector struct {
+	cursor             int
+	blocklist          []*backend.BlockMeta
+	MaxCompactionRange time.Duration // Size of the time window - say 6 hours
+}
+
+var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
+
+func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration) CompactionBlockSelector {
+	twbs := &timeWindowBlockSelector{
+		blocklist:          blocklist,
+		MaxCompactionRange: maxCompactionRange,
+	}
+
+	return twbs
+}
+
+func (twbs *timeWindowBlockSelector) BlocksToCompact() []*backend.BlockMeta {
+
+	for twbs.cursor < len(twbs.blocklist)-inputBlocks+1 {
+		// Pick blocks in slotStartTime <> slotEndTime
+		cursorBlock := twbs.blocklist[twbs.cursor]
+		currentWindow := twbs.windowForBlock(cursorBlock)
+		cursorEnd := twbs.cursor + inputBlocks - 1
+
+		if cursorEnd < len(twbs.blocklist) && currentWindow == twbs.windowForBlock(twbs.blocklist[cursorEnd]) {
+			startPos := twbs.cursor
+			twbs.cursor = startPos + inputBlocks
+			return twbs.blocklist[startPos : startPos+inputBlocks]
+		}
+		twbs.cursor++
+	}
+	return nil
+}
+
+func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
+	return meta.StartTime.Unix() / int64(twbs.MaxCompactionRange/time.Second)
 }

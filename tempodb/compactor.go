@@ -70,7 +70,7 @@ func (rw *readerWriter) doCompaction() {
 		blocksPerLevel := blocklistPerLevel(blocklist)
 
 		for l := 0; l < maxNumLevels-1; l++ {
-			blockSelector := newSimpleBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
+			blockSelector := newTimeWindowBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
 		L:
 			for {
 				select {
