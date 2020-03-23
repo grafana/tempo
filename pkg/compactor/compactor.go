@@ -28,7 +28,7 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 		store: store,
 	}
 
-	if c.cfg.shardingEnabled() {
+	if c.cfg.ShardingEnabled {
 		lifecyclerCfg := c.cfg.ShardingRing.ToLifecyclerConfig()
 		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", CompactorRingKey, false)
 		if err != nil {
@@ -51,7 +51,7 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 }
 
 func (c *Compactor) Owns(hash string) bool {
-	if c.cfg.shardingEnabled() {
+	if c.cfg.ShardingEnabled {
 		hasher := fnv.New32a()
 		_, _ = hasher.Write([]byte(hash))
 		hash32 := hasher.Sum32()

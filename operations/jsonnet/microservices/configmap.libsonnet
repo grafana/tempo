@@ -77,6 +77,18 @@
         blockRetention: '144h',
         compactedBlockRetention: '2m',
       },
+      sharding_enabled: true,
+      sharding_ring: {
+        heartbeat_timeout: '10m',
+        kvstore: {
+          store: 'memberlist',
+          memberlist: {
+            abort_if_cluster_join_fails: false,
+            bind_port: $._config.gossip_ring_port,
+            join_members: ['gossip-ring.%s.svc.cluster.local:%d' % [$._config.namespace, $._config.gossip_ring_port]],
+          },
+        },
+      },
     },
     storage_config+: {
       trace+: {

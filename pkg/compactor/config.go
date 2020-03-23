@@ -14,18 +14,15 @@ import (
 )
 
 type Config struct {
-	ShardingRing *RingConfig `yaml:"sharding_ring,omitempty"`
+	ShardingEnabled bool       `yaml:"sharding_enabled"`
+	ShardingRing    RingConfig `yaml:"sharding_ring,omitempty"`
 
 	Compactor *tempodb.CompactorConfig `yaml:"compaction"`
 }
 
 // RegisterFlags registers the flags.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
-
-}
-
-func (c *Config) shardingEnabled() bool {
-	return c.ShardingRing != nil
+	cfg.ShardingRing.RegisterFlags(f)
 }
 
 // RingConfig masks the ring lifecycler config which contains
@@ -33,7 +30,7 @@ func (c *Config) shardingEnabled() bool {
 // is used to strip down the config to the minimum, and avoid confusion
 // to the user.
 type RingConfig struct {
-	KVStore          kv.Config     `yaml:"kvstore"`
+	KVStore          kv.Config     `yaml:"kvstore,omitempty"`
 	HeartbeatPeriod  time.Duration `yaml:"heartbeat_period"`
 	HeartbeatTimeout time.Duration `yaml:"heartbeat_timeout"`
 
