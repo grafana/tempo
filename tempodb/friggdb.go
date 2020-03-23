@@ -81,7 +81,12 @@ type Reader interface {
 }
 
 type Compactor interface {
-	EnableCompaction(cfg *CompactorConfig)
+	EnableCompaction(cfg *CompactorConfig, sharder CompactorSharder)
+}
+
+type CompactorSharder interface {
+	Owns(hash string) bool
+	Combine(objA []byte, objB []byte) []byte
 }
 
 type FindMetrics struct {
@@ -103,12 +108,13 @@ type readerWriter struct {
 
 	logger        log.Logger
 	cfg           *Config
-	compactorCfg  *CompactorConfig
 	blockLists    map[string][]*backend.BlockMeta
 	blockListsMtx sync.Mutex
 
 	jobStopper          *pool.Stopper
+	compactorCfg        *CompactorConfig
 	compactedBlockLists map[string][]*backend.CompactedBlockMeta
+	compactorSharder    CompactorSharder
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
@@ -307,11 +313,12 @@ func (rw *readerWriter) Shutdown() {
 	rw.r.Shutdown()
 }
 
-func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig) {
+func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder) {
 	if cfg != nil {
 		level.Info(rw.logger).Log("msg", "compaction enabled.")
 	}
 	rw.compactorCfg = cfg
+	rw.compactorSharder = c
 }
 
 func (rw *readerWriter) maintenanceLoop() {

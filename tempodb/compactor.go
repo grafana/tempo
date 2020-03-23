@@ -77,11 +77,15 @@ func (rw *readerWriter) doCompaction() {
 				case <-stopCh:
 					return warning
 				default:
-					toBeCompacted := blockSelector.BlocksToCompact()
+					toBeCompacted, hashString := blockSelector.BlocksToCompact()
 					if len(toBeCompacted) == 0 {
 						// If none are suitable, bail
 						break L
 					}
+					if !rw.compactorSharder.Owns(hashString) {
+						continue
+					}
+					level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
 					if err := rw.compact(toBeCompacted, tenantID); err != nil {
 						warning = err
 						level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
@@ -171,15 +175,9 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			//   in the future add a callback or something that allows the owning application to make a more intelligent choice
 			//   such as combining traces if they're both incomplete
 			if bytes.Equal(currentID, lowestID) {
-				if len(currentObject) > len(lowestObject) {
-					lowestBookmark.clear()
-
-					lowestID = currentID
-					lowestObject = currentObject
-					lowestBookmark = b
-				} else {
-					b.clear()
-				}
+				lowestID = currentID
+				lowestObject = rw.compactorSharder.Combine(currentObject, lowestObject)
+				b.clear()
 			} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
 				lowestID = currentID
 				lowestObject = currentObject

@@ -44,7 +44,7 @@ func TestCurrentClear(t *testing.T) {
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	})
+	}, &mockSharder{})
 
 	wal := w.WAL()
 	assert.NoError(t, err)

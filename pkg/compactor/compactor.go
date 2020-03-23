@@ -11,10 +11,24 @@ type Compactor struct {
 
 // New makes a new Querier.
 func New(cfg Config, store storage.Store) (*Compactor, error) {
-	store.EnableCompaction(cfg.Compactor)
-
-	return &Compactor{
+	c := &Compactor{
 		cfg:   &cfg,
 		store: store,
-	}, nil
+	}
+
+	store.EnableCompaction(cfg.Compactor, c)
+
+	return c, nil
+}
+
+func (c *Compactor) Owns(hash string) bool {
+	return true
+}
+
+func (c *Compactor) Combine(objA []byte, objB []byte) []byte {
+	if len(objA) > len(objB) {
+		return objA
+	}
+
+	return objB
 }
