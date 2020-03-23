@@ -30,6 +30,7 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 
 	if c.cfg.ShardingEnabled {
 		lifecyclerCfg := c.cfg.ShardingRing.ToLifecyclerConfig()
+		lifecyclerCfg.RingConfig.KVStore.Memberlist.MetricsNamespace = "lifecycler_"
 		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", CompactorRingKey, false)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
@@ -37,7 +38,7 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 
 		c.ringLifecycler = lifecycler
 
-		lifecyclerCfg.RingConfig.KVStore.Memberlist.MetricsNamespace = "tempo_compactor"
+		lifecyclerCfg.RingConfig.KVStore.Memberlist.MetricsNamespace = "ring_"
 		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", CompactorRingKey)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
