@@ -37,6 +37,7 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 
 		c.ringLifecycler = lifecycler
 
+		lifecyclerCfg.RingConfig.KVStore.Memberlist.MetricsNamespace = "tempo_compactor"
 		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", CompactorRingKey)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
