@@ -30,9 +30,52 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(_ context.Context, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, tracesFilePath string) error {
+func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom []byte, bIndex []byte, tracesFilePath string) error {
+	err := rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
+	if err != nil {
+		return err
+	}
+
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
+	blockFolder := rw.rootPath(blockID, tenantID)
+
+	if !fileExists(tracesFilePath) {
+		os.RemoveAll(blockFolder)
+		return fmt.Errorf("traces file not found %s", tracesFilePath)
+	}
+
+	// copy traces file.
+	src, err := os.Open(tracesFilePath)
+	if err != nil {
+		os.RemoveAll(blockFolder)
+		return err
+	}
+	defer src.Close()
+
+	tracesFileName := rw.tracesFileName(blockID, tenantID)
+	dst, err := os.Create(tracesFileName)
+	if err != nil {
+		os.RemoveAll(blockFolder)
+		return err
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, src)
+	if err != nil {
+		os.RemoveAll(blockFolder)
+	}
+	return err
+}
+
+func (rw *readerWriter) WriteBlockMeta(_ context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom []byte, bIndex []byte) error {
+	blockID := meta.BlockID
+	tenantID := meta.TenantID
+
+	if tracker != nil {
+		var dst *os.File = tracker.(*os.File)
+		_ = dst.Close()
+	}
 
 	blockFolder := rw.rootPath(blockID, tenantID)
 	err := os.MkdirAll(blockFolder, os.ModePerm)
@@ -66,31 +109,36 @@ func (rw *readerWriter) Write(_ context.Context, meta *backend.BlockMeta, bBloom
 		return err
 	}
 
-	tracesFileName := rw.tracesFileName(blockID, tenantID)
-	if !fileExists(tracesFilePath) {
-		os.RemoveAll(blockFolder)
-		return fmt.Errorf("traces file not found %s", tracesFilePath)
+	return nil
+}
+
+func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
+	blockID := meta.BlockID
+	tenantID := meta.TenantID
+
+	var dst *os.File
+	if tracker == nil {
+		blockFolder := rw.rootPath(blockID, tenantID)
+		err := os.MkdirAll(blockFolder, os.ModePerm)
+		if err != nil {
+			return nil, err
+		}
+
+		tracesFileName := rw.tracesFileName(blockID, tenantID)
+		dst, err = os.Create(tracesFileName)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		dst = tracker.(*os.File)
 	}
 
-	// copy traces file.
-	src, err := os.Open(tracesFilePath)
+	_, err := dst.Write(bObject)
 	if err != nil {
-		os.RemoveAll(blockFolder)
-		return err
+		return nil, err
 	}
-	defer src.Close()
-	dst, err := os.Create(tracesFileName)
-	if err != nil {
-		os.RemoveAll(blockFolder)
-		return err
-	}
-	defer dst.Close()
 
-	_, err = io.Copy(dst, src)
-	if err != nil {
-		os.RemoveAll(blockFolder)
-	}
-	return err
+	return dst, nil
 }
 
 func (rw *readerWriter) Tenants() ([]string, error) {
