@@ -44,7 +44,6 @@ func (sbs *simpleBlockSelector) BlocksToCompact() []*backend.BlockMeta {
 		sbs.cursor++
 	}
 
-	// Could not find blocks suitable for compaction, break
 	return nil
 }
 
@@ -57,7 +56,6 @@ func (sbs *simpleBlockSelector) BlocksToCompact() []*backend.BlockMeta {
 
 type timeWindowBlockSelector struct {
 	cursor             int
-	slotStartTime      time.Time // this will eventually be passed to the selector via ring selection
 	blocklist          []*backend.BlockMeta
 	MaxCompactionRange time.Duration // Size of the time window - say 6 hours
 }
@@ -70,36 +68,27 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 		MaxCompactionRange: maxCompactionRange,
 	}
 
-	y, m, d := blocklist[0].StartTime.Date()
-	twbs.slotStartTime = time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 	return twbs
 }
 
 func (twbs *timeWindowBlockSelector) BlocksToCompact() []*backend.BlockMeta {
-	levelStartTime := twbs.blocklist[0].StartTime
-	i := twbs.slotStartTime
-	for i.Add(twbs.MaxCompactionRange).Before(levelStartTime) {
-		twbs.slotStartTime.Add(twbs.MaxCompactionRange)
-	}
-	slotEndTime := twbs.slotStartTime.Add(twbs.MaxCompactionRange)
 
 	for twbs.cursor < len(twbs.blocklist)-inputBlocks+1 {
 		// Pick blocks in slotStartTime <> slotEndTime
 		cursorBlock := twbs.blocklist[twbs.cursor]
-		if cursorBlock.StartTime.After(twbs.slotStartTime) && cursorBlock.StartTime.Before(slotEndTime) {
-			// Pick inputBlocks and promote to next level
-			cursorEnd := twbs.cursor + inputBlocks - 1
-			if cursorEnd < len(twbs.blocklist) && twbs.blocklist[cursorEnd].StartTime.Before(slotEndTime) {
-				startPos := twbs.cursor
-				twbs.cursor = startPos + inputBlocks
-				return twbs.blocklist[startPos : startPos+inputBlocks]
-			}
+		currentWindow := twbs.windowForBlock(cursorBlock)
+		cursorEnd := twbs.cursor + inputBlocks - 1
+
+		if cursorEnd < len(twbs.blocklist) && currentWindow == twbs.windowForBlock(twbs.blocklist[cursorEnd]) {
+			startPos := twbs.cursor
+			twbs.cursor = startPos + inputBlocks
+			return twbs.blocklist[startPos : startPos+inputBlocks]
 		}
 		twbs.cursor++
-		if twbs.blocklist[twbs.cursor].StartTime.After(slotEndTime) {
-			twbs.slotStartTime.Add(twbs.MaxCompactionRange)
-			slotEndTime = twbs.slotStartTime.Add(twbs.MaxCompactionRange)
-		}
 	}
 	return nil
+}
+
+func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
+	return meta.StartTime.Unix() % int64(twbs.MaxCompactionRange/time.Second)
 }
