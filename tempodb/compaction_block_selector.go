@@ -90,5 +90,5 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() []*backend.BlockMeta {
 }
 
 func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
-	return meta.StartTime.Unix() % int64(twbs.MaxCompactionRange/time.Second)
+	return meta.StartTime.Unix() / int64(twbs.MaxCompactionRange/time.Second)
 }
