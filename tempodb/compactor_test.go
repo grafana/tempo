@@ -50,7 +50,7 @@ func TestCompaction(t *testing.T) {
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
-		MaxCompactionRange:      time.Second,
+		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	})
