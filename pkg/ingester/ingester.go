@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log/level"
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/services"
 
 	"github.com/grafana/tempo/pkg/ingester/client"
 	"github.com/grafana/tempo/pkg/storage"
@@ -94,14 +94,17 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve hostname %v", hostname)
 	}
-	cfg.LifecyclerConfig.RingConfig.KVStore.Memberlist.NodeName = hostname + "-" + uuid.New().String()
+	// jpe : fix.  top level module? cfg.LifecyclerConfig.RingConfig.KVStore.Memberlist.NodeName = hostname + "-" + uuid.New().String()
 
 	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, false)
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %v", err)
 	}
 
-	i.lifecycler.Start()
+	err = services.StartAndAwaitRunning(context.Background(), i.lifecycler)
+	if err != nil {
+		return nil, err
+	}
 
 	// Now that the lifecycler has been created, we can create the limiter
 	// which depends on it.
@@ -141,7 +144,12 @@ func (i *Ingester) Shutdown() {
 	close(i.quit)
 	i.done.Wait()
 
-	i.lifecycler.Shutdown()
+	i.stopIncomingRequests()
+
+	err := services.StopAndAwaitTerminated(context.Background(), i.lifecycler)
+	if err != nil {
+		level.Error(util.Logger).Log("msg", "lifecycler failed", "err", err)
+	}
 }
 
 // Stopping helps cleaning up resources before actual shutdown
@@ -256,8 +264,8 @@ func (i *Ingester) getInstances() []*instance {
 	return instances
 }
 
-// StopIncomingRequests implements ring.Lifecycler.
-func (i *Ingester) StopIncomingRequests() {
+// stopIncomingRequests implements ring.Lifecycler.
+func (i *Ingester) stopIncomingRequests() {
 	i.shutdownMtx.Lock()
 	defer i.shutdownMtx.Unlock()
 

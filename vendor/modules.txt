@@ -31,8 +31,9 @@ github.com/apache/thrift/lib/go/thrift
 # github.com/armon/go-metrics v0.3.0
 github.com/armon/go-metrics
 github.com/armon/go-metrics/prometheus
-# github.com/aws/aws-sdk-go v1.25.35
+# github.com/aws/aws-sdk-go v1.25.48
 github.com/aws/aws-sdk-go/aws
+github.com/aws/aws-sdk-go/aws/arn
 github.com/aws/aws-sdk-go/aws/awserr
 github.com/aws/aws-sdk-go/aws/awsutil
 github.com/aws/aws-sdk-go/aws/client
@@ -73,6 +74,7 @@ github.com/aws/aws-sdk-go/service/applicationautoscaling/applicationautoscalingi
 github.com/aws/aws-sdk-go/service/dynamodb
 github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface
 github.com/aws/aws-sdk-go/service/s3
+github.com/aws/aws-sdk-go/service/s3/internal/arn
 github.com/aws/aws-sdk-go/service/s3/s3iface
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
@@ -82,7 +84,7 @@ github.com/beorn7/perks/quantile
 github.com/blang/semver
 # github.com/bombsimon/wsl v1.2.5
 github.com/bombsimon/wsl
-# github.com/bradfitz/gomemcache v0.0.0-20190329173943-551aad21a668
+# github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 github.com/bradfitz/gomemcache/memcache
 # github.com/census-instrumentation/opencensus-proto v0.2.1
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1
@@ -104,7 +106,7 @@ github.com/coreos/go-semver/semver
 github.com/coreos/go-systemd/journal
 # github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 github.com/coreos/pkg/capnslog
-# github.com/cortexproject/cortex v0.6.1
+# github.com/cortexproject/cortex v0.7.0
 github.com/cortexproject/cortex/pkg/chunk
 github.com/cortexproject/cortex/pkg/chunk/aws
 github.com/cortexproject/cortex/pkg/chunk/azure
@@ -113,12 +115,14 @@ github.com/cortexproject/cortex/pkg/chunk/cassandra
 github.com/cortexproject/cortex/pkg/chunk/encoding
 github.com/cortexproject/cortex/pkg/chunk/gcp
 github.com/cortexproject/cortex/pkg/chunk/local
+github.com/cortexproject/cortex/pkg/chunk/objectclient
 github.com/cortexproject/cortex/pkg/chunk/storage
 github.com/cortexproject/cortex/pkg/chunk/testutils
 github.com/cortexproject/cortex/pkg/chunk/util
 github.com/cortexproject/cortex/pkg/distributor
 github.com/cortexproject/cortex/pkg/ingester/client
 github.com/cortexproject/cortex/pkg/prom1/storage/metric
+github.com/cortexproject/cortex/pkg/querier/astmapper
 github.com/cortexproject/cortex/pkg/ring
 github.com/cortexproject/cortex/pkg/ring/kv
 github.com/cortexproject/cortex/pkg/ring/kv/codec
@@ -131,6 +135,7 @@ github.com/cortexproject/cortex/pkg/util/flagext
 github.com/cortexproject/cortex/pkg/util/grpcclient
 github.com/cortexproject/cortex/pkg/util/limiter
 github.com/cortexproject/cortex/pkg/util/middleware
+github.com/cortexproject/cortex/pkg/util/services
 github.com/cortexproject/cortex/pkg/util/spanlogger
 github.com/cortexproject/cortex/pkg/util/validation
 # github.com/davecgh/go-spew v1.1.1
@@ -145,8 +150,6 @@ github.com/edsrzf/mmap-go
 github.com/facette/natsort
 # github.com/fatih/color v1.9.0
 github.com/fatih/color
-# github.com/fluent/fluent-logger-golang v1.2.1
-github.com/fluent/fluent-logger-golang/fluent
 # github.com/fsnotify/fsnotify v1.4.7
 github.com/fsnotify/fsnotify
 # github.com/fsouza/fake-gcs-server v1.7.0
@@ -190,7 +193,7 @@ github.com/gobwas/glob/syntax/ast
 github.com/gobwas/glob/syntax/lexer
 github.com/gobwas/glob/util/runes
 github.com/gobwas/glob/util/strings
-# github.com/gocql/gocql v0.0.0-20190301043612-f6df8288f9b4
+# github.com/gocql/gocql v0.0.0-20200121121104-95d072f1b5bb
 github.com/gocql/gocql
 github.com/gocql/gocql/internal/lru
 github.com/gocql/gocql/internal/murmur
@@ -298,7 +301,7 @@ github.com/gomodule/redigo/redis
 github.com/google/addlicense
 # github.com/google/btree v1.0.0
 github.com/google/btree
-# github.com/google/go-cmp v0.3.1
+# github.com/google/go-cmp v0.4.0
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
@@ -419,7 +422,7 @@ github.com/jaegertracing/jaeger/thrift-gen/zipkincore
 github.com/jmespath/go-jmespath
 # github.com/jonboulle/clockwork v0.1.0
 github.com/jonboulle/clockwork
-# github.com/json-iterator/go v1.1.8
+# github.com/json-iterator/go v1.1.9
 github.com/json-iterator/go
 # github.com/jstemmer/go-junit-report v0.9.1
 github.com/jstemmer/go-junit-report
@@ -503,7 +506,7 @@ github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1
 github.com/opentracing-contrib/go-grpc
 # github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 github.com/opentracing-contrib/go-stdlib/nethttp
-# github.com/opentracing/opentracing-go v1.1.0
+# github.com/opentracing/opentracing-go v1.1.1-0.20200124165624-2876d2018785
 github.com/opentracing/opentracing-go
 github.com/opentracing/opentracing-go/ext
 github.com/opentracing/opentracing-go/log
@@ -515,13 +518,11 @@ github.com/pavius/impi
 github.com/pavius/impi/cmd/impi
 # github.com/pelletier/go-toml v1.2.0
 github.com/pelletier/go-toml
-# github.com/philhofer/fwd v0.0.0-20160129035939-98c11a7a6ec8
-github.com/philhofer/fwd
 # github.com/pkg/errors v0.8.1
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
-# github.com/prometheus/client_golang v1.3.0
+# github.com/prometheus/client_golang v1.5.0
 github.com/prometheus/client_golang/api
 github.com/prometheus/client_golang/api/prometheus/v1
 github.com/prometheus/client_golang/prometheus
@@ -529,9 +530,9 @@ github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promauto
 github.com/prometheus/client_golang/prometheus/promhttp
 github.com/prometheus/client_golang/prometheus/push
-# github.com/prometheus/client_model v0.1.0
+# github.com/prometheus/client_model v0.2.0
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.8.0
+# github.com/prometheus/common v0.9.1
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
@@ -540,9 +541,8 @@ github.com/prometheus/common/version
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/prometheus/prometheus v1.8.2-0.20191126064551-80ba03c67da1
+# github.com/prometheus/prometheus v1.8.2-0.20200213233353-b90be6f32a33
 github.com/prometheus/prometheus/pkg/exemplar
-github.com/prometheus/prometheus/pkg/gate
 github.com/prometheus/prometheus/pkg/labels
 github.com/prometheus/prometheus/pkg/textparse
 github.com/prometheus/prometheus/pkg/timestamp
@@ -605,8 +605,6 @@ github.com/stretchr/testify/require
 github.com/subosito/gotenv
 # github.com/timakin/bodyclose v0.0.0-20190930140734-f7f2e9bca95e
 github.com/timakin/bodyclose/passes/bodyclose
-# github.com/tinylib/msgp v0.0.0-20161221055906-38a6f61a768d
-github.com/tinylib/msgp/msgp
 # github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5
 github.com/tmc/grpc-websocket-proxy/wsproxy
 # github.com/uber-go/atomic v1.4.0
@@ -652,9 +650,7 @@ github.com/ultraware/funlen
 github.com/ultraware/whitespace
 # github.com/uudashr/gocognit v0.0.0-20190926065955-1655d0de0517
 github.com/uudashr/gocognit
-# github.com/weaveworks/billing-client v0.0.0-20171006123215-be0d55e547b1
-github.com/weaveworks/billing-client
-# github.com/weaveworks/common v0.0.0-20200116092424-8f725fc52d8d
+# github.com/weaveworks/common v0.0.0-20200206153930-760e36ae819a
 github.com/weaveworks/common/aws
 github.com/weaveworks/common/errors
 github.com/weaveworks/common/httpgrpc
