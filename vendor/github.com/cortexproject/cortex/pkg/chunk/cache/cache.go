@@ -17,14 +17,14 @@ import (
 type Cache interface {
 	Store(ctx context.Context, key []string, buf [][]byte)
 	Fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missing []string)
-	Stop() error
+	Stop()
 }
 
 // Config for building Caches.
 type Config struct {
 	EnableFifoCache bool `yaml:"enable_fifocache,omitempty"`
 
-	DefaultValidity time.Duration `yaml:"defaul_validity,omitempty"`
+	DefaultValidity time.Duration `yaml:"default_validity,omitempty"`
 
 	Background     BackgroundConfig      `yaml:"background,omitempty"`
 	Memcache       MemcachedConfig       `yaml:"memcached,omitempty"`

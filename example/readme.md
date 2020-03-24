@@ -30,7 +30,7 @@ k3d create --name tempo \
 export KUBECONFIG="$(k3d get-kubeconfig --name='tempo')"
 
 # double check you're applying to your local k3d before running this!
-#   deployment_type can be tempo-single-binary or tempo-microservices
+#   deployment_type can be single-binary or microservices
 tk apply <deployment_type>
 ```
 

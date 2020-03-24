@@ -22,6 +22,21 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
+type mockSharder struct {
+}
+
+func (m *mockSharder) Owns(hash string) bool {
+	return true
+}
+
+func (m *mockSharder) Combine(objA []byte, objB []byte) []byte {
+	if len(objA) > len(objB) {
+		return objA
+	}
+
+	return objB
+}
+
 func TestCompaction(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -53,7 +68,7 @@ func TestCompaction(t *testing.T) {
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	})
+	}, &mockSharder{})
 
 	wal := w.WAL()
 	assert.NoError(t, err)
@@ -114,7 +129,7 @@ func TestCompaction(t *testing.T) {
 		expectedCompactions := len(blocksPerLevel[l]) / inputBlocks
 		compactions := 0
 		for {
-			blocks := blockSelector.BlocksToCompact()
+			blocks, _ := blockSelector.BlocksToCompact()
 			if len(blocks) == 0 {
 				break
 			}
@@ -180,7 +195,7 @@ func TestSameIDCompaction(t *testing.T) {
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	})
+	}, &mockSharder{})
 
 	wal := w.WAL()
 	assert.NoError(t, err)
@@ -212,7 +227,7 @@ func TestSameIDCompaction(t *testing.T) {
 	var blocks []*backend.BlockMeta
 	blocklist := rw.blocklist(testTenantID)
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange)
-	blocks = blockSelector.BlocksToCompact()
+	blocks, _ = blockSelector.BlocksToCompact()
 	assert.Len(t, blocks, inputBlocks)
 
 	err = rw.compact(blocks, testTenantID)

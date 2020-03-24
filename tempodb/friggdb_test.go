@@ -48,7 +48,7 @@ func TestDB(t *testing.T) {
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	})
+	}, &mockSharder{})
 
 	blockID := uuid.New()
 
@@ -121,7 +121,7 @@ func TestRetention(t *testing.T) {
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	})
+	}, &mockSharder{})
 
 	blockID := uuid.New()
 

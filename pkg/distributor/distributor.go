@@ -10,6 +10,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	cortex_util "github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/limiter"
+	"github.com/cortexproject/cortex/pkg/util/services"
 
 	"github.com/go-kit/kit/log/level"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
@@ -93,7 +94,10 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 			return nil, err
 		}
 
-		distributorsRing.Start()
+		err = services.StartAndAwaitRunning(context.Background(), distributorsRing)
+		if err != nil {
+			return nil, err
+		}
 
 		ingestionRateStrategy = newGlobalIngestionRateStrategy(overrides, distributorsRing)
 	} else {
@@ -127,7 +131,10 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 
 func (d *Distributor) Stop() {
 	if d.distributorsRing != nil {
-		d.distributorsRing.Shutdown()
+		err := services.StopAndAwaitTerminated(context.Background(), d.distributorsRing)
+		if err != nil {
+			level.Error(cortex_util.Logger).Log("msg", "error stopping receivers", "error", err)
+		}
 	}
 
 	if d.receivers != nil {

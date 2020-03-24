@@ -10,7 +10,6 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv"
-	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
@@ -147,7 +146,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 }
 
 func defaultIngesterTestConfig(t *testing.T) Config {
-	kvClient, err := kv.NewClient(kv.Config{Store: "inmemory"}, codec.Proto{Factory: ring.ProtoDescFactory})
+	kvClient, err := kv.NewClient(kv.Config{Store: "inmemory"}, ring.GetCodec())
 	assert.NoError(t, err)
 
 	cfg := Config{}

@@ -1,6 +1,7 @@
 package tempodb
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -8,7 +9,7 @@ import (
 
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction
 type CompactionBlockSelector interface {
-	BlocksToCompact() []*backend.BlockMeta
+	BlocksToCompact() ([]*backend.BlockMeta, string)
 }
 
 /*************************** Simple Block Selector **************************/
@@ -28,10 +29,10 @@ func newSimpleBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange t
 	}
 }
 
-func (sbs *simpleBlockSelector) BlocksToCompact() []*backend.BlockMeta {
+func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
 	// should never happen
 	if inputBlocks > len(sbs.blocklist) {
-		return nil
+		return nil, ""
 	}
 
 	for sbs.cursor < len(sbs.blocklist)-inputBlocks+1 {
@@ -39,12 +40,14 @@ func (sbs *simpleBlockSelector) BlocksToCompact() []*backend.BlockMeta {
 		if sbs.blocklist[cursorEnd].EndTime.Sub(sbs.blocklist[sbs.cursor].StartTime) < sbs.MaxCompactionRange {
 			startPos := sbs.cursor
 			sbs.cursor = startPos + inputBlocks
-			return sbs.blocklist[startPos : startPos+inputBlocks]
+			hashString := fmt.Sprintf("%v-%v", sbs.blocklist[startPos].TenantID, sbs.blocklist[startPos].CompactionLevel)
+
+			return sbs.blocklist[startPos : startPos+inputBlocks], hashString
 		}
 		sbs.cursor++
 	}
 
-	return nil
+	return nil, ""
 }
 
 /*************************** Time Window Block Selector **************************/
@@ -71,7 +74,7 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 	return twbs
 }
 
-func (twbs *timeWindowBlockSelector) BlocksToCompact() []*backend.BlockMeta {
+func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
 
 	for twbs.cursor < len(twbs.blocklist)-inputBlocks+1 {
 		// Pick blocks in slotStartTime <> slotEndTime
@@ -82,11 +85,13 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() []*backend.BlockMeta {
 		if cursorEnd < len(twbs.blocklist) && currentWindow == twbs.windowForBlock(twbs.blocklist[cursorEnd]) {
 			startPos := twbs.cursor
 			twbs.cursor = startPos + inputBlocks
-			return twbs.blocklist[startPos : startPos+inputBlocks]
+			hashString := fmt.Sprintf("%v-%v-%v", cursorBlock.TenantID, cursorBlock.CompactionLevel, currentWindow)
+
+			return twbs.blocklist[startPos : startPos+inputBlocks], hashString
 		}
 		twbs.cursor++
 	}
-	return nil
+	return nil, ""
 }
 
 func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {

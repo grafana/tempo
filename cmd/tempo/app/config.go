@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cortexproject/cortex/pkg/ring"
+	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util"
 
 	"github.com/go-kit/kit/log/level"
@@ -28,14 +29,15 @@ type Config struct {
 	AuthEnabled bool       `yaml:"auth_enabled,omitempty"`
 	HTTPPrefix  string     `yaml:"http_prefix"`
 
-	Server         server.Config      `yaml:"server,omitempty"`
-	Distributor    distributor.Config `yaml:"distributor,omitempty"`
-	IngesterClient client.Config      `yaml:"ingester_client,omitempty"`
-	Querier        querier.Config     `yaml:"querier,omitempty"`
-	Compactor      compactor.Config   `yaml:"compactor,omitempty"`
-	Ingester       ingester.Config    `yaml:"ingester,omitempty"`
-	StorageConfig  storage.Config     `yaml:"storage_config,omitempty"`
-	LimitsConfig   validation.Limits  `yaml:"limits_config,omitempty"`
+	Server         server.Config       `yaml:"server,omitempty"`
+	Distributor    distributor.Config  `yaml:"distributor,omitempty"`
+	IngesterClient client.Config       `yaml:"ingester_client,omitempty"`
+	Querier        querier.Config      `yaml:"querier,omitempty"`
+	Compactor      compactor.Config    `yaml:"compactor,omitempty"`
+	Ingester       ingester.Config     `yaml:"ingester,omitempty"`
+	StorageConfig  storage.Config      `yaml:"storage_config,omitempty"`
+	LimitsConfig   validation.Limits   `yaml:"limits_config,omitempty"`
+	MemberlistKV   memberlist.KVConfig `yaml:"memberlist,omitempty"`
 }
 
 // RegisterFlags registers flag.
@@ -60,14 +62,15 @@ func (c *Config) RegisterFlags(f *flag.FlagSet) {
 type App struct {
 	cfg Config
 
-	server      *server.Server
-	ring        *ring.Ring
-	overrides   *validation.Overrides
-	distributor *distributor.Distributor
-	querier     *querier.Querier
-	compactor   *compactor.Compactor
-	ingester    *ingester.Ingester
-	store       storage.Store
+	server       *server.Server
+	ring         *ring.Ring
+	overrides    *validation.Overrides
+	distributor  *distributor.Distributor
+	querier      *querier.Querier
+	compactor    *compactor.Compactor
+	ingester     *ingester.Ingester
+	store        storage.Store
+	memberlistKV *memberlist.KVInit
 
 	httpAuthMiddleware middleware.Interface
 }

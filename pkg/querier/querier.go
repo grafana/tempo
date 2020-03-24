@@ -15,6 +15,7 @@ import (
 	cortex_client "github.com/cortexproject/cortex/pkg/ingester/client"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/services"
 
 	"github.com/grafana/tempo/pkg/ingester/client"
 	"github.com/grafana/tempo/pkg/storage"
@@ -60,19 +61,20 @@ func New(cfg Config, clientCfg client.Config, ring ring.ReadRing, store storage.
 		return client.New(clientCfg, addr)
 	}
 
-	return newQuerier(cfg, clientCfg, factory, ring, store, limits)
-}
-
-// newQuerier creates a new Querier and allows to pass a custom ingester client factory
-// used for testing purposes
-func newQuerier(cfg Config, clientCfg client.Config, clientFactory cortex_client.Factory, ring ring.ReadRing, store storage.Store, limits *validation.Overrides) (*Querier, error) {
-	return &Querier{
+	q := &Querier{
 		cfg:    cfg,
 		ring:   ring,
-		pool:   cortex_client.NewPool(clientCfg.PoolConfig, ring, clientFactory, util.Logger),
+		pool:   cortex_client.NewPool(clientCfg.PoolConfig, ring, factory, util.Logger),
 		store:  store,
 		limits: limits,
-	}, nil
+	}
+
+	err := services.StartAndAwaitRunning(context.Background(), q.pool)
+	if err != nil {
+		return nil, err
+	}
+
+	return q, nil
 }
 
 // FindTraceByID implements tempopb.Querier.

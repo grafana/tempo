@@ -25,11 +25,6 @@
           replication_factor: 3,
           kvstore: {
             store: 'memberlist',
-            memberlist: {
-              abort_if_cluster_join_fails: false,
-              bind_port: $._config.gossip_ring_port,
-              join_members: ['gossip-ring.%s.svc.cluster.local:%d' % [$._config.namespace, $._config.gossip_ring_port]],
-            },
           },
         },
       },
@@ -66,6 +61,11 @@
       reject_old_samples_max_age: '168h',
       per_tenant_override_config: '/conf/overrides.yaml',
     },
+    memberlist: {
+      abort_if_cluster_join_fails: false,
+      bind_port: $._config.gossip_ring_port,
+      join_members: ['gossip-ring.%s.svc.cluster.local:%d' % [$._config.namespace, $._config.gossip_ring_port]],
+    },
   },
 
   tempo_compactor_config:: $.tempo_config
@@ -76,6 +76,13 @@
         maxCompactionRange: '1h',
         blockRetention: '144h',
         compactedBlockRetention: '2m',
+      },
+      sharding_enabled: true,
+      sharding_ring: {
+        heartbeat_timeout: '10m',
+        kvstore: {
+          store: 'memberlist',
+        },
       },
     },
     storage_config+: {
