@@ -24,6 +24,9 @@ github.com/BurntSushi/toml
 github.com/OpenPeeDeeP/depguard
 # github.com/VividCortex/gohistogram v1.0.0
 github.com/VividCortex/gohistogram
+# github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
+github.com/alecthomas/template
+github.com/alecthomas/template/parse
 # github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d
 github.com/alecthomas/units
 # github.com/apache/thrift v0.12.0 => github.com/apache/thrift v0.0.0-20161221203622-b2a4d4ae21c7
@@ -119,6 +122,7 @@ github.com/cortexproject/cortex/pkg/chunk/objectclient
 github.com/cortexproject/cortex/pkg/chunk/storage
 github.com/cortexproject/cortex/pkg/chunk/testutils
 github.com/cortexproject/cortex/pkg/chunk/util
+github.com/cortexproject/cortex/pkg/compactor
 github.com/cortexproject/cortex/pkg/distributor
 github.com/cortexproject/cortex/pkg/ingester/client
 github.com/cortexproject/cortex/pkg/prom1/storage/metric
@@ -129,6 +133,10 @@ github.com/cortexproject/cortex/pkg/ring/kv/codec
 github.com/cortexproject/cortex/pkg/ring/kv/consul
 github.com/cortexproject/cortex/pkg/ring/kv/etcd
 github.com/cortexproject/cortex/pkg/ring/kv/memberlist
+github.com/cortexproject/cortex/pkg/storage/tsdb
+github.com/cortexproject/cortex/pkg/storage/tsdb/backend/azure
+github.com/cortexproject/cortex/pkg/storage/tsdb/backend/gcs
+github.com/cortexproject/cortex/pkg/storage/tsdb/backend/s3
 github.com/cortexproject/cortex/pkg/util
 github.com/cortexproject/cortex/pkg/util/extract
 github.com/cortexproject/cortex/pkg/util/flagext
@@ -326,6 +334,8 @@ github.com/grpc-ecosystem/go-grpc-middleware/logging/zap
 github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap
 github.com/grpc-ecosystem/go-grpc-middleware/tags
 github.com/grpc-ecosystem/go-grpc-middleware/tags/zap
+github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing
+github.com/grpc-ecosystem/go-grpc-middleware/util/metautils
 # github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340
 github.com/grpc-ecosystem/go-grpc-prometheus
 github.com/grpc-ecosystem/go-grpc-prometheus/packages/grpcstatus
@@ -451,6 +461,15 @@ github.com/mattn/go-isatty
 github.com/matttproud/golang_protobuf_extensions/pbutil
 # github.com/miekg/dns v1.1.22
 github.com/miekg/dns
+# github.com/minio/minio-go/v6 v6.0.49
+github.com/minio/minio-go/v6
+github.com/minio/minio-go/v6/pkg/credentials
+github.com/minio/minio-go/v6/pkg/encrypt
+github.com/minio/minio-go/v6/pkg/s3signer
+github.com/minio/minio-go/v6/pkg/s3utils
+github.com/minio/minio-go/v6/pkg/set
+# github.com/minio/sha256-simd v0.1.1
+github.com/minio/sha256-simd
 # github.com/mitchellh/go-homedir v1.1.0
 github.com/mitchellh/go-homedir
 # github.com/mitchellh/go-testing-interface v1.0.0
@@ -543,7 +562,9 @@ github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
 # github.com/prometheus/prometheus v1.8.2-0.20200213233353-b90be6f32a33
 github.com/prometheus/prometheus/pkg/exemplar
+github.com/prometheus/prometheus/pkg/gate
 github.com/prometheus/prometheus/pkg/labels
+github.com/prometheus/prometheus/pkg/relabel
 github.com/prometheus/prometheus/pkg/textparse
 github.com/prometheus/prometheus/pkg/timestamp
 github.com/prometheus/prometheus/pkg/value
@@ -603,6 +624,26 @@ github.com/stretchr/testify/mock
 github.com/stretchr/testify/require
 # github.com/subosito/gotenv v1.2.0
 github.com/subosito/gotenv
+# github.com/thanos-io/thanos v0.11.0
+github.com/thanos-io/thanos/pkg/block
+github.com/thanos-io/thanos/pkg/block/indexheader
+github.com/thanos-io/thanos/pkg/block/metadata
+github.com/thanos-io/thanos/pkg/cacheutil
+github.com/thanos-io/thanos/pkg/compact
+github.com/thanos-io/thanos/pkg/compact/downsample
+github.com/thanos-io/thanos/pkg/discovery/dns
+github.com/thanos-io/thanos/pkg/discovery/dns/miekgdns
+github.com/thanos-io/thanos/pkg/extprom
+github.com/thanos-io/thanos/pkg/gate
+github.com/thanos-io/thanos/pkg/model
+github.com/thanos-io/thanos/pkg/objstore
+github.com/thanos-io/thanos/pkg/objstore/azure
+github.com/thanos-io/thanos/pkg/objstore/gcs
+github.com/thanos-io/thanos/pkg/objstore/s3
+github.com/thanos-io/thanos/pkg/runutil
+github.com/thanos-io/thanos/pkg/store/cache
+github.com/thanos-io/thanos/pkg/testutil
+github.com/thanos-io/thanos/pkg/tracing
 # github.com/timakin/bodyclose v0.0.0-20190930140734-f7f2e9bca95e
 github.com/timakin/bodyclose/passes/bodyclose
 # github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5
@@ -780,7 +821,9 @@ go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
 # golang.org/x/crypto v0.0.0-20191112222119-e1110fd1c708
+golang.org/x/crypto/argon2
 golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blake2b
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/ed25519
 golang.org/x/crypto/ed25519/internal/edwards25519
@@ -805,6 +848,7 @@ golang.org/x/net/internal/timeseries
 golang.org/x/net/ipv4
 golang.org/x/net/ipv6
 golang.org/x/net/netutil
+golang.org/x/net/publicsuffix
 golang.org/x/net/trace
 # golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 golang.org/x/oauth2
@@ -815,6 +859,7 @@ golang.org/x/oauth2/jwt
 # golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 golang.org/x/sync/errgroup
 # golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae
+golang.org/x/sys/cpu
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
@@ -973,6 +1018,8 @@ google.golang.org/grpc/serviceconfig
 google.golang.org/grpc/stats
 google.golang.org/grpc/status
 google.golang.org/grpc/tap
+# gopkg.in/alecthomas/kingpin.v2 v2.2.6
+gopkg.in/alecthomas/kingpin.v2
 # gopkg.in/inf.v0 v0.9.1
 gopkg.in/inf.v0
 # gopkg.in/ini.v1 v1.51.0
