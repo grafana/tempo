@@ -1,7 +1,7 @@
 {
     _images+:: {
-        tempo: 'joeelliott/canary-frigg:b14df74c',
-        tempo_query: 'joeelliott/canary-frigg-query:b14df74c',
+        tempo: 'joeelliott/canary-frigg:d46e19ef',
+        tempo_query: 'joeelliott/canary-frigg-query:d46e19ef',
     },
 
     _config+:: {

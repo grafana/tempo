@@ -322,20 +322,20 @@ var modules = map[moduleName]module{
 	},
 
 	Distributor: {
-		deps: []moduleName{Ring, Server, Overrides},
+		deps: []moduleName{Ring, Server, Overrides, MemberlistKV},
 		init: (*App).initDistributor,
 		stop: (*App).stopDistributor,
 	},
 
 	Ingester: {
-		deps:     []moduleName{Store, Server},
+		deps:     []moduleName{Store, Server, MemberlistKV},
 		init:     (*App).initIngester,
 		stop:     (*App).stopIngester,
 		stopping: (*App).stoppingIngester,
 	},
 
 	Querier: {
-		deps: []moduleName{Store, Ring, Server},
+		deps: []moduleName{Store, Ring, Server, MemberlistKV},
 		init: (*App).initQuerier,
 	},
 
