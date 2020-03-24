@@ -1,7 +1,9 @@
 package compactor
 
 import (
+	"context"
 	"hash/fnv"
+	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
@@ -22,7 +24,7 @@ type Compactor struct {
 }
 
 // New makes a new Querier.
-func New(cfg Config, store storage.Store) (*Compactor, error) {
+func New(cfg Config, storeCfg storage.Config, store storage.Store) (*Compactor, error) {
 	c := &Compactor{
 		cfg:   &cfg,
 		store: store,
@@ -34,16 +36,33 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
-
 		c.ringLifecycler = lifecycler
+
 		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", CompactorRingKey)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
 		}
-
 		c.ring = ring
+
+		err = c.waitRingActive(context.Background())
+		if err != nil {
+			return nil, err
+		}
+
+		// if there is already a compactor in the ring then let's wait one poll cycle here to reduce the chance
+		// of compactor collisions
+		rset, err := c.ring.GetAll()
+		if err != nil {
+			return nil, err
+		}
+
+		if len(rset.Ingesters) > 1 {
+			level.Info(util.Logger).Log("msg", "found more than 1 ingester.  waiting one poll cycle", "waitDuration", storeCfg.Trace.MaintenanceCycle)
+			time.Sleep(storeCfg.Trace.MaintenanceCycle)
+		}
 	}
 
+	level.Info(util.Logger).Log("msg", "enabling compaction")
 	store.EnableCompaction(cfg.Compactor, c)
 
 	return c, nil
@@ -79,4 +98,25 @@ func (c *Compactor) Combine(objA []byte, objB []byte) []byte {
 	}
 
 	return objB
+}
+
+func (c *Compactor) waitRingActive(ctx context.Context) error {
+	for {
+		// Check if the ingester is ACTIVE in the ring and our ring client
+		// has detected it.
+		if rs, err := c.ring.GetAll(); err == nil {
+			for _, i := range rs.Ingesters {
+				if i.GetAddr() == c.ringLifecycler.Addr && i.GetState() == ring.ACTIVE {
+					return nil
+				}
+			}
+		}
+
+		select {
+		case <-time.After(time.Second):
+			// Nothing to do
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
