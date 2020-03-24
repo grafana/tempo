@@ -119,6 +119,7 @@ func (t *App) initServer() (err error) {
 }
 
 func (t *App) initRing() (err error) {
+	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.ring, err = ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", ring.IngesterRingKey)
 	if err != nil {
 		return err
