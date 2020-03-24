@@ -329,7 +329,7 @@ var modules = map[moduleName]module{
 	},
 
 	Ingester: {
-		deps:     []moduleName{Store, Server},
+		deps:     []moduleName{Store, Server, MemberlistKV},
 		init:     (*App).initIngester,
 		stop:     (*App).stopIngester,
 		stopping: (*App).stoppingIngester,
