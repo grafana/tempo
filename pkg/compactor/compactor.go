@@ -45,21 +45,20 @@ func New(cfg Config, storeCfg storage.Config, store storage.Store) (*Compactor, 
 		}
 		c.Ring = ring
 
-		deadlineCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
+		ctx := context.Background()
 
 		level.Info(util.Logger).Log("msg", "starting ring and lifecycler")
-		err = services.StartAndAwaitRunning(deadlineCtx, c.ringLifecycler)
+		err = services.StartAndAwaitRunning(ctx, c.ringLifecycler)
 		if err != nil {
 			return nil, err
 		}
-		err = services.StartAndAwaitRunning(deadlineCtx, c.Ring)
+		err = services.StartAndAwaitRunning(ctx, c.Ring)
 		if err != nil {
 			return nil, err
 		}
 
 		level.Info(util.Logger).Log("msg", "waiting to be active in the ring")
-		err = c.waitRingActive(deadlineCtx)
+		err = c.waitRingActive(ctx)
 		if err != nil {
 			return nil, err
 		}
