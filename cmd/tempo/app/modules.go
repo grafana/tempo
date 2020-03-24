@@ -208,6 +208,8 @@ func (t *App) initQuerier() (err error) {
 func (t *App) initCompactor() (err error) {
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.compactor, err = compactor.New(t.cfg.Compactor, t.cfg.StorageConfig, t.store)
+
+	t.server.HTTP.Handle("/ring-compactor", t.compactor.Ring)
 	return err
 }
 

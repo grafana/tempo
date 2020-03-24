@@ -21,7 +21,7 @@ type Compactor struct {
 
 	// Ring used for sharding compactions.
 	ringLifecycler *ring.Lifecycler
-	ring           *ring.Ring
+	Ring           *ring.Ring
 }
 
 // New makes a new Querier.
