@@ -43,7 +43,7 @@ func New(cfg Config, storeCfg storage.Config, store storage.Store) (*Compactor, 
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
 		}
-		c.ring = ring
+		c.Ring = ring
 
 		deadlineCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
@@ -53,7 +53,7 @@ func New(cfg Config, storeCfg storage.Config, store storage.Store) (*Compactor, 
 		if err != nil {
 			return nil, err
 		}
-		err = services.StartAndAwaitRunning(deadlineCtx, c.ring)
+		err = services.StartAndAwaitRunning(deadlineCtx, c.Ring)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +66,7 @@ func New(cfg Config, storeCfg storage.Config, store storage.Store) (*Compactor, 
 
 		// if there is already a compactor in the ring then let's wait one poll cycle here to reduce the chance
 		// of compactor collisions
-		rset, err := c.ring.GetAll()
+		rset, err := c.Ring.GetAll()
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +90,7 @@ func (c *Compactor) Owns(hash string) bool {
 		hash32 := hasher.Sum32()
 
 		// Check whether this compactor instance owns the user.
-		rs, err := c.ring.Get(hash32, ring.Read, []ring.IngesterDesc{})
+		rs, err := c.Ring.Get(hash32, ring.Read, []ring.IngesterDesc{})
 		if err != nil {
 			level.Error(util.Logger).Log("msg", "failed to get ring", "err", err)
 			return false
@@ -119,7 +119,7 @@ func (c *Compactor) waitRingActive(ctx context.Context) error {
 	for {
 		// Check if the ingester is ACTIVE in the ring and our ring client
 		// has detected it.
-		if rs, err := c.ring.GetAll(); err == nil {
+		if rs, err := c.Ring.GetAll(); err == nil {
 			for _, i := range rs.Ingesters {
 				if i.GetAddr() == c.ringLifecycler.Addr && i.GetState() == ring.ACTIVE {
 					return nil
