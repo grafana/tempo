@@ -11,11 +11,11 @@
     },
     ingester: {
       trace_idle_period: '20s',
-      traces_per_block: 100000,
+      traces_per_block: 200000,
       max_block_duration: '2h',
-      flush_op_timeout: '1m',
+      flush_op_timeout: '10m',
       max_transfer_retries: 1,
-      complete_block_timeout: '10m',
+      complete_block_timeout: '30s',
       lifecycler: {
         num_tokens: 512,
         heartbeat_period: '5s',
@@ -68,8 +68,7 @@
     },
   },
 
-  tempo_compactor_config:: $.tempo_config
-                           {
+  tempo_compactor_config:: $.tempo_config {
     compactor: {
       compaction: {
         chunkSizeBytes: 10485760,
@@ -93,6 +92,16 @@
     },
   },
 
+  tempo_querier_config:: $.tempo_config {
+    storage_config+: {
+      trace+: {
+        query_pool+: {
+          max_workers: 500,
+        },
+      },
+    },
+  },
+
   tempo_configmap:
     configMap.new('tempo') +
     configMap.withData({
@@ -108,11 +117,12 @@
     configMap.new('tempo-compactor') +
     configMap.withData({
       'tempo.yaml': $.util.manifestYaml($.tempo_compactor_config),
-    }) +
-    configMap.withDataMixin({
-      'overrides.yaml': |||
-        overrides:
-      |||,
+    }),
+
+  tempo_querier_configmap:
+    configMap.new('tempo-querier') +
+    configMap.withData({
+      'tempo.yaml': $.util.manifestYaml($.tempo_querier_config),
     }),
 
   tempo_query_configmap:

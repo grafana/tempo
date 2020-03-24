@@ -2,7 +2,6 @@
   local container = $.core.v1.container,
   local containerPort = $.core.v1.containerPort,
   local volumeMount = $.core.v1.volumeMount,
-  local pvc = $.core.v1.persistentVolumeClaim,
   local deployment = $.apps.v1.deployment,
   local volume = $.core.v1.volume,
   local service = $.core.v1.service,
@@ -11,19 +10,6 @@
   local target_name = 'compactor',
   local tempo_config_volume = 'tempo-conf',
   local tempo_data_volume = 'tempo-data',
-
-  tempo_compactor_pvc:
-    pvc.new() +
-    pvc.mixin.spec.resources
-    .withRequests({ storage: $._config.compactor.pvc_size }) +
-    pvc.mixin.spec
-    .withAccessModes(['ReadWriteOnce'])
-    .withStorageClassName($._config.compactor.pvc_storage_class) +
-    pvc.mixin.metadata
-    .withLabels({ app: target_name })
-    .withNamespace($._config.namespace)
-    .withName(target_name) +
-    { kind: 'PersistentVolumeClaim', apiVersion: 'v1' },
 
   tempo_compactor_container::
     container.new(target_name, $._images.tempo) +
@@ -37,7 +23,6 @@
     ]) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
-      volumeMount.new(tempo_data_volume, '/var/tempo'),
     ]),
 
   tempo_compactor_deployment:
@@ -54,6 +39,5 @@
     }) +
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_compactor_configmap.metadata.name),
-      volume.fromPersistentVolumeClaim(tempo_data_volume, $.tempo_compactor_pvc.metadata.name),
     ]),
 }
