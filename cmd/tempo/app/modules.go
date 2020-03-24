@@ -1,12 +1,18 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/cortexproject/cortex/pkg/ring"
+	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
+	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/services"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
@@ -33,6 +39,7 @@ const (
 	Querier
 	Compactor
 	Store
+	MemberlistKV
 	All
 )
 
@@ -63,6 +70,8 @@ func (m moduleName) String() string {
 		return "querier"
 	case Compactor:
 		return "compactor"
+	case MemberlistKV:
+		return "memberlist-kv"
 	case All:
 		return "all"
 	default:
@@ -114,9 +123,17 @@ func (t *App) initRing() (err error) {
 	if err != nil {
 		return err
 	}
+	err = services.StartAndAwaitRunning(context.Background(), t.ring)
+	if err != nil {
+		return err
+	}
 	prometheus.MustRegister(t.ring)
 	t.server.HTTP.Handle("/ring", t.ring)
 	return
+}
+
+func (t *App) stopRing() (err error) {
+	return services.StopAndAwaitTerminated(context.Background(), t.ring)
 }
 
 func (t *App) initOverrides() (err error) {
@@ -125,6 +142,7 @@ func (t *App) initOverrides() (err error) {
 }
 
 func (t *App) initDistributor() (err error) {
+	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.distributor, err = distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides, t.cfg.AuthEnabled)
 	if err != nil {
 		return
@@ -146,6 +164,7 @@ func (t *App) stopDistributor() (err error) {
 
 func (t *App) initIngester() (err error) {
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = &t.cfg.Server.GRPCListenPort
+	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.ingester, err = ingester.New(t.cfg.Ingester, t.cfg.IngesterClient, t.store, t.overrides)
 	if err != nil {
 		return
@@ -186,6 +205,7 @@ func (t *App) initQuerier() (err error) {
 }
 
 func (t *App) initCompactor() (err error) {
+	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.compactor, err = compactor.New(t.cfg.Compactor, t.store)
 	return err
 }
@@ -197,6 +217,27 @@ func (t *App) initStore() (err error) {
 
 func (t *App) stopStore() error {
 	t.store.Shutdown()
+	return nil
+}
+
+func (t *App) initMemberlistKV() error {
+	t.cfg.MemberlistKV.MetricsRegisterer = prometheus.DefaultRegisterer
+	t.cfg.MemberlistKV.Codecs = []codec.Codec{
+		ring.GetCodec(),
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+	t.cfg.MemberlistKV.NodeName = hostname + "-" + uuid.New().String()
+
+	t.memberlistKV = memberlist.NewKVInit(&t.cfg.MemberlistKV)
+	return nil
+}
+
+func (t *App) stopMemberlistKV() error {
+	t.memberlistKV.Stop()
 	return nil
 }
 
@@ -271,8 +312,9 @@ var modules = map[moduleName]module{
 	},
 
 	Ring: {
-		deps: []moduleName{Server},
+		deps: []moduleName{Server, MemberlistKV},
 		init: (*App).initRing,
+		stop: (*App).stopRing,
 	},
 
 	Overrides: {
@@ -298,7 +340,7 @@ var modules = map[moduleName]module{
 	},
 
 	Compactor: {
-		deps: []moduleName{Store, Server},
+		deps: []moduleName{Store, Server, MemberlistKV},
 		init: (*App).initCompactor,
 	},
 
@@ -306,6 +348,11 @@ var modules = map[moduleName]module{
 		deps: []moduleName{Overrides},
 		init: (*App).initStore,
 		stop: (*App).stopStore,
+	},
+
+	MemberlistKV: {
+		init: (*App).initMemberlistKV,
+		stop: (*App).stopMemberlistKV,
 	},
 
 	All: {
