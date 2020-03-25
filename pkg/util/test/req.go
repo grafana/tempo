@@ -12,17 +12,18 @@ func MakeRequest(spans int, traceID []byte) *tempopb.PushRequest {
 		traceID = []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10}
 	}
 
-	sampleSpan := opentelemetry_proto_trace_v1.Span{
-		Name:    "test",
-		TraceId: traceID,
-		SpanId:  []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
-	}
-
 	req := &tempopb.PushRequest{
 		Batch: &opentelemetry_proto_trace_v1.ResourceSpans{},
 	}
 
 	for i := 0; i < spans; i++ {
+		sampleSpan := opentelemetry_proto_trace_v1.Span{
+			Name:    "test",
+			TraceId: traceID,
+			SpanId:  make([]byte, 8),
+		}
+		rand.Read(sampleSpan.SpanId)
+
 		req.Batch.Spans = append(req.Batch.Spans, &sampleSpan)
 	}
 
