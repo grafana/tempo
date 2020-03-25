@@ -22,13 +22,6 @@ type simpleBlockSelector struct {
 
 var _ (CompactionBlockSelector) = (*simpleBlockSelector)(nil)
 
-func newSimpleBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration) CompactionBlockSelector {
-	return &simpleBlockSelector{
-		blocklist:          blocklist,
-		MaxCompactionRange: maxCompactionRange,
-	}
-}
-
 func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
 	// should never happen
 	if inputBlocks > len(sbs.blocklist) {
