@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
 
@@ -58,6 +59,7 @@ func dumpBucket(bucketName string, tenantID string) error {
 
 	fmt.Println("total blocks: ", len(blockIDs))
 
+	totalObjects := 0
 	out := make([][]string, 0)
 	for _, id := range blockIDs {
 		meta, err := r.BlockMeta(id, tenantID)
@@ -87,29 +89,34 @@ func dumpBucket(bucketName string, tenantID string) error {
 			}
 		}
 
-		totalObjects := blockStats(meta, compactedMeta)
+		objects, lvl, start, end := blockStats(meta, compactedMeta)
 		out = append(out, []string{
 			id.String(),
+			strconv.Itoa(int(lvl)),
 			strconv.Itoa(totalIDs),
-			strconv.Itoa(totalObjects),
+			strconv.Itoa(objects),
 			strconv.Itoa(duplicateIDs),
+			start.Format(time.RFC3339),
+			end.Format(time.RFC3339),
 		})
+		totalObjects += objects
 	}
 
 	w := tablewriter.NewWriter(os.Stdout)
-	w.SetHeader([]string{"id", "idx", "count", "dupe"})
+	w.SetHeader([]string{"id", "lvl", "idx", "count", "dupe", "start", "end"})
+	w.SetFooter([]string{"", "", "", strconv.Itoa(totalObjects), "", "", ""})
 	w.AppendBulk(out)
 	w.Render()
 
 	return nil
 }
 
-func blockStats(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta) int {
+func blockStats(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta) (int, uint8, time.Time, time.Time) {
 	if meta != nil {
-		return meta.TotalObjects
+		return meta.TotalObjects, meta.CompactionLevel, meta.StartTime, meta.EndTime
 	} else if compactedMeta != nil {
-		return compactedMeta.TotalObjects
+		return compactedMeta.TotalObjects, compactedMeta.CompactionLevel, compactedMeta.StartTime, compactedMeta.EndTime
 	}
 
-	return -1
+	return -1, 0, time.Unix(0, 0), time.Unix(0, 0)
 }
