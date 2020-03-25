@@ -72,7 +72,7 @@
     compactor: {
       compaction: {
         chunkSizeBytes: 10485760,
-        maxCompactionRange: '1h',
+        maxCompactionRange: '4h',
         blockRetention: '144h',
         compactedBlockRetention: '2m',
       },

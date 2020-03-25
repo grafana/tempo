@@ -19,6 +19,7 @@ require (
 	github.com/jaegertracing/jaeger v1.17.0
 	github.com/karrick/godirwalk v1.15.3
 	github.com/mattn/go-colorable v0.1.6 // indirect
+	github.com/olekukonko/tablewriter v0.0.2
 	github.com/open-telemetry/opentelemetry-collector v0.2.7-0.20200311232134-5334b3a8ff08
 	github.com/open-telemetry/opentelemetry-proto v0.0.0-20200308012146-674ae1c8703f
 	github.com/opentracing/opentracing-go v1.1.1-0.20200124165624-2876d2018785
