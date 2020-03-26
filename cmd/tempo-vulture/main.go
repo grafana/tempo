@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,31 +55,43 @@ func main() {
 
 	glog.Error("Application Starting")
 
+	testDurations := []time.Duration{
+		24 * time.Hour,
+		12 * time.Hour,
+		6 * time.Hour,
+		3 * time.Hour,
+		time.Hour,
+		30 * time.Minute,
+	}
+
 	ticker := time.NewTicker(15 * time.Second)
 	go func() {
 		for {
 			<-ticker.C
 
-			// query loki for trace ids
-			lines, err := queryLoki(lokiBaseURL, lokiQuery, lokiUser, lokiPass)
-			if err != nil {
-				glog.Error("error querying Loki ", err)
-				metricErrorTotal.Inc()
-				continue
-			}
-			ids := extractTraceIDs(lines)
+			for _, duration := range testDurations {
 
-			// query tempo for trace ids
-			metrics, err := queryTempoAndAnalyze(tempoBaseURL, ids)
-			if err != nil {
-				glog.Error("error querying Tempo ", err)
-				metricErrorTotal.Inc()
-				continue
-			}
+				// query loki for trace ids
+				lines, err := queryLoki(lokiBaseURL, lokiQuery, duration, lokiUser, lokiPass)
+				if err != nil {
+					glog.Error("error querying Loki ", err)
+					metricErrorTotal.Inc()
+					continue
+				}
+				ids := extractTraceIDs(lines)
 
-			metricTracesInspected.Add(float64(metrics.requested))
-			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notfound))
-			metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
+				// query tempo for trace ids
+				metrics, err := queryTempoAndAnalyze(tempoBaseURL, ids)
+				if err != nil {
+					glog.Error("error querying Tempo ", err)
+					metricErrorTotal.Inc()
+					continue
+				}
+
+				metricTracesInspected.WithLabelValues(strconv.Itoa(int(duration.Seconds()))).Add(float64(metrics.requested))
+				metricTracesErrors.WithLabelValues("notfound", strconv.Itoa(int(duration.Seconds()))).Add(float64(metrics.notfound))
+				metricTracesErrors.WithLabelValues("missingspans", strconv.Itoa(int(duration.Seconds()))).Add(float64(metrics.missingSpans))
+			}
 		}
 	}()
 
@@ -98,9 +111,6 @@ func queryTempoAndAnalyze(baseURL string, traceIDs []string) (*traceMetrics, err
 		if err != nil {
 			return nil, fmt.Errorf("error querying tempo ", err)
 		}
-
-		// b, _ := ioutil.ReadAll(resp.Body)
-		// fmt.Println("json", string(b))
 
 		trace := &tempopb.Trace{}
 		err = json.NewDecoder(resp.Body).Decode(trace)
@@ -155,9 +165,9 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 	return false
 }
 
-func queryLoki(baseURL string, query string, user string, pass string) ([]string, error) {
-	start := time.Now().Add(-time.Hour)
-	end := time.Now()
+func queryLoki(baseURL string, query string, durationAgo time.Duration, user string, pass string) ([]string, error) {
+	start := time.Now().Add(-durationAgo)
+	end := start.Add(30 * time.Minute)
 	url := baseURL + fmt.Sprintf("/api/prom/query?limit=10&start=%d&end=%d&query=%s", start.UnixNano(), end.UnixNano(), url.QueryEscape(query))
 
 	glog.Error("loki url ", url)

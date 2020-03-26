@@ -17,12 +17,13 @@ var (
 	)
 
 	// metricTracesInspected is a prometheus gauge that indicates the number of seconds until certificates on disk expires.
-	metricTracesInspected = prometheus.NewCounter(
+	metricTracesInspected = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Name:      "trace_total",
 			Help:      "total number of traces inspected by tempo vulture",
 		},
+		[]string{"secondsago"},
 	)
 
 	// metricTracesInspected is a prometheus gauge that indicates the number of seconds until certificates on disk expires.
@@ -32,7 +33,7 @@ var (
 			Name:      "trace_error_total",
 			Help:      "total number of issues with traces",
 		},
-		[]string{"error"},
+		[]string{"error", "secondsago"},
 	)
 )
 
