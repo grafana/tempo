@@ -29,6 +29,10 @@ tempo-query:
 tempo-cli:
 	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-cli $(BUILD_INFO) ./cmd/tempo-cli
 
+.PHONY: tempo-vulture
+tempo-vulture:
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture $(BUILD_INFO) ./cmd/tempo-vulture
+
 .PHONY: test
 test:
 	$(GOTEST) $(GOTEST_OPT) $(ALL_PKGS)
@@ -59,6 +63,10 @@ docker-tempo:
 .PHONY: docker-tempo-query
 docker-tempo-query:
 	COMPONENT=tempo-query $(MAKE) docker-component
+
+.PHONY: docker-tempo-vulture
+docker-tempo-vulture:
+	COMPONENT=tempo-vulture $(MAKE) docker-component
 
 .PHONY: check-component
 check-component:
