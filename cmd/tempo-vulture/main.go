@@ -107,6 +107,8 @@ func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []stri
 	}
 
 	for _, id := range traceIDs {
+		time.Sleep(backoff)
+
 		glog.Error("tempo url ", baseURL+"/api/traces/"+id)
 		resp, err := http.Get(baseURL + "/api/traces/" + id)
 		if err != nil {
@@ -128,8 +130,6 @@ func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []stri
 		if hasMissingSpans(trace) {
 			tm.missingSpans++
 		}
-
-		time.Sleep(backoff)
 	}
 
 	return tm, nil
