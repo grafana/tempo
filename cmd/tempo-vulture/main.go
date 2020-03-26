@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/grafana/loki/pkg/logproto"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -55,6 +57,8 @@ func main() {
 	ticker := time.NewTicker(15 * time.Second)
 	go func() {
 		for {
+			<-ticker.C
+
 			// query loki for trace ids
 			lines, err := queryLoki(lokiBaseURL, lokiQuery, lokiUser, lokiPass)
 			if err != nil {
@@ -75,8 +79,6 @@ func main() {
 			metricTracesInspected.Add(float64(metrics.requested))
 			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notfound))
 			metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
-
-			<-ticker.C
 		}
 	}()
 
@@ -84,16 +86,81 @@ func main() {
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
 }
 
-func queryTempoAndAnalyze(baseURL string, traceIDs []string) (traceMetrics, error) {
-	return traceMetrics{}, nil
+func queryTempoAndAnalyze(baseURL string, traceIDs []string) (*traceMetrics, error) {
+	tm := &traceMetrics{
+		requested: len(traceIDs),
+	}
+
+	for _, id := range traceIDs {
+		glog.Error("tempo url ", baseURL+"/api/traces/"+id)
+		resp, err := http.Get(baseURL + "/api/traces/" + id)
+
+		if err != nil {
+			return nil, fmt.Errorf("error querying tempo ", err)
+		}
+
+		// b, _ := ioutil.ReadAll(resp.Body)
+		// fmt.Println("json", string(b))
+
+		trace := &tempopb.Trace{}
+		err = json.NewDecoder(resp.Body).Decode(trace)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding trace json ", err)
+		}
+
+		if len(trace.Batches) == 0 {
+			tm.notfound++
+			continue
+		}
+
+		// iterate through
+		if hasMissingSpans(trace) {
+			tm.missingSpans++
+		}
+	}
+
+	return tm, nil
+}
+
+func hasMissingSpans(t *tempopb.Trace) bool {
+	// collect all parent span IDs
+	linkedSpanIDs := make([][]byte, 0)
+
+	for _, b := range t.Batches {
+		for _, s := range b.Spans {
+			for _, l := range s.Links {
+				linkedSpanIDs = append(linkedSpanIDs, l.SpanId)
+			}
+		}
+	}
+
+	for _, id := range linkedSpanIDs {
+		found := false
+
+	B:
+		for _, b := range t.Batches {
+			for _, s := range b.Spans {
+				if bytes.Equal(s.SpanId, id) {
+					found = true
+					break B
+				}
+			}
+		}
+
+		if !found {
+			return true
+		}
+	}
+
+	return false
 }
 
 func queryLoki(baseURL string, query string, user string, pass string) ([]string, error) {
 	start := time.Now().Add(-time.Hour)
 	end := time.Now()
-	url := baseURL + fmt.Sprintf("/api/prom/query?limit=1000&start=%d&end=%d&query=%s", start.UnixNano(), end.UnixNano(), url.QueryEscape(query))
+	url := baseURL + fmt.Sprintf("/api/prom/query?limit=10&start=%d&end=%d&query=%s", start.UnixNano(), end.UnixNano(), url.QueryEscape(query))
 
-	glog.Error("url ", url)
+	glog.Error("loki url ", url)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -139,7 +206,11 @@ func extractTraceIDs(lines []string) []string {
 		match := regex.FindString(l)
 
 		if match != "" {
-			ids = append(ids, strings.TrimPrefix(match, "traceID="))
+			traceID := strings.TrimSpace(strings.TrimPrefix(match, "traceID="))
+			if len(traceID)%2 == 1 {
+				traceID = "0" + traceID
+			}
+			ids = append(ids, traceID)
 		}
 	}
 
