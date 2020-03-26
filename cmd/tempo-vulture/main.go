@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/grafana/loki/pkg/logproto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -23,16 +25,26 @@ var (
 	lokiQuery   string
 	lokiUser    string
 	lokiPass    string
+
+	tempoBaseURL string
 )
+
+type traceMetrics struct {
+	requested    int
+	notfound     int
+	missingSpans int
+}
 
 func init() {
 	flag.StringVar(&prometheusPath, "prometheus-path", "/metrics", "The path to publish Prometheus metrics to.")
 	flag.StringVar(&prometheusListenAddress, "prometheus-listen-address", ":80", "The address to listen on for Prometheus scrapes.")
 
-	flag.StringVar(&lokiBaseURL, "loki-base-url", "", "The path to publish Prometheus metrics to.")
-	flag.StringVar(&lokiQuery, "loki-query", "", "The address to listen on for Prometheus scrapes.")
-	flag.StringVar(&lokiUser, "loki-user", "", "The address to listen on for Prometheus scrapes.")
-	flag.StringVar(&lokiPass, "loki-pass", "", "The address to listen on for Prometheus scrapes.")
+	flag.StringVar(&lokiBaseURL, "loki-base-url", "", "The base URL (scheme://hostname) at which to find loki.")
+	flag.StringVar(&lokiQuery, "loki-query", "", "The query to use to find traceIDs in Loki.")
+	flag.StringVar(&lokiUser, "loki-user", "", "The user to use for Loki basic auth.")
+	flag.StringVar(&lokiPass, "loki-pass", "", "The password to use for Loki basic auth.")
+
+	flag.StringVar(&tempoBaseURL, "tempo-base-url", "", "The base URL (scheme://hostname) at which to find tempo.")
 }
 
 func main() {
@@ -40,23 +52,43 @@ func main() {
 
 	glog.Error("Application Starting")
 
-	// query loki for trace ids
-	lines := queryLoki(lokiBaseURL, lokiQuery, lokiUser, lokiPass)
-	ids := extractTraceIDs(lines)
+	ticker := time.NewTicker(15 * time.Second)
+	go func() {
+		for {
+			// query loki for trace ids
+			lines, err := queryLoki(lokiBaseURL, lokiQuery, lokiUser, lokiPass)
+			if err != nil {
+				glog.Error("error querying Loki ", err)
+				metricErrorTotal.Inc()
+				continue
+			}
+			ids := extractTraceIDs(lines)
 
-	for _, id := range ids {
-		fmt.Println(id)
-	}
+			// query tempo for trace ids
+			metrics, err := queryTempoAndAnalyze(tempoBaseURL, ids)
+			if err != nil {
+				glog.Error("error querying Tempo ", err)
+				metricErrorTotal.Inc()
+				continue
+			}
 
-	// query tempo for trace ids
+			metricTracesInspected.Add(float64(metrics.requested))
+			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notfound))
+			metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
 
-	// do they exist
+			<-ticker.C
+		}
+	}()
 
-	// http.Handle(prometheusPath, promhttp.Handler())
-	// log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
+	http.Handle(prometheusPath, promhttp.Handler())
+	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
 }
 
-func queryLoki(baseURL string, query string, user string, pass string) []string {
+func queryTempoAndAnalyze(baseURL string, traceIDs []string) (traceMetrics, error) {
+	return traceMetrics{}, nil
+}
+
+func queryLoki(baseURL string, query string, user string, pass string) ([]string, error) {
 	start := time.Now().Add(-time.Hour)
 	end := time.Now()
 	url := baseURL + fmt.Sprintf("/api/prom/query?limit=1000&start=%d&end=%d&query=%s", start.UnixNano(), end.UnixNano(), url.QueryEscape(query))
@@ -65,15 +97,13 @@ func queryLoki(baseURL string, query string, user string, pass string) []string 
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		glog.Error("error building request ", err)
-		return nil
+		return nil, fmt.Errorf("error building request ", err)
 	}
 	req.SetBasicAuth(user, pass)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		glog.Error("error querying ", err)
-		return nil
+		return nil, fmt.Errorf("error querying ", err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -83,14 +113,12 @@ func queryLoki(baseURL string, query string, user string, pass string) []string 
 
 	if resp.StatusCode/100 != 2 {
 		buf, _ := ioutil.ReadAll(resp.Body)
-		glog.Error("error response from server: ", string(buf), err)
-		return nil
+		return nil, fmt.Errorf("error response from server: ", string(buf), err)
 	}
 	var decoded logproto.QueryResponse
 	err = json.NewDecoder(resp.Body).Decode(&decoded)
 	if err != nil {
-		glog.Error("error decoding response", err)
-		return nil
+		return nil, fmt.Errorf("error decoding response ", err)
 	}
 
 	lines := make([]string, 0)
@@ -100,7 +128,7 @@ func queryLoki(baseURL string, query string, user string, pass string) []string 
 		}
 	}
 
-	return lines
+	return lines, nil
 }
 
 func extractTraceIDs(lines []string) []string {
