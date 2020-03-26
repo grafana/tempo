@@ -14,7 +14,6 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.3
 	github.com/grafana/loki v1.3.0
-	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340 // indirect
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v0.12.0
 	github.com/hashicorp/go-plugin v1.0.1 // indirect
