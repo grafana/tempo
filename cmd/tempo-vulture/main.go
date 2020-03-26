@@ -29,7 +29,8 @@ var (
 	lokiUser    string
 	lokiPass    string
 
-	tempoBaseURL string
+	tempoBaseURL         string
+	tempoBackoffDuration time.Duration
 )
 
 type traceMetrics struct {
@@ -48,6 +49,7 @@ func init() {
 	flag.StringVar(&lokiPass, "loki-pass", "", "The password to use for Loki basic auth.")
 
 	flag.StringVar(&tempoBaseURL, "tempo-base-url", "", "The base URL (scheme://hostname) at which to find tempo.")
+	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", time.Second, "The amount of time to pause between tempo calls")
 }
 
 func main() {
@@ -81,7 +83,7 @@ func main() {
 				ids := extractTraceIDs(lines)
 
 				// query tempo for trace ids
-				metrics, err := queryTempoAndAnalyze(tempoBaseURL, ids)
+				metrics, err := queryTempoAndAnalyze(tempoBaseURL, tempoBackoffDuration, ids)
 				if err != nil {
 					glog.Error("error querying Tempo ", err)
 					metricErrorTotal.Inc()
@@ -99,15 +101,16 @@ func main() {
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
 }
 
-func queryTempoAndAnalyze(baseURL string, traceIDs []string) (*traceMetrics, error) {
+func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []string) (*traceMetrics, error) {
 	tm := &traceMetrics{
 		requested: len(traceIDs),
 	}
 
 	for _, id := range traceIDs {
+		time.Sleep(backoff)
+
 		glog.Error("tempo url ", baseURL+"/api/traces/"+id)
 		resp, err := http.Get(baseURL + "/api/traces/" + id)
-
 		if err != nil {
 			return nil, fmt.Errorf("error querying tempo ", err)
 		}
