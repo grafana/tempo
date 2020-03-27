@@ -78,7 +78,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 		if cursorEnd < len(twbs.blocklist) && currentWindow == twbs.windowForBlock(twbs.blocklist[cursorEnd]) {
 			startPos := twbs.cursor
 			twbs.cursor = startPos + inputBlocks
-			hashString := fmt.Sprintf("%v-%v-%v", cursorBlock.TenantID, currentWindow)
+			hashString := fmt.Sprintf("%v-%v", cursorBlock.TenantID, currentWindow)
 
 			return twbs.blocklist[startPos : startPos+inputBlocks], hashString
 		}
