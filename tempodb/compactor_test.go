@@ -201,6 +201,7 @@ func TestSameIDCompaction(t *testing.T) {
 	assert.NoError(t, err)
 
 	blockCount := 5
+	blocksPerCompaction := (inputBlocks - outputBlocks)
 
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
@@ -222,7 +223,7 @@ func TestSameIDCompaction(t *testing.T) {
 	rw := r.(*readerWriter)
 
 	// poll
-	checkBlocklists(t, uuid.Nil, 5, 0, rw)
+	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
 
 	var blocks []*backend.BlockMeta
 	blocklist := rw.blocklist(testTenantID)
@@ -233,12 +234,12 @@ func TestSameIDCompaction(t *testing.T) {
 	err = rw.compact(blocks, testTenantID)
 	assert.NoError(t, err)
 
-	checkBlocklists(t, uuid.Nil, 2, 4, rw)
+	checkBlocklists(t, uuid.Nil, blockCount-blocksPerCompaction, inputBlocks, rw)
 
 	// do we have the right number of records
 	var records int
 	for _, meta := range rw.blockLists[testTenantID] {
 		records += meta.TotalObjects
 	}
-	assert.Equal(t, 2, records)
+	assert.Equal(t, blockCount-blocksPerCompaction, records)
 }

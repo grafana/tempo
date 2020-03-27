@@ -38,8 +38,8 @@ var (
 )
 
 const (
-	inputBlocks  = 4
-	outputBlocks = 2
+	inputBlocks  = 2
+	outputBlocks = 1
 
 	recordsPerBatch = 10000
 
