@@ -408,17 +408,9 @@ func (rw *readerWriter) pollBlocklist() {
 			continue
 		}
 
-		// Get compacted block metrics from compactedBlocklist (for level>0)
-		metricsPerLevel := make([]int, maxNumLevels)
+		metricBlocklistLength.Reset()
 		for _, block := range blocklist {
-			if block.CompactionLevel >= maxNumLevels {
-				continue
-			}
-			metricsPerLevel[block.CompactionLevel]++
-		}
-
-		for i := 0; i < maxNumLevels; i++ {
-			metricBlocklistLength.WithLabelValues(tenantID, strconv.Itoa(i)).Set(float64(metricsPerLevel[i]))
+			metricBlocklistLength.WithLabelValues(tenantID, strconv.Itoa(int(block.CompactionLevel))).Inc()
 		}
 
 		sort.Slice(blocklist, func(i, j int) bool {
