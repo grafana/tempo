@@ -356,6 +356,7 @@ func (rw *readerWriter) pollBlocklist() {
 		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
 	}
 
+	metricBlocklistLength.Reset()
 	for _, tenantID := range tenants {
 		blockIDs, err := rw.r.Blocks(tenantID)
 		if err != nil {
@@ -408,17 +409,8 @@ func (rw *readerWriter) pollBlocklist() {
 			continue
 		}
 
-		// Get compacted block metrics from compactedBlocklist (for level>0)
-		metricsPerLevel := make([]int, maxNumLevels)
 		for _, block := range blocklist {
-			if block.CompactionLevel >= maxNumLevels {
-				continue
-			}
-			metricsPerLevel[block.CompactionLevel]++
-		}
-
-		for i := 0; i < maxNumLevels; i++ {
-			metricBlocklistLength.WithLabelValues(tenantID, strconv.Itoa(i)).Set(float64(metricsPerLevel[i]))
+			metricBlocklistLength.WithLabelValues(tenantID, strconv.Itoa(int(block.CompactionLevel))).Inc()
 		}
 
 		sort.Slice(blocklist, func(i, j int) bool {

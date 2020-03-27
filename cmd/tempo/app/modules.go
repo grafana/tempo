@@ -213,6 +213,11 @@ func (t *App) initCompactor() (err error) {
 	return err
 }
 
+func (t *App) stopCompactor() (err error) {
+	t.compactor.Shutdown()
+	return nil
+}
+
 func (t *App) initStore() (err error) {
 	t.store, err = tempo_storage.NewStore(t.cfg.StorageConfig, t.overrides, util.Logger)
 	return
@@ -345,6 +350,7 @@ var modules = map[moduleName]module{
 	Compactor: {
 		deps: []moduleName{Store, Server, MemberlistKV},
 		init: (*App).initCompactor,
+		stop: (*App).stopCompactor,
 	},
 
 	Store: {

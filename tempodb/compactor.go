@@ -38,13 +38,10 @@ var (
 )
 
 const (
-	inputBlocks  = 4
-	outputBlocks = 2
+	inputBlocks  = 2
+	outputBlocks = 1
 
 	recordsPerBatch = 10000
-
-	// Number of levels in the levelled compaction strategy
-	maxNumLevels = 5
 )
 
 func (rw *readerWriter) doCompaction() {
@@ -67,30 +64,27 @@ func (rw *readerWriter) doCompaction() {
 		var warning error
 		tenantID := payload.(string)
 		blocklist := rw.blocklist(tenantID)
-		blocksPerLevel := blocklistPerLevel(blocklist)
 
-		for l := 0; l < maxNumLevels-1; l++ {
-			blockSelector := newTimeWindowBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
-		L:
-			for {
-				select {
-				case <-stopCh:
-					return warning
-				default:
-					toBeCompacted, hashString := blockSelector.BlocksToCompact()
-					if len(toBeCompacted) == 0 {
-						// If none are suitable, bail
-						break L
-					}
-					if !rw.compactorSharder.Owns(hashString) {
-						continue
-					}
-					level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
-					if err := rw.compact(toBeCompacted, tenantID); err != nil {
-						warning = err
-						level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
-						metricCompactionErrors.Inc()
-					}
+		blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
+	L:
+		for {
+			select {
+			case <-stopCh:
+				return warning
+			default:
+				toBeCompacted, hashString := blockSelector.BlocksToCompact()
+				if len(toBeCompacted) == 0 {
+					// If none are suitable, bail
+					break L
+				}
+				if !rw.compactorSharder.Owns(hashString) {
+					continue
+				}
+				level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
+				if err := rw.compact(toBeCompacted, tenantID); err != nil {
+					warning = err
+					level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
+					metricCompactionErrors.Inc()
 				}
 			}
 		}
@@ -113,12 +107,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		return nil
 	}
 
-	compactionLevel := blockMetas[0].CompactionLevel
-	for _, block := range blockMetas {
-		if compactionLevel != block.CompactionLevel {
-			return fmt.Errorf("Not all blocks are of the same compaction level")
-		}
-	}
+	compactionLevel := compactionLevelForBlocks(blockMetas)
 	nextCompactionLevel := compactionLevel + 1
 
 	start := time.Now()
@@ -286,19 +275,14 @@ func allDone(bookmarks []*bookmark) bool {
 	return true
 }
 
-func blocklistPerLevel(blocklist []*backend.BlockMeta) [][]*backend.BlockMeta {
-	blocksPerLevel := make([][]*backend.BlockMeta, maxNumLevels)
-	for k := 0; k < maxNumLevels; k++ {
-		blocksPerLevel[k] = make([]*backend.BlockMeta, 0)
-	}
+func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
+	level := uint8(0)
 
-	for _, block := range blocklist {
-		if block.CompactionLevel >= maxNumLevels {
-			continue
+	for _, m := range blockMetas {
+		if m.CompactionLevel > level {
+			level = m.CompactionLevel
 		}
-
-		blocksPerLevel[block.CompactionLevel] = append(blocksPerLevel[block.CompactionLevel], block)
 	}
 
-	return blocksPerLevel
+	return level
 }

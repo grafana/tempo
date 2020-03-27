@@ -119,33 +119,30 @@ func TestCompaction(t *testing.T) {
 
 	blocksPerCompaction := (inputBlocks - outputBlocks)
 
-	for l := 0; l < maxNumLevels-1; l++ {
-		rw.pollBlocklist()
+	rw.pollBlocklist()
 
-		blocklist := rw.blocklist(testTenantID)
-		blocksPerLevel := blocklistPerLevel(blocklist)
-		blockSelector := newTimeWindowBlockSelector(blocksPerLevel[l], rw.compactorCfg.MaxCompactionRange)
+	blocklist := rw.blocklist(testTenantID)
+	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000)
 
-		expectedCompactions := len(blocksPerLevel[l]) / inputBlocks
-		compactions := 0
-		for {
-			blocks, _ := blockSelector.BlocksToCompact()
-			if len(blocks) == 0 {
-				break
-			}
-			assert.Len(t, blocks, inputBlocks)
-
-			compactions++
-			err := rw.compact(blocks, testTenantID)
-			assert.NoError(t, err)
-
-			expectedBlockCount -= blocksPerCompaction
-			expectedCompactedCount += inputBlocks
-			checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
+	expectedCompactions := len(blocklist) / inputBlocks
+	compactions := 0
+	for {
+		blocks, _ := blockSelector.BlocksToCompact()
+		if len(blocks) == 0 {
+			break
 		}
+		assert.Len(t, blocks, inputBlocks)
 
-		assert.Equal(t, expectedCompactions, compactions)
+		compactions++
+		err := rw.compact(blocks, testTenantID)
+		assert.NoError(t, err)
+
+		expectedBlockCount -= blocksPerCompaction
+		expectedCompactedCount += inputBlocks
+		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 	}
+
+	assert.Equal(t, expectedCompactions, compactions)
 
 	// do we have the right number of records
 	var records int
@@ -201,6 +198,7 @@ func TestSameIDCompaction(t *testing.T) {
 	assert.NoError(t, err)
 
 	blockCount := 5
+	blocksPerCompaction := (inputBlocks - outputBlocks)
 
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
@@ -222,23 +220,23 @@ func TestSameIDCompaction(t *testing.T) {
 	rw := r.(*readerWriter)
 
 	// poll
-	checkBlocklists(t, uuid.Nil, 5, 0, rw)
+	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
 
 	var blocks []*backend.BlockMeta
 	blocklist := rw.blocklist(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange)
+	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000)
 	blocks, _ = blockSelector.BlocksToCompact()
 	assert.Len(t, blocks, inputBlocks)
 
 	err = rw.compact(blocks, testTenantID)
 	assert.NoError(t, err)
 
-	checkBlocklists(t, uuid.Nil, 2, 4, rw)
+	checkBlocklists(t, uuid.Nil, blockCount-blocksPerCompaction, inputBlocks, rw)
 
 	// do we have the right number of records
 	var records int
 	for _, meta := range rw.blockLists[testTenantID] {
 		records += meta.TotalObjects
 	}
-	assert.Equal(t, 2, records)
+	assert.Equal(t, blockCount-blocksPerCompaction, records)
 }
