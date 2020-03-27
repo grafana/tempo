@@ -29,7 +29,8 @@ var (
 	lokiUser    string
 	lokiPass    string
 
-	tempoBaseURL string
+	tempoBaseURL         string
+	tempoBackoffDuration time.Duration
 )
 
 type traceMetrics struct {
@@ -48,6 +49,7 @@ func init() {
 	flag.StringVar(&lokiPass, "loki-pass", "", "The password to use for Loki basic auth.")
 
 	flag.StringVar(&tempoBaseURL, "tempo-base-url", "", "The base URL (scheme://hostname) at which to find tempo.")
+	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", time.Second, "The amount of time to pause between tempo calls")
 }
 
 func main() {
@@ -81,7 +83,7 @@ func main() {
 				ids := extractTraceIDs(lines)
 
 				// query tempo for trace ids
-				metrics, err := queryTempoAndAnalyze(tempoBaseURL, ids)
+				metrics, err := queryTempoAndAnalyze(tempoBaseURL, tempoBackoffDuration, ids)
 				if err != nil {
 					glog.Error("error querying Tempo ", err)
 					metricErrorTotal.Inc()
@@ -99,32 +101,40 @@ func main() {
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
 }
 
-func queryTempoAndAnalyze(baseURL string, traceIDs []string) (*traceMetrics, error) {
+func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []string) (*traceMetrics, error) {
 	tm := &traceMetrics{
 		requested: len(traceIDs),
 	}
 
 	for _, id := range traceIDs {
+		time.Sleep(backoff)
+
 		glog.Error("tempo url ", baseURL+"/api/traces/"+id)
 		resp, err := http.Get(baseURL + "/api/traces/" + id)
-
 		if err != nil {
-			return nil, fmt.Errorf("error querying tempo ", err)
+			return nil, fmt.Errorf("error querying tempo %v", err)
 		}
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				glog.Error("error closing body ", err)
+			}
+		}()
 
 		trace := &tempopb.Trace{}
 		err = json.NewDecoder(resp.Body).Decode(trace)
 		if err != nil {
-			return nil, fmt.Errorf("error decoding trace json ", err)
+			return nil, fmt.Errorf("error decoding trace json %v", err)
 		}
 
 		if len(trace.Batches) == 0 {
+			glog.Error("trace not found", id)
 			tm.notfound++
 			continue
 		}
 
 		// iterate through
 		if hasMissingSpans(trace) {
+			glog.Error("has missing spans", id)
 			tm.missingSpans++
 		}
 	}
@@ -174,13 +184,13 @@ func queryLoki(baseURL string, query string, durationAgo time.Duration, user str
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error building request ", err)
+		return nil, fmt.Errorf("error building request %v", err)
 	}
 	req.SetBasicAuth(user, pass)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("error querying ", err)
+		return nil, fmt.Errorf("error querying %v", err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -190,12 +200,12 @@ func queryLoki(baseURL string, query string, durationAgo time.Duration, user str
 
 	if resp.StatusCode/100 != 2 {
 		buf, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("error response from server: ", string(buf), err)
+		return nil, fmt.Errorf("error response from server: %s %v", string(buf), err)
 	}
 	var decoded logproto.QueryResponse
 	err = json.NewDecoder(resp.Body).Decode(&decoded)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding response ", err)
+		return nil, fmt.Errorf("error decoding response %v", err)
 	}
 
 	lines := make([]string, 0)
