@@ -61,7 +61,7 @@ var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 
 func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
-		blocklist:          blocklist,
+		blocklist:          append([]*backend.BlockMeta(nil), blocklist...),
 		MaxCompactionRange: maxCompactionRange,
 	}
 
@@ -76,29 +76,42 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 		heap.Init(&blocksToCompact)
 
 		// find everything from cursor forward that belongs to this block
-		cursorEnd := twbs.cursor + 1
-		cursorBlock := twbs.blocklist[twbs.cursor]
-		currentWindow := twbs.windowForBlock(cursorBlock)
-
-		heap.Push(&blocksToCompact, cursorBlock)
+		cursorEnd := twbs.cursor
+		currentWindow := twbs.windowForBlock(twbs.blocklist[twbs.cursor])
 
 		for cursorEnd < len(twbs.blocklist) {
-			if currentWindow != twbs.windowForBlock(twbs.blocklist[cursorEnd]) {
+			currentBlock := twbs.blocklist[cursorEnd]
+
+			if currentWindow != twbs.windowForBlock(currentBlock) {
 				break
 			}
-
-			heap.Push(&blocksToCompact, twbs.blocklist[cursorEnd])
 			cursorEnd++
+
+			heap.Push(&blocksToCompact, currentBlock)
 		}
 
 		// if we found enough blocks, huzzah!  return them and we'll check this time window again next loop
 		if len(blocksToCompact) >= inputBlocks {
-			// pop all
+			// pop all but the ones we want
 			for len(blocksToCompact) > inputBlocks {
 				heap.Pop(&blocksToCompact)
 			}
 
-			return blocksToCompact, fmt.Sprintf("%v-%v", cursorBlock.TenantID, currentWindow)
+			// remove the blocks we are returning so we don't consider them again
+			//   this is horribly inefficient as it's written
+			for _, blockToCompact := range blocksToCompact {
+				for i, block := range twbs.blocklist {
+					if block == blockToCompact {
+						copy(twbs.blocklist[i:], twbs.blocklist[i+1:])
+						twbs.blocklist[len(twbs.blocklist)-1] = nil
+						twbs.blocklist = twbs.blocklist[:len(twbs.blocklist)-1]
+
+						break
+					}
+				}
+			}
+
+			return blocksToCompact, fmt.Sprintf("%v-%v", blocksToCompact[0].TenantID, currentWindow)
 		}
 
 		// otherwise update the cursor and attempt the next window
