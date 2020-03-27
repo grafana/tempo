@@ -107,12 +107,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		return nil
 	}
 
-	compactionLevel := blockMetas[0].CompactionLevel
-	for _, block := range blockMetas {
-		if compactionLevel != block.CompactionLevel {
-			return fmt.Errorf("Not all blocks are of the same compaction level")
-		}
-	}
+	compactionLevel := compactionLevelForBlocks(blockMetas)
 	nextCompactionLevel := compactionLevel + 1
 
 	start := time.Now()
@@ -278,4 +273,16 @@ func allDone(bookmarks []*bookmark) bool {
 	}
 
 	return true
+}
+
+func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
+	level := uint8(0)
+
+	for _, m := range blockMetas {
+		if m.CompactionLevel > level {
+			level = m.CompactionLevel
+		}
+	}
+
+	return level
 }

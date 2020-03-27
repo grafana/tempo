@@ -33,7 +33,7 @@ func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string)
 		if sbs.blocklist[cursorEnd].EndTime.Sub(sbs.blocklist[sbs.cursor].StartTime) < sbs.MaxCompactionRange {
 			startPos := sbs.cursor
 			sbs.cursor = startPos + inputBlocks
-			hashString := fmt.Sprintf("%v-%v", sbs.blocklist[startPos].TenantID, sbs.blocklist[startPos].CompactionLevel)
+			hashString := sbs.blocklist[startPos].TenantID
 
 			return sbs.blocklist[startPos : startPos+inputBlocks], hashString
 		}
@@ -78,7 +78,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 		if cursorEnd < len(twbs.blocklist) && currentWindow == twbs.windowForBlock(twbs.blocklist[cursorEnd]) {
 			startPos := twbs.cursor
 			twbs.cursor = startPos + inputBlocks
-			hashString := fmt.Sprintf("%v-%v-%v", cursorBlock.TenantID, cursorBlock.CompactionLevel, currentWindow)
+			hashString := fmt.Sprintf("%v-%v-%v", cursorBlock.TenantID, currentWindow)
 
 			return twbs.blocklist[startPos : startPos+inputBlocks], hashString
 		}
