@@ -112,22 +112,29 @@ func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []stri
 		glog.Error("tempo url ", baseURL+"/api/traces/"+id)
 		resp, err := http.Get(baseURL + "/api/traces/" + id)
 		if err != nil {
-			return nil, fmt.Errorf("error querying tempo ", err)
+			return nil, fmt.Errorf("error querying tempo %v", err)
 		}
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				glog.Error("error closing body ", err)
+			}
+		}()
 
 		trace := &tempopb.Trace{}
 		err = json.NewDecoder(resp.Body).Decode(trace)
 		if err != nil {
-			return nil, fmt.Errorf("error decoding trace json ", err)
+			return nil, fmt.Errorf("error decoding trace json %v", err)
 		}
 
 		if len(trace.Batches) == 0 {
+			glog.Error("trace not found", id)
 			tm.notfound++
 			continue
 		}
 
 		// iterate through
 		if hasMissingSpans(trace) {
+			glog.Error("has missing spans", id)
 			tm.missingSpans++
 		}
 	}
@@ -177,13 +184,13 @@ func queryLoki(baseURL string, query string, durationAgo time.Duration, user str
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error building request ", err)
+		return nil, fmt.Errorf("error building request %v", err)
 	}
 	req.SetBasicAuth(user, pass)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("error querying ", err)
+		return nil, fmt.Errorf("error querying %v", err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -193,12 +200,12 @@ func queryLoki(baseURL string, query string, durationAgo time.Duration, user str
 
 	if resp.StatusCode/100 != 2 {
 		buf, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("error response from server: ", string(buf), err)
+		return nil, fmt.Errorf("error response from server: %s %v", string(buf), err)
 	}
 	var decoded logproto.QueryResponse
 	err = json.NewDecoder(resp.Body).Decode(&decoded)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding response ", err)
+		return nil, fmt.Errorf("error decoding response %v", err)
 	}
 
 	lines := make([]string, 0)
