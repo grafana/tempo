@@ -114,6 +114,11 @@ func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []stri
 		if err != nil {
 			return nil, fmt.Errorf("error querying tempo ", err)
 		}
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				glog.Error("error closing body ", err)
+			}
+		}()
 
 		trace := &tempopb.Trace{}
 		err = json.NewDecoder(resp.Body).Decode(trace)
