@@ -1,6 +1,7 @@
 package tempodb
 
 import (
+	"container/heap"
 	"fmt"
 	"time"
 
@@ -68,25 +69,72 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 }
 
 func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
+	var blocksToCompact BlockMetaHeap
 
-	for twbs.cursor < len(twbs.blocklist)-inputBlocks+1 {
-		// Pick blocks in slotStartTime <> slotEndTime
+	for twbs.cursor < len(twbs.blocklist) {
+		blocksToCompact = BlockMetaHeap(make([]*backend.BlockMeta, 0))
+		heap.Init(&blocksToCompact)
+
+		// find everything from cursor forward that belongs to this block
+		cursorEnd := twbs.cursor + 1
 		cursorBlock := twbs.blocklist[twbs.cursor]
 		currentWindow := twbs.windowForBlock(cursorBlock)
-		cursorEnd := twbs.cursor + inputBlocks - 1
 
-		if cursorEnd < len(twbs.blocklist) && currentWindow == twbs.windowForBlock(twbs.blocklist[cursorEnd]) {
-			startPos := twbs.cursor
-			twbs.cursor = startPos + inputBlocks
-			hashString := fmt.Sprintf("%v-%v", cursorBlock.TenantID, currentWindow)
+		heap.Push(&blocksToCompact, cursorBlock)
 
-			return twbs.blocklist[startPos : startPos+inputBlocks], hashString
+		for cursorEnd < len(twbs.blocklist) {
+			if currentWindow != twbs.windowForBlock(twbs.blocklist[cursorEnd]) {
+				break
+			}
+
+			heap.Push(&blocksToCompact, twbs.blocklist[cursorEnd])
+			cursorEnd++
 		}
-		twbs.cursor++
+
+		// if we found enough blocks, huzzah!  return them and we'll check this time window again next loop
+		if len(blocksToCompact) >= inputBlocks {
+			// pop all
+			for len(blocksToCompact) > inputBlocks {
+				heap.Pop(&blocksToCompact)
+			}
+
+			return blocksToCompact, fmt.Sprintf("%v-%v", cursorBlock.TenantID, currentWindow)
+		}
+
+		// otherwise update the cursor and attempt the next window
+		twbs.cursor = cursorEnd
 	}
 	return nil, ""
 }
 
 func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
 	return meta.StartTime.Unix() / int64(twbs.MaxCompactionRange/time.Second)
+}
+
+type BlockMetaHeap []*backend.BlockMeta
+
+func (h BlockMetaHeap) Len() int {
+	return len(h)
+}
+
+func (h BlockMetaHeap) Less(i, j int) bool {
+	return h[i].TotalObjects > h[j].TotalObjects
+}
+
+func (h BlockMetaHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+}
+
+func (h *BlockMetaHeap) Push(x interface{}) {
+	item := x.(*backend.BlockMeta)
+	*h = append(*h, item)
+}
+
+func (h *BlockMetaHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil
+	*h = old[0 : n-1]
+	return item
 }
