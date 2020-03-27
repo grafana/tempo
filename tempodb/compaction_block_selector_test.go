@@ -98,6 +98,46 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 				},
 			},
 		},
+		{
+			blocklist: []*backend.BlockMeta{
+				&backend.BlockMeta{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					TotalObjects: 0,
+				},
+				&backend.BlockMeta{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					TotalObjects: 1,
+				},
+				&backend.BlockMeta{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					TotalObjects: 0,
+				},
+				&backend.BlockMeta{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					TotalObjects: 1,
+				},
+			},
+			expected: []*backend.BlockMeta{
+				&backend.BlockMeta{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					TotalObjects: 0,
+				},
+				&backend.BlockMeta{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					TotalObjects: 0,
+				},
+			},
+			expectedSecond: []*backend.BlockMeta{
+				&backend.BlockMeta{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					TotalObjects: 1,
+				},
+				&backend.BlockMeta{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					TotalObjects: 1,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
