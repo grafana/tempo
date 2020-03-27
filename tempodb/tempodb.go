@@ -356,6 +356,7 @@ func (rw *readerWriter) pollBlocklist() {
 		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
 	}
 
+	metricBlocklistLength.Reset()
 	for _, tenantID := range tenants {
 		blockIDs, err := rw.r.Blocks(tenantID)
 		if err != nil {
@@ -408,7 +409,6 @@ func (rw *readerWriter) pollBlocklist() {
 			continue
 		}
 
-		metricBlocklistLength.Reset()
 		for _, block := range blocklist {
 			metricBlocklistLength.WithLabelValues(tenantID, strconv.Itoa(int(block.CompactionLevel))).Inc()
 		}
