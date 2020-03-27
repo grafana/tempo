@@ -85,6 +85,14 @@ func New(cfg Config, storeCfg storage.Config, store storage.Store) (*Compactor, 
 	return c, nil
 }
 
+// Shutdown stops the ingester.
+func (c *Compactor) Shutdown() {
+	err := services.StopAndAwaitTerminated(context.Background(), c.ringLifecycler)
+	if err != nil {
+		level.Error(util.Logger).Log("msg", "stop lifecycler failed", "err", err)
+	}
+}
+
 func (c *Compactor) Owns(hash string) bool {
 	if c.cfg.ShardingEnabled {
 		hasher := fnv.New32a()
