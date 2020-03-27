@@ -24,6 +24,7 @@ type Config struct {
 type CompactorConfig struct {
 	ChunkSizeBytes          uint32        `yaml:"chunkSizeBytes"`
 	MaxCompactionRange      time.Duration `yaml:"maxCompactionRange"`
+	MaxCompactionObjects    int           `yaml:"maxCompactionObjects"`
 	BlockRetention          time.Duration `yaml:"blockRetention"`
 	CompactedBlockRetention time.Duration `yaml:"compactedBlockRetention"`
 }

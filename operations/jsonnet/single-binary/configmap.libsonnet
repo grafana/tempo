@@ -31,6 +31,7 @@
       compaction: {
         chunkSizeBytes: 10485760,
         maxCompactionRange: "2h",
+        maxCompactionObjects: 5000000,
         blockRetention: "144h",
         compactedBlockRetention: "2m"
       }

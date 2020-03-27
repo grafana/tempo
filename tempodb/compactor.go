@@ -65,7 +65,7 @@ func (rw *readerWriter) doCompaction() {
 		tenantID := payload.(string)
 		blocklist := rw.blocklist(tenantID)
 
-		blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange)
+		blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
 	L:
 		for {
 			select {

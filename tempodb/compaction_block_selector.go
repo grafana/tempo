@@ -52,17 +52,19 @@ func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string)
 // It needs to be reinitialized with updated blocklist.
 
 type timeWindowBlockSelector struct {
-	cursor             int
-	blocklist          []*backend.BlockMeta
-	MaxCompactionRange time.Duration // Size of the time window - say 6 hours
+	cursor               int
+	blocklist            []*backend.BlockMeta
+	MaxCompactionRange   time.Duration // Size of the time window - say 6 hours
+	MaxCompactionObjects int           // maximum size of compacted objects
 }
 
 var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 
-func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration) CompactionBlockSelector {
+func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
-		blocklist:          append([]*backend.BlockMeta(nil), blocklist...),
-		MaxCompactionRange: maxCompactionRange,
+		blocklist:            append([]*backend.BlockMeta(nil), blocklist...),
+		MaxCompactionRange:   maxCompactionRange,
+		MaxCompactionObjects: maxCompactionObjects,
 	}
 
 	return twbs
@@ -90,28 +92,37 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 			heap.Push(&blocksToCompact, currentBlock)
 		}
 
-		// if we found enough blocks, huzzah!  return them and we'll check this time window again next loop
+		// did we find enough blocks?
 		if len(blocksToCompact) >= inputBlocks {
+
 			// pop all but the ones we want
 			for len(blocksToCompact) > inputBlocks {
 				heap.Pop(&blocksToCompact)
 			}
 
-			// remove the blocks we are returning so we don't consider them again
-			//   this is horribly inefficient as it's written
-			for _, blockToCompact := range blocksToCompact {
-				for i, block := range twbs.blocklist {
-					if block == blockToCompact {
-						copy(twbs.blocklist[i:], twbs.blocklist[i+1:])
-						twbs.blocklist[len(twbs.blocklist)-1] = nil
-						twbs.blocklist = twbs.blocklist[:len(twbs.blocklist)-1]
-
-						break
-					}
-				}
+			// are they small enough
+			totalObjects := 0
+			for _, blocksToCompact := range blocksToCompact {
+				totalObjects += blocksToCompact.TotalObjects
 			}
 
-			return blocksToCompact, fmt.Sprintf("%v-%v", blocksToCompact[0].TenantID, currentWindow)
+			if totalObjects < twbs.MaxCompactionObjects {
+				// remove the blocks we are returning so we don't consider them again
+				//   this is horribly inefficient as it's written
+				for _, blockToCompact := range blocksToCompact {
+					for i, block := range twbs.blocklist {
+						if block == blockToCompact {
+							copy(twbs.blocklist[i:], twbs.blocklist[i+1:])
+							twbs.blocklist[len(twbs.blocklist)-1] = nil
+							twbs.blocklist = twbs.blocklist[:len(twbs.blocklist)-1]
+
+							break
+						}
+					}
+				}
+
+				return blocksToCompact, fmt.Sprintf("%v-%v", blocksToCompact[0].TenantID, currentWindow)
+			}
 		}
 
 		// otherwise update the cursor and attempt the next window

@@ -27,6 +27,7 @@ compactor:
   compaction:
     chunkSizeBytes: 1048576 # 1024 * 1024
     maxCompactionRange: 1h
+    maxCompactionObjects: 1000000
     blockRetention: 1h
     compactedBlockRetention: 2m
 

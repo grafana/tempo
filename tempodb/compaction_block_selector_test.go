@@ -141,7 +141,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		selector := newTimeWindowBlockSelector(tt.blocklist, time.Second)
+		selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100)
 
 		actual, _ := selector.BlocksToCompact()
 		assert.Equal(t, tt.expected, actual)
