@@ -12,8 +12,9 @@ import (
 func TestTimeWindowBlockSelector(t *testing.T) {
 
 	tests := []struct {
-		blocklist []*backend.BlockMeta
-		expected  []*backend.BlockMeta
+		blocklist      []*backend.BlockMeta
+		expected       []*backend.BlockMeta
+		expectedSecond []*backend.BlockMeta
 	}{
 		{
 			blocklist: nil,
@@ -101,8 +102,11 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 
 	for _, tt := range tests {
 		selector := newTimeWindowBlockSelector(tt.blocklist, time.Second)
-		actual, _ := selector.BlocksToCompact()
 
+		actual, _ := selector.BlocksToCompact()
 		assert.Equal(t, tt.expected, actual)
+
+		actual, _ = selector.BlocksToCompact()
+		assert.Equal(t, tt.expectedSecond, actual)
 	}
 }
