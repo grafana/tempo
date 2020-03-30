@@ -8,6 +8,10 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+const (
+	objectsPerHashBucket = 100000
+)
+
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction
 type CompactionBlockSelector interface {
 	BlocksToCompact() ([]*backend.BlockMeta, string)
@@ -52,7 +56,6 @@ func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string)
 // It needs to be reinitialized with updated blocklist.
 
 type timeWindowBlockSelector struct {
-	cursor               int
 	blocklist            []*backend.BlockMeta
 	MaxCompactionRange   time.Duration // Size of the time window - say 6 hours
 	MaxCompactionObjects int           // maximum size of compacted objects
@@ -73,28 +76,27 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
 	var blocksToCompact BlockMetaHeap
 
-	for twbs.cursor < len(twbs.blocklist) {
+	for len(twbs.blocklist) > 0 {
 		blocksToCompact = BlockMetaHeap(make([]*backend.BlockMeta, 0))
 		heap.Init(&blocksToCompact)
 
 		// find everything from cursor forward that belongs to this block
-		cursorEnd := twbs.cursor
-		currentWindow := twbs.windowForBlock(twbs.blocklist[twbs.cursor])
+		cursor := 0
+		currentWindow := twbs.windowForBlock(twbs.blocklist[cursor])
 
-		for cursorEnd < len(twbs.blocklist) {
-			currentBlock := twbs.blocklist[cursorEnd]
+		for cursor < len(twbs.blocklist) {
+			currentBlock := twbs.blocklist[cursor]
 
 			if currentWindow != twbs.windowForBlock(currentBlock) {
 				break
 			}
-			cursorEnd++
+			cursor++
 
 			heap.Push(&blocksToCompact, currentBlock)
 		}
 
 		// did we find enough blocks?
 		if len(blocksToCompact) >= inputBlocks {
-
 			// pop all but the ones we want
 			for len(blocksToCompact) > inputBlocks {
 				heap.Pop(&blocksToCompact)
@@ -121,18 +123,22 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 					}
 				}
 
-				return blocksToCompact, fmt.Sprintf("%v-%v-%v", blocksToCompact[0].TenantID, totalObjects/100000, currentWindow)
+				return blocksToCompact, fmt.Sprintf("%v-%v-%v", blocksToCompact[0].TenantID, totalObjects/objectsPerHashBucket, currentWindow)
 			}
 		}
 
-		// otherwise update the cursor and attempt the next window
-		twbs.cursor = cursorEnd
+		// otherwise update the blocklist
+		twbs.blocklist = twbs.blocklist[cursor:]
 	}
 	return nil, ""
 }
 
 func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
-	return meta.StartTime.Unix() / int64(twbs.MaxCompactionRange/time.Second)
+	return twbs.windowForTime(meta.StartTime)
+}
+
+func (twbs *timeWindowBlockSelector) windowForTime(t time.Time) int64 {
+	return t.Unix() / int64(twbs.MaxCompactionRange/time.Second)
 }
 
 type BlockMetaHeap []*backend.BlockMeta
