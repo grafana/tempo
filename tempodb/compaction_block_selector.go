@@ -123,7 +123,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 					}
 				}
 
-				return blocksToCompact, fmt.Sprintf("%v-%v-%v", blocksToCompact[0].TenantID, totalObjects/objectsPerHashBucket, currentWindow)
+				return blocksToCompact, fmt.Sprintf("%v-%v-%v", blocksToCompact[0].TenantID, blocksToCompact[0].CompactionLevel, currentWindow)
 			}
 		}
 
