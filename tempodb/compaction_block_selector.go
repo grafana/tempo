@@ -1,11 +1,15 @@
 package tempodb
 
 import (
-	"container/heap"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
+)
+
+const (
+	objectsPerHashBucket = 100000
 )
 
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction
@@ -52,7 +56,6 @@ func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string)
 // It needs to be reinitialized with updated blocklist.
 
 type timeWindowBlockSelector struct {
-	cursor               int
 	blocklist            []*backend.BlockMeta
 	MaxCompactionRange   time.Duration // Size of the time window - say 6 hours
 	MaxCompactionObjects int           // maximum size of compacted objects
@@ -71,45 +74,70 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 }
 
 func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
-	var blocksToCompact BlockMetaHeap
-
-	for twbs.cursor < len(twbs.blocklist) {
-		blocksToCompact = BlockMetaHeap(make([]*backend.BlockMeta, 0))
-		heap.Init(&blocksToCompact)
-
+	for len(twbs.blocklist) > 0 {
 		// find everything from cursor forward that belongs to this block
-		cursorEnd := twbs.cursor
-		currentWindow := twbs.windowForBlock(twbs.blocklist[twbs.cursor])
+		cursor := 0
+		currentWindow := twbs.windowForBlock(twbs.blocklist[cursor])
 
-		for cursorEnd < len(twbs.blocklist) {
-			currentBlock := twbs.blocklist[cursorEnd]
+		windowBlocks := make([]*backend.BlockMeta, 0)
+		for cursor < len(twbs.blocklist) {
+			currentBlock := twbs.blocklist[cursor]
 
 			if currentWindow != twbs.windowForBlock(currentBlock) {
 				break
 			}
-			cursorEnd++
+			cursor++
 
-			heap.Push(&blocksToCompact, currentBlock)
+			windowBlocks = append(windowBlocks, currentBlock)
 		}
 
 		// did we find enough blocks?
-		if len(blocksToCompact) >= inputBlocks {
+		if len(windowBlocks) >= inputBlocks {
+			var compactBlocks []*backend.BlockMeta
 
-			// pop all but the ones we want
-			for len(blocksToCompact) > inputBlocks {
-				heap.Pop(&blocksToCompact)
+			// blocks in the currently active window
+			// dangerous to use time.Now()
+			nowWindow := twbs.windowForTime(time.Now())
+			blockWindow := twbs.windowForBlock(windowBlocks[0])
+
+			compact := true
+
+			// the active window should be compacted by level
+			if nowWindow <= blockWindow {
+				sort.Slice(windowBlocks, func(i, j int) bool {
+					return windowBlocks[i].CompactionLevel < windowBlocks[j].CompactionLevel
+				})
+				compactBlocks = windowBlocks[:inputBlocks]
+
+				level := compactBlocks[0].CompactionLevel
+				for _, block := range compactBlocks[1:] {
+					if level != block.CompactionLevel {
+						compact = false
+						break
+					}
+				}
+			} else if nowWindow-1 == blockWindow { // the most recent inactive window will be ignored to avoid race condittions
+				compact = false
+			} else { // all other windows will be compacted using their two smallest blocks
+				sort.Slice(windowBlocks, func(i, j int) bool {
+					return windowBlocks[i].TotalObjects < windowBlocks[j].TotalObjects
+				})
+				compactBlocks = windowBlocks[:inputBlocks]
 			}
 
 			// are they small enough
 			totalObjects := 0
-			for _, blocksToCompact := range blocksToCompact {
-				totalObjects += blocksToCompact.TotalObjects
+			for _, block := range compactBlocks {
+				totalObjects += block.TotalObjects
+			}
+			if totalObjects > twbs.MaxCompactionObjects {
+				compact = false
 			}
 
-			if totalObjects < twbs.MaxCompactionObjects {
+			if compact {
 				// remove the blocks we are returning so we don't consider them again
 				//   this is horribly inefficient as it's written
-				for _, blockToCompact := range blocksToCompact {
+				for _, blockToCompact := range compactBlocks {
 					for i, block := range twbs.blocklist {
 						if block == blockToCompact {
 							copy(twbs.blocklist[i:], twbs.blocklist[i+1:])
@@ -121,44 +149,20 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 					}
 				}
 
-				return blocksToCompact, fmt.Sprintf("%v-%v", blocksToCompact[0].TenantID, currentWindow)
+				return compactBlocks, fmt.Sprintf("%v-%v-%v", compactBlocks[0].TenantID, compactBlocks[0].CompactionLevel, currentWindow)
 			}
 		}
 
-		// otherwise update the cursor and attempt the next window
-		twbs.cursor = cursorEnd
+		// otherwise update the blocklist
+		twbs.blocklist = twbs.blocklist[cursor:]
 	}
 	return nil, ""
 }
 
 func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
-	return meta.StartTime.Unix() / int64(twbs.MaxCompactionRange/time.Second)
+	return twbs.windowForTime(meta.StartTime)
 }
 
-type BlockMetaHeap []*backend.BlockMeta
-
-func (h BlockMetaHeap) Len() int {
-	return len(h)
-}
-
-func (h BlockMetaHeap) Less(i, j int) bool {
-	return h[i].TotalObjects > h[j].TotalObjects
-}
-
-func (h BlockMetaHeap) Swap(i, j int) {
-	h[i], h[j] = h[j], h[i]
-}
-
-func (h *BlockMetaHeap) Push(x interface{}) {
-	item := x.(*backend.BlockMeta)
-	*h = append(*h, item)
-}
-
-func (h *BlockMetaHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	item := old[n-1]
-	old[n-1] = nil
-	*h = old[0 : n-1]
-	return item
+func (twbs *timeWindowBlockSelector) windowForTime(t time.Time) int64 {
+	return t.Unix() / int64(twbs.MaxCompactionRange/time.Second)
 }
