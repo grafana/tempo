@@ -128,9 +128,9 @@ func dumpBucket(bucketName string, tenantID string, windowRange time.Duration) e
 
 func blockStats(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta, windowRange time.Duration) (int, uint8, int64, time.Time, time.Time) {
 	if meta != nil {
-		return meta.TotalObjects, meta.CompactionLevel, meta.StartTime.Unix() / int64(windowRange/time.Second), meta.StartTime, meta.EndTime
+		return meta.TotalObjects, meta.CompactionLevel, meta.EndTime.Unix() / int64(windowRange/time.Second), meta.StartTime, meta.EndTime
 	} else if compactedMeta != nil {
-		return compactedMeta.TotalObjects, compactedMeta.CompactionLevel, compactedMeta.StartTime.Unix() / int64(windowRange/time.Second), compactedMeta.StartTime, compactedMeta.EndTime
+		return compactedMeta.TotalObjects, compactedMeta.CompactionLevel, compactedMeta.EndTime.Unix() / int64(windowRange/time.Second), compactedMeta.StartTime, compactedMeta.EndTime
 	}
 
 	return -1, 0, -1, time.Unix(0, 0), time.Unix(0, 0)
