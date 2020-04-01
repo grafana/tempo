@@ -337,6 +337,38 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 			},
 		},
 		{
+			name: "three blocks choose larger two",
+			blocklist: []*backend.BlockMeta{
+				&backend.BlockMeta{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 1,
+					EndTime:         now,
+				},
+				&backend.BlockMeta{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					CompactionLevel: 0,
+					EndTime:         now,
+				},
+				&backend.BlockMeta{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					CompactionLevel: 1,
+					EndTime:         now,
+				},
+			},
+			expected: []*backend.BlockMeta{
+				&backend.BlockMeta{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 1,
+					EndTime:         now,
+				},
+				&backend.BlockMeta{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					CompactionLevel: 1,
+					EndTime:         now,
+				},
+			},
+		},
+		{
 			name: "three blocks choose none",
 			blocklist: []*backend.BlockMeta{
 				&backend.BlockMeta{
