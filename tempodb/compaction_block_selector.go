@@ -100,6 +100,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 			activeWindow := twbs.windowForTime(time.Now())
 			blockWindow := twbs.windowForBlock(windowBlocks[0])
 
+			hashString := fmt.Sprintf("%v", windowBlocks[0].TenantID)
 			compact := true
 
 			// the active window should be compacted by level
@@ -116,6 +117,8 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 						break
 					}
 				}
+
+				hashString = fmt.Sprintf("%v-%v-%v", compactBlocks[0].TenantID, compactBlocks[0].CompactionLevel, currentWindow)
 			} else if activeWindow-1 == blockWindow { // the most recent inactive window will be ignored to avoid race condittions
 				compact = false
 			} else { // all other windows will be compacted using their two smallest blocks
@@ -123,6 +126,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 					return windowBlocks[i].TotalObjects < windowBlocks[j].TotalObjects
 				})
 				compactBlocks = windowBlocks[:inputBlocks]
+				hashString = fmt.Sprintf("%v-%v", compactBlocks[0].TenantID, currentWindow)
 			}
 
 			// are they small enough
@@ -149,7 +153,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 					}
 				}
 
-				return compactBlocks, fmt.Sprintf("%v-%v-%v", compactBlocks[0].TenantID, compactBlocks[0].CompactionLevel, currentWindow)
+				return compactBlocks, hashString
 			}
 		}
 
