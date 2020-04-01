@@ -97,13 +97,13 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 
 			// blocks in the currently active window
 			// dangerous to use time.Now()
-			nowWindow := twbs.windowForTime(time.Now())
+			activeWindow := twbs.windowForTime(time.Now())
 			blockWindow := twbs.windowForBlock(windowBlocks[0])
 
 			compact := true
 
 			// the active window should be compacted by level
-			if nowWindow <= blockWindow {
+			if activeWindow <= blockWindow {
 				sort.Slice(windowBlocks, func(i, j int) bool {
 					return windowBlocks[i].CompactionLevel < windowBlocks[j].CompactionLevel
 				})
@@ -116,7 +116,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 						break
 					}
 				}
-			} else if nowWindow-1 == blockWindow { // the most recent inactive window will be ignored to avoid race condittions
+			} else if activeWindow-1 == blockWindow { // the most recent inactive window will be ignored to avoid race condittions
 				compact = false
 			} else { // all other windows will be compacted using their two smallest blocks
 				sort.Slice(windowBlocks, func(i, j int) bool {
@@ -160,7 +160,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 }
 
 func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
-	return twbs.windowForTime(meta.StartTime)
+	return twbs.windowForTime(meta.EndTime)
 }
 
 func (twbs *timeWindowBlockSelector) windowForTime(t time.Time) int64 {
