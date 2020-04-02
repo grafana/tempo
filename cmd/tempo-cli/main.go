@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -19,11 +21,13 @@ var (
 	gcsBucket   string
 	tenantID    string
 	windowRange time.Duration
+	blockID     string
 )
 
 func init() {
 	flag.StringVar(&gcsBucket, "gcs-bucket", "", "bucket to scan")
 	flag.StringVar(&tenantID, "tenant-id", "", "tenant-id that contains the bucket")
+	flag.StringVar(&blockID, "block-id", "", "block-id to dump (optional)")
 	flag.DurationVar(&windowRange, "window-range", 4*time.Hour, "block time window range for compaction")
 }
 
@@ -40,10 +44,81 @@ func main() {
 		return
 	}
 
-	err := dumpBucket(gcsBucket, tenantID, windowRange)
+	var err error
+	if len(blockID) > 0 {
+		err = dumpBlock(gcsBucket, tenantID, windowRange, blockID)
+	} else {
+		err = dumpBucket(gcsBucket, tenantID, windowRange)
+	}
+
 	if err != nil {
 		fmt.Printf("%v", err)
 	}
+}
+
+func dumpBlock(bucketName string, tenantID string, windowRange time.Duration, blockID string) error {
+	r, _, c, err := gcs.New(&gcs.Config{
+		BucketName:      bucketName,
+		ChunkBufferSize: 10 * 1024 * 1024,
+	})
+	if err != nil {
+		return err
+	}
+
+	id := uuid.MustParse(blockID)
+
+	meta, err := r.BlockMeta(id, tenantID)
+	if err != nil {
+		return err
+	}
+
+	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
+	if err != nil && err != backend.ErrMetaDoesNotExist {
+		return err
+	}
+
+	objects, lvl, window, start, end := blockStats(meta, compactedMeta, windowRange)
+
+	fmt.Println("ID            : ", id)
+	fmt.Println("Total Objects : ", objects)
+	fmt.Println("Level         : ", lvl)
+	fmt.Println("Window        : ", window)
+	fmt.Println("Start         : ", start)
+	fmt.Println("End           : ", end)
+
+	fmt.Println("Searching for dupes ...")
+
+	iter, err := backend.NewBackendIterator(tenantID, id, 10*1024*1024, r)
+	if err != nil {
+		return err
+	}
+
+	i := 0
+	dupe := 0
+	prevID := make([]byte, 16)
+	for {
+		objID, _, err := iter.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		if bytes.Equal(objID, prevID) {
+			dupe++
+		}
+
+		copy(prevID, objID)
+		i++
+		if i%100000 == 0 {
+			fmt.Println("Record: ", i)
+		}
+	}
+
+	fmt.Println("total: ", i)
+	fmt.Println("dupes: ", dupe)
+
+	return nil
 }
 
 func dumpBucket(bucketName string, tenantID string, windowRange time.Duration) error {
