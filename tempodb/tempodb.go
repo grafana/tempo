@@ -84,9 +84,13 @@ type Compactor interface {
 	EnableCompaction(cfg *CompactorConfig, sharder CompactorSharder)
 }
 
-type CompactorSharder interface {
-	Owns(hash string) bool
+type ObjectCombiner interface {
 	Combine(objA []byte, objB []byte) []byte
+}
+
+type CompactorSharder interface {
+	ObjectCombiner
+	Owns(hash string) bool
 }
 
 type FindMetrics struct {
