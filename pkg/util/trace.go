@@ -1,7 +1,6 @@
 package util
 
 import (
-	"bytes"
 	"hash/fnv"
 
 	"github.com/cortexproject/cortex/pkg/util"
@@ -52,24 +51,20 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 		return bytes
 	}
 
+	spansInA := make(map[uint64]struct{})
+	for _, batchA := range traceA.Batches {
+		for _, spanA := range batchA.Spans {
+			spansInA[Fingerprint(spanA.SpanId)] = struct{}{}
+		}
+	}
+
 	// loop through every span and copy spans in B that don't exist to A
 	for _, batchB := range traceB.Batches {
 		notFoundSpans := batchB.Spans[:0]
 		for _, spanB := range batchB.Spans {
-			foundSpan := false
-
-		A:
-			for _, batchA := range traceA.Batches {
-				for _, spanA := range batchA.Spans {
-					if bytes.Equal(spanA.SpanId, spanB.SpanId) {
-						foundSpan = true
-						break A
-					}
-				}
-			}
-
 			// if found in A, remove from the batch
-			if !foundSpan {
+			_, ok := spansInA[Fingerprint(spanB.SpanId)]
+			if !ok {
 				notFoundSpans = append(notFoundSpans, spanB)
 			}
 		}
