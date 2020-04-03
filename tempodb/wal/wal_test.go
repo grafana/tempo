@@ -21,6 +21,17 @@ const (
 	testTenantID = "fake"
 )
 
+type mockCombiner struct {
+}
+
+func (m *mockCombiner) Combine(objA []byte, objB []byte) []byte {
+	if len(objA) > len(objB) {
+		return objA
+	}
+
+	return objB
+}
+
 func TestCreateBlock(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -68,7 +79,7 @@ func TestReadWrite(t *testing.T) {
 	err = block.Write([]byte{0x00, 0x01}, bReq)
 	assert.NoError(t, err, "unexpected error creating writing req")
 
-	foundBytes, err := block.Find([]byte{0x00, 0x01})
+	foundBytes, err := block.Find([]byte{0x00, 0x01}, &mockCombiner{})
 	assert.NoError(t, err, "unexpected error creating reading req")
 
 	outReq := &tempopb.PushRequest{}
@@ -147,15 +158,18 @@ func TestIterator(t *testing.T) {
 
 	numMsgs := 10
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
+		traceID := make([]byte, 16)
+		rand.Read(traceID)
+
+		req := test.MakeRequest(rand.Int()%1000, traceID)
 		bReq, err := proto.Marshal(req)
 		assert.NoError(t, err)
-		err = block.Write([]byte{0x01}, bReq)
+		err = block.Write(traceID, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
 	i := 0
-	completeBlock, err := block.Complete(wal)
+	completeBlock, err := block.Complete(wal, &mockCombiner{})
 	assert.NoError(t, err)
 
 	iterator, err := completeBlock.Iterator()
@@ -212,7 +226,7 @@ func TestCompleteBlock(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	complete, err := block.Complete(wal)
+	complete, err := block.Complete(wal, &mockCombiner{})
 	assert.NoError(t, err, "unexpected error completing block")
 	// test downsample config
 	assert.Equal(t, numMsgs/indexDownsample+1, len(complete.records))
@@ -222,7 +236,7 @@ func TestCompleteBlock(t *testing.T) {
 
 	for i, id := range ids {
 		out := &tempopb.PushRequest{}
-		foundBytes, err := complete.Find(id)
+		foundBytes, err := complete.Find(id, &mockCombiner{})
 		assert.NoError(t, err)
 
 		err = proto.Unmarshal(foundBytes, out)
@@ -296,7 +310,7 @@ func BenchmarkWriteRead(b *testing.B) {
 		for _, req := range reqs {
 			bytes, _ := proto.Marshal(req)
 			_ = block.Write(req.Batch.Spans[0].TraceId, bytes)
-			_, _ = block.Find(req.Batch.Spans[0].TraceId)
+			_, _ = block.Find(req.Batch.Spans[0].TraceId, &mockCombiner{})
 		}
 	}
 }

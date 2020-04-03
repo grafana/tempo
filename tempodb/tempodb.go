@@ -85,8 +85,8 @@ type Compactor interface {
 }
 
 type CompactorSharder interface {
-	Owns(hash string) bool
 	Combine(objA []byte, objB []byte) []byte
+	Owns(hash string) bool
 }
 
 type FindMetrics struct {

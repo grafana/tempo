@@ -135,7 +135,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	ready := i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now) || immediate
 
 	if ready {
-		completeBlock, err := i.headBlock.Complete(i.wal)
+		completeBlock, err := i.headBlock.Complete(i.wal, i)
 		if err != nil {
 			return false, err
 		}
@@ -201,7 +201,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
-	foundBytes, err := i.headBlock.Find(id)
+	foundBytes, err := i.headBlock.Find(id, i)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +217,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	}
 
 	for _, c := range i.completeBlocks {
-		foundBytes, err = c.Find(id)
+		foundBytes, err = c.Find(id, i)
 		if err != nil {
 			return nil, err
 		}
@@ -266,4 +266,8 @@ func (i *instance) resetHeadBlock() error {
 	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
 	i.lastBlockCut = time.Now()
 	return err
+}
+
+func (i *instance) Combine(objA []byte, objB []byte) []byte {
+	return util.CombineTraces(objA, objB)
 }

@@ -13,12 +13,21 @@ type Finder interface {
 type finder struct {
 	ra            io.ReaderAt
 	sortedRecords []*Record
+	combiner      ObjectCombiner
 }
 
-func NewFinder(sortedRecords []*Record, ra io.ReaderAt) Finder {
+func NewFinder(sortedRecords []*Record, ra io.ReaderAt, combiner ObjectCombiner) Finder {
 	return &finder{
 		ra:            ra,
 		sortedRecords: sortedRecords,
+	}
+}
+
+func NewDedupingFinder(sortedRecords []*Record, ra io.ReaderAt, combiner ObjectCombiner) Finder {
+	return &finder{
+		ra:            ra,
+		sortedRecords: sortedRecords,
+		combiner:      combiner,
 	}
 }
 
@@ -40,6 +49,14 @@ func (f *finder) Find(id ID) ([]byte, error) {
 	}
 
 	iter := NewIterator(bytes.NewReader(buff))
+
+	if f.combiner != nil {
+		iter, err = NewDedupingIterator(iter, f.combiner)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	for {
 		foundID, b, err := iter.Next()
 		if foundID == nil {
