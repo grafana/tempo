@@ -201,7 +201,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	i.blockTracesMtx.Lock()
 	defer i.blockTracesMtx.Unlock()
 
-	foundBytes, err := i.headBlock.Find(id)
+	foundBytes, err := i.headBlock.Find(id, i)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +217,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	}
 
 	for _, c := range i.completeBlocks {
-		foundBytes, err = c.Find(id)
+		foundBytes, err = c.Find(id, i)
 		if err != nil {
 			return nil, err
 		}

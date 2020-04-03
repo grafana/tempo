@@ -139,14 +139,14 @@ func (h *HeadBlock) Complete(w *WAL, combiner backend.ObjectCombiner) (*Complete
 	return orderedBlock, nil
 }
 
-func (h *HeadBlock) Find(id backend.ID) ([]byte, error) {
+func (h *HeadBlock) Find(id backend.ID, combiner backend.ObjectCombiner) ([]byte, error) {
 	records := h.appender.Records()
 	file, err := h.file()
 	if err != nil {
 		return nil, err
 	}
 
-	finder := backend.NewFinder(records, file)
+	finder := backend.NewDedupingFinder(records, file, combiner)
 
 	return finder.Find(id)
 }

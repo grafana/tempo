@@ -43,13 +43,13 @@ func (c *CompleteBlock) ObjectFilePath() string {
 	return c.fullFilename()
 }
 
-func (c *CompleteBlock) Find(id backend.ID) ([]byte, error) {
+func (c *CompleteBlock) Find(id backend.ID, combiner backend.ObjectCombiner) ([]byte, error) {
 	file, err := c.file()
 	if err != nil {
 		return nil, err
 	}
 
-	finder := backend.NewFinder(c.records, file)
+	finder := backend.NewDedupingFinder(c.records, file, combiner)
 
 	return finder.Find(id)
 }

@@ -79,7 +79,7 @@ func TestReadWrite(t *testing.T) {
 	err = block.Write([]byte{0x00, 0x01}, bReq)
 	assert.NoError(t, err, "unexpected error creating writing req")
 
-	foundBytes, err := block.Find([]byte{0x00, 0x01})
+	foundBytes, err := block.Find([]byte{0x00, 0x01}, &mockCombiner{})
 	assert.NoError(t, err, "unexpected error creating reading req")
 
 	outReq := &tempopb.PushRequest{}
@@ -236,7 +236,7 @@ func TestCompleteBlock(t *testing.T) {
 
 	for i, id := range ids {
 		out := &tempopb.PushRequest{}
-		foundBytes, err := complete.Find(id)
+		foundBytes, err := complete.Find(id, &mockCombiner{})
 		assert.NoError(t, err)
 
 		err = proto.Unmarshal(foundBytes, out)
@@ -310,7 +310,7 @@ func BenchmarkWriteRead(b *testing.B) {
 		for _, req := range reqs {
 			bytes, _ := proto.Marshal(req)
 			_ = block.Write(req.Batch.Spans[0].TraceId, bytes)
-			_, _ = block.Find(req.Batch.Spans[0].TraceId)
+			_, _ = block.Find(req.Batch.Spans[0].TraceId, &mockCombiner{})
 		}
 	}
 }
