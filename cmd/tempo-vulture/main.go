@@ -176,7 +176,7 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 }
 
 func queryLoki(baseURL string, query string, durationAgo time.Duration, user string, pass string) ([]string, error) {
-	start := time.Now().Add(-durationAgo)
+	start := time.Now().Add(-durationAgo).Add(-30 * time.Second) // offsetting 30 seconds prevents it from querying logs from now which naturally have a high percentage of errors
 	end := start.Add(30 * time.Minute)
 	url := baseURL + fmt.Sprintf("/api/prom/query?limit=10&start=%d&end=%d&query=%s", start.UnixNano(), end.UnixNano(), url.QueryEscape(query))
 
