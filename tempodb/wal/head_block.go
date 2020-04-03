@@ -52,7 +52,7 @@ func (h *HeadBlock) Length() int {
 	return h.appender.Length()
 }
 
-func (h *HeadBlock) Complete(w *WAL) (*CompleteBlock, error) {
+func (h *HeadBlock) Complete(w *WAL, combiner backend.ObjectCombiner) (*CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -96,14 +96,18 @@ func (h *HeadBlock) Complete(w *WAL) (*CompleteBlock, error) {
 	}
 
 	iterator := backend.NewRecordIterator(records, readFile)
+	iterator, err = backend.NewDedupingIterator(iterator, combiner)
+	if err != nil {
+		return nil, err
+	}
 	appender := backend.NewBufferedAppender(appendFile, walConfig.IndexDownsample, len(records))
 	for {
 		bytesID, bytesObject, err := iterator.Next()
-		if err != nil {
-			return nil, err
-		}
 		if bytesID == nil {
 			break
+		}
+		if err != nil {
+			return nil, err
 		}
 
 		orderedBlock.bloom.Add(bytesID)

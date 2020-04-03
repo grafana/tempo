@@ -84,12 +84,8 @@ type Compactor interface {
 	EnableCompaction(cfg *CompactorConfig, sharder CompactorSharder)
 }
 
-type ObjectCombiner interface {
-	Combine(objA []byte, objB []byte) []byte
-}
-
 type CompactorSharder interface {
-	ObjectCombiner
+	Combine(objA []byte, objB []byte) []byte
 	Owns(hash string) bool
 }
 

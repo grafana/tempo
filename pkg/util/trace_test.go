@@ -1,4 +1,4 @@
-package compactor
+package util
 
 import (
 	"bytes"
@@ -13,8 +13,6 @@ import (
 )
 
 func TestCombine(t *testing.T) {
-	compactor := &Compactor{}
-
 	t1 := test.MakeTrace(10, []byte{0x01, 0x02})
 	t2 := test.MakeTrace(10, []byte{0x01, 0x03})
 
@@ -72,7 +70,7 @@ func TestCombine(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		actual := compactor.Combine(tt.trace1, tt.trace2)
+		actual := CombineTraces(tt.trace1, tt.trace2)
 
 		if !bytes.Equal(tt.expected, actual) {
 			actualTrace := &tempopb.Trace{}

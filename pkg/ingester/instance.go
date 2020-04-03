@@ -135,7 +135,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	ready := i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now) || immediate
 
 	if ready {
-		completeBlock, err := i.headBlock.Complete(i.wal)
+		completeBlock, err := i.headBlock.Complete(i.wal, i)
 		if err != nil {
 			return false, err
 		}
@@ -266,4 +266,8 @@ func (i *instance) resetHeadBlock() error {
 	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
 	i.lastBlockCut = time.Now()
 	return err
+}
+
+func (i *instance) Combine(objA []byte, objB []byte) []byte {
+	return util.CombineTraces(objA, objB)
 }

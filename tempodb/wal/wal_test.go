@@ -21,6 +21,17 @@ const (
 	testTenantID = "fake"
 )
 
+type mockCombiner struct {
+}
+
+func (m *mockCombiner) Combine(objA []byte, objB []byte) []byte {
+	if len(objA) > len(objB) {
+		return objA
+	}
+
+	return objB
+}
+
 func TestCreateBlock(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -147,15 +158,18 @@ func TestIterator(t *testing.T) {
 
 	numMsgs := 10
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
+		traceID := make([]byte, 16)
+		rand.Read(traceID)
+
+		req := test.MakeRequest(rand.Int()%1000, traceID)
 		bReq, err := proto.Marshal(req)
 		assert.NoError(t, err)
-		err = block.Write([]byte{0x01}, bReq)
+		err = block.Write(traceID, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
 	i := 0
-	completeBlock, err := block.Complete(wal)
+	completeBlock, err := block.Complete(wal, &mockCombiner{})
 	assert.NoError(t, err)
 
 	iterator, err := completeBlock.Iterator()
@@ -212,7 +226,7 @@ func TestCompleteBlock(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	complete, err := block.Complete(wal)
+	complete, err := block.Complete(wal, &mockCombiner{})
 	assert.NoError(t, err, "unexpected error completing block")
 	// test downsample config
 	assert.Equal(t, numMsgs/indexDownsample+1, len(complete.records))

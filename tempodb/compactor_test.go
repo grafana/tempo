@@ -103,7 +103,7 @@ func TestCompaction(t *testing.T) {
 		allReqs = append(allReqs, reqs...)
 		allIds = append(allIds, ids...)
 
-		complete, err := head.Complete(wal)
+		complete, err := head.Complete(wal, &mockSharder{})
 		assert.NoError(t, err)
 
 		err = w.WriteBlock(context.Background(), complete)
@@ -210,7 +210,7 @@ func TestSameIDCompaction(t *testing.T) {
 		err = head.Write(id, rec)
 		assert.NoError(t, err, "unexpected error writing req")
 
-		complete, err := head.Complete(wal)
+		complete, err := head.Complete(wal, &mockSharder{})
 		assert.NoError(t, err)
 
 		err = w.WriteBlock(context.Background(), complete)

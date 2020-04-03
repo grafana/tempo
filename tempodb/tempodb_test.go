@@ -75,7 +75,7 @@ func TestDB(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	complete, err := head.Complete(wal)
+	complete, err := head.Complete(wal, &mockSharder{})
 	assert.NoError(t, err)
 
 	err = w.WriteBlock(context.Background(), complete)
@@ -131,7 +131,7 @@ func TestRetention(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err)
 
-	complete, err := head.Complete(wal)
+	complete, err := head.Complete(wal, &mockSharder{})
 	assert.NoError(t, err)
 	blockID = complete.BlockMeta().BlockID
 
