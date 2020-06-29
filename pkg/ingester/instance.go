@@ -177,7 +177,7 @@ func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error
 
 		if written.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
-			err = b.Clear()
+			err = b.Clear() // todo: don't remove from complete blocks slice until after clear succeeds?
 			if err == nil {
 				metricBlocksClearedTotal.Inc()
 			}
@@ -192,7 +192,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	// First search live traces being assembled in the ingester instance.
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[traceFingerprint(util.Fingerprint(id))]; ok {
-		retMe := liveTrace.trace
+		retMe := liveTrace.trace // todo: is this necessary?
 		i.tracesMtx.Unlock()
 		return retMe, nil
 	}

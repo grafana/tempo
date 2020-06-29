@@ -59,6 +59,54 @@ func TestPushQuery(t *testing.T) {
 	}
 }
 
+func TestFullTraceReturned(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting tempdir")
+	defer os.RemoveAll(tmpDir)
+
+	ctx := user.InjectOrgID(context.Background(), "test")
+	ingester, _, _ := defaultIngester(t, tmpDir)
+
+	traceID := make([]byte, 16)
+	_, err = rand.Read(traceID)
+	assert.NoError(t, err)
+	trace := test.MakeTrace(2, traceID) // 2 batches
+
+	// push the first batch
+	_, err = ingester.Push(ctx,
+		&tempopb.PushRequest{
+			Batch: trace.Batches[0],
+		})
+	assert.NoError(t, err, "unexpected error pushing")
+
+	// force cut all traces
+	for _, instance := range ingester.instances {
+		err = instance.CutCompleteTraces(0, true)
+		assert.NoError(t, err, "unexpected error cutting traces")
+	}
+
+	// push the 2nd batch
+	_, err = ingester.Push(ctx,
+		&tempopb.PushRequest{
+			Batch: trace.Batches[1],
+		})
+	assert.NoError(t, err, "unexpected error pushing")
+
+	// force cut all traces
+	for _, instance := range ingester.instances {
+		err = instance.CutCompleteTraces(0, true)
+		assert.NoError(t, err, "unexpected error cutting traces")
+	}
+
+	// make sure the trace comes back whole
+	foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+		TraceID: traceID,
+	})
+	assert.NoError(t, err, "unexpected error querying")
+	equal := proto.Equal(trace, foundTrace.Trace)
+	assert.True(t, equal)
+}
+
 func TestWal(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting tempdir")
