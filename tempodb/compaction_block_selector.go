@@ -8,10 +8,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-const (
-	objectsPerHashBucket = 100000
-)
-
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction
 type CompactionBlockSelector interface {
 	BlocksToCompact() ([]*backend.BlockMeta, string)

@@ -42,9 +42,6 @@ func (i *dedupingIterator) Next() (ID, []byte, error) {
 	for {
 		id, obj, err := i.iter.Next()
 		if err == io.EOF {
-			dedupedID = i.currentID
-			dedupedObject = i.currentObject
-
 			i.currentID = nil
 			i.currentObject = nil
 		}
