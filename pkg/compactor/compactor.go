@@ -26,7 +26,7 @@ type Compactor struct {
 }
 
 // New makes a new Querier.
-func New(cfg Config, storeCfg storage.Config, store storage.Store) (*Compactor, error) {
+func New(cfg Config, store storage.Store) (*Compactor, error) {
 	c := &Compactor{
 		cfg:   &cfg,
 		store: store,
@@ -57,18 +57,26 @@ func New(cfg Config, storeCfg storage.Config, store storage.Store) (*Compactor, 
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	return c, nil
+}
+
+func (c *Compactor) Start(storeCfg storage.Config) error {
+	if c.cfg.ShardingEnabled {
+		ctx := context.Background()
 
 		level.Info(util.Logger).Log("msg", "waiting to be active in the ring")
-		err = c.waitRingActive(ctx)
+		err := c.waitRingActive(ctx)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// if there is already a compactor in the ring then let's wait one poll cycle here to reduce the chance
 		// of compactor collisions
 		rset, err := c.Ring.GetAll()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if len(rset.Ingesters) > 1 {
@@ -78,9 +86,9 @@ func New(cfg Config, storeCfg storage.Config, store storage.Store) (*Compactor, 
 	}
 
 	level.Info(util.Logger).Log("msg", "enabling compaction")
-	store.EnableCompaction(cfg.Compactor, c)
+	c.store.EnableCompaction(c.cfg.Compactor, c)
 
-	return c, nil
+	return nil
 }
 
 // Shutdown stops the ingester.
