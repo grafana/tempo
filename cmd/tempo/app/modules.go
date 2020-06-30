@@ -214,9 +214,10 @@ func (t *App) initCompactor() (err error) {
 
 	t.server.HTTP.Handle("/ring-compactor", t.compactor.Ring)
 
-	err = t.compactor.Start(t.cfg.StorageConfig)
+	// todo: is this ok?
+	go t.compactor.Start(t.cfg.StorageConfig)
 
-	return err
+	return nil
 }
 
 func (t *App) stopCompactor() (err error) {
