@@ -63,7 +63,6 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 }
 
 func (c *Compactor) Start(storeCfg storage.Config) error {
-
 	if c.cfg.ShardingEnabled {
 		ctx := context.Background()
 
@@ -88,6 +87,8 @@ func (c *Compactor) Start(storeCfg storage.Config) error {
 
 	level.Info(util.Logger).Log("msg", "enabling compaction")
 	c.store.EnableCompaction(c.cfg.Compactor, c)
+
+	return nil
 }
 
 // Shutdown stops the ingester.
