@@ -42,7 +42,10 @@ type Config struct {
 
 // RegisterFlags registers flag.
 func (c *Config) RegisterFlags(f *flag.FlagSet) {
-	c.Server.MetricsNamespace = "tempo"
+	const metricsNamespace = "tempo"
+
+	c.Server.MetricsNamespace = metricsNamespace
+	c.MemberlistKV.MetricsNamespace = metricsNamespace
 	c.Target = All
 	c.Server.ExcludeRequestInLog = true
 	f.Var(&c.Target, "target", "target module (default All)")
