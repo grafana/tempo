@@ -14,7 +14,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 const (
@@ -119,7 +119,7 @@ func TestAppend(t *testing.T) {
 	records := block.appender.Records()
 	file, err := block.file()
 	assert.NoError(t, err)
-	iterator := backend.NewRecordIterator(records, file)
+	iterator := encoding.NewRecordIterator(records, file)
 	i := 0
 
 	for {
@@ -247,7 +247,7 @@ func TestCompleteBlock(t *testing.T) {
 	}
 
 	// confirm order
-	var prev *backend.Record
+	var prev *encoding.Record
 	for _, r := range complete.records {
 		if prev != nil {
 			assert.Greater(t, r.Start, prev.Start)

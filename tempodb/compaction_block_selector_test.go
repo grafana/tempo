@@ -5,16 +5,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTimeWindowBlockSelector(t *testing.T) {
 	tests := []struct {
 		name           string
-		blocklist      []*backend.BlockMeta
-		expected       []*backend.BlockMeta
-		expectedSecond []*backend.BlockMeta
+		blocklist      []*encoding.BlockMeta
+		expected       []*encoding.BlockMeta
+		expectedSecond []*encoding.BlockMeta
 	}{
 		{
 			name:      "nil - nil",
@@ -23,12 +23,12 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 		},
 		{
 			name:      "empty - nil",
-			blocklist: []*backend.BlockMeta{},
+			blocklist: []*encoding.BlockMeta{},
 			expected:  nil,
 		},
 		{
 			name: "two blocks returned",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
@@ -36,7 +36,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
@@ -47,7 +47,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 		},
 		{
 			name: "three blocks choose smallest two",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
@@ -61,7 +61,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 					TotalObjects: 0,
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
@@ -74,7 +74,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 		},
 		{
 			name: "three blocks across two windows",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
@@ -90,7 +90,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 					EndTime:      time.Unix(1, 0),
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 0,
@@ -105,7 +105,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 		},
 		{
 			name: "two iterations of four blocks across one window",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
@@ -123,7 +123,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 					TotalObjects: 1,
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
@@ -133,7 +133,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 					TotalObjects: 0,
 				},
 			},
-			expectedSecond: []*backend.BlockMeta{
+			expectedSecond: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					TotalObjects: 1,
@@ -146,7 +146,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 		},
 		{
 			name: "two iterations of four blocks across two windows",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
@@ -166,7 +166,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 					EndTime:      time.Unix(1, 0),
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
@@ -176,7 +176,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 					TotalObjects: 1,
 				},
 			},
-			expectedSecond: []*backend.BlockMeta{
+			expectedSecond: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 0,
@@ -191,7 +191,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 		},
 		{
 			name: "two iterations of six blocks across two windows",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					TotalObjects: 1,
@@ -222,7 +222,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 					EndTime:      time.Unix(3, 0),
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
@@ -234,7 +234,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 					EndTime:      time.Unix(1, 0),
 				},
 			},
-			expectedSecond: []*backend.BlockMeta{
+			expectedSecond: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 0,
@@ -267,9 +267,9 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		blocklist      []*backend.BlockMeta
-		expected       []*backend.BlockMeta
-		expectedSecond []*backend.BlockMeta
+		blocklist      []*encoding.BlockMeta
+		expected       []*encoding.BlockMeta
+		expectedSecond []*encoding.BlockMeta
 	}{
 		{
 			name:      "nil - nil",
@@ -278,12 +278,12 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 		},
 		{
 			name:      "empty - nil",
-			blocklist: []*backend.BlockMeta{},
+			blocklist: []*encoding.BlockMeta{},
 			expected:  nil,
 		},
 		{
 			name: "two blocks returned",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
@@ -293,7 +293,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
@@ -306,7 +306,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 		},
 		{
 			name: "three blocks choose smallest two",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					CompactionLevel: 0,
@@ -323,7 +323,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 					EndTime:         now,
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					CompactionLevel: 0,
@@ -338,7 +338,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 		},
 		{
 			name: "three blocks choose larger two",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					CompactionLevel: 1,
@@ -355,7 +355,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 					EndTime:         now,
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					CompactionLevel: 1,
@@ -370,7 +370,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 		},
 		{
 			name: "three blocks choose none",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					CompactionLevel: 0,
@@ -391,7 +391,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 		},
 		{
 			name: "four blocks across two time windows",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
@@ -409,7 +409,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 					EndTime: now.Add(-24 * time.Hour),
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
@@ -422,7 +422,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 		},
 		{
 			name: "four blocks across two time windows.  skip buffer",
-			blocklist: []*backend.BlockMeta{
+			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
@@ -448,7 +448,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 					EndTime: now.Add(-48 * time.Hour),
 				},
 			},
-			expected: []*backend.BlockMeta{
+			expected: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
@@ -458,7 +458,7 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expectedSecond: []*backend.BlockMeta{
+			expectedSecond: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now.Add(-48 * time.Hour),

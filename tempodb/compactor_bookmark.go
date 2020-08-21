@@ -1,17 +1,15 @@
 package tempodb
 
-import (
-	"github.com/grafana/tempo/tempodb/backend"
-)
+import "github.com/grafana/tempo/tempodb/encoding"
 
 type bookmark struct {
-	iter backend.Iterator
+	iter encoding.Iterator
 
 	currentID     []byte
 	currentObject []byte
 }
 
-func newBookmark(iter backend.Iterator) *bookmark {
+func newBookmark(iter encoding.Iterator) *bookmark {
 	return &bookmark{
 		iter: iter,
 	}

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 const (
@@ -84,7 +84,7 @@ func (w *WAL) AllBlocks() ([]ReplayBlock, error) {
 
 		blocks = append(blocks, &CompleteBlock{
 			block: block{
-				meta:     backend.NewBlockMeta(tenantID, blockID),
+				meta:     encoding.NewBlockMeta(tenantID, blockID),
 				filepath: w.c.Filepath,
 			},
 		})
@@ -97,7 +97,7 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*HeadBlock, error) {
 	return newHeadBlock(id, tenantID, w.c.Filepath)
 }
 
-func (w *WAL) NewCompactorBlock(id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
+func (w *WAL) NewCompactorBlock(id uuid.UUID, tenantID string, metas []*encoding.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
 	return newCompactorBlock(id, tenantID, w.c.BloomFP, w.c.IndexDownsample, metas, w.c.WorkFilepath, estimatedObjects)
 }
 

@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"hash/fnv"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 // TokenFor generates a token used for finding ingesters from ring
@@ -37,7 +37,7 @@ func HexStringToTraceID(id string) ([]byte, error) {
 	return byteID, nil
 }
 
-func BlockIDRange(maxID backend.ID, minID backend.ID) float64 {
+func BlockIDRange(maxID encoding.ID, minID encoding.ID) float64 {
 	if len(maxID) > 8 {
 		maxIDHighBytes := []byte(maxID)[8:]
 		minIDHighBytes := []byte(minID)[8:]

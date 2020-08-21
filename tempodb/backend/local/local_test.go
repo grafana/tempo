@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,7 +36,7 @@ func TestReadWrite(t *testing.T) {
 		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
 	}
 
-	fakeMeta := &backend.BlockMeta{
+	fakeMeta := &encoding.BlockMeta{
 		BlockID: blockID,
 	}
 	fakeBloom := make([]byte, 20)
@@ -96,7 +97,7 @@ func TestWriteFail(t *testing.T) {
 
 	blockID := uuid.New()
 	tenantID := "fake"
-	fakeMeta := &backend.BlockMeta{
+	fakeMeta := &encoding.BlockMeta{
 		BlockID:  blockID,
 		TenantID: tenantID,
 	}
@@ -129,7 +130,7 @@ func TestCompaction(t *testing.T) {
 		tenantIDs = append(tenantIDs, fmt.Sprintf("%d", rand.Int()))
 	}
 
-	fakeMeta := &backend.BlockMeta{
+	fakeMeta := &encoding.BlockMeta{
 		BlockID: blockID,
 	}
 	fakeBloom := make([]byte, 20)

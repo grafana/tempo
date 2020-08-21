@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -100,7 +101,7 @@ func (rw *readerWriter) doCompaction() {
 
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
-func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
+func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID string) error {
 	level.Info(rw.logger).Log("msg", "beginning compaction")
 
 	if len(blockMetas) == 0 {
@@ -124,7 +125,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
 		totalRecords += blockMeta.TotalObjects
 
-		iter, err := backend.NewBackendIterator(tenantID, blockMeta.BlockID, rw.compactorCfg.ChunkSizeBytes, rw.r)
+		iter, err := encoding.NewBackendIterator(tenantID, blockMeta.BlockID, rw.compactorCfg.ChunkSizeBytes, rw.r)
 		if err != nil {
 			return err
 		}
@@ -275,7 +276,7 @@ func allDone(bookmarks []*bookmark) bool {
 	return true
 }
 
-func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
+func compactionLevelForBlocks(blockMetas []*encoding.BlockMeta) uint8 {
 	level := uint8(0)
 
 	for _, m := range blockMetas {

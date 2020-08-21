@@ -5,25 +5,25 @@ import (
 	"sort"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction
 type CompactionBlockSelector interface {
-	BlocksToCompact() ([]*backend.BlockMeta, string)
+	BlocksToCompact() ([]*encoding.BlockMeta, string)
 }
 
 /*************************** Simple Block Selector **************************/
 
 type simpleBlockSelector struct {
 	cursor             int
-	blocklist          []*backend.BlockMeta
+	blocklist          []*encoding.BlockMeta
 	MaxCompactionRange time.Duration
 }
 
 var _ (CompactionBlockSelector) = (*simpleBlockSelector)(nil)
 
-func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
+func (sbs *simpleBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, string) {
 	// should never happen
 	if inputBlocks > len(sbs.blocklist) {
 		return nil, ""
@@ -52,16 +52,16 @@ func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string)
 // It needs to be reinitialized with updated blocklist.
 
 type timeWindowBlockSelector struct {
-	blocklist            []*backend.BlockMeta
+	blocklist            []*encoding.BlockMeta
 	MaxCompactionRange   time.Duration // Size of the time window - say 6 hours
 	MaxCompactionObjects int           // maximum size of compacted objects
 }
 
 var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 
-func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int) CompactionBlockSelector {
+func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
-		blocklist:            append([]*backend.BlockMeta(nil), blocklist...),
+		blocklist:            append([]*encoding.BlockMeta(nil), blocklist...),
 		MaxCompactionRange:   maxCompactionRange,
 		MaxCompactionObjects: maxCompactionObjects,
 	}
@@ -69,13 +69,13 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 	return twbs
 }
 
-func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
+func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, string) {
 	for len(twbs.blocklist) > 0 {
 		// find everything from cursor forward that belongs to this block
 		cursor := 0
 		currentWindow := twbs.windowForBlock(twbs.blocklist[cursor])
 
-		windowBlocks := make([]*backend.BlockMeta, 0)
+		windowBlocks := make([]*encoding.BlockMeta, 0)
 		for cursor < len(twbs.blocklist) {
 			currentBlock := twbs.blocklist[cursor]
 
@@ -89,7 +89,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 
 		// did we find enough blocks?
 		if len(windowBlocks) >= inputBlocks {
-			var compactBlocks []*backend.BlockMeta
+			var compactBlocks []*encoding.BlockMeta
 
 			// blocks in the currently active window
 			// dangerous to use time.Now()
@@ -162,7 +162,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 	return nil, ""
 }
 
-func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
+func (twbs *timeWindowBlockSelector) windowForBlock(meta *encoding.BlockMeta) int64 {
 	return twbs.windowForTime(meta.EndTime)
 }
 

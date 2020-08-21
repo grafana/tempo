@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/olekukonko/tablewriter"
@@ -88,7 +89,7 @@ func dumpBlock(bucketName string, tenantID string, windowRange time.Duration, bl
 
 	fmt.Println("Searching for dupes ...")
 
-	iter, err := backend.NewBackendIterator(tenantID, id, 10*1024*1024, r)
+	iter, err := encoding.NewBackendIterator(tenantID, id, 10*1024*1024, r)
 	if err != nil {
 		return err
 	}
@@ -154,7 +155,7 @@ func dumpBucket(bucketName string, tenantID string, windowRange time.Duration) e
 		totalIDs := -1
 		duplicateIDs := -1
 		if err == nil {
-			records, err := backend.UnmarshalRecords(indexBytes)
+			records, err := encoding.UnmarshalRecords(indexBytes)
 			if err != nil {
 				return err
 			}
@@ -201,7 +202,7 @@ func dumpBucket(bucketName string, tenantID string, windowRange time.Duration) e
 	return nil
 }
 
-func blockStats(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta, windowRange time.Duration) (int, uint8, int64, time.Time, time.Time) {
+func blockStats(meta *encoding.BlockMeta, compactedMeta *encoding.CompactedBlockMeta, windowRange time.Duration) (int, uint8, int64, time.Time, time.Time) {
 	if meta != nil {
 		return meta.TotalObjects, meta.CompactionLevel, meta.EndTime.Unix() / int64(windowRange/time.Second), meta.StartTime, meta.EndTime
 	} else if compactedMeta != nil {

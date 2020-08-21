@@ -94,9 +94,9 @@ func newServer(objects []Object, storageRoot string) (*Server, error) {
 	var backendStorage backend.Storage
 	var err error
 	if storageRoot != "" {
-		backendStorage, err = backend.NewStorageFS(backendObjects, storageRoot)
+		backendStorage, err = encoding.NewStorageFS(backendObjects, storageRoot)
 	} else {
-		backendStorage = backend.NewStorageMemory(backendObjects)
+		backendStorage = encoding.NewStorageMemory(backendObjects)
 	}
 	if err != nil {
 		return nil, err

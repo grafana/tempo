@@ -8,13 +8,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/willf/bloom"
 )
 
 type CompactorBlock struct {
 	block
 
-	metas []*backend.BlockMeta
+	metas []*encoding.BlockMeta
 
 	bloom *bloom.BloomFilter
 
@@ -22,7 +23,7 @@ type CompactorBlock struct {
 	appender     backend.Appender
 }
 
-func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*backend.BlockMeta, filepath string, estimatedObjects int) (*CompactorBlock, error) {
+func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*encoding.BlockMeta, filepath string, estimatedObjects int) (*CompactorBlock, error) {
 	if len(metas) == 0 {
 		return nil, fmt.Errorf("empty block meta list")
 	}
@@ -33,7 +34,7 @@ func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 
 	c := &CompactorBlock{
 		block: block{
-			meta:     backend.NewBlockMeta(tenantID, id),
+			meta:     encoding.NewBlockMeta(tenantID, id),
 			filepath: filepath,
 		},
 		bloom: bloom.NewWithEstimates(uint(estimatedObjects), bloomFP),
@@ -47,12 +48,12 @@ func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender = backend.NewBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
+	c.appender = encoding.NewBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
 
 	return c, nil
 }
 
-func (c *CompactorBlock) Write(id backend.ID, object []byte) error {
+func (c *CompactorBlock) Write(id encoding.ID, object []byte) error {
 	err := c.appender.Append(id, object)
 	if err != nil {
 		return err
@@ -83,7 +84,7 @@ func (c *CompactorBlock) Clear() error {
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
+func (c *CompactorBlock) BlockMeta() *encoding.BlockMeta {
 	meta := c.meta
 
 	meta.StartTime = c.metas[0].StartTime
@@ -113,7 +114,7 @@ func (c *CompactorBlock) BlockWroteSuccessfully(t time.Time) {
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) Records() []*backend.Record {
+func (c *CompactorBlock) Records() []*encoding.Record {
 	return c.appender.Records()
 }
 
