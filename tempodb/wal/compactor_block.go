@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/willf/bloom"
 )
@@ -20,7 +19,7 @@ type CompactorBlock struct {
 	bloom *bloom.BloomFilter
 
 	appendBuffer *bytes.Buffer
-	appender     backend.Appender
+	appender     encoding.Appender
 }
 
 func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*encoding.BlockMeta, filepath string, estimatedObjects int) (*CompactorBlock, error) {

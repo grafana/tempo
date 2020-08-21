@@ -5,20 +5,24 @@ import (
 	"math"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 )
+
+type Reader interface {
+	Index(blockID uuid.UUID, tenantID string) ([]byte, error)
+	Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error
+}
 
 type backendIterator struct {
 	tenantID string
 	blockID  uuid.UUID
-	r        backend.Reader
+	r        Reader
 
 	indexBuffer         []byte
 	objectsBuffer       []byte
 	activeObjectsBuffer []byte
 }
 
-func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader backend.Reader) (Iterator, error) {
+func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader Reader) (Iterator, error) {
 	index, err := reader.Index(blockID, tenantID)
 	if err != nil {
 		return nil, err

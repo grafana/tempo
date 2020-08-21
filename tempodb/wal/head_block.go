@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/willf/bloom"
 )
@@ -13,7 +12,7 @@ type HeadBlock struct {
 	block
 
 	appendFile *os.File
-	appender   backend.Appender
+	appender   encoding.Appender
 }
 
 func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*HeadBlock, error) {

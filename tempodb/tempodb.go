@@ -270,7 +270,7 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetri
 			return nil, fmt.Errorf("error reading index %v", err)
 		}
 
-		record, err := backend.FindRecord(id, indexBytes) // todo: replace with backend.Finder
+		record, err := encoding.FindRecord(id, indexBytes) // todo: replace with backend.Finder
 		if err != nil {
 			return nil, fmt.Errorf("error finding record %v", err)
 		}
