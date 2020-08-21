@@ -57,7 +57,7 @@ linters:
     - unparam
     - varcheck
     - govet
-    - unused # new from here.
+#    - unused This linter is causing issues in github actions but works locally.  https://github.com/golangci/golangci-lint/issues/827
     - interfacer
     - typecheck
 
