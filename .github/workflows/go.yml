@@ -20,15 +20,15 @@ jobs:
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
 
-    - name: Install Tools
-      run: make install-tools
+    # - name: Install Tools
+    #   run: make install-tools
 
-    - name: Install Dependencies
-      run: PATH="$(go env GOPATH)/bin":$PATH make vendor-dependencies
+    # - name: Install Dependencies
+    #   run: PATH="$(go env GOPATH)/bin":$PATH make vendor-dependencies
 
     # - name: Lint
     #   run: make lint
-    
+
     - name: Lint
       uses: golangci/golangci-lint-action@v1
       with:
