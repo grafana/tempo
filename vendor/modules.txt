@@ -442,7 +442,7 @@ github.com/json-iterator/go
 github.com/jstemmer/go-junit-report
 github.com/jstemmer/go-junit-report/formatter
 github.com/jstemmer/go-junit-report/parser
-# github.com/karrick/godirwalk v1.15.3
+# github.com/karrick/godirwalk v1.16.1
 github.com/karrick/godirwalk
 # github.com/kisielk/gotool v1.0.0
 github.com/kisielk/gotool

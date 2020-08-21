@@ -96,6 +96,11 @@ const (
 	SkipNode
 )
 
+// SkipThis is used as a return value from WalkFuncs to indicate that the file
+// system entry named in the call is to be skipped. It is not returned as an
+// error by any function.
+var SkipThis = errors.New("skip this directory entry")
+
 // WalkFunc is the type of the function called for each file system node visited
 // by Walk. The pathname argument will contain the argument to Walk as a prefix;
 // that is, if Walk is called with "dir", which is a directory containing the
@@ -119,6 +124,55 @@ const (
 // Walk skips the remaining files in the containing directory. Note that any
 // supplied ErrorCallback function is not invoked with filepath.SkipDir when the
 // Callback or PostChildrenCallback functions return that special value.
+//
+// One arguably confusing aspect of the filepath.WalkFunc API that this library
+// must emulate is how a caller tells Walk to skip file system entries or
+// directories. With both filepath.Walk and this Walk, when a callback function
+// wants to skip a directory and not descend into its children, it returns
+// filepath.SkipDir. If the callback function returns filepath.SkipDir for a
+// non-directory, filepath.Walk and this library will stop processing any more
+// entries in the current directory, which is what many people do not want. If
+// you want to simply skip a particular non-directory entry but continue
+// processing entries in the directory, a callback function must return nil. The
+// implications of this API is when you want to walk a file system hierarchy and
+// skip an entry, when the entry is a directory, you must return one value,
+// namely filepath.SkipDir, but when the entry is a non-directory, you must
+// return a different value, namely nil. In other words, to get identical
+// behavior for two file system entry types you need to send different token
+// values.
+//
+// Here is an example callback function that adheres to filepath.Walk API to
+// have it skip any file system entry whose full pathname includes a particular
+// substring, optSkip:
+//
+//     func callback1(osPathname string, de *godirwalk.Dirent) error {
+//         if optSkip != "" && strings.Contains(osPathname, optSkip) {
+//             if b, err := de.IsDirOrSymlinkToDir(); b == true && err == nil {
+//                 return filepath.SkipDir
+//             }
+//             return nil
+//         }
+//         // Process file like normal...
+//         return nil
+//     }
+//
+// This library attempts to eliminate some of that logic boilerplate by
+// providing a new token error value, SkipThis, which a callback function may
+// return to skip the current file system entry regardless of what type of entry
+// it is. If the current entry is a directory, its children will not be
+// enumerated, exactly as if the callback returned filepath.SkipDir. If the
+// current entry is a non-directory, the next file system entry in the current
+// directory will be enumerated, exactly as if the callback returned nil. The
+// following example callback function has identical behavior as the previous,
+// but has less boilerplate, and admittedly more simple logic.
+//
+//     func callback2(osPathname string, de *godirwalk.Dirent) error {
+//         if optSkip != "" && strings.Contains(osPathname, optSkip) {
+//             return godirwalk.SkipThis
+//         }
+//         // Process file like normal...
+//         return nil
+//     }
 type WalkFunc func(osPathname string, directoryEntry *Dirent) error
 
 // Walk walks the file tree rooted at the specified directory, calling the
@@ -201,10 +255,15 @@ func Walk(pathname string, options *Options) error {
 		options.ErrorCallback = defaultErrorCallback
 	}
 
-	if err = walk(pathname, dirent, options); err != filepath.SkipDir {
+	err = walk(pathname, dirent, options)
+	switch err {
+	case nil, SkipThis, filepath.SkipDir:
+		// silence SkipThis and filepath.SkipDir for top level
+		debug("no error of significance: %v\n", err)
+		return nil
+	default:
 		return err
 	}
-	return nil // silence SkipDir for top level
 }
 
 // defaultErrorCallback always returns Halt because if the upstream code did not
@@ -217,7 +276,7 @@ func defaultErrorCallback(_ string, _ error) ErrorAction { return Halt }
 func walk(osPathname string, dirent *Dirent, options *Options) error {
 	err := options.Callback(osPathname, dirent)
 	if err != nil {
-		if err == filepath.SkipDir {
+		if err == SkipThis || err == filepath.SkipDir {
 			return err
 		}
 		if action := options.ErrorCallback(osPathname, err); action == SkipNode {
@@ -278,7 +337,7 @@ func walk(osPathname string, dirent *Dirent, options *Options) error {
 		}
 		err = walk(osChildname, deChild, options)
 		debug("osChildname: %q; error: %v\n", osChildname, err)
-		if err == nil {
+		if err == nil || err == SkipThis {
 			continue
 		}
 		if err != filepath.SkipDir {

@@ -19,7 +19,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/chunk/encoding"
 	"go.etcd.io/etcd/etcdserver/api/snap"
 	"go.etcd.io/etcd/lease"
 	"go.etcd.io/etcd/mvcc"
@@ -50,7 +49,7 @@ func newBackend(cfg ServerConfig) backend.Backend {
 		// permit 10% excess over quota for disarm
 		bcfg.MmapSize = uint64(cfg.QuotaBackendBytes + cfg.QuotaBackendBytes/10)
 	}
-	return encoding.New(bcfg)
+	return backend.New(bcfg)
 }
 
 // openSnapshotBackend renames a snapshot db to the current etcd db and opens it.
