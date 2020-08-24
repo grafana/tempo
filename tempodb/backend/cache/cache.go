@@ -7,6 +7,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -89,7 +90,7 @@ func (r *reader) Blocks(tenantID string) ([]uuid.UUID, error) {
 	return r.next.Blocks(tenantID)
 }
 
-func (r *reader) BlockMeta(blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
+func (r *reader) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
 	return r.next.BlockMeta(blockID, tenantID)
 }
 

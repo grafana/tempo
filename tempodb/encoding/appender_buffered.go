@@ -1,4 +1,4 @@
-package backend
+package encoding
 
 import (
 	"io"

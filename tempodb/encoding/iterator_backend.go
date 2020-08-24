@@ -1,4 +1,4 @@
-package backend
+package encoding
 
 import (
 	"io"
@@ -6,6 +6,11 @@ import (
 
 	"github.com/google/uuid"
 )
+
+type Reader interface {
+	Index(blockID uuid.UUID, tenantID string) ([]byte, error)
+	Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error
+}
 
 type backendIterator struct {
 	tenantID string

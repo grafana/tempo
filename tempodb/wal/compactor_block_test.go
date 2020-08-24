@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -33,7 +33,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 	wal, err := New(walCfg)
 	assert.NoError(t, err)
 
-	metas := []*backend.BlockMeta{
+	metas := []*encoding.BlockMeta{
 		{
 			StartTime: time.Unix(10000, 0),
 			EndTime:   time.Unix(20000, 0),
@@ -48,8 +48,8 @@ func TestCompactorBlockWrite(t *testing.T) {
 	cb, err := wal.NewCompactorBlock(uuid.New(), testTenantID, metas, numObjects)
 	assert.NoError(t, err)
 
-	var minID backend.ID
-	var maxID backend.ID
+	var minID encoding.ID
+	var maxID encoding.ID
 
 	ids := make([][]byte, 0)
 	for i := 0; i < numObjects; i++ {

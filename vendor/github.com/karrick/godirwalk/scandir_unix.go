@@ -18,7 +18,7 @@ type Scanner struct {
 	statErr       error    // statErr is any error return while attempting to stat an entry
 	dh            *os.File // used to close directory after done reading
 	de            *Dirent  // most recently decoded directory entry
-	sde           *syscall.Dirent
+	sde           syscall.Dirent
 	fd            int // file descriptor used to read entries from directory
 }
 
@@ -77,7 +77,7 @@ func NewScannerWithScratchBuffer(osDirname string, scratchBuffer []byte) (*Scann
 func (s *Scanner) Dirent() (*Dirent, error) {
 	if s.de == nil {
 		s.de = &Dirent{name: s.childName, path: s.osDirname}
-		s.de.modeType, s.statErr = modeTypeFromDirent(s.sde, s.osDirname, s.childName)
+		s.de.modeType, s.statErr = modeTypeFromDirent(&s.sde, s.osDirname, s.childName)
 	}
 	return s.de, s.statErr
 }
@@ -96,7 +96,8 @@ func (s *Scanner) done(err error) {
 
 	s.osDirname, s.childName = "", ""
 	s.scratchBuffer, s.workBuffer = nil, nil
-	s.dh, s.de, s.sde, s.statErr = nil, nil, nil, nil
+	s.dh, s.de, s.statErr = nil, nil, nil
+	s.sde = syscall.Dirent{}
 	s.fd = 0
 }
 
@@ -131,6 +132,9 @@ func (s *Scanner) Scan() bool {
 			n, err := syscall.ReadDirent(s.fd, s.scratchBuffer)
 			// n, err := unix.ReadDirent(s.fd, s.scratchBuffer)
 			if err != nil {
+				if err == syscall.EINTR /* || err == unix.EINTR */ {
+					continue
+				}
 				s.done(err)
 				return false
 			}
@@ -141,14 +145,15 @@ func (s *Scanner) Scan() bool {
 			s.workBuffer = s.scratchBuffer[:n] // trim work buffer to number of bytes read
 		}
 
-		s.sde = (*syscall.Dirent)(unsafe.Pointer(&s.workBuffer[0])) // point entry to first syscall.Dirent in buffer
-		s.workBuffer = s.workBuffer[reclen(s.sde):]                 // advance buffer for next iteration through loop
+		// point entry to first syscall.Dirent in buffer
+		copy((*[unsafe.Sizeof(syscall.Dirent{})]byte)(unsafe.Pointer(&s.sde))[:], s.workBuffer)
+		s.workBuffer = s.workBuffer[reclen(&s.sde):] // advance buffer for next iteration through loop
 
-		if inoFromDirent(s.sde) == 0 {
+		if inoFromDirent(&s.sde) == 0 {
 			continue // inode set to 0 indicates an entry that was marked as deleted
 		}
 
-		nameSlice := nameFromDirent(s.sde)
+		nameSlice := nameFromDirent(&s.sde)
 		nameLength := len(nameSlice)
 
 		if nameLength == 0 || (nameSlice[0] == '.' && (nameLength == 1 || (nameLength == 2 && nameSlice[1] == '.'))) {

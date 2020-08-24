@@ -1,4 +1,4 @@
-package backend
+package encoding
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ const recordLength = 28 // 28 = 128 bit ID, 64bit start, 32bit length
 type ID []byte
 
 type Record struct {
-	ID     []byte
+	ID     ID
 	Start  uint64
 	Length uint32
 }

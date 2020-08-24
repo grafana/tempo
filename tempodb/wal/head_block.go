@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/willf/bloom"
 )
 
@@ -12,13 +12,13 @@ type HeadBlock struct {
 	block
 
 	appendFile *os.File
-	appender   backend.Appender
+	appender   encoding.Appender
 }
 
 func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*HeadBlock, error) {
 	h := &HeadBlock{
 		block: block{
-			meta:     backend.NewBlockMeta(tenantID, id),
+			meta:     encoding.NewBlockMeta(tenantID, id),
 			filepath: filepath,
 		},
 	}
@@ -34,12 +34,12 @@ func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*HeadBlock, e
 		return nil, err
 	}
 	h.appendFile = f
-	h.appender = backend.NewAppender(f)
+	h.appender = encoding.NewAppender(f)
 
 	return h, nil
 }
 
-func (h *HeadBlock) Write(id backend.ID, b []byte) error {
+func (h *HeadBlock) Write(id encoding.ID, b []byte) error {
 	err := h.appender.Append(id, b)
 	if err != nil {
 		return err
@@ -52,7 +52,7 @@ func (h *HeadBlock) Length() int {
 	return h.appender.Length()
 }
 
-func (h *HeadBlock) Complete(w *WAL, combiner backend.ObjectCombiner) (*CompleteBlock, error) {
+func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -69,7 +69,7 @@ func (h *HeadBlock) Complete(w *WAL, combiner backend.ObjectCombiner) (*Complete
 	records := h.appender.Records()
 	orderedBlock := &CompleteBlock{
 		block: block{
-			meta:     backend.NewBlockMeta(h.meta.TenantID, uuid.New()),
+			meta:     encoding.NewBlockMeta(h.meta.TenantID, uuid.New()),
 			filepath: walConfig.WorkFilepath,
 		},
 		bloom: bloom.NewWithEstimates(uint(len(records)), walConfig.BloomFP),
@@ -95,12 +95,12 @@ func (h *HeadBlock) Complete(w *WAL, combiner backend.ObjectCombiner) (*Complete
 		return nil, err
 	}
 
-	iterator := backend.NewRecordIterator(records, readFile)
-	iterator, err = backend.NewDedupingIterator(iterator, combiner)
+	iterator := encoding.NewRecordIterator(records, readFile)
+	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
 		return nil, err
 	}
-	appender := backend.NewBufferedAppender(appendFile, walConfig.IndexDownsample, len(records))
+	appender := encoding.NewBufferedAppender(appendFile, walConfig.IndexDownsample, len(records))
 	for {
 		bytesID, bytesObject, err := iterator.Next()
 		if bytesID == nil {
@@ -139,14 +139,14 @@ func (h *HeadBlock) Complete(w *WAL, combiner backend.ObjectCombiner) (*Complete
 	return orderedBlock, nil
 }
 
-func (h *HeadBlock) Find(id backend.ID, combiner backend.ObjectCombiner) ([]byte, error) {
+func (h *HeadBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]byte, error) {
 	records := h.appender.Records()
 	file, err := h.file()
 	if err != nil {
 		return nil, err
 	}
 
-	finder := backend.NewDedupingFinder(records, file, combiner)
+	finder := encoding.NewDedupingFinder(records, file, combiner)
 
 	return finder.Find(id)
 }

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -214,8 +215,12 @@ func (t *App) initCompactor() (err error) {
 
 	t.server.HTTP.Handle("/ring-compactor", t.compactor.Ring)
 
-	// todo: is this ok?
-	go t.compactor.Start(t.cfg.StorageConfig)
+	go func() {
+		err := t.compactor.Start(t.cfg.StorageConfig)
+		if err != nil {
+			log.Fatalf("Error starting compactor: %v", err)
+		}
+	}()
 
 	return nil
 }

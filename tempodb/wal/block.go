@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 type block struct {
-	meta     *backend.BlockMeta
+	meta     *encoding.BlockMeta
 	filepath string
 	readFile *os.File
 }
