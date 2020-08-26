@@ -52,4 +52,7 @@ replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
 replace golang.org/x/net => golang.org/x/net v0.0.0-20190923162816-aa69164e4478
 
 //Cortex:  We can't upgrade to grpc 1.30.0 until go.etcd.io/etcd will support it.
+//  This causes go mod tidy to fail b/c there are two modules which export the same module module (google.golang.org/grpc/examples)
+//  1.29.1 : https://github.com/grpc/grpc-go/tree/master/examples but made it's own module by 1.30.0
+//  PR to upgrade: https://github.com/etcd-io/etcd/pull/12155
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
