@@ -1,0 +1,7 @@
+.*
+!.gitignore
+!.travis.yml
+ghr
+.envrc
+*.test
+pkg

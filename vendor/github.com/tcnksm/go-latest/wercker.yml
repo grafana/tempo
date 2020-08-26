@@ -1,0 +1,16 @@
+box: tcnksm/gox
+build:
+    steps:
+      - setup-go-workspace
+      - script:
+          name: go version
+          code: |
+            go version        
+      - script:
+          name: go get
+          code: |            
+            go get -t ./...
+      - script:
+          name: go test
+          code: |
+            go test
