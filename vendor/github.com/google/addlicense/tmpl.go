@@ -29,6 +29,7 @@ func init() {
 	licenseTemplate["apache"] = template.Must(template.New("").Parse(tmplApache))
 	licenseTemplate["mit"] = template.Must(template.New("").Parse(tmplMIT))
 	licenseTemplate["bsd"] = template.Must(template.New("").Parse(tmplBSD))
+	licenseTemplate["mpl"] = template.Must(template.New("").Parse(tmplMPL))
 }
 
 type copyrightData struct {
@@ -94,3 +95,7 @@ FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.`
+
+const tmplMPL = `This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.`

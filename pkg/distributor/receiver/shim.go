@@ -6,13 +6,13 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
-	"github.com/open-telemetry/opentelemetry-collector/consumer/consumerdata"
-	"github.com/open-telemetry/opentelemetry-collector/receiver"
-	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
-	"github.com/open-telemetry/opentelemetry-collector/receiver/opencensusreceiver"
-	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/common/user"
+	"go.opentelemetry.io/collector/consumer/consumerdata"
+	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
+	"go.opentelemetry.io/collector/receiver/opencensusreceiver"
+	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 	"go.uber.org/zap"
 
 	"github.com/grafana/tempo/pkg/tempopb"

@@ -50,6 +50,7 @@ import (
 	"go.etcd.io/etcd/pkg/pbutil"
 	"go.etcd.io/etcd/pkg/runtime"
 	"go.etcd.io/etcd/pkg/schedule"
+	"go.etcd.io/etcd/pkg/traceutil"
 	"go.etcd.io/etcd/pkg/types"
 	"go.etcd.io/etcd/pkg/wait"
 	"go.etcd.io/etcd/raft"
@@ -785,7 +786,7 @@ func (s *EtcdServer) start() {
 		} else {
 			plog.Infof("starting server... [version: %v, cluster version: %v]", version.Version, version.Cluster(s.ClusterVersion().String()))
 		}
-		membership.ClusterVersionMetrics.With(prometheus.Labels{"cluster_version": s.ClusterVersion().String()}).Set(1)
+		membership.ClusterVersionMetrics.With(prometheus.Labels{"cluster_version": version.Cluster(s.ClusterVersion().String())}).Set(1)
 	} else {
 		if lg != nil {
 			lg.Info(
@@ -1178,7 +1179,7 @@ func (s *EtcdServer) applySnapshot(ep *etcdProgress, apply *apply) {
 			plog.Info("recovering lessor...")
 		}
 
-		s.lessor.Recover(newbe, func() lease.TxnDelete { return s.kv.Write() })
+		s.lessor.Recover(newbe, func() lease.TxnDelete { return s.kv.Write(traceutil.TODO()) })
 
 		if lg != nil {
 			lg.Info("restored lease store")

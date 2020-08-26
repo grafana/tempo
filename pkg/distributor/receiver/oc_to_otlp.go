@@ -31,8 +31,8 @@ import (
 	otlpresource "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
 	otlptrace "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 
-	"github.com/open-telemetry/opentelemetry-collector/consumer/consumerdata"
-	"github.com/open-telemetry/opentelemetry-collector/translator/conventions"
+	"go.opentelemetry.io/collector/consumer/consumerdata"
+	"go.opentelemetry.io/collector/translator/conventions"
 )
 
 func ocToOtlp(td consumerdata.TraceData) []*otlptrace.ResourceSpans {

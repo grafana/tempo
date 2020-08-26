@@ -12,10 +12,10 @@ import (
 
 	jaeger "github.com/jaegertracing/jaeger/model"
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/open-telemetry/opentelemetry-collector/translator/conventions"
 	ot_common "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
 	ot_resource "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
 	ot_trace "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
+	"go.opentelemetry.io/collector/translator/conventions"
 )
 
 type Backend struct {

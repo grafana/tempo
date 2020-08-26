@@ -19,6 +19,7 @@ Go applications to consume model.SpanModel from protobuf serialized data.
 package zipkin_proto3
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -122,15 +123,7 @@ func protoSpanIDToModelSpanID(spanId []byte) (zid *zipkinmodel.ID, blank bool, e
 	}
 
 	// Converting [8]byte --> uint64
-	var u64 uint64
-	u64 |= uint64(spanId[7]&0xFF) << 0
-	u64 |= uint64(spanId[6]&0xFF) << 8
-	u64 |= uint64(spanId[5]&0xFF) << 16
-	u64 |= uint64(spanId[4]&0xFF) << 24
-	u64 |= uint64(spanId[3]&0xFF) << 32
-	u64 |= uint64(spanId[2]&0xFF) << 40
-	u64 |= uint64(spanId[1]&0xFF) << 48
-	u64 |= uint64(spanId[0]&0xFF) << 56
+	u64 := binary.BigEndian.Uint64(spanId)
 	zid_ := zipkinmodel.ID(u64)
 	return &zid_, false, nil
 }

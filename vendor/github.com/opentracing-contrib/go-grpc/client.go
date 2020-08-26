@@ -1,15 +1,16 @@
 package otgrpc
 
 import (
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
-	"github.com/opentracing/opentracing-go/log"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 	"io"
 	"runtime"
 	"sync/atomic"
+
+	opentracing "github.com/opentracing/opentracing-go"
+	"context"
+	"github.com/opentracing/opentracing-go/ext"
+	"github.com/opentracing/opentracing-go/log"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 // OpenTracingClientInterceptor returns a grpc.UnaryClientInterceptor suitable
@@ -67,7 +68,7 @@ func OpenTracingClientInterceptor(tracer opentracing.Tracer, optFuncs ...Option)
 			clientSpan.LogFields(log.String("event", "error"), log.String("message", err.Error()))
 		}
 		if otgrpcOpts.decorator != nil {
-			otgrpcOpts.decorator(clientSpan, method, req, resp, err)
+			otgrpcOpts.decorator(ctx, clientSpan, method, req, resp, err)
 		}
 		return err
 	}
@@ -147,7 +148,7 @@ func newOpenTracingClientStream(cs grpc.ClientStream, method string, desc *grpc.
 			SetSpanTags(clientSpan, err, true)
 		}
 		if otgrpcOpts.decorator != nil {
-			otgrpcOpts.decorator(clientSpan, method, nil, nil, err)
+			otgrpcOpts.decorator(cs.Context(), clientSpan, method, nil, nil, err)
 		}
 	}
 	go func() {

@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/receiver"
+	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/receiver"
 )
 
 // extracted from otel collector : https://github.com/open-telemetry/opentelemetry-collector/blob/master/config/config.go
