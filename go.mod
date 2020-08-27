@@ -53,6 +53,7 @@ replace golang.org/x/net => golang.org/x/net v0.0.0-20190923162816-aa69164e4478
 
 //Cortex:  We can't upgrade to grpc 1.30.0 until go.etcd.io/etcd will support it.
 //  This causes go mod tidy to fail b/c there are two modules which export the same module module (google.golang.org/grpc/examples)
-//  1.29.1 : https://github.com/grpc/grpc-go/tree/master/examples but made it's own module by 1.30.0
+//  Part of grpc in 1.29.1 (https://github.com/grpc/grpc-go/tree/master/examples) but made it's own module in 1.30.0
 //  PR to upgrade: https://github.com/etcd-io/etcd/pull/12155
+//  go mod tidy issue: https://github.com/golang/go/issues/27899
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
