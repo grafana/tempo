@@ -90,7 +90,13 @@ func checkMapLiterals(pass *analysis.Pass, inspect *inspector.Inspector, comment
 					samePkg := keyPkg == pass.Pkg
 					checkUnexported := samePkg
 
-					hitlist := hitlistFromEnumMembers(enumMembers, checkUnexported)
+					hitlist := make(map[string]struct{})
+					for _, m := range enumMembers {
+						if ast.IsExported(m) || checkUnexported {
+							hitlist[m] = struct{}{}
+						}
+					}
+
 					if len(hitlist) == 0 {
 						// can happen if external package and enum consists only of
 						// unexported members

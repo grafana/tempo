@@ -73,7 +73,6 @@ type SemaphoreOptions struct {
 	MonitorRetryTime  time.Duration // Optional, defaults to DefaultMonitorRetryTime
 	SemaphoreWaitTime time.Duration // Optional, defaults to DefaultSemaphoreWaitTime
 	SemaphoreTryOnce  bool          // Optional, defaults to false which means try forever
-	Namespace         string        `json:",omitempty"` // Optional, defaults to API client config, namespace of ACL token, or "default" namespace
 }
 
 // semaphoreLock is written under the DefaultSemaphoreKey and
@@ -177,17 +176,14 @@ func (s *Semaphore) Acquire(stopCh <-chan struct{}) (<-chan struct{}, error) {
 
 	// Create the contender entry
 	kv := s.c.KV()
-	wOpts := WriteOptions{Namespace: s.opts.Namespace}
-
-	made, _, err := kv.Acquire(s.contenderEntry(s.lockSession), &wOpts)
+	made, _, err := kv.Acquire(s.contenderEntry(s.lockSession), nil)
 	if err != nil || !made {
 		return nil, fmt.Errorf("failed to make contender entry: %v", err)
 	}
 
 	// Setup the query options
-	qOpts := QueryOptions{
-		WaitTime:  s.opts.SemaphoreWaitTime,
-		Namespace: s.opts.Namespace,
+	qOpts := &QueryOptions{
+		WaitTime: s.opts.SemaphoreWaitTime,
 	}
 
 	start := time.Now()
@@ -213,7 +209,7 @@ WAIT:
 	attempts++
 
 	// Read the prefix
-	pairs, meta, err := kv.List(s.opts.Prefix, &qOpts)
+	pairs, meta, err := kv.List(s.opts.Prefix, qOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read prefix: %v", err)
 	}
@@ -251,7 +247,7 @@ WAIT:
 	}
 
 	// Attempt the acquisition
-	didSet, _, err := kv.CAS(newLock, &wOpts)
+	didSet, _, err := kv.CAS(newLock, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update lock: %v", err)
 	}
@@ -302,12 +298,8 @@ func (s *Semaphore) Release() error {
 	// Remove ourselves as a lock holder
 	kv := s.c.KV()
 	key := path.Join(s.opts.Prefix, DefaultSemaphoreKey)
-
-	wOpts := WriteOptions{Namespace: s.opts.Namespace}
-	qOpts := QueryOptions{Namespace: s.opts.Namespace}
-
 READ:
-	pair, _, err := kv.Get(key, &qOpts)
+	pair, _, err := kv.Get(key, nil)
 	if err != nil {
 		return err
 	}
@@ -328,7 +320,7 @@ READ:
 		}
 
 		// Swap the locks
-		didSet, _, err := kv.CAS(newLock, &wOpts)
+		didSet, _, err := kv.CAS(newLock, nil)
 		if err != nil {
 			return fmt.Errorf("failed to update lock: %v", err)
 		}
@@ -339,7 +331,7 @@ READ:
 
 	// Destroy the contender entry
 	contenderKey := path.Join(s.opts.Prefix, lockSession)
-	if _, err := kv.Delete(contenderKey, &wOpts); err != nil {
+	if _, err := kv.Delete(contenderKey, nil); err != nil {
 		return err
 	}
 	return nil
@@ -359,9 +351,7 @@ func (s *Semaphore) Destroy() error {
 
 	// List for the semaphore
 	kv := s.c.KV()
-
-	q := QueryOptions{Namespace: s.opts.Namespace}
-	pairs, _, err := kv.List(s.opts.Prefix, &q)
+	pairs, _, err := kv.List(s.opts.Prefix, nil)
 	if err != nil {
 		return fmt.Errorf("failed to read prefix: %v", err)
 	}
@@ -390,8 +380,7 @@ func (s *Semaphore) Destroy() error {
 	}
 
 	// Attempt the delete
-	w := WriteOptions{Namespace: s.opts.Namespace}
-	didRemove, _, err := kv.DeleteCAS(lockPair, &w)
+	didRemove, _, err := kv.DeleteCAS(lockPair, nil)
 	if err != nil {
 		return fmt.Errorf("failed to remove semaphore: %v", err)
 	}
@@ -409,9 +398,7 @@ func (s *Semaphore) createSession() (string, error) {
 		TTL:      s.opts.SessionTTL,
 		Behavior: SessionBehaviorDelete,
 	}
-
-	w := WriteOptions{Namespace: s.opts.Namespace}
-	id, _, err := session.Create(se, &w)
+	id, _, err := session.Create(se, nil)
 	if err != nil {
 		return "", err
 	}
@@ -496,14 +483,11 @@ func (s *Semaphore) pruneDeadHolders(lock *semaphoreLock, pairs KVPairs) {
 func (s *Semaphore) monitorLock(session string, stopCh chan struct{}) {
 	defer close(stopCh)
 	kv := s.c.KV()
-	opts := QueryOptions{
-		RequireConsistent: true,
-		Namespace:         s.opts.Namespace,
-	}
+	opts := &QueryOptions{RequireConsistent: true}
 WAIT:
 	retries := s.opts.MonitorRetries
 RETRY:
-	pairs, meta, err := kv.List(s.opts.Prefix, &opts)
+	pairs, meta, err := kv.List(s.opts.Prefix, opts)
 	if err != nil {
 		// If configured we can try to ride out a brief Consul unavailability
 		// by doing retries. Note that we have to attempt the retry in a non-

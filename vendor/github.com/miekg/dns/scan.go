@@ -103,12 +103,15 @@ type ttlState struct {
 	isByDirective bool   // isByDirective indicates whether ttl was set by a $TTL directive
 }
 
-// NewRR reads the RR contained in the string s. Only the first RR is returned.
-// If s contains no records, NewRR will return nil with no error.
+// NewRR reads the RR contained in the string s. Only the first RR is
+// returned. If s contains no records, NewRR will return nil with no
+// error.
 //
-// The class defaults to IN and TTL defaults to 3600. The full zone file syntax
-// like $TTL, $ORIGIN, etc. is supported. All fields of the returned RR are
-// set, except RR.Header().Rdlength which is set to 0.
+// The class defaults to IN and TTL defaults to 3600. The full zone
+// file syntax like $TTL, $ORIGIN, etc. is supported.
+//
+// All fields of the returned RR are set, except RR.Header().Rdlength
+// which is set to 0.
 func NewRR(s string) (RR, error) {
 	if len(s) > 0 && s[len(s)-1] != '\n' { // We need a closing newline
 		return ReadRR(strings.NewReader(s+"\n"), "")
@@ -244,8 +247,7 @@ type ZoneParser struct {
 
 	includeDepth uint8
 
-	includeAllowed     bool
-	generateDisallowed bool
+	includeAllowed bool
 }
 
 // NewZoneParser returns an RFC 1035 style zonefile parser that reads
@@ -545,9 +547,6 @@ func (zp *ZoneParser) Next() (RR, bool) {
 
 			st = zExpectDirGenerate
 		case zExpectDirGenerate:
-			if zp.generateDisallowed {
-				return zp.setParseError("nested $GENERATE directive not allowed", l)
-			}
 			if l.value != zString {
 				return zp.setParseError("expecting $GENERATE value, not this...", l)
 			}

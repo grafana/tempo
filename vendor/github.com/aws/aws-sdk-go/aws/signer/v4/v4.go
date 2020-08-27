@@ -340,7 +340,7 @@ func (v4 Signer) signWithBody(r *http.Request, body io.ReadSeeker, service, regi
 	}
 
 	var err error
-	ctx.credValues, err = v4.Credentials.GetWithContext(requestContext(r))
+	ctx.credValues, err = v4.Credentials.Get()
 	if err != nil {
 		return http.Header{}, err
 	}
@@ -608,7 +608,8 @@ func (ctx *signingCtx) buildCanonicalHeaders(r rule, header http.Header) {
 	var headers []string
 	headers = append(headers, "host")
 	for k, v := range header {
-		if !r.IsValid(k) {
+		canonicalKey := http.CanonicalHeaderKey(k)
+		if !r.IsValid(canonicalKey) {
 			continue // ignored header
 		}
 		if ctx.SignedHeaderVals == nil {

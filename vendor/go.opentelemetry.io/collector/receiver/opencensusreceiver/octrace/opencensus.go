@@ -38,7 +38,6 @@ const (
 
 // Receiver is the type used to handle spans from OpenCensus exporters.
 type Receiver struct {
-	agenttracepb.UnimplementedTraceServiceServer
 	nextConsumer consumer.TraceConsumerOld
 	instanceName string
 }
@@ -65,7 +64,7 @@ var _ agenttracepb.TraceServiceServer = (*Receiver)(nil)
 var errUnimplemented = errors.New("unimplemented")
 
 // Config handles configuration messages.
-func (ocr *Receiver) Config(agenttracepb.TraceService_ConfigServer) error {
+func (ocr *Receiver) Config(tcs agenttracepb.TraceService_ConfigServer) error {
 	// TODO: Implement when we define the config receiver/sender.
 	return errUnimplemented
 }

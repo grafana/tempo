@@ -6,7 +6,6 @@ require (
 	cloud.google.com/go/storage v1.6.0
 	github.com/census-instrumentation/opencensus-proto v0.3.0
 	github.com/cortexproject/cortex v0.7.0
-	github.com/fatih/color v1.9.0 // indirect
 	github.com/go-kit/kit v0.10.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
@@ -30,7 +29,7 @@ require (
 	github.com/weaveworks/common v0.0.0-20200206153930-760e36ae819a
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
-	go.opentelemetry.io/collector v0.8.0
+	go.opentelemetry.io/collector v0.6.1
 	go.uber.org/atomic v1.6.0
 	go.uber.org/ratelimit v0.1.0
 	go.uber.org/zap v1.15.0

@@ -8,8 +8,7 @@ RUN go mod download
 RUN make build-linux
 
 FROM golang:${GO_VERSION}-alpine 
-RUN apk add --update --no-cache ca-certificates bash git gcc libc-dev
+RUN apk add --update --no-cache ca-certificates git gcc libc-dev
 ENV GO111MODULE on
 COPY --from=builder /build/gosec /bin/gosec
-COPY entrypoint.sh /bin/entrypoint.sh
-ENTRYPOINT ["/bin/entrypoint.sh"]
+ENTRYPOINT ["/bin/gosec"]

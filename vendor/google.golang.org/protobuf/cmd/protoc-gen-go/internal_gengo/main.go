@@ -19,7 +19,8 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/internal/encoding/messageset"
 	"google.golang.org/protobuf/internal/encoding/tag"
-	"google.golang.org/protobuf/internal/genid"
+	"google.golang.org/protobuf/internal/fieldnum"
+	"google.golang.org/protobuf/internal/genname"
 	"google.golang.org/protobuf/internal/version"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
@@ -36,14 +37,9 @@ var GenerateVersionMarkers = true
 
 // Standard library dependencies.
 const (
-	base64Package  = protogen.GoImportPath("encoding/base64")
 	mathPackage    = protogen.GoImportPath("math")
 	reflectPackage = protogen.GoImportPath("reflect")
-	sortPackage    = protogen.GoImportPath("sort")
-	stringsPackage = protogen.GoImportPath("strings")
 	syncPackage    = protogen.GoImportPath("sync")
-	timePackage    = protogen.GoImportPath("time")
-	utf8Package    = protogen.GoImportPath("unicode/utf8")
 )
 
 // Protobuf library dependencies.
@@ -52,13 +48,11 @@ const (
 // patched to support unique build environments that impose restrictions
 // on the dependencies of generated source code.
 var (
-	protoPackage         goImportPath = protogen.GoImportPath("google.golang.org/protobuf/proto")
-	protoifacePackage    goImportPath = protogen.GoImportPath("google.golang.org/protobuf/runtime/protoiface")
-	protoimplPackage     goImportPath = protogen.GoImportPath("google.golang.org/protobuf/runtime/protoimpl")
-	protojsonPackage     goImportPath = protogen.GoImportPath("google.golang.org/protobuf/encoding/protojson")
-	protoreflectPackage  goImportPath = protogen.GoImportPath("google.golang.org/protobuf/reflect/protoreflect")
-	protoregistryPackage goImportPath = protogen.GoImportPath("google.golang.org/protobuf/reflect/protoregistry")
-	protoV1Package       goImportPath = protogen.GoImportPath("github.com/golang/protobuf/proto")
+	protoPackage        goImportPath = protogen.GoImportPath("google.golang.org/protobuf/proto")
+	protoifacePackage   goImportPath = protogen.GoImportPath("google.golang.org/protobuf/runtime/protoiface")
+	protoimplPackage    goImportPath = protogen.GoImportPath("google.golang.org/protobuf/runtime/protoimpl")
+	protoreflectPackage goImportPath = protogen.GoImportPath("google.golang.org/protobuf/reflect/protoreflect")
+	protoV1Package      goImportPath = protogen.GoImportPath("github.com/golang/protobuf/proto")
 )
 
 type goImportPath interface {
@@ -72,12 +66,10 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.Generated
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 	f := newFileInfo(file)
 
-	genStandaloneComments(g, f, int32(genid.FileDescriptorProto_Syntax_field_number))
+	genStandaloneComments(g, f, fieldnum.FileDescriptorProto_Syntax)
 	genGeneratedHeader(gen, g, f)
-	genStandaloneComments(g, f, int32(genid.FileDescriptorProto_Package_field_number))
-
-	packageDoc := genPackageKnownComment(f)
-	g.P(packageDoc, "package ", f.GoPackageName)
+	genStandaloneComments(g, f, fieldnum.FileDescriptorProto_Package)
+	g.P("package ", f.GoPackageName)
 	g.P()
 
 	// Emit a static check that enforces a minimum version of the proto package.
@@ -337,7 +329,6 @@ func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
 	g.P("}")
 	g.P()
 
-	genMessageKnownFunctions(g, f, m)
 	genMessageDefaultDecls(g, f, m)
 	genMessageMethods(g, f, m)
 	genMessageOneofWrapperTypes(g, f, m)
@@ -352,19 +343,19 @@ func genMessageFields(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
 }
 
 func genMessageInternalFields(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, sf *structFields) {
-	g.P(genid.State_goname, " ", protoimplPackage.Ident("MessageState"))
-	sf.append(genid.State_goname)
-	g.P(genid.SizeCache_goname, " ", protoimplPackage.Ident("SizeCache"))
-	sf.append(genid.SizeCache_goname)
+	g.P(genname.State, " ", protoimplPackage.Ident("MessageState"))
+	sf.append(genname.State)
+	g.P(genname.SizeCache, " ", protoimplPackage.Ident("SizeCache"))
+	sf.append(genname.SizeCache)
 	if m.hasWeak {
-		g.P(genid.WeakFields_goname, " ", protoimplPackage.Ident("WeakFields"))
-		sf.append(genid.WeakFields_goname)
+		g.P(genname.WeakFields, " ", protoimplPackage.Ident("WeakFields"))
+		sf.append(genname.WeakFields)
 	}
-	g.P(genid.UnknownFields_goname, " ", protoimplPackage.Ident("UnknownFields"))
-	sf.append(genid.UnknownFields_goname)
+	g.P(genname.UnknownFields, " ", protoimplPackage.Ident("UnknownFields"))
+	sf.append(genname.UnknownFields)
 	if m.Desc.ExtensionRanges().Len() > 0 {
-		g.P(genid.ExtensionFields_goname, " ", protoimplPackage.Ident("ExtensionFields"))
-		sf.append(genid.ExtensionFields_goname)
+		g.P(genname.ExtensionFields, " ", protoimplPackage.Ident("ExtensionFields"))
+		sf.append(genname.ExtensionFields)
 	}
 	if sf.count > 0 {
 		g.P()
@@ -425,7 +416,7 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 
 	name := field.GoName
 	if field.Desc.IsWeak() {
-		name = genid.WeakFieldPrefix_goname + name
+		name = genname.WeakFieldPrefix + name
 	}
 	g.Annotate(m.GoIdent.GoName+"."+name, field.Location)
 	leadingComments := appendDeprecationSuffix(field.Comments.Leading,
@@ -586,9 +577,9 @@ func genMessageGetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageI
 			g.P(leadingComments, "func (x *", m.GoIdent, ") Get", field.GoName, "() ", protoPackage.Ident("Message"), "{")
 			g.P("var w ", protoimplPackage.Ident("WeakFields"))
 			g.P("if x != nil {")
-			g.P("w = x.", genid.WeakFields_goname)
+			g.P("w = x.", genname.WeakFields)
 			if m.isTracked {
-				g.P("_ = x.", genid.WeakFieldPrefix_goname+field.GoName)
+				g.P("_ = x.", genname.WeakFieldPrefix+field.GoName)
 			}
 			g.P("}")
 			g.P("return ", protoimplPackage.Ident("X"), ".GetWeak(w, ", field.Desc.Number(), ", ", strconv.Quote(string(field.Message.Desc.FullName())), ")")
@@ -634,9 +625,9 @@ func genMessageSetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageI
 		g.P(leadingComments, "func (x *", m.GoIdent, ") Set", field.GoName, "(v ", protoPackage.Ident("Message"), ") {")
 		g.P("var w *", protoimplPackage.Ident("WeakFields"))
 		g.P("if x != nil {")
-		g.P("w = &x.", genid.WeakFields_goname)
+		g.P("w = &x.", genname.WeakFields)
 		if m.isTracked {
-			g.P("_ = x.", genid.WeakFieldPrefix_goname+field.GoName)
+			g.P("_ = x.", genname.WeakFieldPrefix+field.GoName)
 		}
 		g.P("}")
 		g.P(protoimplPackage.Ident("X"), ".SetWeak(w, ", field.Desc.Number(), ", ", strconv.Quote(string(field.Message.Desc.FullName())), ", v)")

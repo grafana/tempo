@@ -37,7 +37,6 @@ type HealthCheck struct {
 	ServiceName string
 	ServiceTags []string
 	Type        string
-	Namespace   string `json:",omitempty"`
 
 	Definition HealthCheckDefinition
 
@@ -51,7 +50,6 @@ type HealthCheckDefinition struct {
 	HTTP                                   string
 	Header                                 map[string][]string
 	Method                                 string
-	Body                                   string
 	TLSSkipVerify                          bool
 	TCP                                    string
 	IntervalDuration                       time.Duration `json:"-"`

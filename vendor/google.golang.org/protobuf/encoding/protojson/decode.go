@@ -15,7 +15,6 @@ import (
 	"google.golang.org/protobuf/internal/encoding/messageset"
 	"google.golang.org/protobuf/internal/errors"
 	"google.golang.org/protobuf/internal/flags"
-	"google.golang.org/protobuf/internal/genid"
 	"google.golang.org/protobuf/internal/pragma"
 	"google.golang.org/protobuf/internal/set"
 	"google.golang.org/protobuf/proto"
@@ -53,13 +52,6 @@ type UnmarshalOptions struct {
 // setting the fields. If it returns an error, the given message may be
 // partially set.
 func (o UnmarshalOptions) Unmarshal(b []byte, m proto.Message) error {
-	return o.unmarshal(b, m)
-}
-
-// unmarshal is a centralized function that all unmarshal operations go through.
-// For profiling purposes, avoid changing the name of this function or
-// introducing other code paths for unmarshal that do not go through this.
-func (o UnmarshalOptions) unmarshal(b []byte, m proto.Message) error {
 	proto.Reset(m)
 
 	if o.Resolver == nil {
@@ -112,8 +104,8 @@ func (d decoder) syntaxError(pos int, f string, x ...interface{}) error {
 
 // unmarshalMessage unmarshals a message into the given protoreflect.Message.
 func (d decoder) unmarshalMessage(m pref.Message, skipTypeURL bool) error {
-	if unmarshal := wellKnownTypeUnmarshaler(m.Descriptor().FullName()); unmarshal != nil {
-		return unmarshal(d, m)
+	if isCustomType(m.Descriptor().FullName()) {
+		return d.unmarshalCustomType(m)
 	}
 
 	tok, err := d.Read()
@@ -268,12 +260,12 @@ func (d decoder) findExtension(xtName pref.FullName) (pref.ExtensionType, error)
 
 func isKnownValue(fd pref.FieldDescriptor) bool {
 	md := fd.Message()
-	return md != nil && md.FullName() == genid.Value_message_fullname
+	return md != nil && md.FullName() == "google.protobuf.Value"
 }
 
 func isNullValue(fd pref.FieldDescriptor) bool {
 	ed := fd.Enum()
-	return ed != nil && ed.FullName() == genid.NullValue_enum_fullname
+	return ed != nil && ed.FullName() == "google.protobuf.NullValue"
 }
 
 // unmarshalSingular unmarshals to the non-repeated field specified

@@ -88,7 +88,6 @@ type ExposePath struct {
 type ServiceConfigEntry struct {
 	Kind        string
 	Name        string
-	Namespace   string            `json:",omitempty"`
 	Protocol    string            `json:",omitempty"`
 	MeshGateway MeshGatewayConfig `json:",omitempty"`
 	Expose      ExposeConfig      `json:",omitempty"`
@@ -116,7 +115,6 @@ func (s *ServiceConfigEntry) GetModifyIndex() uint64 {
 type ProxyConfigEntry struct {
 	Kind        string
 	Name        string
-	Namespace   string                 `json:",omitempty"`
 	Config      map[string]interface{} `json:",omitempty"`
 	MeshGateway MeshGatewayConfig      `json:",omitempty"`
 	Expose      ExposeConfig           `json:",omitempty"`

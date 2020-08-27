@@ -8,12 +8,14 @@ import (
 )
 
 func NewExportLoopRef() *goanalysis.Linter {
-	a := exportloopref.Analyzer
+	analyzers := []*analysis.Analyzer{
+		exportloopref.Analyzer,
+	}
 
 	return goanalysis.NewLinter(
-		a.Name,
-		a.Doc,
-		[]*analysis.Analyzer{a},
+		"exportloopref",
+		"An analyzer that finds exporting pointers for loop variables.",
+		analyzers,
 		nil,
-	).WithLoadMode(goanalysis.LoadModeTypesInfo)
+	).WithLoadMode(goanalysis.LoadModeSyntax)
 }

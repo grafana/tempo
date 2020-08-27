@@ -4,6 +4,18 @@
 // Package format exposes gofumpt's formatting in an API similar to go/format.
 // In general, the APIs are only guaranteed to work well when the input source
 // is in canonical gofmt format.
+//
+// The goVersion parameter taken by some of the functions should correspond to
+// the Go language version a piece of code is written in. The version is used to
+// decide whether to apply formatting rules which require new language features.
+// When inside a Go module, goVersion should be the result of:
+//
+//     go list -m -f {{.GoVersion}}
+//
+// goVersion is treated as a semantic version, which might start with a "v"
+// prefix. Like Go versions, it might also be incomplete; "1.14" is equivalent
+// to "1.14.0". An empty goVersion is equivalent to "v99", to use all available
+// language features.
 package format
 
 import (
@@ -25,33 +37,16 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 )
 
-type Options struct {
-	// LangVersion corresponds to the Go language version a piece of code is
-	// written in. The version is used to decide whether to apply formatting
-	// rules which require new language features. When inside a Go module,
-	// LangVersion should generally be specified as the result of:
-	//
-	//     go list -m -f {{.GoVersion}}
-	//
-	// LangVersion is treated as a semantic version, which might start with
-	// a "v" prefix. Like Go versions, it might also be incomplete; "1.14"
-	// is equivalent to "1.14.0". When empty, it is equivalent to "v1", to
-	// not use language features which could break programs.
-	LangVersion string
-
-	ExtraRules bool
-}
-
 // Source formats src in gofumpt's format, assuming that src holds a valid Go
 // source file.
-func Source(src []byte, opts Options) ([]byte, error) {
+func Source(src []byte, goVersion string) ([]byte, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "", src, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
 
-	File(fset, file, opts)
+	File(fset, file, goVersion)
 
 	var buf bytes.Buffer
 	if err := format.Node(&buf, fset, file); err != nil {
@@ -63,20 +58,20 @@ func Source(src []byte, opts Options) ([]byte, error) {
 // File modifies a file and fset in place to follow gofumpt's format. The
 // changes might include manipulating adding or removing newlines in fset,
 // modifying the position of nodes, or modifying literal values.
-func File(fset *token.FileSet, file *ast.File, opts Options) {
-	if opts.LangVersion == "" {
-		opts.LangVersion = "v1"
-	} else if opts.LangVersion[0] != 'v' {
-		opts.LangVersion = "v" + opts.LangVersion
+func File(fset *token.FileSet, file *ast.File, goVersion string) {
+	if goVersion == "" {
+		goVersion = "v99"
+	} else if goVersion[0] != 'v' {
+		goVersion = "v" + goVersion
 	}
-	if !semver.IsValid(opts.LangVersion) {
-		panic(fmt.Sprintf("invalid semver string: %q", opts.LangVersion))
+	if !semver.IsValid(goVersion) {
+		panic(fmt.Sprintf("invalid semver string: %q", goVersion))
 	}
 	f := &fumpter{
-		File:    fset.File(file.Pos()),
-		fset:    fset,
-		astFile: file,
-		Options: opts,
+		File:      fset.File(file.Pos()),
+		fset:      fset,
+		astFile:   file,
+		goVersion: goVersion,
 	}
 	pre := func(c *astutil.Cursor) bool {
 		f.applyPre(c)
@@ -101,14 +96,14 @@ const shortLineLimit = 60
 var rxOctalInteger = regexp.MustCompile(`\A0[0-7_]+\z`)
 
 type fumpter struct {
-	Options
-
 	*token.File
 	fset *token.FileSet
 
 	astFile *ast.File
 
 	blockLevel int
+
+	goVersion string
 }
 
 func (f *fumpter) commentsBetween(p1, p2 token.Pos) []*ast.CommentGroup {
@@ -217,8 +212,7 @@ func (f *fumpter) printLength(node ast.Node) int {
 //   //export     | to mark cgo funcs for exporting
 //   //extern     | C function declarations for gccgo
 //   //sys(nb)?   | syscall function wrapper prototypes
-//   //nolint     | nolint directive for golangci
-var rxCommentDirective = regexp.MustCompile(`^([a-z]+:|line\b|export\b|extern\b|sys(nb)?\b|nolint\b)`)
+var rxCommentDirective = regexp.MustCompile(`^([a-z]+:|line\b|export\b|extern\b|sys(nb)?\b)`)
 
 // visit takes either an ast.Node or a []ast.Stmt.
 func (f *fumpter) applyPre(c *astutil.Cursor) {
@@ -477,10 +471,6 @@ func (f *fumpter) applyPre(c *astutil.Cursor) {
 		f.stmts(node.Body)
 
 	case *ast.FieldList:
-		// Merging adjacent fields (e.g. parameters) is disabled by default.
-		if !f.ExtraRules {
-			break
-		}
 		switch c.Parent().(type) {
 		case *ast.FuncDecl, *ast.FuncType, *ast.InterfaceType:
 			node.List = f.mergeAdjacentFields(node.List)
@@ -490,8 +480,7 @@ func (f *fumpter) applyPre(c *astutil.Cursor) {
 		}
 
 	case *ast.BasicLit:
-		// Octal number literals were introduced in 1.13.
-		if semver.Compare(f.LangVersion, "v1.13") >= 0 {
+		if semver.Compare(f.goVersion, "v1.13") >= 0 {
 			if node.Kind == token.INT && rxOctalInteger.MatchString(node.Value) {
 				node.Value = "0o" + node.Value[1:]
 				c.Replace(node)

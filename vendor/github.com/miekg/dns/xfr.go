@@ -182,17 +182,14 @@ func (t *Transfer) inIxfr(q *Msg, c chan *Envelope) {
 //
 //	ch := make(chan *dns.Envelope)
 //	tr := new(dns.Transfer)
-//	var wg sync.WaitGroup
-//	go func() {
-//		tr.Out(w, r, ch)
-//		wg.Done()
-//	}()
+//	go tr.Out(w, r, ch)
 //	ch <- &dns.Envelope{RR: []dns.RR{soa, rr1, rr2, rr3, soa}}
 //	close(ch)
-//	wg.Wait() // wait until everything is written out
-//	w.Close() // close connection
+//	w.Hijack()
+//	// w.Close() // Client closes connection
 //
-// The server is responsible for sending the correct sequence of RRs through the channel ch.
+// The server is responsible for sending the correct sequence of RRs through the
+// channel ch.
 func (t *Transfer) Out(w ResponseWriter, q *Msg, ch chan *Envelope) error {
 	for x := range ch {
 		r := new(Msg)

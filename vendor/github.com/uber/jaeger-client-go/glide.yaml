@@ -25,4 +25,3 @@ testImport:
   - assert
   - require
   - suite
-- package: github.com/golang/mock

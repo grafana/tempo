@@ -13,7 +13,6 @@ import (
 	"google.golang.org/protobuf/internal/encoding/messageset"
 	"google.golang.org/protobuf/internal/errors"
 	"google.golang.org/protobuf/internal/flags"
-	"google.golang.org/protobuf/internal/genid"
 	"google.golang.org/protobuf/internal/pragma"
 	"google.golang.org/protobuf/proto"
 	pref "google.golang.org/protobuf/reflect/protoreflect"
@@ -105,13 +104,6 @@ func (o MarshalOptions) Format(m proto.Message) string {
 // MarshalOptions. Do not depend on the output being stable. It may change over
 // time across different versions of the program.
 func (o MarshalOptions) Marshal(m proto.Message) ([]byte, error) {
-	return o.marshal(m)
-}
-
-// marshal is a centralized function that all marshal operations go through.
-// For profiling purposes, avoid changing the name of this function or
-// introducing other code paths for marshal that do not go through this.
-func (o MarshalOptions) marshal(m proto.Message) ([]byte, error) {
 	if o.Multiline && o.Indent == "" {
 		o.Indent = defaultIndent
 	}
@@ -147,8 +139,8 @@ type encoder struct {
 
 // marshalMessage marshals the given protoreflect.Message.
 func (e encoder) marshalMessage(m pref.Message) error {
-	if marshal := wellKnownTypeMarshaler(m.Descriptor().FullName()); marshal != nil {
-		return marshal(e, m)
+	if isCustomType(m.Descriptor().FullName()) {
+		return e.marshalCustomType(m)
 	}
 
 	e.StartObject()
@@ -269,7 +261,7 @@ func (e encoder) marshalSingular(val pref.Value, fd pref.FieldDescriptor) error 
 		e.WriteString(base64.StdEncoding.EncodeToString(val.Bytes()))
 
 	case pref.EnumKind:
-		if fd.Enum().FullName() == genid.NullValue_enum_fullname {
+		if fd.Enum().FullName() == "google.protobuf.NullValue" {
 			e.WriteNull()
 		} else {
 			desc := fd.Enum().Values().ByNumber(val.Enum())

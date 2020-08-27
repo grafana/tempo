@@ -59,5 +59,5 @@ Top level comment should end in a period: math/math.go:3:1
 ```
 
 See more examples in test files:
-- [for default mode](testdata/default/in/main.go)
-- [for using --all flag](testdata/checkall/in/main.go)
+- [for default mode](testdata/default/check/main.go)
+- [for using --all flag](testdata/checkall/check/main.go)

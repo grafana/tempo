@@ -17,11 +17,13 @@ package zipkinreceiver
 import (
 	"context"
 
+	"go.uber.org/zap"
+
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/receiver/receiverhelper"
 )
 
 // This file implements factory for Zipkin receiver.
@@ -33,17 +35,22 @@ const (
 	defaultBindEndpoint = "0.0.0.0:9411"
 )
 
-// NewFactory creates a new Zipkin receiver factory
-func NewFactory() component.ReceiverFactory {
-	return receiverhelper.NewFactory(
-		typeStr,
-		createDefaultConfig,
-		receiverhelper.WithTraces(createTraceReceiver),
-	)
+// Factory is the factory for Zipkin receiver.
+type Factory struct {
 }
 
-// createDefaultConfig creates the default configuration for Zipkin receiver.
-func createDefaultConfig() configmodels.Receiver {
+// Type gets the type of the Receiver config created by this factory.
+func (f *Factory) Type() configmodels.Type {
+	return typeStr
+}
+
+// CustomUnmarshaler returns nil because we don't need custom unmarshaling for this config.
+func (f *Factory) CustomUnmarshaler() component.CustomUnmarshaler {
+	return nil
+}
+
+// CreateDefaultConfig creates the default configuration for Jaeger receiver.
+func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	return &Config{
 		ReceiverSettings: configmodels.ReceiverSettings{
 			TypeVal: typeStr,
@@ -55,13 +62,18 @@ func createDefaultConfig() configmodels.Receiver {
 	}
 }
 
-// createTraceReceiver creates a trace receiver based on provided config.
-func createTraceReceiver(
-	_ context.Context,
-	_ component.ReceiverCreateParams,
+// CreateTraceReceiver creates a trace receiver based on provided config.
+func (f *Factory) CreateTraceReceiver(
+	ctx context.Context,
+	logger *zap.Logger,
 	cfg configmodels.Receiver,
-	nextConsumer consumer.TraceConsumer,
+	nextConsumer consumer.TraceConsumerOld,
 ) (component.TraceReceiver, error) {
 	rCfg := cfg.(*Config)
 	return New(rCfg, nextConsumer)
+}
+
+// CreateMetricsReceiver creates a metrics receiver based on provided config.
+func (f *Factory) CreateMetricsReceiver(ctx context.Context, logger *zap.Logger, cfg configmodels.Receiver, nextConsumer consumer.MetricsConsumerOld) (component.MetricsReceiver, error) {
+	return nil, configerror.ErrDataTypeIsNotSupported
 }

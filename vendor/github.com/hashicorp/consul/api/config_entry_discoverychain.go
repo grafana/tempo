@@ -6,9 +6,8 @@ import (
 )
 
 type ServiceRouterConfigEntry struct {
-	Kind      string
-	Name      string
-	Namespace string `json:",omitempty"`
+	Kind string
+	Name string
 
 	Routes []ServiceRoute `json:",omitempty"`
 
@@ -105,9 +104,8 @@ func (e *ServiceRouteDestination) UnmarshalJSON(data []byte) error {
 }
 
 type ServiceSplitterConfigEntry struct {
-	Kind      string
-	Name      string
-	Namespace string `json:",omitempty"`
+	Kind string
+	Name string
 
 	Splits []ServiceSplit `json:",omitempty"`
 
@@ -128,9 +126,8 @@ type ServiceSplit struct {
 }
 
 type ServiceResolverConfigEntry struct {
-	Kind      string
-	Name      string
-	Namespace string `json:",omitempty"`
+	Kind string
+	Name string
 
 	DefaultSubset  string                             `json:",omitempty"`
 	Subsets        map[string]ServiceResolverSubset   `json:",omitempty"`

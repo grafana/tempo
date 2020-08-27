@@ -47,7 +47,7 @@ func NewGoimports() *goanalysis.Linter {
 					continue
 				}
 
-				is, err := extractIssuesFromPatch(string(diff), lintCtx.Log, lintCtx, goimportsName)
+				is, err := extractIssuesFromPatch(string(diff), lintCtx.Log, lintCtx, true)
 				if err != nil {
 					return nil, errors.Wrapf(err, "can't extract issues from gofmt diff output %q", string(diff))
 				}

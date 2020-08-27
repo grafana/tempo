@@ -77,7 +77,7 @@ type IndexReader interface {
 
 	// Series populates the given labels and chunk metas for the series identified
 	// by the reference.
-	// Returns storage.ErrNotFound if the ref does not resolve to a known series.
+	// Returns ErrNotFound if the ref does not resolve to a known series.
 	Series(ref uint64, lset *labels.Labels, chks *[]chunks.Meta) error
 
 	// LabelNames returns all the unique label names present in the index in sorted order.
@@ -122,6 +122,12 @@ type BlockReader interface {
 
 	// Meta provides meta information about the block reader.
 	Meta() BlockMeta
+}
+
+// Appendable defines an entity to which data can be appended.
+type Appendable interface {
+	// Appender returns a new Appender against an underlying store.
+	Appender() Appender
 }
 
 // BlockMeta provides meta information about a block.

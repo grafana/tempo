@@ -3,16 +3,17 @@ package golinters
 import (
 	"bytes"
 	"fmt"
+	"go/token"
 	"io/ioutil"
+	"strings"
 	"sync"
 
-	"github.com/pkg/errors"
-	"github.com/shazow/go-diff/difflib"
 	"golang.org/x/tools/go/analysis"
 	"mvdan.cc/gofumpt/format"
 
 	"github.com/golangci/golangci-lint/pkg/golinters/goanalysis"
 	"github.com/golangci/golangci-lint/pkg/lint/linter"
+	"github.com/golangci/golangci-lint/pkg/result"
 )
 
 const gofumptName = "gofumpt"
@@ -20,7 +21,6 @@ const gofumptName = "gofumpt"
 func NewGofumpt() *goanalysis.Linter {
 	var mu sync.Mutex
 	var resIssues []goanalysis.Issue
-	differ := difflib.New()
 
 	analyzer := &analysis.Analyzer{
 		Name: gofumptName,
@@ -46,33 +46,19 @@ func NewGofumpt() *goanalysis.Linter {
 				if err != nil {
 					return nil, fmt.Errorf("unable to open file %s: %w", f, err)
 				}
-				output, err := format.Source(input, format.Options{
-					ExtraRules: lintCtx.Settings().Gofumpt.ExtraRules,
-				})
+				output, err := format.Source(input, "")
 				if err != nil {
 					return nil, fmt.Errorf("error while running gofumpt: %w", err)
 				}
 				if !bytes.Equal(input, output) {
-					out := bytes.Buffer{}
-					_, err = out.WriteString(fmt.Sprintf("--- %[1]s\n+++ %[1]s\n", f))
-					if err != nil {
-						return nil, fmt.Errorf("error while running gofumpt: %w", err)
-					}
-
-					err = differ.Diff(&out, bytes.NewReader(input), bytes.NewReader(output))
-					if err != nil {
-						return nil, fmt.Errorf("error while running gofumpt: %w", err)
-					}
-
-					diff := out.String()
-					is, err := extractIssuesFromPatch(diff, lintCtx.Log, lintCtx, gofumptName)
-					if err != nil {
-						return nil, errors.Wrapf(err, "can't extract issues from gofumpt diff output %q", diff)
-					}
-
-					for i := range is {
-						issues = append(issues, goanalysis.NewIssue(&is[i], pass))
-					}
+					issues = append(issues, goanalysis.NewIssue(&result.Issue{
+						FromLinter: gofumptName,
+						Text:       "File is not `gofumpt`-ed",
+						Pos: token.Position{
+							Filename: f,
+							Line:     strings.Count(string(input), "\n"),
+						},
+					}, pass))
 				}
 			}
 

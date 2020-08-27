@@ -67,17 +67,6 @@ type Meta struct {
 	MinTime, MaxTime int64
 }
 
-// Iterator iterates over the chunk of a time series.
-type Iterator interface {
-	// At returns the current meta.
-	// It depends on implementation if the chunk is populated or not.
-	At() Meta
-	// Next advances the iterator by one.
-	Next() bool
-	// Err returns optional error if Next is false.
-	Err() error
-}
-
 // writeHash writes the chunk encoding and raw data into the provided hash.
 func (cm *Meta) writeHash(h hash.Hash, buf []byte) error {
 	buf = append(buf[:0], byte(cm.Chunk.Encoding()))
@@ -201,7 +190,27 @@ func (w *Writer) cut() error {
 		return err
 	}
 
-	n, f, _, err := cutSegmentFile(w.dirFile, MagicChunks, chunksFormatV1, w.segmentSize)
+	p, _, err := nextSequenceFile(w.dirFile.Name())
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	if err = fileutil.Preallocate(f, w.segmentSize, true); err != nil {
+		return err
+	}
+	if err = w.dirFile.Sync(); err != nil {
+		return err
+	}
+
+	// Write header metadata for new file.
+	metab := make([]byte, SegmentHeaderSize)
+	binary.BigEndian.PutUint32(metab[:MagicChunksSize], MagicChunks)
+	metab[4] = chunksFormatV1
+
+	n, err := f.Write(metab)
 	if err != nil {
 		return err
 	}
@@ -215,36 +224,6 @@ func (w *Writer) cut() error {
 	}
 
 	return nil
-}
-
-func cutSegmentFile(dirFile *os.File, magicNumber uint32, chunksFormat byte, allocSize int64) (headerSize int, newFile *os.File, seq int, err error) {
-	p, seq, err := nextSequenceFile(dirFile.Name())
-	if err != nil {
-		return 0, nil, 0, err
-	}
-	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE, 0666)
-	if err != nil {
-		return 0, nil, 0, err
-	}
-	if allocSize > 0 {
-		if err = fileutil.Preallocate(f, allocSize, true); err != nil {
-			return 0, nil, 0, err
-		}
-	}
-	if err = dirFile.Sync(); err != nil {
-		return 0, nil, 0, err
-	}
-
-	// Write header metadata for new file.
-	metab := make([]byte, SegmentHeaderSize)
-	binary.BigEndian.PutUint32(metab[:MagicChunksSize], magicNumber)
-	metab[4] = chunksFormat
-
-	n, err := f.Write(metab)
-	if err != nil {
-		return 0, nil, 0, err
-	}
-	return n, f, seq, nil
 }
 
 func (w *Writer) write(b []byte) error {
@@ -485,6 +464,8 @@ type Reader struct {
 
 func newReader(bs []ByteSlice, cs []io.Closer, pool chunkenc.Pool) (*Reader, error) {
 	cr := Reader{pool: pool, bs: bs, cs: cs}
+	var totalSize int64
+
 	for i, b := range cr.bs {
 		if b.Len() < SegmentHeaderSize {
 			return nil, errors.Wrapf(errInvalidSize, "invalid segment header in segment %d", i)
@@ -498,8 +479,9 @@ func newReader(bs []ByteSlice, cs []io.Closer, pool chunkenc.Pool) (*Reader, err
 		if v := int(b.Range(MagicChunksSize, MagicChunksSize+ChunksFormatVersionSize)[0]); v != chunksFormatV1 {
 			return nil, errors.Errorf("invalid chunk format version %d", v)
 		}
-		cr.size += int64(b.Len())
+		totalSize += int64(b.Len())
 	}
+	cr.size = totalSize
 	return &cr, nil
 }
 
@@ -601,29 +583,20 @@ func (s *Reader) Chunk(ref uint64) (chunkenc.Chunk, error) {
 }
 
 func nextSequenceFile(dir string) (string, int, error) {
-	files, err := ioutil.ReadDir(dir)
+	names, err := fileutil.ReadDir(dir)
 	if err != nil {
 		return "", 0, err
 	}
 
 	i := uint64(0)
-	for _, f := range files {
-		j, err := strconv.ParseUint(f.Name(), 10, 64)
+	for _, n := range names {
+		j, err := strconv.ParseUint(n, 10, 64)
 		if err != nil {
 			continue
 		}
-		// It is not necessary that we find the files in number order,
-		// for example with '1000000' and '200000', '1000000' would come first.
-		// Though this is a very very race case, we check anyway for the max id.
-		if j > i {
-			i = j
-		}
+		i = j
 	}
-	return segmentFile(dir, int(i+1)), int(i + 1), nil
-}
-
-func segmentFile(baseDir string, index int) string {
-	return filepath.Join(baseDir, fmt.Sprintf("%0.6d", index))
+	return filepath.Join(dir, fmt.Sprintf("%0.6d", i+1)), int(i + 1), nil
 }
 
 func sequenceFiles(dir string) ([]string, error) {
@@ -632,6 +605,7 @@ func sequenceFiles(dir string) ([]string, error) {
 		return nil, err
 	}
 	var res []string
+
 	for _, fi := range files {
 		if _, err := strconv.ParseUint(fi.Name(), 10, 64); err != nil {
 			continue

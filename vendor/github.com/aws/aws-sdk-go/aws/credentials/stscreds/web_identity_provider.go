@@ -28,34 +28,15 @@ const (
 // compare test values.
 var now = time.Now
 
-// TokenFetcher shuold return WebIdentity token bytes or an error
-type TokenFetcher interface {
-	FetchToken(credentials.Context) ([]byte, error)
-}
-
-// FetchTokenPath is a path to a WebIdentity token file
-type FetchTokenPath string
-
-// FetchToken returns a token by reading from the filesystem
-func (f FetchTokenPath) FetchToken(ctx credentials.Context) ([]byte, error) {
-	data, err := ioutil.ReadFile(string(f))
-	if err != nil {
-		errMsg := fmt.Sprintf("unable to read file at %s", f)
-		return nil, awserr.New(ErrCodeWebIdentity, errMsg, err)
-	}
-	return data, nil
-}
-
 // WebIdentityRoleProvider is used to retrieve credentials using
 // an OIDC token.
 type WebIdentityRoleProvider struct {
 	credentials.Expiry
-	PolicyArns []*sts.PolicyDescriptorType
 
 	client       stsiface.STSAPI
 	ExpiryWindow time.Duration
 
-	tokenFetcher    TokenFetcher
+	tokenFilePath   string
 	roleARN         string
 	roleSessionName string
 }
@@ -71,15 +52,9 @@ func NewWebIdentityCredentials(c client.ConfigProvider, roleARN, roleSessionName
 // NewWebIdentityRoleProvider will return a new WebIdentityRoleProvider with the
 // provided stsiface.STSAPI
 func NewWebIdentityRoleProvider(svc stsiface.STSAPI, roleARN, roleSessionName, path string) *WebIdentityRoleProvider {
-	return NewWebIdentityRoleProviderWithToken(svc, roleARN, roleSessionName, FetchTokenPath(path))
-}
-
-// NewWebIdentityRoleProviderWithToken will return a new WebIdentityRoleProvider with the
-// provided stsiface.STSAPI and a TokenFetcher
-func NewWebIdentityRoleProviderWithToken(svc stsiface.STSAPI, roleARN, roleSessionName string, tokenFetcher TokenFetcher) *WebIdentityRoleProvider {
 	return &WebIdentityRoleProvider{
 		client:          svc,
-		tokenFetcher:    tokenFetcher,
+		tokenFilePath:   path,
 		roleARN:         roleARN,
 		roleSessionName: roleSessionName,
 	}
@@ -89,16 +64,10 @@ func NewWebIdentityRoleProviderWithToken(svc stsiface.STSAPI, roleARN, roleSessi
 // 'WebIdentityTokenFilePath' specified destination and if that is empty an
 // error will be returned.
 func (p *WebIdentityRoleProvider) Retrieve() (credentials.Value, error) {
-	return p.RetrieveWithContext(aws.BackgroundContext())
-}
-
-// RetrieveWithContext will attempt to assume a role from a token which is located at
-// 'WebIdentityTokenFilePath' specified destination and if that is empty an
-// error will be returned.
-func (p *WebIdentityRoleProvider) RetrieveWithContext(ctx credentials.Context) (credentials.Value, error) {
-	b, err := p.tokenFetcher.FetchToken(ctx)
+	b, err := ioutil.ReadFile(p.tokenFilePath)
 	if err != nil {
-		return credentials.Value{}, awserr.New(ErrCodeWebIdentity, "failed fetching WebIdentity token: ", err)
+		errMsg := fmt.Sprintf("unable to read file at %s", p.tokenFilePath)
+		return credentials.Value{}, awserr.New(ErrCodeWebIdentity, errMsg, err)
 	}
 
 	sessionName := p.roleSessionName
@@ -108,14 +77,10 @@ func (p *WebIdentityRoleProvider) RetrieveWithContext(ctx credentials.Context) (
 		sessionName = strconv.FormatInt(now().UnixNano(), 10)
 	}
 	req, resp := p.client.AssumeRoleWithWebIdentityRequest(&sts.AssumeRoleWithWebIdentityInput{
-		PolicyArns:       p.PolicyArns,
 		RoleArn:          &p.roleARN,
 		RoleSessionName:  &sessionName,
 		WebIdentityToken: aws.String(string(b)),
 	})
-
-	req.SetContext(ctx)
-
 	// InvalidIdentityToken error is a temporary error that can occur
 	// when assuming an Role with a JWT web identity token.
 	req.RetryErrorCodes = append(req.RetryErrorCodes, sts.ErrCodeInvalidIdentityTokenException)

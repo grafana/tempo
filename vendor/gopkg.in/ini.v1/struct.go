@@ -278,9 +278,7 @@ func parseTagOptions(tag string) (rawName string, omitEmpty bool, allowShadow bo
 	return rawName, omitEmpty, allowShadow, allowNonUnique
 }
 
-// mapToField maps the given value to the matching field of the given section.
-// The sectionIndex is the index (if non unique sections are enabled) to which the value should be added.
-func (s *Section) mapToField(val reflect.Value, isStrict bool, sectionIndex int) error {
+func (s *Section) mapToField(val reflect.Value, isStrict bool) error {
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
 	}
@@ -309,16 +307,13 @@ func (s *Section) mapToField(val reflect.Value, isStrict bool, sectionIndex int)
 		}
 
 		if isAnonymous || isStruct || isStructPtr {
-			if secs, err := s.f.SectionsByName(fieldName); err == nil {
-				if len(secs) <= sectionIndex {
-					return fmt.Errorf("there are not enough sections (%d <= %d) for the field %q", len(secs), sectionIndex, fieldName)
-				}
+			if sec, err := s.f.GetSection(fieldName); err == nil {
 				// Only set the field to non-nil struct value if we have a section for it.
 				// Otherwise, we end up with a non-nil struct ptr even though there is no data.
 				if isStructPtr && field.IsNil() {
 					field.Set(reflect.New(tpField.Type.Elem()))
 				}
-				if err = secs[sectionIndex].mapToField(field, isStrict, sectionIndex); err != nil {
+				if err = sec.mapToField(field, isStrict); err != nil {
 					return fmt.Errorf("map to field %q: %v", fieldName, err)
 				}
 				continue
@@ -355,9 +350,9 @@ func (s *Section) mapToSlice(secName string, val reflect.Value, isStrict bool) (
 	}
 
 	typ := val.Type().Elem()
-	for i, sec := range secs {
+	for _, sec := range secs {
 		elem := reflect.New(typ)
-		if err = sec.mapToField(elem, isStrict, i); err != nil {
+		if err = sec.mapToField(elem, isStrict); err != nil {
 			return reflect.Value{}, fmt.Errorf("map to field from section %q: %v", secName, err)
 		}
 
@@ -387,7 +382,7 @@ func (s *Section) mapTo(v interface{}, isStrict bool) error {
 		return nil
 	}
 
-	return s.mapToField(val, isStrict, 0)
+	return s.mapToField(val, isStrict)
 }
 
 // MapTo maps section to given struct.
@@ -569,10 +564,6 @@ func (s *Section) reflectFrom(val reflect.Value) error {
 	typ := val.Type()
 
 	for i := 0; i < typ.NumField(); i++ {
-		if !val.Field(i).CanInterface() {
-			continue
-		}
-
 		field := val.Field(i)
 		tpField := typ.Field(i)
 
@@ -704,6 +695,7 @@ func (s *Section) ReflectFrom(v interface{}) error {
 	}
 
 	if typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
 		val = val.Elem()
 	} else {
 		return errors.New("not a pointer to a struct")

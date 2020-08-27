@@ -17,7 +17,6 @@ package jaeger
 import (
 	"fmt"
 	"math"
-	"strings"
 	"sync"
 
 	"github.com/uber/jaeger-client-go/thrift-gen/sampling"
@@ -142,7 +141,7 @@ func (s *ProbabilisticSampler) SamplingRate() float64 {
 
 // IsSampled implements IsSampled() of Sampler.
 func (s *ProbabilisticSampler) IsSampled(id TraceID, operation string) (bool, []Tag) {
-	return s.samplingBoundary >= id.Low&maxRandomNumber, s.tags
+	return s.samplingBoundary >= id.Low, s.tags
 }
 
 // Close implements Close() of Sampler.
@@ -320,10 +319,6 @@ func (s *GuaranteedThroughputProbabilisticSampler) update(lowerBound, samplingRa
 	}
 }
 
-func (s GuaranteedThroughputProbabilisticSampler) String() string {
-	return fmt.Sprintf("GuaranteedThroughputProbabilisticSampler(lowerBound=%f, samplingRate=%f)", s.lowerBound, s.samplingRate)
-}
-
 // -----------------------
 
 // PerOperationSampler is a delegating sampler that applies GuaranteedThroughputProbabilisticSampler
@@ -459,23 +454,6 @@ func (s *PerOperationSampler) Close() {
 		sampler.Close()
 	}
 	s.defaultSampler.Close()
-}
-
-func (s *PerOperationSampler) String() string {
-	var sb strings.Builder
-
-	fmt.Fprintf(&sb, "PerOperationSampler(defaultSampler=%v, ", s.defaultSampler)
-	fmt.Fprintf(&sb, "lowerBound=%f, ", s.lowerBound)
-	fmt.Fprintf(&sb, "maxOperations=%d, ", s.maxOperations)
-	fmt.Fprintf(&sb, "operationNameLateBinding=%t, ", s.operationNameLateBinding)
-	fmt.Fprintf(&sb, "numOperations=%d,\n", len(s.samplers))
-	fmt.Fprintf(&sb, "samplers=[")
-	for operationName, sampler := range s.samplers {
-		fmt.Fprintf(&sb, "\n(operationName=%s, sampler=%v)", operationName, sampler)
-	}
-	fmt.Fprintf(&sb, "])")
-
-	return sb.String()
 }
 
 // Equal is not used.

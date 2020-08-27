@@ -90,10 +90,6 @@ type AttributeValue struct {
 	orig **otlpcommon.AnyValue
 }
 
-func newAttributeValue(orig **otlpcommon.AnyValue) AttributeValue {
-	return AttributeValue{orig}
-}
-
 // NewAttributeValueNull creates a new AttributeValue with a null value.
 func NewAttributeValueNull() AttributeValue {
 	orig := &otlpcommon.AnyValue{}
@@ -143,15 +139,6 @@ func NewAttributeValueSlice(len int) []AttributeValue {
 		wrappers[i].orig = &origPtrs[i]
 	}
 	return wrappers
-}
-
-func (a AttributeValue) InitEmpty() {
-	*a.orig = &otlpcommon.AnyValue{}
-}
-
-// IsNil returns true if the underlying data are nil.
-func (a AttributeValue) IsNil() bool {
-	return *a.orig == nil
 }
 
 // Type returns the type of the value for this AttributeValue.
@@ -309,13 +296,6 @@ func (a AttributeValue) copyTo(dest *otlpcommon.AnyValue) {
 	}
 }
 
-func (a AttributeValue) CopyTo(dest AttributeValue) {
-	if *a.orig != nil && dest.IsNil() {
-		dest.InitEmpty()
-	}
-	a.copyTo(*dest.orig)
-}
-
 // Equal checks for equality, it returns true if the objects are equal otherwise false.
 func (a AttributeValue) Equal(av AttributeValue) bool {
 	if (*a.orig) == nil || (*a.orig).Value == nil {
@@ -437,6 +417,7 @@ func (am AttributeMap) InitFromAttributeMap(attrMap AttributeMap) AttributeMap {
 		wrappers[ix] = &origs[ix]
 		wrappers[ix].Key = v.Key
 		AttributeValue{&v.Value}.copyTo(&anyVals[ix])
+		ix++
 	}
 	*am.orig = wrappers
 	return am

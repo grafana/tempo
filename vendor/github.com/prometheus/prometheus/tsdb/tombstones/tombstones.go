@@ -38,8 +38,7 @@ const (
 	// MagicTombstone is 4 bytes at the head of a tombstone file.
 	MagicTombstone = 0x0130BA30
 
-	tombstoneFormatV1    = 1
-	tombstonesHeaderSize = 5
+	tombstoneFormatV1 = 1
 )
 
 // The table gets initialized with sync.Once but may still cause a race
@@ -159,7 +158,7 @@ func ReadTombstones(dir string) (Reader, int64, error) {
 		return nil, 0, err
 	}
 
-	if len(b) < tombstonesHeaderSize {
+	if len(b) < 5 {
 		return nil, 0, errors.Wrap(encoding.ErrInvalidSize, "tombstones header")
 	}
 

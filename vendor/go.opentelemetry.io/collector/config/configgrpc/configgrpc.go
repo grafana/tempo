@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
@@ -45,9 +44,6 @@ var (
 		CompressionGzip: gzip.Name,
 	}
 )
-
-// Allowed balancer names to be set in grpclb_policy to discover the servers
-var allowedBalancerNames = []string{roundrobin.Name, grpc.PickFirstBalancerName}
 
 // KeepaliveClientConfig exposes the keepalive.ClientParameters to be used by the exporter.
 // Refer to the original data-structure for the meaning of each parameter:
@@ -72,15 +68,15 @@ type GRPCClientSettings struct {
 	// TLSSetting struct exposes TLS client configuration.
 	TLSSetting configtls.TLSClientSetting `mapstructure:",squash"`
 
-	// The keepalive parameters for gRPC client. See grpc.WithKeepaliveParams
+	// The keepalive parameters for client gRPC. See grpc.WithKeepaliveParams
 	// (https://godoc.org/google.golang.org/grpc#WithKeepaliveParams).
 	Keepalive *KeepaliveClientConfig `mapstructure:"keepalive"`
 
-	// ReadBufferSize for gRPC client. See grpc.WithReadBufferSize
+	// The WriteBufferSize for client gRPC. See grpc.WithReadBufferSize
 	// (https://godoc.org/google.golang.org/grpc#WithReadBufferSize).
 	ReadBufferSize int `mapstructure:"read_buffer_size"`
 
-	// WriteBufferSize for gRPC gRPC. See grpc.WithWriteBufferSize
+	// The WriteBufferSize for client gRPC. See grpc.WithWriteBufferSize
 	// (https://godoc.org/google.golang.org/grpc#WithWriteBufferSize).
 	WriteBufferSize int `mapstructure:"write_buffer_size"`
 
@@ -93,10 +89,6 @@ type GRPCClientSettings struct {
 
 	// PerRPCAuth parameter configures the client to send authentication data on a per-RPC basis.
 	PerRPCAuth *PerRPCAuthConfig `mapstructure:"per_rpc_auth"`
-
-	// Sets the balancer in grpclb_policy to discover the servers. Default is pick_first
-	// https://github.com/grpc/grpc-go/blob/master/examples/features/load_balancing/README.md
-	BalancerName string `mapstructure:"balancer_name"`
 }
 
 type KeepaliveServerConfig struct {
@@ -147,11 +139,11 @@ type GRPCServerSettings struct {
 	// It has effect only for streaming RPCs.
 	MaxConcurrentStreams uint32 `mapstructure:"max_concurrent_streams"`
 
-	// ReadBufferSize for gRPC server. See grpc.ReadBufferSize
+	// The WriteBufferSize for client gRPC. See grpc.ReadBufferSize
 	// (https://godoc.org/google.golang.org/grpc#ReadBufferSize).
 	ReadBufferSize int `mapstructure:"read_buffer_size"`
 
-	// WriteBufferSize for gRPC server. See grpc.WriteBufferSize
+	// The WriteBufferSize for client gRPC. See grpc.WriteBufferSize
 	// (https://godoc.org/google.golang.org/grpc#WriteBufferSize).
 	WriteBufferSize int `mapstructure:"write_buffer_size"`
 
@@ -161,7 +153,8 @@ type GRPCServerSettings struct {
 
 // ToServerOption maps configgrpc.GRPCClientSettings to a slice of dial options for gRPC
 func (gcs *GRPCClientSettings) ToDialOptions() ([]grpc.DialOption, error) {
-	var opts []grpc.DialOption
+	opts := []grpc.DialOption{}
+
 	if gcs.Compression != "" {
 		if compressionKey := GetGRPCCompressionKey(gcs.Compression); compressionKey != CompressionUnsupported {
 			opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(compressionKey)))
@@ -207,24 +200,7 @@ func (gcs *GRPCClientSettings) ToDialOptions() ([]grpc.DialOption, error) {
 		}
 	}
 
-	if gcs.BalancerName != "" {
-		valid := validateBalancerName(gcs.BalancerName)
-		if !valid {
-			return nil, fmt.Errorf("invalid balancer_name: %s", gcs.BalancerName)
-		}
-		opts = append(opts, grpc.WithDefaultServiceConfig(fmt.Sprintf(`{"loadBalancingPolicy":"%s"}`, gcs.BalancerName)))
-	}
-
 	return opts, nil
-}
-
-func validateBalancerName(balancerName string) bool {
-	for _, item := range allowedBalancerNames {
-		if item == balancerName {
-			return true
-		}
-	}
-	return false
 }
 
 func (gss *GRPCServerSettings) ToListener() (net.Listener, error) {

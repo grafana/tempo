@@ -62,10 +62,10 @@ type MetricsExporter interface {
 	MetricsExporterBase
 }
 
-// LogsExporter is a LogsConsumer that is also an Exporter.
-type LogsExporter interface {
+// LogExporter is a LogConsumer that is also an Exporter.
+type LogExporter interface {
 	Exporter
-	consumer.LogsConsumer
+	consumer.LogConsumer
 }
 
 // ExporterFactoryBase defines the common functions for all exporter factories.
@@ -118,16 +118,16 @@ type ExporterFactory interface {
 		cfg configmodels.Exporter) (MetricsExporter, error)
 }
 
-// LogsExporterFactory can create a LogsExporter.
-type LogsExporterFactory interface {
+// LogExporterFactory can create a LogExporter.
+type LogExporterFactory interface {
 	ExporterFactoryBase
 
-	// CreateLogsExporter creates an exporter based on the config.
+	// CreateLogExporter creates an exporter based on the config.
 	// If the exporter type does not support logs or if the config is not valid
 	// error will be returned instead.
-	CreateLogsExporter(
+	CreateLogExporter(
 		ctx context.Context,
 		params ExporterCreateParams,
 		cfg configmodels.Exporter,
-	) (LogsExporter, error)
+	) (LogExporter, error)
 }

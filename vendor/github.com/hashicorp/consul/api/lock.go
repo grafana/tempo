@@ -79,7 +79,6 @@ type LockOptions struct {
 	MonitorRetryTime time.Duration // Optional, defaults to DefaultMonitorRetryTime
 	LockWaitTime     time.Duration // Optional, defaults to DefaultLockWaitTime
 	LockTryOnce      bool          // Optional, defaults to false which means try forever
-	Namespace        string        `json:",omitempty"` // Optional, defaults to API client config, namespace of ACL token, or "default" namespace
 }
 
 // LockKey returns a handle to a lock struct which can be used
@@ -141,10 +140,6 @@ func (l *Lock) Lock(stopCh <-chan struct{}) (<-chan struct{}, error) {
 		return nil, ErrLockHeld
 	}
 
-	wOpts := WriteOptions{
-		Namespace: l.opts.Namespace,
-	}
-
 	// Check if we need to create a session first
 	l.lockSession = l.opts.Session
 	if l.lockSession == "" {
@@ -155,9 +150,8 @@ func (l *Lock) Lock(stopCh <-chan struct{}) (<-chan struct{}, error) {
 
 		l.sessionRenew = make(chan struct{})
 		l.lockSession = s
-
 		session := l.c.Session()
-		go session.RenewPeriodic(l.opts.SessionTTL, s, &wOpts, l.sessionRenew)
+		go session.RenewPeriodic(l.opts.SessionTTL, s, nil, l.sessionRenew)
 
 		// If we fail to acquire the lock, cleanup the session
 		defer func() {
@@ -170,9 +164,8 @@ func (l *Lock) Lock(stopCh <-chan struct{}) (<-chan struct{}, error) {
 
 	// Setup the query options
 	kv := l.c.KV()
-	qOpts := QueryOptions{
-		WaitTime:  l.opts.LockWaitTime,
-		Namespace: l.opts.Namespace,
+	qOpts := &QueryOptions{
+		WaitTime: l.opts.LockWaitTime,
 	}
 
 	start := time.Now()
@@ -198,7 +191,7 @@ WAIT:
 	attempts++
 
 	// Look for an existing lock, blocking until not taken
-	pair, meta, err := kv.Get(l.opts.Key, &qOpts)
+	pair, meta, err := kv.Get(l.opts.Key, qOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read lock: %v", err)
 	}
@@ -216,8 +209,7 @@ WAIT:
 
 	// Try to acquire the lock
 	pair = l.lockEntry(l.lockSession)
-
-	locked, _, err = kv.Acquire(pair, &wOpts)
+	locked, _, err = kv.Acquire(pair, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire lock: %v", err)
 	}
@@ -226,7 +218,7 @@ WAIT:
 	if !locked {
 		// Determine why the lock failed
 		qOpts.WaitIndex = 0
-		pair, meta, err = kv.Get(l.opts.Key, &qOpts)
+		pair, meta, err = kv.Get(l.opts.Key, qOpts)
 		if pair != nil && pair.Session != "" {
 			//If the session is not null, this means that a wait can safely happen
 			//using a long poll
@@ -285,9 +277,7 @@ func (l *Lock) Unlock() error {
 
 	// Release the lock explicitly
 	kv := l.c.KV()
-	w := WriteOptions{Namespace: l.opts.Namespace}
-
-	_, _, err := kv.Release(lockEnt, &w)
+	_, _, err := kv.Release(lockEnt, nil)
 	if err != nil {
 		return fmt.Errorf("failed to release lock: %v", err)
 	}
@@ -308,9 +298,7 @@ func (l *Lock) Destroy() error {
 
 	// Look for an existing lock
 	kv := l.c.KV()
-	q := QueryOptions{Namespace: l.opts.Namespace}
-
-	pair, _, err := kv.Get(l.opts.Key, &q)
+	pair, _, err := kv.Get(l.opts.Key, nil)
 	if err != nil {
 		return fmt.Errorf("failed to read lock: %v", err)
 	}
@@ -331,8 +319,7 @@ func (l *Lock) Destroy() error {
 	}
 
 	// Attempt the delete
-	w := WriteOptions{Namespace: l.opts.Namespace}
-	didRemove, _, err := kv.DeleteCAS(pair, &w)
+	didRemove, _, err := kv.DeleteCAS(pair, nil)
 	if err != nil {
 		return fmt.Errorf("failed to remove lock: %v", err)
 	}
@@ -352,8 +339,7 @@ func (l *Lock) createSession() (string, error) {
 			TTL:  l.opts.SessionTTL,
 		}
 	}
-	w := WriteOptions{Namespace: l.opts.Namespace}
-	id, _, err := session.Create(se, &w)
+	id, _, err := session.Create(se, nil)
 	if err != nil {
 		return "", err
 	}
@@ -375,14 +361,11 @@ func (l *Lock) lockEntry(session string) *KVPair {
 func (l *Lock) monitorLock(session string, stopCh chan struct{}) {
 	defer close(stopCh)
 	kv := l.c.KV()
-	opts := QueryOptions{
-		RequireConsistent: true,
-		Namespace:         l.opts.Namespace,
-	}
+	opts := &QueryOptions{RequireConsistent: true}
 WAIT:
 	retries := l.opts.MonitorRetries
 RETRY:
-	pair, meta, err := kv.Get(l.opts.Key, &opts)
+	pair, meta, err := kv.Get(l.opts.Key, opts)
 	if err != nil {
 		// If configured we can try to ride out a brief Consul unavailability
 		// by doing retries. Note that we have to attempt the retry in a non-

@@ -17,12 +17,6 @@ type CAConfig struct {
 	// and maps).
 	Config map[string]interface{}
 
-	// State is read-only data that the provider might have persisted for use
-	// after restart or leadership transition. For example this might include
-	// UUIDs of resources it has created. Setting this when writing a
-	// configuration is an error.
-	State map[string]string
-
 	CreateIndex uint64
 	ModifyIndex uint64
 }
@@ -39,10 +33,9 @@ type CommonCAProviderConfig struct {
 type ConsulCAProviderConfig struct {
 	CommonCAProviderConfig `mapstructure:",squash"`
 
-	PrivateKey          string
-	RootCert            string
-	RotationPeriod      time.Duration
-	IntermediateCertTTL time.Duration
+	PrivateKey     string
+	RootCert       string
+	RotationPeriod time.Duration
 }
 
 // ParseConsulCAConfig takes a raw config map and returns a parsed

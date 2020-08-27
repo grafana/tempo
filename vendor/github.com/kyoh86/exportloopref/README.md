@@ -4,7 +4,6 @@ An analyzer that finds exporting pointers for loop variables.
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/kyoh86/exportloopref)](https://goreportcard.com/report/github.com/kyoh86/exportloopref)
 [![Coverage Status](https://img.shields.io/codecov/c/github/kyoh86/exportloopref.svg)](https://codecov.io/gh/kyoh86/exportloopref)
-[![Release](https://github.com/kyoh86/exportloopref/workflows/Release/badge.svg)](https://github.com/kyoh86/exportloopref/releases)
 
 ## What's this?
 
@@ -129,22 +128,8 @@ you should use [looppointer](https://github.com/kyoh86/looppointer).
 
 ## Install
 
-go:
-
-```console
-$ go get github.com/kyoh86/exportloopref/cmd/exportloopref
 ```
-
-[homebrew](https://brew.sh/):
-
-```console
-$ brew install kyoh86/tap/exportloopref
-```
-
-[gordon](https://github.com/kyoh86/gordon):
-
-```console
-$ gordon install kyoh86/exportloopref
+go get github.com/kyoh86/exportloopref
 ```
 
 ## Usage

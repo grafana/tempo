@@ -28,35 +28,23 @@ type sortNode struct {
 // Encodes a string to a TOML-compliant multi-line string value
 // This function is a clone of the existing encodeTomlString function, except that whitespace characters
 // are preserved. Quotation marks and backslashes are also not escaped.
-func encodeMultilineTomlString(value string, commented string) string {
+func encodeMultilineTomlString(value string) string {
 	var b bytes.Buffer
-	adjacentQuoteCount := 0
 
-	b.WriteString(commented)
-	for i, rr := range value {
-		if rr != '"' {
-			adjacentQuoteCount = 0
-		} else {
-			adjacentQuoteCount++
-		}
+	for _, rr := range value {
 		switch rr {
 		case '\b':
 			b.WriteString(`\b`)
 		case '\t':
 			b.WriteString("\t")
 		case '\n':
-			b.WriteString("\n" + commented)
+			b.WriteString("\n")
 		case '\f':
 			b.WriteString(`\f`)
 		case '\r':
 			b.WriteString("\r")
 		case '"':
-			if adjacentQuoteCount >= 3 || i == len(value)-1 {
-				adjacentQuoteCount = 0
-				b.WriteString(`\"`)
-			} else {
-				b.WriteString(`"`)
-			}
+			b.WriteString(`"`)
 		case '\\':
 			b.WriteString(`\`)
 		default:
@@ -103,30 +91,7 @@ func encodeTomlString(value string) string {
 	return b.String()
 }
 
-func tomlTreeStringRepresentation(t *Tree, ord marshalOrder) (string, error) {
-	var orderedVals []sortNode
-	switch ord {
-	case OrderPreserve:
-		orderedVals = sortByLines(t)
-	default:
-		orderedVals = sortAlphabetical(t)
-	}
-
-	var values []string
-	for _, node := range orderedVals {
-		k := node.key
-		v := t.values[k]
-
-		repr, err := tomlValueStringRepresentation(v, "", "", ord, false)
-		if err != nil {
-			return "", err
-		}
-		values = append(values, quoteKeyIfNeeded(k)+" = "+repr)
-	}
-	return "{ " + strings.Join(values, ", ") + " }", nil
-}
-
-func tomlValueStringRepresentation(v interface{}, commented string, indent string, ord marshalOrder, arraysOneElementPerLine bool) (string, error) {
+func tomlValueStringRepresentation(v interface{}, indent string, arraysOneElementPerLine bool) (string, error) {
 	// this interface check is added to dereference the change made in the writeTo function.
 	// That change was made to allow this function to see formatting options.
 	tv, ok := v.(*tomlValue)
@@ -158,12 +123,12 @@ func tomlValueStringRepresentation(v interface{}, commented string, indent strin
 		return strings.ToLower(strconv.FormatFloat(value, 'f', -1, bits)), nil
 	case string:
 		if tv.multiline {
-			return "\"\"\"\n" + encodeMultilineTomlString(value, commented) + "\"\"\"", nil
+			return "\"\"\"\n" + encodeMultilineTomlString(value) + "\"\"\"", nil
 		}
 		return "\"" + encodeTomlString(value) + "\"", nil
 	case []byte:
 		b, _ := v.([]byte)
-		return tomlValueStringRepresentation(string(b), commented, indent, ord, arraysOneElementPerLine)
+		return tomlValueStringRepresentation(string(b), indent, arraysOneElementPerLine)
 	case bool:
 		if value {
 			return "true", nil
@@ -177,8 +142,6 @@ func tomlValueStringRepresentation(v interface{}, commented string, indent strin
 		return value.String(), nil
 	case LocalTime:
 		return value.String(), nil
-	case *Tree:
-		return tomlTreeStringRepresentation(value, ord)
 	case nil:
 		return "", nil
 	}
@@ -189,7 +152,7 @@ func tomlValueStringRepresentation(v interface{}, commented string, indent strin
 		var values []string
 		for i := 0; i < rv.Len(); i++ {
 			item := rv.Index(i).Interface()
-			itemRepr, err := tomlValueStringRepresentation(item, commented, indent, ord, arraysOneElementPerLine)
+			itemRepr, err := tomlValueStringRepresentation(item, indent, arraysOneElementPerLine)
 			if err != nil {
 				return "", err
 			}
@@ -203,16 +166,16 @@ func tomlValueStringRepresentation(v interface{}, commented string, indent strin
 
 			for _, value := range values {
 				stringBuffer.WriteString(valueIndent)
-				stringBuffer.WriteString(commented + value)
+				stringBuffer.WriteString(value)
 				stringBuffer.WriteString(`,`)
 				stringBuffer.WriteString("\n")
 			}
 
-			stringBuffer.WriteString(indent + commented + "]")
+			stringBuffer.WriteString(indent + "]")
 
 			return stringBuffer.String(), nil
 		}
-		return "[" + strings.Join(values, ", ") + "]", nil
+		return "[" + strings.Join(values, ",") + "]", nil
 	}
 	return "", fmt.Errorf("unsupported value type %T: %v", v, v)
 }
@@ -307,10 +270,10 @@ func sortAlphabetical(t *Tree) (vals []sortNode) {
 }
 
 func (t *Tree) writeTo(w io.Writer, indent, keyspace string, bytesCount int64, arraysOneElementPerLine bool) (int64, error) {
-	return t.writeToOrdered(w, indent, keyspace, bytesCount, arraysOneElementPerLine, OrderAlphabetical, "  ", false)
+	return t.writeToOrdered(w, indent, keyspace, bytesCount, arraysOneElementPerLine, OrderAlphabetical)
 }
 
-func (t *Tree) writeToOrdered(w io.Writer, indent, keyspace string, bytesCount int64, arraysOneElementPerLine bool, ord marshalOrder, indentString string, parentCommented bool) (int64, error) {
+func (t *Tree) writeToOrdered(w io.Writer, indent, keyspace string, bytesCount int64, arraysOneElementPerLine bool, ord marshalOrder) (int64, error) {
 	var orderedVals []sortNode
 
 	switch ord {
@@ -326,9 +289,13 @@ func (t *Tree) writeToOrdered(w io.Writer, indent, keyspace string, bytesCount i
 			k := node.key
 			v := t.values[k]
 
-			combinedKey := quoteKeyIfNeeded(k)
+			combinedKey := k
 			if keyspace != "" {
 				combinedKey = keyspace + "." + combinedKey
+			}
+			var commented string
+			if t.commented {
+				commented = "# "
 			}
 
 			switch node := v.(type) {
@@ -350,33 +317,24 @@ func (t *Tree) writeToOrdered(w io.Writer, indent, keyspace string, bytesCount i
 						return bytesCount, errc
 					}
 				}
-
-				var commented string
-				if parentCommented || t.commented || tv.commented {
-					commented = "# "
-				}
 				writtenBytesCount, err := writeStrings(w, "\n", indent, commented, "[", combinedKey, "]\n")
 				bytesCount += int64(writtenBytesCount)
 				if err != nil {
 					return bytesCount, err
 				}
-				bytesCount, err = node.writeToOrdered(w, indent+indentString, combinedKey, bytesCount, arraysOneElementPerLine, ord, indentString, parentCommented || t.commented || tv.commented)
+				bytesCount, err = node.writeToOrdered(w, indent+"  ", combinedKey, bytesCount, arraysOneElementPerLine, ord)
 				if err != nil {
 					return bytesCount, err
 				}
 			case []*Tree:
 				for _, subTree := range node {
-					var commented string
-					if parentCommented || t.commented || subTree.commented {
-						commented = "# "
-					}
 					writtenBytesCount, err := writeStrings(w, "\n", indent, commented, "[[", combinedKey, "]]\n")
 					bytesCount += int64(writtenBytesCount)
 					if err != nil {
 						return bytesCount, err
 					}
 
-					bytesCount, err = subTree.writeToOrdered(w, indent+indentString, combinedKey, bytesCount, arraysOneElementPerLine, ord, indentString, parentCommented || t.commented || subTree.commented)
+					bytesCount, err = subTree.writeToOrdered(w, indent+"  ", combinedKey, bytesCount, arraysOneElementPerLine, ord)
 					if err != nil {
 						return bytesCount, err
 					}
@@ -389,11 +347,7 @@ func (t *Tree) writeToOrdered(w io.Writer, indent, keyspace string, bytesCount i
 				return bytesCount, fmt.Errorf("invalid value type at %s: %T", k, t.values[k])
 			}
 
-			var commented string
-			if parentCommented || t.commented || v.commented {
-				commented = "# "
-			}
-			repr, err := tomlValueStringRepresentation(v, commented, indent, ord, arraysOneElementPerLine)
+			repr, err := tomlValueStringRepresentation(v, indent, arraysOneElementPerLine)
 			if err != nil {
 				return bytesCount, err
 			}
@@ -411,6 +365,10 @@ func (t *Tree) writeToOrdered(w io.Writer, indent, keyspace string, bytesCount i
 				}
 			}
 
+			var commented string
+			if v.commented {
+				commented = "# "
+			}
 			quotedKey := quoteKeyIfNeeded(k)
 			writtenBytesCount, err := writeStrings(w, indent, commented, quotedKey, " = ", repr, "\n")
 			bytesCount += int64(writtenBytesCount)

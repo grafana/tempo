@@ -35,7 +35,11 @@ import (
 func V1ThriftBatchToOCProto(zSpans []*zipkincore.Span) ([]consumerdata.TraceData, error) {
 	ocSpansAndParsedAnnotations := make([]ocSpanAndParsedAnnotations, 0, len(zSpans))
 	for _, zSpan := range zSpans {
-		ocSpan, parsedAnnotations := zipkinV1ThriftToOCSpan(zSpan)
+		ocSpan, parsedAnnotations, err := zipkinV1ThriftToOCSpan(zSpan)
+		if err != nil {
+			// error from internal package function, it already wraps the error to give better context.
+			return nil, err
+		}
 		ocSpansAndParsedAnnotations = append(ocSpansAndParsedAnnotations, ocSpanAndParsedAnnotations{
 			ocSpan:            ocSpan,
 			parsedAnnotations: parsedAnnotations,
@@ -45,7 +49,7 @@ func V1ThriftBatchToOCProto(zSpans []*zipkincore.Span) ([]consumerdata.TraceData
 	return zipkinToOCProtoBatch(ocSpansAndParsedAnnotations)
 }
 
-func zipkinV1ThriftToOCSpan(zSpan *zipkincore.Span) (*tracepb.Span, *annotationParseResult) {
+func zipkinV1ThriftToOCSpan(zSpan *zipkincore.Span) (*tracepb.Span, *annotationParseResult, error) {
 	traceIDHigh := int64(0)
 	if zSpan.TraceIDHigh != nil {
 		traceIDHigh = *zSpan.TraceIDHigh
@@ -100,7 +104,7 @@ func zipkinV1ThriftToOCSpan(zSpan *zipkincore.Span) (*tracepb.Span, *annotationP
 
 	setSpanKind(ocSpan, parsedAnnotations.Kind, parsedAnnotations.ExtendedKind)
 
-	return ocSpan, parsedAnnotations
+	return ocSpan, parsedAnnotations, nil
 }
 
 func parseZipkinV1ThriftAnnotations(ztAnnotations []*zipkincore.Annotation) *annotationParseResult {

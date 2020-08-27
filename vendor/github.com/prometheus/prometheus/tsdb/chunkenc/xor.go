@@ -49,10 +49,6 @@ import (
 	"math/bits"
 )
 
-const (
-	chunkCompactCapacityThreshold = 32
-)
-
 // XORChunk holds XOR encoded sample data.
 type XORChunk struct {
 	b bstream
@@ -77,14 +73,6 @@ func (c *XORChunk) Bytes() []byte {
 // NumSamples returns the number of samples in the chunk.
 func (c *XORChunk) NumSamples() int {
 	return int(binary.BigEndian.Uint16(c.Bytes()))
-}
-
-func (c *XORChunk) Compact() {
-	if l := len(c.b.stream); cap(c.b.stream) > l+chunkCompactCapacityThreshold {
-		buf := make([]byte, l)
-		copy(buf, c.b.stream)
-		c.b.stream = buf
-	}
 }
 
 // Appender implements the Chunk interface.
@@ -127,7 +115,6 @@ func (c *XORChunk) iterator(it Iterator) *xorIterator {
 		// We skip that for actual samples.
 		br:       newBReader(c.b.bytes()[2:]),
 		numTotal: binary.BigEndian.Uint16(c.b.bytes()),
-		t:        math.MinInt64,
 	}
 }
 
@@ -252,19 +239,6 @@ type xorIterator struct {
 
 	tDelta uint64
 	err    error
-}
-
-func (it *xorIterator) Seek(t int64) bool {
-	if it.err != nil {
-		return false
-	}
-
-	for t > it.t || it.numRead == 0 {
-		if !it.Next() {
-			return false
-		}
-	}
-	return true
 }
 
 func (it *xorIterator) At() (int64, float64) {

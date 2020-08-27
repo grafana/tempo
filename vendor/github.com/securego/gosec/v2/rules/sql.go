@@ -17,14 +17,12 @@ package rules
 import (
 	"go/ast"
 	"regexp"
-	"strings"
 
 	"github.com/securego/gosec/v2"
 )
 
 type sqlStatement struct {
 	gosec.MetaData
-	gosec.CallList
 
 	// Contains a list of patterns which must all match for the rule to match.
 	patterns []*regexp.Regexp
@@ -67,54 +65,22 @@ func (s *sqlStrConcat) checkObject(n *ast.Ident, c *gosec.Context) bool {
 	return false
 }
 
-// checkQuery verifies if the query parameters is a string concatenation
-func (s *sqlStrConcat) checkQuery(call *ast.CallExpr, ctx *gosec.Context) (*gosec.Issue, error) {
-	_, fnName, err := gosec.GetCallInfo(call, ctx)
-	if err != nil {
-		return nil, err
-	}
-	var query ast.Node
-	if strings.HasSuffix(fnName, "Context") {
-		query = call.Args[1]
-	} else {
-		query = call.Args[0]
-	}
-
-	if be, ok := query.(*ast.BinaryExpr); ok {
-		operands := gosec.GetBinaryExprOperands(be)
-		if start, ok := operands[0].(*ast.BasicLit); ok {
+// Look for "SELECT * FROM table WHERE " + " ' OR 1=1"
+func (s *sqlStrConcat) Match(n ast.Node, c *gosec.Context) (*gosec.Issue, error) {
+	if node, ok := n.(*ast.BinaryExpr); ok {
+		if start, ok := node.X.(*ast.BasicLit); ok {
 			if str, e := gosec.GetString(start); e == nil {
 				if !s.MatchPatterns(str) {
 					return nil, nil
 				}
-			}
-			for _, op := range operands[1:] {
-				if _, ok := op.(*ast.BasicLit); ok {
-					continue
+				if _, ok := node.Y.(*ast.BasicLit); ok {
+					return nil, nil // string cat OK
 				}
-				if op, ok := op.(*ast.Ident); ok && s.checkObject(op, ctx) {
-					continue
+				if second, ok := node.Y.(*ast.Ident); ok && s.checkObject(second, c) {
+					return nil, nil
 				}
-				return gosec.NewIssue(ctx, be, s.ID(), s.What, s.Severity, s.Confidence), nil
+				return gosec.NewIssue(c, n, s.ID(), s.What, s.Severity, s.Confidence), nil
 			}
-		}
-	}
-
-	return nil, nil
-}
-
-// Checks SQL query concatenation issues such as "SELECT * FROM table WHERE " + " ' OR 1=1"
-func (s *sqlStrConcat) Match(n ast.Node, ctx *gosec.Context) (*gosec.Issue, error) {
-	switch stmt := n.(type) {
-	case *ast.AssignStmt:
-		for _, expr := range stmt.Rhs {
-			if sqlQueryCall, ok := expr.(*ast.CallExpr); ok && s.ContainsCallExpr(expr, ctx) != nil {
-				return s.checkQuery(sqlQueryCall, ctx)
-			}
-		}
-	case *ast.ExprStmt:
-		if sqlQueryCall, ok := stmt.X.(*ast.CallExpr); ok && s.ContainsCallExpr(stmt.X, ctx) != nil {
-			return s.checkQuery(sqlQueryCall, ctx)
 		}
 	}
 	return nil, nil
@@ -122,10 +88,10 @@ func (s *sqlStrConcat) Match(n ast.Node, ctx *gosec.Context) (*gosec.Issue, erro
 
 // NewSQLStrConcat looks for cases where we are building SQL strings via concatenation
 func NewSQLStrConcat(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
-	rule := &sqlStrConcat{
+	return &sqlStrConcat{
 		sqlStatement: sqlStatement{
 			patterns: []*regexp.Regexp{
-				regexp.MustCompile(`(?i)(SELECT|DELETE|INSERT|UPDATE|INTO|FROM|WHERE) `),
+				regexp.MustCompile(`(?)(SELECT|DELETE|INSERT|UPDATE|INTO|FROM|WHERE) `),
 			},
 			MetaData: gosec.MetaData{
 				ID:         id,
@@ -133,19 +99,13 @@ func NewSQLStrConcat(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
 				Confidence: gosec.High,
 				What:       "SQL string concatenation",
 			},
-			CallList: gosec.NewCallList(),
 		},
-	}
-
-	rule.AddAll("*database/sql.DB", "Query", "QueryContext", "QueryRow", "QueryRowContext")
-	rule.AddAll("*database/sql.Tx", "Query", "QueryContext", "QueryRow", "QueryRowContext")
-	return rule, []ast.Node{(*ast.AssignStmt)(nil), (*ast.ExprStmt)(nil)}
+	}, []ast.Node{(*ast.BinaryExpr)(nil)}
 }
 
 type sqlStrFormat struct {
-	gosec.CallList
 	sqlStatement
-	fmtCalls      gosec.CallList
+	calls         gosec.CallList
 	noIssue       gosec.CallList
 	noIssueQuoted gosec.CallList
 }
@@ -170,37 +130,14 @@ func (s *sqlStrFormat) constObject(e ast.Expr, c *gosec.Context) bool {
 	return false
 }
 
-func (s *sqlStrFormat) checkQuery(call *ast.CallExpr, ctx *gosec.Context) (*gosec.Issue, error) {
-	_, fnName, err := gosec.GetCallInfo(call, ctx)
-	if err != nil {
-		return nil, err
-	}
-	var query ast.Node
-	if strings.HasSuffix(fnName, "Context") {
-		query = call.Args[1]
-	} else {
-		query = call.Args[0]
-	}
+// Looks for "fmt.Sprintf("SELECT * FROM foo where '%s', userInput)"
+func (s *sqlStrFormat) Match(n ast.Node, c *gosec.Context) (*gosec.Issue, error) {
 
-	if ident, ok := query.(*ast.Ident); ok && ident.Obj != nil {
-		decl := ident.Obj.Decl
-		if assign, ok := decl.(*ast.AssignStmt); ok {
-			for _, expr := range assign.Rhs {
-				issue, err := s.checkFormatting(expr, ctx)
-				if issue != nil {
-					return issue, err
-				}
-			}
-		}
-	}
-
-	return nil, nil
-}
-
-func (s *sqlStrFormat) checkFormatting(n ast.Node, ctx *gosec.Context) (*gosec.Issue, error) {
 	// argIndex changes the function argument which gets matched to the regex
 	argIndex := 0
-	if node := s.fmtCalls.ContainsPkgCallExpr(n, ctx, false); node != nil {
+
+	// TODO(gm) improve confidence if database/sql is being used
+	if node := s.calls.ContainsPkgCallExpr(n, c, false); node != nil {
 		// if the function is fmt.Fprintf, search for SQL statement in Args[1] instead
 		if sel, ok := node.Fun.(*ast.SelectorExpr); ok {
 			if sel.Sel.Name == "Fprintf" {
@@ -240,7 +177,7 @@ func (s *sqlStrFormat) checkFormatting(n ast.Node, ctx *gosec.Context) (*gosec.I
 		if argIndex+1 < len(node.Args) {
 			allSafe := true
 			for _, arg := range node.Args[argIndex+1:] {
-				if n := s.noIssueQuoted.ContainsPkgCallExpr(arg, ctx, true); n == nil && !s.constObject(arg, ctx) {
+				if n := s.noIssueQuoted.ContainsPkgCallExpr(arg, c, true); n == nil && !s.constObject(arg, c) {
 					allSafe = false
 					break
 				}
@@ -250,24 +187,7 @@ func (s *sqlStrFormat) checkFormatting(n ast.Node, ctx *gosec.Context) (*gosec.I
 			}
 		}
 		if s.MatchPatterns(formatter) {
-			return gosec.NewIssue(ctx, n, s.ID(), s.What, s.Severity, s.Confidence), nil
-		}
-	}
-	return nil, nil
-}
-
-// Check SQL query formatting issues such as "fmt.Sprintf("SELECT * FROM foo where '%s', userInput)"
-func (s *sqlStrFormat) Match(n ast.Node, ctx *gosec.Context) (*gosec.Issue, error) {
-	switch stmt := n.(type) {
-	case *ast.AssignStmt:
-		for _, expr := range stmt.Rhs {
-			if sqlQueryCall, ok := expr.(*ast.CallExpr); ok && s.ContainsCallExpr(expr, ctx) != nil {
-				return s.checkQuery(sqlQueryCall, ctx)
-			}
-		}
-	case *ast.ExprStmt:
-		if sqlQueryCall, ok := stmt.X.(*ast.CallExpr); ok && s.ContainsCallExpr(stmt.X, ctx) != nil {
-			return s.checkQuery(sqlQueryCall, ctx)
+			return gosec.NewIssue(c, n, s.ID(), s.What, s.Severity, s.Confidence), nil
 		}
 	}
 	return nil, nil
@@ -276,13 +196,12 @@ func (s *sqlStrFormat) Match(n ast.Node, ctx *gosec.Context) (*gosec.Issue, erro
 // NewSQLStrFormat looks for cases where we're building SQL query strings using format strings
 func NewSQLStrFormat(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
 	rule := &sqlStrFormat{
-		CallList:      gosec.NewCallList(),
-		fmtCalls:      gosec.NewCallList(),
+		calls:         gosec.NewCallList(),
 		noIssue:       gosec.NewCallList(),
 		noIssueQuoted: gosec.NewCallList(),
 		sqlStatement: sqlStatement{
 			patterns: []*regexp.Regexp{
-				regexp.MustCompile("(?i)(SELECT|DELETE|INSERT|UPDATE|INTO|FROM|WHERE) "),
+				regexp.MustCompile("(?)(SELECT|DELETE|INSERT|UPDATE|INTO|FROM|WHERE) "),
 				regexp.MustCompile("%[^bdoxXfFp]"),
 			},
 			MetaData: gosec.MetaData{
@@ -293,11 +212,8 @@ func NewSQLStrFormat(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
 			},
 		},
 	}
-	rule.AddAll("*database/sql.DB", "Query", "QueryContext", "QueryRow", "QueryRowContext")
-	rule.AddAll("*database/sql.Tx", "Query", "QueryContext", "QueryRow", "QueryRowContext")
-	rule.fmtCalls.AddAll("fmt", "Sprint", "Sprintf", "Sprintln", "Fprintf")
+	rule.calls.AddAll("fmt", "Sprint", "Sprintf", "Sprintln", "Fprintf")
 	rule.noIssue.AddAll("os", "Stdout", "Stderr")
 	rule.noIssueQuoted.Add("github.com/lib/pq", "QuoteIdentifier")
-
-	return rule, []ast.Node{(*ast.AssignStmt)(nil), (*ast.ExprStmt)(nil)}
+	return rule, []ast.Node{(*ast.CallExpr)(nil)}
 }

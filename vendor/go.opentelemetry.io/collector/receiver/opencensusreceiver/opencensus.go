@@ -37,8 +37,8 @@ import (
 	"go.opentelemetry.io/collector/receiver/opencensusreceiver/octrace"
 )
 
-// ocReceiver is the type that exposes Trace and Metrics reception.
-type ocReceiver struct {
+// Receiver is the type that exposes Trace and Metrics reception.
+type Receiver struct {
 	mu                sync.Mutex
 	ln                net.Listener
 	serverGRPC        *grpc.Server
@@ -63,24 +63,24 @@ type ocReceiver struct {
 	instanceName string
 }
 
-// newOpenCensusReceiver just creates the OpenCensus receiver services. It is the caller's
+// New just creates the OpenCensus receiver services. It is the caller's
 // responsibility to invoke the respective Start*Reception methods as well
 // as the various Stop*Reception methods to end it.
-func newOpenCensusReceiver(
+func New(
 	instanceName string,
 	transport string,
 	addr string,
 	tc consumer.TraceConsumerOld,
 	mc consumer.MetricsConsumerOld,
-	opts ...ocOption,
-) (*ocReceiver, error) {
+	opts ...Option,
+) (*Receiver, error) {
 	// TODO: (@odeke-em) use options to enable address binding changes.
 	ln, err := net.Listen(transport, addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind to address %q: %v", addr, err)
 	}
 
-	ocr := &ocReceiver{
+	ocr := &Receiver{
 		ln:          ln,
 		corsOrigins: []string{}, // Disable CORS by default.
 		gatewayMux:  gatewayruntime.NewServeMux(),
@@ -99,11 +99,11 @@ func newOpenCensusReceiver(
 
 // Start runs the trace receiver on the gRPC server. Currently
 // it also enables the metrics receiver too.
-func (ocr *ocReceiver) Start(_ context.Context, host component.Host) error {
+func (ocr *Receiver) Start(ctx context.Context, host component.Host) error {
 	return ocr.start(host)
 }
 
-func (ocr *ocReceiver) registerTraceConsumer() error {
+func (ocr *Receiver) registerTraceConsumer() error {
 	var err = componenterror.ErrAlreadyStarted
 
 	ocr.startTraceReceiverOnce.Do(func() {
@@ -118,7 +118,7 @@ func (ocr *ocReceiver) registerTraceConsumer() error {
 	return err
 }
 
-func (ocr *ocReceiver) registerMetricsConsumer() error {
+func (ocr *Receiver) registerMetricsConsumer() error {
 	var err = componenterror.ErrAlreadyStarted
 
 	ocr.startMetricsReceiverOnce.Do(func() {
@@ -132,7 +132,7 @@ func (ocr *ocReceiver) registerMetricsConsumer() error {
 	return err
 }
 
-func (ocr *ocReceiver) grpcServer() *grpc.Server {
+func (ocr *Receiver) grpcServer() *grpc.Server {
 	ocr.mu.Lock()
 	defer ocr.mu.Unlock()
 
@@ -144,7 +144,7 @@ func (ocr *ocReceiver) grpcServer() *grpc.Server {
 }
 
 // Shutdown is a method to turn off receiving.
-func (ocr *ocReceiver) Shutdown(context.Context) error {
+func (ocr *Receiver) Shutdown(context.Context) error {
 	if err := ocr.stop(); err != componenterror.ErrAlreadyStopped {
 		return err
 	}
@@ -152,7 +152,7 @@ func (ocr *ocReceiver) Shutdown(context.Context) error {
 }
 
 // start runs all the receivers/services namely, Trace and Metrics services.
-func (ocr *ocReceiver) start(host component.Host) error {
+func (ocr *Receiver) start(host component.Host) error {
 	hasConsumer := false
 	if ocr.traceConsumer != nil {
 		hasConsumer = true
@@ -182,7 +182,7 @@ func (ocr *ocReceiver) start(host component.Host) error {
 }
 
 // stop stops the underlying gRPC server and all the services running on it.
-func (ocr *ocReceiver) stop() error {
+func (ocr *Receiver) stop() error {
 	ocr.mu.Lock()
 	defer ocr.mu.Unlock()
 
@@ -208,7 +208,7 @@ func (ocr *ocReceiver) stop() error {
 	return err
 }
 
-func (ocr *ocReceiver) httpServer() *http.Server {
+func (ocr *Receiver) httpServer() *http.Server {
 	ocr.mu.Lock()
 	defer ocr.mu.Unlock()
 
@@ -224,7 +224,7 @@ func (ocr *ocReceiver) httpServer() *http.Server {
 	return ocr.serverHTTP
 }
 
-func (ocr *ocReceiver) startServer(host component.Host) error {
+func (ocr *Receiver) startServer(host component.Host) error {
 	err := componenterror.ErrAlreadyStarted
 	ocr.startServerOnce.Do(func() {
 		err = nil
