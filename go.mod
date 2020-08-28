@@ -26,7 +26,7 @@ require (
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/uber-go/atomic v1.4.0
-	github.com/weaveworks/common v0.0.0-20200206153930-760e36ae819a
+	github.com/weaveworks/common v0.0.0-20200820123129-280614068c5e
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opentelemetry.io/collector v0.6.1
@@ -35,7 +35,7 @@ require (
 	go.uber.org/zap v1.15.0
 	golang.org/x/net v0.0.0-20200625001655-4c5254603344
 	google.golang.org/api v0.29.0
-	google.golang.org/grpc v1.31.0
+	google.golang.org/grpc v1.29.1
 	gopkg.in/yaml.v2 v2.3.0
 )
 
@@ -44,15 +44,12 @@ replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.2.0+inc
 // Override reference that causes an error from Go proxy - see https://github.com/golang/go/issues/33558
 replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
 
-// the version otel collector uses.  required for it to build
-// replace github.com/apache/thrift => github.com/apache/thrift v0.0.0-20161221203622-b2a4d4ae21c7
-
-// Override reference causing proxy error.  Otherwise it attempts to download https://proxy.golang.org/golang.org/x/net/@v/v0.0.0-20190813000000-74dc4d7220e7.info
-replace golang.org/x/net => golang.org/x/net v0.0.0-20190923162816-aa69164e4478
-
-//Cortex:  We can't upgrade to grpc 1.30.0 until go.etcd.io/etcd will support it.
-//  This causes go mod tidy to fail b/c there are two modules which export the same module module (google.golang.org/grpc/examples)
-//  Part of grpc in 1.29.1 (https://github.com/grpc/grpc-go/tree/master/examples) but made it's own module in 1.30.0
-//  PR to upgrade: https://github.com/etcd-io/etcd/pull/12155
-//  go mod tidy issue: https://github.com/golang/go/issues/27899
+// All 3 below replace directives exist due to
+//   Cortex -> ETCD -> GRPC requiring 1.29.1
+//   Otel Collector -> requiring 1.30.1
+//  Once this is merged: https://github.com/etcd-io/etcd/pull/12155 and Cortex revendors we should be able to update everything to current
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
+
+replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
+
+replace github.com/sercand/kuberesolver => github.com/sercand/kuberesolver v2.4.0+incompatible

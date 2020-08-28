@@ -111,7 +111,7 @@ github.com/client9/misspell
 github.com/client9/misspell/cmd/misspell
 # github.com/coreos/go-semver v0.3.0
 github.com/coreos/go-semver/semver
-# github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f
+# github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 github.com/coreos/go-systemd/journal
 # github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 github.com/coreos/pkg/capnslog
@@ -167,6 +167,8 @@ github.com/edsrzf/mmap-go
 github.com/facette/natsort
 # github.com/fatih/color v1.9.0
 github.com/fatih/color
+# github.com/felixge/httpsnoop v1.0.1
+github.com/felixge/httpsnoop
 # github.com/fsnotify/fsnotify v1.4.9
 github.com/fsnotify/fsnotify
 # github.com/fsouza/fake-gcs-server v1.7.0
@@ -580,6 +582,8 @@ github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
 github.com/prometheus/common/version
+# github.com/prometheus/node_exporter v1.0.0-rc.0.0.20200428091818-01054558c289
+github.com/prometheus/node_exporter/https
 # github.com/prometheus/procfs v0.1.3
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
@@ -633,7 +637,7 @@ github.com/securego/gosec/rules
 # github.com/securego/gosec/v2 v2.3.0
 github.com/securego/gosec/v2
 github.com/securego/gosec/v2/rules
-# github.com/sercand/kuberesolver v2.1.0+incompatible
+# github.com/sercand/kuberesolver v2.1.0+incompatible => github.com/sercand/kuberesolver v2.4.0+incompatible
 github.com/sercand/kuberesolver
 # github.com/sirupsen/logrus v1.6.0
 github.com/sirupsen/logrus
@@ -739,10 +743,11 @@ github.com/ultraware/funlen
 github.com/ultraware/whitespace
 # github.com/uudashr/gocognit v1.0.1
 github.com/uudashr/gocognit
-# github.com/weaveworks/common v0.0.0-20200206153930-760e36ae819a
+# github.com/weaveworks/common v0.0.0-20200820123129-280614068c5e
 ## explicit
 github.com/weaveworks/common/aws
 github.com/weaveworks/common/errors
+github.com/weaveworks/common/grpc
 github.com/weaveworks/common/httpgrpc
 github.com/weaveworks/common/httpgrpc/server
 github.com/weaveworks/common/instrument
@@ -765,7 +770,7 @@ github.com/willf/bloom
 github.com/xiang90/probing
 # go.etcd.io/bbolt v1.3.3
 go.etcd.io/bbolt
-# go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
+# go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738 => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
 go.etcd.io/etcd/auth
 go.etcd.io/etcd/auth/authpb
 go.etcd.io/etcd/client
@@ -912,7 +917,7 @@ go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
-# golang.org/x/crypto v0.0.0-20200320181102-891825fb96df
+# golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 golang.org/x/crypto/argon2
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blake2b
@@ -927,7 +932,7 @@ golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/modfile
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.0.0-20200625001655-4c5254603344 => golang.org/x/net v0.0.0-20190923162816-aa69164e4478
+# golang.org/x/net v0.0.0-20200625001655-4c5254603344
 ## explicit
 golang.org/x/net/bpf
 golang.org/x/net/context
@@ -1075,7 +1080,7 @@ google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/status
 google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/protobuf/field_mask
-# google.golang.org/grpc v1.31.0 => google.golang.org/grpc v1.29.1
+# google.golang.org/grpc v1.29.1 => google.golang.org/grpc v1.29.1
 ## explicit
 google.golang.org/grpc
 google.golang.org/grpc/attributes
@@ -1234,5 +1239,6 @@ sigs.k8s.io/yaml
 sourcegraph.com/sqs/pbtypes
 # github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.2.0+incompatible
 # k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
-# golang.org/x/net => golang.org/x/net v0.0.0-20190923162816-aa69164e4478
 # google.golang.org/grpc => google.golang.org/grpc v1.29.1
+# go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
+# github.com/sercand/kuberesolver => github.com/sercand/kuberesolver v2.4.0+incompatible
