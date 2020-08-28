@@ -94,7 +94,7 @@ github.com/blang/semver
 github.com/bombsimon/wsl/v3
 # github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 github.com/bradfitz/gomemcache/memcache
-# github.com/census-instrumentation/opencensus-proto v0.3.0
+# github.com/census-instrumentation/opencensus-proto v0.2.1
 ## explicit
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/metrics/v1
