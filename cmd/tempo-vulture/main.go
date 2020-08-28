@@ -161,10 +161,12 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 
 	B:
 		for _, b := range t.Batches {
-			for _, s := range b.Spans {
-				if bytes.Equal(s.SpanId, id) {
-					found = true
-					break B
+			for _, ils := range b.InstrumentationLibrarySpans {
+				for _, s := range ils.Spans {
+					if bytes.Equal(s.SpanId, id) {
+						found = true
+						break B
+					}
 				}
 			}
 		}

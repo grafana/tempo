@@ -53,25 +53,36 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 
 	spansInA := make(map[uint64]struct{})
 	for _, batchA := range traceA.Batches {
-		for _, spanA := range batchA.Spans {
-			spansInA[Fingerprint(spanA.SpanId)] = struct{}{}
+		for _, ilsA := range batchA.InstrumentationLibrarySpans {
+			for _, spanA := range ilsA.Spans {
+				spansInA[Fingerprint(spanA.SpanId)] = struct{}{}
+			}
 		}
 	}
 
 	// loop through every span and copy spans in B that don't exist to A
 	for _, batchB := range traceB.Batches {
-		notFoundSpans := batchB.Spans[:0]
-		for _, spanB := range batchB.Spans {
-			// if found in A, remove from the batch
-			_, ok := spansInA[Fingerprint(spanB.SpanId)]
-			if !ok {
-				notFoundSpans = append(notFoundSpans, spanB)
+		notFoundILS := batchB.InstrumentationLibrarySpans[:0]
+
+		for _, ilsB := range batchB.InstrumentationLibrarySpans {
+			notFoundSpans := ilsB.Spans[:0]
+			for _, spanB := range ilsB.Spans {
+				// if found in A, remove from the batch
+				_, ok := spansInA[Fingerprint(spanB.SpanId)]
+				if !ok {
+					notFoundSpans = append(notFoundSpans, spanB)
+				}
+			}
+
+			if len(notFoundSpans) > 0 {
+				ilsB.Spans = notFoundSpans
+				notFoundILS = append(notFoundILS, ilsB)
 			}
 		}
 
 		// if there were some spans not found in A, add everything left in the batch
-		if len(notFoundSpans) > 0 {
-			batchB.Spans = notFoundSpans
+		if len(notFoundILS) > 0 {
+			batchB.InstrumentationLibrarySpans = notFoundILS
 			traceA.Batches = append(traceA.Batches, batchB)
 		}
 	}
