@@ -6,7 +6,6 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
-	v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/component"
@@ -19,7 +18,6 @@ import (
 	"go.opentelemetry.io/collector/receiver/opencensusreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
-	"go.opentelemetry.io/collector/translator/internaldata"
 	"go.uber.org/zap"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -147,18 +145,9 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 	}
 
 	var err error
-	traceData := internaldata.TraceDataToOC(td)
-	for _, trace := range traceData {
+	for _, resourceSpan := range pdata.TracesToOtlp(td) {
 		_, err = r.pusher.Push(ctx, &tempopb.PushRequest{
-			Batch: &v1.ResourceSpans{
-				Resource: trace.Resource,
-				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-					{
-						InstrumentationLibrary: nil, // todo:  where does this information come from?
-						Spans:                  trace.Spans,
-					},
-				},
-			},
+			Batch: resourceSpan,
 		})
 		if err != nil {
 			r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
