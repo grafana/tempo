@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	cloud.google.com/go/storage v1.6.0
-	github.com/census-instrumentation/opencensus-proto v0.2.1
+	github.com/census-instrumentation/opencensus-proto v0.2.1 // indirect
 	github.com/cortexproject/cortex v0.7.0
 	github.com/go-kit/kit v0.10.0
 	github.com/gogo/protobuf v1.3.1

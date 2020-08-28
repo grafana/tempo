@@ -12,11 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package receiver contains implementations of Receiver components.
-//
-// To implement a custom receiver you will need to implement component.ReceiverFactory
-// interface and component.Receiver interface.
-//
-// To make the custom receiver part of the Collector build the factory must be added
-// to defaultcomponents.Components() function.
-package receiver
+package otlpreceiver
+
+import (
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+)
+
+// xProtobufMarshaler is a Marshaler which wraps runtime.ProtoMarshaller
+// and sets ContentType to application/x-protobuf
+type xProtobufMarshaler struct {
+	*runtime.ProtoMarshaller
+}
+
+// ContentType always returns "application/x-protobuf".
+func (*xProtobufMarshaler) ContentType() string {
+	return "application/x-protobuf"
+}

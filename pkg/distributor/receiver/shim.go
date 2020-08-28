@@ -6,13 +6,20 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
+	v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/common/user"
-	"go.opentelemetry.io/collector/consumer/consumerdata"
-	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenterror"
+	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/consumer/converter"
+	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/opencensusreceiver"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
+	"go.opentelemetry.io/collector/translator/internaldata"
 	"go.uber.org/zap"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -30,7 +37,7 @@ type Receivers interface {
 
 type receiversShim struct {
 	authEnabled bool
-	receivers   []receiver.TraceReceiver
+	receivers   []component.Receiver
 	pusher      tempopb.PusherServer
 	logger      *tempo_util.RateLimitedLogger
 }
@@ -48,17 +55,19 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 		return nil, err
 	}
 
-	// get factories somehow?
-	factories, err := receiver.Build(
-		&jaegerreceiver.Factory{},
+	receiverFactories, err := component.MakeReceiverFactoryMap(
+		jaegerreceiver.NewFactory(),
 		&zipkinreceiver.Factory{},
 		&opencensusreceiver.Factory{},
+		otlpreceiver.NewFactory(),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	configs, err := loadReceivers(v, receiverCfg, factories)
+	cfgs, err := config.Load(v, config.Factories{
+		Receivers: receiverFactories,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -68,18 +77,31 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 		return nil, err
 	}
 
-	for _, config := range configs {
-		factory := factories[config.Type()]
-		if factory == nil {
-			return nil, fmt.Errorf("receiver factory not found for type: %s", config.Type())
+	// todo: propagate a real context?  translate our log configuration into zap?
+	ctx := context.Background()
+	params := component.ReceiverCreateParams{Logger: zapLogger}
+
+	for _, cfg := range cfgs.Receivers {
+		factoryBase := receiverFactories[cfg.Type()]
+		if factoryBase == nil {
+			return nil, fmt.Errorf("receiver factory not found for type: %s", cfg.Type())
 		}
 
-		// todo: propagate a real context?  translate our log configuration into zap?
-		receiver, err := factory.CreateTraceReceiver(context.Background(), zapLogger, config, shim)
+		if factory, ok := factoryBase.(component.ReceiverFactory); ok {
+			receiver, err := factory.CreateTraceReceiver(ctx, params, cfg, shim)
+			if err != nil {
+				return nil, err
+			}
+
+			shim.receivers = append(shim.receivers, receiver)
+			continue
+		}
+
+		factory := factoryBase.(component.ReceiverFactoryOld)
+		receiver, err := factory.CreateTraceReceiver(ctx, zapLogger, cfg, converter.NewOCToInternalTraceConverter(shim))
 		if err != nil {
 			return nil, err
 		}
-
 		shim.receivers = append(shim.receivers, receiver)
 	}
 
@@ -88,8 +110,10 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 
 // implements Receivers
 func (r *receiversShim) Start() error {
-	for _, rcv := range r.receivers {
-		err := rcv.Start(r)
+	ctx := context.Background() // todo: actually propagate a context with a timeout
+
+	for _, receiver := range r.receivers {
+		err := receiver.Start(ctx, r)
 		if err != nil {
 			return err
 		}
@@ -100,33 +124,41 @@ func (r *receiversShim) Start() error {
 
 // implements Receivers
 func (r *receiversShim) Shutdown() error {
-	for _, rcv := range r.receivers {
-		err := rcv.Shutdown()
+	ctx := context.Background() // todo: actually propagate a context with a timeout
+	errs := make([]error, 0)
+
+	for _, receiver := range r.receivers {
+		err := receiver.Shutdown(ctx)
 		if err != nil {
-			// log, but keep on shutting down
-			level.Error(util.Logger).Log("msg", "failed to stop receiver", "err", err)
+			errs = append(errs, err)
 		}
 	}
-	r.logger.Stop()
 
+	if len(errs) > 0 {
+		return componenterror.CombineErrors(errs)
+	}
 	return nil
 }
 
 // implements consumer.TraceConsumer
-func (r *receiversShim) ConsumeTraceData(ctx context.Context, td consumerdata.TraceData) error {
+func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) error {
 	if !r.authEnabled {
 		ctx = user.InjectOrgID(ctx, tempo_util.FakeTenantID)
 	}
 
-	// todo: eventually otel collector intends to start using otel proto internally instead of opencensus
-	//  when that happens we need to update our dependency and we can remove all of this translation logic
-	// also note: this translation logic is woefully incomplete and is meant as a stopgap while we wait for the otel collector
-	batches := ocToOtlp(td)
-
 	var err error
-	for _, b := range batches {
+	traceData := internaldata.TraceDataToOC(td)
+	for _, trace := range traceData {
 		_, err = r.pusher.Push(ctx, &tempopb.PushRequest{
-			Batch: b,
+			Batch: &v1.ResourceSpans{
+				Resource: trace.Resource,
+				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					{
+						InstrumentationLibrary: nil, // todo:  where does this information come from?
+						Spans:                  trace.Spans,
+					},
+				},
+			},
 		})
 		if err != nil {
 			r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
@@ -145,7 +177,16 @@ func (r *receiversShim) ReportFatalError(err error) {
 }
 
 // implements component.Host
-func (r *receiversShim) Context() context.Context {
-	// todo: something better here?
-	return context.Background()
+func (r *receiversShim) GetFactory(kind component.Kind, componentType configmodels.Type) component.Factory {
+	return nil
+}
+
+// implements component.Host
+func (r *receiversShim) GetExtensions() map[configmodels.Extension]component.ServiceExtension {
+	return nil
+}
+
+// implements component.Host
+func (r *receiversShim) GetExporters() map[configmodels.DataType]map[configmodels.Exporter]component.Exporter {
+	return nil
 }
