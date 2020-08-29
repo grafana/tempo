@@ -95,7 +95,6 @@ github.com/bombsimon/wsl/v3
 # github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 github.com/bradfitz/gomemcache/memcache
 # github.com/census-instrumentation/opencensus-proto v0.2.1
-## explicit
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/metrics/v1
 github.com/census-instrumentation/opencensus-proto/gen-go/agent/trace/v1
@@ -885,7 +884,6 @@ go.opentelemetry.io/collector/consumer/converter
 go.opentelemetry.io/collector/consumer/pdata
 go.opentelemetry.io/collector/consumer/pdatautil
 go.opentelemetry.io/collector/internal
-go.opentelemetry.io/collector/internal/collector/telemetry
 go.opentelemetry.io/collector/internal/data
 go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/collector/metrics/v1
 go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/collector/trace/v1
@@ -894,9 +892,7 @@ go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/logs/v1
 go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/metrics/v1
 go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/resource/v1
 go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/trace/v1
-go.opentelemetry.io/collector/internal/version
 go.opentelemetry.io/collector/obsreport
-go.opentelemetry.io/collector/processor
 go.opentelemetry.io/collector/receiver/jaegerreceiver
 go.opentelemetry.io/collector/receiver/opencensusreceiver
 go.opentelemetry.io/collector/receiver/opencensusreceiver/ocmetrics
@@ -906,7 +902,6 @@ go.opentelemetry.io/collector/receiver/otlpreceiver/metrics
 go.opentelemetry.io/collector/receiver/otlpreceiver/trace
 go.opentelemetry.io/collector/receiver/receiverhelper
 go.opentelemetry.io/collector/receiver/zipkinreceiver
-go.opentelemetry.io/collector/service/builder
 go.opentelemetry.io/collector/translator/conventions
 go.opentelemetry.io/collector/translator/internaldata
 go.opentelemetry.io/collector/translator/trace
@@ -945,7 +940,6 @@ golang.org/x/mod/modfile
 golang.org/x/mod/module
 golang.org/x/mod/semver
 # golang.org/x/net v0.0.0-20200625001655-4c5254603344
-## explicit
 golang.org/x/net/bpf
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp

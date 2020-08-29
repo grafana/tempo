@@ -17,7 +17,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"go.opentelemetry.io/collector/consumer/pdata"
-	logsproto "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/logs/v1"
+	logsproto "github.com/open-telemetry/opentelemetry-proto/gen/go/logs/v1"
 )
 
 // This file defines in-memory data structures to represent logs.

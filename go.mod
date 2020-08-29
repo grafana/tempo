@@ -4,7 +4,6 @@ go 1.15
 
 require (
 	cloud.google.com/go/storage v1.6.0
-	github.com/census-instrumentation/opencensus-proto v0.2.1 // indirect
 	github.com/cortexproject/cortex v0.7.0
 	github.com/go-kit/kit v0.10.0
 	github.com/gogo/protobuf v1.3.1
@@ -33,7 +32,6 @@ require (
 	go.uber.org/atomic v1.6.0
 	go.uber.org/ratelimit v0.1.0
 	go.uber.org/zap v1.15.0
-	golang.org/x/net v0.0.0-20200625001655-4c5254603344
 	google.golang.org/api v0.29.0
 	google.golang.org/grpc v1.29.1
 	gopkg.in/yaml.v2 v2.3.0

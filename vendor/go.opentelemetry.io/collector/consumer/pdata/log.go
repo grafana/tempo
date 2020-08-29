@@ -14,7 +14,7 @@
 
 package pdata
 
-import logsproto "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/logs/v1"
+import logsproto "github.com/open-telemetry/opentelemetry-proto/gen/go/logs/v1"
 
 // NewResourceLogsSliceFromOrig creates ResourceLogsSlice from logsproto.ResourceLogs.
 // This function simply makes generated newResourceLogsSlice() function publicly
