@@ -78,7 +78,7 @@ func TestInstanceFind(t *testing.T) {
 	wal := ingester.wal
 
 	request := test.MakeRequest(10, []byte{})
-	traceID := request.Batch.Spans[0].TraceId
+	traceID := test.MustTraceID(request)
 
 	i, err := newInstance("fake", limiter, wal)
 	assert.NoError(t, err, "unexpected error creating new instance")
