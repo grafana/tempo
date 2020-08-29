@@ -93,6 +93,7 @@ vendor-dependencies:
 	go mod tidy
 	go mod vendor
 	find | grep 'vendor/go.opentelemetry.io.*go$\' | xargs -L 1 sed -i 's+go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/+github.com/open-telemetry/opentelemetry-proto/gen/go/+g'
+	$(MAKE) gen-proto
 
 
 .PHONY: install-tools
