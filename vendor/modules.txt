@@ -354,6 +354,7 @@ github.com/grpc-ecosystem/go-grpc-middleware/util/metautils
 github.com/grpc-ecosystem/go-grpc-prometheus
 github.com/grpc-ecosystem/go-grpc-prometheus/packages/grpcstatus
 # github.com/grpc-ecosystem/grpc-gateway v1.14.6
+## explicit
 github.com/grpc-ecosystem/grpc-gateway/internal
 github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options
 github.com/grpc-ecosystem/grpc-gateway/runtime
@@ -530,6 +531,7 @@ github.com/olekukonko/tablewriter
 # github.com/open-telemetry/opentelemetry-proto v0.4.0
 ## explicit
 github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1
+github.com/open-telemetry/opentelemetry-proto/gen/go/metrics/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1
 # github.com/opentracing-contrib/go-grpc v0.0.0-20191001143057-db30781987df

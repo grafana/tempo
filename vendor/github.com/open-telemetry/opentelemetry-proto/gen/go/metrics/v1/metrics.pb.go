@@ -25,50 +25,86 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// MeasurementValueType determines the value type for a measurement.
-type MetricDescriptor_MeasurementValueType int32
+// Type is the type of values a metric has.
+type MetricDescriptor_Type int32
 
 const (
-	// UNSPECIFIED is the default MeasurementValueType, it MUST not be
-	// used.
-	MetricDescriptor_MEASUREMENT_VALUE_TYPE_UNSPECIFIED MetricDescriptor_MeasurementValueType = 0
-	// INT64 is the MeasurementValueType used when the measurements are int64.
-	MetricDescriptor_MEASUREMENT_VALUE_TYPE_INT64 MetricDescriptor_MeasurementValueType = 1
-	// DOUBLE is the MeasurementValueType used when the measurements are
-	// floating point numbers.
-	MetricDescriptor_MEASUREMENT_VALUE_TYPE_DOUBLE MetricDescriptor_MeasurementValueType = 2
+	// INVALID_TYPE is the default Type, it MUST not be used.
+	MetricDescriptor_INVALID_TYPE MetricDescriptor_Type = 0
+	// INT64 values are signed 64-bit integers.
+	//
+	// A Metric of this Type MUST store its values as Int64DataPoint.
+	MetricDescriptor_INT64 MetricDescriptor_Type = 1
+	// MONOTONIC_INT64 values are monotonically increasing signed 64-bit
+	// integers.
+	//
+	// A Metric of this Type MUST store its values as Int64DataPoint.
+	MetricDescriptor_MONOTONIC_INT64 MetricDescriptor_Type = 2
+	// DOUBLE values are double-precision floating-point numbers.
+	//
+	// A Metric of this Type MUST store its values as DoubleDataPoint.
+	MetricDescriptor_DOUBLE MetricDescriptor_Type = 3
+	// MONOTONIC_DOUBLE values are monotonically increasing double-precision
+	// floating-point numbers.
+	//
+	// A Metric of this Type MUST store its values as DoubleDataPoint.
+	MetricDescriptor_MONOTONIC_DOUBLE MetricDescriptor_Type = 4
+	// Histogram measurement.
+	// Corresponding values are stored in HistogramDataPoint.
+	MetricDescriptor_HISTOGRAM MetricDescriptor_Type = 5
+	// Summary value. Some frameworks implemented Histograms as a summary of observations
+	// (usually things like request durations and response sizes). While it
+	// also provides a total count of observations and a sum of all observed
+	// values, it calculates configurable percentiles over a sliding time
+	// window.
+	// Corresponding values are stored in SummaryDataPoint.
+	MetricDescriptor_SUMMARY MetricDescriptor_Type = 6
 )
 
-var MetricDescriptor_MeasurementValueType_name = map[int32]string{
-	0: "MEASUREMENT_VALUE_TYPE_UNSPECIFIED",
-	1: "MEASUREMENT_VALUE_TYPE_INT64",
-	2: "MEASUREMENT_VALUE_TYPE_DOUBLE",
+var MetricDescriptor_Type_name = map[int32]string{
+	0: "INVALID_TYPE",
+	1: "INT64",
+	2: "MONOTONIC_INT64",
+	3: "DOUBLE",
+	4: "MONOTONIC_DOUBLE",
+	5: "HISTOGRAM",
+	6: "SUMMARY",
 }
 
-var MetricDescriptor_MeasurementValueType_value = map[string]int32{
-	"MEASUREMENT_VALUE_TYPE_UNSPECIFIED": 0,
-	"MEASUREMENT_VALUE_TYPE_INT64":       1,
-	"MEASUREMENT_VALUE_TYPE_DOUBLE":      2,
+var MetricDescriptor_Type_value = map[string]int32{
+	"INVALID_TYPE":     0,
+	"INT64":            1,
+	"MONOTONIC_INT64":  2,
+	"DOUBLE":           3,
+	"MONOTONIC_DOUBLE": 4,
+	"HISTOGRAM":        5,
+	"SUMMARY":          6,
 }
 
-func (x MetricDescriptor_MeasurementValueType) String() string {
-	return proto.EnumName(MetricDescriptor_MeasurementValueType_name, int32(x))
+func (x MetricDescriptor_Type) String() string {
+	return proto.EnumName(MetricDescriptor_Type_name, int32(x))
 }
 
-func (MetricDescriptor_MeasurementValueType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{4, 0}
+func (MetricDescriptor_Type) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_3c3112f9fa006917, []int{3, 0}
 }
 
-// AggregationTemporality defines how a metric aggregator reports aggregated
-// values. It describes how those values relate to the time interval over
-// which they are aggregated.
-type MetricDescriptor_AggregationTemporality int32
+// Temporality is the temporal quality values of a metric have. It
+// describes how those values relate to the time interval over which they
+// are reported.
+type MetricDescriptor_Temporality int32
 
 const (
-	// UNSPECIFIED is the default AggregationTemporality, it MUST not be used.
-	MetricDescriptor_AGGREGATION_TEMPORALITY_UNSPECIFIED MetricDescriptor_AggregationTemporality = 0
-	// DELTA is an AggregationTemporality for a metric aggregator which reports
-	// changes since last report time. Successive metrics contain aggregation of
+	// INVALID_TEMPORALITY is the default Temporality, it MUST not be
+	// used.
+	MetricDescriptor_INVALID_TEMPORALITY MetricDescriptor_Temporality = 0
+	// INSTANTANEOUS is a metric whose values are measured at a particular
+	// instant. The values are not aggregated over any time interval and are
+	// unique per timestamp. As such, these metrics are not expected to have
+	// an associated start time.
+	MetricDescriptor_INSTANTANEOUS MetricDescriptor_Temporality = 1
+	// DELTA is a metric whose values are the aggregation of measurements
+	// made over a time interval. Successive metrics contain aggregation of
 	// values from continuous and non-overlapping intervals.
 	//
 	// The values for a DELTA metric are based only on the time interval
@@ -91,12 +127,13 @@ const (
 	//   8. The 1 second collection cycle ends. A metric is exported for the
 	//      number of requests received over the interval of time t_0+1 to
 	//      t_0+2 with a value of 2.
-	MetricDescriptor_AGGREGATION_TEMPORALITY_DELTA MetricDescriptor_AggregationTemporality = 1
-	// CUMULATIVE is an AggregationTemporality for a metic aggregator which
-	// reports changes since a fixed start time. This means that current values
-	// of a CUMULATIVE metric depend on all previous measurements since the
-	// start time. Because of this, the sender is required to retain this state
-	// in some form. If this state is lost or invalidated, the CUMULATIVE metric
+	MetricDescriptor_DELTA MetricDescriptor_Temporality = 2
+	// CUMULATIVE is a metric whose values are the aggregation of
+	// successively made measurements from a fixed start time until the last
+	// reported measurement. This means that current values of a CUMULATIVE
+	// metric depend on all previous measurements since the start time.
+	// Because of this, the sender is required to retain this state in some
+	// form. If this state is lost or invalidated, the CUMULATIVE metric
 	// values MUST be reset and a new fixed start time following the last
 	// reported measurement time sent MUST be used.
 	//
@@ -122,32 +159,29 @@ const (
 	//   12. The 1 second collection cycle ends. A metric is exported for the
 	//      number of requests received over the interval of time t_1 to
 	//      t_0+1 with a value of 1.
-	//
-	// Note: Even though, when reporting changes since last report time, using
-	// CUMULATIVE is valid, it is not recommended. This may cause problems for
-	// systems that do not use start_time to determine when the aggregation
-	// value was reset (e.g. Prometheus).
-	MetricDescriptor_AGGREGATION_TEMPORALITY_CUMULATIVE MetricDescriptor_AggregationTemporality = 2
+	MetricDescriptor_CUMULATIVE MetricDescriptor_Temporality = 3
 )
 
-var MetricDescriptor_AggregationTemporality_name = map[int32]string{
-	0: "AGGREGATION_TEMPORALITY_UNSPECIFIED",
-	1: "AGGREGATION_TEMPORALITY_DELTA",
-	2: "AGGREGATION_TEMPORALITY_CUMULATIVE",
+var MetricDescriptor_Temporality_name = map[int32]string{
+	0: "INVALID_TEMPORALITY",
+	1: "INSTANTANEOUS",
+	2: "DELTA",
+	3: "CUMULATIVE",
 }
 
-var MetricDescriptor_AggregationTemporality_value = map[string]int32{
-	"AGGREGATION_TEMPORALITY_UNSPECIFIED": 0,
-	"AGGREGATION_TEMPORALITY_DELTA":       1,
-	"AGGREGATION_TEMPORALITY_CUMULATIVE":  2,
+var MetricDescriptor_Temporality_value = map[string]int32{
+	"INVALID_TEMPORALITY": 0,
+	"INSTANTANEOUS":       1,
+	"DELTA":               2,
+	"CUMULATIVE":          3,
 }
 
-func (x MetricDescriptor_AggregationTemporality) String() string {
-	return proto.EnumName(MetricDescriptor_AggregationTemporality_name, int32(x))
+func (x MetricDescriptor_Temporality) String() string {
+	return proto.EnumName(MetricDescriptor_Temporality_name, int32(x))
 }
 
-func (MetricDescriptor_AggregationTemporality) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{4, 1}
+func (MetricDescriptor_Temporality) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_3c3112f9fa006917, []int{3, 1}
 }
 
 // A collection of InstrumentationLibraryMetrics from a Resource.
@@ -268,129 +302,23 @@ func (m *InstrumentationLibraryMetrics) GetMetrics() []*Metric {
 	return nil
 }
 
-// A representation of an exemplar, which is a sample input measurement.
-// Exemplars also hold information about the environment when the measurement was recorded,
-// for example the span and trace ID of the active span when the exemplar was recorded.
-type Exemplar struct {
-	// The set of labels that were dropped by the aggregator, but recorded
-	// alongside the original measurement. Only labels that were dropped by the aggregator should be included
-	DroppedLabels []*v11.StringKeyValue `protobuf:"bytes,1,rep,name=dropped_labels,json=droppedLabels,proto3" json:"dropped_labels,omitempty"`
-	// time_unix_nano is the exact time when this exemplar was recorded
-	//
-	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
-	TimeUnixNano uint64 `protobuf:"fixed64,2,opt,name=time_unix_nano,json=timeUnixNano,proto3" json:"time_unix_nano,omitempty"`
-	// Numerical value of the measurement that was recorded. Only one of these
-	// two fields is used for the data, based on MetricDescriptor.measurement_value_type
-	DoubleValue float64 `protobuf:"fixed64,3,opt,name=double_value,json=doubleValue,proto3" json:"double_value,omitempty"`
-	Int64Value  int64   `protobuf:"varint,4,opt,name=int64_value,json=int64Value,proto3" json:"int64_value,omitempty"`
-	// (Optional) Span ID of the current trace.
-	// span_id may be missing if the measurement is not recorded inside a trace or if the trace is not sampled.
-	SpanId []byte `protobuf:"bytes,5,opt,name=span_id,json=spanId,proto3" json:"span_id,omitempty"`
-	// (Optional) Trace ID of the current trace.
-	// trace_id may be missing if the measurement is not recorded inside a trace or if the trace is not sampled.
-	TraceId              []byte   `protobuf:"bytes,6,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *Exemplar) Reset()         { *m = Exemplar{} }
-func (m *Exemplar) String() string { return proto.CompactTextString(m) }
-func (*Exemplar) ProtoMessage()    {}
-func (*Exemplar) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{2}
-}
-func (m *Exemplar) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *Exemplar) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_Exemplar.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *Exemplar) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Exemplar.Merge(m, src)
-}
-func (m *Exemplar) XXX_Size() int {
-	return m.Size()
-}
-func (m *Exemplar) XXX_DiscardUnknown() {
-	xxx_messageInfo_Exemplar.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Exemplar proto.InternalMessageInfo
-
-func (m *Exemplar) GetDroppedLabels() []*v11.StringKeyValue {
-	if m != nil {
-		return m.DroppedLabels
-	}
-	return nil
-}
-
-func (m *Exemplar) GetTimeUnixNano() uint64 {
-	if m != nil {
-		return m.TimeUnixNano
-	}
-	return 0
-}
-
-func (m *Exemplar) GetDoubleValue() float64 {
-	if m != nil {
-		return m.DoubleValue
-	}
-	return 0
-}
-
-func (m *Exemplar) GetInt64Value() int64 {
-	if m != nil {
-		return m.Int64Value
-	}
-	return 0
-}
-
-func (m *Exemplar) GetSpanId() []byte {
-	if m != nil {
-		return m.SpanId
-	}
-	return nil
-}
-
-func (m *Exemplar) GetTraceId() []byte {
-	if m != nil {
-		return m.TraceId
-	}
-	return nil
-}
-
 // Defines a Metric which has one or more timeseries.
 //
-// The data model and relation between entities is shown in the
-// diagram below. Here, "DataPoint" is the term used to refer to any
-// one of the specific data point value types, and "points" is the term used
-// to refer to any one of the lists of points contained in the Metric.
+// The data model and relation between entities is shown in the diagram below.
 //
 // - Metric is composed of a MetricDescriptor and a list of data points.
-// - MetricDescriptor contains a name, description, unit, and type.
-// - Points is a list of DataPoints (shown vertically).
-// - DataPoint contains timestamps, labels, and one of the possible value type
-//   fields.
+// - MetricDescriptor contains a list of label keys (shown horizontally).
+// - Data is a list of DataPoints (shown vertically).
+// - DataPoint contains a list of label values and a value.
 //
 //     Metric
 //  +----------+         +------------------------+
 //  |descriptor|-------->| MetricDescriptor       |
-//  |          |         | name                   |
-//  |          |         | description            |
-//  |          |         | unit                   |
-//  |    points|--+      | type                   |
-//  +----------+  |      +------------------------+
-//                |
+//  |          |         |+-----+-----+   +-----+ |
+//  |          |         ||label|label|...|label| |
+//  |      data|--+      ||key1 |key2 |   |keyN | |
+//  +----------+  |      |+-----+-----+   +-----+ |
+//                |      +------------------------+
 //                |
 //                |      +---------------------------+
 //                |      |DataPoint 1                |
@@ -416,15 +344,13 @@ func (m *Exemplar) GetTraceId() []byte {
 //                       |+-----+                    |
 //                       +---------------------------+
 //
-// All DataPoint types have three common fields:
-// - Labels zero or more key-value pairs associated with the data point.
-// - StartTimeUnixNano MUST be set to the start of the interval when the
-//   descriptor's type includes an AggregationTemporality. This field is not set
-//   otherwise.
-// - TimeUnixNano MUST be set to:
-//   - the moment when an aggregation is reported (independent of the
-//     aggregation temporality).
-//   - the instantaneous time of the event.
+//-----------------------------------------------------------------------
+// DataPoint is a value of specific type corresponding to a given moment in
+// time. Each DataPoint is timestamped.
+//
+// DataPoint is strongly typed: each DataPoint type has a specific Protobuf message
+// depending on the value type of the metric and thus there are currently 4 DataPoint
+// messages, which correspond to the types of metric values.
 type Metric struct {
 	// metric_descriptor describes the Metric.
 	MetricDescriptor *MetricDescriptor `protobuf:"bytes,1,opt,name=metric_descriptor,json=metricDescriptor,proto3" json:"metric_descriptor,omitempty"`
@@ -434,6 +360,7 @@ type Metric struct {
 	Int64DataPoints      []*Int64DataPoint     `protobuf:"bytes,2,rep,name=int64_data_points,json=int64DataPoints,proto3" json:"int64_data_points,omitempty"`
 	DoubleDataPoints     []*DoubleDataPoint    `protobuf:"bytes,3,rep,name=double_data_points,json=doubleDataPoints,proto3" json:"double_data_points,omitempty"`
 	HistogramDataPoints  []*HistogramDataPoint `protobuf:"bytes,4,rep,name=histogram_data_points,json=histogramDataPoints,proto3" json:"histogram_data_points,omitempty"`
+	SummaryDataPoints    []*SummaryDataPoint   `protobuf:"bytes,5,rep,name=summary_data_points,json=summaryDataPoints,proto3" json:"summary_data_points,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
 	XXX_unrecognized     []byte                `json:"-"`
 	XXX_sizecache        int32                 `json:"-"`
@@ -443,7 +370,7 @@ func (m *Metric) Reset()         { *m = Metric{} }
 func (m *Metric) String() string { return proto.CompactTextString(m) }
 func (*Metric) ProtoMessage()    {}
 func (*Metric) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{3}
+	return fileDescriptor_3c3112f9fa006917, []int{2}
 }
 func (m *Metric) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -500,6 +427,13 @@ func (m *Metric) GetHistogramDataPoints() []*HistogramDataPoint {
 	return nil
 }
 
+func (m *Metric) GetSummaryDataPoints() []*SummaryDataPoint {
+	if m != nil {
+		return m.SummaryDataPoints
+	}
+	return nil
+}
+
 // Defines a metric type and its schema.
 type MetricDescriptor struct {
 	// name of the metric, including its DNS name prefix. It must be unique.
@@ -509,39 +443,20 @@ type MetricDescriptor struct {
 	// unit in which the metric value is reported. Follows the format
 	// described by http://unitsofmeasure.org/ucum.html.
 	Unit string `protobuf:"bytes,3,opt,name=unit,proto3" json:"unit,omitempty"`
-	// Type determines the aggregation type (if any) of the metric, what is the
-	// reported value type for the data points, as well as the relatationship to
-	// the time interval over which they are reported.
-	//
-	// TODO: Update table after the decision on:
-	// https://github.com/open-telemetry/opentelemetry-specification/issues/731.
-	// By default, metrics recording using the OpenTelemetry API are exported as
-	// (the table does not include MeasurementValueType to avoid extra rows):
-	//
-	//   Instrument         Type
-	//   ----------------------------------------------
-	//   Counter            Sum(aggregation_temporality=delta;is_monotonic=true)
-	//   UpDownCounter      Sum(aggregation_temporality=delta;is_monotonic=false)
-	//   ValueRecorder      TBD
-	//   SumObserver        Sum(aggregation_temporality=cumulative;is_monotonic=true)
-	//   UpDownSumObserver  Sum(aggregation_temporality=cumulative;is_monotonic=false)
-	//   ValueObserver      Gauge()
-	//
-	// Types that are valid to be assigned to Type:
-	//	*MetricDescriptor_Gauge_
-	//	*MetricDescriptor_Sum_
-	//	*MetricDescriptor_Histogram_
-	Type                 isMetricDescriptor_Type `protobuf_oneof:"type"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
+	// type is the type of values this metric has.
+	Type MetricDescriptor_Type `protobuf:"varint,4,opt,name=type,proto3,enum=opentelemetry.proto.metrics.v1.MetricDescriptor_Type" json:"type,omitempty"`
+	// temporality is the Temporality of values this metric has.
+	Temporality          MetricDescriptor_Temporality `protobuf:"varint,5,opt,name=temporality,proto3,enum=opentelemetry.proto.metrics.v1.MetricDescriptor_Temporality" json:"temporality,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
+	XXX_unrecognized     []byte                       `json:"-"`
+	XXX_sizecache        int32                        `json:"-"`
 }
 
 func (m *MetricDescriptor) Reset()         { *m = MetricDescriptor{} }
 func (m *MetricDescriptor) String() string { return proto.CompactTextString(m) }
 func (*MetricDescriptor) ProtoMessage()    {}
 func (*MetricDescriptor) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{4}
+	return fileDescriptor_3c3112f9fa006917, []int{3}
 }
 func (m *MetricDescriptor) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -570,33 +485,6 @@ func (m *MetricDescriptor) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MetricDescriptor proto.InternalMessageInfo
 
-type isMetricDescriptor_Type interface {
-	isMetricDescriptor_Type()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type MetricDescriptor_Gauge_ struct {
-	Gauge *MetricDescriptor_Gauge `protobuf:"bytes,4,opt,name=gauge,proto3,oneof" json:"gauge,omitempty"`
-}
-type MetricDescriptor_Sum_ struct {
-	Sum *MetricDescriptor_Sum `protobuf:"bytes,5,opt,name=sum,proto3,oneof" json:"sum,omitempty"`
-}
-type MetricDescriptor_Histogram_ struct {
-	Histogram *MetricDescriptor_Histogram `protobuf:"bytes,6,opt,name=histogram,proto3,oneof" json:"histogram,omitempty"`
-}
-
-func (*MetricDescriptor_Gauge_) isMetricDescriptor_Type()     {}
-func (*MetricDescriptor_Sum_) isMetricDescriptor_Type()       {}
-func (*MetricDescriptor_Histogram_) isMetricDescriptor_Type() {}
-
-func (m *MetricDescriptor) GetType() isMetricDescriptor_Type {
-	if m != nil {
-		return m.Type
-	}
-	return nil
-}
-
 func (m *MetricDescriptor) GetName() string {
 	if m != nil {
 		return m.Name
@@ -618,239 +506,18 @@ func (m *MetricDescriptor) GetUnit() string {
 	return ""
 }
 
-func (m *MetricDescriptor) GetGauge() *MetricDescriptor_Gauge {
-	if x, ok := m.GetType().(*MetricDescriptor_Gauge_); ok {
-		return x.Gauge
-	}
-	return nil
-}
-
-func (m *MetricDescriptor) GetSum() *MetricDescriptor_Sum {
-	if x, ok := m.GetType().(*MetricDescriptor_Sum_); ok {
-		return x.Sum
-	}
-	return nil
-}
-
-func (m *MetricDescriptor) GetHistogram() *MetricDescriptor_Histogram {
-	if x, ok := m.GetType().(*MetricDescriptor_Histogram_); ok {
-		return x.Histogram
-	}
-	return nil
-}
-
-// XXX_OneofWrappers is for the internal use of the proto package.
-func (*MetricDescriptor) XXX_OneofWrappers() []interface{} {
-	return []interface{}{
-		(*MetricDescriptor_Gauge_)(nil),
-		(*MetricDescriptor_Sum_)(nil),
-		(*MetricDescriptor_Histogram_)(nil),
-	}
-}
-
-// Gauge represents the type of a scalar metric that always exports the
-// "current value" for every data point. It should be used for an "unknown"
-// aggregation.
-//
-// A Gauge does not support different aggregation temporalities. Given the
-// aggregation is unknown, points cannot be combined using the same
-// aggregation, regardless of aggregation temporalities. Therefore,
-// AggregationTemporality is not included. Consequently, this also means
-// "StartTimeUnixNano" is ignored for all data points.
-//
-// A Metric of this Type MUST store its values as Int64DataPoint or
-// DoubleDataPoint.
-type MetricDescriptor_Gauge struct {
-	// It describes the value type of the measurement used to build this
-	// aggregation.
-	//
-	// Determines if the points are Int64DataPoint or DoubleDataPoint, as well
-	// as the value type of the exemplars.
-	MeasurementValueType MetricDescriptor_MeasurementValueType `protobuf:"varint,1,opt,name=measurement_value_type,json=measurementValueType,proto3,enum=opentelemetry.proto.metrics.v1.MetricDescriptor_MeasurementValueType" json:"measurement_value_type,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                              `json:"-"`
-	XXX_unrecognized     []byte                                `json:"-"`
-	XXX_sizecache        int32                                 `json:"-"`
-}
-
-func (m *MetricDescriptor_Gauge) Reset()         { *m = MetricDescriptor_Gauge{} }
-func (m *MetricDescriptor_Gauge) String() string { return proto.CompactTextString(m) }
-func (*MetricDescriptor_Gauge) ProtoMessage()    {}
-func (*MetricDescriptor_Gauge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{4, 0}
-}
-func (m *MetricDescriptor_Gauge) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *MetricDescriptor_Gauge) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_MetricDescriptor_Gauge.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *MetricDescriptor_Gauge) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MetricDescriptor_Gauge.Merge(m, src)
-}
-func (m *MetricDescriptor_Gauge) XXX_Size() int {
-	return m.Size()
-}
-func (m *MetricDescriptor_Gauge) XXX_DiscardUnknown() {
-	xxx_messageInfo_MetricDescriptor_Gauge.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_MetricDescriptor_Gauge proto.InternalMessageInfo
-
-func (m *MetricDescriptor_Gauge) GetMeasurementValueType() MetricDescriptor_MeasurementValueType {
+func (m *MetricDescriptor) GetType() MetricDescriptor_Type {
 	if m != nil {
-		return m.MeasurementValueType
+		return m.Type
 	}
-	return MetricDescriptor_MEASUREMENT_VALUE_TYPE_UNSPECIFIED
+	return MetricDescriptor_INVALID_TYPE
 }
 
-// Sum represents the type of a numeric scalar metric that is calculated as a
-// sum of all reported measurements over a time interval.
-//
-// A Metric of this Type MUST store its values as Int64DataPoint or
-// DoubleDataPoint.
-type MetricDescriptor_Sum struct {
-	// It describes the value type of the measurement used to build this
-	// aggregation.
-	//
-	// Determines if the points are Int64DataPoint or DoubleDataPoint, as well
-	// as the value type of the exemplars.
-	MeasurementValueType MetricDescriptor_MeasurementValueType `protobuf:"varint,1,opt,name=measurement_value_type,json=measurementValueType,proto3,enum=opentelemetry.proto.metrics.v1.MetricDescriptor_MeasurementValueType" json:"measurement_value_type,omitempty"`
-	// aggregation_temporality describes if the aggregator reports delta changes
-	// since last report time, or cumulative changes since a fixed start time.
-	AggregationTemporality MetricDescriptor_AggregationTemporality `protobuf:"varint,2,opt,name=aggregation_temporality,json=aggregationTemporality,proto3,enum=opentelemetry.proto.metrics.v1.MetricDescriptor_AggregationTemporality" json:"aggregation_temporality,omitempty"`
-	// If "true" means that the sum is monotonic.
-	IsMonotonic          bool     `protobuf:"varint,3,opt,name=is_monotonic,json=isMonotonic,proto3" json:"is_monotonic,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *MetricDescriptor_Sum) Reset()         { *m = MetricDescriptor_Sum{} }
-func (m *MetricDescriptor_Sum) String() string { return proto.CompactTextString(m) }
-func (*MetricDescriptor_Sum) ProtoMessage()    {}
-func (*MetricDescriptor_Sum) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{4, 1}
-}
-func (m *MetricDescriptor_Sum) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *MetricDescriptor_Sum) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_MetricDescriptor_Sum.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *MetricDescriptor_Sum) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MetricDescriptor_Sum.Merge(m, src)
-}
-func (m *MetricDescriptor_Sum) XXX_Size() int {
-	return m.Size()
-}
-func (m *MetricDescriptor_Sum) XXX_DiscardUnknown() {
-	xxx_messageInfo_MetricDescriptor_Sum.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_MetricDescriptor_Sum proto.InternalMessageInfo
-
-func (m *MetricDescriptor_Sum) GetMeasurementValueType() MetricDescriptor_MeasurementValueType {
+func (m *MetricDescriptor) GetTemporality() MetricDescriptor_Temporality {
 	if m != nil {
-		return m.MeasurementValueType
+		return m.Temporality
 	}
-	return MetricDescriptor_MEASUREMENT_VALUE_TYPE_UNSPECIFIED
-}
-
-func (m *MetricDescriptor_Sum) GetAggregationTemporality() MetricDescriptor_AggregationTemporality {
-	if m != nil {
-		return m.AggregationTemporality
-	}
-	return MetricDescriptor_AGGREGATION_TEMPORALITY_UNSPECIFIED
-}
-
-func (m *MetricDescriptor_Sum) GetIsMonotonic() bool {
-	if m != nil {
-		return m.IsMonotonic
-	}
-	return false
-}
-
-// Represents the type of a metric that is calculated by aggregating as a
-// Histogram of all reported measurements over a time interval.
-//
-// A Metric of this Type MUST store its values as HistogramDataPoint.
-type MetricDescriptor_Histogram struct {
-	// It describes the value type of the measurement used to build this
-	// aggregation.
-	//
-	// Determines the value type of the exemplars.
-	MeasurementValueType MetricDescriptor_MeasurementValueType `protobuf:"varint,1,opt,name=measurement_value_type,json=measurementValueType,proto3,enum=opentelemetry.proto.metrics.v1.MetricDescriptor_MeasurementValueType" json:"measurement_value_type,omitempty"`
-	// aggregation_temporality describes if the aggregator reports delta changes
-	// since last report time, or cumulative changes since a fixed start time.
-	AggregationTemporality MetricDescriptor_AggregationTemporality `protobuf:"varint,2,opt,name=aggregation_temporality,json=aggregationTemporality,proto3,enum=opentelemetry.proto.metrics.v1.MetricDescriptor_AggregationTemporality" json:"aggregation_temporality,omitempty"`
-	XXX_NoUnkeyedLiteral   struct{}                                `json:"-"`
-	XXX_unrecognized       []byte                                  `json:"-"`
-	XXX_sizecache          int32                                   `json:"-"`
-}
-
-func (m *MetricDescriptor_Histogram) Reset()         { *m = MetricDescriptor_Histogram{} }
-func (m *MetricDescriptor_Histogram) String() string { return proto.CompactTextString(m) }
-func (*MetricDescriptor_Histogram) ProtoMessage()    {}
-func (*MetricDescriptor_Histogram) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{4, 2}
-}
-func (m *MetricDescriptor_Histogram) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *MetricDescriptor_Histogram) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_MetricDescriptor_Histogram.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *MetricDescriptor_Histogram) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MetricDescriptor_Histogram.Merge(m, src)
-}
-func (m *MetricDescriptor_Histogram) XXX_Size() int {
-	return m.Size()
-}
-func (m *MetricDescriptor_Histogram) XXX_DiscardUnknown() {
-	xxx_messageInfo_MetricDescriptor_Histogram.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_MetricDescriptor_Histogram proto.InternalMessageInfo
-
-func (m *MetricDescriptor_Histogram) GetMeasurementValueType() MetricDescriptor_MeasurementValueType {
-	if m != nil {
-		return m.MeasurementValueType
-	}
-	return MetricDescriptor_MEASUREMENT_VALUE_TYPE_UNSPECIFIED
-}
-
-func (m *MetricDescriptor_Histogram) GetAggregationTemporality() MetricDescriptor_AggregationTemporality {
-	if m != nil {
-		return m.AggregationTemporality
-	}
-	return MetricDescriptor_AGGREGATION_TEMPORALITY_UNSPECIFIED
+	return MetricDescriptor_INVALID_TEMPORALITY
 }
 
 // Int64DataPoint is a single data point in a timeseries that describes the time-varying
@@ -858,39 +525,31 @@ func (m *MetricDescriptor_Histogram) GetAggregationTemporality() MetricDescripto
 type Int64DataPoint struct {
 	// The set of labels that uniquely identify this timeseries.
 	Labels []*v11.StringKeyValue `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty"`
-	// start_time_unix_nano is the last time when the aggregation value was reset
-	// to "zero". For some metric types this is ignored, see MetricsDescriptor
-	// types for more details.
+	// start_time_unix_nano is the time when the cumulative value was reset to zero.
+	// This is used for Counter type only. For Gauge the value is not specified and
+	// defaults to 0.
 	//
-	// The aggregation value is over the time interval (start_time_unix_nano,
-	// time_unix_nano].
+	// The cumulative value is over the time interval (start_time_unix_nano, time_unix_nano].
+	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
 	//
-	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January
-	// 1970.
-	//
-	// Value of 0 indicates that the timestamp is unspecified. In that case the
-	// timestamp may be decided by the backend.
+	// Value of 0 indicates that the timestamp is unspecified. In that case the timestamp
+	// may be decided by the backend.
 	StartTimeUnixNano uint64 `protobuf:"fixed64,2,opt,name=start_time_unix_nano,json=startTimeUnixNano,proto3" json:"start_time_unix_nano,omitempty"`
-	// time_unix_nano is the moment when this aggregation value was reported.
-	//
-	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January
-	// 1970.
+	// time_unix_nano is the moment when this value was recorded.
+	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
 	TimeUnixNano uint64 `protobuf:"fixed64,3,opt,name=time_unix_nano,json=timeUnixNano,proto3" json:"time_unix_nano,omitempty"`
 	// value itself.
-	Value int64 `protobuf:"varint,4,opt,name=value,proto3" json:"value,omitempty"`
-	// (Optional) List of exemplars collected from
-	// measurements that were used to form the data point
-	Exemplars            []*Exemplar `protobuf:"bytes,5,rep,name=exemplars,proto3" json:"exemplars,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
+	Value                int64    `protobuf:"varint,4,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *Int64DataPoint) Reset()         { *m = Int64DataPoint{} }
 func (m *Int64DataPoint) String() string { return proto.CompactTextString(m) }
 func (*Int64DataPoint) ProtoMessage()    {}
 func (*Int64DataPoint) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{5}
+	return fileDescriptor_3c3112f9fa006917, []int{4}
 }
 func (m *Int64DataPoint) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -947,51 +606,36 @@ func (m *Int64DataPoint) GetValue() int64 {
 	return 0
 }
 
-func (m *Int64DataPoint) GetExemplars() []*Exemplar {
-	if m != nil {
-		return m.Exemplars
-	}
-	return nil
-}
-
 // DoubleDataPoint is a single data point in a timeseries that describes the time-varying
 // value of a double metric.
 type DoubleDataPoint struct {
 	// The set of labels that uniquely identify this timeseries.
 	Labels []*v11.StringKeyValue `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty"`
-	// start_time_unix_nano is the last time when the aggregation value was reset
-	// to "zero". For some metric types this is ignored, see MetricsDescriptor
-	// types for more details.
+	// start_time_unix_nano is the time when the cumulative value was reset to zero.
+	// This is used for Counter type only. For Gauge the value is not specified and
+	// defaults to 0.
 	//
-	// The aggregation value is over the time interval (start_time_unix_nano,
-	// time_unix_nano].
+	// The cumulative value is over the time interval (start_time_unix_nano, time_unix_nano].
+	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
 	//
-	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January
-	// 1970.
-	//
-	// Value of 0 indicates that the timestamp is unspecified. In that case the
-	// timestamp may be decided by the backend.
+	// Value of 0 indicates that the timestamp is unspecified. In that case the timestamp
+	// may be decided by the backend.
 	StartTimeUnixNano uint64 `protobuf:"fixed64,2,opt,name=start_time_unix_nano,json=startTimeUnixNano,proto3" json:"start_time_unix_nano,omitempty"`
-	// time_unix_nano is the moment when this aggregation value was reported.
-	//
-	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January
-	// 1970.
+	// time_unix_nano is the moment when this value was recorded.
+	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
 	TimeUnixNano uint64 `protobuf:"fixed64,3,opt,name=time_unix_nano,json=timeUnixNano,proto3" json:"time_unix_nano,omitempty"`
 	// value itself.
-	Value float64 `protobuf:"fixed64,4,opt,name=value,proto3" json:"value,omitempty"`
-	// (Optional) List of exemplars collected from
-	// measurements that were used to form the data point
-	Exemplars            []*Exemplar `protobuf:"bytes,5,rep,name=exemplars,proto3" json:"exemplars,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
+	Value                float64  `protobuf:"fixed64,4,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *DoubleDataPoint) Reset()         { *m = DoubleDataPoint{} }
 func (m *DoubleDataPoint) String() string { return proto.CompactTextString(m) }
 func (*DoubleDataPoint) ProtoMessage()    {}
 func (*DoubleDataPoint) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{6}
+	return fileDescriptor_3c3112f9fa006917, []int{5}
 }
 func (m *DoubleDataPoint) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1048,36 +692,23 @@ func (m *DoubleDataPoint) GetValue() float64 {
 	return 0
 }
 
-func (m *DoubleDataPoint) GetExemplars() []*Exemplar {
-	if m != nil {
-		return m.Exemplars
-	}
-	return nil
-}
-
 // HistogramDataPoint is a single data point in a timeseries that describes the time-varying
 // values of a Histogram. A Histogram contains summary statistics for a population of values,
 // it may optionally contain the distribution of those values across a set of buckets.
 type HistogramDataPoint struct {
 	// The set of labels that uniquely identify this timeseries.
 	Labels []*v11.StringKeyValue `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty"`
-	// start_time_unix_nano is the last time when the aggregation value was reset
-	// to "zero". For some metric types this is ignored, see MetricsDescriptor
-	// types for more details.
+	// start_time_unix_nano is the time when the cumulative value was reset to zero.
 	//
-	// The aggregation value is over the time interval (start_time_unix_nano,
-	// time_unix_nano].
+	// The cumulative value is over the time interval (start_time_unix_nano, time_unix_nano].
+	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
 	//
-	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January
-	// 1970.
-	//
-	// Value of 0 indicates that the timestamp is unspecified. In that case the
-	// timestamp may be decided by the backend.
+	// Value of 0 indicates that the timestamp is unspecified. In that case the timestamp
+	// may be decided by the backend.
+	// Note: this field is always unspecified and ignored if MetricDescriptor.type==GAUGE_HISTOGRAM.
 	StartTimeUnixNano uint64 `protobuf:"fixed64,2,opt,name=start_time_unix_nano,json=startTimeUnixNano,proto3" json:"start_time_unix_nano,omitempty"`
-	// time_unix_nano is the moment when this aggregation value was reported.
-	//
-	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January
-	// 1970.
+	// time_unix_nano is the moment when this value was recorded.
+	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
 	TimeUnixNano uint64 `protobuf:"fixed64,3,opt,name=time_unix_nano,json=timeUnixNano,proto3" json:"time_unix_nano,omitempty"`
 	// count is the number of values in the population. Must be non-negative. This value
 	// must be equal to the sum of the "count" fields in buckets if a histogram is provided.
@@ -1086,42 +717,42 @@ type HistogramDataPoint struct {
 	// must be zero. This value must be equal to the sum of the "sum" fields in buckets if
 	// a histogram is provided.
 	Sum float64 `protobuf:"fixed64,5,opt,name=sum,proto3" json:"sum,omitempty"`
-	// bucket_counts is an optional field contains the count values of histogram
-	// for each bucket.
+	// buckets is an optional field contains the values of histogram for each bucket.
 	//
-	// The sum of the bucket_counts must equal the value in the count field.
+	// The sum of the values in the buckets "count" field must equal the value in the count field.
 	//
-	// The number of elements in bucket_counts array must be by one greater than
-	// the number of elements in explicit_bounds array.
-	BucketCounts []uint64 `protobuf:"varint,6,rep,packed,name=bucket_counts,json=bucketCounts,proto3" json:"bucket_counts,omitempty"`
+	// The number of elements in buckets array must be by one greater than the
+	// number of elements in bucket_bounds array.
+	//
+	// Note: if HistogramDataPoint.bucket_options defines bucket bounds then this field
+	// must also be present and number of elements in this field must be equal to the
+	// number of buckets defined by bucket_options.
+	Buckets []*HistogramDataPoint_Bucket `protobuf:"bytes,6,rep,name=buckets,proto3" json:"buckets,omitempty"`
 	// explicit_bounds specifies buckets with explicitly defined bounds for values.
 	// The bucket boundaries are described by "bounds" field.
 	//
 	// This defines size(bounds) + 1 (= N) buckets. The boundaries for bucket
 	// at index i are:
 	//
-	// (-infinity, bounds[i]) for i == 0
+	// [0, bounds[i]) for i == 0
 	// [bounds[i-1], bounds[i]) for 0 < i < N-1
 	// [bounds[i], +infinity) for i == N-1
-	// The values in bounds array must be strictly increasing.
+	// The values in bounds array must be strictly increasing and > 0.
 	//
-	// Note: only [a, b) intervals are currently supported for each bucket except the first one.
-	// If we decide to also support (a, b] intervals we should add support for these by defining
-	// a boolean value which decides what type of intervals to use.
-	ExplicitBounds []float64 `protobuf:"fixed64,7,rep,packed,name=explicit_bounds,json=explicitBounds,proto3" json:"explicit_bounds,omitempty"`
-	// (Optional) List of exemplars collected from
-	// measurements that were used to form the data point
-	Exemplars            []*Exemplar `protobuf:"bytes,8,rep,name=exemplars,proto3" json:"exemplars,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
+	// Note: only [a, b) intervals are currently supported for each bucket. If we decides
+	// to also support (a, b] intervals we should add support for these by defining a boolean
+	// value which decides what type of intervals to use.
+	ExplicitBounds       []float64 `protobuf:"fixed64,7,rep,packed,name=explicit_bounds,json=explicitBounds,proto3" json:"explicit_bounds,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
 }
 
 func (m *HistogramDataPoint) Reset()         { *m = HistogramDataPoint{} }
 func (m *HistogramDataPoint) String() string { return proto.CompactTextString(m) }
 func (*HistogramDataPoint) ProtoMessage()    {}
 func (*HistogramDataPoint) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3c3112f9fa006917, []int{7}
+	return fileDescriptor_3c3112f9fa006917, []int{6}
 }
 func (m *HistogramDataPoint) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1185,9 +816,9 @@ func (m *HistogramDataPoint) GetSum() float64 {
 	return 0
 }
 
-func (m *HistogramDataPoint) GetBucketCounts() []uint64 {
+func (m *HistogramDataPoint) GetBuckets() []*HistogramDataPoint_Bucket {
 	if m != nil {
-		return m.BucketCounts
+		return m.Buckets
 	}
 	return nil
 }
@@ -1199,27 +830,323 @@ func (m *HistogramDataPoint) GetExplicitBounds() []float64 {
 	return nil
 }
 
-func (m *HistogramDataPoint) GetExemplars() []*Exemplar {
+// Bucket contains values for a bucket.
+type HistogramDataPoint_Bucket struct {
+	// The number of values in each bucket of the histogram, as described by
+	// bucket_options.
+	Count uint64 `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
+	// exemplar is an optional representative value of the bucket.
+	Exemplar             *HistogramDataPoint_Bucket_Exemplar `protobuf:"bytes,2,opt,name=exemplar,proto3" json:"exemplar,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                            `json:"-"`
+	XXX_unrecognized     []byte                              `json:"-"`
+	XXX_sizecache        int32                               `json:"-"`
+}
+
+func (m *HistogramDataPoint_Bucket) Reset()         { *m = HistogramDataPoint_Bucket{} }
+func (m *HistogramDataPoint_Bucket) String() string { return proto.CompactTextString(m) }
+func (*HistogramDataPoint_Bucket) ProtoMessage()    {}
+func (*HistogramDataPoint_Bucket) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3c3112f9fa006917, []int{6, 0}
+}
+func (m *HistogramDataPoint_Bucket) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *HistogramDataPoint_Bucket) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_HistogramDataPoint_Bucket.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *HistogramDataPoint_Bucket) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_HistogramDataPoint_Bucket.Merge(m, src)
+}
+func (m *HistogramDataPoint_Bucket) XXX_Size() int {
+	return m.Size()
+}
+func (m *HistogramDataPoint_Bucket) XXX_DiscardUnknown() {
+	xxx_messageInfo_HistogramDataPoint_Bucket.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_HistogramDataPoint_Bucket proto.InternalMessageInfo
+
+func (m *HistogramDataPoint_Bucket) GetCount() uint64 {
 	if m != nil {
-		return m.Exemplars
+		return m.Count
+	}
+	return 0
+}
+
+func (m *HistogramDataPoint_Bucket) GetExemplar() *HistogramDataPoint_Bucket_Exemplar {
+	if m != nil {
+		return m.Exemplar
 	}
 	return nil
 }
 
+// Exemplars are example points that may be used to annotate aggregated
+// Histogram values. They are metadata that gives information about a
+// particular value added to a Histogram bucket.
+type HistogramDataPoint_Bucket_Exemplar struct {
+	// Value of the exemplar point. It determines which bucket the exemplar belongs to.
+	// If bucket_options define bounds for this bucket then this value must be within
+	// the defined bounds.
+	Value float64 `protobuf:"fixed64,1,opt,name=value,proto3" json:"value,omitempty"`
+	// time_unix_nano is the moment when this exemplar was recorded.
+	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+	TimeUnixNano uint64 `protobuf:"fixed64,2,opt,name=time_unix_nano,json=timeUnixNano,proto3" json:"time_unix_nano,omitempty"`
+	// exemplar_attachments are contextual information about the example value.
+	// Keys in this list must be unique.
+	Attachments          []*v11.StringKeyValue `protobuf:"bytes,3,rep,name=attachments,proto3" json:"attachments,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
+	XXX_unrecognized     []byte                `json:"-"`
+	XXX_sizecache        int32                 `json:"-"`
+}
+
+func (m *HistogramDataPoint_Bucket_Exemplar) Reset()         { *m = HistogramDataPoint_Bucket_Exemplar{} }
+func (m *HistogramDataPoint_Bucket_Exemplar) String() string { return proto.CompactTextString(m) }
+func (*HistogramDataPoint_Bucket_Exemplar) ProtoMessage()    {}
+func (*HistogramDataPoint_Bucket_Exemplar) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3c3112f9fa006917, []int{6, 0, 0}
+}
+func (m *HistogramDataPoint_Bucket_Exemplar) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *HistogramDataPoint_Bucket_Exemplar) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_HistogramDataPoint_Bucket_Exemplar.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *HistogramDataPoint_Bucket_Exemplar) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_HistogramDataPoint_Bucket_Exemplar.Merge(m, src)
+}
+func (m *HistogramDataPoint_Bucket_Exemplar) XXX_Size() int {
+	return m.Size()
+}
+func (m *HistogramDataPoint_Bucket_Exemplar) XXX_DiscardUnknown() {
+	xxx_messageInfo_HistogramDataPoint_Bucket_Exemplar.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_HistogramDataPoint_Bucket_Exemplar proto.InternalMessageInfo
+
+func (m *HistogramDataPoint_Bucket_Exemplar) GetValue() float64 {
+	if m != nil {
+		return m.Value
+	}
+	return 0
+}
+
+func (m *HistogramDataPoint_Bucket_Exemplar) GetTimeUnixNano() uint64 {
+	if m != nil {
+		return m.TimeUnixNano
+	}
+	return 0
+}
+
+func (m *HistogramDataPoint_Bucket_Exemplar) GetAttachments() []*v11.StringKeyValue {
+	if m != nil {
+		return m.Attachments
+	}
+	return nil
+}
+
+// SummaryDataPoint is a single data point in a timeseries that describes the time-varying
+// values of a Summary metric.
+type SummaryDataPoint struct {
+	// The set of labels that uniquely identify this timeseries.
+	Labels []*v11.StringKeyValue `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty"`
+	// start_time_unix_nano is the time when the cumulative value was reset to zero.
+	//
+	// The cumulative value is over the time interval (start_time_unix_nano, time_unix_nano].
+	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+	//
+	// Value of 0 indicates that the timestamp is unspecified. In that case the timestamp
+	// may be decided by the backend.
+	StartTimeUnixNano uint64 `protobuf:"fixed64,2,opt,name=start_time_unix_nano,json=startTimeUnixNano,proto3" json:"start_time_unix_nano,omitempty"`
+	// time_unix_nano is the moment when this value was recorded.
+	// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
+	TimeUnixNano uint64 `protobuf:"fixed64,3,opt,name=time_unix_nano,json=timeUnixNano,proto3" json:"time_unix_nano,omitempty"`
+	// The total number of recorded values since start_time. Optional since
+	// some systems don't expose this.
+	Count uint64 `protobuf:"varint,4,opt,name=count,proto3" json:"count,omitempty"`
+	// The total sum of recorded values since start_time. Optional since some
+	// systems don't expose this. If count is zero then this field must be zero.
+	Sum float64 `protobuf:"fixed64,5,opt,name=sum,proto3" json:"sum,omitempty"`
+	// A list of values at different percentiles of the distribution calculated
+	// from the current snapshot. The percentiles must be strictly increasing.
+	PercentileValues     []*SummaryDataPoint_ValueAtPercentile `protobuf:"bytes,6,rep,name=percentile_values,json=percentileValues,proto3" json:"percentile_values,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                              `json:"-"`
+	XXX_unrecognized     []byte                                `json:"-"`
+	XXX_sizecache        int32                                 `json:"-"`
+}
+
+func (m *SummaryDataPoint) Reset()         { *m = SummaryDataPoint{} }
+func (m *SummaryDataPoint) String() string { return proto.CompactTextString(m) }
+func (*SummaryDataPoint) ProtoMessage()    {}
+func (*SummaryDataPoint) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3c3112f9fa006917, []int{7}
+}
+func (m *SummaryDataPoint) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SummaryDataPoint) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SummaryDataPoint.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SummaryDataPoint) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SummaryDataPoint.Merge(m, src)
+}
+func (m *SummaryDataPoint) XXX_Size() int {
+	return m.Size()
+}
+func (m *SummaryDataPoint) XXX_DiscardUnknown() {
+	xxx_messageInfo_SummaryDataPoint.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SummaryDataPoint proto.InternalMessageInfo
+
+func (m *SummaryDataPoint) GetLabels() []*v11.StringKeyValue {
+	if m != nil {
+		return m.Labels
+	}
+	return nil
+}
+
+func (m *SummaryDataPoint) GetStartTimeUnixNano() uint64 {
+	if m != nil {
+		return m.StartTimeUnixNano
+	}
+	return 0
+}
+
+func (m *SummaryDataPoint) GetTimeUnixNano() uint64 {
+	if m != nil {
+		return m.TimeUnixNano
+	}
+	return 0
+}
+
+func (m *SummaryDataPoint) GetCount() uint64 {
+	if m != nil {
+		return m.Count
+	}
+	return 0
+}
+
+func (m *SummaryDataPoint) GetSum() float64 {
+	if m != nil {
+		return m.Sum
+	}
+	return 0
+}
+
+func (m *SummaryDataPoint) GetPercentileValues() []*SummaryDataPoint_ValueAtPercentile {
+	if m != nil {
+		return m.PercentileValues
+	}
+	return nil
+}
+
+// Represents the value at a given percentile of a distribution.
+//
+// To record Min and Max values following conventions are used:
+// - The 100th percentile is equivalent to the maximum value observed.
+// - The 0th percentile is equivalent to the minimum value observed.
+//
+// See the following issue for more context:
+// https://github.com/open-telemetry/opentelemetry-proto/issues/125
+type SummaryDataPoint_ValueAtPercentile struct {
+	// The percentile of a distribution. Must be in the interval
+	// [0.0, 100.0].
+	Percentile float64 `protobuf:"fixed64,1,opt,name=percentile,proto3" json:"percentile,omitempty"`
+	// The value at the given percentile of a distribution.
+	Value                float64  `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SummaryDataPoint_ValueAtPercentile) Reset()         { *m = SummaryDataPoint_ValueAtPercentile{} }
+func (m *SummaryDataPoint_ValueAtPercentile) String() string { return proto.CompactTextString(m) }
+func (*SummaryDataPoint_ValueAtPercentile) ProtoMessage()    {}
+func (*SummaryDataPoint_ValueAtPercentile) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3c3112f9fa006917, []int{7, 0}
+}
+func (m *SummaryDataPoint_ValueAtPercentile) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SummaryDataPoint_ValueAtPercentile) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SummaryDataPoint_ValueAtPercentile.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SummaryDataPoint_ValueAtPercentile) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SummaryDataPoint_ValueAtPercentile.Merge(m, src)
+}
+func (m *SummaryDataPoint_ValueAtPercentile) XXX_Size() int {
+	return m.Size()
+}
+func (m *SummaryDataPoint_ValueAtPercentile) XXX_DiscardUnknown() {
+	xxx_messageInfo_SummaryDataPoint_ValueAtPercentile.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SummaryDataPoint_ValueAtPercentile proto.InternalMessageInfo
+
+func (m *SummaryDataPoint_ValueAtPercentile) GetPercentile() float64 {
+	if m != nil {
+		return m.Percentile
+	}
+	return 0
+}
+
+func (m *SummaryDataPoint_ValueAtPercentile) GetValue() float64 {
+	if m != nil {
+		return m.Value
+	}
+	return 0
+}
+
 func init() {
-	proto.RegisterEnum("opentelemetry.proto.metrics.v1.MetricDescriptor_MeasurementValueType", MetricDescriptor_MeasurementValueType_name, MetricDescriptor_MeasurementValueType_value)
-	proto.RegisterEnum("opentelemetry.proto.metrics.v1.MetricDescriptor_AggregationTemporality", MetricDescriptor_AggregationTemporality_name, MetricDescriptor_AggregationTemporality_value)
+	proto.RegisterEnum("opentelemetry.proto.metrics.v1.MetricDescriptor_Type", MetricDescriptor_Type_name, MetricDescriptor_Type_value)
+	proto.RegisterEnum("opentelemetry.proto.metrics.v1.MetricDescriptor_Temporality", MetricDescriptor_Temporality_name, MetricDescriptor_Temporality_value)
 	proto.RegisterType((*ResourceMetrics)(nil), "opentelemetry.proto.metrics.v1.ResourceMetrics")
 	proto.RegisterType((*InstrumentationLibraryMetrics)(nil), "opentelemetry.proto.metrics.v1.InstrumentationLibraryMetrics")
-	proto.RegisterType((*Exemplar)(nil), "opentelemetry.proto.metrics.v1.Exemplar")
 	proto.RegisterType((*Metric)(nil), "opentelemetry.proto.metrics.v1.Metric")
 	proto.RegisterType((*MetricDescriptor)(nil), "opentelemetry.proto.metrics.v1.MetricDescriptor")
-	proto.RegisterType((*MetricDescriptor_Gauge)(nil), "opentelemetry.proto.metrics.v1.MetricDescriptor.Gauge")
-	proto.RegisterType((*MetricDescriptor_Sum)(nil), "opentelemetry.proto.metrics.v1.MetricDescriptor.Sum")
-	proto.RegisterType((*MetricDescriptor_Histogram)(nil), "opentelemetry.proto.metrics.v1.MetricDescriptor.Histogram")
 	proto.RegisterType((*Int64DataPoint)(nil), "opentelemetry.proto.metrics.v1.Int64DataPoint")
 	proto.RegisterType((*DoubleDataPoint)(nil), "opentelemetry.proto.metrics.v1.DoubleDataPoint")
 	proto.RegisterType((*HistogramDataPoint)(nil), "opentelemetry.proto.metrics.v1.HistogramDataPoint")
+	proto.RegisterType((*HistogramDataPoint_Bucket)(nil), "opentelemetry.proto.metrics.v1.HistogramDataPoint.Bucket")
+	proto.RegisterType((*HistogramDataPoint_Bucket_Exemplar)(nil), "opentelemetry.proto.metrics.v1.HistogramDataPoint.Bucket.Exemplar")
+	proto.RegisterType((*SummaryDataPoint)(nil), "opentelemetry.proto.metrics.v1.SummaryDataPoint")
+	proto.RegisterType((*SummaryDataPoint_ValueAtPercentile)(nil), "opentelemetry.proto.metrics.v1.SummaryDataPoint.ValueAtPercentile")
 }
 
 func init() {
@@ -1227,78 +1154,72 @@ func init() {
 }
 
 var fileDescriptor_3c3112f9fa006917 = []byte{
-	// 1122 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe4, 0x57, 0x5f, 0x6f, 0x62, 0xc5,
-	0x1b, 0xee, 0x00, 0xa5, 0xe5, 0xa5, 0x4b, 0xd9, 0xf9, 0xf5, 0xd7, 0x62, 0x63, 0xbb, 0x94, 0x35,
-	0xbb, 0x68, 0x2c, 0x58, 0xac, 0xbd, 0x30, 0x31, 0x4a, 0xcb, 0xd9, 0x96, 0x08, 0x94, 0x4c, 0x0f,
-	0x4d, 0xb6, 0xc9, 0xe6, 0xe4, 0x00, 0x23, 0x9d, 0xc8, 0xf9, 0x93, 0x73, 0xe6, 0x34, 0x25, 0xde,
-	0x6c, 0xa2, 0xde, 0xe8, 0xfa, 0x3d, 0xbc, 0xf3, 0x6b, 0x78, 0xa9, 0xdf, 0x60, 0xd3, 0x4f, 0xe0,
-	0x27, 0x30, 0xe6, 0xcc, 0x9c, 0x03, 0xa5, 0x85, 0x62, 0xd5, 0x44, 0x8d, 0x77, 0x33, 0xcf, 0xbc,
-	0xef, 0x33, 0xcf, 0x79, 0xe6, 0x65, 0x5e, 0x06, 0xde, 0xb5, 0x6c, 0x6a, 0x72, 0xda, 0xa7, 0x06,
-	0xe5, 0xce, 0xa0, 0x68, 0x3b, 0x16, 0xb7, 0x8a, 0xfe, 0x98, 0x75, 0xdc, 0xe2, 0xc5, 0x4e, 0x38,
-	0x2c, 0x88, 0x05, 0xbc, 0x39, 0x16, 0x2d, 0xc1, 0x42, 0x18, 0x72, 0xb1, 0xb3, 0xfe, 0xce, 0x24,
-	0xb6, 0x8e, 0x65, 0x18, 0x96, 0xe9, 0x93, 0xc9, 0x91, 0x4c, 0x5b, 0x2f, 0x4c, 0x8a, 0x75, 0xa8,
-	0x6b, 0x79, 0x4e, 0x87, 0xfa, 0xd1, 0xe1, 0x58, 0xc6, 0xe7, 0x5e, 0x23, 0x58, 0x26, 0x01, 0x54,
-	0x97, 0x5b, 0x62, 0x05, 0x16, 0xc3, 0xa8, 0x0c, 0xca, 0xa2, 0x7c, 0xb2, 0xf4, 0x76, 0x61, 0x92,
-	0xc4, 0x21, 0xd5, 0xc5, 0x4e, 0x21, 0xe4, 0x20, 0xc3, 0x54, 0xfc, 0x35, 0x82, 0x47, 0xcc, 0x74,
-	0xb9, 0xe3, 0x19, 0xd4, 0xe4, 0x3a, 0x67, 0x96, 0xa9, 0xf5, 0x59, 0xdb, 0xd1, 0x9d, 0x81, 0x16,
-	0x7c, 0x5d, 0x26, 0x92, 0x8d, 0xe6, 0x93, 0xa5, 0x8f, 0x0a, 0x77, 0x3b, 0x50, 0xa8, 0x8e, 0xd3,
-	0xd4, 0x24, 0x4b, 0xa0, 0x97, 0x6c, 0xb0, 0xbb, 0x96, 0x73, 0x3f, 0x23, 0xd8, 0xb8, 0x93, 0x00,
-	0x9b, 0xb0, 0x36, 0x45, 0x68, 0xf0, 0xfd, 0x1f, 0x4c, 0x14, 0x18, 0x18, 0x3f, 0x55, 0x1f, 0x59,
-	0x9d, 0x2c, 0x0c, 0x7f, 0x02, 0x0b, 0xe3, 0x06, 0x3c, 0x99, 0x65, 0x80, 0x54, 0x4a, 0xc2, 0xb4,
-	0xdc, 0xaf, 0x08, 0x16, 0x95, 0x4b, 0x6a, 0xd8, 0x7d, 0xdd, 0xc1, 0x2a, 0xa4, 0xba, 0x8e, 0x65,
-	0xdb, 0xb4, 0xab, 0xf5, 0xf5, 0x36, 0xed, 0xbb, 0x19, 0x24, 0x58, 0xb7, 0x67, 0xa8, 0x3e, 0xe1,
-	0x0e, 0x33, 0x7b, 0x9f, 0xd2, 0xc1, 0xa9, 0xde, 0xf7, 0x28, 0x79, 0x10, 0x90, 0xd4, 0x04, 0x07,
-	0x7e, 0x0b, 0x52, 0x9c, 0x19, 0x54, 0xf3, 0x4c, 0x76, 0xa9, 0x99, 0xba, 0x69, 0x65, 0x22, 0x59,
-	0x94, 0x8f, 0x93, 0x25, 0x1f, 0x6d, 0x99, 0xec, 0xb2, 0xa1, 0x9b, 0x16, 0xde, 0x82, 0xa5, 0xae,
-	0xe5, 0xb5, 0xfb, 0x54, 0xbb, 0xf0, 0x49, 0x32, 0xd1, 0x2c, 0xca, 0x23, 0x92, 0x94, 0x98, 0xe0,
-	0xc5, 0x8f, 0x20, 0xc9, 0x4c, 0xbe, 0xb7, 0x1b, 0x44, 0xc4, 0xb2, 0x28, 0x1f, 0x25, 0x20, 0x20,
-	0x19, 0xb0, 0x06, 0x0b, 0xae, 0xad, 0x9b, 0x1a, 0xeb, 0x66, 0xe6, 0xb3, 0x28, 0xbf, 0x44, 0xe2,
-	0xfe, 0xb4, 0xda, 0xc5, 0x6f, 0xc0, 0x22, 0x77, 0xf4, 0x0e, 0xf5, 0x57, 0xe2, 0x62, 0x65, 0x41,
-	0xcc, 0xab, 0xdd, 0xdc, 0x37, 0x51, 0x88, 0x4b, 0x53, 0xf0, 0x0b, 0x78, 0x28, 0x6d, 0xd1, 0xba,
-	0xd4, 0xed, 0x38, 0xcc, 0xe6, 0x96, 0x13, 0x9c, 0xdb, 0x7b, 0xbf, 0xcf, 0xd7, 0xca, 0x30, 0x8f,
-	0xa4, 0x8d, 0x1b, 0x08, 0x3e, 0x83, 0x87, 0x52, 0x7e, 0x57, 0xe7, 0xba, 0x66, 0x5b, 0xcc, 0xe4,
-	0xe1, 0xb1, 0x15, 0x66, 0xd7, 0x2d, 0xdf, 0xdb, 0xad, 0xe8, 0x5c, 0x6f, 0xfa, 0x69, 0x64, 0x99,
-	0x8d, 0xcd, 0x5d, 0xfc, 0x02, 0x70, 0xe0, 0xde, 0x75, 0xf2, 0xa8, 0x20, 0x2f, 0xce, 0x22, 0xaf,
-	0x88, 0xcc, 0x11, 0x7b, 0xba, 0x3b, 0x0e, 0xb8, 0xf8, 0x33, 0xf8, 0xff, 0x39, 0x73, 0xb9, 0xd5,
-	0x73, 0x74, 0x63, 0x6c, 0x87, 0x98, 0xd8, 0xa1, 0x34, 0x6b, 0x87, 0xa3, 0x30, 0x79, 0xb4, 0xc9,
-	0xff, 0xce, 0x6f, 0x61, 0x6e, 0xee, 0x07, 0x80, 0xf4, 0x4d, 0x27, 0x31, 0x86, 0x98, 0xa9, 0x1b,
-	0xf2, 0x06, 0x49, 0x10, 0x31, 0xc6, 0x59, 0x48, 0x86, 0x67, 0xc4, 0x2c, 0x53, 0x14, 0x54, 0x82,
-	0x5c, 0x87, 0xfc, 0x2c, 0xcf, 0x64, 0x5c, 0xd4, 0x51, 0x82, 0x88, 0x31, 0x6e, 0xc0, 0x7c, 0x4f,
-	0xf7, 0x7a, 0xb2, 0x74, 0x92, 0xa5, 0xbd, 0xfb, 0x1e, 0x6a, 0xe1, 0xd0, 0xcf, 0x3e, 0x9a, 0x23,
-	0x92, 0x06, 0x1f, 0x41, 0xd4, 0xf5, 0x0c, 0x51, 0x6b, 0xc9, 0xd2, 0xee, 0xbd, 0xd9, 0x4e, 0x3c,
-	0xe3, 0x68, 0x8e, 0xf8, 0x14, 0xf8, 0x0c, 0x12, 0x43, 0x3f, 0x44, 0x85, 0x26, 0x4b, 0x1f, 0xde,
-	0x9b, 0x6f, 0xe8, 0xf2, 0xd1, 0x1c, 0x19, 0xd1, 0xad, 0x7f, 0x85, 0x60, 0x5e, 0x08, 0xc7, 0x5f,
-	0xc0, 0xaa, 0x41, 0x75, 0xd7, 0x73, 0xa8, 0x7f, 0x93, 0xc8, 0x9f, 0x91, 0xc6, 0x07, 0xb6, 0xf4,
-	0x36, 0x55, 0x52, 0xee, 0xbd, 0x65, 0x7d, 0x44, 0x27, 0x7e, 0x82, 0xea, 0xc0, 0xa6, 0x64, 0xc5,
-	0x98, 0x80, 0xae, 0x7f, 0x1f, 0x81, 0xe8, 0x89, 0x67, 0xfc, 0xad, 0x22, 0xf0, 0x4b, 0x04, 0x6b,
-	0x7a, 0xaf, 0xe7, 0xd0, 0x9e, 0xbc, 0x9d, 0x39, 0x35, 0x6c, 0xcb, 0xd1, 0xfb, 0x8c, 0x0f, 0x44,
-	0x11, 0xa5, 0x4a, 0x87, 0xf7, 0xde, 0xbe, 0x3c, 0xe2, 0x53, 0x47, 0x74, 0x64, 0x55, 0x9f, 0x88,
-	0xfb, 0x17, 0x1d, 0x73, 0x35, 0xc3, 0x32, 0x2d, 0x6e, 0x99, 0xac, 0x23, 0x0a, 0x74, 0x91, 0x24,
-	0x99, 0x5b, 0x0f, 0xa1, 0xf5, 0x6f, 0x23, 0x90, 0x18, 0x1e, 0xe6, 0x7f, 0xdd, 0xb0, 0xdc, 0x97,
-	0x08, 0x56, 0x26, 0x29, 0xc6, 0x4f, 0x20, 0x57, 0x57, 0xca, 0x27, 0x2d, 0xa2, 0xd4, 0x95, 0x86,
-	0xaa, 0x9d, 0x96, 0x6b, 0x2d, 0x45, 0x53, 0x9f, 0x37, 0x15, 0xad, 0xd5, 0x38, 0x69, 0x2a, 0x07,
-	0xd5, 0x67, 0x55, 0xa5, 0x92, 0x9e, 0xc3, 0x59, 0x78, 0x73, 0x4a, 0x5c, 0xb5, 0xa1, 0xee, 0xed,
-	0xa6, 0x11, 0xde, 0x82, 0x8d, 0x29, 0x11, 0x95, 0xe3, 0xd6, 0x7e, 0x4d, 0x49, 0x47, 0x72, 0xaf,
-	0x10, 0xac, 0x4e, 0x16, 0x8e, 0x9f, 0xc2, 0xe3, 0xf2, 0xe1, 0x21, 0x51, 0x0e, 0xcb, 0x6a, 0xf5,
-	0xb8, 0xa1, 0xa9, 0x4a, 0xbd, 0x79, 0x4c, 0xca, 0xb5, 0xaa, 0xfa, 0xfc, 0x86, 0x90, 0x2d, 0xd8,
-	0x98, 0x16, 0x58, 0x51, 0x6a, 0x6a, 0x39, 0x8d, 0xfc, 0x6f, 0x9a, 0x16, 0x72, 0xd0, 0xaa, 0xb7,
-	0x6a, 0x65, 0xb5, 0x7a, 0xaa, 0xa4, 0x23, 0xfb, 0x71, 0x88, 0xf9, 0x25, 0x90, 0x7b, 0x15, 0x81,
-	0xd4, 0x78, 0x73, 0xc0, 0x0a, 0xc4, 0xff, 0x4c, 0xf7, 0x0e, 0x92, 0x71, 0x11, 0x56, 0x5c, 0xae,
-	0x3b, 0x5c, 0x9b, 0xd8, 0xbc, 0x1f, 0x8a, 0x35, 0xf5, 0x7a, 0x07, 0xbf, 0xdd, 0xe7, 0xa3, 0x13,
-	0xfa, 0xfc, 0x0a, 0xcc, 0x5f, 0x6f, 0xdf, 0x72, 0x82, 0x9f, 0x41, 0x82, 0x06, 0xff, 0x42, 0xdc,
-	0xcc, 0xbc, 0x90, 0x9d, 0x9f, 0x55, 0x57, 0xe1, 0xdf, 0x16, 0x32, 0x4a, 0xcd, 0x7d, 0x17, 0x81,
-	0xe5, 0x1b, 0xed, 0xec, 0xdf, 0xe4, 0x07, 0xfa, 0xab, 0xfd, 0xf8, 0x25, 0x02, 0xf8, 0x76, 0xf3,
-	0xfd, 0xe7, 0x5b, 0xd2, 0xb1, 0x3c, 0x93, 0x0b, 0x4b, 0x62, 0x44, 0x4e, 0x70, 0x7a, 0xd4, 0x6c,
-	0x91, 0x6c, 0x9a, 0x8f, 0xe1, 0x41, 0xdb, 0xeb, 0x7c, 0x4e, 0xb9, 0x26, 0x22, 0xdc, 0x4c, 0x3c,
-	0x1b, 0xcd, 0xc7, 0xc8, 0x92, 0x04, 0x0f, 0x04, 0x86, 0x9f, 0xc2, 0x32, 0xbd, 0xb4, 0xfb, 0xac,
-	0xc3, 0xb8, 0xd6, 0xb6, 0x3c, 0xb3, 0xeb, 0x66, 0x16, 0xb2, 0xd1, 0x3c, 0x22, 0xa9, 0x10, 0xde,
-	0x17, 0xe8, 0xb8, 0xe5, 0x8b, 0x7f, 0xd8, 0xf2, 0xfd, 0x97, 0xe8, 0xc7, 0xab, 0x4d, 0xf4, 0xd3,
-	0xd5, 0x26, 0x7a, 0x7d, 0xb5, 0x89, 0x60, 0x8b, 0x59, 0x33, 0x58, 0xf6, 0x97, 0x82, 0xe7, 0x43,
-	0xd3, 0x5f, 0x68, 0xa2, 0xb3, 0x8f, 0x7b, 0x8c, 0x9f, 0x7b, 0x6d, 0xdf, 0xff, 0xa2, 0x9f, 0xba,
-	0x3d, 0x7a, 0x86, 0x8d, 0x31, 0x6d, 0xcb, 0x47, 0x59, 0x8f, 0x9a, 0xc5, 0xde, 0xf5, 0x57, 0x61,
-	0x3b, 0x2e, 0x16, 0xde, 0xff, 0x2d, 0x00, 0x00, 0xff, 0xff, 0x38, 0x2f, 0xea, 0x0b, 0x3e, 0x0e,
-	0x00, 0x00,
+	// 1028 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xdc, 0x57, 0x4f, 0x6f, 0xe3, 0x44,
+	0x14, 0xdf, 0x89, 0xd3, 0x74, 0xfb, 0xd2, 0x6d, 0x9d, 0x69, 0x61, 0xa3, 0x4a, 0x5b, 0x4a, 0x84,
+	0xa0, 0x20, 0xea, 0xd0, 0x52, 0x2a, 0x21, 0x81, 0x20, 0xd9, 0x44, 0xac, 0x45, 0xfe, 0x69, 0xe2,
+	0x54, 0xea, 0x4a, 0xbb, 0xc6, 0x49, 0x87, 0x76, 0x44, 0x3c, 0x8e, 0xec, 0x71, 0xd4, 0xdc, 0xb8,
+	0xf0, 0x0d, 0x90, 0xe0, 0x03, 0x81, 0xc4, 0x11, 0x0e, 0xdc, 0x57, 0x3d, 0x73, 0xe3, 0x0b, 0x20,
+	0x8f, 0xed, 0xd8, 0x49, 0xd3, 0x86, 0x72, 0x02, 0x6e, 0xe3, 0xdf, 0x7b, 0xef, 0xf7, 0x7e, 0xef,
+	0xcf, 0xc4, 0x0e, 0xbc, 0xef, 0x8c, 0x28, 0x17, 0x74, 0x48, 0x6d, 0x2a, 0xdc, 0x49, 0x79, 0xe4,
+	0x3a, 0xc2, 0x29, 0x07, 0x67, 0x36, 0xf0, 0xca, 0xe3, 0xc3, 0xf8, 0xa8, 0x49, 0x03, 0xde, 0x9d,
+	0xf1, 0x0e, 0x41, 0x2d, 0x76, 0x19, 0x1f, 0xee, 0xbc, 0xb7, 0x88, 0x6d, 0xe0, 0xd8, 0xb6, 0xc3,
+	0x03, 0xb2, 0xf0, 0x14, 0x86, 0xed, 0x68, 0x8b, 0x7c, 0x5d, 0xea, 0x39, 0xbe, 0x3b, 0xa0, 0x81,
+	0x77, 0x7c, 0x0e, 0xfd, 0x4b, 0xaf, 0x10, 0x6c, 0x92, 0x08, 0x6a, 0x86, 0x29, 0x71, 0x1d, 0x1e,
+	0xc6, 0x5e, 0x45, 0xb4, 0x87, 0xf6, 0xf3, 0x47, 0xef, 0x6a, 0x8b, 0x24, 0x4e, 0xa9, 0xc6, 0x87,
+	0x5a, 0xcc, 0x41, 0xa6, 0xa1, 0xf8, 0x3b, 0x04, 0x6f, 0x30, 0xee, 0x09, 0xd7, 0xb7, 0x29, 0x17,
+	0x96, 0x60, 0x0e, 0x37, 0x87, 0xac, 0xef, 0x5a, 0xee, 0xc4, 0x8c, 0xaa, 0x2b, 0x66, 0xf6, 0x94,
+	0xfd, 0xfc, 0xd1, 0xa7, 0xda, 0xdd, 0x1d, 0xd0, 0xf4, 0x59, 0x9a, 0x46, 0xc8, 0x12, 0xe9, 0x25,
+	0x4f, 0xd8, 0x5d, 0xe6, 0xd2, 0x6f, 0x08, 0x9e, 0xdc, 0x49, 0x80, 0x39, 0x3c, 0xbe, 0x45, 0x68,
+	0x54, 0xff, 0x47, 0x0b, 0x05, 0x46, 0x8d, 0xbf, 0x55, 0x1f, 0x79, 0x7d, 0xb1, 0x30, 0xfc, 0x39,
+	0xac, 0xce, 0x36, 0xe0, 0xed, 0x65, 0x0d, 0x08, 0x95, 0x92, 0x38, 0xac, 0xf4, 0x87, 0x02, 0xb9,
+	0x10, 0xc3, 0x2f, 0xa0, 0x10, 0xa2, 0xe6, 0x39, 0xf5, 0x06, 0x2e, 0x1b, 0x09, 0xc7, 0x8d, 0x64,
+	0x7f, 0xf0, 0xf7, 0x68, 0x6b, 0xd3, 0x38, 0xa2, 0xda, 0x73, 0x08, 0x7e, 0x0e, 0x05, 0xc6, 0xc5,
+	0xc9, 0xb1, 0x79, 0x6e, 0x09, 0xcb, 0x1c, 0x39, 0x8c, 0x8b, 0x58, 0xb5, 0xb6, 0x7c, 0x6c, 0xe2,
+	0xe4, 0xb8, 0x66, 0x09, 0xab, 0x13, 0x84, 0x91, 0x4d, 0x36, 0xf3, 0xec, 0xe1, 0x17, 0x80, 0xcf,
+	0x1d, 0xbf, 0x3f, 0xa4, 0x33, 0xe4, 0x8a, 0x24, 0x2f, 0x2f, 0x23, 0xaf, 0xc9, 0xc8, 0x84, 0x5d,
+	0x3d, 0x9f, 0x05, 0x3c, 0xfc, 0x35, 0xbc, 0x76, 0xc9, 0x3c, 0xe1, 0x5c, 0xb8, 0x96, 0x3d, 0x93,
+	0x21, 0x2b, 0x33, 0x1c, 0x2d, 0xcb, 0xf0, 0x2c, 0x0e, 0x4e, 0x92, 0x6c, 0x5d, 0xde, 0xc0, 0x3c,
+	0xfc, 0x15, 0x6c, 0x79, 0xbe, 0x6d, 0x07, 0x7b, 0x9d, 0xce, 0xb2, 0x22, 0xb3, 0x2c, 0x9d, 0x41,
+	0x37, 0x0c, 0x4d, 0x72, 0x14, 0xbc, 0x39, 0xc4, 0x2b, 0xfd, 0xae, 0x80, 0x3a, 0x3f, 0x2b, 0x8c,
+	0x21, 0xcb, 0x2d, 0x3b, 0xbc, 0xa2, 0x6b, 0x44, 0x9e, 0xf1, 0x1e, 0xe4, 0xe3, 0x2d, 0x60, 0x0e,
+	0x2f, 0x66, 0xa4, 0x29, 0x0d, 0x05, 0x51, 0x3e, 0x67, 0xa2, 0xa8, 0x84, 0x51, 0xc1, 0x19, 0xeb,
+	0x90, 0x15, 0x93, 0x11, 0x2d, 0x66, 0xf7, 0xd0, 0xfe, 0xc6, 0x2d, 0xcb, 0x7e, 0xc7, 0xd6, 0x68,
+	0xc6, 0x64, 0x44, 0x89, 0xa4, 0xc0, 0x2f, 0x21, 0x2f, 0xa8, 0x3d, 0x72, 0x5c, 0x6b, 0xc8, 0xc4,
+	0xa4, 0xb8, 0x22, 0x19, 0x3f, 0xb9, 0x3f, 0x63, 0xc2, 0x41, 0xd2, 0x84, 0xa5, 0x31, 0x64, 0x83,
+	0x6c, 0x58, 0x85, 0x75, 0xbd, 0x75, 0x5a, 0x69, 0xe8, 0x35, 0xd3, 0x38, 0xeb, 0xd4, 0xd5, 0x07,
+	0x78, 0x0d, 0x56, 0xf4, 0x96, 0x71, 0x72, 0xac, 0x22, 0xbc, 0x05, 0x9b, 0xcd, 0x76, 0xab, 0x6d,
+	0xb4, 0x5b, 0xfa, 0x53, 0x33, 0x04, 0x33, 0x18, 0x20, 0x57, 0x6b, 0xf7, 0xaa, 0x8d, 0xba, 0xaa,
+	0xe0, 0x6d, 0x50, 0x13, 0x87, 0x08, 0xcd, 0xe2, 0x47, 0xb0, 0xf6, 0x4c, 0xef, 0x1a, 0xed, 0x2f,
+	0x48, 0xa5, 0xa9, 0xae, 0xe0, 0x3c, 0xac, 0x76, 0x7b, 0xcd, 0x66, 0x85, 0x9c, 0xa9, 0xb9, 0x92,
+	0x01, 0xf9, 0x94, 0x26, 0xfc, 0x18, 0xb6, 0xa6, 0xe9, 0xeb, 0xcd, 0x4e, 0x9b, 0x54, 0x1a, 0xba,
+	0x71, 0xa6, 0x3e, 0xc0, 0x05, 0x78, 0xa4, 0xb7, 0xba, 0x46, 0xa5, 0x65, 0x54, 0x5a, 0xf5, 0x76,
+	0xaf, 0xab, 0xa2, 0x40, 0x58, 0xad, 0xde, 0x30, 0x2a, 0x6a, 0x06, 0x6f, 0x00, 0x3c, 0xed, 0x35,
+	0x7b, 0x8d, 0x8a, 0xa1, 0x9f, 0xd6, 0x55, 0xa5, 0xf4, 0x13, 0x82, 0x8d, 0xd9, 0x4b, 0x82, 0xeb,
+	0x90, 0x1b, 0x5a, 0x7d, 0x3a, 0xf4, 0x8a, 0x48, 0xee, 0xcf, 0xc1, 0x92, 0x9f, 0x9e, 0xae, 0x70,
+	0x19, 0xbf, 0xf8, 0x92, 0x4e, 0x4e, 0xad, 0xa1, 0x4f, 0x49, 0x14, 0x8c, 0xcb, 0xb0, 0xed, 0x09,
+	0xcb, 0x15, 0xa6, 0x60, 0x36, 0x35, 0x7d, 0xce, 0xae, 0x4c, 0x6e, 0x71, 0x47, 0x6e, 0x44, 0x8e,
+	0x14, 0xa4, 0xcd, 0x60, 0x36, 0xed, 0x71, 0x76, 0xd5, 0xb2, 0xb8, 0x83, 0xdf, 0x82, 0x8d, 0x39,
+	0x57, 0x45, 0xba, 0xae, 0x8b, 0xb4, 0xd7, 0x36, 0xac, 0x8c, 0x83, 0x3c, 0x72, 0x55, 0x14, 0x12,
+	0x3e, 0x94, 0x7e, 0x46, 0xb0, 0x39, 0x77, 0x1d, 0xff, 0x4b, 0x75, 0xa0, 0xb8, 0x8e, 0x3f, 0xb3,
+	0x80, 0x6f, 0x5e, 0xfa, 0x7f, 0x7f, 0x29, 0x03, 0xc7, 0xe7, 0x42, 0x96, 0x92, 0x25, 0xe1, 0x03,
+	0x56, 0x41, 0xf1, 0x7c, 0x5b, 0xde, 0x3f, 0x44, 0x82, 0x23, 0xee, 0xc2, 0x6a, 0xdf, 0x1f, 0x7c,
+	0x43, 0x85, 0x57, 0xcc, 0xc9, 0x32, 0x3e, 0xbe, 0xff, 0xef, 0x9f, 0x56, 0x95, 0x0c, 0x24, 0x66,
+	0xc2, 0xef, 0xc0, 0x26, 0xbd, 0x1a, 0x0d, 0xd9, 0x80, 0x09, 0xb3, 0xef, 0xf8, 0xfc, 0xdc, 0x2b,
+	0xae, 0xee, 0x29, 0xfb, 0x88, 0x6c, 0xc4, 0x70, 0x55, 0xa2, 0x3b, 0x3f, 0x66, 0x20, 0x17, 0x06,
+	0x27, 0x82, 0x51, 0x5a, 0xf0, 0x4b, 0x78, 0x48, 0xaf, 0xa8, 0x3d, 0x1a, 0x5a, 0xae, 0xec, 0x48,
+	0xfe, 0xa8, 0xfa, 0x8f, 0xf5, 0x69, 0xf5, 0x88, 0x89, 0x4c, 0x39, 0x77, 0x7e, 0x40, 0xf0, 0x30,
+	0x86, 0x93, 0xf1, 0xa3, 0xd4, 0xf8, 0x17, 0xf4, 0x3b, 0xb3, 0xa0, 0xdf, 0x6d, 0xc8, 0x5b, 0x42,
+	0x58, 0x83, 0xcb, 0xe0, 0xb5, 0x1e, 0xbf, 0xad, 0xee, 0xb9, 0x12, 0x69, 0x86, 0xd2, 0xf7, 0x0a,
+	0xa8, 0xf3, 0x2f, 0x81, 0xff, 0xc9, 0xce, 0x39, 0x50, 0x18, 0x51, 0x77, 0x40, 0xb9, 0x60, 0x43,
+	0x6a, 0xca, 0x2e, 0xc7, 0xdb, 0x57, 0xbd, 0xef, 0x7b, 0x51, 0x93, 0x95, 0x55, 0x44, 0x67, 0x4a,
+	0x48, 0xd4, 0x84, 0x5c, 0x1a, 0xbd, 0x1d, 0x1d, 0x0a, 0x37, 0xdc, 0xf0, 0x2e, 0x40, 0xe2, 0x18,
+	0x8d, 0x3c, 0x85, 0x24, 0xdb, 0x90, 0x49, 0x6d, 0x43, 0xf5, 0x5b, 0xf4, 0xcb, 0xf5, 0x2e, 0xfa,
+	0xf5, 0x7a, 0x17, 0xbd, 0xba, 0xde, 0x45, 0xf0, 0x26, 0x73, 0x96, 0x28, 0xae, 0xae, 0x47, 0xdf,
+	0x93, 0x9d, 0xc0, 0xd0, 0x41, 0xcf, 0x3f, 0xbb, 0x60, 0xe2, 0xd2, 0xef, 0x07, 0x53, 0x2a, 0x07,
+	0xa1, 0x07, 0xc9, 0x77, 0xf9, 0x0c, 0xd3, 0x41, 0xf8, 0x95, 0x7e, 0x41, 0x79, 0xf9, 0x22, 0xfd,
+	0x37, 0xa1, 0x9f, 0x93, 0x86, 0x0f, 0xff, 0x0a, 0x00, 0x00, 0xff, 0xff, 0x18, 0x9e, 0xf9, 0x4c,
+	0x4f, 0x0c, 0x00, 0x00,
 }
 
 func (m *ResourceMetrics) Marshal() (dAtA []byte, err error) {
@@ -1407,78 +1328,6 @@ func (m *InstrumentationLibraryMetrics) MarshalToSizedBuffer(dAtA []byte) (int, 
 	return len(dAtA) - i, nil
 }
 
-func (m *Exemplar) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Exemplar) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Exemplar) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.TraceId) > 0 {
-		i -= len(m.TraceId)
-		copy(dAtA[i:], m.TraceId)
-		i = encodeVarintMetrics(dAtA, i, uint64(len(m.TraceId)))
-		i--
-		dAtA[i] = 0x32
-	}
-	if len(m.SpanId) > 0 {
-		i -= len(m.SpanId)
-		copy(dAtA[i:], m.SpanId)
-		i = encodeVarintMetrics(dAtA, i, uint64(len(m.SpanId)))
-		i--
-		dAtA[i] = 0x2a
-	}
-	if m.Int64Value != 0 {
-		i = encodeVarintMetrics(dAtA, i, uint64(m.Int64Value))
-		i--
-		dAtA[i] = 0x20
-	}
-	if m.DoubleValue != 0 {
-		i -= 8
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.DoubleValue))))
-		i--
-		dAtA[i] = 0x19
-	}
-	if m.TimeUnixNano != 0 {
-		i -= 8
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.TimeUnixNano))
-		i--
-		dAtA[i] = 0x11
-	}
-	if len(m.DroppedLabels) > 0 {
-		for iNdEx := len(m.DroppedLabels) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.DroppedLabels[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintMetrics(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0xa
-		}
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *Metric) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1502,6 +1351,20 @@ func (m *Metric) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SummaryDataPoints) > 0 {
+		for iNdEx := len(m.SummaryDataPoints) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.SummaryDataPoints[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintMetrics(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x2a
+		}
 	}
 	if len(m.HistogramDataPoints) > 0 {
 		for iNdEx := len(m.HistogramDataPoints) - 1; iNdEx >= 0; iNdEx-- {
@@ -1584,14 +1447,15 @@ func (m *MetricDescriptor) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.Type != nil {
-		{
-			size := m.Type.Size()
-			i -= size
-			if _, err := m.Type.MarshalTo(dAtA[i:]); err != nil {
-				return 0, err
-			}
-		}
+	if m.Temporality != 0 {
+		i = encodeVarintMetrics(dAtA, i, uint64(m.Temporality))
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.Type != 0 {
+		i = encodeVarintMetrics(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x20
 	}
 	if len(m.Unit) > 0 {
 		i -= len(m.Unit)
@@ -1613,185 +1477,6 @@ func (m *MetricDescriptor) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i = encodeVarintMetrics(dAtA, i, uint64(len(m.Name)))
 		i--
 		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *MetricDescriptor_Gauge_) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *MetricDescriptor_Gauge_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.Gauge != nil {
-		{
-			size, err := m.Gauge.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintMetrics(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x22
-	}
-	return len(dAtA) - i, nil
-}
-func (m *MetricDescriptor_Sum_) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *MetricDescriptor_Sum_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.Sum != nil {
-		{
-			size, err := m.Sum.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintMetrics(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x2a
-	}
-	return len(dAtA) - i, nil
-}
-func (m *MetricDescriptor_Histogram_) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *MetricDescriptor_Histogram_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.Histogram != nil {
-		{
-			size, err := m.Histogram.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintMetrics(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x32
-	}
-	return len(dAtA) - i, nil
-}
-func (m *MetricDescriptor_Gauge) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *MetricDescriptor_Gauge) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *MetricDescriptor_Gauge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.MeasurementValueType != 0 {
-		i = encodeVarintMetrics(dAtA, i, uint64(m.MeasurementValueType))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *MetricDescriptor_Sum) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *MetricDescriptor_Sum) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *MetricDescriptor_Sum) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.IsMonotonic {
-		i--
-		if m.IsMonotonic {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0x18
-	}
-	if m.AggregationTemporality != 0 {
-		i = encodeVarintMetrics(dAtA, i, uint64(m.AggregationTemporality))
-		i--
-		dAtA[i] = 0x10
-	}
-	if m.MeasurementValueType != 0 {
-		i = encodeVarintMetrics(dAtA, i, uint64(m.MeasurementValueType))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *MetricDescriptor_Histogram) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *MetricDescriptor_Histogram) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *MetricDescriptor_Histogram) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.AggregationTemporality != 0 {
-		i = encodeVarintMetrics(dAtA, i, uint64(m.AggregationTemporality))
-		i--
-		dAtA[i] = 0x10
-	}
-	if m.MeasurementValueType != 0 {
-		i = encodeVarintMetrics(dAtA, i, uint64(m.MeasurementValueType))
-		i--
-		dAtA[i] = 0x8
 	}
 	return len(dAtA) - i, nil
 }
@@ -1819,20 +1504,6 @@ func (m *Int64DataPoint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Exemplars) > 0 {
-		for iNdEx := len(m.Exemplars) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Exemplars[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintMetrics(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x2a
-		}
 	}
 	if m.Value != 0 {
 		i = encodeVarintMetrics(dAtA, i, uint64(m.Value))
@@ -1891,20 +1562,6 @@ func (m *DoubleDataPoint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Exemplars) > 0 {
-		for iNdEx := len(m.Exemplars) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Exemplars[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintMetrics(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x2a
-		}
 	}
 	if m.Value != 0 {
 		i -= 8
@@ -1965,10 +1622,20 @@ func (m *HistogramDataPoint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.Exemplars) > 0 {
-		for iNdEx := len(m.Exemplars) - 1; iNdEx >= 0; iNdEx-- {
+	if len(m.ExplicitBounds) > 0 {
+		for iNdEx := len(m.ExplicitBounds) - 1; iNdEx >= 0; iNdEx-- {
+			f4 := math.Float64bits(float64(m.ExplicitBounds[iNdEx]))
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(f4))
+		}
+		i = encodeVarintMetrics(dAtA, i, uint64(len(m.ExplicitBounds)*8))
+		i--
+		dAtA[i] = 0x3a
+	}
+	if len(m.Buckets) > 0 {
+		for iNdEx := len(m.Buckets) - 1; iNdEx >= 0; iNdEx-- {
 			{
-				size, err := m.Exemplars[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				size, err := m.Buckets[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 				if err != nil {
 					return 0, err
 				}
@@ -1976,36 +1643,8 @@ func (m *HistogramDataPoint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 				i = encodeVarintMetrics(dAtA, i, uint64(size))
 			}
 			i--
-			dAtA[i] = 0x42
+			dAtA[i] = 0x32
 		}
-	}
-	if len(m.ExplicitBounds) > 0 {
-		for iNdEx := len(m.ExplicitBounds) - 1; iNdEx >= 0; iNdEx-- {
-			f7 := math.Float64bits(float64(m.ExplicitBounds[iNdEx]))
-			i -= 8
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(f7))
-		}
-		i = encodeVarintMetrics(dAtA, i, uint64(len(m.ExplicitBounds)*8))
-		i--
-		dAtA[i] = 0x3a
-	}
-	if len(m.BucketCounts) > 0 {
-		dAtA9 := make([]byte, len(m.BucketCounts)*10)
-		var j8 int
-		for _, num := range m.BucketCounts {
-			for num >= 1<<7 {
-				dAtA9[j8] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j8++
-			}
-			dAtA9[j8] = uint8(num)
-			j8++
-		}
-		i -= j8
-		copy(dAtA[i:], dAtA9[:j8])
-		i = encodeVarintMetrics(dAtA, i, uint64(j8))
-		i--
-		dAtA[i] = 0x32
 	}
 	if m.Sum != 0 {
 		i -= 8
@@ -2043,6 +1682,220 @@ func (m *HistogramDataPoint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i--
 			dAtA[i] = 0xa
 		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *HistogramDataPoint_Bucket) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *HistogramDataPoint_Bucket) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *HistogramDataPoint_Bucket) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Exemplar != nil {
+		{
+			size, err := m.Exemplar.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMetrics(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Count != 0 {
+		i = encodeVarintMetrics(dAtA, i, uint64(m.Count))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *HistogramDataPoint_Bucket_Exemplar) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *HistogramDataPoint_Bucket_Exemplar) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *HistogramDataPoint_Bucket_Exemplar) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Attachments) > 0 {
+		for iNdEx := len(m.Attachments) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Attachments[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintMetrics(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if m.TimeUnixNano != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.TimeUnixNano))
+		i--
+		dAtA[i] = 0x11
+	}
+	if m.Value != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Value))))
+		i--
+		dAtA[i] = 0x9
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SummaryDataPoint) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SummaryDataPoint) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SummaryDataPoint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.PercentileValues) > 0 {
+		for iNdEx := len(m.PercentileValues) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.PercentileValues[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintMetrics(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x32
+		}
+	}
+	if m.Sum != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Sum))))
+		i--
+		dAtA[i] = 0x29
+	}
+	if m.Count != 0 {
+		i = encodeVarintMetrics(dAtA, i, uint64(m.Count))
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.TimeUnixNano != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.TimeUnixNano))
+		i--
+		dAtA[i] = 0x19
+	}
+	if m.StartTimeUnixNano != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.StartTimeUnixNano))
+		i--
+		dAtA[i] = 0x11
+	}
+	if len(m.Labels) > 0 {
+		for iNdEx := len(m.Labels) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Labels[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintMetrics(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SummaryDataPoint_ValueAtPercentile) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SummaryDataPoint_ValueAtPercentile) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SummaryDataPoint_ValueAtPercentile) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Value != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Value))))
+		i--
+		dAtA[i] = 0x11
+	}
+	if m.Percentile != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Percentile))))
+		i--
+		dAtA[i] = 0x9
 	}
 	return len(dAtA) - i, nil
 }
@@ -2102,41 +1955,6 @@ func (m *InstrumentationLibraryMetrics) Size() (n int) {
 	return n
 }
 
-func (m *Exemplar) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if len(m.DroppedLabels) > 0 {
-		for _, e := range m.DroppedLabels {
-			l = e.Size()
-			n += 1 + l + sovMetrics(uint64(l))
-		}
-	}
-	if m.TimeUnixNano != 0 {
-		n += 9
-	}
-	if m.DoubleValue != 0 {
-		n += 9
-	}
-	if m.Int64Value != 0 {
-		n += 1 + sovMetrics(uint64(m.Int64Value))
-	}
-	l = len(m.SpanId)
-	if l > 0 {
-		n += 1 + l + sovMetrics(uint64(l))
-	}
-	l = len(m.TraceId)
-	if l > 0 {
-		n += 1 + l + sovMetrics(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
 func (m *Metric) Size() (n int) {
 	if m == nil {
 		return 0
@@ -2165,6 +1983,12 @@ func (m *Metric) Size() (n int) {
 			n += 1 + l + sovMetrics(uint64(l))
 		}
 	}
+	if len(m.SummaryDataPoints) > 0 {
+		for _, e := range m.SummaryDataPoints {
+			l = e.Size()
+			n += 1 + l + sovMetrics(uint64(l))
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -2189,98 +2013,11 @@ func (m *MetricDescriptor) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovMetrics(uint64(l))
 	}
-	if m.Type != nil {
-		n += m.Type.Size()
+	if m.Type != 0 {
+		n += 1 + sovMetrics(uint64(m.Type))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *MetricDescriptor_Gauge_) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Gauge != nil {
-		l = m.Gauge.Size()
-		n += 1 + l + sovMetrics(uint64(l))
-	}
-	return n
-}
-func (m *MetricDescriptor_Sum_) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Sum != nil {
-		l = m.Sum.Size()
-		n += 1 + l + sovMetrics(uint64(l))
-	}
-	return n
-}
-func (m *MetricDescriptor_Histogram_) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Histogram != nil {
-		l = m.Histogram.Size()
-		n += 1 + l + sovMetrics(uint64(l))
-	}
-	return n
-}
-func (m *MetricDescriptor_Gauge) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.MeasurementValueType != 0 {
-		n += 1 + sovMetrics(uint64(m.MeasurementValueType))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *MetricDescriptor_Sum) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.MeasurementValueType != 0 {
-		n += 1 + sovMetrics(uint64(m.MeasurementValueType))
-	}
-	if m.AggregationTemporality != 0 {
-		n += 1 + sovMetrics(uint64(m.AggregationTemporality))
-	}
-	if m.IsMonotonic {
-		n += 2
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *MetricDescriptor_Histogram) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.MeasurementValueType != 0 {
-		n += 1 + sovMetrics(uint64(m.MeasurementValueType))
-	}
-	if m.AggregationTemporality != 0 {
-		n += 1 + sovMetrics(uint64(m.AggregationTemporality))
+	if m.Temporality != 0 {
+		n += 1 + sovMetrics(uint64(m.Temporality))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -2309,12 +2046,6 @@ func (m *Int64DataPoint) Size() (n int) {
 	if m.Value != 0 {
 		n += 1 + sovMetrics(uint64(m.Value))
 	}
-	if len(m.Exemplars) > 0 {
-		for _, e := range m.Exemplars {
-			l = e.Size()
-			n += 1 + l + sovMetrics(uint64(l))
-		}
-	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -2341,12 +2072,6 @@ func (m *DoubleDataPoint) Size() (n int) {
 	}
 	if m.Value != 0 {
 		n += 9
-	}
-	if len(m.Exemplars) > 0 {
-		for _, e := range m.Exemplars {
-			l = e.Size()
-			n += 1 + l + sovMetrics(uint64(l))
-		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -2378,21 +2103,111 @@ func (m *HistogramDataPoint) Size() (n int) {
 	if m.Sum != 0 {
 		n += 9
 	}
-	if len(m.BucketCounts) > 0 {
-		l = 0
-		for _, e := range m.BucketCounts {
-			l += sovMetrics(uint64(e))
+	if len(m.Buckets) > 0 {
+		for _, e := range m.Buckets {
+			l = e.Size()
+			n += 1 + l + sovMetrics(uint64(l))
 		}
-		n += 1 + sovMetrics(uint64(l)) + l
 	}
 	if len(m.ExplicitBounds) > 0 {
 		n += 1 + sovMetrics(uint64(len(m.ExplicitBounds)*8)) + len(m.ExplicitBounds)*8
 	}
-	if len(m.Exemplars) > 0 {
-		for _, e := range m.Exemplars {
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *HistogramDataPoint_Bucket) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Count != 0 {
+		n += 1 + sovMetrics(uint64(m.Count))
+	}
+	if m.Exemplar != nil {
+		l = m.Exemplar.Size()
+		n += 1 + l + sovMetrics(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *HistogramDataPoint_Bucket_Exemplar) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Value != 0 {
+		n += 9
+	}
+	if m.TimeUnixNano != 0 {
+		n += 9
+	}
+	if len(m.Attachments) > 0 {
+		for _, e := range m.Attachments {
 			l = e.Size()
 			n += 1 + l + sovMetrics(uint64(l))
 		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *SummaryDataPoint) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Labels) > 0 {
+		for _, e := range m.Labels {
+			l = e.Size()
+			n += 1 + l + sovMetrics(uint64(l))
+		}
+	}
+	if m.StartTimeUnixNano != 0 {
+		n += 9
+	}
+	if m.TimeUnixNano != 0 {
+		n += 9
+	}
+	if m.Count != 0 {
+		n += 1 + sovMetrics(uint64(m.Count))
+	}
+	if m.Sum != 0 {
+		n += 9
+	}
+	if len(m.PercentileValues) > 0 {
+		for _, e := range m.PercentileValues {
+			l = e.Size()
+			n += 1 + l + sovMetrics(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *SummaryDataPoint_ValueAtPercentile) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Percentile != 0 {
+		n += 9
+	}
+	if m.Value != 0 {
+		n += 9
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -2654,202 +2469,6 @@ func (m *InstrumentationLibraryMetrics) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *Exemplar) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowMetrics
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Exemplar: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Exemplar: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DroppedLabels", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.DroppedLabels = append(m.DroppedLabels, &v11.StringKeyValue{})
-			if err := m.DroppedLabels[len(m.DroppedLabels)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TimeUnixNano", wireType)
-			}
-			m.TimeUnixNano = 0
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TimeUnixNano = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-		case 3:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DoubleValue", wireType)
-			}
-			var v uint64
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-			m.DoubleValue = float64(math.Float64frombits(v))
-		case 4:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Int64Value", wireType)
-			}
-			m.Int64Value = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Int64Value |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SpanId", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.SpanId = append(m.SpanId[:0], dAtA[iNdEx:postIndex]...)
-			if m.SpanId == nil {
-				m.SpanId = []byte{}
-			}
-			iNdEx = postIndex
-		case 6:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TraceId", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TraceId = append(m.TraceId[:0], dAtA[iNdEx:postIndex]...)
-			if m.TraceId == nil {
-				m.TraceId = []byte{}
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipMetrics(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *Metric) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -3017,6 +2636,40 @@ func (m *Metric) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SummaryDataPoints", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMetrics
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SummaryDataPoints = append(m.SummaryDataPoints, &SummaryDataPoint{})
+			if err := m.SummaryDataPoints[len(m.SummaryDataPoints)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipMetrics(dAtA[iNdEx:])
@@ -3168,10 +2821,10 @@ func (m *MetricDescriptor) Unmarshal(dAtA []byte) error {
 			m.Unit = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Gauge", wireType)
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
 			}
-			var msglen int
+			m.Type = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowMetrics
@@ -3181,156 +2834,16 @@ func (m *MetricDescriptor) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				m.Type |= MetricDescriptor_Type(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &MetricDescriptor_Gauge{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Type = &MetricDescriptor_Gauge_{v}
-			iNdEx = postIndex
 		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Sum", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &MetricDescriptor_Sum{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Type = &MetricDescriptor_Sum_{v}
-			iNdEx = postIndex
-		case 6:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Histogram", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &MetricDescriptor_Histogram{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Type = &MetricDescriptor_Histogram_{v}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipMetrics(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *MetricDescriptor_Gauge) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowMetrics
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Gauge: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Gauge: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field MeasurementValueType", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Temporality", wireType)
 			}
-			m.MeasurementValueType = 0
+			m.Temporality = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowMetrics
@@ -3340,211 +2853,7 @@ func (m *MetricDescriptor_Gauge) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.MeasurementValueType |= MetricDescriptor_MeasurementValueType(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipMetrics(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *MetricDescriptor_Sum) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowMetrics
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Sum: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Sum: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field MeasurementValueType", wireType)
-			}
-			m.MeasurementValueType = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.MeasurementValueType |= MetricDescriptor_MeasurementValueType(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AggregationTemporality", wireType)
-			}
-			m.AggregationTemporality = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.AggregationTemporality |= MetricDescriptor_AggregationTemporality(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field IsMonotonic", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.IsMonotonic = bool(v != 0)
-		default:
-			iNdEx = preIndex
-			skippy, err := skipMetrics(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *MetricDescriptor_Histogram) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowMetrics
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Histogram: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Histogram: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field MeasurementValueType", wireType)
-			}
-			m.MeasurementValueType = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.MeasurementValueType |= MetricDescriptor_MeasurementValueType(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AggregationTemporality", wireType)
-			}
-			m.AggregationTemporality = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.AggregationTemporality |= MetricDescriptor_AggregationTemporality(b&0x7F) << shift
+				m.Temporality |= MetricDescriptor_Temporality(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -3676,40 +2985,6 @@ func (m *Int64DataPoint) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Exemplars", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Exemplars = append(m.Exemplars, &Exemplar{})
-			if err := m.Exemplars[len(m.Exemplars)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipMetrics(dAtA[iNdEx:])
@@ -3829,40 +3104,6 @@ func (m *DoubleDataPoint) Unmarshal(dAtA []byte) error {
 			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
 			iNdEx += 8
 			m.Value = float64(math.Float64frombits(v))
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Exemplars", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetrics
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Exemplars = append(m.Exemplars, &Exemplar{})
-			if err := m.Exemplars[len(m.Exemplars)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipMetrics(dAtA[iNdEx:])
@@ -4002,81 +3243,39 @@ func (m *HistogramDataPoint) Unmarshal(dAtA []byte) error {
 			iNdEx += 8
 			m.Sum = float64(math.Float64frombits(v))
 		case 6:
-			if wireType == 0 {
-				var v uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowMetrics
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					v |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Buckets", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMetrics
 				}
-				m.BucketCounts = append(m.BucketCounts, v)
-			} else if wireType == 2 {
-				var packedLen int
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowMetrics
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					packedLen |= int(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				if packedLen < 0 {
-					return ErrInvalidLengthMetrics
-				}
-				postIndex := iNdEx + packedLen
-				if postIndex < 0 {
-					return ErrInvalidLengthMetrics
-				}
-				if postIndex > l {
+				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
-				var elementCount int
-				var count int
-				for _, integer := range dAtA[iNdEx:postIndex] {
-					if integer < 128 {
-						count++
-					}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
 				}
-				elementCount = count
-				if elementCount != 0 && len(m.BucketCounts) == 0 {
-					m.BucketCounts = make([]uint64, 0, elementCount)
-				}
-				for iNdEx < postIndex {
-					var v uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowMetrics
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						v |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					m.BucketCounts = append(m.BucketCounts, v)
-				}
-			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field BucketCounts", wireType)
 			}
+			if msglen < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Buckets = append(m.Buckets, &HistogramDataPoint_Bucket{})
+			if err := m.Buckets[len(m.Buckets)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		case 7:
 			if wireType == 1 {
 				var v uint64
@@ -4131,9 +3330,82 @@ func (m *HistogramDataPoint) Unmarshal(dAtA []byte) error {
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field ExplicitBounds", wireType)
 			}
-		case 8:
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMetrics(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *HistogramDataPoint_Bucket) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMetrics
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Bucket: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Bucket: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Count", wireType)
+			}
+			m.Count = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMetrics
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Count |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Exemplars", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Exemplar", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -4160,11 +3432,370 @@ func (m *HistogramDataPoint) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Exemplars = append(m.Exemplars, &Exemplar{})
-			if err := m.Exemplars[len(m.Exemplars)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if m.Exemplar == nil {
+				m.Exemplar = &HistogramDataPoint_Bucket_Exemplar{}
+			}
+			if err := m.Exemplar.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMetrics(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *HistogramDataPoint_Bucket_Exemplar) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMetrics
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Exemplar: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Exemplar: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Value = float64(math.Float64frombits(v))
+		case 2:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TimeUnixNano", wireType)
+			}
+			m.TimeUnixNano = 0
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TimeUnixNano = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Attachments", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMetrics
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Attachments = append(m.Attachments, &v11.StringKeyValue{})
+			if err := m.Attachments[len(m.Attachments)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMetrics(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SummaryDataPoint) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMetrics
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SummaryDataPoint: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SummaryDataPoint: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Labels", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMetrics
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Labels = append(m.Labels, &v11.StringKeyValue{})
+			if err := m.Labels[len(m.Labels)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTimeUnixNano", wireType)
+			}
+			m.StartTimeUnixNano = 0
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StartTimeUnixNano = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+		case 3:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TimeUnixNano", wireType)
+			}
+			m.TimeUnixNano = 0
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TimeUnixNano = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Count", wireType)
+			}
+			m.Count = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMetrics
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Count |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Sum", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Sum = float64(math.Float64frombits(v))
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PercentileValues", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMetrics
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PercentileValues = append(m.PercentileValues, &SummaryDataPoint_ValueAtPercentile{})
+			if err := m.PercentileValues[len(m.PercentileValues)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMetrics(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthMetrics
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SummaryDataPoint_ValueAtPercentile) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMetrics
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ValueAtPercentile: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ValueAtPercentile: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Percentile", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Percentile = float64(math.Float64frombits(v))
+		case 2:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Value = float64(math.Float64frombits(v))
 		default:
 			iNdEx = preIndex
 			skippy, err := skipMetrics(dAtA[iNdEx:])
