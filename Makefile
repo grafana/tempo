@@ -103,5 +103,4 @@ vendor-dependencies:
 
 .PHONY: install-tools
 install-tools:
-	go get -u github.com/nomad-software/vend
 	go get -u github.com/golang/protobuf/protoc-gen-go
