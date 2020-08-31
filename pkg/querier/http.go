@@ -2,10 +2,10 @@ package querier
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"time"
 
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -44,7 +44,8 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = json.NewEncoder(w).Encode(resp.Trace)
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, resp.Trace)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

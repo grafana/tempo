@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/securego/gosec"
-	"github.com/securego/gosec/rules"
+	"github.com/securego/gosec/v2"
+	"github.com/securego/gosec/v2/rules"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 
@@ -67,10 +67,17 @@ func NewGosec() *goanalysis.Linter {
 					line = r.From
 				}
 
-				res = append(res, goanalysis.NewIssue(&result.Issue{ //nolint:scopelint
+				column, err := strconv.Atoi(i.Col)
+				if err != nil {
+					lintCtx.Log.Warnf("Can't convert gosec column number %q of %v to int: %s", i.Col, i, err)
+					continue
+				}
+
+				res = append(res, goanalysis.NewIssue(&result.Issue{
 					Pos: token.Position{
 						Filename: i.File,
 						Line:     line,
+						Column:   column,
 					},
 					Text:       text,
 					LineRange:  r,

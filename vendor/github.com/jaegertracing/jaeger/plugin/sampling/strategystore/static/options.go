@@ -16,27 +16,39 @@ package static
 
 import (
 	"flag"
+	"time"
 
 	"github.com/spf13/viper"
 )
 
 const (
-	samplingStrategiesFile = "sampling.strategies-file"
+	// SamplingStrategiesFile contains the name of CLI opions for config file.
+	SamplingStrategiesFile           = "sampling.strategies-file"
+	samplingStrategiesReloadInterval = "sampling.strategies-reload-interval"
 )
 
 // Options holds configuration for the static sampling strategy store.
 type Options struct {
 	// StrategiesFile is the path for the sampling strategies file in JSON format
 	StrategiesFile string
+	// ReloadInterval is the time interval to check and reload sampling strategies file
+	ReloadInterval time.Duration
 }
 
 // AddFlags adds flags for Options
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(samplingStrategiesFile, "", "The path for the sampling strategies file in JSON format. See sampling documentation to see format of the file")
+	flagSet.Duration(samplingStrategiesReloadInterval, 0, "Reload interval to check and reload sampling strategies file. Zero value means no reloading")
+	AddOTELFlags(flagSet)
+}
+
+// AddOTELFlags adds flags that are exposed by OTEL collector
+func AddOTELFlags(flagSet *flag.FlagSet) {
+	flagSet.String(SamplingStrategiesFile, "", "The path for the sampling strategies file in JSON format. See sampling documentation to see format of the file")
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opts *Options) InitFromViper(v *viper.Viper) *Options {
-	opts.StrategiesFile = v.GetString(samplingStrategiesFile)
+	opts.StrategiesFile = v.GetString(SamplingStrategiesFile)
+	opts.ReloadInterval = v.GetDuration(samplingStrategiesReloadInterval)
 	return opts
 }

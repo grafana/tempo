@@ -4,6 +4,7 @@ import (
 	"math/rand"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 )
 
@@ -17,7 +18,21 @@ func MakeRequest(spans int, traceID []byte) *tempopb.PushRequest {
 		Batch: &opentelemetry_proto_trace_v1.ResourceSpans{},
 	}
 
+	var ils *opentelemetry_proto_trace_v1.InstrumentationLibrarySpans
+
 	for i := 0; i < spans; i++ {
+		// occasionally make a new ils
+		if ils == nil || rand.Int()%3 == 0 {
+			ils = &opentelemetry_proto_trace_v1.InstrumentationLibrarySpans{
+				InstrumentationLibrary: &v1.InstrumentationLibrary{
+					Name:    "super library",
+					Version: "0.0.1",
+				},
+			}
+
+			req.Batch.InstrumentationLibrarySpans = append(req.Batch.InstrumentationLibrarySpans, ils)
+		}
+
 		sampleSpan := opentelemetry_proto_trace_v1.Span{
 			Name:    "test",
 			TraceId: traceID,
@@ -25,7 +40,7 @@ func MakeRequest(spans int, traceID []byte) *tempopb.PushRequest {
 		}
 		rand.Read(sampleSpan.SpanId)
 
-		req.Batch.Spans = append(req.Batch.Spans, &sampleSpan)
+		ils.Spans = append(ils.Spans, &sampleSpan)
 	}
 
 	return req

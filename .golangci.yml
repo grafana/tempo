@@ -64,3 +64,5 @@ linters:
 issues:
   exclude:
     - Error return value of .*log\.Logger\)\.Log\x60 is not checked
+    - package github.com/golang/protobuf/proto is deprecated
+    - package github.com/golang/protobuf/jsonpb is deprecated

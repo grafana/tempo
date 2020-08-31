@@ -1,4 +1,4 @@
-FROM jaegertracing/jaeger-query:1.17
+FROM jaegertracing/jaeger-query:1.19.2
 
 ENV SPAN_STORAGE_TYPE=grpc-plugin \
     GRPC_STORAGE_PLUGIN_BINARY=/tmp/tempo-query

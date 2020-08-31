@@ -28,8 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/golangci/golangci-lint/pkg/timeutils"
-
 	"github.com/pkg/errors"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/gcexportdata"
@@ -40,6 +38,7 @@ import (
 	"github.com/golangci/golangci-lint/internal/pkgcache"
 	"github.com/golangci/golangci-lint/pkg/golinters/goanalysis/load"
 	"github.com/golangci/golangci-lint/pkg/logutils"
+	"github.com/golangci/golangci-lint/pkg/timeutils"
 )
 
 var (
@@ -385,26 +384,6 @@ func extractDiagnostics(roots []*action) (retDiags []Diagnostic, retErrors []err
 	return
 }
 
-// NeedFacts reports whether any analysis required by the specified set
-// needs facts.  If so, we must load the entire program from source.
-func NeedFacts(analyzers []*analysis.Analyzer) bool {
-	seen := make(map[*analysis.Analyzer]bool)
-	var q []*analysis.Analyzer // for BFS
-	q = append(q, analyzers...)
-	for len(q) > 0 {
-		a := q[0]
-		q = q[1:]
-		if !seen[a] {
-			seen[a] = true
-			if len(a.FactTypes) > 0 {
-				return true
-			}
-			q = append(q, a.Requires...)
-		}
-	}
-	return false
-}
-
 // An action represents one unit of analysis work: the application of
 // one analysis to one package. Actions form a DAG, both within a
 // package (as different analyzers are applied, either in sequence or
@@ -479,6 +458,49 @@ func (e *IllTypedError) Error() string {
 	return fmt.Sprintf("errors in package: %v", e.Pkg.Errors)
 }
 
+type FailedPrerequisitesError struct {
+	errors map[string][]string
+}
+
+func (f FailedPrerequisitesError) NotEmpty() bool {
+	return len(f.errors) > 0
+}
+
+func (f *FailedPrerequisitesError) Consume(name string, err error) {
+	if f.errors == nil {
+		f.errors = map[string][]string{}
+	}
+	k := fmt.Sprintf("%v", err)
+	f.errors[k] = append(f.errors[k], name)
+}
+
+type groupedPrerequisiteErr struct {
+	names []string
+	err   string
+}
+
+func (g groupedPrerequisiteErr) String() string {
+	if len(g.names) == 1 {
+		return fmt.Sprintf("%s: %s", g.names[0], g.err)
+	}
+	return fmt.Sprintf("(%s): %s", strings.Join(g.names, ", "), g.err)
+}
+
+func (f FailedPrerequisitesError) Error() string {
+	var errs []string
+	for err := range f.errors {
+		errs = append(errs, err)
+	}
+	var groups []groupedPrerequisiteErr
+	for _, err := range errs {
+		groups = append(groups, groupedPrerequisiteErr{
+			err:   err,
+			names: f.errors[err],
+		})
+	}
+	return fmt.Sprintf("failed prerequisites: %s", groups)
+}
+
 func (act *action) analyzeSafe() {
 	defer func() {
 		if p := recover(); p != nil {
@@ -502,16 +524,16 @@ func (act *action) analyze() {
 		analyzeDebugf("go/analysis: %s: %s: analyzed package %q in %s", act.r.prefix, act.a.Name, act.pkg.Name, time.Since(now))
 	}(time.Now())
 
-	// Report an error if any dependency failed.
-	var failed []string
+	// Report an error if any dependency failures.
+	var depErr FailedPrerequisitesError
 	for _, dep := range act.deps {
-		if dep.err != nil {
-			failed = append(failed, dep.String())
+		if dep.err == nil {
+			continue
 		}
+		depErr.Consume(dep.String(), dep.err)
 	}
-	if failed != nil {
-		sort.Strings(failed)
-		act.err = fmt.Errorf("failed prerequisites: %s", strings.Join(failed, ", "))
+	if depErr.NotEmpty() {
+		act.err = depErr
 		return
 	}
 
@@ -913,7 +935,8 @@ func sizeOfReflectValueTreeBytes(rv reflect.Value, visitedPtrs map[uintptr]struc
 		return rv.Len()
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		reflect.Uintptr, reflect.Bool, reflect.Float32, reflect.Float64, reflect.UnsafePointer:
+		reflect.Uintptr, reflect.Bool, reflect.Float32, reflect.Float64,
+		reflect.Complex64, reflect.Complex128, reflect.Func, reflect.UnsafePointer:
 		return int(rv.Type().Size())
 	case reflect.Invalid:
 		return 0
@@ -922,7 +945,7 @@ func sizeOfReflectValueTreeBytes(rv reflect.Value, visitedPtrs map[uintptr]struc
 	}
 }
 
-func (lp *loadingPackage) decUse() {
+func (lp *loadingPackage) decUse(canClearTypes bool) {
 	lp.decUseMutex.Lock()
 	defer lp.decUseMutex.Unlock()
 
@@ -965,11 +988,17 @@ func (lp *loadingPackage) decUse() {
 		return
 	}
 
-	lp.pkg.Types = nil
+	if canClearTypes {
+		// canClearTypes is set to true if we can discard type
+		// information after the package and its dependents have been
+		// processed. This is the case when no whole program checkers (unused) are
+		// being run.
+		lp.pkg.Types = nil
+	}
 	lp.pkg = nil
 
 	for _, imp := range lp.imports {
-		imp.decUse()
+		imp.decUse(canClearTypes)
 	}
 	lp.imports = nil
 
@@ -1005,12 +1034,8 @@ func (lp *loadingPackage) analyze(loadMode LoadMode, loadSem chan struct{}) {
 		<-loadSem
 	}()
 
-	defer func() {
-		if loadMode < LoadModeWholeProgram {
-			// Save memory on unused more fields.
-			lp.decUse()
-		}
-	}()
+	// Save memory on unused more fields.
+	defer lp.decUse(loadMode < LoadModeWholeProgram)
 
 	if err := lp.loadWithFacts(loadMode); err != nil {
 		werr := errors.Wrapf(err, "failed to load package %s", lp.pkg.Name)
@@ -1126,22 +1151,6 @@ func (lp *loadingPackage) loadFromSource(loadMode LoadMode) error {
 }
 
 func (lp *loadingPackage) loadFromExportData() error {
-	// Because gcexportdata.Read has the potential to create or
-	// modify the types.Package for each node in the transitive
-	// closure of dependencies of lpkg, all exportdata operations
-	// must be sequential. (Finer-grained locking would require
-	// changes to the gcexportdata API.)
-	//
-	// The exportMu lock guards the Package.Pkg field and the
-	// types.Package it points to, for each Package in the graph.
-	//
-	// Not all accesses to Package.Pkg need to be protected by this mutex:
-	// graph ordering ensures that direct dependencies of source
-	// packages are fully loaded before the importer reads their Pkg field.
-	mu := lp.loadGuard.MutexForExportData()
-	mu.Lock()
-	defer mu.Unlock()
-
 	pkg := lp.pkg
 
 	// Call NewPackage directly with explicit name.

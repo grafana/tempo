@@ -1,0 +1,4 @@
+*.test
+bin
+latest/pkg/
+.envrc

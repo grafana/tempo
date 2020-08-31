@@ -76,16 +76,32 @@ endif
 
 .PHONY: gen-proto
 gen-proto:
-	vend -package
-	protoc -I vendor/github.com/open-telemetry/opentelemetry-proto -I pkg/tempopb/ pkg/tempopb/tempo.proto --go_out=plugins=grpc:pkg/tempopb
-	$(MAKE) vendor-dependencies
+	git submodule init
+	rm -rf ./vendor/github.com/open-telemetry/opentelemetry-proto
+	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/common/v1/common.proto --gogofaster_out=plugins=grpc:./vendor
+	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/resource/v1/resource.proto --gogofaster_out=plugins=grpc:./vendor
+	# protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/logs/v1/logs.proto --gogofaster_out=plugins=grpc:./vendor
+	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/metrics/v1/metrics.proto --gogofaster_out=plugins=grpc:./vendor
+	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/trace/v1/trace.proto --gogofaster_out=plugins=grpc:./vendor
+	# protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/logs/v1/logs_service.proto --gogofaster_out=plugins=grpc:./vendor
+	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto --gogofaster_out=plugins=grpc:./vendor
+	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto \
+	  --grpc-gateway_out=logtostderr=true,grpc_api_configuration=opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service_http.yaml:./vendor
+	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto --gogofaster_out=plugins=grpc:./vendor
+	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto \
+	  --grpc-gateway_out=logtostderr=true,grpc_api_configuration=opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service_http.yaml:./vendor
+	protoc -I opentelemetry-proto/ -I pkg/tempopb/ pkg/tempopb/tempo.proto --gogofaster_out=plugins=grpc:pkg/tempopb
 
 .PHONY: vendor-dependencies
 vendor-dependencies:
 	go mod tidy
 	go mod vendor
+	# ignore log.go b/c the proto version used by v0.6.1 doesn't actually have logs proto.
+	find | grep 'vendor/go.opentelemetry.io.*go$\' | grep -v -e 'log.go$\' | xargs -L 1 sed -i 's+go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/+github.com/open-telemetry/opentelemetry-proto/gen/go/+g'
+	$(MAKE) gen-proto
+
 
 .PHONY: install-tools
 install-tools:
-	go get -u github.com/nomad-software/vend
 	go get -u github.com/golang/protobuf/protoc-gen-go
+	go get -u github.com/gogo/protobuf/protoc-gen-gogofaster

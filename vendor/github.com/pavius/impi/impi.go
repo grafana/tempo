@@ -5,10 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/kisielk/gotool"
-	"regexp"
 )
 
 // Impi is a single instance that can perform verification on a path
@@ -49,10 +49,11 @@ const (
 
 // VerifyOptions specifies how to perform verification
 type VerifyOptions struct {
-	SkipTests   bool
-	Scheme      ImportGroupVerificationScheme
-	LocalPrefix string
-	SkipPaths   []string
+	SkipTests       bool
+	Scheme          ImportGroupVerificationScheme
+	LocalPrefix     string
+	SkipPaths       []string
+	IgnoreGenerated bool
 }
 
 // VerificationError holds an error and a file path on which the error occurred

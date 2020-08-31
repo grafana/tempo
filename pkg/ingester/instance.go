@@ -236,12 +236,11 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 }
 
 func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
-	if len(req.Batch.Spans) == 0 {
-		return nil, fmt.Errorf("invalid request received with 0 spans")
+	traceID, err := pushRequestTraceID(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get trace id %w", err)
 	}
 
-	// two assumptions here should hold.  distributor separates spans by traceid.  0 length span slices should be filtered before here
-	traceID := req.Batch.Spans[0].TraceId
 	fp := traceFingerprint(util.Fingerprint(traceID))
 
 	trace, ok := i.traces[fp]
@@ -249,7 +248,7 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 		return trace, nil
 	}
 
-	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
+	err = i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
 	if err != nil {
 		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, err.Error())
 	}
@@ -270,4 +269,22 @@ func (i *instance) resetHeadBlock() error {
 
 func (i *instance) Combine(objA []byte, objB []byte) []byte {
 	return util.CombineTraces(objA, objB)
+}
+
+// pushRequestTraceID gets the TraceID of the first span in the batch and assumes its the trace ID throughout
+//  this assumption should hold b/c the distributors make sure each batch all belong to the same trace
+func pushRequestTraceID(req *tempopb.PushRequest) ([]byte, error) {
+	if req == nil || req.Batch == nil {
+		return nil, errors.New("req or req.Batch nil")
+	}
+
+	if len(req.Batch.InstrumentationLibrarySpans) == 0 {
+		return nil, errors.New("InstrumentationLibrarySpans has length 0")
+	}
+
+	if len(req.Batch.InstrumentationLibrarySpans[0].Spans) == 0 {
+		return nil, errors.New("Spans has length 0")
+	}
+
+	return req.Batch.InstrumentationLibrarySpans[0].Spans[0].TraceId, nil
 }

@@ -309,8 +309,8 @@ func BenchmarkWriteRead(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for _, req := range reqs {
 			bytes, _ := proto.Marshal(req)
-			_ = block.Write(req.Batch.Spans[0].TraceId, bytes)
-			_, _ = block.Find(req.Batch.Spans[0].TraceId, &mockCombiner{})
+			_ = block.Write(test.MustTraceID(req), bytes)
+			_, _ = block.Find(test.MustTraceID(req), &mockCombiner{})
 		}
 	}
 }

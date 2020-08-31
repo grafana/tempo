@@ -99,7 +99,7 @@ type ConnConfig struct {
 	CQLVersion     string
 	Timeout        time.Duration
 	ConnectTimeout time.Duration
-	Dialer         *net.Dialer
+	Dialer         Dialer
 	Compressor     Compressor
 	Authenticator  Authenticator
 	AuthProvider   func(h *HostInfo) (Authenticator, error)
@@ -203,14 +203,15 @@ func (s *Session) dialWithoutObserver(ctx context.Context, host *HostInfo, cfg *
 
 	dialer := cfg.Dialer
 	if dialer == nil {
-		dialer = &net.Dialer{
+		d := &net.Dialer{
 			Timeout: cfg.ConnectTimeout,
 		}
+		if cfg.Keepalive > 0 {
+			d.KeepAlive = cfg.Keepalive
+		}
+		dialer = d
 	}
 
-	if cfg.Keepalive > 0 {
-		dialer.KeepAlive = cfg.Keepalive
-	}
 
 	conn, err := dialer.DialContext(ctx, "tcp", host.HostnameAndPort())
 	if err != nil {
@@ -1085,7 +1086,7 @@ func (c *Conn) executeQuery(ctx context.Context, qry *Query) *Iter {
 		info  *preparedStatment
 	)
 
-	if qry.shouldPrepare() {
+	if !qry.skipPrepare && qry.shouldPrepare() {
 		// Prepare all DML queries. Other queries can not be prepared.
 		var err error
 		info, err = c.prepareStatement(ctx, qry.stmt, qry.trace)
@@ -1360,6 +1361,8 @@ func (c *Conn) executeBatch(ctx context.Context, batch *Batch) *Iter {
 func (c *Conn) query(ctx context.Context, statement string, values ...interface{}) (iter *Iter) {
 	q := c.session.Query(statement, values...).Consistency(One)
 	q.trace = nil
+	q.skipPrepare = true
+	q.disableSkipMetadata = true
 	return c.executeQuery(ctx, q)
 }
 
