@@ -2,11 +2,11 @@ package tempo
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
 
 	jaeger "github.com/jaegertracing/jaeger/model"
@@ -32,17 +32,19 @@ func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]ja
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
 
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
+
 	resp, err := http.Get(b.tempoEndpoint + hexID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed get to tempo %w", err)
 	}
 
 	out := &tempopb.Trace{}
-	err = json.NewDecoder(resp.Body).Decode(out)
-	resp.Body.Close()
+	unmarshaller := &jsonpb.Unmarshaler{}
+	err = unmarshaller.Unmarshal(resp.Body, out)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal trace json %w", err)
 	}
+	resp.Body.Close()
 
 	if len(out.Batches) == 0 {
 		return nil, fmt.Errorf("traceID not found: %s", hexID)
@@ -60,9 +62,12 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		ProcessMap: []jaeger.Trace_ProcessMapping{},
 	}
 
-	// now convert trace to jaeger
-	// todo: remove custom code in favor of otelcol once it's complete
 	for _, batch := range jaegerBatches {
+		// otel proto conversion doesn't set jaeger spans for some reason.
+		for _, s := range batch.Spans {
+			s.Process = batch.Process
+		}
+
 		jaegerTrace.Spans = append(jaegerTrace.Spans, batch.Spans...)
 		jaegerTrace.ProcessMap = append(jaegerTrace.ProcessMap, jaeger.Trace_ProcessMapping{
 			Process:   *batch.Process,
