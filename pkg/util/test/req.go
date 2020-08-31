@@ -21,7 +21,7 @@ func MakeRequest(spans int, traceID []byte) *tempopb.PushRequest {
 	var ils *opentelemetry_proto_trace_v1.InstrumentationLibrarySpans
 
 	for i := 0; i < spans; i++ {
-		// occassionaly make a new ils
+		// occasionally make a new ils
 		if ils == nil || rand.Int()%3 == 0 {
 			ils = &opentelemetry_proto_trace_v1.InstrumentationLibrarySpans{
 				InstrumentationLibrary: &v1.InstrumentationLibrary{
