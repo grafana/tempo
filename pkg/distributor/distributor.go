@@ -3,6 +3,7 @@ package distributor
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/services"
 
 	"github.com/go-kit/kit/log/level"
+	opentelemetry_proto_common_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -171,7 +173,10 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	if req.Batch == nil {
 		return &tempopb.PushResponse{}, nil
 	}
-	spanCount := len(req.Batch.Spans)
+	spanCount := 0
+	for _, ils := range req.Batch.InstrumentationLibrarySpans {
+		spanCount += len(ils.Spans)
+	}
 	if spanCount == 0 {
 		return &tempopb.PushResponse{}, nil
 	}
@@ -261,32 +266,52 @@ func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, span
 	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
 	var descs [maxExpectedReplicationSet]ring.IngesterDesc
 
-	// todo: add a metric to track traces per batch
-	requests := make(map[uint32]*tempopb.PushRequest)
-	for _, span := range req.Batch.Spans {
-		if !validation.ValidTraceID(span.TraceId) {
-			return nil, httpgrpc.Errorf(http.StatusBadRequest, "trace ids must be 128 bit")
+	requestsByTrace := make(map[uint32]*tempopb.PushRequest)
+	spansByILS := make(map[string]*opentelemetry_proto_trace_v1.InstrumentationLibrarySpans)
+
+	for _, ils := range req.Batch.InstrumentationLibrarySpans {
+		for _, span := range ils.Spans {
+			if !validation.ValidTraceID(span.TraceId) {
+				return nil, httpgrpc.Errorf(http.StatusBadRequest, "trace ids must be 128 bit")
+			}
+
+			traceKey := util.TokenFor(userID, span.TraceId)
+			ilsKey := strconv.Itoa(int(traceKey)) + ils.InstrumentationLibrary.Name + ils.InstrumentationLibrary.Version
+			existingILS, ok := spansByILS[ilsKey]
+			if !ok {
+				existingILS = &opentelemetry_proto_trace_v1.InstrumentationLibrarySpans{
+					InstrumentationLibrary: &opentelemetry_proto_common_v1.InstrumentationLibrary{
+						Name:    ils.InstrumentationLibrary.Name,
+						Version: ils.InstrumentationLibrary.Version,
+					},
+					Spans: make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace and ils
+				}
+				spansByILS[ilsKey] = existingILS
+			}
+			existingILS.Spans = append(existingILS.Spans, span)
+
+			// if we found an ILS we assume its already part of a request and can go to the next span
+			if ok {
+				continue
+			}
+
+			existingReq, ok := requestsByTrace[traceKey]
+			if !ok {
+				existingReq = &tempopb.PushRequest{
+					Batch: &opentelemetry_proto_trace_v1.ResourceSpans{
+						InstrumentationLibrarySpans: make([]*opentelemetry_proto_trace_v1.InstrumentationLibrarySpans, 0, len(req.Batch.InstrumentationLibrarySpans)), // assume most spans belong to the same trace
+						Resource:                    req.Batch.Resource,
+					},
+				}
+				requestsByTrace[traceKey] = existingReq
+			}
+			existingReq.Batch.InstrumentationLibrarySpans = append(existingReq.Batch.InstrumentationLibrarySpans, existingILS)
 		}
-
-		key := util.TokenFor(userID, span.TraceId)
-
-		routedReq, ok := requests[key]
-		if !ok {
-			routedReq = &tempopb.PushRequest{}
-			resourceSpans := &opentelemetry_proto_trace_v1.ResourceSpans{}
-
-			resourceSpans.Spans = make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount) // assume most spans belong to the same trace
-			resourceSpans.Resource = req.Batch.Resource
-			routedReq.Batch = resourceSpans
-
-			requests[key] = routedReq
-		}
-		routedReq.Batch.Spans = append(routedReq.Batch.Spans, span)
 	}
 
-	metricTracesPerBatch.Observe(float64(len(requests)))
+	metricTracesPerBatch.Observe(float64(len(requestsByTrace)))
 	requestsByIngester := make(map[string][]*tempopb.PushRequest)
-	for key, routedReq := range requests {
+	for key, routedReq := range requestsByTrace {
 		// now map to ingesters
 		replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
 		if err != nil {
