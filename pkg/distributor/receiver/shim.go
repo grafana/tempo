@@ -48,7 +48,9 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 	}
 
 	v := viper.New()
-	err := v.MergeConfigMap(receiverCfg)
+	err := v.MergeConfigMap(map[string]interface{}{
+		"receivers": receiverCfg,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -14,7 +14,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/services"
 
 	"github.com/go-kit/kit/log/level"
-	opentelemetry_proto_common_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -276,15 +275,15 @@ func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, span
 			}
 
 			traceKey := util.TokenFor(userID, span.TraceId)
-			ilsKey := strconv.Itoa(int(traceKey)) + ils.InstrumentationLibrary.Name + ils.InstrumentationLibrary.Version
+			ilsKey := strconv.Itoa(int(traceKey))
+			if ils.InstrumentationLibrary != nil {
+				ilsKey = ilsKey + ils.InstrumentationLibrary.Name + ils.InstrumentationLibrary.Version
+			}
 			existingILS, ok := spansByILS[ilsKey]
 			if !ok {
 				existingILS = &opentelemetry_proto_trace_v1.InstrumentationLibrarySpans{
-					InstrumentationLibrary: &opentelemetry_proto_common_v1.InstrumentationLibrary{
-						Name:    ils.InstrumentationLibrary.Name,
-						Version: ils.InstrumentationLibrary.Version,
-					},
-					Spans: make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace and ils
+					InstrumentationLibrary: ils.InstrumentationLibrary,
+					Spans:                  make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace and ils
 				}
 				spansByILS[ilsKey] = existingILS
 			}
