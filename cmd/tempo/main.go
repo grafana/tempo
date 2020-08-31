@@ -53,7 +53,11 @@ func main() {
 	util.InitLogger(&config.Server)
 
 	// Setting the environment variable JAEGER_AGENT_HOST enables tracing
-	trace := tracing.NewFromEnv(fmt.Sprintf("%s-%s", appName, config.Target))
+	trace, err := tracing.NewFromEnv(fmt.Sprintf("%s-%s", appName, config.Target))
+	if err != nil {
+		level.Error(util.Logger).Log("msg", "error initialising tracer", "err", err)
+		os.Exit(1)
+	}
 	defer func() {
 		if err := trace.Close(); err != nil {
 			level.Error(util.Logger).Log("msg", "error closing tracing", "err", err)
