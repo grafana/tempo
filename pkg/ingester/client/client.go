@@ -35,6 +35,8 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	cfg.GRPCClientConfig.RegisterFlagsWithPrefix("ingester.client", f)
 
 	f.DurationVar(&cfg.PoolConfig.HealthCheckTimeout, "ingester.client.healthcheck-timeout", 1*time.Second, "Timeout for healthcheck rpcs.")
+	f.DurationVar(&cfg.PoolConfig.CheckInterval, "ingester.client.healthcheck-interval", 15*time.Second, "Interval to healthcheck ingesters")
+	f.BoolVar(&cfg.PoolConfig.HealthCheckEnabled, "ingester.client.healthcheck-enabled", true, "Healthcheck ingesters.")
 	f.DurationVar(&cfg.RemoteTimeout, "ingester.client.timeout", 5*time.Second, "Timeout for ingester client RPCs.")
 }
 

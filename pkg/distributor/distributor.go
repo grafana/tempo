@@ -110,18 +110,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		ingestionRateStrategy = newLocalIngestionRateStrategy(overrides)
 	}
 
-	poolConfig := ring_client.PoolConfig{
-		CheckInterval:      15 * time.Second,
-		HealthCheckEnabled: true,
-	}
-
 	d := &Distributor{
 		cfg:              cfg,
+		clientCfg:        clientCfg,
 		ingestersRing:    ingestersRing,
 		distributorsRing: distributorsRing,
 		overrides:        overrides,
 		pool: ring_client.NewPool("distributor_pool",
-			poolConfig,
+			clientCfg.PoolConfig,
 			ring_client.NewRingServiceDiscovery(ingestersRing),
 			factory,
 			metricIngesterClients,
@@ -141,6 +137,10 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		}
 	}
 
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelFunc()
+	services.StartAndAwaitRunning(ctx, d.pool)
+
 	return d, nil
 }
 
@@ -156,6 +156,16 @@ func (d *Distributor) Stop() {
 		err := d.receivers.Shutdown()
 		if err != nil {
 			level.Error(cortex_util.Logger).Log("msg", "error stopping receivers", "error", err)
+		}
+	}
+
+	if d.pool != nil {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFunc()
+
+		err := services.StopAndAwaitTerminated(ctx, d.pool)
+		if err != nil {
+			level.Error(cortex_util.Logger).Log("msg", "error stopping pool", "error", err)
 		}
 	}
 }

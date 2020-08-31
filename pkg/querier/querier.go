@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
@@ -67,16 +66,11 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 		return ingester_client.New(addr, clientCfg)
 	}
 
-	poolConfig := ring_client.PoolConfig{
-		CheckInterval:      15 * time.Second,
-		HealthCheckEnabled: true,
-	}
-
 	q := &Querier{
 		cfg:  cfg,
 		ring: ring,
 		pool: ring_client.NewPool("querier_pool",
-			poolConfig,
+			clientCfg.PoolConfig,
 			ring_client.NewRingServiceDiscovery(ring),
 			factory,
 			metricIngesterClients,

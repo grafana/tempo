@@ -258,7 +258,8 @@ func (t *App) initMemberlistKV() error {
 }
 
 func (t *App) stopMemberlistKV() error {
-	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelFunc()
 
 	t.memberlistKV.StopAsync()
 	t.memberlistKV.AwaitTerminated(ctx)
