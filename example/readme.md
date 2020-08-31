@@ -1,5 +1,16 @@
 # Example
 
+## Build images
+
+Run the following from the project root folder to build `tempo:latest` and `tempo-query:latest` images
+that will be used in the test environment:
+
+```console
+make docker-tempo && make docker-tempo-query
+```
+
+Note: `make docker-tempo` command needs to be run every time there are changes to the codebase.
+
 ## Docker Compose
 
 ```
