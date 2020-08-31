@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	cortex_client "github.com/cortexproject/cortex/pkg/ingester/client"
+	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/grpcclient"
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -18,22 +18,28 @@ import (
 
 // Config for an ingester client.
 type Config struct {
-	PoolConfig       cortex_client.PoolConfig `yaml:"pool_config,omitempty"`
-	RemoteTimeout    time.Duration            `yaml:"remote_timeout,omitempty"`
-	GRPCClientConfig grpcclient.Config        `yaml:"grpc_client_config"`
+	PoolConfig       ring_client.PoolConfig `yaml:"pool_config,omitempty"`
+	RemoteTimeout    time.Duration          `yaml:"remote_timeout,omitempty"`
+	GRPCClientConfig grpcclient.Config      `yaml:"grpc_client_config"`
+}
+
+type Client struct {
+	tempopb.PusherClient
+	tempopb.QuerierClient
+	grpc_health_v1.HealthClient
+	io.Closer
 }
 
 // RegisterFlags registers flags.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
-	cfg.GRPCClientConfig.RegisterFlags("ingester.client", f)
-	cfg.PoolConfig.RegisterFlags(f)
+	cfg.GRPCClientConfig.RegisterFlagsWithPrefix("ingester.client", f)
 
-	f.DurationVar(&cfg.PoolConfig.RemoteTimeout, "ingester.client.healthcheck-timeout", 1*time.Second, "Timeout for healthcheck rpcs.")
+	f.DurationVar(&cfg.PoolConfig.HealthCheckTimeout, "ingester.client.healthcheck-timeout", 1*time.Second, "Timeout for healthcheck rpcs.")
 	f.DurationVar(&cfg.RemoteTimeout, "ingester.client.timeout", 5*time.Second, "Timeout for ingester client RPCs.")
 }
 
 // New returns a new ingester client.
-func New(cfg Config, addr string) (grpc_health_v1.HealthClient, error) {
+func New(addr string, cfg Config) (*Client, error) {
 	opts := []grpc.DialOption{
 		grpc.WithInsecure(),
 		grpc.WithDefaultCallOptions(
@@ -45,14 +51,10 @@ func New(cfg Config, addr string) (grpc_health_v1.HealthClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return struct {
-		tempopb.PusherClient
-		tempopb.QuerierClient
-		grpc_health_v1.HealthClient
-		io.Closer
-	}{
+	return &Client{
 		PusherClient:  tempopb.NewPusherClient(conn),
 		QuerierClient: tempopb.NewQuerierClient(conn),
+		HealthClient:  grpc_health_v1.NewHealthClient(conn),
 		Closer:        conn,
 	}, nil
 }

@@ -17,7 +17,7 @@ import (
 	"github.com/grafana/tempo/pkg/compactor"
 	"github.com/grafana/tempo/pkg/distributor"
 	"github.com/grafana/tempo/pkg/ingester"
-	"github.com/grafana/tempo/pkg/ingester/client"
+	ingester_client "github.com/grafana/tempo/pkg/ingester/client"
 	"github.com/grafana/tempo/pkg/querier"
 	"github.com/grafana/tempo/pkg/storage"
 	"github.com/grafana/tempo/pkg/util/validation"
@@ -29,15 +29,15 @@ type Config struct {
 	AuthEnabled bool       `yaml:"auth_enabled,omitempty"`
 	HTTPPrefix  string     `yaml:"http_prefix"`
 
-	Server         server.Config       `yaml:"server,omitempty"`
-	Distributor    distributor.Config  `yaml:"distributor,omitempty"`
-	IngesterClient client.Config       `yaml:"ingester_client,omitempty"`
-	Querier        querier.Config      `yaml:"querier,omitempty"`
-	Compactor      compactor.Config    `yaml:"compactor,omitempty"`
-	Ingester       ingester.Config     `yaml:"ingester,omitempty"`
-	StorageConfig  storage.Config      `yaml:"storage_config,omitempty"`
-	LimitsConfig   validation.Limits   `yaml:"limits_config,omitempty"`
-	MemberlistKV   memberlist.KVConfig `yaml:"memberlist,omitempty"`
+	Server         server.Config          `yaml:"server,omitempty"`
+	Distributor    distributor.Config     `yaml:"distributor,omitempty"`
+	IngesterClient ingester_client.Config `yaml:"ingester_client,omitempty"`
+	Querier        querier.Config         `yaml:"querier,omitempty"`
+	Compactor      compactor.Config       `yaml:"compactor,omitempty"`
+	Ingester       ingester.Config        `yaml:"ingester,omitempty"`
+	StorageConfig  storage.Config         `yaml:"storage_config,omitempty"`
+	LimitsConfig   validation.Limits      `yaml:"limits_config,omitempty"`
+	MemberlistKV   memberlist.KVConfig    `yaml:"memberlist,omitempty"`
 }
 
 // RegisterFlags registers flag.
@@ -73,7 +73,7 @@ type App struct {
 	compactor    *compactor.Compactor
 	ingester     *ingester.Ingester
 	store        storage.Store
-	memberlistKV *memberlist.KVInit
+	memberlistKV *memberlist.KVInitService
 
 	httpAuthMiddleware middleware.Interface
 }

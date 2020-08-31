@@ -5,9 +5,6 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
-	"google.golang.org/grpc/health/grpc_health_v1"
-
-	"github.com/grafana/tempo/pkg/ingester/client"
 )
 
 // Config for an ingester.
@@ -24,9 +21,6 @@ type Config struct {
 	MaxTracesPerBlock    int           `yaml:"traces_per_block"`
 	MaxBlockDuration     time.Duration `yaml:"max_block_duration"`
 	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
-
-	// For testing, you can override the address and ID of this ingester.
-	ingesterClientFactory func(cfg client.Config, addr string) (grpc_health_v1.HealthClient, error)
 }
 
 // RegisterFlags registers the flags.

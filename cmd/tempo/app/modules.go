@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
@@ -121,7 +122,7 @@ func (t *App) initServer() (err error) {
 
 func (t *App) initRing() (err error) {
 	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
-	t.ring, err = ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", ring.IngesterRingKey)
+	t.ring, err = ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", ring.IngesterRingKey, prometheus.DefaultRegisterer)
 	if err != nil {
 		return err
 	}
@@ -165,7 +166,7 @@ func (t *App) stopDistributor() (err error) {
 }
 
 func (t *App) initIngester() (err error) {
-	t.cfg.Ingester.LifecyclerConfig.ListenPort = &t.cfg.Server.GRPCListenPort
+	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
 	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.ingester, err = ingester.New(t.cfg.Ingester, t.cfg.IngesterClient, t.store, t.overrides)
 	if err != nil {
@@ -252,12 +253,15 @@ func (t *App) initMemberlistKV() error {
 	}
 	t.cfg.MemberlistKV.NodeName = hostname + "-" + uuid.New().String()
 
-	t.memberlistKV = memberlist.NewKVInit(&t.cfg.MemberlistKV)
+	t.memberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV)
 	return nil
 }
 
 func (t *App) stopMemberlistKV() error {
-	t.memberlistKV.Stop()
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+
+	t.memberlistKV.StopAsync()
+	t.memberlistKV.AwaitTerminated(ctx)
 	return nil
 }
 

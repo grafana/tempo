@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
@@ -12,12 +13,12 @@ import (
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	cortex_client "github.com/cortexproject/cortex/pkg/ingester/client"
 	"github.com/cortexproject/cortex/pkg/ring"
+	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
 
-	"github.com/grafana/tempo/pkg/ingester/client"
+	ingester_client "github.com/grafana/tempo/pkg/ingester/client"
 	"github.com/grafana/tempo/pkg/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempo_util "github.com/grafana/tempo/pkg/util"
@@ -39,13 +40,18 @@ var (
 		Help:      "bytes read",
 		Buckets:   prometheus.ExponentialBuckets(1024, 2, 10),
 	}, []string{"layer"})
+	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "querier_ingester_clients",
+		Help:      "The current number of ingester clients.",
+	})
 )
 
 // Querier handlers queries.
 type Querier struct {
 	cfg    Config
 	ring   ring.ReadRing
-	pool   *cortex_client.Pool
+	pool   *ring_client.Pool
 	store  storage.Store
 	limits *validation.Overrides
 }
@@ -56,15 +62,25 @@ type responseFromIngesters struct {
 }
 
 // New makes a new Querier.
-func New(cfg Config, clientCfg client.Config, ring ring.ReadRing, store storage.Store, limits *validation.Overrides) (*Querier, error) {
-	factory := func(addr string) (grpc_health_v1.HealthClient, error) {
-		return client.New(clientCfg, addr)
+func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *validation.Overrides) (*Querier, error) {
+	factory := func(addr string) (ring_client.PoolClient, error) {
+		return ingester_client.New(addr, clientCfg)
+	}
+
+	poolConfig := ring_client.PoolConfig{
+		CheckInterval:      15 * time.Second,
+		HealthCheckEnabled: true,
 	}
 
 	q := &Querier{
-		cfg:    cfg,
-		ring:   ring,
-		pool:   cortex_client.NewPool(clientCfg.PoolConfig, ring, factory, util.Logger),
+		cfg:  cfg,
+		ring: ring,
+		pool: ring_client.NewPool("querier_pool",
+			poolConfig,
+			ring_client.NewRingServiceDiscovery(ring),
+			factory,
+			metricIngesterClients,
+			util.Logger),
 		store:  store,
 		limits: limits,
 	}
@@ -171,7 +187,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 // ReadinessHandler is used to indicate to k8s when the querier is ready.
 // Returns 200 when the querier is ready, 500 otherwise.
 func (q *Querier) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
-	_, err := q.ring.GetAll()
+	_, err := q.ring.GetAll(ring.Read)
 	if err != nil {
 		http.Error(w, "Not ready: "+err.Error(), http.StatusInternalServerError)
 		return

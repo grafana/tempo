@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
+	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 
@@ -20,7 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/tempo/pkg/ingester/client"
+	ingester_client "github.com/grafana/tempo/pkg/ingester/client"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/pkg/util/validation"
@@ -71,7 +72,7 @@ func TestDistributor(t *testing.T) {
 func prepare(t *testing.T, limits *validation.Limits, kvStore kv.Client) *Distributor {
 	var (
 		distributorConfig Config
-		clientConfig      client.Config
+		clientConfig      ingester_client.Config
 	)
 	flagext.DefaultValues(&distributorConfig, &clientConfig)
 
@@ -97,7 +98,7 @@ func prepare(t *testing.T, limits *validation.Limits, kvStore kv.Client) *Distri
 	distributorConfig.DistributorRing.InstanceID = strconv.Itoa(rand.Int())
 	distributorConfig.DistributorRing.KVStore.Mock = kvStore
 	distributorConfig.DistributorRing.InstanceInterfaceNames = []string{"eth0", "en0", "lo0"}
-	distributorConfig.factory = func(addr string) (grpc_health_v1.HealthClient, error) {
+	distributorConfig.factory = func(addr string) (ring_client.PoolClient, error) {
 		return ingesters[addr], nil
 	}
 
@@ -114,6 +115,10 @@ type mockIngester struct {
 
 func (i *mockIngester) Push(ctx context.Context, in *tempopb.PushRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
 	return nil, nil
+}
+
+func (i *mockIngester) Close() error {
+	return nil
 }
 
 // Copied from Cortex; TODO(twilkie) - factor this our and share it.
@@ -137,7 +142,7 @@ func (r mockRing) Get(key uint32, op ring.Operation, buf []ring.IngesterDesc) (r
 	return result, nil
 }
 
-func (r mockRing) GetAll() (ring.ReplicationSet, error) {
+func (r mockRing) GetAll(ring.Operation) (ring.ReplicationSet, error) {
 	return ring.ReplicationSet{
 		Ingesters: r.ingesters,
 		MaxErrors: 1,
