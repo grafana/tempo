@@ -19,7 +19,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
-	otlptrace "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
+	otlptrace "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/trace/v1"
 )
 
 // This file defines in-memory data structures to represent traces (spans).

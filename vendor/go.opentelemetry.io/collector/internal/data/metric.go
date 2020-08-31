@@ -18,7 +18,7 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"go.opentelemetry.io/collector/consumer/pdata"
-	otlpmetrics "github.com/open-telemetry/opentelemetry-proto/gen/go/metrics/v1"
+	otlpmetrics "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/metrics/v1"
 )
 
 // This file defines in-memory data structures to represent metrics.

@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/pdata"
-	collectortrace "github.com/open-telemetry/opentelemetry-proto/gen/go/collector/trace/v1"
+	collectortrace "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/collector/trace/v1"
 	"go.opentelemetry.io/collector/obsreport"
 )
 

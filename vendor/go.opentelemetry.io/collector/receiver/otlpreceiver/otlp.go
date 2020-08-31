@@ -27,8 +27,8 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenterror"
 	"go.opentelemetry.io/collector/consumer"
-	collectormetrics "github.com/open-telemetry/opentelemetry-proto/gen/go/collector/metrics/v1"
-	collectortrace "github.com/open-telemetry/opentelemetry-proto/gen/go/collector/trace/v1"
+	collectormetrics "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/collector/metrics/v1"
+	collectortrace "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/collector/trace/v1"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/metrics"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/trace"
 )
