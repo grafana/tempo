@@ -262,7 +262,10 @@ func (t *App) stopMemberlistKV() error {
 	defer cancelFunc()
 
 	t.memberlistKV.StopAsync()
-	t.memberlistKV.AwaitTerminated(ctx)
+	err := t.memberlistKV.AwaitTerminated(ctx)
+	if err != nil {
+		return fmt.Errorf("Failed to stop memberlist %w", err)
+	}
 	return nil
 }
 

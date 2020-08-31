@@ -2,6 +2,7 @@ package distributor
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
@@ -139,7 +140,10 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelFunc()
-	services.StartAndAwaitRunning(ctx, d.pool)
+	err := services.StartAndAwaitRunning(ctx, d.pool)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to start distributor pool %w", err)
+	}
 
 	return d, nil
 }

@@ -144,7 +144,7 @@ func TestWal(t *testing.T) {
 }
 
 func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
-	ingesterConfig := defaultIngesterTestConfig(t)
+	ingesterConfig := defaultIngesterTestConfig()
 	limits, err := validation.NewOverrides(defaultLimitsTestConfig())
 	assert.NoError(t, err, "unexpected error creating overrides")
 
@@ -193,7 +193,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 	return ingester, traces, traceIDs
 }
 
-func defaultIngesterTestConfig(t *testing.T) Config {
+func defaultIngesterTestConfig() Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
 	cfg.FlushCheckPeriod = 99999 * time.Hour
