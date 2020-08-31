@@ -4,7 +4,7 @@ Tempo is a Jaeger/Zipkin/OpenCensus compatible backend.  It is not OpenTelemetry
 
 ## Getting Started
 
-See the [example folder](./example) for various ways to get started running tempo locally.
+See the [example folder](example) for various ways to get started running tempo locally.
 
 ## Architecture
 
