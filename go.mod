@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	cloud.google.com/go/storage v1.6.0
-	github.com/cortexproject/cortex v0.7.0
+	github.com/cortexproject/cortex v1.3.0
 	github.com/go-kit/kit v0.10.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
@@ -19,7 +19,7 @@ require (
 	github.com/karrick/godirwalk v1.16.1
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/open-telemetry/opentelemetry-proto v0.4.0
-	github.com/opentracing/opentracing-go v1.1.1-0.20200124165624-2876d2018785
+	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/common v0.11.1
@@ -34,21 +34,18 @@ require (
 	go.uber.org/ratelimit v0.1.0
 	go.uber.org/zap v1.15.0
 	google.golang.org/api v0.29.0
-	google.golang.org/grpc v1.29.1
+	google.golang.org/grpc v1.30.0
 	gopkg.in/yaml.v2 v2.3.0
 )
 
-replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.2.0+incompatible
-
-// Override reference that causes an error from Go proxy - see https://github.com/golang/go/issues/33558
-replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
-
-// All 3 below replace directives exist due to
+// All of the below replace directives exist due to
 //   Cortex -> ETCD -> GRPC requiring 1.29.1
 //   Otel Collector -> requiring 1.30.1
 //  Once this is merged: https://github.com/etcd-io/etcd/pull/12155 and Cortex revendors we should be able to update everything to current
-replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
-
-replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
-
-replace github.com/sercand/kuberesolver => github.com/sercand/kuberesolver v2.4.0+incompatible
+replace (
+	github.com/gocql/gocql => github.com/grafana/gocql v0.0.0-20200605141915-ba5dc39ece85
+	github.com/sercand/kuberesolver => github.com/sercand/kuberesolver v2.4.0+incompatible
+	go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
+	google.golang.org/grpc => google.golang.org/grpc v1.29.1
+	k8s.io/client-go => k8s.io/client-go v0.18.3
+)

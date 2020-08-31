@@ -8,7 +8,10 @@ import (
 	"io/ioutil"
 
 	"github.com/stretchr/testify/mock"
+	"github.com/thanos-io/thanos/pkg/objstore"
 )
+
+var errObjectDoesNotExist = errors.New("object does not exist")
 
 // BucketClientMock mocks objstore.Bucket
 type BucketClientMock struct {
@@ -40,7 +43,17 @@ func (m *BucketClientMock) Iter(ctx context.Context, dir string, f func(string) 
 
 // MockIter is a convenient method to mock Iter()
 func (m *BucketClientMock) MockIter(prefix string, objects []string, err error) {
+	m.MockIterWithCallback(prefix, objects, err, nil)
+}
+
+// MockIterWithCallback is a convenient method to mock Iter() and get a callback called when the Iter
+// API is called.
+func (m *BucketClientMock) MockIterWithCallback(prefix string, objects []string, err error, cb func()) {
 	m.On("Iter", mock.Anything, prefix, mock.Anything).Return(err).Run(func(args mock.Arguments) {
+		if cb != nil {
+			cb()
+		}
+
 		f := args.Get(2).(func(string) error)
 
 		for _, o := range objects {
@@ -54,18 +67,33 @@ func (m *BucketClientMock) MockIter(prefix string, objects []string, err error) 
 // Get mocks objstore.Bucket.Get()
 func (m *BucketClientMock) Get(ctx context.Context, name string) (io.ReadCloser, error) {
 	args := m.Called(ctx, name)
-	return args.Get(0).(io.ReadCloser), args.Error(1)
+	val, err := args.Get(0), args.Error(1)
+	if val == nil {
+		return nil, err
+	}
+	return val.(io.ReadCloser), err
 }
 
 // MockGet is a convenient method to mock Get() and Exists()
 func (m *BucketClientMock) MockGet(name, content string, err error) {
 	if content != "" {
 		m.On("Exists", mock.Anything, name).Return(true, err)
-		m.On("Get", mock.Anything, name).Return(ioutil.NopCloser(bytes.NewReader([]byte(content))), err)
+
+		// Since we return an ReadCloser and it can be consumed only once,
+		// each time the mocked Get() is called we do create a new one, so
+		// that getting the same mocked object twice works as expected.
+		mockedGet := m.On("Get", mock.Anything, name)
+		mockedGet.Run(func(args mock.Arguments) {
+			mockedGet.Return(ioutil.NopCloser(bytes.NewReader([]byte(content))), err)
+		})
 	} else {
 		m.On("Exists", mock.Anything, name).Return(false, err)
-		m.On("Get", mock.Anything, name).Return(nil, errors.New("object does not exist"))
+		m.On("Get", mock.Anything, name).Return(nil, errObjectDoesNotExist)
 	}
+}
+
+func (m *BucketClientMock) MockDelete(name string, err error) {
+	m.On("Delete", mock.Anything, name).Return(err)
 }
 
 // GetRange mocks objstore.Bucket.GetRange()
@@ -82,18 +110,13 @@ func (m *BucketClientMock) Exists(ctx context.Context, name string) (bool, error
 
 // IsObjNotFoundErr mocks objstore.Bucket.IsObjNotFoundErr()
 func (m *BucketClientMock) IsObjNotFoundErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	args := m.Called(err)
-	return args.Bool(0)
+	return err == errObjectDoesNotExist
 }
 
-// ObjectSize mocks objstore.Bucket.ObjectSize()
-func (m *BucketClientMock) ObjectSize(ctx context.Context, name string) (uint64, error) {
+// ObjectSize mocks objstore.Bucket.Attributes()
+func (m *BucketClientMock) Attributes(ctx context.Context, name string) (objstore.ObjectAttributes, error) {
 	args := m.Called(ctx, name)
-	return args.Get(0).(uint64), args.Error(1)
+	return args.Get(0).(objstore.ObjectAttributes), args.Error(1)
 }
 
 // Close mocks objstore.Bucket.Close()

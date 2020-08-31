@@ -171,7 +171,7 @@ func (n *networkTopology) replicaMap(tokenRing *tokenRing) tokenRingReplicas {
 	}
 
 	tokens := tokenRing.tokens
-	replicaRing := make(tokenRingReplicas, len(tokens))
+	replicaRing := make(tokenRingReplicas, 0, len(tokens))
 
 	var totalRF int
 	for _, rf := range n.dcs {
@@ -179,6 +179,11 @@ func (n *networkTopology) replicaMap(tokenRing *tokenRing) tokenRingReplicas {
 	}
 
 	for i, th := range tokenRing.tokens {
+		if rf := n.dcs[th.host.DataCenter()]; rf == 0 {
+			// skip this token since no replica in this datacenter.
+			continue
+		}
+
 		for k, v := range skipped {
 			skipped[k] = v[:0]
 		}
@@ -202,9 +207,9 @@ func (n *networkTopology) replicaMap(tokenRing *tokenRing) tokenRingReplicas {
 			dc := h.DataCenter()
 			rack := h.Rack()
 
-			rf, ok := n.dcs[dc]
-			if !ok {
-				// skip this DC, dont know about it
+			rf := n.dcs[dc]
+			if rf == 0 {
+				// skip this DC, dont know about it or replication factor is zero
 				continue
 			} else if replicasInDC[dc] >= rf {
 				if replicasInDC[dc] > rf {
@@ -261,10 +266,10 @@ func (n *networkTopology) replicaMap(tokenRing *tokenRing) tokenRingReplicas {
 			panic(fmt.Sprintf("first replica is not the primary replica for the token: expected %v got %v", replicas[0].ConnectAddress(), th.host.ConnectAddress()))
 		}
 
-		replicaRing[i] = hostTokens{th.token, replicas}
+		replicaRing = append(replicaRing, hostTokens{th.token, replicas})
 	}
 
-	if len(replicaRing) != len(tokens) {
+	if len(n.dcs) == len(dcRacks) && len(replicaRing) != len(tokens) {
 		panic(fmt.Sprintf("token map different size to token ring: got %d expected %d", len(replicaRing), len(tokens)))
 	}
 

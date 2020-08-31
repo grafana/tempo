@@ -3,7 +3,7 @@ package chunk
 import (
 	"context"
 	"fmt"
-	"net/http"
+	"time"
 
 	"github.com/go-kit/kit/log/level"
 	jsoniter "github.com/json-iterator/go"
@@ -12,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/weaveworks/common/httpgrpc"
 
 	"github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/cortexproject/cortex/pkg/querier/astmapper"
@@ -60,41 +59,36 @@ var (
 		// For 100k series for 7 week, could be 1.2m - 10*(8^(7-1)) = 2.6m.
 		Buckets: prometheus.ExponentialBuckets(10, 8, 7),
 	})
+	dedupedChunksTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "cortex",
+		Name:      "chunk_store_deduped_chunks_total",
+		Help:      "Count of chunks which were not stored because they have already been stored by another replica.",
+	})
 )
 
 // seriesStore implements Store
 type seriesStore struct {
-	store
+	baseStore
+	schema           SeriesStoreSchema
 	writeDedupeCache cache.Cache
 }
 
-func newSeriesStore(cfg StoreConfig, schema Schema, index IndexClient, chunks Client, limits StoreLimits) (Store, error) {
-	fetcher, err := NewChunkFetcher(cfg.ChunkCacheConfig, cfg.chunkCacheStubs, chunks)
-	if err != nil {
-		return nil, err
-	}
-
-	writeDedupeCache, err := cache.New(cfg.WriteDedupeCacheConfig)
+func newSeriesStore(cfg StoreConfig, schema SeriesStoreSchema, index IndexClient, chunks Client, limits StoreLimits, chunksCache, writeDedupeCache cache.Cache) (Store, error) {
+	rs, err := newBaseStore(cfg, schema, index, chunks, limits, chunksCache)
 	if err != nil {
 		return nil, err
 	}
 
 	if cfg.CacheLookupsOlderThan != 0 {
 		schema = &schemaCaching{
-			Schema:         schema,
-			cacheOlderThan: cfg.CacheLookupsOlderThan,
+			SeriesStoreSchema: schema,
+			cacheOlderThan:    time.Duration(cfg.CacheLookupsOlderThan),
 		}
 	}
 
 	return &seriesStore{
-		store: store{
-			cfg:     cfg,
-			index:   index,
-			chunks:  chunks,
-			schema:  schema,
-			limits:  limits,
-			Fetcher: fetcher,
-		},
+		baseStore:        rs,
+		schema:           schema,
 		writeDedupeCache: writeDedupeCache,
 	}, nil
 }
@@ -120,7 +114,7 @@ func (c *seriesStore) Get(ctx context.Context, userID string, from, through mode
 	// Protect ourselves against OOMing.
 	maxChunksPerQuery := c.limits.MaxChunksPerQuery(userID)
 	if maxChunksPerQuery > 0 && len(chunks) > maxChunksPerQuery {
-		err := httpgrpc.Errorf(http.StatusBadRequest, "Query %v fetched too many chunks (%d > %d)", allMatchers, len(chunks), maxChunksPerQuery)
+		err := QueryError(fmt.Sprintf("Query %v fetched too many chunks (%d > %d)", allMatchers, len(chunks), maxChunksPerQuery))
 		level.Error(log).Log("err", err)
 		return nil, err
 	}
@@ -188,7 +182,12 @@ func (c *seriesStore) GetChunkRefs(ctx context.Context, userID string, from, thr
 	level.Debug(log).Log("chunks-post-filtering", len(chunks))
 	chunksPerQuery.Observe(float64(len(chunks)))
 
-	return [][]Chunk{chunks}, []*Fetcher{c.store.Fetcher}, nil
+	// We should return an empty chunks slice if there are no chunks.
+	if len(chunks) == 0 {
+		return [][]Chunk{}, []*Fetcher{}, nil
+	}
+
+	return [][]Chunk{chunks}, []*Fetcher{c.baseStore.fetcher}, nil
 }
 
 // LabelNamesForMetricName retrieves all label names for a metric name.
@@ -252,7 +251,7 @@ func (c *seriesStore) lookupLabelNamesByChunks(ctx context.Context, from, throug
 	chunksPerQuery.Observe(float64(len(filtered)))
 
 	// Now fetch the actual chunk data from Memcache / S3
-	allChunks, err := c.FetchChunks(ctx, filtered, keys)
+	allChunks, err := c.fetcher.FetchChunks(ctx, filtered, keys)
 	if err != nil {
 		level.Error(log).Log("msg", "FetchChunks", "err", err)
 		return nil, err
@@ -306,12 +305,14 @@ func (c *seriesStore) lookupSeriesByMetricNameMatchers(ctx context.Context, from
 	var lastErr error
 	var cardinalityExceededErrors int
 	var cardinalityExceededError CardinalityExceededError
+	var initialized bool
 	for i := 0; i < len(matchers); i++ {
 		select {
 		case incoming := <-incomingIDs:
 			preIntersectionCount += len(incoming)
-			if ids == nil {
+			if !initialized {
 				ids = incoming
+				initialized = true
 			} else {
 				ids = intersectStrings(ids, incoming)
 			}
@@ -343,47 +344,9 @@ func (c *seriesStore) lookupSeriesByMetricNameMatchers(ctx context.Context, from
 }
 
 func (c *seriesStore) lookupSeriesByMetricNameMatcher(ctx context.Context, from, through model.Time, userID, metricName string, matcher *labels.Matcher, shard *astmapper.ShardAnnotation) ([]string, error) {
-	log, ctx := spanlogger.New(ctx, "SeriesStore.lookupSeriesByMetricNameMatcher", "metricName", metricName, "matcher", matcher)
-	defer log.Span.Finish()
-
-	var err error
-	var queries []IndexQuery
-	var labelName string
-	if matcher == nil {
-		queries, err = c.schema.GetReadQueriesForMetric(from, through, userID, metricName)
-	} else if matcher.Type != labels.MatchEqual {
-		labelName = matcher.Name
-		queries, err = c.schema.GetReadQueriesForMetricLabel(from, through, userID, metricName, matcher.Name)
-	} else {
-		labelName = matcher.Name
-		queries, err = c.schema.GetReadQueriesForMetricLabelValue(from, through, userID, metricName, matcher.Name, matcher.Value)
-	}
-	if err != nil {
-		return nil, err
-	}
-	level.Debug(log).Log("queries", len(queries))
-
-	queries = c.schema.FilterReadQueries(queries, shard)
-
-	level.Debug(log).Log("filteredQueries", len(queries))
-
-	entries, err := c.lookupEntriesByQueries(ctx, queries)
-	if e, ok := err.(CardinalityExceededError); ok {
-		e.MetricName = metricName
-		e.LabelName = labelName
-		return nil, e
-	} else if err != nil {
-		return nil, err
-	}
-	level.Debug(log).Log("entries", len(entries))
-
-	ids, err := c.parseIndexEntries(ctx, entries, matcher)
-	if err != nil {
-		return nil, err
-	}
-	level.Debug(log).Log("ids", len(ids))
-
-	return ids, nil
+	return c.lookupIdsByMetricNameMatcher(ctx, from, through, userID, metricName, matcher, func(queries []IndexQuery) []IndexQuery {
+		return c.schema.FilterReadQueries(queries, shard)
+	})
 }
 
 func (c *seriesStore) lookupChunksBySeries(ctx context.Context, from, through model.Time, userID string, seriesIDs []string) ([]string, error) {
@@ -458,9 +421,19 @@ func (c *seriesStore) Put(ctx context.Context, chunks []Chunk) error {
 // PutOne implements ChunkStore
 func (c *seriesStore) PutOne(ctx context.Context, from, through model.Time, chunk Chunk) error {
 	log, ctx := spanlogger.New(ctx, "SeriesStore.PutOne")
+	writeChunk := true
+
 	// If this chunk is in cache it must already be in the database so we don't need to write it again
-	found, _, _ := c.cache.Fetch(ctx, []string{chunk.ExternalKey()})
+	found, _, _ := c.fetcher.cache.Fetch(ctx, []string{chunk.ExternalKey()})
 	if len(found) > 0 {
+		writeChunk = false
+		dedupedChunksTotal.Inc()
+	}
+
+	// If we dont have to write the chunk and DisableIndexDeduplication is false, we do not have to do anything.
+	// If we dont have to write the chunk and DisableIndexDeduplication is true, we have to write index and not chunk.
+	// Otherwise write both index and chunk.
+	if !writeChunk && !c.cfg.DisableIndexDeduplication {
 		return nil
 	}
 
@@ -471,21 +444,32 @@ func (c *seriesStore) PutOne(ctx context.Context, from, through model.Time, chun
 		return err
 	}
 
-	if oic, ok := c.storage.(ObjectAndIndexClient); ok {
-		if err = oic.PutChunkAndIndex(ctx, chunk, writeReqs); err != nil {
+	if oic, ok := c.fetcher.storage.(ObjectAndIndexClient); ok {
+		chunks := chunks
+		if !writeChunk {
+			chunks = []Chunk{}
+		}
+		if err = oic.PutChunksAndIndex(ctx, chunks, writeReqs); err != nil {
 			return err
 		}
 	} else {
-		err := c.storage.PutChunks(ctx, chunks)
-		if err != nil {
-			return err
+		// chunk not found, write it.
+		if writeChunk {
+			err := c.fetcher.storage.PutChunks(ctx, chunks)
+			if err != nil {
+				return err
+			}
 		}
 		if err := c.index.BatchWrite(ctx, writeReqs); err != nil {
 			return err
 		}
 	}
-	if cacheErr := c.writeBackCache(ctx, chunks); cacheErr != nil {
-		level.Warn(log).Log("msg", "could not store chunks in chunk cache", "err", cacheErr)
+
+	// we already have the chunk in the cache so don't write it back to the cache.
+	if writeChunk {
+		if cacheErr := c.fetcher.writeBackCache(ctx, chunks); cacheErr != nil {
+			level.Warn(log).Log("msg", "could not store chunks in chunk cache", "err", cacheErr)
+		}
 	}
 
 	bufs := make([][]byte, len(keysToCache))

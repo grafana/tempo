@@ -19,7 +19,6 @@ import (
 	"github.com/prometheus/prometheus/tsdb/fileutil"
 	"github.com/prometheus/prometheus/tsdb/index"
 	"github.com/thanos-io/thanos/pkg/block"
-	"github.com/thanos-io/thanos/pkg/block/indexheader"
 	"github.com/thanos-io/thanos/pkg/block/metadata"
 	"github.com/thanos-io/thanos/pkg/runutil"
 )
@@ -108,7 +107,7 @@ func NewStreamedBlockWriter(
 // labelsValues sets and memPostings to be written on the finalize state in the end of downsampling process.
 func (w *streamedBlockWriter) WriteSeries(lset labels.Labels, chunks []chunks.Meta) error {
 	if w.finalized || w.ignoreFinalize {
-		return errors.Errorf("series can't be added, writers has been closed or internal error happened")
+		return errors.New("series can't be added, writers has been closed or internal error happened")
 	}
 
 	if len(chunks) == 0 {
@@ -158,14 +157,6 @@ func (w *streamedBlockWriter) Close() error {
 
 	for _, cl := range w.closers {
 		merr.Add(cl.Close())
-	}
-
-	if err := indexheader.WriteJSON(
-		w.logger,
-		filepath.Join(w.blockDir, block.IndexFilename),
-		filepath.Join(w.blockDir, block.IndexCacheFilename),
-	); err != nil {
-		return errors.Wrap(err, "write index cache")
 	}
 
 	if err := w.writeMetaFile(); err != nil {

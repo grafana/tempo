@@ -18,9 +18,9 @@ import (
 // is used to strip down the config to the minimum, and avoid confusion
 // to the user.
 type RingConfig struct {
-	KVStore          kv.Config     `yaml:"kvstore,omitempty"`
-	HeartbeatPeriod  time.Duration `yaml:"heartbeat_period,omitempty"`
-	HeartbeatTimeout time.Duration `yaml:"heartbeat_timeout,omitempty"`
+	KVStore          kv.Config     `yaml:"kvstore"`
+	HeartbeatPeriod  time.Duration `yaml:"heartbeat_period"`
+	HeartbeatTimeout time.Duration `yaml:"heartbeat_timeout"`
 
 	// Instance details
 	InstanceID             string   `yaml:"instance_id" doc:"hidden"`
@@ -47,7 +47,7 @@ func (cfg *RingConfig) RegisterFlags(f *flag.FlagSet) {
 
 	// Instance flags
 	cfg.InstanceInterfaceNames = []string{"eth0", "en0"}
-	f.Var((*flagext.Strings)(&cfg.InstanceInterfaceNames), "compactor.ring.instance-interface", "Name of network interface to read address from.")
+	f.Var((*flagext.StringSlice)(&cfg.InstanceInterfaceNames), "compactor.ring.instance-interface", "Name of network interface to read address from.")
 	f.StringVar(&cfg.InstanceAddr, "compactor.ring.instance-addr", "", "IP address to advertise in the ring.")
 	f.IntVar(&cfg.InstancePort, "compactor.ring.instance-port", 0, "Port to advertise in the ring (defaults to server.grpc-listen-port).")
 	f.StringVar(&cfg.InstanceID, "compactor.ring.instance-id", hostname, "Instance ID to register in the ring.")
@@ -71,7 +71,7 @@ func (cfg *RingConfig) ToLifecyclerConfig() ring.LifecyclerConfig {
 
 	// Configure lifecycler
 	lc.RingConfig = rc
-	lc.ListenPort = &cfg.ListenPort
+	lc.ListenPort = cfg.ListenPort
 	lc.Addr = cfg.InstanceAddr
 	lc.Port = cfg.InstancePort
 	lc.ID = cfg.InstanceID

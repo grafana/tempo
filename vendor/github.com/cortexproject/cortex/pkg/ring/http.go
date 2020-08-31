@@ -30,6 +30,7 @@ const pageContent = `
 				<thead>
 					<tr>
 						<th>Instance ID</th>
+						<th>Availability Zone</th>
 						<th>State</th>
 						<th>Address</th>
 						<th>Last Heartbeat</th>
@@ -46,6 +47,7 @@ const pageContent = `
 					<tr bgcolor="#BEBEBE">
 					{{ end }}
 						<td>{{ .ID }}</td>
+						<td>{{ .Zone }}</td>
 						<td>{{ .State }}</td>
 						<td>{{ .Address }}</td>
 						<td>{{ .Timestamp }}</td>
@@ -138,16 +140,21 @@ func (r *Ring) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 
 		ingesters = append(ingesters, struct {
-			ID, State, Address, Timestamp string
-			Tokens                        []uint32
-			NumTokens                     int
-			Ownership                     float64
+			ID        string   `json:"id"`
+			State     string   `json:"state"`
+			Address   string   `json:"address"`
+			Timestamp string   `json:"timestamp"`
+			Zone      string   `json:"zone"`
+			Tokens    []uint32 `json:"tokens"`
+			NumTokens int      `json:"-"`
+			Ownership float64  `json:"-"`
 		}{
 			ID:        id,
 			State:     state,
 			Address:   ing.Addr,
 			Timestamp: timestamp.String(),
 			Tokens:    ing.Tokens,
+			Zone:      ing.Zone,
 			NumTokens: len(ing.Tokens),
 			Ownership: (float64(owned[id]) / float64(math.MaxUint32)) * 100,
 		})
@@ -155,16 +162,13 @@ func (r *Ring) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	tokensParam := req.URL.Query().Get("tokens")
 
-	if err := pageTemplate.Execute(w, struct {
-		Ingesters  []interface{}
-		Now        time.Time
-		ShowTokens bool
+	util.RenderHTTPResponse(w, struct {
+		Ingesters  []interface{} `json:"shards"`
+		Now        time.Time     `json:"now"`
+		ShowTokens bool          `json:"-"`
 	}{
 		Ingesters:  ingesters,
 		Now:        time.Now(),
 		ShowTokens: tokensParam == "true",
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	}, pageTemplate, req)
 }
