@@ -18,8 +18,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
 
-	"github.com/grafana/tempo/pkg/ingester/client"
-	ingester_client "github.com/grafana/tempo/pkg/ingester/client"
 	"github.com/grafana/tempo/pkg/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/validation"
@@ -40,8 +38,7 @@ var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 
 // Ingester builds chunks for incoming log streams.
 type Ingester struct {
-	cfg          Config
-	clientConfig client.Config
+	cfg Config
 
 	shutdownMtx  sync.Mutex // Allows processes to grab a lock and prevent a shutdown
 	instancesMtx sync.RWMutex
@@ -66,16 +63,15 @@ type Ingester struct {
 }
 
 // New makes a new Ingester.
-func New(cfg Config, clientConfig ingester_client.Config, store storage.Store, limits *validation.Overrides) (*Ingester, error) {
+func New(cfg Config, store storage.Store, limits *validation.Overrides) (*Ingester, error) {
 
 	i := &Ingester{
-		cfg:          cfg,
-		clientConfig: clientConfig,
-		instances:    map[string]*instance{},
-		store:        store,
-		quit:         make(chan struct{}),
-		flushQueues:  make([]*util.PriorityQueue, cfg.ConcurrentFlushes),
-		quitting:     make(chan struct{}),
+		cfg:         cfg,
+		instances:   map[string]*instance{},
+		store:       store,
+		quit:        make(chan struct{}),
+		flushQueues: make([]*util.PriorityQueue, cfg.ConcurrentFlushes),
+		quitting:    make(chan struct{}),
 	}
 
 	i.flushQueuesDone.Add(cfg.ConcurrentFlushes)

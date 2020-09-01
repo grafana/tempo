@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"github.com/cortexproject/cortex/pkg/chunk/storage"
 	"github.com/go-kit/kit/log"
 	"github.com/grafana/tempo/tempodb"
 )
@@ -22,7 +21,7 @@ type store struct {
 }
 
 // NewStore creates a new Tempo Store using configuration supplied.
-func NewStore(cfg Config, limits storage.StoreLimits, logger log.Logger) (Store, error) {
+func NewStore(cfg Config, logger log.Logger) (Store, error) {
 	r, w, c, err := tempodb.New(&cfg.Trace, logger)
 	if err != nil {
 		return nil, err
