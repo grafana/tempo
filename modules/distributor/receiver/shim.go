@@ -3,8 +3,10 @@ package receiver
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/common/user"
@@ -28,19 +30,16 @@ const (
 	logsPerSecond = 10
 )
 
-type Receivers interface {
-	Start() error
-	Shutdown() error
-}
-
 type receiversShim struct {
+	services.Service
+
 	authEnabled bool
 	receivers   []component.Receiver
 	pusher      tempopb.PusherServer
 	logger      *tempo_util.RateLimitedLogger
 }
 
-func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEnabled bool) (Receivers, error) {
+func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEnabled bool) (services.Service, error) {
 	shim := &receiversShim{
 		authEnabled: authEnabled,
 		pusher:      pusher,
@@ -105,13 +104,11 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 		shim.receivers = append(shim.receivers, receiver)
 	}
 
+	shim.Service = services.NewBasicService(shim.starting, nil, shim.stopping)
+
 	return shim, nil
 }
-
-// implements Receivers
-func (r *receiversShim) Start() error {
-	ctx := context.Background() // todo: actually propagate a context with a timeout
-
+func (d *Distributor) starting(ctx context.Context) error {
 	for _, receiver := range r.receivers {
 		err := receiver.Start(ctx, r)
 		if err != nil {
@@ -122,9 +119,9 @@ func (r *receiversShim) Start() error {
 	return nil
 }
 
-// implements Receivers
-func (r *receiversShim) Shutdown() error {
-	ctx := context.Background() // todo: actually propagate a context with a timeout
+// Called after distributor is asked to stop via StopAsync.
+func (d *Distributor) stopping(_ error) error {
+	ctx := context.WithTimeout(context.Background(), 30*time.Second)
 	errs := make([]error, 0)
 
 	for _, receiver := range r.receivers {

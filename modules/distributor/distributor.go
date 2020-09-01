@@ -13,6 +13,7 @@ import (
 	cortex_util "github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/limiter"
 	"github.com/cortexproject/cortex/pkg/util/services"
+	"github.com/pkg/errors"
 
 	"github.com/go-kit/kit/log/level"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
@@ -64,21 +65,22 @@ var (
 
 // Distributor coordinates replicates and distribution of log streams.
 type Distributor struct {
+	services.Service
+
 	cfg           Config
 	clientCfg     ingester_client.Config
 	ingestersRing ring.ReadRing
-	overrides     *validation.Overrides
 	pool          *ring_client.Pool
 
 	// receiver shims
 	receivers receiver.Receivers
 
-	// The global rate limiter requires a distributors ring to count
-	// the number of healthy instances.
-	distributorsRing *ring.Lifecycler
-
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
+
+	// Manager for subservices
+	subservices        *services.Manager
+	subservicesWatcher *services.FailureWatcher
 }
 
 // New a distributor creates.
@@ -89,6 +91,8 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 			return ingester_client.New(addr, clientCfg)
 		}
 	}
+
+	subservices := []services.Service(nil)
 
 	// Create the configured ingestion rate limit strategy (local or global).
 	var ingestionRateStrategy limiter.RateLimiterStrategy
@@ -101,77 +105,72 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 			return nil, err
 		}
 
-		err = services.StartAndAwaitRunning(context.Background(), distributorsRing)
-		if err != nil {
-			return nil, err
-		}
-
+		subservices = append(subservices, distributorsRing)
 		ingestionRateStrategy = newGlobalIngestionRateStrategy(overrides, distributorsRing)
 	} else {
 		ingestionRateStrategy = newLocalIngestionRateStrategy(overrides)
 	}
 
+	pool := ring_client.NewPool("distributor_pool",
+		clientCfg.PoolConfig,
+		ring_client.NewRingServiceDiscovery(ingestersRing),
+		factory,
+		metricIngesterClients,
+		cortex_util.Logger)
+
+	subservices = append(subservices, pool)
+
 	d := &Distributor{
-		cfg:              cfg,
-		clientCfg:        clientCfg,
-		ingestersRing:    ingestersRing,
-		distributorsRing: distributorsRing,
-		overrides:        overrides,
-		pool: ring_client.NewPool("distributor_pool",
-			clientCfg.PoolConfig,
-			ring_client.NewRingServiceDiscovery(ingestersRing),
-			factory,
-			metricIngesterClients,
-			cortex_util.Logger),
+		cfg:                  cfg,
+		clientCfg:            clientCfg,
+		ingestersRing:        ingestersRing,
+		pool:                 pool,
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 	}
 
-	if len(cfg.Receivers) > 0 {
-		var err error
-		d.receivers, err = receiver.New(cfg.Receivers, d, authEnabled)
-		if err != nil {
-			return nil, err
-		}
-		err = d.receivers.Start()
-		if err != nil {
-			return nil, err
-		}
+	if len(cfg.Receivers) == 0 {
+		return nil, errors.New("at least one receiver config required")
 	}
 
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelFunc()
-	err := services.StartAndAwaitRunning(ctx, d.pool)
+	receivers, err = receiver.New(cfg.Receivers, d, authEnabled)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to start distributor pool %w", err)
+		return nil, err
 	}
+	subservices = append(subservices, receivers)
 
+	d.subservices, err = services.NewManager(subservices...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create subservices %w", err)
+	}
+	d.subservicesWatcher = services.NewFailureWatcher()
+	d.subservicesWatcher.WatchManager(d.subservices)
+
+	d.Service = services.NewBasicService(d.starting, d.running, d.stopping)
 	return d, nil
 }
 
-func (d *Distributor) Stop() {
-	if d.distributorsRing != nil {
-		err := services.StopAndAwaitTerminated(context.Background(), d.distributorsRing)
-		if err != nil {
-			level.Error(cortex_util.Logger).Log("msg", "error stopping receivers", "error", err)
-		}
+func (d *Distributor) starting(ctx context.Context) error {
+	// Only report success if all sub-services start properly
+	err := services.StartManagerAndAwaitHealthy(ctx, d.subservices)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start subservices %w", err)
 	}
 
-	if d.receivers != nil {
-		err := d.receivers.Shutdown()
-		if err != nil {
-			level.Error(cortex_util.Logger).Log("msg", "error stopping receivers", "error", err)
-		}
-	}
+	return nil
+}
 
-	if d.pool != nil {
-		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancelFunc()
-
-		err := services.StopAndAwaitTerminated(ctx, d.pool)
-		if err != nil {
-			level.Error(cortex_util.Logger).Log("msg", "error stopping pool", "error", err)
-		}
+func (d *Distributor) running(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-d.subservicesWatcher.Chan():
+		return fmt.Errorf("distributor subservices failed %w", err)
 	}
+}
+
+// Called after distributor is asked to stop via StopAsync.
+func (d *Distributor) stopping(_ error) error {
+	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
 // ReadinessHandler is used to indicate to k8s when the distributor is ready.
