@@ -175,7 +175,7 @@ func (t *App) initStore() (services.Service, error) {
 	}
 	t.store = store
 
-	return store, nil
+	return t.store, nil
 }
 
 func (t *App) initMemberlistKV() (services.Service, error) {
