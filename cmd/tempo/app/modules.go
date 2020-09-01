@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 
@@ -120,18 +119,6 @@ func (t *App) initIngester() (services.Service, error) {
 	return t.ingester, nil
 }
 
-/*
-func (t *App) stopIngester() error {
-	t.ingester.Shutdown() // jpe - handle stopping and stop?
-	return nil
-}
-
-func (t *App) stoppingIngester() error {
-	t.ingester.Stopping()
-	return nil
-}
-*/
-
 func (t *App) initQuerier() (services.Service, error) {
 	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides) // jpe ingester client as module?
 	if err != nil {
@@ -150,6 +137,7 @@ func (t *App) initQuerier() (services.Service, error) {
 }
 
 func (t *App) initCompactor() (services.Service, error) {
+	t.cfg.Compactor.WaitOnStartup = t.cfg.StorageConfig.Trace.MaintenanceCycle // force the compactor to wait one maintenance cycle to start to prevent collisions
 	compactor, err := compactor.New(t.cfg.Compactor, t.store)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor %w", err)
@@ -157,13 +145,6 @@ func (t *App) initCompactor() (services.Service, error) {
 	t.compactor = compactor
 
 	t.server.HTTP.Handle("/ring-compactor", t.compactor.Ring) // jpe - put this someplace else /compactor/ring?  coordinate with above
-
-	go func() {
-		err := t.compactor.Start(t.cfg.StorageConfig)
-		if err != nil {
-			log.Fatalf("Error starting compactor: %v", err) // jpe - put this in a "starting" method in the compactor?
-		}
-	}()
 
 	return t.compactor, nil
 }

@@ -2,6 +2,7 @@ package compactor
 
 import (
 	"context"
+	"fmt"
 	"hash/fnv"
 	"time"
 
@@ -18,12 +19,17 @@ import (
 const CompactorRingKey = "compactor"
 
 type Compactor struct {
+	services.Service
+
 	cfg   *Config
 	store storage.Store
 
 	// Ring used for sharding compactions.
 	ringLifecycler *ring.Lifecycler
-	Ring           *ring.Ring
+	ring           *ring.Ring
+
+	subservices        *services.Manager
+	subservicesWatcher *services.FailureWatcher
 }
 
 // New makes a new Querier.
@@ -40,30 +46,35 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
 		c.ringLifecycler = lifecycler
+		c.subservices = append(c.subservices, c.ringLifecycler)
 
 		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", CompactorRingKey, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
 		}
-		c.Ring = ring
-
-		ctx := context.Background()
-
-		level.Info(util.Logger).Log("msg", "starting ring and lifecycler")
-		err = services.StartAndAwaitRunning(ctx, c.ringLifecycler)
-		if err != nil {
-			return nil, err
-		}
-		err = services.StartAndAwaitRunning(ctx, c.Ring)
-		if err != nil {
-			return nil, err
-		}
+		c.ring = ring
+		c.subservices = append(c.subservices, c.ring)
 	}
+
+	d.subservices, err = services.NewManager(subservices...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create subservices %w", err)
+	}
+	d.subservicesWatcher = services.NewFailureWatcher()
+	d.subservicesWatcher.WatchManager(d.subservices)
+
+	c.Service = services.NewBasicService(c.starting, c.running, c.stopping)
 
 	return c, nil
 }
 
-func (c *Compactor) Start(storeCfg storage.Config) error {
+func (c *Compactor) starting(ctx context.Context) error {
+	// Only report success if all sub-services start properly
+	err := services.StartManagerAndAwaitHealthy(ctx, d.subservices)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start subservices %w", err)
+	}
+
 	if c.cfg.ShardingEnabled {
 		ctx := context.Background()
 
@@ -72,32 +83,31 @@ func (c *Compactor) Start(storeCfg storage.Config) error {
 		if err != nil {
 			return err
 		}
-
-		// if there is already a compactor in the ring then let's wait one poll cycle here to reduce the chance
-		// of compactor collisions
-		rset, err := c.Ring.GetAll(ring.Reporting)
-		if err != nil {
-			return err
-		}
-
-		if len(rset.Ingesters) > 1 {
-			level.Info(util.Logger).Log("msg", "found more than 1 ingester.  waiting one poll cycle", "waitDuration", storeCfg.Trace.MaintenanceCycle)
-			time.Sleep(storeCfg.Trace.MaintenanceCycle)
-		}
 	}
-
-	level.Info(util.Logger).Log("msg", "enabling compaction")
-	c.store.EnableCompaction(c.cfg.Compactor, c)
 
 	return nil
 }
 
-// Shutdown stops the ingester.
-func (c *Compactor) Shutdown() {
-	err := services.StopAndAwaitTerminated(context.Background(), c.ringLifecycler)
-	if err != nil {
-		level.Error(util.Logger).Log("msg", "stop lifecycler failed", "err", err)
+func (c *Compactor) running(ctx context.Context) error {
+	go func() {
+		level.Info(util.Logger).Log("msg", "waiting one poll cycle", "waitDuration", c.cfg.WaitOnStartup)
+		time.Sleep(c.cfg.WaitOnStartup)
+
+		level.Info(util.Logger).Log("msg", "enabling compaction")
+		c.store.EnableCompaction(c.cfg.Compactor, c)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-d.subservicesWatcher.Chan():
+		return fmt.Errorf("distributor subservices failed %w", err)
 	}
+}
+
+// Called after distributor is asked to stop via StopAsync.
+func (c *Compactor) stopping(_ error) error {
+	return services.StopManagerAndAwaitStopped(context.Background(), c.subservices)
 }
 
 func (c *Compactor) Owns(hash string) bool {
