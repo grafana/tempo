@@ -1,18 +1,23 @@
 package storage
 
 import (
+	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log"
 	"github.com/grafana/tempo/tempodb"
 )
 
-// Store is the Tempo chunk store to retrieve and save chunks.
+// Store wraps the tempodb storage layer
 type Store interface {
+	services.Service
+
 	tempodb.Reader
 	tempodb.Writer
 	tempodb.Compactor
 }
 
 type store struct {
+	services.Service
+
 	cfg Config
 
 	tempodb.Reader
@@ -27,10 +32,20 @@ func NewStore(cfg Config, logger log.Logger) (Store, error) {
 		return nil, err
 	}
 
-	return &store{
+	s := &store{
 		cfg:       cfg,
 		Reader:    r,
 		Writer:    w,
 		Compactor: c,
-	}, nil
+	}
+
+	s.Service = services.NewBasicService(nil, nil, s.stopping)
+
+	return s, nil
+}
+
+func (s *store) stopping(_ error) error {
+	s.Reader.Shutdown()
+
+	return nil
 }
