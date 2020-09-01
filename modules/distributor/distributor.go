@@ -170,21 +170,6 @@ func (d *Distributor) stopping(_ error) error {
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
-// ReadinessHandler is used to indicate to k8s when the distributor is ready.
-// Returns 200 when the distributor is ready, 500 otherwise.
-func (d *Distributor) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
-	_, err := d.ingestersRing.GetAll(ring.Write)
-	if err != nil {
-		http.Error(w, "Not ready: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(readinessProbeSuccess); err != nil {
-		level.Error(cortex_util.Logger).Log("msg", "error writing success message", "error", err)
-	}
-}
-
 // Push a set of streams.
 func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)

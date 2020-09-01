@@ -3,14 +3,11 @@ package querier
 import (
 	"context"
 	"fmt"
-	"net/http"
 
-	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
-	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
@@ -202,24 +199,4 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 	}
 
 	return responses, err
-}
-
-// ReadinessHandler is used to indicate to k8s when the querier is ready.
-// Returns 200 when the querier is ready, 500 otherwise.
-func (q *Querier) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
-	_, err := q.ring.GetAll(ring.Read)
-	if err != nil {
-		http.Error(w, "Not ready: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(readinessProbeSuccess); err != nil {
-		level.Error(util.Logger).Log("msg", "error writing success message", "error", err)
-	}
-}
-
-// Check implements the grpc healthcheck
-func (*Querier) Check(_ context.Context, _ *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
-	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
 }

@@ -1,13 +1,16 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/grpc/healthcheck"
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
@@ -16,6 +19,7 @@ import (
 	"github.com/weaveworks/common/server"
 	"github.com/weaveworks/common/signals"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -139,11 +143,15 @@ func (t *App) Run() error {
 		return fmt.Errorf("failed to start service manager %w", err)
 	}
 
+	// before starting servers, register /ready handler and gRPC health check service.
+	t.server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
+	grpc_health_v1.RegisterHealthServer(t.server.GRPC, healthcheck.New(sm))
+
 	// Let's listen for events from this manager, and log them.
-	healthy := func() { level.Info(util.Logger).Log("msg", "Cortex started") }
-	stopped := func() { level.Info(util.Logger).Log("msg", "Cortex stopped") }
+	healthy := func() { level.Info(util.Logger).Log("msg", "Tempo started") }
+	stopped := func() { level.Info(util.Logger).Log("msg", "Tempo stopped") }
 	serviceFailed := func(service services.Service) {
-		// if any service fails, stop entire Cortex
+		// if any service fails, stop everything
 		sm.StopAsync()
 
 		// let's find out which module failed
@@ -177,4 +185,32 @@ func (t *App) Run() error {
 	}
 
 	return sm.AwaitStopped(context.Background())
+}
+
+func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !sm.IsHealthy() {
+			msg := bytes.Buffer{}
+			msg.WriteString("Some services are not Running:\n")
+
+			byState := sm.ServicesByState()
+			for st, ls := range byState {
+				msg.WriteString(fmt.Sprintf("%v: %d\n", st, len(ls)))
+			}
+
+			http.Error(w, msg.String(), http.StatusServiceUnavailable)
+			return
+		}
+
+		// Ingester has a special check that makes sure that it was able to register into the ring,
+		// and that all other ring entries are OK too.
+		if t.ingester != nil {
+			if err := t.ingester.CheckReady(r.Context()); err != nil {
+				http.Error(w, "Ingester not ready: "+err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+		}
+
+		http.Error(w, "ready", http.StatusOK)
+	}
 }

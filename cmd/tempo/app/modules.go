@@ -16,7 +16,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
-	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -101,7 +100,6 @@ func (t *App) initDistributor() (services.Service, error) {
 	}
 	t.distributor = distributor
 
-	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.distributor.ReadinessHandler)) // jpe use global readiness handler like cortex
 	return t.distributor, nil
 }
 
@@ -115,8 +113,6 @@ func (t *App) initIngester() (services.Service, error) {
 
 	tempopb.RegisterPusherServer(t.server.GRPC, t.ingester)
 	tempopb.RegisterQuerierServer(t.server.GRPC, t.ingester)
-	grpc_health_v1.RegisterHealthServer(t.server.GRPC, t.ingester)
-	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.ingester.ReadinessHandler)) // jpe use global readiness handler like cortex
 	t.server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
 	return t.ingester, nil
 }
@@ -133,7 +129,6 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 
-	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.querier.ReadinessHandler)) // jpe global readiness?
 	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
 	return t.querier, nil
