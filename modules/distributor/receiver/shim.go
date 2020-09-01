@@ -108,11 +108,11 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 
 	return shim, nil
 }
-func (d *Distributor) starting(ctx context.Context) error {
+func (r *receiversShim) starting(ctx context.Context) error {
 	for _, receiver := range r.receivers {
 		err := receiver.Start(ctx, r)
 		if err != nil {
-			return err
+			return fmt.Errorf("Error starting receiver %w", err)
 		}
 	}
 
@@ -120,8 +120,10 @@ func (d *Distributor) starting(ctx context.Context) error {
 }
 
 // Called after distributor is asked to stop via StopAsync.
-func (d *Distributor) stopping(_ error) error {
-	ctx := context.WithTimeout(context.Background(), 30*time.Second)
+func (r *receiversShim) stopping(_ error) error {
+	ctx, cancelFn := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelFn()
+
 	errs := make([]error, 0)
 
 	for _, receiver := range r.receivers {

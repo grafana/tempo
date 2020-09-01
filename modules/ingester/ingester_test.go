@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/weaveworks/common/user"
 
-	"github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -160,11 +159,14 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 				BloomFP:         .01,
 			},
 		},
-	}, limits, log.NewNopLogger())
+	}, log.NewNopLogger())
 	assert.NoError(t, err, "unexpected error store")
 
-	ingester, err := New(ingesterConfig, client.Config{}, s, limits)
+	ingester, err := New(ingesterConfig, s, limits)
 	assert.NoError(t, err, "unexpected error creating ingester")
+
+	err = ingester.starting(context.Background())
+	assert.NoError(t, err, "unexpected error starting ingester")
 
 	// make some fake traceIDs/requests
 	traces := make([]*tempopb.Trace, 0)

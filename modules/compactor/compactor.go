@@ -26,7 +26,7 @@ type Compactor struct {
 
 	// Ring used for sharding compactions.
 	ringLifecycler *ring.Lifecycler
-	ring           *ring.Ring
+	Ring           *ring.Ring
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
@@ -39,6 +39,7 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 		store: store,
 	}
 
+	subservices := []services.Service(nil)
 	if c.cfg.ShardingEnabled {
 		lifecyclerCfg := c.cfg.ShardingRing.ToLifecyclerConfig()
 		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", CompactorRingKey, false, prometheus.DefaultRegisterer)
@@ -46,22 +47,23 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
 		c.ringLifecycler = lifecycler
-		c.subservices = append(c.subservices, c.ringLifecycler)
+		subservices = append(subservices, c.ringLifecycler)
 
 		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", CompactorRingKey, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
 		}
-		c.ring = ring
-		c.subservices = append(c.subservices, c.ring)
+		c.Ring = ring
+		subservices = append(subservices, c.Ring)
 	}
 
-	d.subservices, err = services.NewManager(subservices...)
+	var err error
+	c.subservices, err = services.NewManager(subservices...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subservices %w", err)
 	}
-	d.subservicesWatcher = services.NewFailureWatcher()
-	d.subservicesWatcher.WatchManager(d.subservices)
+	c.subservicesWatcher = services.NewFailureWatcher()
+	c.subservicesWatcher.WatchManager(c.subservices)
 
 	c.Service = services.NewBasicService(c.starting, c.running, c.stopping)
 
@@ -70,9 +72,9 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 
 func (c *Compactor) starting(ctx context.Context) error {
 	// Only report success if all sub-services start properly
-	err := services.StartManagerAndAwaitHealthy(ctx, d.subservices)
+	err := services.StartManagerAndAwaitHealthy(ctx, c.subservices)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start subservices %w", err)
+		return fmt.Errorf("failed to start subservices %w", err)
 	}
 
 	if c.cfg.ShardingEnabled {
@@ -100,7 +102,7 @@ func (c *Compactor) running(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return nil
-	case err := <-d.subservicesWatcher.Chan():
+	case err := <-c.subservicesWatcher.Chan():
 		return fmt.Errorf("distributor subservices failed %w", err)
 	}
 }

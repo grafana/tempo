@@ -44,7 +44,7 @@ const (
 )
 
 func (t *App) initServer() (services.Service, error) {
-	cortex.DisableSignalHandling(t.cfg.Server)
+	cortex.DisableSignalHandling(&t.cfg.Server)
 
 	server, err := server.New(t.cfg.Server)
 	if err != nil {

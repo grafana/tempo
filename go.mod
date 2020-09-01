@@ -47,5 +47,10 @@ replace (
 	github.com/sercand/kuberesolver => github.com/sercand/kuberesolver v2.4.0+incompatible
 	go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
 	google.golang.org/grpc => google.golang.org/grpc v1.29.1
+)
+
+// additional Cortex or upstream required replaces
+replace (
+	github.com/satori/go.uuid => github.com/satori/go.uuid v1.2.0
 	k8s.io/client-go => k8s.io/client-go v0.18.3
 )

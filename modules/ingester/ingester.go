@@ -38,6 +38,8 @@ var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 
 // Ingester builds chunks for incoming log streams.
 type Ingester struct {
+	services.Service
+
 	cfg Config
 
 	shutdownMtx  sync.Mutex // Allows processes to grab a lock and prevent a shutdown
@@ -66,9 +68,7 @@ func New(cfg Config, store storage.Store, limits *validation.Overrides) (*Ingest
 		cfg:         cfg,
 		instances:   map[string]*instance{},
 		store:       store,
-		quit:        make(chan struct{}),
 		flushQueues: make([]*util.PriorityQueue, cfg.ConcurrentFlushes),
-		quitting:    make(chan struct{}),
 	}
 
 	i.flushQueuesDone.Add(cfg.ConcurrentFlushes)
@@ -100,13 +100,13 @@ func (i *Ingester) starting(ctx context.Context) error {
 	if err := i.lifecycler.StartAsync(context.Background()); err != nil {
 		return fmt.Errorf("failed to start lifecycler %w", err)
 	}
-	i.lifecycler.AwaitRunning(ctx); err != nil {
+	if err := i.lifecycler.AwaitRunning(ctx); err != nil {
 		return fmt.Errorf("failed to start lifecycle %w", err)
 	}
 
-	err = i.replayWal()
+	err := i.replayWal()
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to replay wal %w", err)
 	}
 
 	return nil
@@ -225,7 +225,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok = i.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, i.limiter, i.wal)
+		inst, err = newInstance(instanceID, i.limiter, i.store.WAL())
 		if err != nil {
 			return nil, err
 		}
@@ -272,7 +272,7 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 }
 
 func (i *Ingester) replayWal() error {
-	blocks, err := i.store.wal.AllBlocks()
+	blocks, err := i.store.WAL().AllBlocks()
 	// todo: should this fail startup?
 	if err != nil {
 		return nil

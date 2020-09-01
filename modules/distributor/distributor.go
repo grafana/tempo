@@ -13,7 +13,6 @@ import (
 	cortex_util "github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/limiter"
 	"github.com/cortexproject/cortex/pkg/util/services"
-	"github.com/pkg/errors"
 
 	"github.com/go-kit/kit/log/level"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
@@ -73,7 +72,7 @@ type Distributor struct {
 	pool          *ring_client.Pool
 
 	// receiver shims
-	receivers receiver.Receivers
+	receivers services.Service
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -128,16 +127,17 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 	}
 
-	if len(cfg.Receivers) == 0 {
-		return nil, errors.New("at least one receiver config required")
+	if len(cfg.Receivers) > 0 {
+		receivers, err := receiver.New(cfg.Receivers, d, authEnabled)
+		if err != nil {
+			return nil, err
+		}
+		subservices = append(subservices, receivers)
+	} else {
+		level.Warn(cortex_util.Logger).Log("msg", "no receivers configured")
 	}
 
-	receivers, err = receiver.New(cfg.Receivers, d, authEnabled)
-	if err != nil {
-		return nil, err
-	}
-	subservices = append(subservices, receivers)
-
+	var err error
 	d.subservices, err = services.NewManager(subservices...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subservices %w", err)
@@ -153,7 +153,7 @@ func (d *Distributor) starting(ctx context.Context) error {
 	// Only report success if all sub-services start properly
 	err := services.StartManagerAndAwaitHealthy(ctx, d.subservices)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start subservices %w", err)
+		return fmt.Errorf("failed to start subservices %w", err)
 	}
 
 	return nil

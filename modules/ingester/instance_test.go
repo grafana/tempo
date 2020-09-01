@@ -31,7 +31,7 @@ func TestInstance(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	wal := ingester.wal
+	wal := ingester.store.WAL()
 
 	request := test.MakeRequest(10, []byte{})
 
@@ -75,7 +75,7 @@ func TestInstanceFind(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	wal := ingester.wal
+	wal := ingester.store.WAL()
 
 	request := test.MakeRequest(10, []byte{})
 	traceID := test.MustTraceID(request)

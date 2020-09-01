@@ -51,7 +51,7 @@ func (c *Config) RegisterFlags(f *flag.FlagSet) {
 	c.MemberlistKV.MetricsNamespace = metricsNamespace // jpe use .MetricsRegisterer
 	c.Target = All
 	c.Server.ExcludeRequestInLog = true
-	f.StringVar(&c.Target, "target", "target module (default All)")
+	f.StringVar(&c.Target, "target", All, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
 
 	c.Server.RegisterFlags(f)

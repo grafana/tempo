@@ -83,28 +83,17 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 		limits: limits,
 	}
 
-	err := services.StartAndAwaitRunning(context.Background(), q.pool)
-	if err != nil {
-		return nil, err
-	}
-
 	q.subservicesWatcher = services.NewFailureWatcher()
-	q.subservicesWatcher.WatchService(q.lifecycler)
+	q.subservicesWatcher.WatchService(q.pool)
 
-	q.Service = services.NewBasicService(i.starting, i.running, i.stopping)
-
-	q.Service = services.NewBasicService(q.)
+	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
 	return q, nil
 }
 
 func (q *Querier) starting(ctx context.Context) error {
-	// Now that user states have been created, we can start the lifecycler.
-	// Important: we want to keep lifecycler running until we ask it to stop, so we need to give it independent context
-	if err := i.lifecycler.StartAsync(context.Background()); err != nil {
-		return fmt.Errorf("failed to start lifecycler %w", err)
-	}
-	i.lifecycler.AwaitRunning(ctx); err != nil {
-		return fmt.Errorf("failed to start lifecycler %w", err)
+	err := services.StartAndAwaitRunning(ctx, q.pool)
+	if err != nil {
+		return fmt.Errorf("failed to start pool %w", err)
 	}
 
 	return nil
@@ -121,13 +110,7 @@ func (q *Querier) running(ctx context.Context) error {
 
 // Called after distributor is asked to stop via StopAsync.
 func (q *Querier) stopping(_ error) error {
-	// Lifecycler can be nil if the ingester is for a flusher.
-	if i.lifecycler != nil {
-		// Next initiate our graceful exit from the ring.
-		return services.StopAndAwaitTerminated(context.Background(), i.lifecycler)
-	}
-
-	return nil
+	return services.StopAndAwaitTerminated(context.Background(), q.pool)
 }
 
 // FindTraceByID implements tempopb.Querier.
