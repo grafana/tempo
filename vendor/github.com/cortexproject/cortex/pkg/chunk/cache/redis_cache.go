@@ -5,6 +5,7 @@ import (
 	"flag"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gomodule/redigo/redis"
 
@@ -18,17 +19,21 @@ type RedisCache struct {
 	expiration int
 	timeout    time.Duration
 	pool       *redis.Pool
+	logger     log.Logger
 }
 
 // RedisConfig defines how a RedisCache should be constructed.
 type RedisConfig struct {
-	Endpoint       string         `yaml:"endpoint,omitempty"`
-	Timeout        time.Duration  `yaml:"timeout,omitempty"`
-	Expiration     time.Duration  `yaml:"expiration,omitempty"`
-	MaxIdleConns   int            `yaml:"max_idle_conns,omitempty"`
-	MaxActiveConns int            `yaml:"max_active_conns,omitempty"`
-	Password       flagext.Secret `yaml:"password"`
-	EnableTLS      bool           `yaml:"enable_tls"`
+	Endpoint             string         `yaml:"endpoint"`
+	Timeout              time.Duration  `yaml:"timeout"`
+	Expiration           time.Duration  `yaml:"expiration"`
+	MaxIdleConns         int            `yaml:"max_idle_conns"`
+	MaxActiveConns       int            `yaml:"max_active_conns"`
+	Password             flagext.Secret `yaml:"password"`
+	EnableTLS            bool           `yaml:"enable_tls"`
+	IdleTimeout          time.Duration  `yaml:"idle_timeout"`
+	WaitOnPoolExhaustion bool           `yaml:"wait_on_pool_exhaustion"`
+	MaxConnLifetime      time.Duration  `yaml:"max_conn_lifetime"`
 }
 
 // RegisterFlagsWithPrefix adds the flags required to config this to the given FlagSet
@@ -40,15 +45,17 @@ func (cfg *RedisConfig) RegisterFlagsWithPrefix(prefix, description string, f *f
 	f.IntVar(&cfg.MaxActiveConns, prefix+"redis.max-active-conns", 0, description+"Maximum number of active connections in pool.")
 	f.Var(&cfg.Password, prefix+"redis.password", description+"Password to use when connecting to redis.")
 	f.BoolVar(&cfg.EnableTLS, prefix+"redis.enable-tls", false, description+"Enables connecting to redis with TLS.")
+	f.DurationVar(&cfg.IdleTimeout, prefix+"redis.idle-timeout", 0, description+"Close connections after remaining idle for this duration. If the value is zero, then idle connections are not closed.")
+	f.BoolVar(&cfg.WaitOnPoolExhaustion, prefix+"redis.wait-on-pool-exhaustion", false, description+"Enables waiting if there are no idle connections. If the value is false and the pool is at the max_active_conns limit, the pool will return a connection with ErrPoolExhausted error and not wait for idle connections.")
+	f.DurationVar(&cfg.MaxConnLifetime, prefix+"redis.max-conn-lifetime", 0, description+"Close connections older than this duration. If the value is zero, then the pool does not close connections based on age.")
 }
 
 // NewRedisCache creates a new RedisCache
-func NewRedisCache(cfg RedisConfig, name string, pool *redis.Pool) *RedisCache {
+func NewRedisCache(cfg RedisConfig, name string, pool *redis.Pool, logger log.Logger) *RedisCache {
+	util.WarnExperimentalUse("Redis cache")
 	// pool != nil only in unit tests
 	if pool == nil {
 		pool = &redis.Pool{
-			MaxIdle:   cfg.MaxIdleConns,
-			MaxActive: cfg.MaxActiveConns,
 			Dial: func() (redis.Conn, error) {
 				options := make([]redis.DialOption, 0, 2)
 				if cfg.EnableTLS {
@@ -64,6 +71,11 @@ func NewRedisCache(cfg RedisConfig, name string, pool *redis.Pool) *RedisCache {
 				}
 				return c, err
 			},
+			MaxIdle:         cfg.MaxIdleConns,
+			MaxActive:       cfg.MaxActiveConns,
+			IdleTimeout:     cfg.IdleTimeout,
+			Wait:            cfg.WaitOnPoolExhaustion,
+			MaxConnLifetime: cfg.MaxConnLifetime,
 		}
 	}
 
@@ -72,10 +84,11 @@ func NewRedisCache(cfg RedisConfig, name string, pool *redis.Pool) *RedisCache {
 		timeout:    cfg.Timeout,
 		name:       name,
 		pool:       pool,
+		logger:     logger,
 	}
 
 	if err := cache.ping(context.Background()); err != nil {
-		level.Error(util.Logger).Log("msg", "error connecting to redis", "endpoint", cfg.Endpoint, "err", err)
+		level.Error(logger).Log("msg", "error connecting to redis", "endpoint", cfg.Endpoint, "err", err)
 	}
 
 	return cache
@@ -86,7 +99,7 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 	data, err := c.mget(ctx, keys)
 
 	if err != nil {
-		level.Error(util.Logger).Log("msg", "failed to get from redis", "name", c.name, "err", err)
+		level.Error(c.logger).Log("msg", "failed to get from redis", "name", c.name, "err", err)
 		missed = make([]string, len(keys))
 		copy(missed, keys)
 		return
@@ -106,7 +119,7 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 func (c *RedisCache) Store(ctx context.Context, keys []string, bufs [][]byte) {
 	err := c.mset(ctx, keys, bufs, c.expiration)
 	if err != nil {
-		level.Error(util.Logger).Log("msg", "failed to put to redis", "name", c.name, "err", err)
+		level.Error(c.logger).Log("msg", "failed to put to redis", "name", c.name, "err", err)
 	}
 }
 
@@ -116,7 +129,7 @@ func (c *RedisCache) Stop() {
 }
 
 // mset adds key-value pairs to the cache.
-func (c *RedisCache) mset(ctx context.Context, keys []string, bufs [][]byte, ttl int) error {
+func (c *RedisCache) mset(_ context.Context, keys []string, bufs [][]byte, ttl int) error {
 	conn := c.pool.Get()
 	defer conn.Close()
 
@@ -133,7 +146,7 @@ func (c *RedisCache) mset(ctx context.Context, keys []string, bufs [][]byte, ttl
 }
 
 // mget retrieves values from the cache.
-func (c *RedisCache) mget(ctx context.Context, keys []string) ([][]byte, error) {
+func (c *RedisCache) mget(_ context.Context, keys []string) ([][]byte, error) {
 	intf := make([]interface{}, len(keys))
 	for i, key := range keys {
 		intf[i] = key
@@ -145,7 +158,7 @@ func (c *RedisCache) mget(ctx context.Context, keys []string) ([][]byte, error) 
 	return redis.ByteSlices(redis.DoWithTimeout(conn, c.timeout, "MGET", intf...))
 }
 
-func (c *RedisCache) ping(ctx context.Context) error {
+func (c *RedisCache) ping(_ context.Context) error {
 	conn := c.pool.Get()
 	defer conn.Close()
 

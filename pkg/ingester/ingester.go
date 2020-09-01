@@ -19,6 +19,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/services"
 
 	"github.com/grafana/tempo/pkg/ingester/client"
+	ingester_client "github.com/grafana/tempo/pkg/ingester/client"
 	"github.com/grafana/tempo/pkg/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/validation"
@@ -65,10 +66,7 @@ type Ingester struct {
 }
 
 // New makes a new Ingester.
-func New(cfg Config, clientConfig client.Config, store storage.Store, limits *validation.Overrides) (*Ingester, error) {
-	if cfg.ingesterClientFactory == nil {
-		cfg.ingesterClientFactory = client.New
-	}
+func New(cfg Config, clientConfig ingester_client.Config, store storage.Store, limits *validation.Overrides) (*Ingester, error) {
 
 	i := &Ingester{
 		cfg:          cfg,
@@ -87,7 +85,7 @@ func New(cfg Config, clientConfig client.Config, store storage.Store, limits *va
 	}
 
 	var err error
-	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, false)
+	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, false, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %v", err)
 	}

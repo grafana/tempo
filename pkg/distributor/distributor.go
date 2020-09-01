@@ -2,13 +2,14 @@ package distributor
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
-	cortex_client "github.com/cortexproject/cortex/pkg/ingester/client"
 	"github.com/cortexproject/cortex/pkg/ring"
+	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	cortex_util "github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/limiter"
 	"github.com/cortexproject/cortex/pkg/util/services"
@@ -24,7 +25,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/tempo/pkg/distributor/receiver"
-	"github.com/grafana/tempo/pkg/ingester/client"
+	ingester_client "github.com/grafana/tempo/pkg/ingester/client"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/validation"
@@ -52,6 +53,11 @@ var (
 		Help:      "The number of traces in each batch",
 		Buckets:   prometheus.LinearBuckets(0, 3, 5),
 	})
+	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "distributor_ingester_clients",
+		Help:      "The current number of ingester clients.",
+	})
 
 	readinessProbeSuccess = []byte("Ready")
 )
@@ -59,10 +65,10 @@ var (
 // Distributor coordinates replicates and distribution of log streams.
 type Distributor struct {
 	cfg           Config
-	clientCfg     client.Config
+	clientCfg     ingester_client.Config
 	ingestersRing ring.ReadRing
 	overrides     *validation.Overrides
-	pool          *cortex_client.Pool
+	pool          *ring_client.Pool
 
 	// receiver shims
 	receivers receiver.Receivers
@@ -76,11 +82,11 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overrides *validation.Overrides, authEnabled bool) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, overrides *validation.Overrides, authEnabled bool) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
-		factory = func(addr string) (grpc_health_v1.HealthClient, error) {
-			return client.New(clientCfg, addr)
+		factory = func(addr string) (ring_client.PoolClient, error) {
+			return ingester_client.New(addr, clientCfg)
 		}
 	}
 
@@ -90,7 +96,7 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 
 	if overrides.IngestionRateStrategy() == validation.GlobalIngestionRateStrategy {
 		var err error
-		distributorsRing, err = ring.NewLifecycler(cfg.DistributorRing.ToLifecyclerConfig(), nil, "distributor", ring.DistributorRingKey, false)
+		distributorsRing, err = ring.NewLifecycler(cfg.DistributorRing.ToLifecyclerConfig(), nil, "distributor", ring.DistributorRingKey, false, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, err
 		}
@@ -106,12 +112,17 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 	}
 
 	d := &Distributor{
-		cfg:                  cfg,
-		clientCfg:            clientCfg,
-		ingestersRing:        ingestersRing,
-		distributorsRing:     distributorsRing,
-		overrides:            overrides,
-		pool:                 cortex_client.NewPool(clientCfg.PoolConfig, ingestersRing, factory, cortex_util.Logger),
+		cfg:              cfg,
+		clientCfg:        clientCfg,
+		ingestersRing:    ingestersRing,
+		distributorsRing: distributorsRing,
+		overrides:        overrides,
+		pool: ring_client.NewPool("distributor_pool",
+			clientCfg.PoolConfig,
+			ring_client.NewRingServiceDiscovery(ingestersRing),
+			factory,
+			metricIngesterClients,
+			cortex_util.Logger),
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 	}
 
@@ -125,6 +136,13 @@ func New(cfg Config, clientCfg client.Config, ingestersRing ring.ReadRing, overr
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelFunc()
+	err := services.StartAndAwaitRunning(ctx, d.pool)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to start distributor pool %w", err)
 	}
 
 	return d, nil
@@ -144,12 +162,22 @@ func (d *Distributor) Stop() {
 			level.Error(cortex_util.Logger).Log("msg", "error stopping receivers", "error", err)
 		}
 	}
+
+	if d.pool != nil {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFunc()
+
+		err := services.StopAndAwaitTerminated(ctx, d.pool)
+		if err != nil {
+			level.Error(cortex_util.Logger).Log("msg", "error stopping pool", "error", err)
+		}
+	}
 }
 
 // ReadinessHandler is used to indicate to k8s when the distributor is ready.
 // Returns 200 when the distributor is ready, 500 otherwise.
 func (d *Distributor) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
-	_, err := d.ingestersRing.GetAll()
+	_, err := d.ingestersRing.GetAll(ring.Write)
 	if err != nil {
 		http.Error(w, "Not ready: "+err.Error(), http.StatusInternalServerError)
 		return

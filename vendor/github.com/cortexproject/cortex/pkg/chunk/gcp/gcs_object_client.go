@@ -13,9 +13,10 @@ import (
 )
 
 type GCSObjectClient struct {
-	cfg    GCSConfig
-	client *storage.Client
-	bucket *storage.BucketHandle
+	cfg       GCSConfig
+	client    *storage.Client
+	bucket    *storage.BucketHandle
+	delimiter string
 }
 
 // GCSConfig is config for the GCS Chunk Client.
@@ -38,7 +39,7 @@ func (cfg *GCSConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
 }
 
 // NewGCSObjectClient makes a new chunk.Client that writes chunks to GCS.
-func NewGCSObjectClient(ctx context.Context, cfg GCSConfig) (*GCSObjectClient, error) {
+func NewGCSObjectClient(ctx context.Context, cfg GCSConfig, delimiter string) (*GCSObjectClient, error) {
 	option, err := gcsInstrumentation(ctx, storage.ScopeReadWrite)
 	if err != nil {
 		return nil, err
@@ -48,15 +49,16 @@ func NewGCSObjectClient(ctx context.Context, cfg GCSConfig) (*GCSObjectClient, e
 	if err != nil {
 		return nil, err
 	}
-	return newGCSObjectClient(cfg, client), nil
+	return newGCSObjectClient(cfg, client, delimiter), nil
 }
 
-func newGCSObjectClient(cfg GCSConfig, client *storage.Client) *GCSObjectClient {
+func newGCSObjectClient(cfg GCSConfig, client *storage.Client, delimiter string) *GCSObjectClient {
 	bucket := client.Bucket(cfg.BucketName)
 	return &GCSObjectClient{
-		cfg:    cfg,
-		client: client,
-		bucket: bucket,
+		cfg:       cfg,
+		client:    client,
+		bucket:    bucket,
+		delimiter: delimiter,
 	}
 }
 
@@ -64,7 +66,8 @@ func (s *GCSObjectClient) Stop() {
 	s.client.Close()
 }
 
-// Get object from the store
+// GetObject returns a reader for the specified object key from the configured GCS bucket. If the
+// key does not exist a generic chunk.ErrStorageObjectNotFound error is returned.
 func (s *GCSObjectClient) GetObject(ctx context.Context, objectKey string) (io.ReadCloser, error) {
 	if s.cfg.RequestTimeout > 0 {
 		// The context will be cancelled with the timeout or when the parent context is cancelled, whichever occurs first.
@@ -73,10 +76,19 @@ func (s *GCSObjectClient) GetObject(ctx context.Context, objectKey string) (io.R
 		defer cancel()
 	}
 
-	return s.bucket.Object(objectKey).NewReader(ctx)
+	reader, err := s.bucket.Object(objectKey).NewReader(ctx)
+
+	if err != nil {
+		if err == storage.ErrObjectNotExist {
+			return nil, chunk.ErrStorageObjectNotFound
+		}
+		return nil, err
+	}
+
+	return reader, nil
 }
 
-// Put object into the store
+// PutObject puts the specified bytes into the configured GCS bucket at the provided key
 func (s *GCSObjectClient) PutObject(ctx context.Context, objectKey string, object io.ReadSeeker) error {
 	writer := s.bucket.Object(objectKey).NewWriter(ctx)
 	// Default GCSChunkSize is 8M and for each call, 8M is allocated xD
@@ -95,14 +107,15 @@ func (s *GCSObjectClient) PutObject(ctx context.Context, objectKey string, objec
 	return nil
 }
 
-// List only objects from the store non-recursively
-func (s *GCSObjectClient) List(ctx context.Context, prefix string) ([]chunk.StorageObject, error) {
+// List objects and common-prefixes i.e synthetic directories from the store non-recursively
+func (s *GCSObjectClient) List(ctx context.Context, prefix string) ([]chunk.StorageObject, []chunk.StorageCommonPrefix, error) {
 	var storageObjects []chunk.StorageObject
+	var commonPrefixes []chunk.StorageCommonPrefix
 
-	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: prefix, Delimiter: chunk.DirDelim})
+	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: prefix, Delimiter: s.delimiter})
 	for {
 		if ctx.Err() != nil {
-			return nil, ctx.Err()
+			return nil, nil, ctx.Err()
 		}
 
 		attr, err := iter.Next()
@@ -110,12 +123,12 @@ func (s *GCSObjectClient) List(ctx context.Context, prefix string) ([]chunk.Stor
 			if err == iterator.Done {
 				break
 			}
-			return nil, err
+			return nil, nil, err
 		}
 
 		// When doing query with Delimiter, Prefix is the only field set for entries which represent synthetic "directory entries".
-		// We do not want to consider those entries since we are doing only non-recursive listing of objects for now.
 		if attr.Name == "" {
+			commonPrefixes = append(commonPrefixes, chunk.StorageCommonPrefix(attr.Prefix))
 			continue
 		}
 
@@ -125,10 +138,24 @@ func (s *GCSObjectClient) List(ctx context.Context, prefix string) ([]chunk.Stor
 		})
 	}
 
-	return storageObjects, nil
+	return storageObjects, commonPrefixes, nil
 }
 
-func (s *GCSObjectClient) DeleteObject(ctx context.Context, chunkID string) error {
-	// ToDo: implement this to support deleting chunks from GCS
-	return chunk.ErrMethodNotImplemented
+// DeleteObject deletes the specified object key from the configured GCS bucket. If the
+// key does not exist a generic chunk.ErrStorageObjectNotFound error is returned.
+func (s *GCSObjectClient) DeleteObject(ctx context.Context, objectKey string) error {
+	err := s.bucket.Object(objectKey).Delete(ctx)
+
+	if err != nil {
+		if err == storage.ErrObjectNotExist {
+			return chunk.ErrStorageObjectNotFound
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (s *GCSObjectClient) PathSeparator() string {
+	return s.delimiter
 }

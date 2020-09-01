@@ -3,11 +3,10 @@ package distributor
 import (
 	"context"
 	"io"
-	"sort"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/promql"
 	"github.com/weaveworks/common/instrument"
 	"github.com/weaveworks/common/user"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/extract"
+	grpc_util "github.com/cortexproject/cortex/pkg/util/grpc"
 )
 
 // Query multiple ingesters and returns a Matrix of samples.
@@ -24,12 +24,16 @@ func (d *Distributor) Query(ctx context.Context, from, to model.Time, matchers .
 	err := instrument.CollectedRequest(ctx, "Distributor.Query", queryDuration, instrument.ErrorCode, func(ctx context.Context) error {
 		replicationSet, req, err := d.queryPrep(ctx, from, to, matchers...)
 		if err != nil {
-			return promql.ErrStorage{Err: err}
+			return err
 		}
 
 		matrix, err = d.queryIngesters(ctx, replicationSet, req)
 		if err != nil {
-			return promql.ErrStorage{Err: err}
+			return err
+		}
+
+		if s := opentracing.SpanFromContext(ctx); s != nil {
+			s.LogKV("series", len(matrix))
 		}
 		return nil
 	})
@@ -42,12 +46,16 @@ func (d *Distributor) QueryStream(ctx context.Context, from, to model.Time, matc
 	err := instrument.CollectedRequest(ctx, "Distributor.QueryStream", queryDuration, instrument.ErrorCode, func(ctx context.Context) error {
 		replicationSet, req, err := d.queryPrep(ctx, from, to, matchers...)
 		if err != nil {
-			return promql.ErrStorage{Err: err}
+			return err
 		}
 
 		result, err = d.queryIngesterStream(ctx, replicationSet, req)
 		if err != nil {
-			return promql.ErrStorage{Err: err}
+			return err
+		}
+
+		if s := opentracing.SpanFromContext(ctx); s != nil {
+			s.LogKV("chunk-series", len(result.GetChunkseries()), "time-series", len(result.GetTimeseries()))
 		}
 		return nil
 	})
@@ -71,7 +79,7 @@ func (d *Distributor) queryPrep(ctx context.Context, from, to model.Time, matche
 	if !d.cfg.ShardByAllLabels && ok && metricNameMatcher.Type == labels.MatchEqual {
 		replicationSet, err = d.ingestersRing.Get(shardByMetricName(userID, metricNameMatcher.Value), ring.Read, nil)
 	} else {
-		replicationSet, err = d.ingestersRing.GetAll()
+		replicationSet, err = d.ingestersRing.GetAll(ring.Read)
 	}
 	return replicationSet, req, err
 }
@@ -145,6 +153,11 @@ func (d *Distributor) queryIngesterStream(ctx context.Context, replicationSet ri
 			if err == io.EOF {
 				break
 			} else if err != nil {
+				// Do not track a failure if the context was canceled.
+				if !grpc_util.IsGRPCContextCanceled(err) {
+					ingesterQueryFailures.WithLabelValues(ing.Addr).Inc()
+				}
+
 				return nil, err
 			}
 
@@ -177,7 +190,11 @@ func (d *Distributor) queryIngesterStream(ctx context.Context, replicationSet ri
 			hash := client.FastFingerprint(series.Labels)
 			existing := hashToTimeSeries[hash]
 			existing.Labels = series.Labels
-			existing.Samples = append(existing.Samples, series.Samples...)
+			if existing.Samples == nil {
+				existing.Samples = series.Samples
+			} else {
+				existing.Samples = mergeSamples(existing.Samples, series.Samples)
+			}
 			hashToTimeSeries[hash] = existing
 		}
 	}
@@ -190,15 +207,48 @@ func (d *Distributor) queryIngesterStream(ctx context.Context, replicationSet ri
 		resp.Chunkseries = append(resp.Chunkseries, series)
 	}
 	for _, series := range hashToTimeSeries {
-		sort.Sort(byTimestamp(series.Samples))
 		resp.Timeseries = append(resp.Timeseries, series)
 	}
 
 	return resp, nil
 }
 
-type byTimestamp []client.Sample
+// Merges and dedupes two sorted slices with samples together.
+func mergeSamples(a, b []ingester_client.Sample) []ingester_client.Sample {
+	if sameSamples(a, b) {
+		return a
+	}
 
-func (b byTimestamp) Len() int           { return len(b) }
-func (b byTimestamp) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byTimestamp) Less(i, j int) bool { return b[i].TimestampMs < b[j].TimestampMs }
+	result := make([]ingester_client.Sample, 0, len(a)+len(b))
+	i, j := 0, 0
+	for i < len(a) && j < len(b) {
+		if a[i].TimestampMs < b[j].TimestampMs {
+			result = append(result, a[i])
+			i++
+		} else if a[i].TimestampMs > b[j].TimestampMs {
+			result = append(result, b[j])
+			j++
+		} else {
+			result = append(result, a[i])
+			i++
+			j++
+		}
+	}
+	// Add the rest of a or b. One of them is empty now.
+	result = append(result, a[i:]...)
+	result = append(result, b[j:]...)
+	return result
+}
+
+func sameSamples(a, b []ingester_client.Sample) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := 0; i < len(a); i++ {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

@@ -20,7 +20,8 @@ type MockStorage struct {
 	tables  map[string]*mockTable
 	objects map[string][]byte
 
-	numWrites int
+	numIndexWrites int
+	numChunkWrites int
 }
 
 type mockTable struct {
@@ -137,7 +138,7 @@ func (m *MockStorage) BatchWrite(ctx context.Context, batch WriteBatch) error {
 	mockBatch := *batch.(*mockWriteBatch)
 	seenWrites := map[string]bool{}
 
-	m.numWrites += len(mockBatch.inserts)
+	m.numIndexWrites += len(mockBatch.inserts)
 
 	for _, req := range mockBatch.inserts {
 		table, ok := m.tables[req.tableName]
@@ -301,6 +302,8 @@ func (m *MockStorage) PutChunks(_ context.Context, chunks []Chunk) error {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
+	m.numChunkWrites += len(chunks)
+
 	for i := range chunks {
 		buf, err := chunks[i].Encoded()
 		if err != nil {
@@ -333,7 +336,7 @@ func (m *MockStorage) GetChunks(ctx context.Context, chunkSet []Chunk) ([]Chunk,
 }
 
 // DeleteChunk implements StorageClient.
-func (m *MockStorage) DeleteChunk(ctx context.Context, chunkID string) error {
+func (m *MockStorage) DeleteChunk(ctx context.Context, userID, chunkID string) error {
 	return m.DeleteObject(ctx, chunkID)
 }
 
@@ -374,7 +377,7 @@ func (m *MockStorage) DeleteObject(ctx context.Context, objectKey string) error 
 	return nil
 }
 
-func (m *MockStorage) List(ctx context.Context, prefix string) ([]StorageObject, error) {
+func (m *MockStorage) List(ctx context.Context, prefix string) ([]StorageObject, []StorageCommonPrefix, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -384,7 +387,11 @@ func (m *MockStorage) List(ctx context.Context, prefix string) ([]StorageObject,
 		storageObjects = append(storageObjects, StorageObject{Key: key})
 	}
 
-	return storageObjects, nil
+	return storageObjects, []StorageCommonPrefix{}, nil
+}
+
+func (m *MockStorage) PathSeparator() string {
+	return DirDelim
 }
 
 type mockWriteBatch struct {

@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/storage"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const CompactorRingKey = "compactor"
@@ -34,13 +35,13 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 
 	if c.cfg.ShardingEnabled {
 		lifecyclerCfg := c.cfg.ShardingRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", CompactorRingKey, false)
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", CompactorRingKey, false, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
 		c.ringLifecycler = lifecycler
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", CompactorRingKey)
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", CompactorRingKey, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
 		}
@@ -74,7 +75,7 @@ func (c *Compactor) Start(storeCfg storage.Config) error {
 
 		// if there is already a compactor in the ring then let's wait one poll cycle here to reduce the chance
 		// of compactor collisions
-		rset, err := c.Ring.GetAll()
+		rset, err := c.Ring.GetAll(ring.Reporting)
 		if err != nil {
 			return err
 		}
@@ -131,7 +132,7 @@ func (c *Compactor) waitRingActive(ctx context.Context) error {
 	for {
 		// Check if the ingester is ACTIVE in the ring and our ring client
 		// has detected it.
-		if rs, err := c.Ring.GetAll(); err == nil {
+		if rs, err := c.Ring.GetAll(ring.Reporting); err == nil {
 			for _, i := range rs.Ingesters {
 				if i.GetAddr() == c.ringLifecycler.Addr && i.GetState() == ring.ACTIVE {
 					return nil

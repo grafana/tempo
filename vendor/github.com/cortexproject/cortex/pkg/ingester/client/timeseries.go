@@ -43,7 +43,7 @@ type PreallocConfig struct{}
 
 // RegisterFlags registers configuration settings.
 func (PreallocConfig) RegisterFlags(f *flag.FlagSet) {
-	f.IntVar(&expectedTimeseries, "ingester-client.expected-timeseries", expectedTimeseries, "Expected number of timeseries per request, use for preallocations.")
+	f.IntVar(&expectedTimeseries, "ingester-client.expected-timeseries", expectedTimeseries, "Expected number of timeseries per request, used for preallocations.")
 	f.IntVar(&expectedLabels, "ingester-client.expected-labels", expectedLabels, "Expected number of labels per timeseries, used for preallocations.")
 	f.IntVar(&expectedSamplesPerSeries, "ingester-client.expected-samples-per-series", expectedSamplesPerSeries, "Expected number of samples per timeseries, used for preallocations.")
 }
@@ -266,15 +266,21 @@ func (bs *LabelAdapter) Compare(other LabelAdapter) int {
 }
 
 // ReuseSlice puts the slice back into a sync.Pool for reuse.
-func ReuseSlice(slice []PreallocTimeseries) {
-	for i := range slice {
-		ReuseTimeseries(slice[i].TimeSeries)
+func ReuseSlice(ts []PreallocTimeseries) {
+	for i := range ts {
+		ReuseTimeseries(ts[i].TimeSeries)
 	}
-	slicePool.Put(slice[:0]) //nolint:staticcheck //see comment on slicePool for more details
+
+	slicePool.Put(ts[:0]) //nolint:staticcheck //see comment on slicePool for more details
 }
 
 // ReuseTimeseries puts the timeseries back into a sync.Pool for reuse.
 func ReuseTimeseries(ts *TimeSeries) {
+	// Name and Value may point into a large gRPC buffer, so clear the reference to allow GC
+	for i := 0; i < len(ts.Labels); i++ {
+		ts.Labels[i].Name = ""
+		ts.Labels[i].Value = ""
+	}
 	ts.Labels = ts.Labels[:0]
 	ts.Samples = ts.Samples[:0]
 	timeSeriesPool.Put(ts)

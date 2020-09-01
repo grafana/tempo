@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/cortexproject/cortex/pkg/ring/kv"
+	"github.com/cortexproject/cortex/pkg/ring/kv/consul"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
@@ -144,7 +144,7 @@ func TestWal(t *testing.T) {
 }
 
 func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
-	ingesterConfig := defaultIngesterTestConfig(t)
+	ingesterConfig := defaultIngesterTestConfig()
 	limits, err := validation.NewOverrides(defaultLimitsTestConfig())
 	assert.NoError(t, err, "unexpected error creating overrides")
 
@@ -193,18 +193,15 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 	return ingester, traces, traceIDs
 }
 
-func defaultIngesterTestConfig(t *testing.T) Config {
-	kvClient, err := kv.NewClient(kv.Config{Store: "inmemory"}, ring.GetCodec())
-	assert.NoError(t, err)
-
+func defaultIngesterTestConfig() Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
 	cfg.FlushCheckPeriod = 99999 * time.Hour
 	cfg.MaxTraceIdle = 99999 * time.Hour
 	cfg.ConcurrentFlushes = 1
-	cfg.LifecyclerConfig.RingConfig.KVStore.Mock = kvClient
+	cfg.LifecyclerConfig.RingConfig.KVStore.Mock = consul.NewInMemoryClient(ring.GetCodec())
 	cfg.LifecyclerConfig.NumTokens = 1
-	cfg.LifecyclerConfig.ListenPort = func(i int) *int { return &i }(0)
+	cfg.LifecyclerConfig.ListenPort = 0
 	cfg.LifecyclerConfig.Addr = "localhost"
 	cfg.LifecyclerConfig.ID = "localhost"
 	cfg.LifecyclerConfig.FinalSleep = 0

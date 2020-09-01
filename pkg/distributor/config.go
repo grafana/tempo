@@ -4,7 +4,7 @@ import (
 	"flag"
 
 	cortex_distributor "github.com/cortexproject/cortex/pkg/distributor"
-	"google.golang.org/grpc/health/grpc_health_v1"
+	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 )
 
 // Config for a Distributor.
@@ -16,7 +16,7 @@ type Config struct {
 	Receivers map[string]interface{} `yaml:"receivers"`
 
 	// For testing.
-	factory func(addr string) (grpc_health_v1.HealthClient, error) `yaml:"-"`
+	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
 }
 
 // RegisterFlags registers the flags.
