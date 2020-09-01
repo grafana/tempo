@@ -17,8 +17,8 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
 
-	ingester_client "github.com/grafana/tempo/pkg/ingester/client"
-	"github.com/grafana/tempo/pkg/storage"
+	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/validation"

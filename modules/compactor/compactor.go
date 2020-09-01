@@ -9,7 +9,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
-	"github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/modules/storage"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"

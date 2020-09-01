@@ -18,7 +18,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
 
-	"github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/validation"
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"

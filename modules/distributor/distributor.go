@@ -24,8 +24,8 @@ import (
 	uber_atomic "go.uber.org/atomic"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/tempo/pkg/distributor/receiver"
-	ingester_client "github.com/grafana/tempo/pkg/ingester/client"
+	"github.com/grafana/tempo/modules/distributor/receiver"
+	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/validation"

@@ -17,12 +17,12 @@ import (
 	"github.com/weaveworks/common/signals"
 	"google.golang.org/grpc"
 
-	"github.com/grafana/tempo/pkg/compactor"
-	"github.com/grafana/tempo/pkg/distributor"
-	"github.com/grafana/tempo/pkg/ingester"
-	ingester_client "github.com/grafana/tempo/pkg/ingester/client"
-	"github.com/grafana/tempo/pkg/querier"
-	"github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/modules/compactor"
+	"github.com/grafana/tempo/modules/distributor"
+	"github.com/grafana/tempo/modules/ingester"
+	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/querier"
+	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/util/validation"
 )
 

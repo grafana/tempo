@@ -19,11 +19,11 @@ import (
 	"github.com/weaveworks/common/server"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/tempo/pkg/compactor"
-	"github.com/grafana/tempo/pkg/distributor"
-	"github.com/grafana/tempo/pkg/ingester"
-	"github.com/grafana/tempo/pkg/querier"
-	tempo_storage "github.com/grafana/tempo/pkg/storage"
+	"github.com/grafana/tempo/modules/compactor"
+	"github.com/grafana/tempo/modules/distributor"
+	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/modules/querier"
+	tempo_storage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/validation"
 )
