@@ -48,11 +48,15 @@ var (
 
 // Querier handlers queries.
 type Querier struct {
+	services.Service
+
 	cfg    Config
 	ring   ring.ReadRing
 	pool   *ring_client.Pool
 	store  storage.Store
 	limits *validation.Overrides
+
+	subservicesWatcher *services.FailureWatcher
 }
 
 type responseFromIngesters struct {
@@ -84,7 +88,46 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 		return nil, err
 	}
 
+	q.subservicesWatcher = services.NewFailureWatcher()
+	q.subservicesWatcher.WatchService(q.lifecycler)
+
+	q.Service = services.NewBasicService(i.starting, i.running, i.stopping)
+
+	q.Service = services.NewBasicService(q.)
 	return q, nil
+}
+
+func (q *Querier) starting(ctx context.Context) error {
+	// Now that user states have been created, we can start the lifecycler.
+	// Important: we want to keep lifecycler running until we ask it to stop, so we need to give it independent context
+	if err := i.lifecycler.StartAsync(context.Background()); err != nil {
+		return fmt.Errorf("failed to start lifecycler %w", err)
+	}
+	i.lifecycler.AwaitRunning(ctx); err != nil {
+		return fmt.Errorf("failed to start lifecycler %w", err)
+	}
+
+	return nil
+}
+
+func (q *Querier) running(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-q.subservicesWatcher.Chan():
+		return fmt.Errorf("querier subservices failed %w", err)
+	}
+}
+
+// Called after distributor is asked to stop via StopAsync.
+func (q *Querier) stopping(_ error) error {
+	// Lifecycler can be nil if the ingester is for a flusher.
+	if i.lifecycler != nil {
+		// Next initiate our graceful exit from the ring.
+		return services.StopAndAwaitTerminated(context.Background(), i.lifecycler)
+	}
+
+	return nil
 }
 
 // FindTraceByID implements tempopb.Querier.

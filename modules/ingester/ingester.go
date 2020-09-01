@@ -101,7 +101,7 @@ func (i *Ingester) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start lifecycler %w", err)
 	}
 	i.lifecycler.AwaitRunning(ctx); err != nil {
-		return errors.Wrap(err, "failed to start lifecycler")
+		return fmt.Errorf("failed to start lifecycle %w", err)
 	}
 
 	err = i.replayWal()
@@ -123,6 +123,9 @@ func (i *Ingester) loop(ctx context.Context) error {
 
 		case <-ctx.Done():
 			return nil
+
+		case err := <-i.subservicesWatcher.Chan():
+			return fmt.Errorf("ingester subservice failed %w", err)
 		}
 	}
 
