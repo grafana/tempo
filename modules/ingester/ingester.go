@@ -48,10 +48,6 @@ type Ingester struct {
 	lifecycler *ring.Lifecycler
 	store      storage.Store
 
-	done     sync.WaitGroup
-	quit     chan struct{}
-	quitting chan struct{}
-
 	// One queue per flush thread.  Fingerprint is used to
 	// pick a queue.
 	flushQueues     []*util.PriorityQueue
@@ -59,7 +55,8 @@ type Ingester struct {
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
-	wal     *tempodb_wal.WAL
+
+	subservicesWatcher *services.FailureWatcher
 }
 
 // New makes a new Ingester.
@@ -83,33 +80,39 @@ func New(cfg Config, store storage.Store, limits *validation.Overrides) (*Ingest
 	var err error
 	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, false, prometheus.DefaultRegisterer)
 	if err != nil {
-		return nil, fmt.Errorf("NewLifecycler failed %v", err)
-	}
-
-	err = services.StartAndAwaitRunning(context.Background(), i.lifecycler)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewLifecycler failed %w", err)
 	}
 
 	// Now that the lifecycler has been created, we can create the limiter
 	// which depends on it.
 	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
 
-	i.wal = i.store.WAL()
+	i.subservicesWatcher = services.NewFailureWatcher()
+	i.subservicesWatcher.WatchService(i.lifecycler)
+
+	i.Service = services.NewBasicService(i.starting, i.loop, i.stopping)
+	return i, nil
+}
+
+func (i *Ingester) starting(ctx context.Context) error {
+	// Now that user states have been created, we can start the lifecycler.
+	// Important: we want to keep lifecycler running until we ask it to stop, so we need to give it independent context
+	if err := i.lifecycler.StartAsync(context.Background()); err != nil {
+		return fmt.Errorf("failed to start lifecycler %w", err)
+	}
+	i.lifecycler.AwaitRunning(ctx); err != nil {
+		return errors.Wrap(err, "failed to start lifecycler")
+	}
+
 	err = i.replayWal()
 	if err != nil {
 		return nil, err
 	}
 
-	i.done.Add(1)
-	go i.loop()
-
-	return i, nil
+	return nil
 }
 
-func (i *Ingester) loop() {
-	defer i.done.Done()
-
+func (i *Ingester) loop(ctx context.Context) error {
 	flushTicker := time.NewTicker(i.cfg.FlushCheckPeriod)
 	defer flushTicker.Stop()
 
@@ -118,28 +121,26 @@ func (i *Ingester) loop() {
 		case <-flushTicker.C:
 			i.sweepUsers(false)
 
-		case <-i.quit:
-			return
+		case <-ctx.Done():
+			return nil
 		}
 	}
+
+	return nil
 }
 
-// Shutdown stops the ingester.
-func (i *Ingester) Shutdown() {
-	close(i.quit)
-	i.done.Wait()
-
+// stopping is run when ingester is asked to stop
+func (i *Ingester) stopping(_ error) error {
+	// This will prevent us accepting any more samples
 	i.stopIncomingRequests()
 
-	err := services.StopAndAwaitTerminated(context.Background(), i.lifecycler)
-	if err != nil {
-		level.Error(util.Logger).Log("msg", "lifecycler failed", "err", err)
+	// Lifecycler can be nil if the ingester is for a flusher.
+	if i.lifecycler != nil {
+		// Next initiate our graceful exit from the ring.
+		return services.StopAndAwaitTerminated(context.Background(), i.lifecycler)
 	}
-}
 
-// Stopping helps cleaning up resources before actual shutdown
-func (i *Ingester) Stopping() {
-	close(i.quitting)
+	return nil
 }
 
 // Push implements tempopb.Pusher.
@@ -251,9 +252,6 @@ func (i *Ingester) getInstances() []*instance {
 
 // stopIncomingRequests implements ring.Lifecycler.
 func (i *Ingester) stopIncomingRequests() {
-	i.shutdownMtx.Lock()
-	defer i.shutdownMtx.Unlock()
-
 	i.instancesMtx.Lock()
 	defer i.instancesMtx.Unlock()
 
@@ -271,7 +269,8 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 }
 
 func (i *Ingester) replayWal() error {
-	blocks, err := i.wal.AllBlocks()
+	blocks, err := i.store.wal.AllBlocks()
+	// todo: should this fail startup?
 	if err != nil {
 		return nil
 	}
