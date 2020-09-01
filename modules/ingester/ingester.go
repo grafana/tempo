@@ -42,7 +42,6 @@ type Ingester struct {
 
 	cfg Config
 
-	shutdownMtx  sync.Mutex // Allows processes to grab a lock and prevent a shutdown
 	instancesMtx sync.RWMutex
 	instances    map[string]*instance
 	readonly     bool
@@ -63,7 +62,6 @@ type Ingester struct {
 
 // New makes a new Ingester.
 func New(cfg Config, store storage.Store, limits *validation.Overrides) (*Ingester, error) {
-
 	i := &Ingester{
 		cfg:         cfg,
 		instances:   map[string]*instance{},
@@ -128,8 +126,6 @@ func (i *Ingester) loop(ctx context.Context) error {
 			return fmt.Errorf("ingester subservice failed %w", err)
 		}
 	}
-
-	return nil
 }
 
 // stopping is run when ingester is asked to stop

@@ -27,8 +27,6 @@ import (
 	"github.com/grafana/tempo/pkg/util/validation"
 )
 
-type moduleName int
-
 // The various modules that make up tempo.
 const (
 	Ring         string = "ring"

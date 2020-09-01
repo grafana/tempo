@@ -71,9 +71,6 @@ type Distributor struct {
 	ingestersRing ring.ReadRing
 	pool          *ring_client.Pool
 
-	// receiver shims
-	receivers services.Service
-
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
 
