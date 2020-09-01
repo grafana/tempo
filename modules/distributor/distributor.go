@@ -58,8 +58,6 @@ var (
 		Name:      "distributor_ingester_clients",
 		Help:      "The current number of ingester clients.",
 	})
-
-	readinessProbeSuccess = []byte("Ready")
 )
 
 // Distributor coordinates replicates and distribution of log streams.

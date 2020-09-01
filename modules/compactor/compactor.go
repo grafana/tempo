@@ -105,11 +105,10 @@ func (c *Compactor) running(ctx context.Context) error {
 			return fmt.Errorf("distributor subservices failed %w", err)
 		}
 	} else {
-		select {
-		case <-ctx.Done():
-			return nil
-		}
+		<-ctx.Done()
 	}
+
+	return nil
 }
 
 // Called after distributor is asked to stop via StopAsync.

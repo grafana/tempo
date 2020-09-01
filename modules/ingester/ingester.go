@@ -26,8 +26,6 @@ import (
 // attempted.
 var ErrReadOnly = errors.New("Ingester is shutting down")
 
-var readinessProbeSuccess = []byte("Ready")
-
 var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "tempo",
 	Name:      "ingester_flush_queue_length",

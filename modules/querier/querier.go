@@ -22,8 +22,6 @@ import (
 )
 
 var (
-	readinessProbeSuccess = []byte("Ready")
-
 	metricQueryReads = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
 		Name:      "query_reads",
