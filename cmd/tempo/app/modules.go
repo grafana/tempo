@@ -189,6 +189,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
+	mm.RegisterModule(All, nil)
 
 	deps := map[string][]string{
 		// Server:       nil,

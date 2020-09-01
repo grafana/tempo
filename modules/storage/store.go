@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"context"
+
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log"
 	"github.com/grafana/tempo/tempodb"
@@ -39,9 +41,12 @@ func NewStore(cfg Config, logger log.Logger) (Store, error) {
 		Compactor: c,
 	}
 
-	s.Service = services.NewBasicService(nil, nil, s.stopping)
-
+	s.Service = services.NewIdleService(s.starting, s.stopping)
 	return s, nil
+}
+
+func (s *store) starting(_ context.Context) error {
+	return nil
 }
 
 func (s *store) stopping(_ error) error {

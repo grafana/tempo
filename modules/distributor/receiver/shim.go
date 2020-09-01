@@ -104,7 +104,7 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 		shim.receivers = append(shim.receivers, receiver)
 	}
 
-	shim.Service = services.NewBasicService(shim.starting, nil, shim.stopping)
+	shim.Service = services.NewIdleService(shim.starting, shim.stopping)
 
 	return shim, nil
 }

@@ -55,15 +55,14 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 		}
 		c.Ring = ring
 		subservices = append(subservices, c.Ring)
-	}
 
-	var err error
-	c.subservices, err = services.NewManager(subservices...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create subservices %w", err)
+		c.subservices, err = services.NewManager(subservices...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create subservices %w", err)
+		}
+		c.subservicesWatcher = services.NewFailureWatcher()
+		c.subservicesWatcher.WatchManager(c.subservices)
 	}
-	c.subservicesWatcher = services.NewFailureWatcher()
-	c.subservicesWatcher.WatchManager(c.subservices)
 
 	c.Service = services.NewBasicService(c.starting, c.running, c.stopping)
 
@@ -71,17 +70,16 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 }
 
 func (c *Compactor) starting(ctx context.Context) error {
-	// Only report success if all sub-services start properly
-	err := services.StartManagerAndAwaitHealthy(ctx, c.subservices)
-	if err != nil {
-		return fmt.Errorf("failed to start subservices %w", err)
-	}
+	if c.subservices != nil {
+		err := services.StartManagerAndAwaitHealthy(ctx, c.subservices)
+		if err != nil {
+			return fmt.Errorf("failed to start subservices %w", err)
+		}
 
-	if c.cfg.ShardingEnabled {
 		ctx := context.Background()
 
 		level.Info(util.Logger).Log("msg", "waiting to be active in the ring")
-		err := c.waitRingActive(ctx)
+		err = c.waitRingActive(ctx)
 		if err != nil {
 			return err
 		}
@@ -99,17 +97,28 @@ func (c *Compactor) running(ctx context.Context) error {
 		c.store.EnableCompaction(c.cfg.Compactor, c)
 	}()
 
-	select {
-	case <-ctx.Done():
-		return nil
-	case err := <-c.subservicesWatcher.Chan():
-		return fmt.Errorf("distributor subservices failed %w", err)
+	if c.subservices != nil {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-c.subservicesWatcher.Chan():
+			return fmt.Errorf("distributor subservices failed %w", err)
+		}
+	} else {
+		select {
+		case <-ctx.Done():
+			return nil
+		}
 	}
 }
 
 // Called after distributor is asked to stop via StopAsync.
 func (c *Compactor) stopping(_ error) error {
-	return services.StopManagerAndAwaitStopped(context.Background(), c.subservices)
+	if c.subservices != nil {
+		return services.StopManagerAndAwaitStopped(context.Background(), c.subservices)
+	}
+
+	return nil
 }
 
 func (c *Compactor) Owns(hash string) bool {
