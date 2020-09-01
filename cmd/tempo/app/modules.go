@@ -42,6 +42,9 @@ const (
 )
 
 func (t *App) initServer() (services.Service, error) {
+	t.cfg.Server.MetricsNamespace = metricsNamespace
+	t.cfg.Server.ExcludeRequestInLog = true
+
 	cortex.DisableSignalHandling(&t.cfg.Server)
 
 	server, err := server.New(t.cfg.Server)
@@ -74,7 +77,7 @@ func (t *App) initRing() (services.Service, error) {
 	t.ring = ring
 
 	prometheus.MustRegister(t.ring)
-	t.server.HTTP.Handle("/ring", t.ring) // jpe - put this someplace else /distributor/ring?  coordinate with below
+	t.server.HTTP.Handle("/ingester/ring", t.ring)
 
 	return t.ring, nil
 }
@@ -91,7 +94,8 @@ func (t *App) initOverrides() (services.Service, error) {
 }
 
 func (t *App) initDistributor() (services.Service, error) {
-	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides, t.cfg.AuthEnabled) // jpe, make ingester client a module?
+	// todo: make ingester client a module instead of passing the config everywhere
+	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides, t.cfg.AuthEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
 	}
@@ -111,14 +115,15 @@ func (t *App) initIngester() (services.Service, error) {
 
 	tempopb.RegisterPusherServer(t.server.GRPC, t.ingester)
 	tempopb.RegisterQuerierServer(t.server.GRPC, t.ingester)
-	grpc_health_v1.RegisterHealthServer(t.server.GRPC, t.ingester)                      // jpe ??
+	grpc_health_v1.RegisterHealthServer(t.server.GRPC, t.ingester)
 	t.server.HTTP.Path("/ready").Handler(http.HandlerFunc(t.ingester.ReadinessHandler)) // jpe use global readiness handler like cortex
 	t.server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
 	return t.ingester, nil
 }
 
 func (t *App) initQuerier() (services.Service, error) {
-	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides) // jpe ingester client as module?
+	// todo: make ingester client a module instead of passing config everywhere
+	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create querier %w", err)
 	}
@@ -142,7 +147,7 @@ func (t *App) initCompactor() (services.Service, error) {
 	}
 	t.compactor = compactor
 
-	t.server.HTTP.Handle("/ring-compactor", t.compactor.Ring) // jpe - put this someplace else /compactor/ring?  coordinate with above
+	t.server.HTTP.Handle("/compactor/ring", t.compactor.Ring)
 
 	return t.compactor, nil
 }
@@ -159,6 +164,7 @@ func (t *App) initStore() (services.Service, error) {
 
 func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.MemberlistKV.MetricsRegisterer = prometheus.DefaultRegisterer
+	t.cfg.MemberlistKV.MetricsNamespace = metricsNamespace
 	t.cfg.MemberlistKV.Codecs = []codec.Codec{
 		ring.GetCodec(),
 	}
@@ -167,7 +173,8 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname %w", err)
 	}
-	t.cfg.MemberlistKV.NodeName = hostname + "-" + uuid.New().String() // jpe i don't think this is needed anymore
+	// todo: do we still need this?  does the package do this by default now?
+	t.cfg.MemberlistKV.NodeName = hostname + "-" + uuid.New().String()
 
 	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV

@@ -26,6 +26,8 @@ import (
 	"github.com/grafana/tempo/pkg/util/validation"
 )
 
+const metricsNamespace = "tempo"
+
 // Config is the root config for App.
 type Config struct {
 	Target      string `yaml:"target,omitempty"`
@@ -45,12 +47,7 @@ type Config struct {
 
 // RegisterFlags registers flag.
 func (c *Config) RegisterFlags(f *flag.FlagSet) {
-	const metricsNamespace = "tempo"
-
-	c.Server.MetricsNamespace = metricsNamespace       // jpe can use metircs namespace? move all this config to inits?
-	c.MemberlistKV.MetricsNamespace = metricsNamespace // jpe use .MetricsRegisterer
 	c.Target = All
-	c.Server.ExcludeRequestInLog = true
 	f.StringVar(&c.Target, "target", All, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
 
