@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/grafana/tempo/tempodb/backend/s3"
 	"sort"
 	"strconv"
 	"sync"
@@ -129,6 +130,8 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		r, w, c, err = local.New(cfg.Local)
 	case "gcs":
 		r, w, c, err = gcs.New(cfg.GCS)
+	case "s3":
+		r,w,c, err = s3.New(cfg.S3)
 	default:
 		err = fmt.Errorf("unknown local %s", cfg.Backend)
 	}
