@@ -3,12 +3,12 @@ package s3
 import (
 	"context"
 	"encoding/json"
-
+	"github.com/go-kit/kit/log/level"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/pkg/errors"
 	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
@@ -26,9 +26,9 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 		rw.cfg.Bucket,
 		metaFileName,
 		rw.cfg.Bucket,
-		util.CompactedMetaFileName(blockID,tenantID),
+		util.CompactedMetaFileName(blockID, tenantID),
 		nil,
-		)
+	)
 	if err != nil {
 		return errors.Wrap(err, "error copying obj meta to compacted obj meta")
 	}
@@ -45,7 +45,22 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		return backend.ErrEmptyBlockID
 	}
 
-	return rw.core.RemoveObject(rw.cfg.Bucket, util.MetaFileName(blockID, tenantID))
+	level.Debug(rw.logger).Log("msg", "deleting block", "block path", util.BlockFileName(blockID, tenantID))
+
+	// list of objects that need to be deleted
+	var delObjects []string
+	delObjects = append(delObjects, util.CompactedMetaFileName(blockID, tenantID))
+	delObjects = append(delObjects, util.BloomFileName(blockID, tenantID))
+	delObjects = append(delObjects, util.IndexFileName(blockID, tenantID))
+	delObjects = append(delObjects, util.ObjectFileName(blockID, tenantID))
+	for _, obj := range delObjects {
+		err := rw.core.RemoveObject(rw.cfg.Bucket, obj)
+		if err != nil {
+			return errors.Wrapf(err, "error deleting obj from s3: %s", obj)
+		}
+	}
+
+	return nil
 }
 
 func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*encoding.CompactedBlockMeta, error) {
@@ -71,4 +86,3 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 
 	return out, err
 }
-

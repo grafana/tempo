@@ -7,15 +7,15 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/pkg/errors"
 	log_util "github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log"
-	"github.com/google/uuid"
 	"github.com/go-kit/kit/log/level"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/minio/minio-go/v6"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -25,8 +25,8 @@ const (
 // readerWriter can read/write from an s3 backend
 type readerWriter struct {
 	logger log.Logger
-	cfg *Config
-	core *minio.Core
+	cfg    *Config
+	core   *minio.Core
 }
 
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
@@ -49,8 +49,8 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 
 	rw := &readerWriter{
 		logger: l,
-		cfg: cfg,
-		core: core,
+		cfg:    cfg,
+		core:   core,
 	}
 	return rw, rw, rw, nil
 }
@@ -68,7 +68,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 		objName,
 		objectFilePath,
 		minio.PutObjectOptions{PartSize: rw.cfg.PartSize},
-		)
+	)
 	if err != nil {
 		return errors.Wrapf(err, "error writing object to s3 backend, object %s", objName)
 	}
@@ -91,9 +91,10 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		for _, p := range a.parts {
 			completeParts = append(completeParts, minio.CompletePart{
 				PartNumber: p.PartNumber,
-				ETag: p.ETag,
+				ETag:       p.ETag,
 			})
 		}
+		level.Debug(rw.logger).Log("msg", "marking compacted block complete", "parts", len(completeParts))
 		objName := util.ObjectFileName(meta.BlockID, meta.TenantID)
 		etag, err := rw.core.CompleteMultipartUploadWithContext(
 			ctx,
@@ -101,7 +102,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 			objName,
 			a.uploadID,
 			completeParts,
-			)
+		)
 		if err != nil {
 			return errors.Wrapf(err, "error completing multipart upload, object: %s, obj etag: %s", objName, etag)
 		}
@@ -120,7 +121,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		bytes.NewReader(bBloom),
 		int64(len(bBloom)),
 		options,
-		)
+	)
 	if err != nil {
 		return err
 	}
@@ -152,7 +153,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		bytes.NewReader(bMeta),
 		int64(len(bMeta)),
 		options,
-		)
+	)
 	if err != nil {
 		return err
 	}
@@ -163,8 +164,8 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 
 type AppenderTracker struct {
 	uploadID string
-	partNum int
-	parts []minio.ObjectPart
+	partNum  int
+	parts    []minio.ObjectPart
 }
 
 // AppendObject implements backend.Writer
@@ -180,12 +181,14 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 			rw.cfg.Bucket,
 			util.ObjectFileName(meta.BlockID, meta.TenantID),
 			options,
-			)
+		)
 		if err != nil {
 			return nil, err
 		}
 		a.uploadID = id
 	}
+
+	level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", util.ObjectFileName(meta.BlockID, meta.TenantID))
 
 	objPart, err := rw.core.PutObjectPartWithContext(
 		ctx,
@@ -202,7 +205,7 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 	if err != nil {
 		return a, errors.Wrap(err, "error in multipart upload")
 	}
-	a.partNum ++
+	a.partNum++
 	a.parts = append(a.parts, objPart)
 
 	return a, nil
@@ -235,7 +238,7 @@ func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 	level.Debug(rw.logger).Log("msg", "listing blocks", "tenantID", tenantID, "found", len(res.CommonPrefixes))
 	var blockIDs []uuid.UUID
 	for _, cp := range res.CommonPrefixes {
-		blockID, err := uuid.Parse(strings.Split(strings.TrimPrefix(cp.Prefix, res.Prefix),"/")[0])
+		blockID, err := uuid.Parse(strings.Split(strings.TrimPrefix(cp.Prefix, res.Prefix), "/")[0])
 		if err != nil {
 			return nil, errors.Wrapf(err, "error parsing uuid of obj, objectName: %s", cp.Prefix)
 		}
@@ -298,7 +301,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	return body, nil
 }
 
-func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo,error) {
+func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
 	reader, info, _, err := rw.core.GetObjectWithContext(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, minio.ObjectInfo{}, errors.Wrap(err, "error fetching object from s3 backend")

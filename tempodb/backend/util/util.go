@@ -27,6 +27,10 @@ func CompactedMetaFileName(blockID uuid.UUID, tenantID string) string {
 	return path.Join(rootPath(blockID, tenantID), "meta.compacted.json")
 }
 
+func BlockFileName(blockID uuid.UUID, tenantID string) string {
+	return rootPath(blockID, tenantID) + "/"
+}
+
 func rootPath(blockID uuid.UUID, tenantID string) string {
 	return path.Join(tenantID, blockID.String())
 }
