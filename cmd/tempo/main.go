@@ -79,11 +79,9 @@ func main() {
 
 	if err := t.Run(); err != nil {
 		level.Error(util.Logger).Log("msg", "error running Tempo", "err", err)
-	}
-
-	runtime.KeepAlive(ballast)
-	if err := t.Stop(); err != nil {
-		level.Error(util.Logger).Log("msg", "error stopping Tempo", "err", err)
 		os.Exit(1)
 	}
+	runtime.KeepAlive(ballast)
+
+	level.Info(util.Logger).Log("msg", "Tempo running")
 }
