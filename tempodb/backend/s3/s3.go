@@ -18,6 +18,10 @@ import (
 	"github.com/minio/minio-go/v6"
 )
 
+const (
+	s3KeyDoesNotExist = "The specified key does not exist."
+)
+
 // readerWriter can read/write from an s3 backend
 type readerWriter struct {
 	logger log.Logger
@@ -27,7 +31,7 @@ type readerWriter struct {
 
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	l := log_util.Logger
-	core, err := minio.NewCore(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, cfg.Insecure)
+	core, err := minio.NewCore(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, !cfg.Insecure)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -133,7 +137,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	if err != nil {
 		return err
 	}
-	level.Debug(rw.logger).Log("msg", "block bloom uploaded to s3", "size", size)
+	level.Debug(rw.logger).Log("msg", "block index uploaded to s3", "size", size)
 
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
@@ -206,15 +210,16 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 
 // Tenants implements backend.Reader
 func (rw *readerWriter) Tenants() ([]string, error) {
+	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
 	res, err := rw.core.ListObjects(rw.cfg.Bucket, "", "", "/", 0)
 	if err != nil {
-		level.Error(rw.logger).Log("msg", "error listing tenants in bucket", "bucket", rw.cfg.Bucket, "err", err)
 		return nil, errors.Wrapf(err, "error listing tenants in bucket %s", rw.cfg.Bucket)
 	}
 
+	level.Debug(rw.logger).Log("msg", "listing tenants", "found", len(res.CommonPrefixes))
 	var tenants []string
-	for _, obj := range res.Contents {
-		tenants = append(tenants, strings.Split(obj.Key, "/")[0])
+	for _, cp := range res.CommonPrefixes {
+		tenants = append(tenants, strings.Split(cp.Prefix, "/")[0])
 	}
 	return tenants, nil
 }
@@ -227,11 +232,12 @@ func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 		return nil, errors.Wrapf(err, "error listing blocks in s3 bucket, bucket: %s", rw.cfg.Bucket)
 	}
 
+	level.Debug(rw.logger).Log("msg", "listing blocks", "tenantID", tenantID, "found", len(res.CommonPrefixes))
 	var blockIDs []uuid.UUID
-	for _, obj := range res.Contents {
-		blockID, err := uuid.Parse(strings.TrimPrefix(obj.Key, res.Prefix))
+	for _, cp := range res.CommonPrefixes {
+		blockID, err := uuid.Parse(strings.Split(strings.TrimPrefix(cp.Prefix, res.Prefix),"/")[0])
 		if err != nil {
-			return nil, errors.Wrapf(err, "error parsing uuid of obj, objectName: %s", obj.Key)
+			return nil, errors.Wrapf(err, "error parsing uuid of obj, objectName: %s", cp.Prefix)
 		}
 		blockIDs = append(blockIDs, blockID)
 	}
@@ -242,12 +248,15 @@ func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
 	blockMetaFileName := util.MetaFileName(blockID, tenantID)
 	body, err := rw.readAll(context.Background(), blockMetaFileName)
+	if err != nil && err.Error() == s3KeyDoesNotExist {
+		return nil, backend.ErrMetaDoesNotExist
+	}
 	out := &encoding.BlockMeta{}
 	err = json.Unmarshal(body, out)
 	if err != nil {
 		return nil, err
 	}
-
+	level.Debug(rw.logger).Log("msg", "fetched block meta", "tenantID", out.TenantID, "blockID", out.BlockID.String())
 	return out, nil
 }
 
@@ -276,13 +285,15 @@ func (rw *readerWriter) Shutdown() {
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
 	reader, _, _, err := rw.core.GetObjectWithContext(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "error fetching object from s3 backend")
+		// do not change or wrap this error
+		// we need to compare the specific err message
+		return nil, err
 	}
 	defer reader.Close()
 
 	body, err := ioutil.ReadAll(reader)
 	if err != nil {
-		return nil, errors.Wrap(err, "error reading response from s3 backend")
+		return nil, err
 	}
 	return body, nil
 }
