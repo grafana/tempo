@@ -83,7 +83,6 @@ func TestOverrides(t *testing.T) {
 			if srv != nil {
 				err = services.StartAndAwaitRunning(context.TODO(), srv)
 				require.NoError(t, err)
-				defer services.StopAndAwaitTerminated(context.TODO(), srv)
 			}
 
 			for user, expectedVal := range tt.expectedMaxLocalTraces {
@@ -100,6 +99,11 @@ func TestOverrides(t *testing.T) {
 
 			for user, expectedVal := range tt.expectedIngestionRateSpans {
 				assert.Equal(t, float64(expectedVal), overrides.IngestionRateSpans(user))
+			}
+
+			if srv != nil {
+				err = services.StopAndAwaitTerminated(context.TODO(), srv)
+				require.NoError(t, err)
 			}
 		})
 	}

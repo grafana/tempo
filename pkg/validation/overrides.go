@@ -88,12 +88,12 @@ func (o *Overrides) MaxGlobalTracesPerUser(userID string) int {
 }
 
 // IngestionRateSpans is the number of spans per second allowed for this tenant
-func (o *Overrides) IngestionRateSpans(userID string) float64 { //jpe change?
+func (o *Overrides) IngestionRateSpans(userID string) float64 {
 	return float64(o.getOverridesForUser(userID).IngestionRateSpans)
 }
 
 // IngestionMaxBatchSize is the burst size in spans allowed for this tenant
-func (o *Overrides) IngestionMaxBatchSize(userID string) int { // jpe change
+func (o *Overrides) IngestionMaxBatchSize(userID string) int {
 	return o.getOverridesForUser(userID).IngestionMaxBatchSize
 }
 

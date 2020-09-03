@@ -10,10 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	bytesInMB = 1048576
-)
-
 func TestIngestionRateStrategy(t *testing.T) {
 	tests := map[string]struct {
 		limits        validation.Limits

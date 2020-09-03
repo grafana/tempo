@@ -11,8 +11,6 @@ const (
 
 	// Global ingestion rate strategy
 	GlobalIngestionRateStrategy = "global"
-
-	bytesInMB = 1048576
 )
 
 // Limits describe all the limits for users; can be used to describe global default
