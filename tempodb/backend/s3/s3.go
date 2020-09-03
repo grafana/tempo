@@ -52,8 +52,6 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 			if err != nil {
 				return nil, nil, nil, errors.Wrapf(err, "cannot list objects in s3 bucket, invalid permissions")
 			}
-		} else {
-			// do nothing
 		}
 	}
 
