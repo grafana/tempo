@@ -3,6 +3,7 @@ package s3
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"

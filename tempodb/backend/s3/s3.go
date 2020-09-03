@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"strings"
 
@@ -190,6 +191,7 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 
 	level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", util.ObjectFileName(meta.BlockID, meta.TenantID))
 
+	a.partNum++
 	objPart, err := rw.core.PutObjectPartWithContext(
 		ctx,
 		rw.cfg.Bucket,
@@ -205,7 +207,6 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 	if err != nil {
 		return a, errors.Wrap(err, "error in multipart upload")
 	}
-	a.partNum++
 	a.parts = append(a.parts, objPart)
 
 	return a, nil
@@ -317,9 +318,9 @@ func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]
 
 func (rw *readerWriter) readRange(ctx context.Context, objName string, offset int64, buffer []byte) error {
 	options := minio.GetObjectOptions{}
-	err := options.SetRange(offset, int64(len(buffer)))
+	err := options.SetRange(offset, offset+int64(len(buffer)))
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error setting headers for range read in s3")
 	}
 	reader, _, _, err := rw.core.GetObjectWithContext(ctx, rw.cfg.Bucket, objName, options)
 	if err != nil {
@@ -327,9 +328,18 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	}
 	defer reader.Close()
 
-	buffer, err = ioutil.ReadAll(reader)
-	if err != nil {
-		return errors.Wrap(err, "error reading range response from backend")
+	totalBytes := 0
+	for {
+		byteCount, err := reader.Read(buffer[totalBytes:])
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return errors.Wrap(err, "error in range read from s3 backend")
+		}
+		if byteCount == 0 {
+			return nil
+		}
+		totalBytes += byteCount
 	}
-	return nil
 }

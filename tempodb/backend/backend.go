@@ -10,8 +10,8 @@ import (
 
 var (
 	ErrMetaDoesNotExist = fmt.Errorf("meta does not exist")
-	ErrEmptyTenantID = fmt.Errorf("empty tenant id")
-	ErrEmptyBlockID = fmt.Errorf("empty block id")
+	ErrEmptyTenantID    = fmt.Errorf("empty tenant id")
+	ErrEmptyBlockID     = fmt.Errorf("empty block id")
 )
 
 type AppendTracker interface{}
