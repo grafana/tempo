@@ -10,6 +10,10 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// TenantLimits is a function that returns limits for given tenant, or
+// nil, if there are no tenant-specific limits.
+type TenantLimits func(userID string) *Limits
+
 // OverridesConfig represents the overrides config file
 type OverridesConfig struct {
 	TenantLimits map[string]*Limits `yaml:"overrides"`
@@ -57,7 +61,6 @@ func NewOverrides(defaults Limits) (*Overrides, services.Service, error) {
 		srv = runtimeCfgManager
 	}
 
-	defaultLimits = &defaults
 	return &Overrides{
 		tenantLimits:  tenantLimits,
 		defaultLimits: &defaults,

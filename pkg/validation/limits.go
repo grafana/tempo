@@ -46,27 +46,3 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	f.DurationVar(&l.PerTenantOverridePeriod, "limits.per-user-override-period", 10*time.Second, "Period with this to reload the overrides.")
 }
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (l *Limits) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	// We want to set c to the defaults and then overwrite it with the input.
-	// To make unmarshal fill the plain data struct rather than calling UnmarshalYAML
-	// again, we have to hide it using a type indirection.  See prometheus/config.
-
-	// During startup we wont have a default value so we don't want to overwrite them
-	if defaultLimits != nil {
-		*l = *defaultLimits
-	}
-	type plain Limits
-	return unmarshal((*plain)(l))
-}
-
-// When we load YAML from disk, we want the various per-customer limits
-// to default to any values specified on the command line, not default
-// command line values.  This global contains those values.  I (Tom) cannot
-// find a nicer way I'm afraid.
-var defaultLimits *Limits
-
-// TenantLimits is a function that returns limits for given tenant, or
-// nil, if there are no tenant-specific limits.
-type TenantLimits func(userID string) *Limits
