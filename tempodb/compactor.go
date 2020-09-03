@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/pkg/errors"
+
+	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -102,7 +105,7 @@ func (rw *readerWriter) doCompaction() {
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
 func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID string) error {
-	level.Info(rw.logger).Log("msg", "beginning compaction")
+	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	if len(blockMetas) == 0 {
 		return nil
@@ -182,10 +185,10 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		// make a new block if necessary
 		if currentBlock == nil {
 			currentBlock, err = rw.wal.NewCompactorBlock(uuid.New(), tenantID, blockMetas, recordsPerBlock)
-			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 			if err != nil {
-				return err
+				return errors.Wrap(err, "error making new compacted block")
 			}
+			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 		}
 
 		// writing to the current block will cause the id is going to escape the iterator so we need to make a copy of it
@@ -201,7 +204,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		if currentBlock.Length()%recordsPerBatch == 0 {
 			tracker, err = appendBlock(rw, tracker, currentBlock)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "error writing partial block")
 			}
 		}
 
@@ -209,7 +212,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		if currentBlock.Length() >= recordsPerBlock {
 			err = finishBlock(rw, tracker, currentBlock)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "error shipping block to backend")
 			}
 			currentBlock = nil
 			tracker = nil
@@ -220,7 +223,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	if currentBlock != nil {
 		err = finishBlock(rw, tracker, currentBlock)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "error shipping block to backend")
 		}
 	}
 
@@ -267,12 +270,13 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 }
 
 func allDone(bookmarks []*bookmark) bool {
+	level.Debug(util.Logger).Log("msg", "checking allDone", "bookmarks", len(bookmarks))
 	for _, b := range bookmarks {
 		if !b.done() {
 			return false
 		}
 	}
-
+	level.Debug(util.Logger).Log("msg", "allDone returned true, meaning we've reached end of blocks")
 	return true
 }
 

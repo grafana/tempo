@@ -8,7 +8,11 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
-var ErrMetaDoesNotExist = fmt.Errorf("meta does not exist")
+var (
+	ErrMetaDoesNotExist = fmt.Errorf("meta does not exist")
+	ErrEmptyTenantID    = fmt.Errorf("empty tenant id")
+	ErrEmptyBlockID     = fmt.Errorf("empty block id")
+)
 
 type AppendTracker interface{}
 
@@ -25,7 +29,7 @@ type Reader interface {
 	BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error)
 	Bloom(blockID uuid.UUID, tenantID string) ([]byte, error)
 	Index(blockID uuid.UUID, tenantID string) ([]byte, error)
-	Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error
+	Object(blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error
 
 	Shutdown()
 }
