@@ -1,6 +1,8 @@
 package validation
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 const (
 	discardReasonLabel = "reason"

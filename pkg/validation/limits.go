@@ -2,10 +2,7 @@ package validation
 
 import (
 	"flag"
-	"io"
 	"time"
-
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -17,24 +14,6 @@ const (
 
 	bytesInMB = 1048576
 )
-
-// OverridesConfig represents the overrides config file
-type OverridesConfig struct {
-	TenantLimits map[string]*Limits `yaml:"overrides"`
-}
-
-// LoadOverridesConfig is of type runtimeconfig.Loader
-func LoadOverridesConfig(r io.Reader) (interface{}, error) {
-	var overrides = &OverridesConfig{}
-
-	decoder := yaml.NewDecoder(r)
-	decoder.SetStrict(true)
-	if err := decoder.Decode(&overrides); err != nil {
-		return nil, err
-	}
-
-	return overrides, nil
-}
 
 // Limits describe all the limits for users; can be used to describe global default
 // limits via flags, or per-user limits via yaml config.
@@ -91,62 +70,3 @@ var defaultLimits *Limits
 // TenantLimits is a function that returns limits for given tenant, or
 // nil, if there are no tenant-specific limits.
 type TenantLimits func(userID string) *Limits
-
-// Overrides periodically fetch a set of per-user overrides, and provides convenience
-// functions for fetching the correct value.
-type Overrides struct {
-	defaultLimits *Limits
-	tenantLimits  TenantLimits
-}
-
-// NewOverrides makes a new Overrides.
-// We store the supplied limits in a global variable to ensure per-tenant limits
-// are defaulted to those values.  As such, the last call to NewOverrides will
-// become the new global defaults.
-func NewOverrides(defaults Limits, tenantLimits TenantLimits) (*Overrides, error) {
-	defaultLimits = &defaults
-	return &Overrides{
-		tenantLimits:  tenantLimits,
-		defaultLimits: &defaults,
-	}, nil
-}
-
-// IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
-// to each distributor instance (local) or evenly shared across the cluster (global).
-func (o *Overrides) IngestionRateStrategy() string {
-	// The ingestion rate strategy can't be overridden on a per-tenant basis,
-	// so here we just pick the value for a not-existing user ID (empty string).
-	return o.getOverridesForUser("").IngestionRateStrategy
-}
-
-// MaxLocalTracesPerUser returns the maximum number of streams a user is allowed to store
-// in a single ingester.
-func (o *Overrides) MaxLocalTracesPerUser(userID string) int {
-	return o.getOverridesForUser(userID).MaxLocalTracesPerUser
-}
-
-// MaxGlobalTracesPerUser returns the maximum number of streams a user is allowed to store
-// across the cluster.
-func (o *Overrides) MaxGlobalTracesPerUser(userID string) int {
-	return o.getOverridesForUser(userID).MaxGlobalTracesPerUser
-}
-
-// IngestionRateSpans is the number of spans per second allowed for this tenant
-func (o *Overrides) IngestionRateSpans(userID string) float64 {
-	return float64(o.getOverridesForUser(userID).IngestionRate)
-}
-
-// IngestionBurstSpans is the burst size in spans allowed for this tenant
-func (o *Overrides) IngestionBurstSpans(userID string) int {
-	return o.getOverridesForUser(userID).IngestionMaxBatchSize
-}
-
-func (o *Overrides) getOverridesForUser(userID string) *Limits {
-	if o.tenantLimits != nil {
-		l := o.tenantLimits(userID)
-		if l != nil {
-			return l
-		}
-	}
-	return o.defaultLimits
-}
