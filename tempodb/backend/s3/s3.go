@@ -43,8 +43,17 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	// make bucket name if doesn't exist already
 	err = core.MakeBucket(cfg.Bucket, cfg.Region)
 	if err != nil {
-		if exists, errBucketExists := core.BucketExists(cfg.Bucket); !exists || errBucketExists != nil {
-			return nil, nil, nil, err
+		exists, errBucketExists := core.BucketExists(cfg.Bucket)
+		if errBucketExists == nil && !exists {
+			return nil, nil, nil, errors.Wrap(err, "cannot create bucket in s3, invalid permissions")
+		} else if errBucketExists != nil {
+			// try listing objects
+			_, err := core.ListObjects(cfg.Bucket, "", "", "/", 0)
+			if err != nil {
+				return nil, nil, nil, errors.Wrapf(err, "cannot list objects in s3 bucket, invalid permissions")
+			}
+		} else {
+			// do nothing
 		}
 	}
 
