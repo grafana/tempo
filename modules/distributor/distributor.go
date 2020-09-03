@@ -28,7 +28,7 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 var (

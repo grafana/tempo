@@ -2,7 +2,7 @@ package distributor
 
 import (
 	"github.com/cortexproject/cortex/pkg/util/limiter"
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 // ReadLifecycler represents the read interface to the lifecycler.

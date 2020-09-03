@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/validation"
 
 	"github.com/stretchr/testify/assert"
 )

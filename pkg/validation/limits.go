@@ -58,7 +58,7 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	// Distributor Limits
 	f.StringVar(&l.IngestionRateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&l.IngestionRate, "distributor.ingestion-rate-limit", 100000, "Per-user ingestion rate limit in spans per second.")
-	f.IntVar(&l.IngestionMaxBatchSize, "distributor.ingestion-max-batch-size", 5000, "Per-user allowed ingestion max batch size (in number of spans).")
+	f.IntVar(&l.IngestionMaxBatchSize, "distributor.ingestion-max-batch-size", 1000, "Per-user allowed ingestion max batch size (in number of spans).")
 
 	// Ingester limits
 	f.IntVar(&l.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")

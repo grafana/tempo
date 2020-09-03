@@ -2,7 +2,7 @@ package app
 
 import (
 	"github.com/cortexproject/cortex/pkg/util/runtimeconfig"
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 func tenantLimitsFromRuntimeConfig(c *runtimeconfig.Manager) validation.TenantLimits {
