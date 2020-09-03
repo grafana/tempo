@@ -144,7 +144,7 @@ func TestWal(t *testing.T) {
 
 func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
 	ingesterConfig := defaultIngesterTestConfig()
-	limits, err := validation.NewOverrides(defaultLimitsTestConfig())
+	limits, err := validation.NewOverrides(defaultLimitsTestConfig(), nil)
 	assert.NoError(t, err, "unexpected error creating overrides")
 
 	s, err := storage.NewStore(storage.Config{

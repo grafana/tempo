@@ -11,6 +11,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/modules"
+	"github.com/cortexproject/cortex/pkg/util/runtimeconfig"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -82,14 +83,29 @@ func (t *App) initRing() (services.Service, error) {
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	overrides, err := validation.NewOverrides(t.cfg.LimitsConfig)
+	var err error
+	var runtimeCfgManager *runtimeconfig.Manager
+	var tenantLimits validation.TenantLimits
+	if t.cfg.LimitsConfig.PerTenantOverrideConfig != "" {
+		runtimeCfg := runtimeconfig.ManagerConfig{
+			LoadPath:     t.cfg.LimitsConfig.PerTenantOverrideConfig,
+			ReloadPeriod: t.cfg.LimitsConfig.PerTenantOverridePeriod,
+			Loader:       validation.LoadOverridesConfig,
+		}
+		runtimeCfgManager, err = runtimeconfig.NewRuntimeConfigManager(runtimeCfg, prometheus.DefaultRegisterer)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create runtime config manager %w", err)
+		}
+		tenantLimits = tenantLimitsFromRuntimeConfig(runtimeCfgManager)
+	}
+
+	overrides, err := validation.NewOverrides(t.cfg.LimitsConfig, tenantLimits)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides %w", err)
 	}
 	t.overrides = overrides
-	// overrides don't have operational state, nor do they need to do anything more in starting/stopping phase,
-	// so there is no need to return any service.
-	return nil, nil
+
+	return runtimeCfgManager, nil
 }
 
 func (t *App) initDistributor() (services.Service, error) {
