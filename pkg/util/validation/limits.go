@@ -41,8 +41,8 @@ func LoadOverridesConfig(r io.Reader) (interface{}, error) {
 type Limits struct {
 	// Distributor enforced limits.
 	IngestionRateStrategy string `yaml:"ingestion_rate_strategy"`
-	IngestionRate         int    `yaml:"ingestion_rate"`
-	IngestionBurstSize    int    `yaml:"ingestion_burst_size"`
+	IngestionRate         int    `yaml:"ingestion_rate_limit"`
+	IngestionMaxBatchSize int    `yaml:"ingestion_max_batch_size"`
 
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user"`
@@ -58,11 +58,11 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	// Distributor Limits
 	f.StringVar(&l.IngestionRateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&l.IngestionRate, "distributor.ingestion-rate-limit", 100000, "Per-user ingestion rate limit in spans per second.")
-	f.IntVar(&l.IngestionBurstSize, "distributor.ingestion-burst-size", 50000, "Per-user allowed ingestion burst size (in number of spans).") // jpe ??
+	f.IntVar(&l.IngestionMaxBatchSize, "distributor.ingestion-max-batch-size", 5000, "Per-user allowed ingestion max batch size (in number of spans).")
 
 	// Ingester limits
-	f.IntVar(&l.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active streams per user, per ingester. 0 to disable.")
-	f.IntVar(&l.MaxGlobalTracesPerUser, "ingester.max-global-traces-per-user", 0, "Maximum number of active streams per user, across the cluster. 0 to disable.")
+	f.IntVar(&l.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")
+	f.IntVar(&l.MaxGlobalTracesPerUser, "ingester.max-global-traces-per-user", 0, "Maximum number of active traces per user, across the cluster. 0 to disable.")
 
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	f.DurationVar(&l.PerTenantOverridePeriod, "limits.per-user-override-period", 10*time.Second, "Period with this to reload the overrides.")
@@ -138,7 +138,7 @@ func (o *Overrides) IngestionRateSpans(userID string) float64 {
 
 // IngestionBurstSpans is the burst size in spans allowed for this tenant
 func (o *Overrides) IngestionBurstSpans(userID string) int {
-	return o.getOverridesForUser(userID).IngestionBurstSize
+	return o.getOverridesForUser(userID).IngestionMaxBatchSize
 }
 
 func (o *Overrides) getOverridesForUser(userID string) *Limits {

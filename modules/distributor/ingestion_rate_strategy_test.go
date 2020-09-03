@@ -25,7 +25,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 			limits: validation.Limits{
 				IngestionRateStrategy: validation.LocalIngestionRateStrategy,
 				IngestionRate:         5,
-				IngestionBurstSize:    2,
+				IngestionMaxBatchSize: 2,
 			},
 			ring:          nil,
 			expectedLimit: 5,
@@ -35,7 +35,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 			limits: validation.Limits{
 				IngestionRateStrategy: validation.GlobalIngestionRateStrategy,
 				IngestionRate:         5,
-				IngestionBurstSize:    2,
+				IngestionMaxBatchSize: 2,
 			},
 			ring: func() ReadLifecycler {
 				ring := newReadLifecyclerMock()
