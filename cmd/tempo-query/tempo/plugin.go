@@ -38,6 +38,10 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("failed get to tempo %w", err)
 	}
 
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, jaeger_spanstore.ErrTraceNotFound
+	}
+
 	out := &tempopb.Trace{}
 	unmarshaller := &jsonpb.Unmarshaler{}
 	err = unmarshaller.Unmarshal(resp.Body, out)
@@ -45,10 +49,6 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("failed to unmarshal trace json %w", err)
 	}
 	resp.Body.Close()
-
-	if len(out.Batches) == 0 {
-		return nil, fmt.Errorf("traceID not found: %s", hexID)
-	}
 
 	otTrace := ot_pdata.TracesFromOtlp(out.Batches)
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
