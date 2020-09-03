@@ -20,7 +20,7 @@ const (
 type Limits struct {
 	// Distributor enforced limits.
 	IngestionRateStrategy string `yaml:"ingestion_rate_strategy"`
-	IngestionRate         int    `yaml:"ingestion_rate_limit"`
+	IngestionRateSpans    int    `yaml:"ingestion_rate_limit"`
 	IngestionMaxBatchSize int    `yaml:"ingestion_max_batch_size"`
 
 	// Ingester enforced limits.
@@ -36,7 +36,7 @@ type Limits struct {
 func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	// Distributor Limits
 	f.StringVar(&l.IngestionRateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
-	f.IntVar(&l.IngestionRate, "distributor.ingestion-rate-limit", 100000, "Per-user ingestion rate limit in spans per second.")
+	f.IntVar(&l.IngestionRateSpans, "distributor.ingestion-rate-limit", 100000, "Per-user ingestion rate limit in spans per second.")
 	f.IntVar(&l.IngestionMaxBatchSize, "distributor.ingestion-max-batch-size", 1000, "Per-user allowed ingestion max batch size (in number of spans).")
 
 	// Ingester limits

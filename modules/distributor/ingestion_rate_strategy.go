@@ -25,7 +25,7 @@ func (s *localStrategy) Limit(userID string) float64 {
 }
 
 func (s *localStrategy) Burst(userID string) int {
-	return s.limits.IngestionBurstSpans(userID)
+	return s.limits.IngestionMaxBatchSize(userID)
 }
 
 type globalStrategy struct {
@@ -53,5 +53,5 @@ func (s *globalStrategy) Limit(userID string) float64 {
 func (s *globalStrategy) Burst(userID string) int {
 	// The meaning of burst doesn't change for the global strategy, in order
 	// to keep it easier to understand for users / operators.
-	return s.limits.IngestionBurstSpans(userID)
+	return s.limits.IngestionMaxBatchSize(userID)
 }

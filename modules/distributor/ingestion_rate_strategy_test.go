@@ -24,7 +24,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 		"local rate limiter should just return configured limits": {
 			limits: validation.Limits{
 				IngestionRateStrategy: validation.LocalIngestionRateStrategy,
-				IngestionRate:         5,
+				IngestionRateSpans:    5,
 				IngestionMaxBatchSize: 2,
 			},
 			ring:          nil,
@@ -34,7 +34,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 		"global rate limiter should share the limit across the number of distributors": {
 			limits: validation.Limits{
 				IngestionRateStrategy: validation.GlobalIngestionRateStrategy,
-				IngestionRate:         5,
+				IngestionRateSpans:    5,
 				IngestionMaxBatchSize: 2,
 			},
 			ring: func() ReadLifecycler {
