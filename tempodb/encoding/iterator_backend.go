@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
 
 type Reader interface {
@@ -47,7 +48,7 @@ func (i *backendIterator) Next() (ID, []byte, error) {
 
 	i.activeObjectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.activeObjectsBuffer)
 	if err != nil && err != io.EOF {
-		return nil, nil, err
+		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	} else if err != io.EOF {
 		return id, object, nil
 	}
@@ -84,13 +85,13 @@ func (i *backendIterator) Next() (ID, []byte, error) {
 	i.activeObjectsBuffer = i.objectsBuffer[:length]
 	err = i.r.Object(i.blockID, i.tenantID, start, i.activeObjectsBuffer)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}
 
 	// attempt to get next object from objects
 	i.activeObjectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.activeObjectsBuffer)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}
 
 	return id, object, nil

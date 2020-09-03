@@ -2,6 +2,7 @@ auth_enabled: false
 
 server:
   http_listen_port: 3100
+  log_level: debug
 
 distributor:
   receivers:
@@ -34,13 +35,17 @@ compactor:
 storage_config:
   trace:
     maintenanceCycle: 30s
-    backend: local
+    backend: s3
     wal:
       path: /tmp/tempo/wal
       bloom-filter-false-positive: .05
       index-downsample: 10
-    local:
-      path: /tmp/tempo/traces
+    s3:
+      bucket: tempo
+      endpoint: minio:9000
+      access_key: tempo
+      secret_key: supersecret
+      insecure: true
     query_pool:
       max_workers: 100
       queue_depth: 10000
@@ -48,4 +53,4 @@ storage_config:
       disk-path: /tmp/tempo/cache
       disk-max-mbs: 5
       disk-prune-count: 10
-      disk-clean-rate: 30s   
+      disk-clean-rate: 30s
