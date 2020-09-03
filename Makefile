@@ -94,8 +94,8 @@ gen-proto:
 
 .PHONY: vendor-dependencies
 vendor-dependencies:
-	go mod tidy
 	go mod vendor
+	go mod tidy
 	# ignore log.go b/c the proto version used by v0.6.1 doesn't actually have logs proto.
 	find | grep 'vendor/go.opentelemetry.io.*go$\' | grep -v -e 'log.go$\' | xargs -L 1 sed -i 's+go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/+github.com/open-telemetry/opentelemetry-proto/gen/go/+g'
 	$(MAKE) gen-proto
