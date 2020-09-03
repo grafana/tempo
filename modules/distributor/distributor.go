@@ -192,7 +192,7 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	if !d.ingestionRateLimiter.AllowN(now, userID, spanCount) {
 		// Return a 4xx here to have the client discard the data and not retry. If a client
 		// is sending too much data consistently we will unlikely ever catch up otherwise.
-		validation.DiscardedSamples.WithLabelValues(validation.RateLimited, userID).Add(float64(spanCount))
+		validation.DiscardedSpans.WithLabelValues(validation.RateLimited, userID).Add(float64(spanCount))
 		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (%d bytes) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 

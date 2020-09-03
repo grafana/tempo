@@ -55,7 +55,6 @@ func TestDistributor(t *testing.T) {
 		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
 			limits := &validation.Limits{}
 			flagext.DefaultValues(limits)
-			limits.EnforceMetricName = false
 
 			// todo:  test limits
 			d := prepare(t, limits, nil)
