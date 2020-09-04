@@ -68,7 +68,6 @@ func local_request_TraceService_Export_0(ctx context.Context, marshaler runtime.
 // RegisterTraceServiceHandlerServer registers the http handlers for service TraceService to "mux".
 // UnaryRPC     :call TraceServiceServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
-// Note that using this registration option will cause many gRPC library features (such as grpc.SendHeader, etc) to stop working. Consider using RegisterTraceServiceHandlerFromEndpoint instead.
 func RegisterTraceServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux, server TraceServiceServer) error {
 
 	mux.Handle("POST", pattern_TraceService_Export_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
