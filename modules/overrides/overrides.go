@@ -15,14 +15,14 @@ import (
 // nil, if there are no tenant-specific limits.
 type TenantLimits func(userID string) *Limits
 
-// OverridesConfig represents the overrides config file
-type OverridesConfig struct {
+// perTenantOverrides represents the overrides config file
+type perTenantOverrides struct {
 	TenantLimits map[string]*Limits `yaml:"overrides"`
 }
 
-// loadOverridesConfig is of type runtimeconfig.Loader
-func loadOverridesConfig(r io.Reader) (interface{}, error) {
-	var overrides = &OverridesConfig{}
+// loadPerTenantOverrides is of type runtimeconfig.Loader
+func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
+	var overrides = &perTenantOverrides{}
 
 	decoder := yaml.NewDecoder(r)
 	decoder.SetStrict(true)
@@ -58,7 +58,7 @@ func NewOverrides(defaults Limits) (*Overrides, error) {
 		runtimeCfg := runtimeconfig.ManagerConfig{
 			LoadPath:     defaults.PerTenantOverrideConfig,
 			ReloadPeriod: defaults.PerTenantOverridePeriod,
-			Loader:       loadOverridesConfig,
+			Loader:       loadPerTenantOverrides,
 		}
 		runtimeCfgMgr, err := runtimeconfig.NewRuntimeConfigManager(runtimeCfg, prometheus.DefaultRegisterer)
 		if err != nil {
@@ -164,7 +164,7 @@ func tenantLimitsFromRuntimeConfig(c *runtimeconfig.Manager) TenantLimits {
 		return nil
 	}
 	return func(userID string) *Limits {
-		cfg, ok := c.GetConfig().(*OverridesConfig)
+		cfg, ok := c.GetConfig().(*perTenantOverrides)
 		if !ok || cfg == nil {
 			return nil
 		}

@@ -19,7 +19,7 @@ func TestOverrides(t *testing.T) {
 	tests := []struct {
 		name                        string
 		limits                      Limits
-		overrides                   *OverridesConfig
+		overrides                   *perTenantOverrides
 		expectedMaxLocalTraces      map[string]int
 		expectedMaxGlobalTraces     map[string]int
 		expectedIngestionRateSpans  map[string]int
@@ -46,7 +46,7 @@ func TestOverrides(t *testing.T) {
 				IngestionMaxBatchSize:  3,
 				IngestionRateSpans:     4,
 			},
-			overrides: &OverridesConfig{
+			overrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
 					"user1": {
 						MaxGlobalTracesPerUser: 5,
