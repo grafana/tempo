@@ -56,7 +56,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.Target, "target", All, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
 
-	c.Server.RegisterFlags(f)
 	c.Distributor.RegisterFlags(f)
 	c.IngesterClient.RegisterFlags(f)
 	c.Querier.RegisterFlags(f)
@@ -66,6 +65,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.LimitsConfig.RegisterFlags(f)
 
 	flagext.DefaultValues(&c.Server)
+	f.IntVar(&c.Server.HTTPListenPort, "server.http-listen-port", 80, "HTTP server listen port.")
+	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
 }
 
 // App is the root datastructure.
