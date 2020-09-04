@@ -18,7 +18,8 @@ type Config struct {
 	// receivers map for shim.
 	//  This receivers node is equivalent in format to the receiver node in the
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/master/receiver
-	Receivers map[string]interface{} `yaml:"receivers"`
+	Receivers        map[string]interface{} `yaml:"receivers"`
+	DefaultReceivers map[string]interface{} `yaml:"-"`
 
 	// For testing.
 	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
@@ -31,7 +32,7 @@ const (
 // RegisterFlagsAndApplyDefaults registers flags and applies defaults
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// create a default config that listens for otlp and jaeger
-	cfg.Receivers = map[string]interface{}{
+	cfg.DefaultReceivers = map[string]interface{}{
 		"jaeger": jaegerreceiver.NewFactory().CreateDefaultConfig(),
 		"otlp":   otlpreceiver.NewFactory().CreateDefaultConfig(),
 	}
