@@ -58,7 +58,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
 
 	c.IngesterClient.RegisterFlags(f)
-	c.Querier.RegisterFlags(f)
 	c.Compactor.RegisterFlags(f)
 	c.StorageConfig.RegisterFlags(f)
 	c.LimitsConfig.RegisterFlags(f)
@@ -69,6 +68,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "distributor"), f)
 	c.Ingester.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "ingester"), f)
+	c.Querier.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "querier"), f)
 }
 
 // App is the root datastructure.
