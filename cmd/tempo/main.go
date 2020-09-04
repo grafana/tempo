@@ -25,10 +25,6 @@ import (
 
 const appName = "tempo"
 
-var (
-	ballastMBs int
-)
-
 func init() {
 	prometheus.MustRegister(version.NewCollector(appName))
 }

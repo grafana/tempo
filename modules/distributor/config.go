@@ -25,10 +25,6 @@ type Config struct {
 	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
 }
 
-const (
-	defaultGRPCBindEndpoint = "0.0.0.0:14250"
-)
-
 // RegisterFlagsAndApplyDefaults registers flags and applies defaults
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// create a default config that listens for otlp and jaeger

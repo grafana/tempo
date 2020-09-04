@@ -197,7 +197,9 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 
 func defaultIngesterTestConfig() Config {
 	cfg := Config{}
-	flagext.DefaultValues(&cfg)
+
+	flagext.DefaultValues(&cfg.LifecyclerConfig)
+
 	cfg.FlushCheckPeriod = 99999 * time.Hour
 	cfg.MaxTraceIdle = 99999 * time.Hour
 	cfg.ConcurrentFlushes = 1

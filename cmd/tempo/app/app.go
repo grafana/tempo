@@ -74,7 +74,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	fs := flag.NewFlagSet("", flag.PanicOnError)
 	c.MemberlistKV.RegisterFlags(fs, "")
-	fs.Parse([]string{})
+	_ = fs.Parse([]string{})
 
 	f.Var(&c.MemberlistKV.JoinMembers, "memberlist.host-port", "Host port to connect to memberlist cluster.")
 	f.IntVar(&c.MemberlistKV.TCPTransport.BindPort, "memberlist.bind-port", 7946, "Port for memberlist to communicate on")
