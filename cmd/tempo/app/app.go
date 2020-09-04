@@ -49,8 +49,8 @@ type Config struct {
 	MemberlistKV   memberlist.KVConfig    `yaml:"memberlist,omitempty"`
 }
 
-// RegisterFlags registers flag.
-func (c *Config) RegisterFlags(f *flag.FlagSet) {
+// RegisterFlagsAndApplyDefaults registers flag.
+func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) { // jpe
 	c.Target = All
 	f.StringVar(&c.Target, "target", All, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
