@@ -13,5 +13,4 @@ func TestRateLimitedLogger(t *testing.T) {
 	assert.NotNil(t, logger)
 
 	logger.Log("test")
-	logger.Stop()
 }

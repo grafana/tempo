@@ -1,37 +1,28 @@
 package util
 
 import (
+	"time"
+
 	"github.com/go-kit/kit/log"
-	"go.uber.org/ratelimit"
+	"golang.org/x/time/rate"
 )
 
 type RateLimitedLogger struct {
-	logChan chan []interface{}
+	limiter *rate.Limiter
+	logger  log.Logger
 }
 
 func NewRateLimitedLogger(logsPerSecond int, logger log.Logger) *RateLimitedLogger {
-	r := &RateLimitedLogger{
-		logChan: make(chan []interface{}),
+	return &RateLimitedLogger{
+		limiter: rate.NewLimiter(rate.Limit(logsPerSecond), 1),
+		logger:  logger,
 	}
-
-	go func() {
-		limiter := ratelimit.New(logsPerSecond)
-		for keyvals := range r.logChan {
-			_ = logger.Log(keyvals...)
-			limiter.Take()
-		}
-	}()
-
-	return r
 }
 
 func (l *RateLimitedLogger) Log(keyvals ...interface{}) {
-	select {
-	case l.logChan <- keyvals:
-	default:
+	if !l.limiter.AllowN(time.Now(), 1) {
+		return
 	}
-}
 
-func (l *RateLimitedLogger) Stop() {
-	close(l.logChan)
+	_ = l.logger.Log(keyvals...)
 }
