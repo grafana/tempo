@@ -40,7 +40,7 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 	}
 
 	subservices := []services.Service(nil)
-	if c.cfg.ShardingEnabled {
+	if c.cfg.ShardingRing != nil {
 		lifecyclerCfg := c.cfg.ShardingRing.ToLifecyclerConfig()
 		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", CompactorRingKey, false, prometheus.DefaultRegisterer)
 		if err != nil {
@@ -121,7 +121,7 @@ func (c *Compactor) stopping(_ error) error {
 }
 
 func (c *Compactor) Owns(hash string) bool {
-	if c.cfg.ShardingEnabled {
+	if c.cfg.ShardingRing != nil {
 		hasher := fnv.New32a()
 		_, _ = hasher.Write([]byte(hash))
 		hash32 := hasher.Sum32()
