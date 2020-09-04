@@ -58,7 +58,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
 
 	c.IngesterClient.RegisterFlags(f)
-	c.StorageConfig.RegisterFlags(f)
 	c.LimitsConfig.RegisterFlags(f)
 
 	flagext.DefaultValues(&c.Server)

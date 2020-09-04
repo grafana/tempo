@@ -2,8 +2,15 @@ package storage
 
 import (
 	"flag"
+	"time"
 
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend/gcs"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/tempodb/pool"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 // Config is the Tempo storage configuration
@@ -13,5 +20,26 @@ type Config struct {
 
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, gcs, local)")
+	f.DurationVar(&cfg.Trace.MaintenanceCycle, util.PrefixConfig(prefix, "trace.maintenance_cycle"), 30*time.Second, "Period at which to run the maintenance cycle.")
 
+	cfg.Trace.WAL = &wal.Config{}
+	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")
+	f.Float64Var(&cfg.Trace.WAL.BloomFP, util.PrefixConfig(prefix, "trace.wal.bloom-filter-false-positive"), .05, "Bloom False Positive.")
+	f.IntVar(&cfg.Trace.WAL.IndexDownsample, util.PrefixConfig(prefix, "trace.wal.index-downsample"), 100, "Number of traces per index record.")
+
+	cfg.Trace.S3 = &s3.Config{}
+	f.StringVar(&cfg.Trace.S3.Bucket, util.PrefixConfig(prefix, "trace.s3.bucket"), "", "s3 bucket to store blocks in.")
+	f.StringVar(&cfg.Trace.S3.Endpoint, util.PrefixConfig(prefix, "trace.s3.endpoint"), "", "s3 endpoint to push blocks to.")
+
+	cfg.Trace.GCS = &gcs.Config{}
+	f.StringVar(&cfg.Trace.GCS.BucketName, util.PrefixConfig(prefix, "trace.gcs.bucket"), "", "gcs bucket to store traces in.")
+	cfg.Trace.GCS.ChunkBufferSize = 10 * 1024 * 1024
+
+	cfg.Trace.Local = &local.Config{}
+	f.StringVar(&cfg.Trace.Local.Path, util.PrefixConfig(prefix, "trace.local.path"), "", "path to store traces at.")
+
+	cfg.Trace.Pool = &pool.Config{}
+	f.IntVar(&cfg.Trace.Pool.MaxWorkers, util.PrefixConfig(prefix, "trace.pool.max-workers"), 50, "Workers in the worker pool.")
+	f.IntVar(&cfg.Trace.Pool.QueueDepth, util.PrefixConfig(prefix, "trace.pool.queue-depth"), 200, "Work item queue depth.")
 }

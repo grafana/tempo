@@ -17,7 +17,7 @@ type Config struct {
 	GCS     *gcs.Config   `yaml:"gcs"`
 	S3      *s3.Config    `yaml:"s3"`
 	Cache   *cache.Config `yaml:"cache"`
-	Pool    *pool.Config  `yaml:"query_pool,omitempty"`
+	Pool    *pool.Config  `yaml:"pool,omitempty"`
 	WAL     *wal.Config   `yaml:"wal"`
 
 	MaintenanceCycle time.Duration `yaml:"maintenanceCycle"`
