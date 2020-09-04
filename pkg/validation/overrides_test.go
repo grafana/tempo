@@ -78,12 +78,12 @@ func TestOverrides(t *testing.T) {
 				tt.limits.PerTenantOverridePeriod = time.Hour
 			}
 
-			overrides, srv, err := NewOverrides(tt.limits)
+			overrides, err := NewOverrides(tt.limits)
 			require.NoError(t, err)
-			if srv != nil {
-				err = services.StartAndAwaitRunning(context.TODO(), srv)
-				require.NoError(t, err)
-			}
+			// if overrides != nil {
+			err = services.StartAndAwaitRunning(context.TODO(), overrides)
+			require.NoError(t, err)
+			// }
 
 			for user, expectedVal := range tt.expectedMaxLocalTraces {
 				assert.Equal(t, expectedVal, overrides.MaxLocalTracesPerUser(user))
@@ -101,10 +101,10 @@ func TestOverrides(t *testing.T) {
 				assert.Equal(t, float64(expectedVal), overrides.IngestionRateSpans(user))
 			}
 
-			if srv != nil {
-				err = services.StopAndAwaitTerminated(context.TODO(), srv)
-				require.NoError(t, err)
-			}
+			//if srv != nil {
+			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
+			require.NoError(t, err)
+			//}
 		})
 	}
 }

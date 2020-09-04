@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"context"
 	"fmt"
 	"io"
 
@@ -35,17 +36,23 @@ func loadOverridesConfig(r io.Reader) (interface{}, error) {
 // Overrides periodically fetch a set of per-user overrides, and provides convenience
 // functions for fetching the correct value.
 type Overrides struct {
+	services.Service
+
 	defaultLimits *Limits
 	tenantLimits  TenantLimits
+
+	// Manager for subservices
+	subservices        *services.Manager
+	subservicesWatcher *services.FailureWatcher
 }
 
 // NewOverrides makes a new Overrides.
 // We store the supplied limits in a global variable to ensure per-tenant limits
 // are defaulted to those values.  As such, the last call to NewOverrides will
 // become the new global defaults.
-func NewOverrides(defaults Limits) (*Overrides, services.Service, error) {
-	var srv services.Service
+func NewOverrides(defaults Limits) (*Overrides, error) {
 	var tenantLimits TenantLimits
+	subservices := []services.Service(nil)
 
 	if defaults.PerTenantOverrideConfig != "" {
 		runtimeCfg := runtimeconfig.ManagerConfig{
@@ -53,18 +60,63 @@ func NewOverrides(defaults Limits) (*Overrides, services.Service, error) {
 			ReloadPeriod: defaults.PerTenantOverridePeriod,
 			Loader:       loadOverridesConfig,
 		}
-		runtimeCfgManager, err := runtimeconfig.NewRuntimeConfigManager(runtimeCfg, prometheus.DefaultRegisterer)
+		runtimeCfgMgr, err := runtimeconfig.NewRuntimeConfigManager(runtimeCfg, prometheus.DefaultRegisterer)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create runtime config manager %w", err)
+			return nil, fmt.Errorf("failed to create runtime config manager %w", err)
 		}
-		tenantLimits = tenantLimitsFromRuntimeConfig(runtimeCfgManager)
-		srv = runtimeCfgManager
+		tenantLimits = tenantLimitsFromRuntimeConfig(runtimeCfgMgr)
+		subservices = append(subservices, runtimeCfgMgr)
 	}
 
-	return &Overrides{
+	o := &Overrides{
 		tenantLimits:  tenantLimits,
 		defaultLimits: &defaults,
-	}, srv, nil
+	}
+
+	if len(subservices) > 0 {
+		var err error
+		o.subservices, err = services.NewManager(subservices...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create subservices %w", err)
+		}
+		o.subservicesWatcher = services.NewFailureWatcher()
+		o.subservicesWatcher.WatchManager(o.subservices)
+	}
+
+	o.Service = services.NewBasicService(o.starting, o.running, o.stopping)
+
+	return o, nil
+}
+
+func (o *Overrides) starting(ctx context.Context) error {
+	if o.subservices != nil {
+		err := services.StartManagerAndAwaitHealthy(ctx, o.subservices)
+		if err != nil {
+			return fmt.Errorf("failed to start subservices %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (o *Overrides) running(ctx context.Context) error {
+	if o.subservices != nil {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-o.subservicesWatcher.Chan():
+			return fmt.Errorf("overrides subservices failed %w", err)
+		}
+	}
+	<-ctx.Done()
+	return nil
+}
+
+func (o *Overrides) stopping(_ error) error {
+	if o.subservices != nil {
+		return services.StopManagerAndAwaitStopped(context.Background(), o.subservices)
+	}
+	return nil
 }
 
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
@@ -75,13 +127,13 @@ func (o *Overrides) IngestionRateStrategy() string {
 	return o.getOverridesForUser("").IngestionRateStrategy
 }
 
-// MaxLocalTracesPerUser returns the maximum number of streams a user is allowed to store
+// MaxLocalTracesPerUser returns the maximum number of traces a user is allowed to store
 // in a single ingester.
 func (o *Overrides) MaxLocalTracesPerUser(userID string) int {
 	return o.getOverridesForUser(userID).MaxLocalTracesPerUser
 }
 
-// MaxGlobalTracesPerUser returns the maximum number of streams a user is allowed to store
+// MaxGlobalTracesPerUser returns the maximum number of traces a user is allowed to store
 // across the cluster.
 func (o *Overrides) MaxGlobalTracesPerUser(userID string) int {
 	return o.getOverridesForUser(userID).MaxGlobalTracesPerUser

@@ -82,13 +82,13 @@ func (t *App) initRing() (services.Service, error) {
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	overrides, srv, err := validation.NewOverrides(t.cfg.LimitsConfig)
+	overrides, err := validation.NewOverrides(t.cfg.LimitsConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides %w", err)
 	}
 	t.overrides = overrides
 
-	return srv, nil
+	return t.overrides, nil
 }
 
 func (t *App) initDistributor() (services.Service, error) {

@@ -22,7 +22,7 @@ func (m *ringCountMock) HealthyInstancesCount() int {
 }
 
 func TestInstance(t *testing.T) {
-	limits, _, err := validation.NewOverrides(validation.Limits{})
+	limits, err := validation.NewOverrides(validation.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -66,7 +66,7 @@ func TestInstance(t *testing.T) {
 }
 
 func TestInstanceFind(t *testing.T) {
-	limits, _, err := validation.NewOverrides(validation.Limits{})
+	limits, err := validation.NewOverrides(validation.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
