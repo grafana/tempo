@@ -94,7 +94,7 @@ func (c *Compactor) running(ctx context.Context) error {
 		time.Sleep(c.cfg.WaitOnStartup)
 
 		level.Info(util.Logger).Log("msg", "enabling compaction")
-		c.store.EnableCompaction(c.cfg.Compactor, c)
+		c.store.EnableCompaction(&c.cfg.Compactor, c)
 	}()
 
 	if c.subservices != nil {

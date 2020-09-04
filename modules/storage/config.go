@@ -11,7 +11,7 @@ type Config struct {
 	Trace tempodb.Config `yaml:"trace"`
 }
 
-// RegisterFlags adds the flags required to configure this flag set.
-func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
-	// todo:  figure out if i want cli
+// RegisterFlagsAndApplyDefaults registers the flags.
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+
 }
