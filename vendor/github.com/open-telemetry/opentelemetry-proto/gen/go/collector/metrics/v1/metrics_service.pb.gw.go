@@ -68,7 +68,6 @@ func local_request_MetricsService_Export_0(ctx context.Context, marshaler runtim
 // RegisterMetricsServiceHandlerServer registers the http handlers for service MetricsService to "mux".
 // UnaryRPC     :call MetricsServiceServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
-// Note that using this registration option will cause many gRPC library features (such as grpc.SendHeader, etc) to stop working. Consider using RegisterMetricsServiceHandlerFromEndpoint instead.
 func RegisterMetricsServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux, server MetricsServiceServer) error {
 
 	mux.Handle("POST", pattern_MetricsService_Export_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {

@@ -17,6 +17,7 @@ require (
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/jaegertracing/jaeger v1.18.2-0.20200707061226-97d2319ff2be
 	github.com/karrick/godirwalk v1.16.1
+	github.com/minio/minio-go/v6 v6.0.56
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/open-telemetry/opentelemetry-proto v0.4.0
 	github.com/opentracing/opentracing-go v1.2.0
@@ -35,6 +36,7 @@ require (
 	go.uber.org/zap v1.15.0
 	google.golang.org/api v0.29.0
 	google.golang.org/grpc v1.30.0
+	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 )
 
