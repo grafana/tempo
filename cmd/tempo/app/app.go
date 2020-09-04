@@ -60,7 +60,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.IngesterClient.RegisterFlags(f)
 	c.Querier.RegisterFlags(f)
 	c.Compactor.RegisterFlags(f)
-	c.Ingester.RegisterFlags(f)
 	c.StorageConfig.RegisterFlags(f)
 	c.LimitsConfig.RegisterFlags(f)
 
@@ -69,6 +68,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "distributor"), f)
+	c.Ingester.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "ingester"), f)
 }
 
 // App is the root datastructure.

@@ -5,14 +5,13 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
+	"github.com/cortexproject/cortex/pkg/ring/kv"
+	"github.com/cortexproject/cortex/pkg/util/flagext"
 )
 
 // Config for an ingester.
 type Config struct {
 	LifecyclerConfig ring.LifecyclerConfig `yaml:"lifecycler,omitempty"`
-
-	// Config for transferring chunks.
-	MaxTransferRetries int `yaml:"max_transfer_retries,omitempty"`
 
 	ConcurrentFlushes    int           `yaml:"concurrent_flushes"`
 	FlushCheckPeriod     time.Duration `yaml:"flush_check_period"`
@@ -23,14 +22,23 @@ type Config struct {
 	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
 }
 
-// RegisterFlags registers the flags.
-func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
-	cfg.LifecyclerConfig.RegisterFlags(f)
+// RegisterFlagsAndApplyDefaults registers the flags.
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	// apply generic defaults and then overlay tempo default
+	flagext.DefaultValues(&cfg.LifecyclerConfig)
+	cfg.LifecyclerConfig = ring.LifecyclerConfig{
+		RingConfig: ring.Config{
+			KVStore: kv.Config{
+				Store: "memberlist",
+			},
+			ReplicationFactor: 1,
+		},
+	}
 
-	f.IntVar(&cfg.MaxTransferRetries, "ingester.max-transfer-retries", 10, "Number of times to try and transfer chunks before falling back to flushing. If set to 0 or negative value, transfers are disabled.")
-	f.IntVar(&cfg.ConcurrentFlushes, "ingester.concurrent-flushed", 16, "")
-	f.DurationVar(&cfg.FlushCheckPeriod, "ingester.flush-check-period", 30*time.Second, "")
-	f.DurationVar(&cfg.FlushOpTimeout, "ingester.flush-op-timeout", 10*time.Second, "")
+	cfg.ConcurrentFlushes = 16
+	cfg.FlushCheckPeriod = 30 * time.Second
+	cfg.FlushOpTimeout = 10 * time.Second
+
 	f.DurationVar(&cfg.MaxTraceIdle, "ingester.trace-idle-period", 30*time.Second, "")
 	f.IntVar(&cfg.MaxTracesPerBlock, "ingester.traces-per-block", 10000, "")
 	f.DurationVar(&cfg.MaxBlockDuration, "ingester.max-block-duration", 4*time.Hour, "")
