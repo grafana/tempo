@@ -25,9 +25,9 @@ import (
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/ingester"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/validation"
 )
 
 const metricsNamespace = "tempo"
@@ -45,7 +45,7 @@ type Config struct {
 	Compactor      compactor.Config       `yaml:"compactor,omitempty"`
 	Ingester       ingester.Config        `yaml:"ingester,omitempty"`
 	StorageConfig  storage.Config         `yaml:"storage_config,omitempty"`
-	LimitsConfig   validation.Limits      `yaml:"limits_config,omitempty"`
+	LimitsConfig   overrides.Limits       `yaml:"limits_config,omitempty"`
 	MemberlistKV   memberlist.KVConfig    `yaml:"memberlist,omitempty"`
 }
 
@@ -71,7 +71,7 @@ type App struct {
 
 	server       *server.Server
 	ring         *ring.Ring
-	overrides    *validation.Overrides
+	overrides    *overrides.Overrides
 	distributor  *distributor.Distributor
 	querier      *querier.Querier
 	compactor    *compactor.Compactor

@@ -4,7 +4,8 @@ import (
 	"testing"
 
 	"github.com/cortexproject/cortex/pkg/util/limiter"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/cortexproject/cortex/pkg/util/validation"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -12,13 +13,13 @@ import (
 
 func TestIngestionRateStrategy(t *testing.T) {
 	tests := map[string]struct {
-		limits        validation.Limits
+		limits        overrides.Limits
 		ring          ReadLifecycler
 		expectedLimit float64
 		expectedBurst int
 	}{
 		"local rate limiter should just return configured limits": {
-			limits: validation.Limits{
+			limits: overrides.Limits{
 				IngestionRateStrategy: validation.LocalIngestionRateStrategy,
 				IngestionRateSpans:    5,
 				IngestionMaxBatchSize: 2,
@@ -28,7 +29,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 			expectedBurst: 2,
 		},
 		"global rate limiter should share the limit across the number of distributors": {
-			limits: validation.Limits{
+			limits: overrides.Limits{
 				IngestionRateStrategy: validation.GlobalIngestionRateStrategy,
 				IngestionRateSpans:    5,
 				IngestionMaxBatchSize: 2,
@@ -50,7 +51,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 			var strategy limiter.RateLimiterStrategy
 
 			// Init limits overrides
-			overrides, err := validation.NewOverrides(testData.limits)
+			overrides, err := overrides.NewOverrides(testData.limits)
 			require.NoError(t, err)
 
 			// Instance the strategy

@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/weaveworks/common/user"
 
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -144,7 +144,7 @@ func TestWal(t *testing.T) {
 
 func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
 	ingesterConfig := defaultIngesterTestConfig()
-	limits, err := validation.NewOverrides(defaultLimitsTestConfig())
+	limits, err := overrides.NewOverrides(defaultLimitsTestConfig())
 	assert.NoError(t, err, "unexpected error creating overrides")
 
 	s, err := storage.NewStore(storage.Config{
@@ -211,8 +211,8 @@ func defaultIngesterTestConfig() Config {
 	return cfg
 }
 
-func defaultLimitsTestConfig() validation.Limits {
-	limits := validation.Limits{}
+func defaultLimitsTestConfig() overrides.Limits {
+	limits := overrides.Limits{}
 	flagext.DefaultValues(&limits)
 	return limits
 }

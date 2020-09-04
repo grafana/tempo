@@ -20,10 +20,10 @@ import (
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	tempo_storage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/validation"
 )
 
 // The various modules that make up tempo.
@@ -82,7 +82,7 @@ func (t *App) initRing() (services.Service, error) {
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	overrides, err := validation.NewOverrides(t.cfg.LimitsConfig)
+	overrides, err := overrides.NewOverrides(t.cfg.LimitsConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides %w", err)
 	}

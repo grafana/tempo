@@ -2,7 +2,7 @@ package distributor
 
 import (
 	"github.com/cortexproject/cortex/pkg/util/limiter"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/modules/overrides"
 )
 
 // ReadLifecycler represents the read interface to the lifecycler.
@@ -11,10 +11,10 @@ type ReadLifecycler interface {
 }
 
 type localStrategy struct {
-	limits *validation.Overrides
+	limits *overrides.Overrides
 }
 
-func newLocalIngestionRateStrategy(limits *validation.Overrides) limiter.RateLimiterStrategy {
+func newLocalIngestionRateStrategy(limits *overrides.Overrides) limiter.RateLimiterStrategy {
 	return &localStrategy{
 		limits: limits,
 	}
@@ -29,11 +29,11 @@ func (s *localStrategy) Burst(userID string) int {
 }
 
 type globalStrategy struct {
-	limits *validation.Overrides
+	limits *overrides.Overrides
 	ring   ReadLifecycler
 }
 
-func newGlobalIngestionRateStrategy(limits *validation.Overrides, ring ReadLifecycler) limiter.RateLimiterStrategy {
+func newGlobalIngestionRateStrategy(limits *overrides.Overrides, ring ReadLifecycler) limiter.RateLimiterStrategy {
 	return &globalStrategy{
 		limits: limits,
 		ring:   ring,

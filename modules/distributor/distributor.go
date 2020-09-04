@@ -26,9 +26,18 @@ import (
 
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
+)
+
+const (
+	discardReasonLabel = "reason"
+
+	// RateLimited is one of the values for the reason to discard samples.
+	// Declared here to avoid duplication in ingester and distributor.
+	rateLimited = "rate_limited"
 )
 
 var (
@@ -58,6 +67,11 @@ var (
 		Name:      "distributor_ingester_clients",
 		Help:      "The current number of ingester clients.",
 	})
+	metricDiscardedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "discarded_spans_total",
+		Help:      "The total number of samples that were discarded.",
+	}, []string{discardReasonLabel, "tenant"})
 )
 
 // Distributor coordinates replicates and distribution of log streams.
@@ -78,7 +92,7 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, overrides *validation.Overrides, authEnabled bool) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, authEnabled bool) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -92,7 +106,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 	var ingestionRateStrategy limiter.RateLimiterStrategy
 	var distributorsRing *ring.Lifecycler
 
-	if overrides.IngestionRateStrategy() == validation.GlobalIngestionRateStrategy {
+	if o.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
 		var err error
 		distributorsRing, err = ring.NewLifecycler(cfg.DistributorRing.ToLifecyclerConfig(), nil, "distributor", ring.DistributorRingKey, false, prometheus.DefaultRegisterer)
 		if err != nil {
@@ -100,9 +114,9 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		}
 
 		subservices = append(subservices, distributorsRing)
-		ingestionRateStrategy = newGlobalIngestionRateStrategy(overrides, distributorsRing)
+		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, distributorsRing)
 	} else {
-		ingestionRateStrategy = newLocalIngestionRateStrategy(overrides)
+		ingestionRateStrategy = newLocalIngestionRateStrategy(o)
 	}
 
 	pool := ring_client.NewPool("distributor_pool",
@@ -192,7 +206,7 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	if !d.ingestionRateLimiter.AllowN(now, userID, spanCount) {
 		// Return a 4xx here to have the client discard the data and not retry. If a client
 		// is sending too much data consistently we will unlikely ever catch up otherwise.
-		validation.DiscardedSpans.WithLabelValues(validation.RateLimited, userID).Add(float64(spanCount))
+		metricDiscardedSpans.WithLabelValues(rateLimited, userID).Add(float64(spanCount))
 		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (%d spans) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 
