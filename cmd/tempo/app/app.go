@@ -58,8 +58,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
 
 	c.IngesterClient.RegisterFlags(f)
-	c.LimitsConfig.RegisterFlags(f)
 
+	flagext.DefaultValues(&c.LimitsConfig)
 	flagext.DefaultValues(&c.Server)
 	f.IntVar(&c.Server.HTTPListenPort, "server.http-listen-port", 80, "HTTP server listen port.")
 	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
@@ -69,6 +69,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Querier.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "querier"), f)
 	c.Compactor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "storage"), f)
+
 }
 
 // App is the root datastructure.
