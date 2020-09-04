@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 )
 
@@ -26,14 +25,8 @@ type Config struct {
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// apply generic defaults and then overlay tempo default
 	flagext.DefaultValues(&cfg.LifecyclerConfig)
-	cfg.LifecyclerConfig = ring.LifecyclerConfig{
-		RingConfig: ring.Config{
-			KVStore: kv.Config{
-				Store: "memberlist",
-			},
-			ReplicationFactor: 1,
-		},
-	}
+	cfg.LifecyclerConfig.RingConfig.KVStore.Store = "memberlist"
+	cfg.LifecyclerConfig.RingConfig.ReplicationFactor = 1
 
 	cfg.ConcurrentFlushes = 16
 	cfg.FlushCheckPeriod = 30 * time.Second

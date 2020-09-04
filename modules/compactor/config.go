@@ -5,25 +5,18 @@ import (
 	"time"
 
 	cortex_compactor "github.com/cortexproject/cortex/pkg/compactor"
-	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 )
 
 type Config struct {
-	WaitOnStartup time.Duration                `yaml:"-"`
-	ShardingRing  *cortex_compactor.RingConfig `yaml:"sharding_ring,omitempty"`
-	Compactor     tempodb.CompactorConfig      `yaml:"compaction"`
+	WaitOnStartup time.Duration               `yaml:"-"`
+	ShardingRing  cortex_compactor.RingConfig `yaml:"ring,omitempty"`
+	Compactor     tempodb.CompactorConfig     `yaml:"compaction"`
 }
 
 // RegisterFlags registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	cfg.ShardingRing = &cortex_compactor.RingConfig{
-		KVStore: kv.Config{
-			Store: "memberlist",
-		},
-	}
-
 	cfg.Compactor = tempodb.CompactorConfig{
 		ChunkSizeBytes:          10485760, // 10 MiB
 		CompactedBlockRetention: time.Hour,

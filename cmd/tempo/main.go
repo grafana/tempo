@@ -89,7 +89,7 @@ func main() {
 }
 
 func loadConfig() (*app.Config, error) {
-	const configFileOption = "config-file"
+	const configFileOption = "config.file"
 
 	var configFile string
 
