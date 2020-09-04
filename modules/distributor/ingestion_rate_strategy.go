@@ -2,7 +2,7 @@ package distributor
 
 import (
 	"github.com/cortexproject/cortex/pkg/util/limiter"
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/modules/overrides"
 )
 
 // ReadLifecycler represents the read interface to the lifecycler.
@@ -11,29 +11,29 @@ type ReadLifecycler interface {
 }
 
 type localStrategy struct {
-	limits *validation.Overrides
+	limits *overrides.Overrides
 }
 
-func newLocalIngestionRateStrategy(limits *validation.Overrides) limiter.RateLimiterStrategy {
+func newLocalIngestionRateStrategy(limits *overrides.Overrides) limiter.RateLimiterStrategy {
 	return &localStrategy{
 		limits: limits,
 	}
 }
 
 func (s *localStrategy) Limit(userID string) float64 {
-	return s.limits.IngestionRateBytes(userID)
+	return s.limits.IngestionRateSpans(userID)
 }
 
 func (s *localStrategy) Burst(userID string) int {
-	return s.limits.IngestionBurstSizeBytes(userID)
+	return s.limits.IngestionMaxBatchSize(userID)
 }
 
 type globalStrategy struct {
-	limits *validation.Overrides
+	limits *overrides.Overrides
 	ring   ReadLifecycler
 }
 
-func newGlobalIngestionRateStrategy(limits *validation.Overrides, ring ReadLifecycler) limiter.RateLimiterStrategy {
+func newGlobalIngestionRateStrategy(limits *overrides.Overrides, ring ReadLifecycler) limiter.RateLimiterStrategy {
 	return &globalStrategy{
 		limits: limits,
 		ring:   ring,
@@ -44,14 +44,14 @@ func (s *globalStrategy) Limit(userID string) float64 {
 	numDistributors := s.ring.HealthyInstancesCount()
 
 	if numDistributors == 0 {
-		return s.limits.IngestionRateBytes(userID)
+		return s.limits.IngestionRateSpans(userID)
 	}
 
-	return s.limits.IngestionRateBytes(userID) / float64(numDistributors)
+	return s.limits.IngestionRateSpans(userID) / float64(numDistributors)
 }
 
 func (s *globalStrategy) Burst(userID string) int {
 	// The meaning of burst doesn't change for the global strategy, in order
 	// to keep it easier to understand for users / operators.
-	return s.limits.IngestionBurstSizeBytes(userID)
+	return s.limits.IngestionMaxBatchSize(userID)
 }

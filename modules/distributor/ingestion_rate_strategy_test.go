@@ -4,46 +4,43 @@ import (
 	"testing"
 
 	"github.com/cortexproject/cortex/pkg/util/limiter"
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/cortexproject/cortex/pkg/util/validation"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	bytesInMB = 1048576
-)
-
 func TestIngestionRateStrategy(t *testing.T) {
 	tests := map[string]struct {
-		limits        validation.Limits
+		limits        overrides.Limits
 		ring          ReadLifecycler
 		expectedLimit float64
 		expectedBurst int
 	}{
 		"local rate limiter should just return configured limits": {
-			limits: validation.Limits{
+			limits: overrides.Limits{
 				IngestionRateStrategy: validation.LocalIngestionRateStrategy,
-				IngestionRateMB:       1.0,
-				IngestionBurstSizeMB:  2.0,
+				IngestionRateSpans:    5,
+				IngestionMaxBatchSize: 2,
 			},
 			ring:          nil,
-			expectedLimit: 1.0 * float64(bytesInMB),
-			expectedBurst: int(2.0 * float64(bytesInMB)),
+			expectedLimit: 5,
+			expectedBurst: 2,
 		},
 		"global rate limiter should share the limit across the number of distributors": {
-			limits: validation.Limits{
+			limits: overrides.Limits{
 				IngestionRateStrategy: validation.GlobalIngestionRateStrategy,
-				IngestionRateMB:       1.0,
-				IngestionBurstSizeMB:  2.0,
+				IngestionRateSpans:    5,
+				IngestionMaxBatchSize: 2,
 			},
 			ring: func() ReadLifecycler {
 				ring := newReadLifecyclerMock()
 				ring.On("HealthyInstancesCount").Return(2)
 				return ring
 			}(),
-			expectedLimit: 0.5 * float64(bytesInMB),
-			expectedBurst: int(2.0 * float64(bytesInMB)),
+			expectedLimit: 2.5,
+			expectedBurst: 2,
 		},
 	}
 
@@ -54,7 +51,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 			var strategy limiter.RateLimiterStrategy
 
 			// Init limits overrides
-			overrides, err := validation.NewOverrides(testData.limits)
+			overrides, err := overrides.NewOverrides(testData.limits)
 			require.NoError(t, err)
 
 			// Instance the strategy
@@ -67,8 +64,8 @@ func TestIngestionRateStrategy(t *testing.T) {
 				require.Fail(t, "Unknown strategy")
 			}
 
-			assert.Equal(t, strategy.Limit("test"), testData.expectedLimit)
-			assert.Equal(t, strategy.Burst("test"), testData.expectedBurst)
+			assert.Equal(t, testData.expectedLimit, strategy.Limit("test"))
+			assert.Equal(t, testData.expectedBurst, strategy.Burst("test"))
 		})
 	}
 }

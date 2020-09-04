@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/modules/overrides"
 )
 
 const (
@@ -20,13 +20,13 @@ type RingCount interface {
 // Limiter implements primitives to get the maximum number of traces
 // an ingester can handle for a specific tenant
 type Limiter struct {
-	limits            *validation.Overrides
+	limits            *overrides.Overrides
 	ring              RingCount
 	replicationFactor int
 }
 
 // NewLimiter makes a new limiter
-func NewLimiter(limits *validation.Overrides, ring RingCount, replicationFactor int) *Limiter {
+func NewLimiter(limits *overrides.Overrides, ring RingCount, replicationFactor int) *Limiter {
 	return &Limiter{
 		limits:            limits,
 		ring:              ring,

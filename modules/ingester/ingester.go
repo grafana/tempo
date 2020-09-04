@@ -16,9 +16,10 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
 
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/validation"
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -57,7 +58,7 @@ type Ingester struct {
 }
 
 // New makes a new Ingester.
-func New(cfg Config, store storage.Store, limits *validation.Overrides) (*Ingester, error) {
+func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingester, error) {
 	i := &Ingester{
 		cfg:         cfg,
 		instances:   map[string]*instance{},

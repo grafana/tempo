@@ -22,9 +22,9 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/util/validation"
 )
 
 const (
@@ -53,9 +53,8 @@ func TestDistributor(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
-			limits := &validation.Limits{}
+			limits := &overrides.Limits{}
 			flagext.DefaultValues(limits)
-			limits.EnforceMetricName = false
 
 			// todo:  test limits
 			d := prepare(t, limits, nil)
@@ -69,14 +68,14 @@ func TestDistributor(t *testing.T) {
 	}
 }
 
-func prepare(t *testing.T, limits *validation.Limits, kvStore kv.Client) *Distributor {
+func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distributor {
 	var (
 		distributorConfig Config
 		clientConfig      ingester_client.Config
 	)
 	flagext.DefaultValues(&distributorConfig, &clientConfig)
 
-	overrides, err := validation.NewOverrides(*limits)
+	overrides, err := overrides.NewOverrides(*limits)
 	require.NoError(t, err)
 
 	// Mock the ingesters ring

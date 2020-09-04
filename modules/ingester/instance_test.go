@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/util/validation"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -22,7 +22,7 @@ func (m *ringCountMock) HealthyInstancesCount() int {
 }
 
 func TestInstance(t *testing.T) {
-	limits, err := validation.NewOverrides(validation.Limits{})
+	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -66,7 +66,7 @@ func TestInstance(t *testing.T) {
 }
 
 func TestInstanceFind(t *testing.T) {
-	limits, err := validation.NewOverrides(validation.Limits{})
+	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
