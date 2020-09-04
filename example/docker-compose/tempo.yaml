@@ -21,32 +21,31 @@ ingester:
   trace_idle_period: 10s
   traces_per_block: 100
   max_block_duration: 1h
-  max_transfer_retries: 1
   complete_block_timeout: 2m
 
 compactor:
   compaction:
-    chunkSizeBytes: 1048576 # 1024 * 1024
-    maxCompactionRange: 1h
-    maxCompactionObjects: 1000000
-    blockRetention: 1h
-    compactedBlockRetention: 2m
+    chunk_size_bytes: 1048576 # 1024 * 1024
+    compaction_window: 1h
+    max_compaction_objects: 1000000
+    block_retention: 1h
+    compacted_block_retention: 2m
 
-storage_config:
+storage:
   trace:
     maintenanceCycle: 30s
     backend: s3
     wal:
       path: /tmp/tempo/wal
-      bloom-filter-false-positive: .05
-      index-downsample: 10
+      bloom_filter_false_positive: .05
+      index_downsample: 10
     s3:
       bucket: tempo
       endpoint: minio:9000
       access_key: tempo
       secret_key: supersecret
       insecure: true
-    query_pool:
+    pool:
       max_workers: 100
       queue_depth: 10000
     cache:
