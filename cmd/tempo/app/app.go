@@ -10,6 +10,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/cortexproject/cortex/pkg/util/grpc/healthcheck"
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
@@ -63,6 +64,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Ingester.RegisterFlags(f)
 	c.StorageConfig.RegisterFlags(f)
 	c.LimitsConfig.RegisterFlags(f)
+
+	flagext.DefaultValues(&c.Server)
 }
 
 // App is the root datastructure.
