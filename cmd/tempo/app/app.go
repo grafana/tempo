@@ -54,17 +54,26 @@ type Config struct {
 // RegisterFlagsAndApplyDefaults registers flag.
 func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) { // jpe
 	c.Target = All
+	// global settings
 	f.StringVar(&c.Target, "target", All, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
 
-	c.Server.LogLevel.RegisterFlags(f)
-
-	flagext.DefaultValues(&c.IngesterClient)
-	flagext.DefaultValues(&c.LimitsConfig)
-
+	// Server settings
 	flagext.DefaultValues(&c.Server)
+	c.Server.LogLevel.RegisterFlags(f)
 	f.IntVar(&c.Server.HTTPListenPort, "server.http-listen-port", 80, "HTTP server listen port.")
 	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
+
+	// Memberlist settings
+	fs := flag.NewFlagSet("", flag.PanicOnError)
+	c.MemberlistKV.RegisterFlags(fs, "")
+	_ = fs.Parse([]string{})
+	f.Var(&c.MemberlistKV.JoinMembers, "memberlist.host-port", "Host port to connect to memberlist cluster.")
+	f.IntVar(&c.MemberlistKV.TCPTransport.BindPort, "memberlist.bind-port", 7946, "Port for memberlist to communicate on")
+
+	// Everything else
+	flagext.DefaultValues(&c.IngesterClient)
+	flagext.DefaultValues(&c.LimitsConfig)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "distributor"), f)
 	c.Ingester.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "ingester"), f)
@@ -72,12 +81,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Compactor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "storage"), f)
 
-	fs := flag.NewFlagSet("", flag.PanicOnError)
-	c.MemberlistKV.RegisterFlags(fs, "")
-	_ = fs.Parse([]string{})
-
-	f.Var(&c.MemberlistKV.JoinMembers, "memberlist.host-port", "Host port to connect to memberlist cluster.")
-	f.IntVar(&c.MemberlistKV.TCPTransport.BindPort, "memberlist.bind-port", 7946, "Port for memberlist to communicate on")
 }
 
 // App is the root datastructure.
