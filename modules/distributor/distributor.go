@@ -137,7 +137,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	cfgReceivers := cfg.Receivers
 	if len(cfgReceivers) == 0 {
-		cfgReceivers = cfg.DefaultReceivers
+		cfgReceivers = defaultReceivers
 	}
 
 	receivers, err := receiver.New(cfgReceivers, d, authEnabled)

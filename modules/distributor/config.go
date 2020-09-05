@@ -10,6 +10,8 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 )
 
+var defaultReceivers map[string]interface{}
+
 // Config for a Distributor.
 type Config struct {
 	// Distributors ring
@@ -18,8 +20,7 @@ type Config struct {
 	// receivers map for shim.
 	//  This receivers node is equivalent in format to the receiver node in the
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/master/receiver
-	Receivers        map[string]interface{} `yaml:"receivers"`
-	DefaultReceivers map[string]interface{} `yaml:"-"`
+	Receivers map[string]interface{} `yaml:"receivers"`
 
 	// For testing.
 	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
@@ -27,11 +28,10 @@ type Config struct {
 
 // RegisterFlagsAndApplyDefaults registers flags and applies defaults
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	// create a default config that listens for otlp and jaeger
-	cfg.DefaultReceivers = map[string]interface{}{
+	flagext.DefaultValues(&cfg.DistributorRing)
+
+	defaultReceivers = map[string]interface{}{
 		"jaeger": jaegerreceiver.NewFactory().CreateDefaultConfig(),
 		"otlp":   otlpreceiver.NewFactory().CreateDefaultConfig(),
 	}
-
-	flagext.DefaultValues(&cfg.DistributorRing)
 }
