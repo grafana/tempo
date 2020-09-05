@@ -6,11 +6,21 @@ import (
 	cortex_distributor "github.com/cortexproject/cortex/pkg/distributor"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
-	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
-	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 )
 
-var defaultReceivers map[string]interface{}
+var defaultReceivers = map[string]interface{}{
+	"jaeger": map[string]interface{}{
+		"protocols": map[string]interface{}{
+			"grpc":        nil,
+			"thrift_http": nil,
+		},
+	},
+	"otlp": map[string]interface{}{
+		"protocols": map[string]interface{}{
+			"grpc": nil,
+		},
+	},
+}
 
 // Config for a Distributor.
 type Config struct {
@@ -29,9 +39,4 @@ type Config struct {
 // RegisterFlagsAndApplyDefaults registers flags and applies defaults
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	flagext.DefaultValues(&cfg.DistributorRing)
-
-	defaultReceivers = map[string]interface{}{
-		"jaeger": jaegerreceiver.NewFactory().CreateDefaultConfig(),
-		"otlp":   otlpreceiver.NewFactory().CreateDefaultConfig(),
-	}
 }
