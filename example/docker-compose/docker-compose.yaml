@@ -3,7 +3,9 @@ services:
 
   tempo:
     image: tempo:latest
-    command: ["-config.file=/etc/tempo.yaml"]
+    entrypoint:
+      - /tempo
+      - -config.file=/etc/tempo.yaml
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
       - /tmp/tempo:/tmp/tempo

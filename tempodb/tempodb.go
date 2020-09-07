@@ -133,7 +133,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	case "s3":
 		r, w, c, err = s3.New(cfg.S3)
 	default:
-		err = fmt.Errorf("unknown local %s", cfg.Backend)
+		err = fmt.Errorf("unknown backend %s", cfg.Backend)
 	}
 
 	if err != nil {

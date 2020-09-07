@@ -1,0 +1,31 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  log_level: debug
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        thrift_http:
+
+ingester:
+  trace_idle_period: 1s
+  traces_per_block: 1
+  max_block_duration: 2s
+  max_transfer_retries: 1
+  complete_block_timeout: 5s
+
+storage_config:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: minio:9000
+      access_key: Cheesecake # TODO: use cortex_e2e.MinioAccessKey
+      secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
+      insecure: true
+    query_pool:
+      max_workers: 10
+      queue_depth: 1000
