@@ -74,7 +74,9 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 
 	compactedMetaFileName := util.CompactedMetaFileName(blockID, tenantID)
 	bytes, info, err := rw.readAllWithObjInfo(context.TODO(), compactedMetaFileName)
-	if err != nil {
+	if err != nil && err.Error() == s3KeyDoesNotExist {
+		return nil, backend.ErrMetaDoesNotExist
+	} else if err != nil {
 		return nil, errors.Wrapf(err, "error fetching compacted meta file %s", compactedMetaFileName)
 	}
 

@@ -312,7 +312,8 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
 	reader, info, _, err := rw.core.GetObjectWithContext(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
 	if err != nil {
-		return nil, minio.ObjectInfo{}, errors.Wrap(err, "error fetching object from s3 backend")
+		// do not modify error message here
+		return nil, minio.ObjectInfo{}, err
 	}
 	defer reader.Close()
 
