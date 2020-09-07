@@ -73,7 +73,7 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distrib
 		distributorConfig Config
 		clientConfig      ingester_client.Config
 	)
-	flagext.DefaultValues(&distributorConfig, &clientConfig)
+	flagext.DefaultValues(&clientConfig)
 
 	overrides, err := overrides.NewOverrides(*limits)
 	require.NoError(t, err)

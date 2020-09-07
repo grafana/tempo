@@ -14,7 +14,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/limiter"
 	"github.com/cortexproject/cortex/pkg/util/services"
 
-	"github.com/go-kit/kit/log/level"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -136,17 +135,17 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 	}
 
-	if len(cfg.Receivers) > 0 {
-		receivers, err := receiver.New(cfg.Receivers, d, authEnabled)
-		if err != nil {
-			return nil, err
-		}
-		subservices = append(subservices, receivers)
-	} else {
-		level.Warn(cortex_util.Logger).Log("msg", "no receivers configured")
+	cfgReceivers := cfg.Receivers
+	if len(cfgReceivers) == 0 {
+		cfgReceivers = defaultReceivers
 	}
 
-	var err error
+	receivers, err := receiver.New(cfgReceivers, d, authEnabled)
+	if err != nil {
+		return nil, err
+	}
+	subservices = append(subservices, receivers)
+
 	d.subservices, err = services.NewManager(subservices...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subservices %w", err)

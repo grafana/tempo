@@ -239,11 +239,7 @@ func (i *Ingester) stopIncomingRequests() {
 
 // TransferOut implements ring.Lifecycler.
 func (i *Ingester) TransferOut(ctx context.Context) error {
-	if i.cfg.MaxTransferRetries <= 0 {
-		return fmt.Errorf("transfers disabled")
-	}
-
-	// need to decide what, if any support, we're going to have here
+	// todo: decide what, if any support, we're going to have here
 	return nil
 }
 

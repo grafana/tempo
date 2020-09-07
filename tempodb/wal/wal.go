@@ -22,8 +22,8 @@ type WAL struct {
 type Config struct {
 	Filepath        string `yaml:"path"`
 	WorkFilepath    string
-	IndexDownsample int     `yaml:"index-downsample"`
-	BloomFP         float64 `yaml:"bloom-filter-false-positive"`
+	IndexDownsample int     `yaml:"index_downsample"`
+	BloomFP         float64 `yaml:"bloom_filter_false_positive"`
 }
 
 func New(c *Config) (*WAL, error) {
