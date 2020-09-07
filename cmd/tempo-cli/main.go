@@ -20,11 +20,11 @@ import (
 )
 
 var (
-	bucket   string
-	s3Endpoint string
-	s3User string
-	s3Pass string
-	backend   string
+	bucket      string
+	s3Endpoint  string
+	s3User      string
+	s3Pass      string
+	backend     string
 	tenantID    string
 	windowRange time.Duration
 	blockID     string
@@ -78,11 +78,11 @@ func main() {
 func getBackendUtils(backend, bucket, s3Endpoint, s3User, s3Pass string) (tempodb_backend.Reader, tempodb_backend.Writer, tempodb_backend.Compactor, error) {
 	if backend == "s3" {
 		return s3.New(&s3.Config{
-			Bucket: bucket,
-			Endpoint: s3Endpoint,
+			Bucket:    bucket,
+			Endpoint:  s3Endpoint,
 			AccessKey: s3User,
 			SecretKey: s3Pass,
-			Insecure: true,
+			Insecure:  true,
 		})
 	}
 	return gcs.New(&gcs.Config{
