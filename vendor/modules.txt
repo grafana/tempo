@@ -1055,7 +1055,6 @@ github.com/tommy-muehle/go-mnd/config
 ## explicit
 github.com/uber-go/atomic
 # github.com/uber/jaeger-client-go v2.24.0+incompatible
-## explicit
 github.com/uber/jaeger-client-go
 github.com/uber/jaeger-client-go/config
 github.com/uber/jaeger-client-go/internal/baggage
