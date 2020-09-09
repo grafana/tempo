@@ -9,7 +9,7 @@ distributor:
   receivers:
     jaeger:
       protocols:
-        thrift_http:
+        grpc:
 
 ingester:
   lifecycler:
