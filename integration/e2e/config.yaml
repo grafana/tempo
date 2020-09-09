@@ -19,7 +19,7 @@ ingester:
         store: inmemory
       replication_factor: 1
     final_sleep: 0s
-  trace_idle_period: 1s
+  trace_idle_period: 100ms
   traces_per_block: 1
   max_block_duration: 2s
   max_transfer_retries: 1

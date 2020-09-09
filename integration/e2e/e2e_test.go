@@ -96,7 +96,10 @@ func TestIngest(t *testing.T) {
 	idBytes := make([]byte, 16)
 	inBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(inBytes, uint64(traceID))
-	hex.Encode(idBytes, inBytes)
+	assert.Equal(t, 16, hex.Encode(idBytes, inBytes))
+
+	// ensure trace is created in ingester (trace_idle_time has passed)
+	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	// query an in-memory trace
 	res, err := cortex_e2e.GetRequest("http://"+tempo.Endpoint(3100)+"/api/traces/"+string(idBytes))
@@ -117,7 +120,7 @@ func TestIngest(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
 
-	// query trace from backend
+	// query trace - should fetch from backend
 	res, err = cortex_e2e.GetRequest("http://"+tempo.Endpoint(3100)+"/api/traces/"+string(idBytes))
 	require.NoError(t, err)
 	body, err = ioutil.ReadAll(res.Body)
@@ -126,5 +129,5 @@ func TestIngest(t *testing.T) {
 
 	var b *thrift.Batch
 	require.NoError(t, json.Unmarshal(body, b))
-	require.Equal(t, "lol", b.Spans.)
+	require.Equal(t, "lol", b)
 }
