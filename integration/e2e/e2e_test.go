@@ -21,15 +21,15 @@ import (
 )
 
 var (
-	svc_name = "tempo"
-	image    = "tempo:latest"
+	svcName = "tempo"
+	image   = "tempo:latest"
 )
 
 func NewTempoAllInOne() (*cortex_e2e.HTTPService, error) {
 	args := "-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml")
 
 	return cortex_e2e.NewHTTPService(
-		svc_name,
+		svcName,
 		image,
 		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args),
 		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 505),
@@ -41,6 +41,9 @@ func NewTempoAllInOne() (*cortex_e2e.HTTPService, error) {
 func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	// new jaeger grpc exporter
 	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		return nil, err
