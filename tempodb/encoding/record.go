@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 const recordLength = 28 // 28 = 128 bit ID, 64bit start, 32bit length

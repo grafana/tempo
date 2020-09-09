@@ -15,10 +15,11 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/services"
 
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempo_util "github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 var (
@@ -49,7 +50,7 @@ type Querier struct {
 	ring   ring.ReadRing
 	pool   *ring_client.Pool
 	store  storage.Store
-	limits *validation.Overrides
+	limits *overrides.Overrides
 
 	subservicesWatcher *services.FailureWatcher
 }
@@ -60,7 +61,7 @@ type responseFromIngesters struct {
 }
 
 // New makes a new Querier.
-func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *validation.Overrides) (*Querier, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *overrides.Overrides) (*Querier, error) {
 	factory := func(addr string) (ring_client.PoolClient, error) {
 		return ingester_client.New(addr, clientCfg)
 	}

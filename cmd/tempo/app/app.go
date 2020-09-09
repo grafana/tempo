@@ -10,6 +10,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/cortexproject/cortex/pkg/util/grpc/healthcheck"
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
@@ -25,9 +26,10 @@ import (
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/ingester"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/util/validation"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
 const metricsNamespace = "tempo"
@@ -44,25 +46,41 @@ type Config struct {
 	Querier        querier.Config         `yaml:"querier,omitempty"`
 	Compactor      compactor.Config       `yaml:"compactor,omitempty"`
 	Ingester       ingester.Config        `yaml:"ingester,omitempty"`
-	StorageConfig  storage.Config         `yaml:"storage_config,omitempty"`
-	LimitsConfig   validation.Limits      `yaml:"limits_config,omitempty"`
+	StorageConfig  storage.Config         `yaml:"storage,omitempty"`
+	LimitsConfig   overrides.Limits       `yaml:"overrides,omitempty"`
 	MemberlistKV   memberlist.KVConfig    `yaml:"memberlist,omitempty"`
 }
 
-// RegisterFlags registers flag.
-func (c *Config) RegisterFlags(f *flag.FlagSet) {
+// RegisterFlagsAndApplyDefaults registers flag.
+func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) { // jpe
 	c.Target = All
+	// global settings
 	f.StringVar(&c.Target, "target", All, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
 
-	c.Server.RegisterFlags(f)
-	c.Distributor.RegisterFlags(f)
-	c.IngesterClient.RegisterFlags(f)
-	c.Querier.RegisterFlags(f)
-	c.Compactor.RegisterFlags(f)
-	c.Ingester.RegisterFlags(f)
-	c.StorageConfig.RegisterFlags(f)
-	c.LimitsConfig.RegisterFlags(f)
+	// Server settings
+	flagext.DefaultValues(&c.Server)
+	c.Server.LogLevel.RegisterFlags(f)
+	f.IntVar(&c.Server.HTTPListenPort, "server.http-listen-port", 80, "HTTP server listen port.")
+	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
+
+	// Memberlist settings
+	fs := flag.NewFlagSet("", flag.PanicOnError)
+	c.MemberlistKV.RegisterFlags(fs, "")
+	_ = fs.Parse([]string{})
+	f.Var(&c.MemberlistKV.JoinMembers, "memberlist.host-port", "Host port to connect to memberlist cluster.")
+	f.IntVar(&c.MemberlistKV.TCPTransport.BindPort, "memberlist.bind-port", 7946, "Port for memberlist to communicate on")
+
+	// Everything else
+	flagext.DefaultValues(&c.IngesterClient)
+	flagext.DefaultValues(&c.LimitsConfig)
+
+	c.Distributor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "distributor"), f)
+	c.Ingester.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "ingester"), f)
+	c.Querier.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "querier"), f)
+	c.Compactor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "compactor"), f)
+	c.StorageConfig.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "storage"), f)
+
 }
 
 // App is the root datastructure.
@@ -71,7 +89,7 @@ type App struct {
 
 	server       *server.Server
 	ring         *ring.Ring
-	overrides    *validation.Overrides
+	overrides    *overrides.Overrides
 	distributor  *distributor.Distributor
 	querier      *querier.Querier
 	compactor    *compactor.Compactor

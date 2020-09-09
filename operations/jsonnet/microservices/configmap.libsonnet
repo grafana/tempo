@@ -56,9 +56,6 @@
       },
     },
     limits_config: {
-      enforce_metric_name: false,
-      reject_old_samples: true,
-      reject_old_samples_max_age: '168h',
       per_tenant_override_config: '/conf/overrides.yaml',
     },
     memberlist: {

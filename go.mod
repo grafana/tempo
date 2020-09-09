@@ -27,14 +27,13 @@ require (
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/uber-go/atomic v1.4.0
-	github.com/uber/jaeger-client-go v2.24.0+incompatible
 	github.com/weaveworks/common v0.0.0-20200820123129-280614068c5e
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opentelemetry.io/collector v0.6.1
 	go.uber.org/atomic v1.6.0
-	go.uber.org/ratelimit v0.1.0
 	go.uber.org/zap v1.15.0
+	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e
 	google.golang.org/api v0.29.0
 	google.golang.org/grpc v1.30.0
 	google.golang.org/protobuf v1.25.0 // indirect

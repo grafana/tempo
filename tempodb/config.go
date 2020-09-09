@@ -17,16 +17,16 @@ type Config struct {
 	GCS     *gcs.Config   `yaml:"gcs"`
 	S3      *s3.Config    `yaml:"s3"`
 	Cache   *cache.Config `yaml:"cache"`
-	Pool    *pool.Config  `yaml:"query_pool,omitempty"`
+	Pool    *pool.Config  `yaml:"pool,omitempty"`
 	WAL     *wal.Config   `yaml:"wal"`
 
 	MaintenanceCycle time.Duration `yaml:"maintenanceCycle"`
 }
 
 type CompactorConfig struct {
-	ChunkSizeBytes          uint32        `yaml:"chunkSizeBytes"`
-	MaxCompactionRange      time.Duration `yaml:"maxCompactionRange"`
-	MaxCompactionObjects    int           `yaml:"maxCompactionObjects"`
-	BlockRetention          time.Duration `yaml:"blockRetention"`
-	CompactedBlockRetention time.Duration `yaml:"compactedBlockRetention"`
+	ChunkSizeBytes          uint32        `yaml:"chunk_size_bytes"` // todo: do we need this?
+	MaxCompactionRange      time.Duration `yaml:"compaction_window"`
+	MaxCompactionObjects    int           `yaml:"max_compaction_objects"`
+	BlockRetention          time.Duration `yaml:"block_retention"`
+	CompactedBlockRetention time.Duration `yaml:"compacted_block_retention"`
 }

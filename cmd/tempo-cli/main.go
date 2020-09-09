@@ -11,22 +11,31 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 
 	"github.com/grafana/tempo/tempodb/backend/gcs"
+	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/olekukonko/tablewriter"
 )
 
 var (
-	gcsBucket   string
+	bucket      string
+	s3Endpoint  string
+	s3User      string
+	s3Pass      string
+	backend     string
 	tenantID    string
 	windowRange time.Duration
 	blockID     string
 )
 
 func init() {
-	flag.StringVar(&gcsBucket, "gcs-bucket", "", "bucket to scan")
+	flag.StringVar(&backend, "backend", "", "backend to connect to (s3/gcs)")
+	flag.StringVar(&bucket, "bucket", "", "bucket to scan")
+	flag.StringVar(&s3Endpoint, "s3-endpoint", "", "s3 endpoint")
+	flag.StringVar(&s3User, "s3-user", "", "s3 username")
+	flag.StringVar(&s3Pass, "s3-pass", "", "s3 password")
 	flag.StringVar(&tenantID, "tenant-id", "", "tenant-id that contains the bucket")
 	flag.StringVar(&blockID, "block-id", "", "block-id to dump (optional)")
 	flag.DurationVar(&windowRange, "window-range", 4*time.Hour, "block time window range for compaction")
@@ -35,8 +44,13 @@ func init() {
 func main() {
 	flag.Parse()
 
-	if len(gcsBucket) == 0 {
-		fmt.Println("-gcs-bucket is required")
+	if len(backend) == 0 {
+		fmt.Println("-backend is required")
+		return
+	}
+
+	if len(bucket) == 0 {
+		fmt.Println("-bucket is required")
 		return
 	}
 
@@ -45,11 +59,15 @@ func main() {
 		return
 	}
 
-	var err error
+	r, _, c, err := getBackendUtils(backend, bucket, s3Endpoint, s3User, s3Pass)
+	if err != nil {
+		fmt.Printf("error creating backend utils, please check config")
+	}
+
 	if len(blockID) > 0 {
-		err = dumpBlock(gcsBucket, tenantID, windowRange, blockID)
+		err = dumpBlock(r, c, tenantID, windowRange, blockID)
 	} else {
-		err = dumpBucket(gcsBucket, tenantID, windowRange)
+		err = dumpBucket(r, c, tenantID, windowRange)
 	}
 
 	if err != nil {
@@ -57,15 +75,23 @@ func main() {
 	}
 }
 
-func dumpBlock(bucketName string, tenantID string, windowRange time.Duration, blockID string) error {
-	r, _, c, err := gcs.New(&gcs.Config{
-		BucketName:      bucketName,
+func getBackendUtils(backend, bucket, s3Endpoint, s3User, s3Pass string) (tempodb_backend.Reader, tempodb_backend.Writer, tempodb_backend.Compactor, error) {
+	if backend == "s3" {
+		return s3.New(&s3.Config{
+			Bucket:    bucket,
+			Endpoint:  s3Endpoint,
+			AccessKey: s3User,
+			SecretKey: s3Pass,
+			Insecure:  true,
+		})
+	}
+	return gcs.New(&gcs.Config{
+		BucketName:      bucket,
 		ChunkBufferSize: 10 * 1024 * 1024,
 	})
-	if err != nil {
-		return err
-	}
+}
 
+func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, blockID string) error {
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(id, tenantID)
@@ -74,7 +100,7 @@ func dumpBlock(bucketName string, tenantID string, windowRange time.Duration, bl
 	}
 
 	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-	if err != nil && err != backend.ErrMetaDoesNotExist {
+	if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
 		return err
 	}
 
@@ -122,15 +148,7 @@ func dumpBlock(bucketName string, tenantID string, windowRange time.Duration, bl
 	return nil
 }
 
-func dumpBucket(bucketName string, tenantID string, windowRange time.Duration) error {
-	r, _, c, err := gcs.New(&gcs.Config{
-		BucketName:      bucketName,
-		ChunkBufferSize: 10 * 1024 * 1024,
-	})
-	if err != nil {
-		return err
-	}
-
+func dumpBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration) error {
 	blockIDs, err := r.Blocks(tenantID)
 	if err != nil {
 		return err
@@ -142,12 +160,12 @@ func dumpBucket(bucketName string, tenantID string, windowRange time.Duration) e
 	out := make([][]string, 0)
 	for _, id := range blockIDs {
 		meta, err := r.BlockMeta(id, tenantID)
-		if err != nil && err != backend.ErrMetaDoesNotExist {
+		if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
 			return err
 		}
 
 		compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-		if err != nil && err != backend.ErrMetaDoesNotExist {
+		if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
 			return err
 		}
 
