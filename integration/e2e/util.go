@@ -35,4 +35,3 @@ func copyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
 
 	return writeFileToSharedDir(s, dst, content)
 }
-

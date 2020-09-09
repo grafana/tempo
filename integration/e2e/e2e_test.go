@@ -10,23 +10,23 @@ import (
 
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/grafana/tempo/pkg/tempopb"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 var (
 	svc_name = "tempo"
-	image = "tempo:latest"
+	image    = "tempo:latest"
 )
 
 func NewTempoAllInOne() (*cortex_e2e.HTTPService, error) {
-	args := "-config.file="+filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml")
+	args := "-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml")
 
 	return cortex_e2e.NewHTTPService(
 		svc_name,
@@ -45,7 +45,7 @@ func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return jaeger_grpc.NewReporter(conn,nil, logger), err
+	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
 func MakeThriftBatch() *thrift.Batch {
@@ -81,7 +81,7 @@ func TestIngest(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err:= NewJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := NewJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 	batch := MakeThriftBatch()
@@ -96,7 +96,7 @@ func TestIngest(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	// query an in-memory trace
-	res, err := cortex_e2e.GetRequest("http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID)
+	res, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/api/traces/" + hexID)
 	require.NoError(t, err)
 	out := &tempopb.Trace{}
 	unmarshaller := &jsonpb.Unmarshaler{}
@@ -106,19 +106,19 @@ func TestIngest(t *testing.T) {
 	defer res.Body.Close()
 
 	// flush trace to backend
-	res, err = cortex_e2e.GetRequest("http://"+tempo.Endpoint(3100)+"/flush")
+	res, err = cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
 	// sleep for one maintenance cycle
-	time.Sleep(2*time.Second)
+	time.Sleep(2 * time.Second)
 
 	// test metrics
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
 
 	// query trace - should fetch from backend
-	resp, err := cortex_e2e.GetRequest("http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID)
+	resp, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/api/traces/" + hexID)
 	require.NoError(t, err)
 	assert.NoError(t, unmarshaller.Unmarshal(resp.Body, out))
 	assert.Len(t, out.Batches, 1)
