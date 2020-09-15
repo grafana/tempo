@@ -170,11 +170,12 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	// todo: do we still need this?  does the package do this by default now?
 	t.cfg.MemberlistKV.NodeName = hostname + "-" + uuid.New().String()
 
+	t.memberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV)
+
 	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 
-	t.memberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV)
 	return t.memberlistKV, nil
 }
 
