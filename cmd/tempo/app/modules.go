@@ -200,7 +200,7 @@ func (t *App) setupModuleManager() error {
 		// MemberlistKV: nil,
 		Ring:        {Server, MemberlistKV},
 		Distributor: {Ring, Server, Overrides},
-		Ingester:    {Store, Server, MemberlistKV},
+		Ingester:    {Store, Server, Overrides, MemberlistKV},
 		Querier:     {Store, Ring},
 		Compactor:   {Store, Server, MemberlistKV},
 		All:         {Compactor, Querier, Ingester, Distributor},
