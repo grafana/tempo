@@ -3,9 +3,6 @@ package distributor
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"strconv"
-	"sync"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -15,13 +12,9 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/gogo/status"
 
-	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/weaveworks/common/httpgrpc"
 	"github.com/weaveworks/common/user"
-	uber_atomic "go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
@@ -29,8 +22,6 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/validation"
 )
 
 const (
@@ -212,60 +203,36 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, status.Errorf(codes.ResourceExhausted, "ingestion rate limit (%d spans) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 
-	requestsByIngester, err := d.routeRequest(req, userID, spanCount)
+	keys, traces, err := d.requestsByTraceID(req, userID, spanCount)
 	if err != nil {
 		return nil, err
 	}
 
-	atomicErr := uber_atomic.NewError(nil)
-	done := make(chan struct{})
-	wg := sync.WaitGroup{}
-	for ingester, reqs := range requestsByIngester {
-		wg.Add(1)
-		go func(ingesterAddr string, reqs []*tempopb.PushRequest) {
-			// Use a background context to make sure all ingesters get samples even if we return early
-			localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
-			defer cancel()
-			localCtx = user.InjectOrgID(localCtx, userID)
-			if sp := opentracing.SpanFromContext(ctx); sp != nil {
-				localCtx = opentracing.ContextWithSpan(localCtx, sp)
+	// keys -> slice of uint32 tokens used below
+	// traces -> tempopb.PushRequests aligned with uint32 tokens
+
+	// change push request to take a batch of batches
+	err = ring.DoBatch(ctx, d.ingestersRing, keys, func(ingester ring.IngesterDesc, indexes []int) error {
+		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
+		defer cancel()
+		localCtx = user.InjectOrgID(localCtx, userID)
+
+		var err error
+		for _, idx := range indexes {
+			pushRequest := traces[idx]
+			err = d.send(ctx, ingester.Addr, pushRequest)
+			if err != nil {
+				break
 			}
-			err := d.sendSamples(localCtx, ingesterAddr, reqs)
-			atomicErr.Store(err)
-			wg.Done()
-		}(ingester, reqs)
-	}
-
-	go func() {
-		wg.Wait()
-		done <- struct{}{}
-	}()
-
-	select {
-	case <-done:
-		return &tempopb.PushResponse{}, atomicErr.Load()
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
-// TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
-func (d *Distributor) sendSamples(ctx context.Context, ingesterAddr string, batches []*tempopb.PushRequest) error {
-	var warning error
-
-	for _, b := range batches {
-		err := d.sendSamplesErr(ctx, ingesterAddr, b)
-
-		if err != nil {
-			warning = err
 		}
-	}
 
-	return warning
+		return err
+	}, func() {})
+
+	return &tempopb.PushResponse{}, err
 }
 
-// TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
-func (d *Distributor) sendSamplesErr(ctx context.Context, ingesterAddr string, req *tempopb.PushRequest) error {
+func (d *Distributor) send(ctx context.Context, ingesterAddr string, req *tempopb.PushRequest) error {
 	c, err := d.pool.GetClientFor(ingesterAddr)
 	if err != nil {
 		return err
@@ -284,12 +251,10 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
 }
 
-func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, spanCount int) (map[string][]*tempopb.PushRequest, error) {
-	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
-	var descs [maxExpectedReplicationSet]ring.IngesterDesc
-
-	requestsByTrace := make(map[uint32]*tempopb.PushRequest)
-	spansByILS := make(map[string]*opentelemetry_proto_trace_v1.InstrumentationLibrarySpans)
+func (d *Distributor) requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.PushRequest, error) {
+	keys := make([]uint32, 0)
+	pushRequests := make([]*tempopb.PushRequest, 0)
+	/*spansByILS := make(map[string]*opentelemetry_proto_trace_v1.InstrumentationLibrarySpans)
 
 	for _, ils := range req.Batch.InstrumentationLibrarySpans {
 		for _, span := range ils.Spans {
@@ -331,18 +296,7 @@ func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, span
 		}
 	}
 
-	metricTracesPerBatch.Observe(float64(len(requestsByTrace)))
-	requestsByIngester := make(map[string][]*tempopb.PushRequest)
-	for key, routedReq := range requestsByTrace {
-		// now map to ingesters
-		replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
-		if err != nil {
-			return nil, err
-		}
-		for _, ingester := range replicationSet.Ingesters {
-			requestsByIngester[ingester.Addr] = append(requestsByIngester[ingester.Addr], routedReq)
-		}
-	}
+	metricTracesPerBatch.Observe(float64(len(requestsByTrace)))*/
 
-	return requestsByIngester, nil
+	return keys, pushRequests, nil
 }
