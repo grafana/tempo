@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -121,7 +122,8 @@ func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []stri
 		}()
 
 		trace := &tempopb.Trace{}
-		err = json.NewDecoder(resp.Body).Decode(trace)
+		unmarshaller := &jsonpb.Unmarshaler{}
+		err = unmarshaller.Unmarshal(resp.Body, trace)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding trace json %v", err)
 		}
