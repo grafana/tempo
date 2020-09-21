@@ -9,7 +9,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func QueryTempo(baseURL, id string) (*tempopb.Trace, error) {
+func QueryTrace(baseURL, id string) (*tempopb.Trace, error) {
 	resp, err := http.Get(baseURL + "/api/traces/" + id)
 	if err != nil {
 		return nil, fmt.Errorf("error querying tempo %v", err)
@@ -29,4 +29,3 @@ func QueryTempo(baseURL, id string) (*tempopb.Trace, error) {
 
 	return trace, nil
 }
-

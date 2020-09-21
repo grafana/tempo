@@ -111,7 +111,7 @@ func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []stri
 		time.Sleep(backoff)
 
 		glog.Error("tempo url ", baseURL+"/api/traces/"+id)
-		trace, err := util.QueryTempo(baseURL, id)
+		trace, err := util.QueryTrace(baseURL, id)
 		if err != nil {
 			return nil, err
 		}

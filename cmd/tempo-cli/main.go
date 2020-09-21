@@ -32,7 +32,7 @@ var (
 	blockID     string
 
 	queryEndpoint string
-	traceID string
+	traceID       string
 )
 
 func init() {
@@ -53,14 +53,14 @@ func main() {
 	flag.Parse()
 
 	if len(queryEndpoint) > 0 && len(traceID) > 0 {
-		trace, err := util.QueryTempo(queryEndpoint, traceID)
+		trace, err := util.QueryTrace(queryEndpoint, traceID)
 		if err != nil {
 			fmt.Println("error querying tempo, err:", err)
 			return
 		}
 
-		traceJson, _ := json.Marshal(trace)
-		fmt.Println(string(traceJson))
+		traceJSON, _ := json.Marshal(trace)
+		fmt.Println(string(traceJSON))
 		fmt.Println("------------------------------------")
 		return
 	}
