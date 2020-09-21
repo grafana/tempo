@@ -42,7 +42,7 @@ benchmark:
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 .PHONY: test-with-cover
-test-with-cover:
+test-with-cover: docker-tempo
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
 .PHONY: lint
@@ -76,7 +76,7 @@ endif
 
 .PHONY: gen-proto
 gen-proto:
-	git submodule update 
+	git submodule update
 	rm -rf ./vendor/github.com/open-telemetry/opentelemetry-proto
 	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/common/v1/common.proto --gogofaster_out=plugins=grpc:./vendor
 	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/resource/v1/resource.proto --gogofaster_out=plugins=grpc:./vendor

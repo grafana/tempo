@@ -61,6 +61,8 @@ github.com/PuerkitoBio/purell
 github.com/PuerkitoBio/urlesc
 # github.com/Songmu/retry v0.1.0
 github.com/Songmu/retry
+# github.com/VividCortex/gohistogram v1.0.0
+github.com/VividCortex/gohistogram
 # github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 github.com/alecthomas/template
 github.com/alecthomas/template/parse
@@ -159,6 +161,8 @@ github.com/coreos/pkg/capnslog
 # github.com/cortexproject/cortex v1.3.0
 ## explicit
 github.com/cortexproject/cortex/integration/e2e
+github.com/cortexproject/cortex/integration/e2e/db
+github.com/cortexproject/cortex/integration/e2e/images
 github.com/cortexproject/cortex/pkg/alertmanager
 github.com/cortexproject/cortex/pkg/alertmanager/alerts
 github.com/cortexproject/cortex/pkg/alertmanager/alerts/configdb
@@ -302,6 +306,10 @@ github.com/go-critic/go-critic/framework/linter
 ## explicit
 github.com/go-kit/kit/log
 github.com/go-kit/kit/log/level
+github.com/go-kit/kit/metrics
+github.com/go-kit/kit/metrics/expvar
+github.com/go-kit/kit/metrics/generic
+github.com/go-kit/kit/metrics/internal/lv
 # github.com/go-logfmt/logfmt v0.5.0
 github.com/go-logfmt/logfmt
 # github.com/go-logr/logr v0.1.0
@@ -517,6 +525,8 @@ github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers
 github.com/gophercloud/gophercloud/openstack/objectstorage/v1/objects
 github.com/gophercloud/gophercloud/openstack/utils
 github.com/gophercloud/gophercloud/pagination
+# github.com/gorilla/handlers v1.4.2
+github.com/gorilla/handlers
 # github.com/gorilla/mux v1.7.4
 ## explicit
 github.com/gorilla/mux
@@ -529,8 +539,13 @@ github.com/gostaticanalysis/analysisutil
 github.com/grafana/loki/pkg/logproto
 # github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 github.com/grpc-ecosystem/go-grpc-middleware
+github.com/grpc-ecosystem/go-grpc-middleware/logging
+github.com/grpc-ecosystem/go-grpc-middleware/logging/zap
+github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap
+github.com/grpc-ecosystem/go-grpc-middleware/retry
 github.com/grpc-ecosystem/go-grpc-middleware/tags
 github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing
+github.com/grpc-ecosystem/go-grpc-middleware/util/backoffutils
 github.com/grpc-ecosystem/go-grpc-middleware/util/metautils
 # github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340
 github.com/grpc-ecosystem/go-grpc-prometheus
@@ -599,22 +614,34 @@ github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc
 github.com/jaegertracing/jaeger/cmd/agent/app/customtransport
 github.com/jaegertracing/jaeger/cmd/agent/app/httpserver
 github.com/jaegertracing/jaeger/cmd/agent/app/processors
+github.com/jaegertracing/jaeger/cmd/agent/app/reporter
+github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc
 github.com/jaegertracing/jaeger/cmd/agent/app/servers
 github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp
+github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext
 github.com/jaegertracing/jaeger/cmd/collector/app/handler
 github.com/jaegertracing/jaeger/cmd/collector/app/processor
 github.com/jaegertracing/jaeger/cmd/collector/app/sampling
 github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore
 github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin
+github.com/jaegertracing/jaeger/cmd/flags
 github.com/jaegertracing/jaeger/model
 github.com/jaegertracing/jaeger/model/converter/thrift/jaeger
 github.com/jaegertracing/jaeger/model/converter/thrift/zipkin
 github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp
+github.com/jaegertracing/jaeger/pkg/config/tlscfg
+github.com/jaegertracing/jaeger/pkg/discovery
+github.com/jaegertracing/jaeger/pkg/discovery/grpcresolver
+github.com/jaegertracing/jaeger/pkg/healthcheck
+github.com/jaegertracing/jaeger/pkg/metrics
 github.com/jaegertracing/jaeger/pkg/multierror
+github.com/jaegertracing/jaeger/pkg/recoveryhandler
+github.com/jaegertracing/jaeger/pkg/version
 github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static
 github.com/jaegertracing/jaeger/plugin/storage/grpc
 github.com/jaegertracing/jaeger/plugin/storage/grpc/config
 github.com/jaegertracing/jaeger/plugin/storage/grpc/shared
+github.com/jaegertracing/jaeger/ports
 github.com/jaegertracing/jaeger/proto-gen/api_v2
 github.com/jaegertracing/jaeger/proto-gen/storage_v1
 github.com/jaegertracing/jaeger/storage/dependencystore
@@ -1048,6 +1075,10 @@ github.com/uber/jaeger-client-go/transport
 github.com/uber/jaeger-client-go/utils
 # github.com/uber/jaeger-lib v2.2.0+incompatible
 github.com/uber/jaeger-lib/metrics
+github.com/uber/jaeger-lib/metrics/adapters
+github.com/uber/jaeger-lib/metrics/expvar
+github.com/uber/jaeger-lib/metrics/go-kit
+github.com/uber/jaeger-lib/metrics/go-kit/expvar
 github.com/uber/jaeger-lib/metrics/prometheus
 # github.com/ultraware/funlen v0.0.2
 github.com/ultraware/funlen
@@ -1233,8 +1264,6 @@ go.opentelemetry.io/collector/translator/trace/zipkin
 go.uber.org/atomic
 # go.uber.org/multierr v1.5.0
 go.uber.org/multierr
-# go.uber.org/ratelimit v0.1.0
-## explicit
 # go.uber.org/zap v1.15.0
 ## explicit
 go.uber.org/zap
@@ -1465,6 +1494,7 @@ google.golang.org/grpc/reflection
 google.golang.org/grpc/reflection/grpc_reflection_v1alpha
 google.golang.org/grpc/resolver
 google.golang.org/grpc/resolver/dns
+google.golang.org/grpc/resolver/manual
 google.golang.org/grpc/resolver/passthrough
 google.golang.org/grpc/serviceconfig
 google.golang.org/grpc/stats
