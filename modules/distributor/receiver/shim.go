@@ -145,13 +145,10 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 		ctx = user.InjectOrgID(ctx, tempo_util.FakeTenantID)
 	} else {
 		var err error
-		var id string
-		id, ctx, err = user.ExtractFromGRPCRequest(ctx)
+		_, ctx, err = user.ExtractFromGRPCRequest(ctx)
 		if err != nil {
 			r.logger.Log("msg", "failed to extract org id", "err", err)
 			return err
-		} else {
-			r.logger.Log("msg", "extracted org id", "id", id)
 		}
 	}
 
