@@ -8,8 +8,11 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/weaveworks/common/user"
+	"google.golang.org/grpc/metadata"
 
 	jaeger "github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 
 	ot_pdata "go.opentelemetry.io/collector/consumer/pdata"
@@ -30,10 +33,20 @@ func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]ja
 	return nil, nil
 }
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
-
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
+	req, err := http.NewRequestWithContext(ctx, "GET", b.tempoEndpoint+hexID, nil)
+	if err != nil {
+		return nil, err
+	}
 
-	resp, err := http.Get(b.tempoEndpoint + hexID)
+	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers
+	// so we are going to extract the tenant id from the header, if it exists and use it
+	tenantID, found := extractBearerToken(ctx)
+	if found {
+		req.Header.Set(user.OrgIDHeaderName, tenantID)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed get to tempo %w", err)
 	}
@@ -92,4 +105,14 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 }
 func (b *Backend) WriteSpan(span *jaeger.Span) error {
 	return nil
+}
+
+func extractBearerToken(ctx context.Context) (string, bool) {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		values := md.Get(spanstore.BearerTokenKey)
+		if len(values) > 0 {
+			return values[0], true
+		}
+	}
+	return "", false
 }
