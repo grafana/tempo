@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/olekukonko/tablewriter"
@@ -28,6 +30,9 @@ var (
 	tenantID    string
 	windowRange time.Duration
 	blockID     string
+
+	queryEndpoint string
+	traceID       string
 )
 
 func init() {
@@ -39,10 +44,26 @@ func init() {
 	flag.StringVar(&tenantID, "tenant-id", "", "tenant-id that contains the bucket")
 	flag.StringVar(&blockID, "block-id", "", "block-id to dump (optional)")
 	flag.DurationVar(&windowRange, "window-range", 4*time.Hour, "block time window range for compaction")
+
+	flag.StringVar(&queryEndpoint, "query-endpoint", "", "tempo query endpoint")
+	flag.StringVar(&traceID, "traceID", "", "traceID to query")
 }
 
 func main() {
 	flag.Parse()
+
+	if len(queryEndpoint) > 0 && len(traceID) > 0 {
+		trace, err := util.QueryTrace(queryEndpoint, traceID)
+		if err != nil {
+			fmt.Println("error querying tempo, err:", err)
+			return
+		}
+
+		traceJSON, _ := json.Marshal(trace)
+		fmt.Println(string(traceJSON))
+		fmt.Println("------------------------------------")
+		return
+	}
 
 	if len(backend) == 0 {
 		fmt.Println("-backend is required")
