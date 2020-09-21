@@ -9,10 +9,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-func getIntegrationTestHome() string {
-	return os.Getenv("GOPATH") + "/src/github.com/grafana/tempo/integration/e2e"
-}
-
 func writeFileToSharedDir(s *e2e.Scenario, dst string, content []byte) error {
 	dst = filepath.Join(s.SharedDir(), dst)
 
@@ -28,7 +24,7 @@ func writeFileToSharedDir(s *e2e.Scenario, dst string, content []byte) error {
 }
 
 func copyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
-	content, err := ioutil.ReadFile(filepath.Join(getIntegrationTestHome(), src))
+	content, err := ioutil.ReadFile(src)
 	if err != nil {
 		return errors.Wrapf(err, "unable to read local file %s", src)
 	}

@@ -22,41 +22,18 @@ ingester:
   trace_idle_period: 100ms
   traces_per_block: 1
   max_block_duration: 2s
-  max_transfer_retries: 1
   complete_block_timeout: 5s
 
-compactor:
-  compaction:
-    chunkSizeBytes: 1048576 # 1024 * 1024
-    maxCompactionRange: 1h
-    maxCompactionObjects: 1000000
-    blockRetention: 1h
-    compactedBlockRetention: 2m
-
-storage_config:
+storage:
   trace:
     maintenanceCycle: 2s
     backend: s3
-    wal:
-      path: /tmp/tempo/wal
-      bloom-filter-false-positive: .05
-      index-downsample: 10
     s3:
       bucket: tempo
       endpoint: tempo_e2e-minio-9000:9000  # TODO: this is brittle, fix this eventually
       access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
       secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
       insecure: true
-    query_pool:
+    pool:
       max_workers: 10
-      queue_depth: 1000
-    cache:
-      disk-path: /tmp/tempo/cache
-      disk-max-mbs: 5
-      disk-prune-count: 10
-      disk-clean-rate: 30s
-
-limits_config:
-  enforce_metric_name: false
-  reject_old_samples: true
-  reject_old_samples_max_age: 168h
+      queue_depth: 100
