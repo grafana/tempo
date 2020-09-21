@@ -125,7 +125,7 @@ func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []stri
 		unmarshaller := &jsonpb.Unmarshaler{}
 		err = unmarshaller.Unmarshal(resp.Body, trace)
 		if err != nil {
-			return nil, fmt.Errorf("error decoding trace json %v", err)
+			return nil, fmt.Errorf("error decoding trace json, err: %v, traceID: %s", err, id)
 		}
 
 		if len(trace.Batches) == 0 {
