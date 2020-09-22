@@ -163,7 +163,6 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 		}
 	}
 
-	// todo:  confirm/deny if this error propagates back to the caller
 	return err
 }
 

@@ -3,6 +3,7 @@ package distributor
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -11,7 +12,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/limiter"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/gogo/status"
-
+	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -22,6 +23,8 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 const (
@@ -203,13 +206,14 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, status.Errorf(codes.ResourceExhausted, "ingestion rate limit (%d spans) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 
-	keys, traces, err := d.requestsByTraceID(req, userID, spanCount)
+	keys, traces, err := requestsByTraceID(req, userID, spanCount)
 	if err != nil {
 		return nil, err
 	}
 
 	// keys -> slice of uint32 tokens used below
 	// traces -> tempopb.PushRequests aligned with uint32 tokens
+	// replication strategy for 1x,2x,3x
 
 	// change push request to take a batch of batches
 	err = ring.DoBatch(ctx, d.ingestersRing, keys, func(ingester ring.IngesterDesc, indexes []int) error {
@@ -229,7 +233,7 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return err
 	}, func() {})
 
-	return &tempopb.PushResponse{}, err
+	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
 func (d *Distributor) send(ctx context.Context, ingesterAddr string, req *tempopb.PushRequest) error {
@@ -251,15 +255,17 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
 }
 
-func (d *Distributor) requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.PushRequest, error) {
-	keys := make([]uint32, 0)
-	pushRequests := make([]*tempopb.PushRequest, 0)
-	/*spansByILS := make(map[string]*opentelemetry_proto_trace_v1.InstrumentationLibrarySpans)
+func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.PushRequest, error) {
+	const expectedTracesPerBatch = 10 // roughly what we're seeing through metrics
+	expectedSpansPerTrace := spanCount / expectedTracesPerBatch
+
+	requestsByTrace := make(map[uint32]*tempopb.PushRequest)
+	spansByILS := make(map[string]*opentelemetry_proto_trace_v1.InstrumentationLibrarySpans)
 
 	for _, ils := range req.Batch.InstrumentationLibrarySpans {
 		for _, span := range ils.Spans {
 			if !validation.ValidTraceID(span.TraceId) {
-				return nil, httpgrpc.Errorf(http.StatusBadRequest, "trace ids must be 128 bit")
+				return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
 			}
 
 			traceKey := util.TokenFor(userID, span.TraceId)
@@ -271,7 +277,7 @@ func (d *Distributor) requestsByTraceID(req *tempopb.PushRequest, userID string,
 			if !ok {
 				existingILS = &opentelemetry_proto_trace_v1.InstrumentationLibrarySpans{
 					InstrumentationLibrary: ils.InstrumentationLibrary,
-					Spans:                  make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace and ils
+					Spans:                  make([]*opentelemetry_proto_trace_v1.Span, 0, expectedSpansPerTrace),
 				}
 				spansByILS[ilsKey] = existingILS
 			}
@@ -296,7 +302,15 @@ func (d *Distributor) requestsByTraceID(req *tempopb.PushRequest, userID string,
 		}
 	}
 
-	metricTracesPerBatch.Observe(float64(len(requestsByTrace)))*/
+	metricTracesPerBatch.Observe(float64(len(requestsByTrace)))
+
+	keys := make([]uint32, 0, len(requestsByTrace))
+	pushRequests := make([]*tempopb.PushRequest, 0, len(requestsByTrace))
+
+	for k, r := range requestsByTrace {
+		keys = append(keys, k)
+		pushRequests = append(pushRequests, r)
+	}
 
 	return keys, pushRequests, nil
 }

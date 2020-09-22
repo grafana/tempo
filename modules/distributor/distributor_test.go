@@ -12,6 +12,8 @@ import (
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
+	"github.com/gogo/status"
+	v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,11 +21,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
@@ -36,8 +40,87 @@ var (
 	ctx     = user.InjectOrgID(context.Background(), "test")
 )
 
-func TestDistributor(t *testing.T) {
+func TestRequestsByTraceID(t *testing.T) {
+	traceIDA := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
+	tests := []struct {
+		name         string
+		request      *tempopb.PushRequest
+		expectedKeys []uint32
+		expectedReqs []*tempopb.PushRequest
+		expectedErr  error
+	}{
+		{
+			name: "empty",
+			request: &tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{},
+			},
+			expectedKeys: []uint32{},
+			expectedReqs: []*tempopb.PushRequest{},
+		},
+		{
+			name: "bad trace id",
+			request: &tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{
+					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						{
+							Spans: []*v1.Span{
+								{
+									TraceId: []byte{0x01},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit"),
+		},
+		{
+			name: "one span",
+			request: &tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{
+					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						{
+							Spans: []*v1.Span{
+								{
+									TraceId: traceIDA,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
+			expectedReqs: []*tempopb.PushRequest{
+				{
+					Batch: &v1.ResourceSpans{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										TraceId: traceIDA,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			keys, reqs, err := requestsByTraceID(tt.request, util.FakeTenantID, 1)
+
+			assert.Equal(t, tt.expectedKeys, keys)
+			assert.Equal(t, tt.expectedReqs, reqs)
+			assert.Equal(t, tt.expectedErr, err)
+		})
+	}
+}
+
+func TestDistributor(t *testing.T) {
 	for i, tc := range []struct {
 		lines            int
 		expectedResponse *tempopb.PushResponse
