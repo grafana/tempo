@@ -1,8 +1,10 @@
 package tempo
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -50,18 +52,22 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	if err != nil {
 		return nil, fmt.Errorf("failed get to tempo %w", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, jaeger_spanstore.ErrTraceNotFound
 	}
 
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response from tempo: %w", err)
+	}
 	out := &tempopb.Trace{}
 	unmarshaller := &jsonpb.Unmarshaler{}
-	err = unmarshaller.Unmarshal(resp.Body, out)
+	err = unmarshaller.Unmarshal(bytes.NewReader(body), out)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal trace json %w", err)
+		return nil, fmt.Errorf("failed to unmarshal trace json, err: %w. Tempo response body: %s", err, string(body))
 	}
-	resp.Body.Close()
 
 	otTrace := ot_pdata.TracesFromOtlp(out.Batches)
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
