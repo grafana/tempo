@@ -388,6 +388,7 @@ github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/gogo/protobuf/sortkeys
 github.com/gogo/protobuf/types
 # github.com/gogo/status v1.0.3
+## explicit
 github.com/gogo/status
 # github.com/golang-migrate/migrate/v4 v4.7.0
 github.com/golang-migrate/migrate/v4
