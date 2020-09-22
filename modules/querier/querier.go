@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -117,7 +118,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
 	}
 
 	key := tempo_util.TokenFor(userID, req.TraceID)
@@ -126,7 +127,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	var descs [maxExpectedReplicationSet]ring.IngesterDesc
 	replicationSet, err := q.ring.Get(key, ring.Read, descs[:0])
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
 	}
 
 	// todo:  does this wait for every ingester?  we only need one successful return
@@ -134,7 +135,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return client.FindTraceByID(ctx, req)
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.FindTraceByID")
 	}
 
 	var trace *tempopb.Trace
@@ -149,7 +150,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	if trace == nil {
 		foundBytes, metrics, err := q.store.Find(userID, req.TraceID)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}
 
 		out := &tempopb.Trace{}
