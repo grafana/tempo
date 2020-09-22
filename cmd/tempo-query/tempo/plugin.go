@@ -7,17 +7,16 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/metadata"
 
 	jaeger "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
+
 	ot_pdata "go.opentelemetry.io/collector/consumer/pdata"
 	ot_jaeger "go.opentelemetry.io/collector/translator/trace/jaeger"
-
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 )
 
 type Backend struct {
@@ -45,8 +44,6 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	tenantID, found := extractBearerToken(ctx)
 	if found {
 		req.Header.Set(user.OrgIDHeaderName, tenantID)
-	} else {
-		req.Header.Set(user.OrgIDHeaderName, util.FakeTenantID)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
