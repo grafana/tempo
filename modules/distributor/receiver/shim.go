@@ -3,24 +3,33 @@ package receiver
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
+	"contrib.go.opencensus.io/exporter/prometheus"
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
+	zaplogfmt "github.com/jsternberg/zap-logfmt"
+	prom_client "github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
+	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenterror"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/consumer/converter"
 	"go.opentelemetry.io/collector/consumer/pdata"
+	"go.opentelemetry.io/collector/obsreport"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/opencensusreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempo_util "github.com/grafana/tempo/pkg/util"
@@ -37,9 +46,10 @@ type receiversShim struct {
 	receivers   []component.Receiver
 	pusher      tempopb.PusherServer
 	logger      *tempo_util.RateLimitedLogger
+	metricViews []*view.View
 }
 
-func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEnabled bool) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEnabled bool, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
 		authEnabled: authEnabled,
 		pusher:      pusher,
@@ -54,6 +64,14 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 		return nil, err
 	}
 
+	// shim otel observability
+	zapLogger := newLogger(logLevel)
+	shim.metricViews, err = newMetricViews()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metric views: %w", err)
+	}
+
+	// load config
 	receiverFactories, err := component.MakeReceiverFactoryMap(
 		jaegerreceiver.NewFactory(),
 		&zipkinreceiver.Factory{},
@@ -67,11 +85,6 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 	cfgs, err := config.Load(v, config.Factories{
 		Receivers: receiverFactories,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	zapLogger, err := zap.NewProduction()
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +149,8 @@ func (r *receiversShim) stopping(_ error) error {
 	if len(errs) > 0 {
 		return componenterror.CombineErrors(errs)
 	}
+
+	view.Unregister(r.metricViews...)
 	return nil
 }
 
@@ -185,4 +200,59 @@ func (r *receiversShim) GetExtensions() map[configmodels.Extension]component.Ser
 // implements component.Host
 func (r *receiversShim) GetExporters() map[configmodels.DataType]map[configmodels.Exporter]component.Exporter {
 	return nil
+}
+
+// observability shims
+func newLogger(level logging.Level) *zap.Logger {
+	zapLevel := zapcore.InfoLevel
+
+	switch level.Logrus {
+	case logrus.PanicLevel:
+		zapLevel = zapcore.PanicLevel
+	case logrus.FatalLevel:
+		zapLevel = zapcore.FatalLevel
+	case logrus.ErrorLevel:
+		zapLevel = zapcore.ErrorLevel
+	case logrus.WarnLevel:
+		zapLevel = zapcore.WarnLevel
+	case logrus.InfoLevel:
+		zapLevel = zapcore.InfoLevel
+	case logrus.DebugLevel:
+	case logrus.TraceLevel:
+		zapLevel = zapcore.DebugLevel
+	}
+
+	config := zap.NewProductionEncoderConfig()
+	config.EncodeTime = func(ts time.Time, encoder zapcore.PrimitiveArrayEncoder) {
+		encoder.AppendString(ts.UTC().Format(time.RFC3339))
+	}
+	logger := zap.New(zapcore.NewCore(
+		zaplogfmt.NewEncoder(config),
+		os.Stdout,
+		zapLevel,
+	))
+	logger = logger.With(zap.String("component", "tempo"))
+	logger.Info("Tempo Logger Initialized")
+
+	return logger
+}
+
+func newMetricViews() ([]*view.View, error) {
+	views := obsreport.Configure(false, true)
+	err := view.Register(views...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register views: %w", err)
+	}
+
+	pe, err := prometheus.NewExporter(prometheus.Options{
+		Namespace:  "tempo",
+		Registerer: prom_client.DefaultRegisterer,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
+	}
+
+	view.RegisterExporter(pe)
+
+	return views, nil
 }
