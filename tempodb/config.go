@@ -20,7 +20,7 @@ type Config struct {
 	Pool    *pool.Config  `yaml:"pool,omitempty"`
 	WAL     *wal.Config   `yaml:"wal"`
 
-	MaintenanceCycle time.Duration `yaml:"maintenanceCycle"`
+	MaintenanceCycle time.Duration `yaml:"maintenance_cycle"`
 }
 
 type CompactorConfig struct {

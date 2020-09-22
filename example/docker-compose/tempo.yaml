@@ -33,7 +33,7 @@ compactor:
 
 storage:
   trace:
-    maintenanceCycle: 30s
+    maintenance_cycle: 30s
     backend: s3
     wal:
       path: /tmp/tempo/wal
@@ -49,7 +49,7 @@ storage:
       max_workers: 100
       queue_depth: 10000
     cache:
-      disk-path: /tmp/tempo/cache
-      disk-max-mbs: 5
-      disk-prune-count: 10
-      disk-clean-rate: 30s
+      disk_path: /tmp/tempo/cache
+      disk_max_mbs: 5
+      disk_prune_count: 10
+      disk_clean_rate: 30s

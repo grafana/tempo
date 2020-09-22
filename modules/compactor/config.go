@@ -5,6 +5,7 @@ import (
 	"time"
 
 	cortex_compactor "github.com/cortexproject/cortex/pkg/compactor"
+	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 )
@@ -21,6 +22,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		ChunkSizeBytes:          10485760, // 10 MiB
 		CompactedBlockRetention: time.Hour,
 	}
+
+	flagext.DefaultValues(&cfg.ShardingRing)
 
 	f.DurationVar(&cfg.Compactor.BlockRetention, util.PrefixConfig(prefix, "compaction.block-retention"), 14*24*time.Hour, "Duration to keep blocks/traces.")
 	f.IntVar(&cfg.Compactor.MaxCompactionObjects, util.PrefixConfig(prefix, "compaction.max-objects-per-block"), 10000000, "Maximum number of traces in a compacted block.")

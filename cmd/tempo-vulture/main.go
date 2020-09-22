@@ -17,6 +17,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -110,20 +111,9 @@ func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []stri
 		time.Sleep(backoff)
 
 		glog.Error("tempo url ", baseURL+"/api/traces/"+id)
-		resp, err := http.Get(baseURL + "/api/traces/" + id)
+		trace, err := util.QueryTrace(baseURL, id)
 		if err != nil {
-			return nil, fmt.Errorf("error querying tempo %v", err)
-		}
-		defer func() {
-			if err := resp.Body.Close(); err != nil {
-				glog.Error("error closing body ", err)
-			}
-		}()
-
-		trace := &tempopb.Trace{}
-		err = json.NewDecoder(resp.Body).Decode(trace)
-		if err != nil {
-			return nil, fmt.Errorf("error decoding trace json %v", err)
+			return nil, err
 		}
 
 		if len(trace.Batches) == 0 {
