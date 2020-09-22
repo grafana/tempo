@@ -212,10 +212,6 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
-	// keys -> slice of uint32 tokens used below
-	// traces -> tempopb.PushRequests aligned with uint32 tokens
-	// replication strategy for 1x,2x,3x
-
 	// change push request to take a batch of batches
 	err = ring.DoBatch(ctx, d.ingestersRing, keys, func(ingester ring.IngesterDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
