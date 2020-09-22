@@ -143,6 +143,13 @@ func (r *receiversShim) stopping(_ error) error {
 func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) error {
 	if !r.authEnabled {
 		ctx = user.InjectOrgID(ctx, tempo_util.FakeTenantID)
+	} else {
+		var err error
+		_, ctx, err = user.ExtractFromGRPCRequest(ctx)
+		if err != nil {
+			r.logger.Log("msg", "failed to extract org id", "err", err)
+			return err
+		}
 	}
 
 	var err error
