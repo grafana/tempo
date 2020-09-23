@@ -1,0 +1,31 @@
+name: Publish Docker Image
+on:
+  push:
+    tags:
+      - '**'
+    branches:
+      - master
+
+jobs:
+  push-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build Docker image
+        run: make docker-tempo
+      - name: Push the Docker image
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          function tag_and_push {
+            docker tag tempo:latest "annanay25/tempo:${1}" && docker push "annanay25/tempo:${1}"
+          }
+          if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
+            tag_and_push "latest"
+          elif [[ "${GITHUB_REF}" =~ refs/tags/v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+              TAG="${GITHUB_REF#"refs/tags/v"}"
+              tag_and_push "${TAG}"
+              tag_and_push "latest"
+          else
+            tag_and_push "${GITHUB_REF#"refs/tags/"}"
+          fi
