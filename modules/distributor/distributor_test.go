@@ -39,8 +39,7 @@ const (
 )
 
 var (
-	success = &tempopb.PushResponse{}
-	ctx     = user.InjectOrgID(context.Background(), "test")
+	ctx = user.InjectOrgID(context.Background(), "test")
 )
 
 func TestRequestsByTraceID(t *testing.T) {
@@ -292,11 +291,11 @@ func TestDistributor(t *testing.T) {
 	}{
 		{
 			lines:            10,
-			expectedResponse: success,
+			expectedResponse: nil,
 		},
 		{
 			lines:            100,
-			expectedResponse: success,
+			expectedResponse: nil,
 		},
 	} {
 		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
