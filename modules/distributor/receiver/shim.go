@@ -232,7 +232,7 @@ func newLogger(level logging.Level) *zap.Logger {
 		zapLevel,
 	))
 	logger = logger.With(zap.String("component", "tempo"))
-	logger.Info("Tempo Logger Initialized")
+	logger.Info("OTel Shim Logger Initialized")
 
 	return logger
 }
