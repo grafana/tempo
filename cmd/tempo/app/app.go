@@ -52,7 +52,7 @@ type Config struct {
 }
 
 // RegisterFlagsAndApplyDefaults registers flag.
-func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) { // jpe
+func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = All
 	// global settings
 	f.StringVar(&c.Target, "target", All, "target module")

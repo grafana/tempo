@@ -3,9 +3,7 @@ package distributor
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -13,14 +11,13 @@ import (
 	cortex_util "github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/limiter"
 	"github.com/cortexproject/cortex/pkg/util/services"
-
+	"github.com/gogo/status"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/weaveworks/common/httpgrpc"
+	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
-	uber_atomic "go.uber.org/atomic"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/tempo/modules/distributor/receiver"
@@ -91,7 +88,7 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, authEnabled bool) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, authEnabled bool, level logging.Level) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -140,7 +137,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		cfgReceivers = defaultReceivers
 	}
 
-	receivers, err := receiver.New(cfgReceivers, d, authEnabled)
+	receivers, err := receiver.New(cfgReceivers, d, authEnabled, level)
 	if err != nil {
 		return nil, err
 	}
@@ -206,63 +203,37 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		// Return a 4xx here to have the client discard the data and not retry. If a client
 		// is sending too much data consistently we will unlikely ever catch up otherwise.
 		metricDiscardedSpans.WithLabelValues(rateLimited, userID).Add(float64(spanCount))
-		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, "ingestion rate limit (%d spans) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
+
+		return nil, status.Errorf(codes.ResourceExhausted, "ingestion rate limit (%d spans) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 
-	requestsByIngester, err := d.routeRequest(req, userID, spanCount)
+	keys, traces, err := requestsByTraceID(req, userID, spanCount)
 	if err != nil {
 		return nil, err
 	}
 
-	atomicErr := uber_atomic.NewError(nil)
-	done := make(chan struct{})
-	wg := sync.WaitGroup{}
-	for ingester, reqs := range requestsByIngester {
-		wg.Add(1)
-		go func(ingesterAddr string, reqs []*tempopb.PushRequest) {
-			// Use a background context to make sure all ingesters get samples even if we return early
-			localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
-			defer cancel()
-			localCtx = user.InjectOrgID(localCtx, userID)
-			if sp := opentracing.SpanFromContext(ctx); sp != nil {
-				localCtx = opentracing.ContextWithSpan(localCtx, sp)
+	// change push request to take a batch of batches
+	err = ring.DoBatch(ctx, d.ingestersRing, keys, func(ingester ring.IngesterDesc, indexes []int) error {
+		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
+		defer cancel()
+		localCtx = user.InjectOrgID(localCtx, userID)
+
+		var err error
+		for _, idx := range indexes {
+			pushRequest := traces[idx]
+			err = d.send(localCtx, ingester.Addr, pushRequest)
+			if err != nil {
+				break
 			}
-			err := d.sendSamples(localCtx, ingesterAddr, reqs)
-			atomicErr.Store(err)
-			wg.Done()
-		}(ingester, reqs)
-	}
-
-	go func() {
-		wg.Wait()
-		done <- struct{}{}
-	}()
-
-	select {
-	case <-done:
-		return &tempopb.PushResponse{}, atomicErr.Load()
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
-// TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
-func (d *Distributor) sendSamples(ctx context.Context, ingesterAddr string, batches []*tempopb.PushRequest) error {
-	var warning error
-
-	for _, b := range batches {
-		err := d.sendSamplesErr(ctx, ingesterAddr, b)
-
-		if err != nil {
-			warning = err
 		}
-	}
 
-	return warning
+		return err
+	}, func() {})
+
+	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
-// TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
-func (d *Distributor) sendSamplesErr(ctx context.Context, ingesterAddr string, req *tempopb.PushRequest) error {
+func (d *Distributor) send(ctx context.Context, ingesterAddr string, req *tempopb.PushRequest) error {
 	c, err := d.pool.GetClientFor(ingesterAddr)
 	if err != nil {
 		return err
@@ -281,9 +252,9 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
 }
 
-func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, spanCount int) (map[string][]*tempopb.PushRequest, error) {
-	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
-	var descs [maxExpectedReplicationSet]ring.IngesterDesc
+func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.PushRequest, error) {
+	const expectedTracesPerBatch = 10 // roughly what we're seeing through metrics
+	expectedSpansPerTrace := spanCount / expectedTracesPerBatch
 
 	requestsByTrace := make(map[uint32]*tempopb.PushRequest)
 	spansByILS := make(map[string]*opentelemetry_proto_trace_v1.InstrumentationLibrarySpans)
@@ -291,7 +262,7 @@ func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, span
 	for _, ils := range req.Batch.InstrumentationLibrarySpans {
 		for _, span := range ils.Spans {
 			if !validation.ValidTraceID(span.TraceId) {
-				return nil, httpgrpc.Errorf(http.StatusBadRequest, "trace ids must be 128 bit")
+				return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
 			}
 
 			traceKey := util.TokenFor(userID, span.TraceId)
@@ -303,7 +274,7 @@ func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, span
 			if !ok {
 				existingILS = &opentelemetry_proto_trace_v1.InstrumentationLibrarySpans{
 					InstrumentationLibrary: ils.InstrumentationLibrary,
-					Spans:                  make([]*opentelemetry_proto_trace_v1.Span, 0, spanCount), // assume most spans belong to the same trace and ils
+					Spans:                  make([]*opentelemetry_proto_trace_v1.Span, 0, expectedSpansPerTrace),
 				}
 				spansByILS[ilsKey] = existingILS
 			}
@@ -329,17 +300,14 @@ func (d *Distributor) routeRequest(req *tempopb.PushRequest, userID string, span
 	}
 
 	metricTracesPerBatch.Observe(float64(len(requestsByTrace)))
-	requestsByIngester := make(map[string][]*tempopb.PushRequest)
-	for key, routedReq := range requestsByTrace {
-		// now map to ingesters
-		replicationSet, err := d.ingestersRing.Get(key, ring.Write, descs[:0])
-		if err != nil {
-			return nil, err
-		}
-		for _, ingester := range replicationSet.Ingesters {
-			requestsByIngester[ingester.Addr] = append(requestsByIngester[ingester.Addr], routedReq)
-		}
+
+	keys := make([]uint32, 0, len(requestsByTrace))
+	pushRequests := make([]*tempopb.PushRequest, 0, len(requestsByTrace))
+
+	for k, r := range requestsByTrace {
+		keys = append(keys, k)
+		pushRequests = append(pushRequests, r)
 	}
 
-	return requestsByIngester, nil
+	return keys, pushRequests, nil
 }

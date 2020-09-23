@@ -12,18 +12,25 @@ import (
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
+	"github.com/gogo/status"
+	v1_common "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
+	v1_resource "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
+	v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
@@ -32,12 +39,251 @@ const (
 )
 
 var (
-	success = &tempopb.PushResponse{}
-	ctx     = user.InjectOrgID(context.Background(), "test")
+	ctx = user.InjectOrgID(context.Background(), "test")
 )
 
-func TestDistributor(t *testing.T) {
+func TestRequestsByTraceID(t *testing.T) {
+	traceIDA := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	traceIDB := []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
+	tests := []struct {
+		name         string
+		request      *tempopb.PushRequest
+		expectedKeys []uint32
+		expectedReqs []*tempopb.PushRequest
+		expectedErr  error
+	}{
+		{
+			name: "empty",
+			request: &tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{},
+			},
+			expectedKeys: []uint32{},
+			expectedReqs: []*tempopb.PushRequest{},
+		},
+		{
+			name: "bad trace id",
+			request: &tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{
+					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						{
+							Spans: []*v1.Span{
+								{
+									TraceId: []byte{0x01},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit"),
+		},
+		{
+			name: "one span",
+			request: &tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{
+					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						{
+							Spans: []*v1.Span{
+								{
+									TraceId: traceIDA,
+								}}}}},
+			},
+			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
+			expectedReqs: []*tempopb.PushRequest{
+				{
+					Batch: &v1.ResourceSpans{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										TraceId: traceIDA,
+									}}}}}},
+			},
+		},
+		{
+			name: "two traces",
+			request: &tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{
+					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						{
+							Spans: []*v1.Span{
+								{
+									TraceId: traceIDA,
+								},
+								{
+									TraceId: traceIDB,
+								}}}}},
+			},
+			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
+			expectedReqs: []*tempopb.PushRequest{
+				{
+					Batch: &v1.ResourceSpans{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										TraceId: traceIDA,
+									}}}}},
+				},
+				{
+					Batch: &v1.ResourceSpans{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										TraceId: traceIDB,
+									}}}}}},
+			},
+		},
+		{
+			name: "resource copied",
+			request: &tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{
+					Resource: &v1_resource.Resource{
+						DroppedAttributesCount: 1,
+					},
+					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						{
+							Spans: []*v1.Span{
+								{
+									TraceId: traceIDA,
+								},
+								{
+									TraceId: traceIDB,
+								}}}}},
+			},
+			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
+			expectedReqs: []*tempopb.PushRequest{
+				{
+					Batch: &v1.ResourceSpans{
+						Resource: &v1_resource.Resource{
+							DroppedAttributesCount: 1,
+						},
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										TraceId: traceIDA,
+									}}}}},
+				},
+				{
+					Batch: &v1.ResourceSpans{
+						Resource: &v1_resource.Resource{
+							DroppedAttributesCount: 1,
+						},
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										TraceId: traceIDB,
+									}}}}}},
+			},
+		},
+		{
+			name: "ils copied",
+			request: &tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{
+					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						{
+							InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+								Name: "test",
+							},
+							Spans: []*v1.Span{
+								{
+									TraceId: traceIDA,
+								},
+								{
+									TraceId: traceIDB,
+								}}}}},
+			},
+			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
+			expectedReqs: []*tempopb.PushRequest{
+				{
+					Batch: &v1.ResourceSpans{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+									Name: "test",
+								},
+								Spans: []*v1.Span{
+									{
+										TraceId: traceIDA,
+									}}}}},
+				},
+				{
+					Batch: &v1.ResourceSpans{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+									Name: "test",
+								},
+								Spans: []*v1.Span{
+									{
+										TraceId: traceIDB,
+									}}}}}},
+			},
+		},
+		{
+			name: "one trace",
+			request: &tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{
+					Resource: &v1_resource.Resource{
+						DroppedAttributesCount: 3,
+					},
+					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						{
+							InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+								Name: "test",
+							},
+							Spans: []*v1.Span{
+								{
+									TraceId: traceIDB,
+									Name:    "spanA",
+								},
+								{
+									TraceId: traceIDB,
+									Name:    "spanB",
+								}}}}},
+			},
+			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDB)},
+			expectedReqs: []*tempopb.PushRequest{
+				{
+					Batch: &v1.ResourceSpans{
+						Resource: &v1_resource.Resource{
+							DroppedAttributesCount: 3,
+						},
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+									Name: "test",
+								},
+								Spans: []*v1.Span{
+									{
+										TraceId: traceIDB,
+										Name:    "spanA",
+									},
+									{
+										TraceId: traceIDB,
+										Name:    "spanB",
+									}}}}},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			keys, reqs, err := requestsByTraceID(tt.request, util.FakeTenantID, 1)
+
+			assert.Equal(t, tt.expectedKeys, keys)
+			assert.Equal(t, tt.expectedReqs, reqs)
+			assert.Equal(t, tt.expectedErr, err)
+		})
+	}
+}
+
+func TestDistributor(t *testing.T) {
 	for i, tc := range []struct {
 		lines            int
 		expectedResponse *tempopb.PushResponse
@@ -45,11 +291,11 @@ func TestDistributor(t *testing.T) {
 	}{
 		{
 			lines:            10,
-			expectedResponse: success,
+			expectedResponse: nil,
 		},
 		{
 			lines:            100,
-			expectedResponse: success,
+			expectedResponse: nil,
 		},
 	} {
 		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
@@ -101,7 +347,9 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distrib
 		return ingesters[addr], nil
 	}
 
-	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, true)
+	l := logging.Level{}
+	_ = l.Set("error")
+	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, true, l)
 	require.NoError(t, err)
 
 	return d
