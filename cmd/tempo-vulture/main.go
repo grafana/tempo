@@ -139,8 +139,8 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 	for _, b := range t.Batches {
 		for _, ils := range b.InstrumentationLibrarySpans {
 			for _, s := range ils.Spans {
-				for _, l := range s.Links {
-					linkedSpanIDs = append(linkedSpanIDs, l.SpanId)
+				if len(s.ParentSpanId) > 0 {
+					linkedSpanIDs = append(linkedSpanIDs, s.ParentSpanId)
 				}
 			}
 		}
