@@ -221,7 +221,7 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		var err error
 		for _, idx := range indexes {
 			pushRequest := traces[idx]
-			err = d.send(ctx, ingester.Addr, pushRequest)
+			err = d.send(localCtx, ingester.Addr, pushRequest)
 			if err != nil {
 				break
 			}

@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -347,7 +348,9 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distrib
 		return ingesters[addr], nil
 	}
 
-	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, true)
+	l := logging.Level{}
+	_ = l.Set("error")
+	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, true, l)
 	require.NoError(t, err)
 
 	return d
