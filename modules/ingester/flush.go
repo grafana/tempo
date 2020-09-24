@@ -96,7 +96,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	// dump any blocks that have been flushed for awhile
-	err = instance.ClearCompleteBlocks(i.cfg.CompleteBlockTimeout)
+	err = instance.ClearFlushedBlocks(i.cfg.CompleteBlockTimeout)
 	if err != nil {
 		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to complete block", "err", err)
 	}

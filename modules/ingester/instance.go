@@ -164,7 +164,7 @@ func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
 	return nil
 }
 
-func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error {
+func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error {
 	var err error
 
 	i.blocksMtx.Lock()

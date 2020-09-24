@@ -57,7 +57,7 @@ func TestInstance(t *testing.T) {
 	err = ingester.store.WriteBlock(context.Background(), block)
 	assert.NoError(t, err)
 
-	err = i.ClearCompleteBlocks(0)
+	err = i.ClearFlushedBlocks(0)
 	assert.NoError(t, err)
 	assert.Len(t, i.completeBlocks, 1)
 
