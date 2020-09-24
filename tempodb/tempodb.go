@@ -188,7 +188,7 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 		return err
 	}
 
-	c.BlockWroteSuccessfully(time.Now())
+	c.Flushed(time.Now())
 
 	return nil
 }
@@ -212,7 +212,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		return err
 	}
 
-	c.BlockWroteSuccessfully(time.Now())
+	c.Flushed(time.Now())
 
 	return nil
 }

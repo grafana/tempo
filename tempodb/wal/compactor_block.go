@@ -108,7 +108,7 @@ func (c *CompactorBlock) BloomFilter() *bloom.BloomFilter {
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) BlockWroteSuccessfully(t time.Time) {
+func (c *CompactorBlock) Flushed(t time.Time) {
 	// no-op
 }
 

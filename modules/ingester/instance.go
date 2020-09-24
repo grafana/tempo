@@ -156,7 +156,7 @@ func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
 	defer i.blocksMtx.Unlock()
 
 	for _, c := range i.completeBlocks {
-		if c.TimeWritten().IsZero() {
+		if c.FlushedTime().IsZero() {
 			return c
 		}
 	}
@@ -171,12 +171,12 @@ func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error
 	defer i.blocksMtx.Unlock()
 
 	for idx, b := range i.completeBlocks {
-		written := b.TimeWritten()
-		if written.IsZero() {
+		flushedTime := b.FlushedTime()
+		if flushedTime.IsZero() {
 			continue
 		}
 
-		if written.Add(completeBlockTimeout).Before(time.Now()) {
+		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
 			err = b.Clear() // todo: don't remove from complete blocks slice until after clear succeeds?
 			if err == nil {

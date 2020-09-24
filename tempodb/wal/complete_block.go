@@ -17,18 +17,20 @@ type ReplayBlock interface {
 type WriteableBlock interface {
 	BlockMeta() *encoding.BlockMeta
 	BloomFilter() *bloom.BloomFilter
-	BlockWroteSuccessfully(t time.Time) // jpe - wrote -> flushed
 	Records() []*encoding.Record
 	ObjectFilePath() string
+
+	Flushed(flushTime time.Time)
 }
 
 // CompleteBlock represent a block that has been "cut", is ready to be flushed and is not appendable
 type CompleteBlock struct {
 	block
 
-	bloom       *bloom.BloomFilter
-	records     []*encoding.Record
-	timeWritten time.Time
+	bloom   *bloom.BloomFilter
+	records []*encoding.Record
+
+	flushedTime time.Time
 }
 
 func (c *CompleteBlock) TenantID() string {
@@ -76,12 +78,12 @@ func (c *CompleteBlock) Clear() error {
 	return os.Remove(name)
 }
 
-func (c *CompleteBlock) TimeWritten() time.Time {
-	return c.timeWritten
+func (c *CompleteBlock) FlushedTime() time.Time {
+	return c.flushedTime
 }
 
-func (c *CompleteBlock) BlockWroteSuccessfully(t time.Time) {
-	c.timeWritten = t
+func (c *CompleteBlock) Flushed(flushTime time.Time) {
+	c.flushedTime = flushTime
 }
 
 func (c *CompleteBlock) BlockMeta() *encoding.BlockMeta {
