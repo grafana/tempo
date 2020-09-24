@@ -122,7 +122,7 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 	appendFile.Close()
 	orderedBlock.records = appender.Records()
 
-	workFilename := orderedBlock.fullFilename()
+	workFilename := orderedBlock.fullFilename() // jpe don't move this back, if i do it gets replayed as part of the wal, this is weird : this is intentional b/c the block still isn't flushed
 	orderedBlock.filepath = h.filepath
 	completeFilename := orderedBlock.fullFilename()
 

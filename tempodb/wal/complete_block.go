@@ -17,7 +17,7 @@ type ReplayBlock interface {
 type WriteableBlock interface {
 	BlockMeta() *encoding.BlockMeta
 	BloomFilter() *bloom.BloomFilter
-	BlockWroteSuccessfully(t time.Time)
+	BlockWroteSuccessfully(t time.Time) // jpe - wrote -> flushed
 	Records() []*encoding.Record
 	ObjectFilePath() string
 }

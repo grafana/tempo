@@ -88,7 +88,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 		return
 	}
 
-	// see if it's ready to cut a block?
+	// see if it's ready to cut a block? jpe - (complete)block needs a state and timestamps to track (active, cutting, cut_complete, flushed?) then async cut is possible
 	ready, err := instance.CutBlockIfReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration, immediate)
 	if err != nil {
 		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut block", "err", err)

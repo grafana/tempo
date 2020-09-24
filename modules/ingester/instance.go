@@ -44,10 +44,11 @@ type instance struct {
 	tracesMtx sync.Mutex
 	traces    map[traceFingerprint]*trace
 
-	blockTracesMtx sync.RWMutex
-	headBlock      *tempodb_wal.HeadBlock
-	completeBlocks []*tempodb_wal.CompleteBlock
-	lastBlockCut   time.Time
+	blocksMtx       sync.RWMutex
+	headBlock       *tempodb_wal.HeadBlock
+	completingBlock *tempodb_wal.HeadBlock
+	completeBlocks  []*tempodb_wal.CompleteBlock
+	lastBlockCut    time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
@@ -100,8 +101,8 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
 	now := time.Now()
 	for key, trace := range i.traces {
@@ -124,8 +125,8 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 }
 
 func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration, immediate bool) (bool, error) {
-	i.blockTracesMtx.RLock()
-	defer i.blockTracesMtx.RUnlock()
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
 
 	if i.headBlock == nil {
 		return false, nil
@@ -141,7 +142,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 		}
 
 		i.completeBlocks = append(i.completeBlocks, completeBlock)
-		err = i.resetHeadBlock()
+		err = i.resetHeadBlock() // jpe - should this return error?
 		if err != nil {
 			return false, err
 		}
@@ -151,8 +152,8 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 }
 
 func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
 	for _, c := range i.completeBlocks {
 		if c.TimeWritten().IsZero() {
@@ -166,8 +167,8 @@ func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
 func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error {
 	var err error
 
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
 	for idx, b := range i.completeBlocks {
 		written := b.TimeWritten()
@@ -198,8 +199,8 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	}
 	i.tracesMtx.Unlock()
 
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
 	foundBytes, err := i.headBlock.Find(id, i)
 	if err != nil {
