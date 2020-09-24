@@ -53,7 +53,7 @@ func main() {
 	flag.Parse()
 
 	if len(queryEndpoint) > 0 && len(traceID) > 0 {
-		trace, err := util.QueryTrace(queryEndpoint, traceID)
+		trace, err := util.QueryTrace(queryEndpoint, traceID, "1")
 		if err != nil {
 			fmt.Println("error querying tempo, err:", err)
 			return
