@@ -64,13 +64,13 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 
 	// 1) create a new block in work dir
 	// 2) append all objects from this block in order
-	// 3) move from workdir -> realdir
+	// 3) move from completeddir -> realdir
 	// 4) remove old
 	records := h.appender.Records()
 	orderedBlock := &CompleteBlock{
 		block: block{
 			meta:     encoding.NewBlockMeta(h.meta.TenantID, uuid.New()),
-			filepath: walConfig.WorkFilepath,
+			filepath: walConfig.CompletedFilepath,
 		},
 		bloom: bloom.NewWithEstimates(uint(len(records)), walConfig.BloomFP),
 	}
