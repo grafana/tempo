@@ -24,6 +24,11 @@ import (
 )
 
 var (
+	metricQueryRequests = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "querier_requests_total",
+		Help:      "number of requests received by the querier",
+	}, []string{"org"})
 	metricQueryReads = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
 		Name:      "query_reads",
@@ -120,6 +125,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
 	}
+
+	metricQueryRequests.WithLabelValues("org", userID).Inc()
 
 	key := tempo_util.TokenFor(userID, req.TraceID)
 
