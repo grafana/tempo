@@ -20,7 +20,7 @@ type WriteableBlock interface {
 	Records() []*encoding.Record
 	ObjectFilePath() string
 
-	Flushed(flushTime time.Time)
+	Flushed(flushTime time.Time) error
 }
 
 // CompleteBlock represent a block that has been "cut", is ready to be flushed and is not appendable
@@ -31,6 +31,7 @@ type CompleteBlock struct {
 	records []*encoding.Record
 
 	flushedTime time.Time
+	walFilename string
 }
 
 func (c *CompleteBlock) TenantID() string {
@@ -82,8 +83,10 @@ func (c *CompleteBlock) FlushedTime() time.Time {
 	return c.flushedTime
 }
 
-func (c *CompleteBlock) Flushed(flushTime time.Time) {
+func (c *CompleteBlock) Flushed(flushTime time.Time) error {
 	c.flushedTime = flushTime
+
+	return os.Remove(c.walFilename) // now that we are flushed, remove our wal file
 }
 
 func (c *CompleteBlock) BlockMeta() *encoding.BlockMeta {

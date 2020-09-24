@@ -121,20 +121,7 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 	appender.Complete()
 	appendFile.Close()
 	orderedBlock.records = appender.Records()
-
-	workFilename := orderedBlock.fullFilename() // jpe don't move this back, if i do it gets replayed as part of the wal, this is weird : this is intentional b/c the block still isn't flushed
-	orderedBlock.filepath = h.filepath
-	completeFilename := orderedBlock.fullFilename()
-
-	err = os.Rename(workFilename, completeFilename)
-	if err != nil {
-		return nil, err
-	}
-
-	os.Remove(h.fullFilename())
-	if err != nil {
-		return nil, err
-	}
+	orderedBlock.walFilename = h.fullFilename() // pass the filename to the complete block for cleanup when it's flusehd
 
 	return orderedBlock, nil
 }

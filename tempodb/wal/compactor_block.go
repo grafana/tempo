@@ -108,8 +108,9 @@ func (c *CompactorBlock) BloomFilter() *bloom.BloomFilter {
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) Flushed(t time.Time) {
+func (c *CompactorBlock) Flushed(t time.Time) error {
 	// no-op
+	return nil
 }
 
 // implements WriteableBlock
