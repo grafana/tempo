@@ -12,7 +12,7 @@ import (
 const orgIDHeader = "X-Scope-OrgID"
 
 func QueryTrace(baseURL, id, orgID string) (*tempopb.Trace, error) {
-	req, err := http.NewRequest("GET", baseURL + "/api/traces/" + id, nil)
+	req, err := http.NewRequest("GET", baseURL+"/api/traces/"+id, nil)
 	if err != nil {
 		return nil, err
 	}
