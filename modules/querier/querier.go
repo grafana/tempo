@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -123,10 +122,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
 	}
 
-	logger := util.WithContext(ctx, util.Logger)
-	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraceByID", opentracing.Tag{Key: "org", Value: userID})
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.FindTraceByID")
 	defer span.Finish()
-	level.Info(logger).Log("msg", "Querier.FindTraceByID invoked")
 
 	key := tempo_util.TokenFor(userID, req.TraceID)
 
