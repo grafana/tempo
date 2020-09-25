@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	cortex_util "github.com/cortexproject/cortex/pkg/util"
+	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -125,27 +127,38 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 }
 
 func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration, immediate bool) (bool, error) {
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
-	if i.headBlock == nil {
+	if i.headBlock == nil || i.headBlock.Length() == 0 {
 		return false, nil
 	}
 
 	now := time.Now()
 	ready := i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now) || immediate
-
 	if ready {
-		completeBlock, err := i.headBlock.Complete(i.wal, i)
-		if err != nil {
-			return false, err
+		if i.completingBlock != nil {
+			return false, fmt.Errorf("unable to complete head block for %s b/c there is already a completing block.  Will try again next cycle", i.instanceID)
 		}
 
-		i.completeBlocks = append(i.completeBlocks, completeBlock)
-		err = i.resetHeadBlock() // jpe - should this return error?
-		if err != nil {
-			return false, err
-		}
+		i.completingBlock = i.headBlock
+		i.resetHeadBlock()
+
+		// todo : this should be a queue of blocks to complete with workers
+		go func(toComplete *tempodb_wal.HeadBlock) {
+			completeBlock, err := i.completingBlock.Complete(i.wal, i)
+
+			i.blocksMtx.Lock()
+			defer i.blocksMtx.Unlock()
+
+			i.completingBlock = nil
+			if err != nil {
+				// this is a really bad error that results in data loss.  most likely due to disk full
+				level.Error(cortex_util.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
+				return
+			}
+			i.completeBlocks = append(i.completeBlocks, completeBlock)
+		}(i.completingBlock)
 	}
 
 	return ready, nil
@@ -190,47 +203,59 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 }
 
 func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
-	// First search live traces being assembled in the ingester instance.
+	var allBytes []byte
+
+	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[traceFingerprint(util.Fingerprint(id))]; ok {
-		retMe := liveTrace.trace // todo: is this necessary?
-		i.tracesMtx.Unlock()
-		return retMe, nil
+		foundBytes, err := proto.Marshal(liveTrace.trace)
+		if err != nil {
+			i.tracesMtx.Unlock()
+			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
+		}
+
+		allBytes = i.Combine(foundBytes, allBytes)
 	}
 	i.tracesMtx.Unlock()
 
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
+	// headBlock
 	foundBytes, err := i.headBlock.Find(id, i)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
 	}
-	if foundBytes != nil {
+	allBytes = i.Combine(foundBytes, allBytes)
+
+	// completingBlock
+	if i.completingBlock != nil {
+		foundBytes, err = i.completingBlock.Find(id, i)
+		if err != nil {
+			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
+		}
+		allBytes = i.Combine(foundBytes, allBytes)
+	}
+
+	// completeBlock
+	for _, c := range i.completeBlocks {
+		foundBytes, err = c.Find(id, i)
+		if err != nil {
+			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
+		}
+		allBytes = i.Combine(foundBytes, allBytes)
+	}
+
+	// now marshal it all
+	if allBytes != nil {
 		out := &tempopb.Trace{}
 
-		err = proto.Unmarshal(foundBytes, out)
+		err = proto.Unmarshal(allBytes, out)
 		if err != nil {
 			return nil, err
 		}
 
 		return out, nil
-	}
-
-	for _, c := range i.completeBlocks {
-		foundBytes, err = c.Find(id, i)
-		if err != nil {
-			return nil, err
-		}
-		if foundBytes != nil {
-			out := &tempopb.Trace{}
-
-			err = proto.Unmarshal(foundBytes, out)
-			if err != nil {
-				return nil, err
-			}
-			return out, err
-		}
 	}
 
 	return nil, nil
@@ -261,6 +286,7 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	return trace, nil
 }
 
+// resetHeadBlock() should be called under lock
 func (i *instance) resetHeadBlock() error {
 	var err error
 	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)

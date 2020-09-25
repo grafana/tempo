@@ -44,22 +44,36 @@ func TestInstance(t *testing.T) {
 	assert.NoError(t, err)
 
 	ready, err := i.CutBlockIfReady(5, 0, false)
-	assert.True(t, ready, "there should be no cut blocks")
+	assert.True(t, ready, "there should be a ready block")
 	assert.NoError(t, err, "unexpected error cutting block")
 
 	ready, err = i.CutBlockIfReady(0, 30*time.Hour, false)
-	assert.True(t, ready, "there should be no cut blocks")
+	assert.False(t, ready, "there should be no ready blocks")
 	assert.NoError(t, err, "unexpected error cutting block")
 
+	// try a few times while the block gets completed
 	block := i.GetBlockToBeFlushed()
+	for j := 0; j < 5; j++ {
+		if block != nil {
+			continue
+		}
+		time.Sleep(1 * time.Second)
+		block = i.GetBlockToBeFlushed()
+	}
 	assert.NotNil(t, block)
+	assert.Nil(t, i.completingBlock, 1)
+	assert.Len(t, i.completeBlocks, 1)
 
 	err = ingester.store.WriteBlock(context.Background(), block)
 	assert.NoError(t, err)
 
-	err = i.ClearFlushedBlocks(0)
+	err = i.ClearFlushedBlocks(30 * time.Hour)
 	assert.NoError(t, err)
 	assert.Len(t, i.completeBlocks, 1)
+
+	err = i.ClearFlushedBlocks(0)
+	assert.NoError(t, err)
+	assert.Len(t, i.completeBlocks, 0)
 
 	err = i.resetHeadBlock()
 	assert.NoError(t, err, "unexpected error resetting block")

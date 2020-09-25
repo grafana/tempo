@@ -23,7 +23,9 @@ type WriteableBlock interface {
 	Flushed(flushTime time.Time) error
 }
 
-// CompleteBlock represent a block that has been "cut", is ready to be flushed and is not appendable
+// CompleteBlock represent a block that has been "cut", is ready to be flushed and is not appendable.
+// A CompleteBlock also knows the filepath of the wal block it was cut from.  It is responsible for
+// cleaning this block up once it has been flushed to the backend.
 type CompleteBlock struct {
 	block
 

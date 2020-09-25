@@ -106,7 +106,7 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 		if bytesID == nil {
 			break
 		}
-		if err != nil {
+		if err != nil 			
 			return nil, err
 		}
 
