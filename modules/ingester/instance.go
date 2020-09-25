@@ -155,6 +155,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 			if err != nil {
 				// this is a really bad error that results in data loss.  most likely due to disk full
 				_ = i.completingBlock.Clear()
+				metricFailedFlushes.Inc()
 				i.completingBlock = nil
 				level.Error(cortex_util.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
 				return
