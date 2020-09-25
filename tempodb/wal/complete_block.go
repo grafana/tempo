@@ -71,10 +71,7 @@ func (c *CompleteBlock) Iterator() (encoding.Iterator, error) {
 
 func (c *CompleteBlock) Clear() error {
 	if c.readFile != nil {
-		err := c.readFile.Close()
-		if err != nil {
-			return err
-		}
+		_ = c.readFile.Close()
 	}
 
 	name := c.fullFilename()

@@ -92,12 +92,16 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 	}
 	readFile, err := h.file()
 	if err != nil {
+		_ = appendFile.Close()
+		_ = os.Remove(orderedBlock.fullFilename())
 		return nil, err
 	}
 
 	iterator := encoding.NewRecordIterator(records, readFile)
 	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
+		_ = appendFile.Close()
+		_ = os.Remove(orderedBlock.fullFilename())
 		return nil, err
 	}
 	appender := encoding.NewBufferedAppender(appendFile, walConfig.IndexDownsample, len(records))
@@ -106,7 +110,9 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 		if bytesID == nil {
 			break
 		}
-		if err != nil 			
+		if err != nil {
+			_ = appendFile.Close()
+			_ = os.Remove(orderedBlock.fullFilename())
 			return nil, err
 		}
 
@@ -115,6 +121,8 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 		writeID := append([]byte(nil), bytesID...)
 		err = appender.Append(writeID, bytesObject)
 		if err != nil {
+			_ = appendFile.Close()
+			_ = os.Remove(orderedBlock.fullFilename())
 			return nil, err
 		}
 	}
@@ -136,4 +144,17 @@ func (h *HeadBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]by
 	finder := encoding.NewDedupingFinder(records, file, combiner)
 
 	return finder.Find(id)
+}
+
+func (h *HeadBlock) Clear() error {
+	if h.readFile != nil {
+		_ = h.readFile.Close()
+	}
+
+	if h.appendFile != nil {
+		_ = h.appendFile.Close()
+	}
+
+	name := h.fullFilename()
+	return os.Remove(name)
 }
