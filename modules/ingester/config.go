@@ -18,7 +18,7 @@ type Config struct {
 	MaxTraceIdle         time.Duration `yaml:"trace_idle_period"`
 	MaxTracesPerBlock    int           `yaml:"traces_per_block"`
 	MaxBlockDuration     time.Duration `yaml:"max_block_duration"`
-	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"` // jpe - remove me
+	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
