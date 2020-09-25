@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -121,6 +122,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
 	}
 
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.FindTraceByID")
+	defer span.Finish()
+
 	key := tempo_util.TokenFor(userID, req.TraceID)
 
 	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
@@ -132,7 +136,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	// todo:  does this wait for every ingester?  we only need one successful return
 	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
-		return client.FindTraceByID(ctx, req)
+		return client.FindTraceByID(opentracing.ContextWithSpan(ctx, span), req)
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.FindTraceByID")
@@ -148,7 +152,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	// if the ingester didn't have it check the store.  todo: parallelize
 	if trace == nil {
-		foundBytes, metrics, err := q.store.Find(userID, req.TraceID)
+		foundBytes, metrics, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID)
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}

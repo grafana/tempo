@@ -17,6 +17,9 @@ import (
 	"github.com/willf/bloom"
 	"go.uber.org/atomic"
 
+	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/opentracing/opentracing-go"
+
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/cache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -78,7 +81,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(tenantID string, id encoding.ID) ([]byte, FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id encoding.ID) ([]byte, FindMetrics, error)
 	Shutdown()
 }
 
@@ -221,7 +224,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetrics, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID) ([]byte, FindMetrics, error) {
 	metrics := FindMetrics{
 		BloomFilterReads:     atomic.NewInt32(0),
 		BloomFilterBytesRead: atomic.NewInt32(0),
@@ -230,6 +233,11 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetri
 		BlockReads:           atomic.NewInt32(0),
 		BlockBytesRead:       atomic.NewInt32(0),
 	}
+
+	// tracing instrumentation
+	logger := util.WithContext(ctx, util.Logger)
+	span, _ := opentracing.StartSpanFromContext(ctx, "store.Find")
+	defer span.Finish()
 
 	rw.blockListsMtx.Lock()
 	blocklist, found := rw.blockLists[tenantID]
@@ -305,6 +313,7 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetri
 				break
 			}
 		}
+		level.Debug(logger).Log("msg", "trace found", "traceID", string(id), "block", meta.BlockID)
 		return foundObject, nil
 	})
 

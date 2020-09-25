@@ -153,7 +153,7 @@ func TestCompaction(t *testing.T) {
 
 	// now see if we can find our ids
 	for i, id := range allIds {
-		b, _, err := rw.Find(testTenantID, id)
+		b, _, err := rw.Find(context.Background(), testTenantID, id)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
