@@ -31,6 +31,7 @@ var (
 	lokiPass    string
 
 	tempoBaseURL         string
+	tempoOrgID           string
 	tempoBackoffDuration time.Duration
 )
 
@@ -50,6 +51,7 @@ func init() {
 	flag.StringVar(&lokiPass, "loki-pass", "", "The password to use for Loki basic auth.")
 
 	flag.StringVar(&tempoBaseURL, "tempo-base-url", "", "The base URL (scheme://hostname) at which to find tempo.")
+	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
 	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", time.Second, "The amount of time to pause between tempo calls")
 }
 
@@ -111,7 +113,7 @@ func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []stri
 		time.Sleep(backoff)
 
 		glog.Error("tempo url ", baseURL+"/api/traces/"+id)
-		trace, err := util.QueryTrace(baseURL, id, "1")
+		trace, err := util.QueryTrace(baseURL, id, tempoOrgID)
 		if err != nil {
 			return nil, err
 		}
