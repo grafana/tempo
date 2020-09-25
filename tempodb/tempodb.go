@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/opentracing/opentracing-go"
 	"sort"
 	"strconv"
 	"sync"
@@ -231,6 +233,11 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		BlockBytesRead:       atomic.NewInt32(0),
 	}
 
+	// tracing instrumentation
+	logger := util.WithContext(ctx, util.Logger)
+	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
+	defer span.Finish()
+
 	rw.blockListsMtx.Lock()
 	blocklist, found := rw.blockLists[tenantID]
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
@@ -305,7 +312,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 				break
 			}
 		}
-		level.Info(rw.logger).Log("msg", "trace found", "traceID", id, "block", meta.BlockID)
+		level.Debug(logger).Log("msg", "trace found", "traceID", string(id), "block", meta.BlockID)
 		return foundObject, nil
 	})
 
