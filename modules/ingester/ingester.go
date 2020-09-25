@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log/level"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -162,6 +163,10 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, fmt.Errorf("invalid trace id")
 	}
+
+	// tracing instrumentation
+	span, ctx := opentracing.StartSpanFromContext(ctx, "ingester.FindTraceByID")
+	defer span.Finish()
 
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {

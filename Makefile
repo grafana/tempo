@@ -68,6 +68,9 @@ docker-tempo-query:
 docker-tempo-vulture:
 	COMPONENT=tempo-vulture $(MAKE) docker-component
 
+.PHONY: docker-images
+docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
+
 .PHONY: check-component
 check-component:
 ifndef COMPONENT
