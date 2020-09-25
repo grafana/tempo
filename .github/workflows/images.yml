@@ -12,13 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Build Docker image
-        run: make docker-tempo
-      - name: Push the Docker image
+        run: make docker-images
+      - name: Push to Dockerhub
         if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         run: |
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
           function tag_and_push {
             docker tag tempo:latest "annanay25/tempo:${1}" && docker push "annanay25/tempo:${1}"
+            docker tag tempo-query:latest "annanay25/tempo-query:${1}" && docker push "annanay25/tempo-query:${1}"
+            docker tag tempo-vulture:latest "annanay25/tempo-vulture:${1}" && docker push "annanay25/tempo-vulture:${1}"
           }
           if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
             tag_and_push "latest"
