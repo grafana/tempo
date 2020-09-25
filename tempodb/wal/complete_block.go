@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/willf/bloom"
+	"go.uber.org/atomic"
 )
 
 // CompleteBlock represent a block that has been "cut", is ready to be flushed and is not appendable.
@@ -17,7 +18,7 @@ type CompleteBlock struct {
 	bloom   *bloom.BloomFilter
 	records []*encoding.Record
 
-	flushedTime time.Time
+	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
 	walFilename string
 }
 
@@ -60,12 +61,15 @@ func (c *CompleteBlock) Clear() error {
 }
 
 func (c *CompleteBlock) FlushedTime() time.Time {
-	return c.flushedTime
+	unixTime := c.flushedTime.Load()
+	if unixTime == 0 {
+		return time.Time{} // return 0 time.  0 unix time is jan 1, 1970
+	}
+	return time.Unix(unixTime, 0)
 }
 
-func (c *CompleteBlock) Flushed(flushTime time.Time) error {
-	c.flushedTime = flushTime
-
+func (c *CompleteBlock) Flushed() error {
+	c.flushedTime.Store(time.Now().Unix())
 	return os.Remove(c.walFilename) // now that we are flushed, remove our wal file
 }
 

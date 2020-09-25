@@ -3,7 +3,7 @@ package wal
 import (
 	"fmt"
 	"os"
-	"time"
+	"sync"
 
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/willf/bloom"
@@ -15,13 +15,15 @@ type WriteableBlock interface {
 	Records() []*encoding.Record
 	ObjectFilePath() string
 
-	Flushed(flushTime time.Time) error
+	Flushed() error
 }
 
 type block struct {
 	meta     *encoding.BlockMeta
 	filepath string
 	readFile *os.File
+
+	once sync.Once
 }
 
 func (b *block) fullFilename() string {
@@ -29,15 +31,14 @@ func (b *block) fullFilename() string {
 }
 
 func (b *block) file() (*os.File, error) {
-	if b.readFile == nil {
-		name := b.fullFilename()
+	var err error
+	b.once.Do(func() {
+		if b.readFile == nil {
+			name := b.fullFilename()
 
-		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
-		if err != nil {
-			return nil, err
+			b.readFile, err = os.OpenFile(name, os.O_RDONLY, 0644)
 		}
-		b.readFile = f
-	}
+	})
 
-	return b.readFile, nil
+	return b.readFile, err
 }

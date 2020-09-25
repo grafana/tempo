@@ -188,7 +188,7 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 		return err
 	}
 
-	err = c.Flushed(time.Now())
+	err = c.Flushed()
 	if err != nil {
 		return err
 	}
