@@ -276,8 +276,22 @@ func TestRequestsByTraceID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			keys, reqs, err := requestsByTraceID(tt.request, util.FakeTenantID, 1)
 
-			assert.Equal(t, tt.expectedKeys, keys)
-			assert.Equal(t, tt.expectedReqs, reqs)
+			for i, expectedKey := range tt.expectedKeys {
+				foundIndex := -1
+				for j, key := range keys {
+					if expectedKey == key {
+						foundIndex = j
+					}
+				}
+
+				require.NotEqual(t, -1, foundIndex, "expected key %d not found", foundIndex)
+
+				// now confirm that the request at this position is the expected one
+				expectedReq := tt.expectedReqs[i]
+				actualReq := reqs[foundIndex]
+				assert.Equal(t, expectedReq, actualReq)
+			}
+
 			assert.Equal(t, tt.expectedErr, err)
 		})
 	}
