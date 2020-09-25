@@ -8,15 +8,15 @@ import (
 	"github.com/willf/bloom"
 )
 
-type HeadBlock struct {
+type AppendBlock struct {
 	block
 
 	appendFile *os.File
 	appender   encoding.Appender
 }
 
-func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*HeadBlock, error) {
-	h := &HeadBlock{
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
+	h := &AppendBlock{
 		block: block{
 			meta:     encoding.NewBlockMeta(tenantID, id),
 			filepath: filepath,
@@ -39,7 +39,7 @@ func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*HeadBlock, e
 	return h, nil
 }
 
-func (h *HeadBlock) Write(id encoding.ID, b []byte) error {
+func (h *AppendBlock) Write(id encoding.ID, b []byte) error {
 	err := h.appender.Append(id, b)
 	if err != nil {
 		return err
@@ -48,11 +48,11 @@ func (h *HeadBlock) Write(id encoding.ID, b []byte) error {
 	return nil
 }
 
-func (h *HeadBlock) Length() int {
+func (h *AppendBlock) Length() int {
 	return h.appender.Length()
 }
 
-func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*CompleteBlock, error) {
+func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -134,7 +134,7 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 	return orderedBlock, nil
 }
 
-func (h *HeadBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]byte, error) {
+func (h *AppendBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]byte, error) {
 	records := h.appender.Records()
 	file, err := h.file()
 	if err != nil {
@@ -146,7 +146,7 @@ func (h *HeadBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]by
 	return finder.Find(id)
 }
 
-func (h *HeadBlock) Clear() error {
+func (h *AppendBlock) Clear() error {
 	if h.readFile != nil {
 		_ = h.readFile.Close()
 	}

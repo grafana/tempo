@@ -47,8 +47,8 @@ type instance struct {
 	traces    map[traceFingerprint]*trace
 
 	blocksMtx       sync.RWMutex
-	headBlock       *tempodb_wal.HeadBlock
-	completingBlock *tempodb_wal.HeadBlock
+	headBlock       *tempodb_wal.AppendBlock
+	completingBlock *tempodb_wal.AppendBlock
 	completeBlocks  []*tempodb_wal.CompleteBlock
 	lastBlockCut    time.Time
 
@@ -145,7 +145,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 		i.resetHeadBlock()
 
 		// todo : this should be a queue of blocks to complete with workers
-		go func(toComplete *tempodb_wal.HeadBlock) {
+		go func(toComplete *tempodb_wal.AppendBlock) {
 			completeBlock, err := i.completingBlock.Complete(i.wal, i)
 
 			i.blocksMtx.Lock()
