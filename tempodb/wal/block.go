@@ -3,9 +3,20 @@ package wal
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/willf/bloom"
 )
+
+type WriteableBlock interface {
+	BlockMeta() *encoding.BlockMeta
+	BloomFilter() *bloom.BloomFilter
+	Records() []*encoding.Record
+	ObjectFilePath() string
+
+	Flushed(flushTime time.Time) error
+}
 
 type block struct {
 	meta     *encoding.BlockMeta

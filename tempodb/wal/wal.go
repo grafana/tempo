@@ -64,13 +64,13 @@ func New(c *Config) (*WAL, error) {
 	}, nil
 }
 
-func (w *WAL) AllBlocks() ([]ReplayBlock, error) {
+func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]ReplayBlock, 0, len(files))
+	blocks := make([]*ReplayBlock, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -82,7 +82,7 @@ func (w *WAL) AllBlocks() ([]ReplayBlock, error) {
 			return nil, err
 		}
 
-		blocks = append(blocks, &CompleteBlock{
+		blocks = append(blocks, &ReplayBlock{
 			block: block{
 				meta:     encoding.NewBlockMeta(tenantID, blockID),
 				filepath: w.c.Filepath,

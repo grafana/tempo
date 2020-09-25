@@ -53,7 +53,7 @@ func TestCreateBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error getting blocks")
 	assert.Len(t, blocks, 1)
 
-	assert.Equal(t, block.fullFilename(), blocks[0].(*CompleteBlock).fullFilename())
+	assert.Equal(t, block.fullFilename(), blocks[0].fullFilename())
 }
 
 func TestReadWrite(t *testing.T) {

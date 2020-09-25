@@ -275,7 +275,7 @@ func (i *Ingester) replayWal() error {
 	return nil
 }
 
-func (i *Ingester) replayBlock(b tempodb_wal.ReplayBlock, instance *instance) error {
+func (i *Ingester) replayBlock(b *tempodb_wal.ReplayBlock, instance *instance) error {
 	iterator, err := b.Iterator()
 	if err != nil {
 		return err

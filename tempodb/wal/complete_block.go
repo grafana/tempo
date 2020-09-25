@@ -8,21 +8,6 @@ import (
 	"github.com/willf/bloom"
 )
 
-type ReplayBlock interface {
-	Iterator() (encoding.Iterator, error)
-	TenantID() string
-	Clear() error
-}
-
-type WriteableBlock interface {
-	BlockMeta() *encoding.BlockMeta
-	BloomFilter() *bloom.BloomFilter
-	Records() []*encoding.Record
-	ObjectFilePath() string
-
-	Flushed(flushTime time.Time) error
-}
-
 // CompleteBlock represent a block that has been "cut", is ready to be flushed and is not appendable.
 // A CompleteBlock also knows the filepath of the wal block it was cut from.  It is responsible for
 // cleaning this block up once it has been flushed to the backend.
@@ -34,10 +19,6 @@ type CompleteBlock struct {
 
 	flushedTime time.Time
 	walFilename string
-}
-
-func (c *CompleteBlock) TenantID() string {
-	return c.meta.TenantID
 }
 
 func (c *CompleteBlock) Records() []*encoding.Record {
