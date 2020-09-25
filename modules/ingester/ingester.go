@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"sync"
 	"time"
 
@@ -162,6 +163,10 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, fmt.Errorf("invalid trace id")
 	}
+
+	// tracing instrumentation
+	span, ctx := opentracing.StartSpanFromContext(ctx, "ingester.FindTraceByID")
+	defer span.Finish()
 
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
