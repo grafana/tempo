@@ -8,6 +8,8 @@ import (
 	"github.com/willf/bloom"
 )
 
+// AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
+// in the order it was received and an in memory sorted index.
 type AppendBlock struct {
 	block
 
@@ -52,6 +54,10 @@ func (h *AppendBlock) Length() int {
 	return h.appender.Length()
 }
 
+// Complete should be called when you are done with the block.  This method will write and return a new CompleteBlock which
+// includes an on disk file containing all objects in order.
+// Note that calling this method leaves the original file on disk.  This file is still considered to be part of the WAL
+// until Flush() is successfully called on the CompleteBlock.
 func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
