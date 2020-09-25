@@ -86,7 +86,7 @@ func TestDB(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, _, err := r.Find(testTenantID, id)
+		bFound, _, err := r.Find(context.Background(), testTenantID, id)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}

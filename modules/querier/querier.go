@@ -148,7 +148,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	// if the ingester didn't have it check the store.  todo: parallelize
 	if trace == nil {
-		foundBytes, metrics, err := q.store.Find(userID, req.TraceID)
+		foundBytes, metrics, err := q.store.Find(ctx, userID, req.TraceID)
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}

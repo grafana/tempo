@@ -78,7 +78,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(tenantID string, id encoding.ID) ([]byte, FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id encoding.ID) ([]byte, FindMetrics, error)
 	Shutdown()
 }
 
@@ -221,7 +221,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetrics, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID) ([]byte, FindMetrics, error) {
 	metrics := FindMetrics{
 		BloomFilterReads:     atomic.NewInt32(0),
 		BloomFilterBytesRead: atomic.NewInt32(0),
@@ -305,6 +305,7 @@ func (rw *readerWriter) Find(tenantID string, id encoding.ID) ([]byte, FindMetri
 				break
 			}
 		}
+		level.Info(rw.logger).Log("msg", "trace found", "traceID", id, "block", meta.BlockID)
 		return foundObject, nil
 	})
 
