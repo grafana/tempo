@@ -142,10 +142,13 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 		}
 
 		i.completingBlock = i.headBlock
-		i.resetHeadBlock()
+		err := i.resetHeadBlock()
+		if err != nil {
+			return false, fmt.Errorf("failed to resetHeadBlock: %w", err)
+		}
 
 		// todo : this should be a queue of blocks to complete with workers
-		go func(toComplete *tempodb_wal.AppendBlock) {
+		go func() {
 			completeBlock, err := i.completingBlock.Complete(i.wal, i)
 
 			i.blocksMtx.Lock()
@@ -153,14 +156,14 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 
 			if err != nil {
 				// this is a really bad error that results in data loss.  most likely due to disk full
-				i.completingBlock.Clear()
+				_ = i.completingBlock.Clear()
 				i.completingBlock = nil
 				level.Error(cortex_util.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
 				return
 			}
 			i.completingBlock = nil
 			i.completeBlocks = append(i.completeBlocks, completeBlock)
-		}(i.completingBlock)
+		}()
 	}
 
 	return ready, nil

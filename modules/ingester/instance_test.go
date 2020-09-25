@@ -148,30 +148,30 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	}
 	go concurrent(func() {
 		request := test.MakeRequest(10, []byte{})
-		i.Push(context.Background(), request)
+		_ = i.Push(context.Background(), request)
 	})
 
 	go concurrent(func() {
-		i.CutCompleteTraces(0, true)
+		_ = i.CutCompleteTraces(0, true)
 	})
 
 	go concurrent(func() {
-		i.CutBlockIfReady(0, 0, false)
+		_, _ = i.CutBlockIfReady(0, 0, false)
 	})
 
 	go concurrent(func() {
 		block := i.GetBlockToBeFlushed()
 		if block != nil {
-			ingester.store.WriteBlock(context.Background(), block)
+			_ = ingester.store.WriteBlock(context.Background(), block)
 		}
 	})
 
 	go concurrent(func() {
-		i.ClearFlushedBlocks(0)
+		_ = i.ClearFlushedBlocks(0)
 	})
 
 	go concurrent(func() {
-		i.FindTraceByID([]byte{0x01})
+		_, _ = i.FindTraceByID([]byte{0x01})
 	})
 
 	time.Sleep(100 * time.Millisecond)
