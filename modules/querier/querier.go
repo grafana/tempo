@@ -3,6 +3,7 @@ package querier
 import (
 	"context"
 	"fmt"
+
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go"

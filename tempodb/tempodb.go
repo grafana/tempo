@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/cortexproject/cortex/pkg/util"
-	"github.com/opentracing/opentracing-go"
 	"sort"
 	"strconv"
 	"sync"
@@ -18,6 +16,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/willf/bloom"
 	"go.uber.org/atomic"
+
+	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/cache"
@@ -235,7 +236,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)
-	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
+	span, _ := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 
 	rw.blockListsMtx.Lock()
