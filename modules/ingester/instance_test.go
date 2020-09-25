@@ -43,12 +43,7 @@ func TestInstance(t *testing.T) {
 	err = i.CutCompleteTraces(0, true)
 	assert.NoError(t, err)
 
-	ready, err := i.CutBlockIfReady(5, 0, false)
-	assert.True(t, ready, "there should be a ready block")
-	assert.NoError(t, err, "unexpected error cutting block")
-
-	ready, err = i.CutBlockIfReady(0, 30*time.Hour, false)
-	assert.False(t, ready, "there should be no ready blocks")
+	err = i.CutBlockIfReady(0, 0, false)
 	assert.NoError(t, err, "unexpected error cutting block")
 
 	// try a few times while the block gets completed
@@ -110,8 +105,7 @@ func TestInstanceFind(t *testing.T) {
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
 
-	ready, err := i.CutBlockIfReady(0, 0, false)
-	assert.True(t, ready)
+	err = i.CutBlockIfReady(0, 0, false)
 	assert.NoError(t, err)
 
 	trace, err = i.FindTraceByID(traceID)
@@ -156,7 +150,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, _ = i.CutBlockIfReady(0, 0, false)
+		_ = i.CutBlockIfReady(0, 0, false)
 	})
 
 	go concurrent(func() {

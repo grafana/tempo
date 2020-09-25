@@ -126,31 +126,29 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration, immediate bool) (bool, error) {
+func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration, immediate bool) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	if i.headBlock == nil || i.headBlock.Length() == 0 {
-		return false, nil
+		return nil
 	}
 
 	now := time.Now()
-	ready := i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now) || immediate
-	if ready {
+	if i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now) || immediate {
 		if i.completingBlock != nil {
-			return false, fmt.Errorf("unable to complete head block for %s b/c there is already a completing block.  Will try again next cycle", i.instanceID)
+			return fmt.Errorf("unable to complete head block for %s b/c there is already a completing block.  Will try again next cycle", i.instanceID)
 		}
 
 		i.completingBlock = i.headBlock
 		err := i.resetHeadBlock()
 		if err != nil {
-			return false, fmt.Errorf("failed to resetHeadBlock: %w", err)
+			return fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
 		// todo : this should be a queue of blocks to complete with workers
 		go func() {
 			completeBlock, err := i.completingBlock.Complete(i.wal, i)
-
 			i.blocksMtx.Lock()
 			defer i.blocksMtx.Unlock()
 
@@ -166,7 +164,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 		}()
 	}
 
-	return ready, nil
+	return nil
 }
 
 func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
