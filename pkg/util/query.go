@@ -9,8 +9,18 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func QueryTrace(baseURL, id string) (*tempopb.Trace, error) {
-	resp, err := http.Get(baseURL + "/api/traces/" + id)
+const orgIDHeader = "X-Scope-OrgID"
+
+func QueryTrace(baseURL, id, orgID string) (*tempopb.Trace, error) {
+	req, err := http.NewRequest("GET", baseURL+"/api/traces/"+id, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(orgID) > 0 {
+		req.Header.Set(orgIDHeader, orgID)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error querying tempo %v", err)
 	}

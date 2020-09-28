@@ -33,6 +33,7 @@ var (
 
 	queryEndpoint string
 	traceID       string
+	orgID         string
 )
 
 func init() {
@@ -47,13 +48,15 @@ func init() {
 
 	flag.StringVar(&queryEndpoint, "query-endpoint", "", "tempo query endpoint")
 	flag.StringVar(&traceID, "traceID", "", "traceID to query")
+	flag.StringVar(&orgID, "orgID", "", "orgID to query")
 }
 
 func main() {
 	flag.Parse()
 
 	if len(queryEndpoint) > 0 && len(traceID) > 0 {
-		trace, err := util.QueryTrace(queryEndpoint, traceID)
+		// util.QueryTrace will only add orgID header if len(orgID) > 0
+		trace, err := util.QueryTrace(queryEndpoint, traceID, orgID)
 		if err != nil {
 			fmt.Println("error querying tempo, err:", err)
 			return
