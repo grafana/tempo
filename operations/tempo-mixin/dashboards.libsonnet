@@ -74,59 +74,37 @@ dashboard_utils {
         )
       ),
     'tempo-writes.json':
-      g.dashboard('Tempo / Writes')
-      .addMultiTemplate('namespace', 'container_cpu_usage_seconds_total{}', 'namespace')
-      .addMultiTemplate('component', 'container_cpu_usage_seconds_total{}', 'component')
+      $.dashboard('Tempo / Writes')
+      .addClusterSelectorTemplates()
       .addRow(
-        g.row('Latency')
+        g.row('Gateway')
         .addPanel(
-          g.panel('p99 Objects Read') +
-          g.queryPanel('histogram_quantile(.99, sum(rate(tempo_query_reads_bucket[$__interval])) by (layer, le))', '{{layer}}'),
+          $.panel('QPS') +
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="opentelemetry_proto_collector_trace_v1_traceservice_export"}' % $.jobMatcher($._config.jobs.gateway))
         )
         .addPanel(
-          g.panel('p50 Objects Read') +
-          g.queryPanel('histogram_quantile(.5, sum(rate(tempo_query_reads_bucket[$__interval])) by (layer, le))', '{{layer}}'),
+          $.panel('Latency') +
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="opentelemetry_proto_collector_trace_v1_traceservice_export"}' % $.jobMatcher($._config.jobs.gateway))
+        ) 
+      )
+      .addRow(
+        g.row('Distributor')
+        .addPanel(
+          $.panel('Spans/Second') +
+          $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__interval]))' % $.jobMatcher($._config.jobs.distributor), "accepted") +
+          $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__interval]))' % $.jobMatcher($._config.jobs.distributor), "refused")
         )
       )
       .addRow(
-        g.row('Query')
+        g.row('Ingester')
         .addPanel(
-          g.panel('Success Rate') +
-          g.queryPanel('tempo_request_duration_seconds_sum{route="/tempopb.Querier/FindTraceByID", status_code="success"} / tempo_request_duration_seconds_sum{route="/tempopb.Querier/FindTraceByID"}', ''),
+          $.panel('QPS') +
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="/tempopb.Pusher/Push"}' % $.jobMatcher($._config.jobs.ingester))
         )
         .addPanel(
-          g.panel('Latency (Querier)') +
-          g.queryPanel('histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{method="GET", route="api_traces_traceid"}[$__interval])) by (le))', '0.99') +
-          g.queryPanel('histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{method="GET", route="api_traces_traceid"}[$__interval])) by (le))', '0.9') +
-          g.queryPanel('histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{method="GET", route="api_traces_traceid"}[$__interval])) by (le))', '0.5'),
-        )
-        .addPanel(
-          g.panel('Latency (Ingester)') +
-          g.queryPanel('histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{route="/tempopb.Querier/FindTraceByID"}[$__interval])) by (le))', '0.99') +
-          g.queryPanel('histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{route="/tempopb.Querier/FindTraceByID"}[$__interval])) by (le))', '0.9') +
-          g.queryPanel('histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{route="/tempopb.Querier/FindTraceByID"}[$__interval])) by (le))', '0.5'),
-        )
-        .addPanel(
-          g.panel('Bytes Read') +
-          g.queryPanel('histogram_quantile(.99, sum(rate(tempo_query_bytes_read_bucket[$__interval])) by (le))', '0.99') +
-          g.queryPanel('histogram_quantile(.9, sum(rate(tempo_query_bytes_read_bucket[$__interval])) by (le))', '0.9') +
-          g.queryPanel('histogram_quantile(.5, sum(rate(tempo_query_bytes_read_bucket[$__interval])) by (le))', '0.5'),
-        )
+          $.panel('Latency') +
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="/tempopb.Pusher/Push"}' % $.jobMatcher($._config.jobs.ingester))
+        ) 
       )
-      .addRow(
-        g.row('Cache')
-        .addPanel(
-          g.panel('Lookups') +
-          g.queryPanel('rate(tempodb_disk_cache_total[$__interval])', 'lookups'),
-        )
-        .addPanel(
-          g.panel('Misses') +
-          g.queryPanel('rate(tempodb_disk_cache_miss_total[$__interval])', 'misses'),
-        )
-        .addPanel(
-          g.panel('Purges') +
-          g.queryPanel('rate(tempodb_disk_cache_clean_total[$__interval])', 'purges'),
-        )
-      ),
   },
 }

@@ -1045,7 +1045,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(.95, sum(rate(tempo_query_reads_bucket[$__interval])) by (layer, le))",
+       "expr": "histogram_quantile(.5, sum(rate(tempo_query_reads_bucket[$__interval])) by (layer, le))",
        "format": "time_series",
        "intervalFactor": 2,
        "legendFormat": "{{layer}}",
@@ -1058,7 +1058,7 @@
      ],
      "timeFrom": null,
      "timeShift": null,
-     "title": "p95",
+     "title": "p50",
      "tooltip": {
       "shared": true,
       "sort": 0,
