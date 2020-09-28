@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/willf/bloom"
+	"github.com/grafana/tempo/pkg/bloom"
 )
 
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile

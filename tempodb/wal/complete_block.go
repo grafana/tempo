@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/willf/bloom"
+	"github.com/grafana/tempo/pkg/bloom"
 	"go.uber.org/atomic"
 )
 
@@ -15,7 +15,7 @@ import (
 type CompleteBlock struct {
 	block
 
-	bloom   *bloom.BloomFilter
+	bloom   *bloom.ShardedBloomFilter
 	records []*encoding.Record
 
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
@@ -77,6 +77,6 @@ func (c *CompleteBlock) BlockMeta() *encoding.BlockMeta {
 	return c.meta
 }
 
-func (c *CompleteBlock) BloomFilter() *bloom.BloomFilter {
+func (c *CompleteBlock) BloomFilter() *bloom.ShardedBloomFilter {
 	return c.bloom
 }
