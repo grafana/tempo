@@ -314,7 +314,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 				break
 			}
 		}
-		level.Debug(logger).Log("msg", "trace found", "traceID", string(id), "block", meta.BlockID)
+		level.Info(logger).Log("msg", "trace found", "traceID", string(id), "block", meta.BlockID)
 		return foundObject, nil
 	})
 
