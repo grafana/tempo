@@ -53,7 +53,7 @@ func TestCreateBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error getting blocks")
 	assert.Len(t, blocks, 1)
 
-	assert.Equal(t, block.fullFilename(), blocks[0].(*CompleteBlock).fullFilename())
+	assert.Equal(t, block.fullFilename(), blocks[0].fullFilename())
 }
 
 func TestReadWrite(t *testing.T) {
@@ -262,10 +262,10 @@ func TestWorkDir(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	err = os.MkdirAll(path.Join(tempDir, workDir), os.ModePerm)
-	assert.NoError(t, err, "unexpected error creating workdir")
+	err = os.MkdirAll(path.Join(tempDir, completedDir), os.ModePerm)
+	assert.NoError(t, err, "unexpected error creating completedDir")
 
-	_, err = os.Create(path.Join(tempDir, workDir, "testfile"))
+	_, err = os.Create(path.Join(tempDir, completedDir, "testfile"))
 	assert.NoError(t, err, "unexpected error creating testfile")
 
 	_, err = New(&Config{
@@ -275,10 +275,10 @@ func TestWorkDir(t *testing.T) {
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
-	_, err = os.Stat(path.Join(tempDir, workDir))
+	_, err = os.Stat(path.Join(tempDir, completedDir))
 	assert.NoError(t, err, "work folder should exist")
 
-	files, err := ioutil.ReadDir(path.Join(tempDir, workDir))
+	files, err := ioutil.ReadDir(path.Join(tempDir, completedDir))
 	assert.NoError(t, err, "unexpected reading work dir")
 
 	assert.Len(t, files, 0, "work dir should be empty")

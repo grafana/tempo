@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	workDir = "work"
+	completedDir = "completed"
 )
 
 type WAL struct {
@@ -20,10 +20,10 @@ type WAL struct {
 }
 
 type Config struct {
-	Filepath        string `yaml:"path"`
-	WorkFilepath    string
-	IndexDownsample int     `yaml:"index_downsample"`
-	BloomFP         float64 `yaml:"bloom_filter_false_positive"`
+	Filepath          string `yaml:"path"`
+	CompletedFilepath string
+	IndexDownsample   int     `yaml:"index_downsample"`
+	BloomFP           float64 `yaml:"bloom_filter_false_positive"`
 }
 
 func New(c *Config) (*WAL, error) {
@@ -45,18 +45,18 @@ func New(c *Config) (*WAL, error) {
 		return nil, err
 	}
 
-	if c.WorkFilepath == "" {
-		workFilepath := path.Join(c.Filepath, workDir)
-		err = os.RemoveAll(workFilepath)
+	if c.CompletedFilepath == "" {
+		completedFilepath := path.Join(c.Filepath, completedDir)
+		err = os.RemoveAll(completedFilepath)
 		if err != nil {
 			return nil, err
 		}
-		err = os.MkdirAll(workFilepath, os.ModePerm)
+		err = os.MkdirAll(completedFilepath, os.ModePerm)
 		if err != nil {
 			return nil, err
 		}
 
-		c.WorkFilepath = workFilepath
+		c.CompletedFilepath = completedFilepath
 	}
 
 	return &WAL{
@@ -64,13 +64,13 @@ func New(c *Config) (*WAL, error) {
 	}, nil
 }
 
-func (w *WAL) AllBlocks() ([]ReplayBlock, error) {
+func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]ReplayBlock, 0, len(files))
+	blocks := make([]*ReplayBlock, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -82,7 +82,7 @@ func (w *WAL) AllBlocks() ([]ReplayBlock, error) {
 			return nil, err
 		}
 
-		blocks = append(blocks, &CompleteBlock{
+		blocks = append(blocks, &ReplayBlock{
 			block: block{
 				meta:     encoding.NewBlockMeta(tenantID, blockID),
 				filepath: w.c.Filepath,
@@ -93,12 +93,12 @@ func (w *WAL) AllBlocks() ([]ReplayBlock, error) {
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*HeadBlock, error) {
-	return newHeadBlock(id, tenantID, w.c.Filepath)
+func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
+	return newAppendBlock(id, tenantID, w.c.Filepath)
 }
 
 func (w *WAL) NewCompactorBlock(id uuid.UUID, tenantID string, metas []*encoding.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
-	return newCompactorBlock(id, tenantID, w.c.BloomFP, w.c.IndexDownsample, metas, w.c.WorkFilepath, estimatedObjects)
+	return newCompactorBlock(id, tenantID, w.c.BloomFP, w.c.IndexDownsample, metas, w.c.CompletedFilepath, estimatedObjects)
 }
 
 func (w *WAL) config() *Config {

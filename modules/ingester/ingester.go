@@ -269,7 +269,7 @@ func (i *Ingester) replayWal() error {
 		err = i.replayBlock(b, instance)
 		if err != nil {
 			// there was an error, log and keep on keeping on
-			level.Error(util.Logger).Log("msg", "error replaying block.  wiping headblock ", "error", err)
+			level.Error(util.Logger).Log("msg", "error replaying block.  removing", "error", err)
 		}
 		err = b.Clear()
 		if err != nil {
@@ -280,7 +280,7 @@ func (i *Ingester) replayWal() error {
 	return nil
 }
 
-func (i *Ingester) replayBlock(b tempodb_wal.ReplayBlock, instance *instance) error {
+func (i *Ingester) replayBlock(b *tempodb_wal.ReplayBlock, instance *instance) error {
 	iterator, err := b.Iterator()
 	if err != nil {
 		return err

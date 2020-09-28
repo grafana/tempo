@@ -89,20 +89,20 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	// see if it's ready to cut a block?
-	ready, err := instance.CutBlockIfReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration, immediate)
+	err = instance.CutBlockIfReady(i.cfg.MaxTracesPerBlock, i.cfg.MaxBlockDuration, immediate)
 	if err != nil {
 		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut block", "err", err)
 		return
 	}
 
 	// dump any blocks that have been flushed for awhile
-	err = instance.ClearCompleteBlocks(i.cfg.CompleteBlockTimeout)
+	err = instance.ClearFlushedBlocks(i.cfg.CompleteBlockTimeout)
 	if err != nil {
 		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to complete block", "err", err)
 	}
 
 	// see if any complete blocks are ready to be flushed
-	if ready {
+	if instance.GetBlockToBeFlushed() != nil {
 		i.flushQueueIndex++
 		flushQueueIndex := i.flushQueueIndex % i.cfg.ConcurrentFlushes
 		i.flushQueues[flushQueueIndex].Enqueue(&flushOp{

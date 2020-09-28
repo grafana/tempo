@@ -8,15 +8,17 @@ import (
 	"github.com/willf/bloom"
 )
 
-type HeadBlock struct {
+// AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
+// in the order it was received and an in memory sorted index.
+type AppendBlock struct {
 	block
 
 	appendFile *os.File
 	appender   encoding.Appender
 }
 
-func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*HeadBlock, error) {
-	h := &HeadBlock{
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
+	h := &AppendBlock{
 		block: block{
 			meta:     encoding.NewBlockMeta(tenantID, id),
 			filepath: filepath,
@@ -39,7 +41,7 @@ func newHeadBlock(id uuid.UUID, tenantID string, filepath string) (*HeadBlock, e
 	return h, nil
 }
 
-func (h *HeadBlock) Write(id encoding.ID, b []byte) error {
+func (h *AppendBlock) Write(id encoding.ID, b []byte) error {
 	err := h.appender.Append(id, b)
 	if err != nil {
 		return err
@@ -48,11 +50,15 @@ func (h *HeadBlock) Write(id encoding.ID, b []byte) error {
 	return nil
 }
 
-func (h *HeadBlock) Length() int {
+func (h *AppendBlock) Length() int {
 	return h.appender.Length()
 }
 
-func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*CompleteBlock, error) {
+// Complete should be called when you are done with the block.  This method will write and return a new CompleteBlock which
+// includes an on disk file containing all objects in order.
+// Note that calling this method leaves the original file on disk.  This file is still considered to be part of the WAL
+// until Flush() is successfully called on the CompleteBlock.
+func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -64,13 +70,13 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 
 	// 1) create a new block in work dir
 	// 2) append all objects from this block in order
-	// 3) move from workdir -> realdir
+	// 3) move from completeddir -> realdir
 	// 4) remove old
 	records := h.appender.Records()
 	orderedBlock := &CompleteBlock{
 		block: block{
 			meta:     encoding.NewBlockMeta(h.meta.TenantID, uuid.New()),
-			filepath: walConfig.WorkFilepath,
+			filepath: walConfig.CompletedFilepath,
 		},
 		bloom: bloom.NewWithEstimates(uint(len(records)), walConfig.BloomFP),
 	}
@@ -92,12 +98,16 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 	}
 	readFile, err := h.file()
 	if err != nil {
+		_ = appendFile.Close()
+		_ = os.Remove(orderedBlock.fullFilename())
 		return nil, err
 	}
 
 	iterator := encoding.NewRecordIterator(records, readFile)
 	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
+		_ = appendFile.Close()
+		_ = os.Remove(orderedBlock.fullFilename())
 		return nil, err
 	}
 	appender := encoding.NewBufferedAppender(appendFile, walConfig.IndexDownsample, len(records))
@@ -107,6 +117,8 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 			break
 		}
 		if err != nil {
+			_ = appendFile.Close()
+			_ = os.Remove(orderedBlock.fullFilename())
 			return nil, err
 		}
 
@@ -115,31 +127,20 @@ func (h *HeadBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Complet
 		writeID := append([]byte(nil), bytesID...)
 		err = appender.Append(writeID, bytesObject)
 		if err != nil {
+			_ = appendFile.Close()
+			_ = os.Remove(orderedBlock.fullFilename())
 			return nil, err
 		}
 	}
 	appender.Complete()
 	appendFile.Close()
 	orderedBlock.records = appender.Records()
-
-	workFilename := orderedBlock.fullFilename()
-	orderedBlock.filepath = h.filepath
-	completeFilename := orderedBlock.fullFilename()
-
-	err = os.Rename(workFilename, completeFilename)
-	if err != nil {
-		return nil, err
-	}
-
-	os.Remove(h.fullFilename())
-	if err != nil {
-		return nil, err
-	}
+	orderedBlock.walFilename = h.fullFilename() // pass the filename to the complete block for cleanup when it's flusehd
 
 	return orderedBlock, nil
 }
 
-func (h *HeadBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]byte, error) {
+func (h *AppendBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]byte, error) {
 	records := h.appender.Records()
 	file, err := h.file()
 	if err != nil {
@@ -149,4 +150,17 @@ func (h *HeadBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]by
 	finder := encoding.NewDedupingFinder(records, file, combiner)
 
 	return finder.Find(id)
+}
+
+func (h *AppendBlock) Clear() error {
+	if h.readFile != nil {
+		_ = h.readFile.Close()
+	}
+
+	if h.appendFile != nil {
+		_ = h.appendFile.Close()
+	}
+
+	name := h.fullFilename()
+	return os.Remove(name)
 }

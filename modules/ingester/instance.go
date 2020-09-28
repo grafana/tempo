@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	cortex_util "github.com/cortexproject/cortex/pkg/util"
+	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -44,10 +46,11 @@ type instance struct {
 	tracesMtx sync.Mutex
 	traces    map[traceFingerprint]*trace
 
-	blockTracesMtx sync.RWMutex
-	headBlock      *tempodb_wal.HeadBlock
-	completeBlocks []*tempodb_wal.CompleteBlock
-	lastBlockCut   time.Time
+	blocksMtx       sync.RWMutex
+	headBlock       *tempodb_wal.AppendBlock
+	completingBlock *tempodb_wal.AppendBlock
+	completeBlocks  []*tempodb_wal.CompleteBlock
+	lastBlockCut    time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
@@ -100,8 +103,8 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
 	now := time.Now()
 	for key, trace := range i.traces {
@@ -123,39 +126,54 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration, immediate bool) (bool, error) {
-	i.blockTracesMtx.RLock()
-	defer i.blockTracesMtx.RUnlock()
+func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration, immediate bool) error {
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
-	if i.headBlock == nil {
-		return false, nil
+	if i.headBlock == nil || i.headBlock.Length() == 0 {
+		return nil
 	}
 
 	now := time.Now()
-	ready := i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now) || immediate
-
-	if ready {
-		completeBlock, err := i.headBlock.Complete(i.wal, i)
-		if err != nil {
-			return false, err
+	if i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now) || immediate {
+		if i.completingBlock != nil {
+			return fmt.Errorf("unable to complete head block for %s b/c there is already a completing block.  Will try again next cycle", i.instanceID)
 		}
 
-		i.completeBlocks = append(i.completeBlocks, completeBlock)
-		err = i.resetHeadBlock()
+		i.completingBlock = i.headBlock
+		err := i.resetHeadBlock()
 		if err != nil {
-			return false, err
+			return fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
+
+		// todo : this should be a queue of blocks to complete with workers
+		go func() {
+			completeBlock, err := i.completingBlock.Complete(i.wal, i)
+			i.blocksMtx.Lock()
+			defer i.blocksMtx.Unlock()
+
+			if err != nil {
+				// this is a really bad error that results in data loss.  most likely due to disk full
+				_ = i.completingBlock.Clear()
+				metricFailedFlushes.Inc()
+				i.completingBlock = nil
+				level.Error(cortex_util.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
+				return
+			}
+			i.completingBlock = nil
+			i.completeBlocks = append(i.completeBlocks, completeBlock)
+		}()
 	}
 
-	return ready, nil
+	return nil
 }
 
 func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
 	for _, c := range i.completeBlocks {
-		if c.TimeWritten().IsZero() {
+		if c.FlushedTime().IsZero() {
 			return c
 		}
 	}
@@ -163,19 +181,19 @@ func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
 	return nil
 }
 
-func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error {
+func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error {
 	var err error
 
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
 	for idx, b := range i.completeBlocks {
-		written := b.TimeWritten()
-		if written.IsZero() {
+		flushedTime := b.FlushedTime()
+		if flushedTime.IsZero() {
 			continue
 		}
 
-		if written.Add(completeBlockTimeout).Before(time.Now()) {
+		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
 			err = b.Clear() // todo: don't remove from complete blocks slice until after clear succeeds?
 			if err == nil {
@@ -189,47 +207,59 @@ func (i *instance) ClearCompleteBlocks(completeBlockTimeout time.Duration) error
 }
 
 func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
-	// First search live traces being assembled in the ingester instance.
+	var allBytes []byte
+
+	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[traceFingerprint(util.Fingerprint(id))]; ok {
-		retMe := liveTrace.trace // todo: is this necessary?
-		i.tracesMtx.Unlock()
-		return retMe, nil
+		foundBytes, err := proto.Marshal(liveTrace.trace)
+		if err != nil {
+			i.tracesMtx.Unlock()
+			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
+		}
+
+		allBytes = i.Combine(foundBytes, allBytes)
 	}
 	i.tracesMtx.Unlock()
 
-	i.blockTracesMtx.Lock()
-	defer i.blockTracesMtx.Unlock()
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
+	// headBlock
 	foundBytes, err := i.headBlock.Find(id, i)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
 	}
-	if foundBytes != nil {
+	allBytes = i.Combine(foundBytes, allBytes)
+
+	// completingBlock
+	if i.completingBlock != nil {
+		foundBytes, err = i.completingBlock.Find(id, i)
+		if err != nil {
+			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
+		}
+		allBytes = i.Combine(foundBytes, allBytes)
+	}
+
+	// completeBlock
+	for _, c := range i.completeBlocks {
+		foundBytes, err = c.Find(id, i)
+		if err != nil {
+			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
+		}
+		allBytes = i.Combine(foundBytes, allBytes)
+	}
+
+	// now marshal it all
+	if allBytes != nil {
 		out := &tempopb.Trace{}
 
-		err = proto.Unmarshal(foundBytes, out)
+		err = proto.Unmarshal(allBytes, out)
 		if err != nil {
 			return nil, err
 		}
 
 		return out, nil
-	}
-
-	for _, c := range i.completeBlocks {
-		foundBytes, err = c.Find(id, i)
-		if err != nil {
-			return nil, err
-		}
-		if foundBytes != nil {
-			out := &tempopb.Trace{}
-
-			err = proto.Unmarshal(foundBytes, out)
-			if err != nil {
-				return nil, err
-			}
-			return out, err
-		}
 	}
 
 	return nil, nil
@@ -260,6 +290,7 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	return trace, nil
 }
 
+// resetHeadBlock() should be called under lock
 func (i *instance) resetHeadBlock() error {
 	var err error
 	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)

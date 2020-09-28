@@ -43,23 +43,32 @@ func TestInstance(t *testing.T) {
 	err = i.CutCompleteTraces(0, true)
 	assert.NoError(t, err)
 
-	ready, err := i.CutBlockIfReady(5, 0, false)
-	assert.True(t, ready, "there should be no cut blocks")
+	err = i.CutBlockIfReady(0, 0, false)
 	assert.NoError(t, err, "unexpected error cutting block")
 
-	ready, err = i.CutBlockIfReady(0, 30*time.Hour, false)
-	assert.True(t, ready, "there should be no cut blocks")
-	assert.NoError(t, err, "unexpected error cutting block")
-
+	// try a few times while the block gets completed
 	block := i.GetBlockToBeFlushed()
+	for j := 0; j < 5; j++ {
+		if block != nil {
+			continue
+		}
+		time.Sleep(100 * time.Millisecond)
+		block = i.GetBlockToBeFlushed()
+	}
 	assert.NotNil(t, block)
+	assert.Nil(t, i.completingBlock, 1)
+	assert.Len(t, i.completeBlocks, 1)
 
 	err = ingester.store.WriteBlock(context.Background(), block)
 	assert.NoError(t, err)
 
-	err = i.ClearCompleteBlocks(0)
+	err = i.ClearFlushedBlocks(30 * time.Hour)
 	assert.NoError(t, err)
 	assert.Len(t, i.completeBlocks, 1)
+
+	err = i.ClearFlushedBlocks(0)
+	assert.NoError(t, err)
+	assert.Len(t, i.completeBlocks, 0)
 
 	err = i.resetHeadBlock()
 	assert.NoError(t, err, "unexpected error resetting block")
@@ -96,11 +105,69 @@ func TestInstanceFind(t *testing.T) {
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
 
-	ready, err := i.CutBlockIfReady(0, 0, false)
-	assert.True(t, ready)
+	err = i.CutBlockIfReady(0, 0, false)
 	assert.NoError(t, err)
 
 	trace, err = i.FindTraceByID(traceID)
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
+}
+
+func TestInstanceDoesNotRace(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+	wal := ingester.store.WAL()
+
+	i, err := newInstance("fake", limiter, wal)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	end := make(chan struct{})
+
+	concurrent := func(f func()) {
+		for {
+			select {
+			case <-end:
+				return
+			default:
+				f()
+			}
+		}
+	}
+	go concurrent(func() {
+		request := test.MakeRequest(10, []byte{})
+		_ = i.Push(context.Background(), request)
+	})
+
+	go concurrent(func() {
+		_ = i.CutCompleteTraces(0, true)
+	})
+
+	go concurrent(func() {
+		_ = i.CutBlockIfReady(0, 0, false)
+	})
+
+	go concurrent(func() {
+		block := i.GetBlockToBeFlushed()
+		if block != nil {
+			_ = ingester.store.WriteBlock(context.Background(), block)
+		}
+	})
+
+	go concurrent(func() {
+		_ = i.ClearFlushedBlocks(0)
+	})
+
+	go concurrent(func() {
+		_, _ = i.FindTraceByID([]byte{0x01})
+	})
+
+	time.Sleep(100 * time.Millisecond)
+	close(end)
 }

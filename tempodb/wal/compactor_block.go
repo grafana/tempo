@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -108,8 +107,9 @@ func (c *CompactorBlock) BloomFilter() *bloom.BloomFilter {
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) BlockWroteSuccessfully(t time.Time) {
+func (c *CompactorBlock) Flushed() error {
 	// no-op
+	return nil
 }
 
 // implements WriteableBlock
