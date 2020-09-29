@@ -26,8 +26,13 @@ jobs:
     # - name: Install Dependencies
     #   run: PATH="$(go env GOPATH)/bin":$PATH make vendor-dependencies
 
+    # - name: Lint
+    #   run: make lint
+
     - name: Lint
-      run: make lint
+      uses: golangci/golangci-lint-action@v1
+      with:
+        version: v1.30
 
     - name: Test
       run: make test-all
