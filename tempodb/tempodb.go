@@ -20,6 +20,7 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/opentracing/opentracing-go"
+	ot_log "github.com/opentracing/opentracing-go/log"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/cache"
@@ -316,6 +317,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 			}
 		}
 		level.Info(logger).Log("msg", "trace found", "traceID", hex.EncodeToString(id), "block", meta.BlockID)
+		span.LogFields(ot_log.String("msg", "trace found"), ot_log.String("traceID", hex.EncodeToString(id)), ot_log.String("block", meta.BlockID.String()))
 		return foundObject, nil
 	})
 
