@@ -74,7 +74,7 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingeste
 	}
 
 	var err error
-	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, false, prometheus.DefaultRegisterer)
+	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, true, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %w", err)
 	}
@@ -244,8 +244,7 @@ func (i *Ingester) stopIncomingRequests() {
 
 // TransferOut implements ring.Lifecycler.
 func (i *Ingester) TransferOut(ctx context.Context) error {
-	// todo: decide what, if any support, we're going to have here
-	return nil
+	return ring.ErrTransferDisabled
 }
 
 func (i *Ingester) replayWal() error {
