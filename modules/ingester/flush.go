@@ -45,7 +45,10 @@ func (i *Ingester) Flush() {
 	instances := i.getInstances()
 
 	for _, instance := range instances {
-		instance.CutCompleteTraces(0, true)
+		err := instance.CutCompleteTraces(0, true)
+		if err != nil {
+			level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut complete traces on shutdown", "err", err)
+		}
 	}
 }
 
