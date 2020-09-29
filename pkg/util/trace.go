@@ -64,6 +64,14 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 // CombineTraceProtos combines two trace protos into one.  Note that it is destructive.
 //  All spans are combined into traceA.
 func CombineTraceProtos(traceA, traceB *tempopb.Trace) *tempopb.Trace {
+	if traceA == nil {
+		return traceB
+	}
+
+	if traceB == nil {
+		return traceA
+	}
+
 	spansInA := make(map[uint32]struct{})
 	for _, batchA := range traceA.Batches {
 		for _, ilsA := range batchA.InstrumentationLibrarySpans {
