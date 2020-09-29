@@ -34,7 +34,7 @@ var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Help:      "The total number of series pending in the flush queue.",
 })
 
-// Ingester builds chunks for incoming log streams.
+// Ingester builds blocks out of incoming traces
 type Ingester struct {
 	services.Service
 
@@ -47,8 +47,7 @@ type Ingester struct {
 	lifecycler *ring.Lifecycler
 	store      storage.Store
 
-	// One queue per flush thread.  Fingerprint is used to
-	// pick a queue.
+	// One queue per flush thread.
 	flushQueues     []*util.PriorityQueue
 	flushQueueIndex int
 	flushQueuesDone sync.WaitGroup
