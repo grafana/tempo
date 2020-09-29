@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/cortexproject/cortex/integration/e2e"
@@ -16,11 +17,15 @@ import (
 	"google.golang.org/grpc"
 )
 
+const (
+	image = "tempo:latest"
+)
+
 func newTempoAllInOne() (*cortex_e2e.HTTPService, error) {
 	args := "-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml")
 
 	return cortex_e2e.NewHTTPService(
-		svcName,
+		"tempo",
 		image,
 		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args),
 		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 505),
@@ -29,16 +34,40 @@ func newTempoAllInOne() (*cortex_e2e.HTTPService, error) {
 	), nil
 }
 
-func newTempoAllDistributor() (*cortex_e2e.HTTPService, error) {
-	args := "-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml") + " -target=distributor"
+func newTempoDistributor() (*cortex_e2e.HTTPService, error) {
+	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=distributor"}
 
 	return cortex_e2e.NewHTTPService(
-		svcName,
+		"distributor",
 		image,
-		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args),
+		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 505),
 		3100,
 		14250,
+	), nil
+}
+
+func newTempoIngester(replica int) (*cortex_e2e.HTTPService, error) {
+	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=ingester"}
+
+	return cortex_e2e.NewHTTPService(
+		"ingester-"+strconv.Itoa(replica),
+		image,
+		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 505),
+		3100,
+	), nil
+}
+
+func newTempoQuerier() (*cortex_e2e.HTTPService, error) {
+	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=querier"}
+
+	return cortex_e2e.NewHTTPService(
+		"querier",
+		image,
+		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 505),
+		3100,
 	), nil
 }
 
