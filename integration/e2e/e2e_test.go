@@ -23,6 +23,8 @@ import (
 var (
 	svcName = "tempo"
 	image   = "tempo:latest"
+
+	configAllInOne = "./all-in-one-config.yaml"
 )
 
 func NewTempoAllInOne() (*cortex_e2e.HTTPService, error) {
@@ -69,7 +71,7 @@ func MakeThriftBatch() *thrift.Batch {
 	return &thrift.Batch{Spans: spans}
 }
 
-func TestIngest(t *testing.T) {
+func TestAllInOne(t *testing.T) {
 	s, err := cortex_e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
@@ -78,7 +80,7 @@ func TestIngest(t *testing.T) {
 	require.NotNil(t, minio)
 	require.NoError(t, s.StartAndWaitReady(minio))
 
-	require.NoError(t, copyFileToSharedDir(s, "./config.yaml", "config.yaml"))
+	require.NoError(t, copyFileToSharedDir(s, configAllInOne, "config.yaml"))
 	tempo, err := NewTempoAllInOne()
 	require.NoError(t, err)
 	require.NoError(t, s.StartAndWaitReady(tempo))
