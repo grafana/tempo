@@ -38,8 +38,9 @@ const (
 	flushBackoff = 1 * time.Second
 )
 
-// Flush triggers a flush of all the chunks and closes the flush queues.
-// Called from the Lifecycler as part of the ingester shutdown.
+// Flush triggers a flush of all in memory traces to disk.  This is called
+// by the lifecycler on shutdown and will put our traces in the WAL to be
+// replayed.
 func (i *Ingester) Flush() {
 	instances := i.getInstances()
 
