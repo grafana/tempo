@@ -22,8 +22,6 @@ import (
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
-type traceFingerprint uint64
-
 // Errors returned on Query.
 var (
 	ErrTraceMissing = errors.New("Trace missing")
@@ -44,7 +42,7 @@ var (
 
 type instance struct {
 	tracesMtx sync.Mutex
-	traces    map[traceFingerprint]*trace
+	traces    map[uint32]*trace
 
 	blocksMtx       sync.RWMutex
 	headBlock       *tempodb_wal.AppendBlock
@@ -60,7 +58,7 @@ type instance struct {
 
 func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*instance, error) {
 	i := &instance{
-		traces: map[traceFingerprint]*trace{},
+		traces: map[uint32]*trace{},
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -211,7 +209,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 
 	// live traces
 	i.tracesMtx.Lock()
-	if liveTrace, ok := i.traces[traceFingerprint(util.Fingerprint(id))]; ok {
+	if liveTrace, ok := i.traces[util.TokenForTraceID(id)]; ok {
 		foundBytes, err := proto.Marshal(liveTrace.trace)
 		if err != nil {
 			i.tracesMtx.Unlock()
@@ -271,8 +269,7 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 		return nil, fmt.Errorf("failed to get trace id %w", err)
 	}
 
-	fp := traceFingerprint(util.Fingerprint(traceID))
-
+	fp := util.TokenForTraceID(traceID)
 	trace, ok := i.traces[fp]
 	if ok {
 		return trace, nil

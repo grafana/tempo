@@ -9,14 +9,14 @@ import (
 
 type trace struct {
 	trace      *tempopb.Trace
-	fp         traceFingerprint
+	token      uint32
 	lastAppend time.Time
 	traceID    []byte
 }
 
-func newTrace(fp traceFingerprint, traceID []byte) *trace {
+func newTrace(token uint32, traceID []byte) *trace {
 	return &trace{
-		fp:         fp,
+		token:      token,
 		trace:      &tempopb.Trace{},
 		lastAppend: time.Now(),
 		traceID:    traceID,

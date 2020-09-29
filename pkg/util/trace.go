@@ -51,11 +51,11 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 		return bytes
 	}
 
-	spansInA := make(map[uint64]struct{})
+	spansInA := make(map[uint32]struct{})
 	for _, batchA := range traceA.Batches {
 		for _, ilsA := range batchA.InstrumentationLibrarySpans {
 			for _, spanA := range ilsA.Spans {
-				spansInA[Fingerprint(spanA.SpanId)] = struct{}{}
+				spansInA[TokenForTraceID(spanA.SpanId)] = struct{}{}
 			}
 		}
 	}
@@ -68,7 +68,7 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 			notFoundSpans := ilsB.Spans[:0]
 			for _, spanB := range ilsB.Spans {
 				// if found in A, remove from the batch
-				_, ok := spansInA[Fingerprint(spanB.SpanId)]
+				_, ok := spansInA[TokenForTraceID(spanB.SpanId)]
 				if !ok {
 					notFoundSpans = append(notFoundSpans, spanB)
 				}
