@@ -156,4 +156,29 @@ func TestMicroservices(t *testing.T) {
 	assert.Len(t, out.Batches, 1)
 	assert.Equal(t, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name, "my operation")
 	defer resp.Body.Close()
+
+	// stop an ingester and confirm we can still write and query
+	err = tempoIngester2.Stop()
+	require.NoError(t, err)
+
+	batch = makeThriftBatch()
+	require.NoError(t, c.EmitBatch(context.Background(), batch))
+	hexID = fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+
+	// query an in-memory trace
+	res, err = cortex_e2e.GetRequest("http://" + tempoQuerier.Endpoint(3100) + "/api/traces/" + hexID)
+	require.NoError(t, err)
+	out = &tempopb.Trace{}
+	unmarshaller = &jsonpb.Unmarshaler{}
+	assert.NoError(t, unmarshaller.Unmarshal(res.Body, out))
+	assert.Len(t, out.Batches, 1)
+	assert.Equal(t, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name, "my operation")
+	defer res.Body.Close()
+
+	// stop another ingester and confirm things fail
+	err = tempoIngester1.Stop()
+	require.NoError(t, err)
+
+	batch = makeThriftBatch()
+	require.Error(t, c.EmitBatch(context.Background(), batch))
 }
