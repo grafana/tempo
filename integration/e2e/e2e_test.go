@@ -8,6 +8,7 @@ import (
 
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,7 +54,7 @@ func TestAllInOne(t *testing.T) {
 	require.Equal(t, 204, res.StatusCode)
 
 	// sleep for one maintenance cycle
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// test metrics
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
@@ -85,11 +86,28 @@ func TestMicroservices(t *testing.T) {
 	tempoQuerier := newTempoQuerier()
 	require.NoError(t, s.StartAndWaitReady(tempoQuerier))
 
+	// wait for 2 active ingesters
+	time.Sleep(1 * time.Second)
+	matchers := []*labels.Matcher{
+		{
+			Type:  labels.MatchEqual,
+			Name:  "name",
+			Value: "ingester",
+		},
+		{
+			Type:  labels.MatchEqual,
+			Name:  "state",
+			Value: "ACTIVE",
+		},
+	}
+	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(cortex_e2e.Equals(2), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
+
 	// Get port for the otlp receiver endpoint
 	c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 	batch := makeThriftBatch()
+
 	require.NoError(t, c.EmitBatch(context.Background(), batch))
 
 	// test metrics
@@ -114,7 +132,7 @@ func TestMicroservices(t *testing.T) {
 	require.Equal(t, 204, res.StatusCode)
 
 	// sleep for one maintenance cycle
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// test metrics
 	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
