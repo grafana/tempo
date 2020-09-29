@@ -51,6 +51,19 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 		return bytes
 	}
 
+	traceComplete := CombineTraceProtos(traceA, traceB)
+
+	bytes, err := proto.Marshal(traceComplete)
+	if err != nil {
+		level.Error(util.Logger).Log("msg", "marshalling the combine trace threw an error.", "err", err)
+		return objA
+	}
+	return bytes
+}
+
+// CombineTraceProtos combines two trace protos into one.  Note that it is destructive.
+//  All spans are combined into traceA.
+func CombineTraceProtos(traceA, traceB *tempopb.Trace) *tempopb.Trace {
 	spansInA := make(map[uint32]struct{})
 	for _, batchA := range traceA.Batches {
 		for _, ilsA := range batchA.InstrumentationLibrarySpans {
@@ -87,10 +100,5 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 		}
 	}
 
-	bytes, err := proto.Marshal(traceA)
-	if err != nil {
-		level.Error(util.Logger).Log("msg", "marshalling the combine trace threw an error.", "err", err)
-		return objA
-	}
-	return bytes
+	return traceA
 }

@@ -142,16 +142,16 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.FindTraceByID")
 	}
 
-	var trace *tempopb.Trace
+	var completeTrace *tempopb.Trace
 	for _, r := range responses {
-		trace = r.response.(*tempopb.TraceByIDResponse).Trace
+		trace := r.response.(*tempopb.TraceByIDResponse).Trace
 		if trace != nil {
-			break
+			completeTrace = tempo_util.CombineTraceProtos(completeTrace, trace)
 		}
 	}
 
-	// if the ingester didn't have it check the store.  todo: parallelize
-	if trace == nil {
+	// if the ingester didn't have it check the store.
+	if completeTrace == nil {
 		foundBytes, metrics, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID)
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
@@ -163,7 +163,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, err
 		}
 
-		trace = out
+		completeTrace = out
 		metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads.Load()))
 		metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead.Load()))
 		metricQueryReads.WithLabelValues("index").Observe(float64(metrics.IndexReads.Load()))
@@ -173,7 +173,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	return &tempopb.TraceByIDResponse{
-		Trace: trace,
+		Trace: completeTrace,
 	}, nil
 }
 
