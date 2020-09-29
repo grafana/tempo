@@ -179,14 +179,13 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 		return err
 	}
 
-	bloomBuffer := &bytes.Buffer{}
-	_, err = c.BloomFilter().WriteTo(bloomBuffer)
+	bloomBuffers, err := c.BloomFilter().WriteTo()
 	if err != nil {
 		return err
 	}
 
 	meta := c.BlockMeta()
-	err = rw.w.Write(ctx, meta, bloomBuffer.Bytes(), indexBytes, c.ObjectFilePath())
+	err = rw.w.Write(ctx, meta, bloomBuffers, indexBytes, c.ObjectFilePath())
 	if err != nil {
 		return err
 	}
@@ -206,14 +205,13 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		return err
 	}
 
-	bloomBuffer := &bytes.Buffer{}
-	_, err = c.BloomFilter().WriteTo(bloomBuffer)
+	bloomBuffers, err := c.BloomFilter().WriteTo()
 	if err != nil {
 		return err
 	}
 
 	meta := c.BlockMeta()
-	err = rw.w.WriteBlockMeta(ctx, tracker, meta, bloomBuffer.Bytes(), indexBytes)
+	err = rw.w.WriteBlockMeta(ctx, tracker, meta, bloomBuffers, indexBytes)
 	if err != nil {
 		return err
 	}
@@ -263,8 +261,8 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
 		}
 
-		filter := &bloom.BloomFilter{}
-		_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
+		filter := &bloom.ShardedBloomFilter{}
+		_, err = filter.ReadFrom(bloomBytes)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing bloom %v", err)
 		}

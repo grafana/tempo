@@ -17,9 +17,9 @@ var (
 type AppendTracker interface{}
 
 type Writer interface {
-	Write(ctx context.Context, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error
+	Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error
 
-	WriteBlockMeta(ctx context.Context, tracker AppendTracker, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte) error
+	WriteBlockMeta(ctx context.Context, tracker AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error
 	AppendObject(ctx context.Context, tracker AppendTracker, meta *encoding.BlockMeta, bObject []byte) (AppendTracker, error)
 }
 
@@ -27,7 +27,7 @@ type Reader interface {
 	Tenants() ([]string, error)
 	Blocks(tenantID string) ([]uuid.UUID, error)
 	BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error)
-	Bloom(blockID uuid.UUID, tenantID string) ([]byte, error)
+	Bloom(blockID uuid.UUID, tenantID string) ([][]byte, error)
 	Index(blockID uuid.UUID, tenantID string) ([]byte, error)
 	Object(blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error
 

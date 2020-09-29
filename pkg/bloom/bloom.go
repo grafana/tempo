@@ -1,6 +1,7 @@
 package bloom
 
 import (
+	"bytes"
 	"github.com/willf/bloom"
 	"io"
 
@@ -29,9 +30,23 @@ func (b *ShardedBloomFilter) Add(traceID []byte) {
 	b.blooms[shardKey].Add(traceID)
 }
 
-// TODO
-func (f *ShardedBloomFilter) WriteTo(stream io.Writer) (int64, error) {
-	return 0, nil
+// WriteTo is a wrapper around bloom.WriteTo
+func (b *ShardedBloomFilter) WriteTo() ([][]byte, error) {
+	bloomBytes := make([][]byte, 10)
+	for i, f := range b.blooms {
+		_, err := f.WriteTo(bytes.NewBuffer(bloomBytes[i]))
+		if err != nil {
+			return nil, err
+		}
+	}
+	return bloomBytes, nil
+}
+
+func (b *ShardedBloomFilter) ReadFrom(bloomBytes [][]byte) (int64, error) {
+	for i, bb := range bloomBytes {
+		b.blooms[i].ReadFrom(bytes.NewReader(bb))
+	}
+	bloom.BloomFilter{}.ReadFrom()
 }
 
 // TODO
