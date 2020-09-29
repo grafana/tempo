@@ -31,12 +31,12 @@ func newEventuallyConsistentRing(cfg ring.Config, name, key string, reg promethe
 		return nil, err
 	}
 
-	return ring.NewWithStoreClientAndStrategy(cfg, name, key, store, &OneReplicationStrategy{})
+	return ring.NewWithStoreClientAndStrategy(cfg, name, key, store, &EventuallyConsistentStrategy{})
 }
 
-// OneReplicationStrategy represents a repl strategy with a consistency of 1 on read and
+// EventuallyConsistentStrategy represents a repl strategy with a consistency of 1 on read and
 // write.  Note this is NOT strongly consistent!  It is _eventually_ consistent :)
-type OneReplicationStrategy struct {
+type EventuallyConsistentStrategy struct {
 }
 
 // Filter decides, given the set of ingesters eligible for a key,
@@ -45,7 +45,7 @@ type OneReplicationStrategy struct {
 // - Filters out dead ingesters so the one doesn't even try to write to them.
 // - Checks there is enough ingesters for an operation to succeed.
 // The ingesters argument may be overwritten.
-func (s *OneReplicationStrategy) Filter(ingesters []ring.IngesterDesc, op ring.Operation, replicationFactor int, heartbeatTimeout time.Duration) ([]ring.IngesterDesc, int, error) {
+func (s *EventuallyConsistentStrategy) Filter(ingesters []ring.IngesterDesc, op ring.Operation, replicationFactor int, heartbeatTimeout time.Duration) ([]ring.IngesterDesc, int, error) {
 	minSuccess := 1
 
 	// Skip those that have not heartbeated in a while. NB these are still
@@ -70,7 +70,7 @@ func (s *OneReplicationStrategy) Filter(ingesters []ring.IngesterDesc, op ring.O
 	return ingesters, len(ingesters) - minSuccess, nil
 }
 
-func (s *OneReplicationStrategy) ShouldExtendReplicaSet(ingester ring.IngesterDesc, op ring.Operation) bool {
+func (s *EventuallyConsistentStrategy) ShouldExtendReplicaSet(ingester ring.IngesterDesc, op ring.Operation) bool {
 	// We do not want to Write to Ingesters that are not ACTIVE, but we do want
 	// to write the extra replica somewhere.  So we increase the size of the set
 	// of replicas for the key. This means we have to also increase the
