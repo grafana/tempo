@@ -26,7 +26,7 @@ const (
 	image = "tempo:latest"
 )
 
-func newTempoAllInOne() (*cortex_e2e.HTTPService, error) {
+func newTempoAllInOne() *cortex_e2e.HTTPService {
 	args := "-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml")
 
 	return cortex_e2e.NewHTTPService(
@@ -36,10 +36,10 @@ func newTempoAllInOne() (*cortex_e2e.HTTPService, error) {
 		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 505),
 		3100,
 		14250,
-	), nil
+	)
 }
 
-func newTempoDistributor() (*cortex_e2e.HTTPService, error) {
+func newTempoDistributor() *cortex_e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=distributor"}
 
 	return cortex_e2e.NewHTTPService(
@@ -49,10 +49,10 @@ func newTempoDistributor() (*cortex_e2e.HTTPService, error) {
 		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 505),
 		3100,
 		14250,
-	), nil
+	)
 }
 
-func newTempoIngester(replica int) (*cortex_e2e.HTTPService, error) {
+func newTempoIngester(replica int) *cortex_e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=ingester"}
 
 	return cortex_e2e.NewHTTPService(
@@ -61,10 +61,10 @@ func newTempoIngester(replica int) (*cortex_e2e.HTTPService, error) {
 		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 505),
 		3100,
-	), nil
+	)
 }
 
-func newTempoQuerier() (*cortex_e2e.HTTPService, error) {
+func newTempoQuerier() *cortex_e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=querier"}
 
 	return cortex_e2e.NewHTTPService(
@@ -73,7 +73,7 @@ func newTempoQuerier() (*cortex_e2e.HTTPService, error) {
 		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 505),
 		3100,
-	), nil
+	)
 }
 
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
@@ -130,6 +130,7 @@ func copyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
 	return writeFileToSharedDir(s, dst, content)
 }
 
+//nolint:unparam
 func queryAndAssertTrace(t *testing.T, url string, expectedName string, expectedBatches int) {
 	res, err := cortex_e2e.GetRequest(url)
 	require.NoError(t, err)

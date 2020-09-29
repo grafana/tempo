@@ -26,8 +26,7 @@ func TestAllInOne(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(minio))
 
 	require.NoError(t, copyFileToSharedDir(s, configAllInOne, "config.yaml"))
-	tempo, err := newTempoAllInOne()
-	require.NoError(t, err)
+	tempo := newTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
@@ -74,20 +73,16 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(minio))
 
 	require.NoError(t, copyFileToSharedDir(s, configMicroservices, "config.yaml"))
-	tempoIngester1, err := newTempoIngester(1)
-	require.NoError(t, err)
+	tempoIngester1 := newTempoIngester(1)
 	require.NoError(t, s.StartAndWaitReady(tempoIngester1))
 
-	tempoIngester2, err := newTempoIngester(2)
-	require.NoError(t, err)
+	tempoIngester2 := newTempoIngester(2)
 	require.NoError(t, s.StartAndWaitReady(tempoIngester2))
 
-	tempoDistributor, err := newTempoDistributor()
-	require.NoError(t, err)
+	tempoDistributor := newTempoDistributor()
 	require.NoError(t, s.StartAndWaitReady(tempoDistributor))
 
-	tempoQuerier, err := newTempoQuerier()
-	require.NoError(t, err)
+	tempoQuerier := newTempoQuerier()
 	require.NoError(t, s.StartAndWaitReady(tempoQuerier))
 
 	// Get port for the otlp receiver endpoint
