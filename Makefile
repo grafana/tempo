@@ -14,6 +14,7 @@ ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 GO_OPT= -mod vendor
 GOTEST_OPT?= -race -timeout 5m -count=1
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
+GOTEST_OPT_ALL = $(GOTEST_OPT_WITH_COVERAGE) -tags=e2e
 GOTEST=go test
 LINT=golangci-lint
 
@@ -42,8 +43,13 @@ benchmark:
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 .PHONY: test-with-cover
-test-with-cover: docker-tempo
+test-with-cover: 
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
+
+# test-all includes integration tests so we build our docker image first
+.PHONY: test-all
+test-all: docker-tempo
+	$(GOTEST) $(GOTEST_OPT_ALL) $(ALL_PKGS)
 
 .PHONY: lint
 lint:

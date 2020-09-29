@@ -35,7 +35,7 @@ jobs:
         version: v1.30
 
     - name: Test
-      run: make test-with-cover
+      run: make test-all
 
     - name: Build Tempo
       run: make tempo
