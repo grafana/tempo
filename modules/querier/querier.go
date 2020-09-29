@@ -134,7 +134,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
 	}
 
-	// todo:  does this wait for every ingester?  we only need one successful return
+	// get responses from all ingesters in parallel
 	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
 		return client.FindTraceByID(opentracing.ContextWithSpan(ctx, span), req)
 	})
