@@ -41,14 +41,11 @@ const (
 // Flush triggers a flush of all the chunks and closes the flush queues.
 // Called from the Lifecycler as part of the ingester shutdown.
 func (i *Ingester) Flush() {
-	i.sweepUsers(true)
+	instances := i.getInstances()
 
-	// Close the flush queues, to unblock waiting workers.
-	for _, flushQueue := range i.flushQueues {
-		flushQueue.Close()
+	for _, instance := range instances {
+		instance.CutCompleteTraces(0, true)
 	}
-
-	i.flushQueuesDone.Wait()
 }
 
 // FlushHandler triggers a flush of all in memory chunks.  Mainly used for
