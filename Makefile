@@ -12,7 +12,7 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
 GO_OPT= -mod vendor
-GOTEST_OPT?= -race -timeout 30s -count=1
+GOTEST_OPT?= -race -timeout 5m -count=1
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint
