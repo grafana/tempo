@@ -6,13 +6,18 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"testing"
 	"time"
 
 	"github.com/cortexproject/cortex/integration/e2e"
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/tempo/pkg/tempopb"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -123,4 +128,15 @@ func copyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
 	}
 
 	return writeFileToSharedDir(s, dst, content)
+}
+
+func queryAndAssertTrace(t *testing.T, url string, expectedName string, expectedBatches int) {
+	res, err := cortex_e2e.GetRequest(url)
+	require.NoError(t, err)
+	out := &tempopb.Trace{}
+	unmarshaller := &jsonpb.Unmarshaler{}
+	assert.NoError(t, unmarshaller.Unmarshal(res.Body, out))
+	assert.Len(t, out.Batches, expectedBatches)
+	assert.Equal(t, expectedName, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name)
+	defer res.Body.Close()
 }

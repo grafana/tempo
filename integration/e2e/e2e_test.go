@@ -8,9 +8,6 @@ import (
 
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,17 +46,10 @@ func TestAllInOne(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	// query an in-memory trace
-	res, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/api/traces/" + hexID)
-	require.NoError(t, err)
-	out := &tempopb.Trace{}
-	unmarshaller := &jsonpb.Unmarshaler{}
-	assert.NoError(t, unmarshaller.Unmarshal(res.Body, out))
-	assert.Len(t, out.Batches, 1)
-	assert.Equal(t, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name, "my operation")
-	defer res.Body.Close()
+	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 
 	// flush trace to backend
-	res, err = cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/flush")
+	res, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
@@ -71,12 +61,7 @@ func TestAllInOne(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
 
 	// query trace - should fetch from backend
-	resp, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/api/traces/" + hexID)
-	require.NoError(t, err)
-	assert.NoError(t, unmarshaller.Unmarshal(resp.Body, out))
-	assert.Len(t, out.Batches, 1)
-	assert.Equal(t, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name, "my operation")
-	defer resp.Body.Close()
+	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 }
 
 func TestMicroservices(t *testing.T) {
@@ -122,17 +107,10 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	// query an in-memory trace
-	res, err := cortex_e2e.GetRequest("http://" + tempoQuerier.Endpoint(3100) + "/api/traces/" + hexID)
-	require.NoError(t, err)
-	out := &tempopb.Trace{}
-	unmarshaller := &jsonpb.Unmarshaler{}
-	assert.NoError(t, unmarshaller.Unmarshal(res.Body, out))
-	assert.Len(t, out.Batches, 1)
-	assert.Equal(t, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name, "my operation")
-	defer res.Body.Close()
+	queryAndAssertTrace(t, "http://"+tempoQuerier.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 
 	// flush trace to backend
-	res, err = cortex_e2e.GetRequest("http://" + tempoIngester1.Endpoint(3100) + "/flush")
+	res, err := cortex_e2e.GetRequest("http://" + tempoIngester1.Endpoint(3100) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
@@ -150,12 +128,7 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(2), "tempodb_blocklist_length"))
 
 	// query trace - should fetch from backend
-	resp, err := cortex_e2e.GetRequest("http://" + tempoQuerier.Endpoint(3100) + "/api/traces/" + hexID)
-	require.NoError(t, err)
-	assert.NoError(t, unmarshaller.Unmarshal(resp.Body, out))
-	assert.Len(t, out.Batches, 1)
-	assert.Equal(t, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name, "my operation")
-	defer resp.Body.Close()
+	queryAndAssertTrace(t, "http://"+tempoQuerier.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 
 	// stop an ingester and confirm we can still write and query
 	err = tempoIngester2.Stop()
@@ -166,14 +139,7 @@ func TestMicroservices(t *testing.T) {
 	hexID = fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
 
 	// query an in-memory trace
-	res, err = cortex_e2e.GetRequest("http://" + tempoQuerier.Endpoint(3100) + "/api/traces/" + hexID)
-	require.NoError(t, err)
-	out = &tempopb.Trace{}
-	unmarshaller = &jsonpb.Unmarshaler{}
-	assert.NoError(t, unmarshaller.Unmarshal(res.Body, out))
-	assert.Len(t, out.Batches, 1)
-	assert.Equal(t, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name, "my operation")
-	defer res.Body.Close()
+	queryAndAssertTrace(t, "http://"+tempoQuerier.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 
 	// stop another ingester and confirm things fail
 	err = tempoIngester1.Stop()
