@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/willf/bloom"
 	"go.uber.org/atomic"
 
 	"github.com/cortexproject/cortex/pkg/util"
@@ -28,6 +27,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/pkg/bloom"
 )
 
 var (

@@ -2,6 +2,7 @@ package bloom
 
 import (
 	"github.com/willf/bloom"
+	"io"
 
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -26,4 +27,14 @@ func NewWithEstimates(n uint, fp float64) *ShardedBloomFilter {
 func (b *ShardedBloomFilter) Add(traceID []byte) {
 	shardKey := util.Fingerprint(traceID) % shardNum
 	b.blooms[shardKey].Add(traceID)
+}
+
+// TODO
+func (f *ShardedBloomFilter) WriteTo(stream io.Writer) (int64, error) {
+	return 0, nil
+}
+
+// TODO
+func (f *ShardedBloomFilter) Test(traceID []byte) bool {
+	return true
 }
