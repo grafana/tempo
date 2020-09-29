@@ -3,8 +3,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"math/rand"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,64 +10,16 @@ import (
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
-	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
 )
 
-var (
+const (
 	svcName = "tempo"
 	image   = "tempo:latest"
 
 	configAllInOne = "./all-in-one-config.yaml"
 )
-
-func NewTempoAllInOne() (*cortex_e2e.HTTPService, error) {
-	args := "-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml")
-
-	return cortex_e2e.NewHTTPService(
-		svcName,
-		image,
-		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args),
-		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 505),
-		3100,
-		14250,
-	), nil
-}
-
-func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
-	// new jaeger grpc exporter
-	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		return nil, err
-	}
-	return jaeger_grpc.NewReporter(conn, nil, logger), err
-}
-
-func MakeThriftBatch() *thrift.Batch {
-	var spans []*thrift.Span
-	spans = append(spans, &thrift.Span{
-		TraceIdLow:    rand.Int63(),
-		TraceIdHigh:   0,
-		SpanId:        rand.Int63(),
-		ParentSpanId:  0,
-		OperationName: "my operation",
-		References:    nil,
-		Flags:         0,
-		StartTime:     time.Now().Unix(),
-		Duration:      1,
-		Tags:          nil,
-		Logs:          nil,
-	})
-	return &thrift.Batch{Spans: spans}
-}
 
 func TestAllInOne(t *testing.T) {
 	s, err := cortex_e2e.NewScenario("tempo_e2e")
@@ -81,15 +31,15 @@ func TestAllInOne(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(minio))
 
 	require.NoError(t, copyFileToSharedDir(s, configAllInOne, "config.yaml"))
-	tempo, err := NewTempoAllInOne()
+	tempo, err := newTempoAllInOne()
 	require.NoError(t, err)
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := NewJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
-	batch := MakeThriftBatch()
+	batch := makeThriftBatch()
 	require.NoError(t, c.EmitBatch(context.Background(), batch))
 
 	// test metrics
