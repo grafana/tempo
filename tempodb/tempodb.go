@@ -3,6 +3,7 @@ package tempodb
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/opentracing/opentracing-go"
+	ot_log "github.com/opentracing/opentracing-go/log"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/cache"
@@ -314,7 +316,8 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 				break
 			}
 		}
-		level.Info(logger).Log("msg", "trace found", "traceID", string(id), "block", meta.BlockID)
+		level.Info(logger).Log("msg", "searching for trace in block", "traceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
+		span.LogFields(ot_log.String("msg", "searching for trace in block"), ot_log.String("traceID", hex.EncodeToString(id)), ot_log.String("block", meta.BlockID.String()), ot_log.Bool("found", foundObject != nil))
 		return foundObject, nil
 	})
 
