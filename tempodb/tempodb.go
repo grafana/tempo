@@ -3,6 +3,7 @@ package tempodb
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strconv"
@@ -314,7 +315,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 				break
 			}
 		}
-		level.Info(logger).Log("msg", "trace found", "traceID", string(id), "block", meta.BlockID)
+		level.Info(logger).Log("msg", "trace found", "traceID", hex.EncodeToString(id), "block", meta.BlockID)
 		return foundObject, nil
 	})
 
