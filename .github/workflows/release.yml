@@ -1,4 +1,4 @@
-name: Publish Docker Image
+name: Release
 on:
   push:
     tags:
@@ -33,3 +33,15 @@ jobs:
           else
             tag_and_push "${GITHUB_REF#"refs/tags/"}"
           fi
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          make release
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: release-artifacts
+          path: |
+            dist/
+            !dist/*/*
