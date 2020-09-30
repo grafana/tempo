@@ -13,6 +13,10 @@ type CompactionBlockSelector interface {
 	BlocksToCompact() ([]*encoding.BlockMeta, string)
 }
 
+const (
+	activeWindowDuration = 24 * time.Hour
+)
+
 /*************************** Simple Block Selector **************************/
 
 type simpleBlockSelector struct {
@@ -93,7 +97,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 
 			// blocks in the currently active window
 			// dangerous to use time.Now()
-			activeWindow := twbs.windowForTime(time.Now())
+			activeWindow := twbs.windowForTime(time.Now().Add(-activeWindowDuration))
 			blockWindow := twbs.windowForBlock(windowBlocks[0])
 
 			hashString := fmt.Sprintf("%v", windowBlocks[0].TenantID)
@@ -118,8 +122,6 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 					compact = true
 					hashString = fmt.Sprintf("%v-%v-%v", compactBlocks[0].TenantID, compactBlocks[0].CompactionLevel, currentWindow)
 				}
-			} else if activeWindow-1 == blockWindow { // the most recent inactive window will be ignored to avoid race condittions
-				compact = false
 			} else { // all other windows will be compacted using their two smallest blocks
 				sort.Slice(windowBlocks, func(i, j int) bool {
 					return windowBlocks[i].TotalObjects < windowBlocks[j].TotalObjects
