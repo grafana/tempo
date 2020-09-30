@@ -260,7 +260,9 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	foundBytes, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) ([]byte, error) {
 		meta := payload.(*encoding.BlockMeta)
 
-		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID, bloom.ShardKeyForTraceID(id))
+		shardKey := bloom.ShardKeyForTraceID(id)
+		level.Debug(logger).Log("msg", "fetching bloom", "shardKey", shardKey)
+		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID, shardKey)
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
 		}

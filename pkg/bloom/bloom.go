@@ -24,7 +24,7 @@ func NewWithEstimates(n uint, fp float64) *ShardedBloomFilter {
 }
 
 func (b *ShardedBloomFilter) Add(traceID []byte) {
-	shardKey := util.Fingerprint(traceID) % shardNum
+	shardKey := ShardKeyForTraceID(traceID)
 	b.blooms[shardKey].Add(traceID)
 }
 
