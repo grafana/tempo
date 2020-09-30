@@ -248,9 +248,12 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 			copiedBlocklist = append(copiedBlocklist, b)
 		}
 	}
+	numTenants := len(rw.blockLists)
 	rw.blockListsMtx.Unlock()
 
-	if !found {
+	if numTenants == 0 {
+		return nil, metrics, fmt.Errorf("no blocks found in backend store")
+	} else if !found {
 		return nil, metrics, fmt.Errorf("tenantID %s not found", tenantID)
 	}
 

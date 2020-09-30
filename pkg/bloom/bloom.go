@@ -32,18 +32,14 @@ func (b *ShardedBloomFilter) Add(traceID []byte) {
 func (b *ShardedBloomFilter) WriteTo() ([][]byte, error) {
 	bloomBytes := make([][]byte, 10)
 	for i, f := range b.blooms {
-		_, err := f.WriteTo(bytes.NewBuffer(bloomBytes[i]))
+		bloomBuffer := &bytes.Buffer{}
+		_, err := f.WriteTo(bloomBuffer)
 		if err != nil {
 			return nil, err
 		}
+		bloomBytes[i] = bloomBuffer.Bytes()
 	}
 	return bloomBytes, nil
-}
-
-// Test implements bloom.Test
-func (b *ShardedBloomFilter) Test(traceID []byte) bool {
-	shardKey := util.Fingerprint(traceID) % shardNum
-	return b.blooms[shardKey].Test(traceID)
 }
 
 func ShardKeyForTraceID(traceID []byte) uint64 {

@@ -128,13 +128,13 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 			rw.cfg.Bucket,
 			util.BloomFileName(blockID, tenantID, uint64(i)),
 			bytes.NewReader(b),
-			int64(len(bBloom)),
+			int64(len(b)),
 			options,
 		)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "error uploading bloom filter to s3")
 		}
-		level.Debug(rw.logger).Log("msg", "block bloom uploaded to s3", "size", size)
+		level.Debug(rw.logger).Log("msg", "block bloom uploaded to s3", "shard", i, "size", size)
 	}
 
 	size, err := rw.core.Client.PutObjectWithContext(
@@ -146,13 +146,13 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		options,
 	)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error uploading index to s3")
 	}
 	level.Debug(rw.logger).Log("msg", "block index uploaded to s3", "size", size)
 
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error unmarshalling block meta json")
 	}
 
 	// write meta last.  this will prevent blocklist from returning a partial block
@@ -165,7 +165,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		options,
 	)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error uploading block meta to s3")
 	}
 	level.Debug(rw.logger).Log("msg", "block meta uploaded to s3", "size", size)
 
