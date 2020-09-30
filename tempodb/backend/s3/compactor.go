@@ -3,6 +3,7 @@ package s3
 import (
 	"context"
 	"encoding/json"
+	"github.com/grafana/tempo/pkg/bloom"
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
@@ -51,7 +52,9 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	// list of objects that need to be deleted
 	var delObjects []string
 	delObjects = append(delObjects, util.CompactedMetaFileName(blockID, tenantID))
-	delObjects = append(delObjects, util.BloomFileName(blockID, tenantID))
+	for i := 0; i < bloom.GetShardNum(); i++ {
+		delObjects = append(delObjects, util.BloomFileName(blockID, tenantID, uint64(i)))
+	}
 	delObjects = append(delObjects, util.IndexFileName(blockID, tenantID))
 	delObjects = append(delObjects, util.ObjectFileName(blockID, tenantID))
 	for _, obj := range delObjects {

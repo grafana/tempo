@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
+	willf_bloom "github.com/willf/bloom"
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/opentracing/opentracing-go"
@@ -256,13 +257,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	foundBytes, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) ([]byte, error) {
 		meta := payload.(*encoding.BlockMeta)
 
-		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
+		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID, bloom.ShardKeyForTraceID(id))
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
 		}
 
-		filter := &bloom.ShardedBloomFilter{}
-		_, err = filter.ReadFrom(bloomBytes)
+		filter := &willf_bloom.BloomFilter{}
+		_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
 		if err != nil {
 			return nil, fmt.Errorf("error parsing bloom %v", err)
 		}

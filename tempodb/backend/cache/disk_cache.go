@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
-func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t string, miss missFunc) ([]byte, error, error) {
+func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t string, miss func(...interface{}) ([]byte, error)) ([]byte, error, error) {
 	var skippableError error
 
 	k := key(blockID, tenantID, t)
@@ -43,6 +44,10 @@ func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t stri
 	}
 
 	return bytes, skippableError, nil
+}
+
+func (r *reader) readOrCacheBloom(blockID uuid.UUID, tenantID string, t string, shardNum uint64, miss func(...interface{}) ([]byte, error)) ([]byte, error, error) {
+	return r.readOrCacheKeyToDisk(blockID, tenantID, t + strconv.Itoa(int(shardNum)), miss)
 }
 
 func (r *reader) writeKeyToDisk(filename string, b []byte) error {

@@ -2,10 +2,8 @@ package bloom
 
 import (
 	"bytes"
-	"github.com/willf/bloom"
-	"io"
-
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/willf/bloom"
 )
 
 const shardNum = 10
@@ -42,14 +40,16 @@ func (b *ShardedBloomFilter) WriteTo() ([][]byte, error) {
 	return bloomBytes, nil
 }
 
-func (b *ShardedBloomFilter) ReadFrom(bloomBytes [][]byte) (int64, error) {
-	for i, bb := range bloomBytes {
-		b.blooms[i].ReadFrom(bytes.NewReader(bb))
-	}
-	bloom.BloomFilter{}.ReadFrom()
+// Test implements bloom.Test
+func (b *ShardedBloomFilter) Test(traceID []byte) bool {
+	shardKey := util.Fingerprint(traceID) % shardNum
+	return b.blooms[shardKey].Test(traceID)
 }
 
-// TODO
-func (f *ShardedBloomFilter) Test(traceID []byte) bool {
-	return true
+func ShardKeyForTraceID(traceID []byte) uint64 {
+	return util.Fingerprint(traceID) % shardNum
+}
+
+func GetShardNum() int {
+	return shardNum
 }

@@ -4,19 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"google.golang.org/api/iterator"
 )
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	// move meta file to a new location
-	metaFilename := rw.metaFileName(blockID, tenantID)
-	compactedMetaFilename := rw.compactedMetaFileName(blockID, tenantID)
+	metaFilename := util.MetaFileName(blockID, tenantID)
+	compactedMetaFilename := util.CompactedMetaFileName(blockID, tenantID)
 
 	src := rw.bucket.Object(metaFilename)
 	dst := rw.bucket.Object(compactedMetaFilename)
@@ -41,7 +41,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	ctx := context.TODO()
 	iter := rw.bucket.Objects(ctx, &storage.Query{
-		Prefix:   rw.rootPath(blockID, tenantID),
+		Prefix:   util.RootPath(blockID, tenantID),
 		Versions: false,
 	})
 
@@ -65,7 +65,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 }
 
 func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*encoding.CompactedBlockMeta, error) {
-	name := rw.compactedMetaFileName(blockID, tenantID)
+	name := util.CompactedMetaFileName(blockID, tenantID)
 
 	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
 	if err == storage.ErrObjectNotExist {
@@ -83,8 +83,4 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	out.CompactedTime = modTime
 
 	return out, err
-}
-
-func (rw *readerWriter) compactedMetaFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "meta.compacted.json")
 }

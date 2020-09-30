@@ -14,7 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-type missFunc func(blockID uuid.UUID, tenantID string) ([]byte, error)
+type bloomMissFunc func(blockID uuid.UUID, tenantID string) ([]byte, error)
+type indexMissFunc func(blockID uuid.UUID, tenantID string) ([]byte, error)
 
 const (
 	typeBloom = "bloom"
@@ -94,8 +95,8 @@ func (r *reader) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockM
 	return r.next.BlockMeta(blockID, tenantID)
 }
 
-func (r *reader) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {
-	b, skippableErr, err := r.readOrCacheKeyToDisk(blockID, tenantID, typeBloom, r.next.Bloom)
+func (r *reader) Bloom(blockID uuid.UUID, tenantID string, bloomShard uint64) ([]byte, error) {
+	b, skippableErr, err := r.readOrCacheBloom(blockID, tenantID, typeBloom, bloomShard, r.next.Bloom)
 
 	if skippableErr != nil {
 		metricDiskCache.WithLabelValues(typeBloom, "error").Inc()
@@ -108,7 +109,7 @@ func (r *reader) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {
 }
 
 func (r *reader) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
-	b, skippableErr, err := r.readOrCacheKeyToDisk(blockID, tenantID, typeIndex, r.next.Index)
+	b, skippableErr, err := r.readOrCacheIndex(blockID, tenantID, typeIndex, r.next.Index)
 
 	if skippableErr != nil {
 		metricDiskCache.WithLabelValues(typeIndex, "error").Inc()

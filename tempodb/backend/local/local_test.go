@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"fmt"
+	"github.com/grafana/tempo/pkg/bloom"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -39,12 +40,17 @@ func TestReadWrite(t *testing.T) {
 	fakeMeta := &encoding.BlockMeta{
 		BlockID: blockID,
 	}
-	fakeBloom := make([]byte, 20)
+
+	shardNum := bloom.GetShardNum()
+	fakeBloom := make([][]byte, shardNum)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
 
-	_, err = rand.Read(fakeBloom)
-	assert.NoError(t, err, "unexpected error creating fakeBloom")
+	for i, _ := range fakeBloom {
+		fakeBloom[i] = make([]byte, 20)
+		_, err := rand.Read(fakeBloom[i])
+		assert.NoError(t, err, "unexpected error creating fakeBloom")
+	}
 	_, err = rand.Read(fakeIndex)
 	assert.NoError(t, err, "unexpected error creating fakeIndex")
 	_, err = rand.Read(fakeTraces)
@@ -71,9 +77,11 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error reading traces")
 	assert.Equal(t, fakeTraces[100:120], actualTrace)
 
-	actualBloom, err := r.Bloom(blockID, tenantIDs[0])
-	assert.NoError(t, err, "unexpected error reading bloom")
-	assert.Equal(t, fakeBloom, actualBloom)
+	for i := 0; i < 10; i++ {
+		actualBloom, err := r.Bloom(blockID, tenantIDs[0], uint64(i))
+		assert.NoError(t, err, "unexpected error reading bloom")
+		assert.Equal(t, fakeBloom[i], actualBloom)
+	}
 
 	list, err := r.Blocks(tenantIDs[0])
 	assert.NoError(t, err, "unexpected error reading blocklist")
@@ -133,12 +141,17 @@ func TestCompaction(t *testing.T) {
 	fakeMeta := &encoding.BlockMeta{
 		BlockID: blockID,
 	}
-	fakeBloom := make([]byte, 20)
+
+	shardNum := bloom.GetShardNum()
+	fakeBloom := make([][]byte, shardNum)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
 
-	_, err = rand.Read(fakeBloom)
-	assert.NoError(t, err, "unexpected error creating fakeBloom")
+	for i, _ := range fakeBloom {
+		fakeBloom[i] = make([]byte, 20)
+		_, err := rand.Read(fakeBloom[i])
+		assert.NoError(t, err, "unexpected error creating fakeBloom")
+	}
 	_, err = rand.Read(fakeIndex)
 	assert.NoError(t, err, "unexpected error creating fakeIndex")
 	_, err = rand.Read(fakeTraces)
