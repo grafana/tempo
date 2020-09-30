@@ -3,12 +3,13 @@ package local
 import (
 	"context"
 	"fmt"
-	"github.com/grafana/tempo/pkg/bloom"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
 	"testing"
+
+	"github.com/grafana/tempo/pkg/bloom"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -46,7 +47,7 @@ func TestReadWrite(t *testing.T) {
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
 
-	for i, _ := range fakeBloom {
+	for i := range fakeBloom {
 		fakeBloom[i] = make([]byte, 20)
 		_, err := rand.Read(fakeBloom[i])
 		assert.NoError(t, err, "unexpected error creating fakeBloom")
@@ -147,7 +148,7 @@ func TestCompaction(t *testing.T) {
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)
 
-	for i, _ := range fakeBloom {
+	for i := range fakeBloom {
 		fakeBloom[i] = make([]byte, 20)
 		_, err := rand.Read(fakeBloom[i])
 		assert.NoError(t, err, "unexpected error creating fakeBloom")

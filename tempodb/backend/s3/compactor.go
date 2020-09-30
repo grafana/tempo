@@ -3,6 +3,7 @@ package s3
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/grafana/tempo/pkg/bloom"
 
 	"github.com/go-kit/kit/log/level"

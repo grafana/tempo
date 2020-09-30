@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/grafana/tempo/pkg/bloom"
-	"github.com/grafana/tempo/tempodb/backend/util"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/grafana/tempo/pkg/bloom"
+	"github.com/grafana/tempo/tempodb/backend/util"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"

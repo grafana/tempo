@@ -2,6 +2,7 @@ package bloom
 
 import (
 	"bytes"
+
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/willf/bloom"
 )
@@ -16,7 +17,7 @@ func NewWithEstimates(n uint, fp float64) *ShardedBloomFilter {
 	b := &ShardedBloomFilter{
 		blooms: make([]*bloom.BloomFilter, shardNum),
 	}
-	for i := 0; i < shardNum; i ++ {
+	for i := 0; i < shardNum; i++ {
 		b.blooms[i] = bloom.NewWithEstimates(n/shardNum, fp)
 	}
 

@@ -32,6 +32,7 @@ func BlockFileName(blockID uuid.UUID, tenantID string) string {
 	return RootPath(blockID, tenantID) + "/"
 }
 
+// nolint:interfacer
 func RootPath(blockID uuid.UUID, tenantID string) string {
 	return path.Join(tenantID, blockID.String())
 }
