@@ -1,7 +1,7 @@
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
-                                -not -path './testbed/*' \
 								-not -path './vendor/*' \
+								-not -path './integration/*' \
                                 -type f | sort)
 
 # All source code and documents. Used in spell check.
@@ -42,8 +42,13 @@ benchmark:
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 .PHONY: test-with-cover
-test-with-cover: docker-tempo
+test-with-cover: 
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
+
+# test-all includes integration tests so we build our docker image first
+.PHONY: test-all
+test-all: docker-tempo test-with-cover
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) ./integration/e2e
 
 .PHONY: lint
 lint:
