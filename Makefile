@@ -129,6 +129,6 @@ install-tools:
 $(GORELEASER):
 	curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | BINDIR=$(GOPATH)/bin sh
 
-release: $(GORELEASER)
-    $(GORELEASER) build --skip-validate --rm-dist
+release: $(GORELEASER) vendor-dependencies
+	$(GORELEASER) build --skip-validate --rm-dist
 	$(GORELEASER) release --rm-dist
