@@ -419,9 +419,19 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 					EndTime: now,
 				},
 			},
+			expectedSecond: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now.Add(-24 * time.Hour),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime: now.Add(-24 * time.Hour),
+				},
+			},
 		},
 		{
-			name: "four blocks across two time windows.  skip buffer",
+			name: "four blocks across two time windows.  two past",
 			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -460,12 +470,12 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 			},
 			expectedSecond: []*encoding.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
-					EndTime: now.Add(-48 * time.Hour),
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now.Add(-24 * time.Hour),
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000005"),
-					EndTime: now.Add(-48 * time.Hour),
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime: now.Add(-24 * time.Hour),
 				},
 			},
 		},

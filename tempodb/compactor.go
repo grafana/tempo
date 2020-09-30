@@ -191,10 +191,10 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 		}
 
-		// writing to the current block will cause the id to escape the iterator so we need to make a copy of it
-		// lowestObject is going to be written to disk so we don't need to make a copy
+		// writing to the current block will cause the id/object to escape the iterator so we need to make a copy of it
 		writeID := append([]byte(nil), lowestID...)
-		err = currentBlock.Write(writeID, lowestObject)
+		writeObject := append([]byte(nil), lowestObject...)
+		err = currentBlock.Write(writeID, writeObject)
 		if err != nil {
 			return err
 		}
