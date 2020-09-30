@@ -125,6 +125,8 @@ func (c *Compactor) Owns(hash string) bool {
 		return true
 	}
 
+	level.Debug(util.Logger).Log("msg", "checking hash", "hash", hash)
+
 	hasher := fnv.New32a()
 	_, _ = hasher.Write([]byte(hash))
 	hash32 := hasher.Sum32()
@@ -139,6 +141,8 @@ func (c *Compactor) Owns(hash string) bool {
 		level.Error(util.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Ingesters))
 		return false
 	}
+
+	level.Debug(util.Logger).Log("msg", "checking addresses", "owning_addr", rs.Ingesters[0].Addr, "this_addr", c.ringLifecycler.Addr)
 
 	return rs.Ingesters[0].Addr == c.ringLifecycler.Addr
 }
