@@ -1,5 +1,6 @@
 builds:
-  - env:
+  - main: ./cmd/tempo
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
