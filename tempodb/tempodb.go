@@ -340,7 +340,7 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 
 func (rw *readerWriter) maintenanceLoop() {
 	if rw.cfg.MaintenanceCycle == 0 {
-		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  tempodb querying, compaction and retention effectively disabled.")
+		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  tempodb querying, compaction and retention effectively disabled.")
 		return
 	}
 
