@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-type bloomMissFunc func(blockID uuid.UUID, tenantID string) ([]byte, error)
+type bloomMissFunc func(blockID uuid.UUID, tenantID string, bloomShard uint64) ([]byte, error)
 type indexMissFunc func(blockID uuid.UUID, tenantID string) ([]byte, error)
 
 const (

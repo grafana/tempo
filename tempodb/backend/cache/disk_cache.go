@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -14,7 +13,40 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
-func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t string, miss func(...interface{}) ([]byte, error)) ([]byte, error, error) {
+// TODO: factor out common code with readOrCacheIndexToDisk into separate function
+func (r *reader) readOrCacheBloom(blockID uuid.UUID, tenantID string, t string, shardNum uint64, miss bloomMissFunc) ([]byte, error, error) {
+	var skippableError error
+
+	k := key(blockID, tenantID, t)
+	filename := path.Join(r.cfg.Path, k)
+
+	bytes, err := ioutil.ReadFile(filename)
+
+	if err != nil && !os.IsNotExist(err) {
+		skippableError = err
+	}
+
+	if bytes != nil {
+		return bytes, nil, nil
+	}
+
+	metricDiskCacheMiss.WithLabelValues(t).Inc()
+	bytes, err = miss(blockID, tenantID, shardNum)
+	if err != nil {
+		return nil, nil, err // backend store error.  need to bubble this up
+	}
+
+	if bytes != nil {
+		err = r.writeKeyToDisk(filename, bytes)
+		if err != nil {
+			skippableError = err
+		}
+	}
+
+	return bytes, skippableError, nil
+}
+
+func (r *reader) readOrCacheIndex(blockID uuid.UUID, tenantID string, t string, miss indexMissFunc) ([]byte, error, error) {
 	var skippableError error
 
 	k := key(blockID, tenantID, t)
@@ -44,10 +76,6 @@ func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t stri
 	}
 
 	return bytes, skippableError, nil
-}
-
-func (r *reader) readOrCacheBloom(blockID uuid.UUID, tenantID string, t string, shardNum uint64, miss func(...interface{}) ([]byte, error)) ([]byte, error, error) {
-	return r.readOrCacheKeyToDisk(blockID, tenantID, t + strconv.Itoa(int(shardNum)), miss)
 }
 
 func (r *reader) writeKeyToDisk(filename string, b []byte) error {
