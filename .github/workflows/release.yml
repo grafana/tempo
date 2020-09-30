@@ -13,6 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Build Docker image
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         run: make docker-images
       - name: Push to Dockerhub
         if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
@@ -35,11 +36,13 @@ jobs:
             tag_and_push "${GITHUB_REF#"refs/tags/"}"
           fi
       - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           make release
       - name: Upload release artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v2
         with:
           name: release-artifacts
