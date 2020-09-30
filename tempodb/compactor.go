@@ -168,11 +168,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 				return err
 			}
 
-			// todo:  right now if we run into equal ids we take the larger object in the hopes that it's a more complete trace.
-			//   in the future add a callback or something that allows the owning application to make a more intelligent choice
-			//   such as combining traces if they're both incomplete
 			if bytes.Equal(currentID, lowestID) {
-				lowestID = currentID
 				lowestObject = rw.compactorSharder.Combine(currentObject, lowestObject)
 				b.clear()
 			} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
@@ -195,7 +191,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 		}
 
-		// writing to the current block will cause the id is going to escape the iterator so we need to make a copy of it
+		// writing to the current block will cause the id to escape the iterator so we need to make a copy of it
 		// lowestObject is going to be written to disk so we don't need to make a copy
 		writeID := append([]byte(nil), lowestID...)
 		err = currentBlock.Write(writeID, lowestObject)

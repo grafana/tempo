@@ -121,27 +121,26 @@ func (c *Compactor) stopping(_ error) error {
 }
 
 func (c *Compactor) Owns(hash string) bool {
-	if c.isSharded() {
-		hasher := fnv.New32a()
-		_, _ = hasher.Write([]byte(hash))
-		hash32 := hasher.Sum32()
-
-		// Check whether this compactor instance owns the user.
-		rs, err := c.Ring.Get(hash32, ring.Read, []ring.IngesterDesc{})
-		if err != nil {
-			level.Error(util.Logger).Log("msg", "failed to get ring", "err", err)
-			return false
-		}
-
-		if len(rs.Ingesters) != 1 {
-			level.Error(util.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Ingesters))
-			return false
-		}
-
-		return rs.Ingesters[0].Addr == c.ringLifecycler.Addr
+	if !c.isSharded() {
+		return true
 	}
 
-	return true
+	hasher := fnv.New32a()
+	_, _ = hasher.Write([]byte(hash))
+	hash32 := hasher.Sum32()
+
+	rs, err := c.Ring.Get(hash32, ring.Read, []ring.IngesterDesc{})
+	if err != nil {
+		level.Error(util.Logger).Log("msg", "failed to get ring", "err", err)
+		return false
+	}
+
+	if len(rs.Ingesters) != 1 {
+		level.Error(util.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Ingesters))
+		return false
+	}
+
+	return rs.Ingesters[0].Addr == c.ringLifecycler.Addr
 }
 
 func (c *Compactor) Combine(objA []byte, objB []byte) []byte {
