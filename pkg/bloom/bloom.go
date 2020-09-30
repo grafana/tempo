@@ -42,8 +42,14 @@ func (b *ShardedBloomFilter) WriteTo() ([][]byte, error) {
 	return bloomBytes, nil
 }
 
-func ShardKeyForTraceID(traceID []byte) uint64 {
-	return util.Fingerprint(traceID) % shardNum
+func ShardKeyForTraceID(traceID []byte) uint32 {
+	return util.TokenForTraceID(traceID) % shardNum
+}
+
+// Test implements bloom.Test -> required only for testing
+func (b *ShardedBloomFilter) Test(traceID []byte) bool {
+	shardKey := ShardKeyForTraceID(traceID)
+	return b.blooms[shardKey].Test(traceID)
 }
 
 func GetShardNum() int {

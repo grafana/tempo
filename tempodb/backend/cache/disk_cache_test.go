@@ -20,9 +20,13 @@ func TestReadOrCache(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
 	missBytes := []byte{0x01}
-	missCalled := 0
-	missFunc := func(blockID uuid.UUID, tenantID string) ([]byte, error) {
-		missCalled++
+	indexMissCalled, bloomMissCalled := 0, 0
+	indexMissFunc := func(blockID uuid.UUID, tenantID string) ([]byte, error) {
+		indexMissCalled++
+		return missBytes, nil
+	}
+	bloomMissFunc := func(blockID uuid.UUID, tenantID string, shardNum uint64) ([]byte, error) {
+		bloomMissCalled++
 		return missBytes, nil
 	}
 
@@ -37,17 +41,23 @@ func TestReadOrCache(t *testing.T) {
 	blockID := uuid.New()
 	tenantID := testTenantID
 
-	bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+	bytes, skippableErr, err := cache.(*reader).readOrCacheIndex(blockID, tenantID, "type", indexMissFunc)
 	assert.NoError(t, err)
 	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
-	assert.Equal(t, 1, missCalled)
+	assert.Equal(t, 1, indexMissCalled)
 
-	bytes, skippableErr, err = cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+	bytes, skippableErr, err = cache.(*reader).readOrCacheIndex(blockID, tenantID, "type", indexMissFunc)
 	assert.NoError(t, err)
 	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
-	assert.Equal(t, 1, missCalled)
+	assert.Equal(t, 1, indexMissCalled)
+
+	bytes, skippableErr, err = cache.(*reader).readOrCacheBloom(blockID, tenantID, "type", 1, bloomMissFunc)
+	assert.NoError(t, err)
+	assert.NoError(t, skippableErr)
+	assert.Equal(t, missBytes, bytes)
+	assert.Equal(t, 1, bloomMissCalled)
 }
 
 func TestJanitor(t *testing.T) {
@@ -74,7 +84,7 @@ func TestJanitor(t *testing.T) {
 		blockID := uuid.New()
 		tenantID := testTenantID
 
-		bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+		bytes, skippableErr, err := cache.(*reader).readOrCacheIndex(blockID, tenantID, "type", missFunc)
 		assert.NoError(t, err)
 		assert.NoError(t, skippableErr)
 		assert.Equal(t, missBytes, bytes)
@@ -95,7 +105,7 @@ func TestJanitor(t *testing.T) {
 		blockID := uuid.New()
 		tenantID := testTenantID
 
-		bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+		bytes, skippableErr, err := cache.(*reader).readOrCacheIndex(blockID, tenantID, "type", missFunc)
 		assert.NoError(t, err)
 		assert.NoError(t, skippableErr)
 		assert.Equal(t, missBytes, bytes)
