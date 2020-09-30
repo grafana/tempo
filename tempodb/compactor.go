@@ -49,7 +49,7 @@ const (
 	inputBlocks  = 2
 	outputBlocks = 1
 
-	recordsPerBatch = 10000
+	recordsPerBatch = 1000
 )
 
 func (rw *readerWriter) doCompaction() {
