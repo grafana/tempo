@@ -51,11 +51,32 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 		return bytes
 	}
 
-	spansInA := make(map[uint64]struct{})
+	traceComplete := CombineTraceProtos(traceA, traceB)
+
+	bytes, err := proto.Marshal(traceComplete)
+	if err != nil {
+		level.Error(util.Logger).Log("msg", "marshalling the combine trace threw an error.", "err", err)
+		return objA
+	}
+	return bytes
+}
+
+// CombineTraceProtos combines two trace protos into one.  Note that it is destructive.
+//  All spans are combined into traceA.
+func CombineTraceProtos(traceA, traceB *tempopb.Trace) *tempopb.Trace {
+	if traceA == nil {
+		return traceB
+	}
+
+	if traceB == nil {
+		return traceA
+	}
+
+	spansInA := make(map[uint32]struct{})
 	for _, batchA := range traceA.Batches {
 		for _, ilsA := range batchA.InstrumentationLibrarySpans {
 			for _, spanA := range ilsA.Spans {
-				spansInA[Fingerprint(spanA.SpanId)] = struct{}{}
+				spansInA[TokenForTraceID(spanA.SpanId)] = struct{}{}
 			}
 		}
 	}
@@ -68,7 +89,7 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 			notFoundSpans := ilsB.Spans[:0]
 			for _, spanB := range ilsB.Spans {
 				// if found in A, remove from the batch
-				_, ok := spansInA[Fingerprint(spanB.SpanId)]
+				_, ok := spansInA[TokenForTraceID(spanB.SpanId)]
 				if !ok {
 					notFoundSpans = append(notFoundSpans, spanB)
 				}
@@ -87,10 +108,5 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 		}
 	}
 
-	bytes, err := proto.Marshal(traceA)
-	if err != nil {
-		level.Error(util.Logger).Log("msg", "marshalling the combine trace threw an error.", "err", err)
-		return objA
-	}
-	return bytes
+	return traceA
 }

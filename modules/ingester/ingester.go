@@ -34,7 +34,7 @@ var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Help:      "The total number of series pending in the flush queue.",
 })
 
-// Ingester builds chunks for incoming log streams.
+// Ingester builds blocks out of incoming traces
 type Ingester struct {
 	services.Service
 
@@ -47,8 +47,7 @@ type Ingester struct {
 	lifecycler *ring.Lifecycler
 	store      storage.Store
 
-	// One queue per flush thread.  Fingerprint is used to
-	// pick a queue.
+	// One queue per flush thread.
 	flushQueues     []*util.PriorityQueue
 	flushQueueIndex int
 	flushQueuesDone sync.WaitGroup
@@ -74,7 +73,7 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingeste
 	}
 
 	var err error
-	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, false, prometheus.DefaultRegisterer)
+	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", ring.IngesterRingKey, true, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %w", err)
 	}
@@ -244,8 +243,7 @@ func (i *Ingester) stopIncomingRequests() {
 
 // TransferOut implements ring.Lifecycler.
 func (i *Ingester) TransferOut(ctx context.Context) error {
-	// todo: decide what, if any support, we're going to have here
-	return nil
+	return ring.ErrTransferDisabled
 }
 
 func (i *Ingester) replayWal() error {

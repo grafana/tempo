@@ -16,11 +16,11 @@ func TokenFor(userID string, b []byte) uint32 {
 	return h.Sum32()
 }
 
-// todo:  better alg?  just add high order uint64 to low order uint64?
-func Fingerprint(b []byte) uint64 {
-	h := fnv.New64()
+// TokenForTraceID generates a hashed value for a trace id
+func TokenForTraceID(b []byte) uint32 {
+	h := fnv.New32()
 	_, _ = h.Write(b)
-	return h.Sum64()
+	return h.Sum32()
 }
 
 func HexStringToTraceID(id string) ([]byte, error) {

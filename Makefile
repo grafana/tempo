@@ -1,7 +1,7 @@
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
-                                -not -path './testbed/*' \
 								-not -path './vendor/*' \
+								-not -path './integration/*' \
                                 -type f | sort)
 
 # All source code and documents. Used in spell check.
@@ -12,7 +12,7 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
 GO_OPT= -mod vendor
-GOTEST_OPT?= -race -timeout 30s -count=1
+GOTEST_OPT?= -race -timeout 5m -count=1
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint
@@ -42,8 +42,13 @@ benchmark:
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 .PHONY: test-with-cover
-test-with-cover: docker-tempo
+test-with-cover: 
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
+
+# test-all includes integration tests so we build our docker image first
+.PHONY: test-all
+test-all: docker-tempo test-with-cover
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) ./integration/e2e
 
 .PHONY: lint
 lint:

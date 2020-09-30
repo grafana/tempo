@@ -38,17 +38,18 @@ const (
 	flushBackoff = 1 * time.Second
 )
 
-// Flush triggers a flush of all the chunks and closes the flush queues.
-// Called from the Lifecycler as part of the ingester shutdown.
+// Flush triggers a flush of all in memory traces to disk.  This is called
+// by the lifecycler on shutdown and will put our traces in the WAL to be
+// replayed.
 func (i *Ingester) Flush() {
-	i.sweepUsers(true)
+	instances := i.getInstances()
 
-	// Close the flush queues, to unblock waiting workers.
-	for _, flushQueue := range i.flushQueues {
-		flushQueue.Close()
+	for _, instance := range instances {
+		err := instance.CutCompleteTraces(0, true)
+		if err != nil {
+			level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut complete traces on shutdown", "err", err)
+		}
 	}
-
-	i.flushQueuesDone.Wait()
 }
 
 // FlushHandler triggers a flush of all in memory chunks.  Mainly used for

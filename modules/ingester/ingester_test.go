@@ -142,6 +142,40 @@ func TestWal(t *testing.T) {
 	}
 }
 
+func TestFlush(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting tempdir")
+	defer os.RemoveAll(tmpDir)
+
+	ctx := user.InjectOrgID(context.Background(), "test")
+	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
+
+	for pos, traceID := range traceIDs {
+		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+			TraceID: traceID,
+		})
+		assert.NoError(t, err, "unexpected error querying")
+		assert.Equal(t, foundTrace.Trace, traces[pos])
+	}
+
+	// stopping the ingester should force cut all live traces to disk
+	err = ingester.stopping(nil)
+	assert.NoError(t, err)
+
+	// create new ingester.  this should replay wal!
+	ingester, _, _ = defaultIngester(t, tmpDir)
+
+	// should be able to find old traces that were replayed
+	for i, traceID := range traceIDs {
+		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+			TraceID: traceID,
+		})
+		assert.NoError(t, err, "unexpected error querying")
+		equal := proto.Equal(traces[i], foundTrace.Trace)
+		assert.True(t, equal)
+	}
+}
+
 func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
 	ingesterConfig := defaultIngesterTestConfig()
 	limits, err := overrides.NewOverrides(defaultLimitsTestConfig())
