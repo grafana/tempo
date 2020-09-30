@@ -11,7 +11,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -39,6 +38,11 @@ var (
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
 	})
+	metricCompactionBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_blocks_created_total",
+		Help:      "Total number of blocks created by compactor.",
+	}, []string{"level"})
 )
 
 const (
@@ -256,6 +260,7 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 		return err
 	}
 	block.Complete()
+	metricCompactionBlocks.WithLabelValues(strconv.Itoa(int(block.BlockMeta().CompactionLevel))).Inc()
 
 	err = rw.WriteBlockMeta(context.TODO(), tracker, block) // todo:  add timeout
 	if err != nil {
@@ -270,13 +275,11 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 }
 
 func allDone(bookmarks []*bookmark) bool {
-	level.Debug(util.Logger).Log("msg", "checking allDone", "bookmarks", len(bookmarks))
 	for _, b := range bookmarks {
 		if !b.done() {
 			return false
 		}
 	}
-	level.Debug(util.Logger).Log("msg", "allDone returned true, meaning we've reached end of blocks")
 	return true
 }
 
