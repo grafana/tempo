@@ -130,6 +130,11 @@ install-tools:
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/gogo/protobuf/protoc-gen-gogofaster
 
+### Check vendored files
+.PHONY: vendor-check
+vendor-check: vendor-dependencies
+	git diff --name-status --exit-code
+
 ### Release (intended to be used in the .github/workflows/images.yml)
 $(GORELEASER):
 	curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | BINDIR=$(GOPATH)/bin sh

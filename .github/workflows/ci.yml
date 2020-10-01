@@ -24,6 +24,9 @@ jobs:
     - name: Test
       run: make test-all
 
+    - name: Check vendor
+      run: make vendor-check
+
     - name: Build Tempo
       run: make tempo
 
