@@ -73,7 +73,12 @@ func (rw *readerWriter) doCompaction() {
 			continue
 		}
 		level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
-		if err := rw.compact(toBeCompacted, tenantID); err != nil {
+		err := rw.compact(toBeCompacted, tenantID)
+
+		if err == backend.ErrMetaDoesNotExist {
+			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
+			continue
+		} else if err != nil {
 			level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
 			metricCompactionErrors.Inc()
 		}
@@ -116,11 +121,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		bookmarks = append(bookmarks, newBookmark(iter))
 
 		_, err = rw.r.BlockMeta(blockMeta.BlockID, tenantID)
-		if err == backend.ErrMetaDoesNotExist {
-			// if meta doesn't exist right now it probably means this block was compacted.  warn and bail
-			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction", "blockID", blockMeta.BlockID, "tenantID", tenantID, "err", err)
-			return nil
-		} else if err != nil {
+		if err != nil {
 			return err
 		}
 	}
