@@ -39,7 +39,7 @@ const (
 	outputBlocks = 1
 
 	recordsPerBatch = 1000
-	compactionCycle = time.Second
+	compactionCycle = 30 * time.Second
 )
 
 // todo: pass a context/chan in to cancel this cleanly
