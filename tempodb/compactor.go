@@ -231,7 +231,6 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 		return err
 	}
 	block.Complete()
-	metricCompactionBlocks.WithLabelValues(strconv.Itoa(int(block.BlockMeta().CompactionLevel))).Inc()
 
 	err = rw.WriteBlockMeta(context.TODO(), tracker, block) // todo:  add timeout
 	if err != nil {
