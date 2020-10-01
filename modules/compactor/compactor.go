@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	CompactorRingKey = "compactor"
+	CompactorRingKey = "compactor-key"
 	waitOnStartup    = time.Minute
 )
 
@@ -45,7 +45,7 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 	subservices := []services.Service(nil)
 	if c.isSharded() {
 		lifecyclerCfg := c.cfg.ShardingRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor-ring", CompactorRingKey, false, prometheus.DefaultRegisterer)
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", CompactorRingKey, false, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
