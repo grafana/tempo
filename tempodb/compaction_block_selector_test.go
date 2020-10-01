@@ -518,11 +518,11 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now.Add(-2*timeWindow - time.Minute),
+					EndTime: now.Add(-2 * timeWindow),
 				},
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now.Add(-timeWindow - time.Minute),
+					EndTime: now.Add(-timeWindow),
 				},
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -536,11 +536,11 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 				},
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now.Add(-timeWindow - time.Minute),
+					EndTime: now.Add(-timeWindow),
 				},
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now.Add(-2*timeWindow - time.Minute),
+					EndTime: now.Add(-2 * timeWindow),
 				},
 			},
 		},
@@ -592,7 +592,7 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					CompactionLevel: 0,
-					EndTime:         now.Add(-timeWindow - time.Minute),
+					EndTime:         now.Add(-timeWindow),
 				},
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -614,7 +614,7 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					CompactionLevel: 0,
-					EndTime:         now.Add(-timeWindow - time.Minute),
+					EndTime:         now.Add(-timeWindow),
 				},
 			},
 		},
