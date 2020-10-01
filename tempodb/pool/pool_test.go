@@ -54,6 +54,7 @@ func TestMultipleHits(t *testing.T) {
 		MaxWorkers: 10,
 		QueueDepth: 10,
 	})
+	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02}
 	fn := func(payload interface{}) ([]byte, error) {
@@ -69,7 +70,7 @@ func TestMultipleHits(t *testing.T) {
 	assert.Nil(t, err)
 
 	p.Shutdown()
-	goleak.VerifyNone(t)
+	goleak.VerifyNone(t, opts)
 }
 
 func TestError(t *testing.T) {
