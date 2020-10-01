@@ -27,6 +27,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/common v0.11.1
+	github.com/prometheus/prometheus v1.8.2-0.20200722151933-4a8531a64b32
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
@@ -37,6 +38,7 @@ require (
 	go.opencensus.io v0.22.3
 	go.opentelemetry.io/collector v0.6.1
 	go.uber.org/atomic v1.6.0
+	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.15.0
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e
 	google.golang.org/api v0.29.0
