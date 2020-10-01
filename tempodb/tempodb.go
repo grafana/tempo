@@ -118,7 +118,6 @@ type readerWriter struct {
 	blockLists    map[string][]*encoding.BlockMeta
 	blockListsMtx sync.Mutex
 
-	jobStopper          *pool.Stopper
 	compactorCfg        *CompactorConfig
 	compactedBlockLists map[string][]*encoding.CompactedBlockMeta
 	compactorSharder    CompactorSharder
@@ -331,16 +330,18 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder) {
-	if cfg != nil {
-		level.Info(rw.logger).Log("msg", "compaction enabled.")
-	}
 	rw.compactorCfg = cfg
 	rw.compactorSharder = c
+
+	if cfg != nil {
+		level.Info(rw.logger).Log("msg", "compaction enabled.")
+		go rw.compactionLoop()
+	}
 }
 
 func (rw *readerWriter) maintenanceLoop() {
 	if rw.cfg.MaintenanceCycle == 0 {
-		level.Info(rw.logger).Log("msg", "blocklist Refresh Rate unset.  tempodb querying, compaction and retention effectively disabled.")
+		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  tempodb querying, compaction and retention effectively disabled.")
 		return
 	}
 
@@ -356,11 +357,6 @@ func (rw *readerWriter) doMaintenance() {
 	metricMaintenanceTotal.Inc()
 
 	rw.pollBlocklist()
-
-	if rw.compactorCfg != nil {
-		rw.doCompaction()
-		rw.doRetention()
-	}
 }
 
 func (rw *readerWriter) pollBlocklist() {
@@ -459,6 +455,7 @@ func (rw *readerWriter) doRetention() {
 		blocklist := rw.blocklist(tenantID)
 		for _, b := range blocklist {
 			if b.EndTime.Before(cutoff) {
+				level.Info(rw.logger).Log("msg", "marking block for deletion", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.MarkBlockCompacted(b.BlockID, tenantID)
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "failed to mark block compacted during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
@@ -474,6 +471,7 @@ func (rw *readerWriter) doRetention() {
 		compactedBlocklist := rw.compactedBlocklist(tenantID)
 		for _, b := range compactedBlocklist {
 			if b.CompactedTime.Before(cutoff) {
+				level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.ClearBlock(b.BlockID, tenantID)
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)

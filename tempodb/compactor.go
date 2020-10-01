@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
+	"math/rand"
 	"strconv"
 	"time"
 
@@ -27,82 +27,70 @@ var (
 		Help:      "Records the amount of time to compact a set of blocks.",
 		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
 	}, []string{"level"})
-	metricCompactionStopDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_duration_stop_seconds",
-		Help:      "Records the amount of time waiting on compaction jobs to stop.",
-		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
-	})
 	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
 	})
-	metricCompactionBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_blocks_created_total",
-		Help:      "Total number of blocks created by compactor.",
-	}, []string{"level"})
 )
 
 const (
 	inputBlocks  = 2
 	outputBlocks = 1
 
-	recordsPerBatch = 10000
+	recordsPerBatch = 1000
+	compactionCycle = 30 * time.Second
 )
 
+// todo: pass a context/chan in to cancel this cleanly
+func (rw *readerWriter) compactionLoop() {
+	ticker := time.NewTicker(compactionCycle)
+	for range ticker.C {
+		rw.doCompaction()
+		rw.doRetention()
+	}
+}
+
 func (rw *readerWriter) doCompaction() {
-	// stop any existing compaction jobs
-	if rw.jobStopper != nil {
-		start := time.Now()
-		err := rw.jobStopper.Stop()
-		if err != nil {
-			level.Warn(rw.logger).Log("msg", "error during compaction cycle", "err", err)
-			metricCompactionErrors.Inc()
-		}
-		metricCompactionStopDuration.Observe(time.Since(start).Seconds())
+	tenants := rw.blocklistTenants()
+	if len(tenants) == 0 {
+		return
 	}
 
-	// start crazy jobs to do compaction with new list
-	tenants := rw.blocklistTenants()
+	// pick a random tenant and find some blocks to compact
+	rand.Seed(time.Now().Unix())
+	tenantID := tenants[rand.Intn(len(tenants))].(string)
+	blocklist := rw.blocklist(tenantID)
+	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
 
-	var err error
-	rw.jobStopper, err = rw.pool.RunStoppableJobs(tenants, func(payload interface{}, stopCh <-chan struct{}) error {
-		var warning error
-		tenantID := payload.(string)
-		blocklist := rw.blocklist(tenantID)
+	start := time.Now()
 
-		blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
-	L:
-		for {
-			select {
-			case <-stopCh:
-				return warning
-			default:
-				toBeCompacted, hashString := blockSelector.BlocksToCompact()
-				if len(toBeCompacted) == 0 {
-					// If none are suitable, bail
-					break L
-				}
-				if !rw.compactorSharder.Owns(hashString) {
-					continue
-				}
-				level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
-				if err := rw.compact(toBeCompacted, tenantID); err != nil {
-					warning = err
-					level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
-					metricCompactionErrors.Inc()
-				}
-			}
+	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID)
+	for {
+		toBeCompacted, hashString := blockSelector.BlocksToCompact()
+		if len(toBeCompacted) == 0 {
+			level.Info(rw.logger).Log("msg", "failed to find any blocks to compact", "tenantID", tenantID)
+			break
+		}
+		if !rw.compactorSharder.Owns(hashString) {
+			// continue on this tenant until we find something we own
+			continue
+		}
+		level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
+		err := rw.compact(toBeCompacted, tenantID)
+
+		if err == backend.ErrMetaDoesNotExist {
+			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
+		} else if err != nil {
+			level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
+			metricCompactionErrors.Inc()
 		}
 
-		return warning
-	})
-
-	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next maintenance cycle.", "err", err)
-		metricCompactionErrors.Inc()
+		// after a maintenance cycle bail out
+		if start.Add(rw.cfg.MaintenanceCycle).Before(time.Now()) {
+			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
+			break
+		}
 	}
 }
 
@@ -140,12 +128,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		bookmarks = append(bookmarks, newBookmark(iter))
 
 		_, err = rw.r.BlockMeta(blockMeta.BlockID, tenantID)
-		if os.IsNotExist(err) {
-			// if meta doesn't exist right now it probably means this block was compacted.  warn and bail
-			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction", "blockID", blockMeta.BlockID, "tenantID", tenantID, "err", err)
-			metricCompactionErrors.Inc()
-			return nil
-		} else if err != nil {
+		if err != nil {
 			return err
 		}
 	}
@@ -168,11 +151,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 				return err
 			}
 
-			// todo:  right now if we run into equal ids we take the larger object in the hopes that it's a more complete trace.
-			//   in the future add a callback or something that allows the owning application to make a more intelligent choice
-			//   such as combining traces if they're both incomplete
 			if bytes.Equal(currentID, lowestID) {
-				lowestID = currentID
 				lowestObject = rw.compactorSharder.Combine(currentObject, lowestObject)
 				b.clear()
 			} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
@@ -195,8 +174,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 		}
 
-		// writing to the current block will cause the id is going to escape the iterator so we need to make a copy of it
-		// lowestObject is going to be written to disk so we don't need to make a copy
+		// writing to the current block will cause the id to escape the iterator so we need to make a copy of it
 		writeID := append([]byte(nil), lowestID...)
 		err = currentBlock.Write(writeID, lowestObject)
 		if err != nil {
@@ -260,7 +238,6 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 		return err
 	}
 	block.Complete()
-	metricCompactionBlocks.WithLabelValues(strconv.Itoa(int(block.BlockMeta().CompactionLevel))).Inc()
 
 	err = rw.WriteBlockMeta(context.TODO(), tracker, block) // todo:  add timeout
 	if err != nil {
