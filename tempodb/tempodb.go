@@ -330,13 +330,13 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder) {
-	if cfg != nil {
-		level.Info(rw.logger).Log("msg", "compaction enabled.")
-	}
 	rw.compactorCfg = cfg
 	rw.compactorSharder = c
 
-	go rw.compactionLoop()
+	if cfg != nil {
+		level.Info(rw.logger).Log("msg", "compaction enabled.")
+		go rw.compactionLoop()
+	}
 }
 
 func (rw *readerWriter) maintenanceLoop() {
