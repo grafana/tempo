@@ -205,7 +205,7 @@ func TestOverloadingASmallPool(t *testing.T) {
 
 	wg := &sync.WaitGroup{}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 50; i++ {
 		wg.Add(1)
 		go func() {
 			fn := func(payload interface{}) ([]byte, error) {
