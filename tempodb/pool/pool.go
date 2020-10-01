@@ -36,7 +36,7 @@ type job struct {
 
 	wg        *sync.WaitGroup
 	resultsCh chan []byte
-	stopCh    chan struct{}
+	stop      *atomic.Bool
 	err       *atomic.Error
 }
 
@@ -82,7 +82,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 
 	resultsCh := make(chan []byte, 1) // way for jobs to send back results
 	err := atomic.NewError(nil)       // way for jobs to send back an error
-	stopCh := make(chan struct{})     // way to signal to the jobs to quit
+	stop := atomic.NewBool(false)     // way to signal to the jobs to quit
 	wg := &sync.WaitGroup{}           // way to wait for all jobs to complete
 
 	// add each job one at a time.  even though we checked length above these might still fail
@@ -93,7 +93,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 			payload:   payload,
 			wg:        wg,
 			resultsCh: resultsCh,
-			stopCh:    stopCh,
+			stop:      stop,
 			err:       err,
 		}
 
@@ -102,7 +102,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 			p.size.Inc()
 		default:
 			wg.Done()
-			close(stopCh) // tell any jobs that got queued to bail out
+			stop.Store(true)
 			return nil, fmt.Errorf("failed to add a job to work queue")
 		}
 	}
@@ -156,24 +156,23 @@ func (p *Pool) reportQueueLength() {
 }
 
 func runJob(job *job) {
-	select {
-	case <-job.stopCh:
+	if job.stop.Load() {
 		job.wg.Done()
 		return
-	default:
-		msg, err := job.fn(job.payload)
-		if msg != nil {
-			close(job.stopCh) // one job was successful.  stop all others
-			select {
-			case job.resultsCh <- msg:
-			default:
-			}
-		}
-		if err != nil {
-			job.err.Store(err)
-		}
-		job.wg.Done()
 	}
+
+	msg, err := job.fn(job.payload)
+	if msg != nil {
+		job.stop.Store(true) // one job was successful.  stop all others
+		select {
+		case job.resultsCh <- msg:
+		default: // if we hit default it means that something else already returned a good result.  /shrug
+		}
+	}
+	if err != nil {
+		job.err.Store(err)
+	}
+	job.wg.Done()
 }
 
 // default is concurrency disabled
