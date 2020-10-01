@@ -44,7 +44,7 @@ type Pool struct {
 	cfg  *Config
 	size *atomic.Int32
 
-	workQueue chan interface{}
+	workQueue chan *job
 	stopCh    chan struct{}
 }
 
@@ -53,7 +53,7 @@ func NewPool(cfg *Config) *Pool {
 		cfg = defaultConfig()
 	}
 
-	q := make(chan interface{}, cfg.QueueDepth)
+	q := make(chan *job, cfg.QueueDepth)
 	p := &Pool{
 		cfg:       cfg,
 		workQueue: q,
@@ -65,7 +65,7 @@ func NewPool(cfg *Config) *Pool {
 		go p.worker(q)
 	}
 
-	go p.reportQueueLength()
+	p.reportQueueLength()
 
 	metricQueryQueueMax.Set(float64(cfg.QueueDepth))
 
@@ -136,7 +136,7 @@ func (p *Pool) Shutdown() {
 	close(p.stopCh)
 }
 
-func (p *Pool) worker(j <-chan interface{}) {
+func (p *Pool) worker(j <-chan *job) {
 	for {
 		select {
 		case <-p.stopCh:
@@ -145,16 +145,7 @@ func (p *Pool) worker(j <-chan interface{}) {
 			if !ok {
 				return
 			}
-
-			switch typedJob := j.(type) {
-			case *stoppableJob:
-				runStoppableJob(typedJob)
-			case *job:
-				runJob(typedJob)
-			default:
-				panic("unexpected job type")
-			}
-
+			runJob(j)
 			p.size.Dec()
 		}
 	}

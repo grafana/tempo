@@ -16,6 +16,7 @@ func TestResults(t *testing.T) {
 		MaxWorkers: 10,
 		QueueDepth: 10,
 	})
+	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02}
 	fn := func(payload interface{}) ([]byte, error) {
@@ -31,6 +32,7 @@ func TestResults(t *testing.T) {
 	msg, err := p.RunJobs(payloads, fn)
 	assert.NoError(t, err)
 	assert.Equal(t, ret, msg)
+	goleak.VerifyNone(t, opts)
 }
 
 func TestNoResults(t *testing.T) {
@@ -38,6 +40,7 @@ func TestNoResults(t *testing.T) {
 		MaxWorkers: 10,
 		QueueDepth: 10,
 	})
+	opts := goleak.IgnoreCurrent()
 
 	fn := func(payload interface{}) ([]byte, error) {
 		return nil, nil
@@ -47,6 +50,7 @@ func TestNoResults(t *testing.T) {
 	msg, err := p.RunJobs(payloads, fn)
 	assert.Nil(t, msg)
 	assert.Nil(t, err)
+	goleak.VerifyNone(t, opts)
 }
 
 func TestMultipleHits(t *testing.T) {
@@ -68,8 +72,6 @@ func TestMultipleHits(t *testing.T) {
 	msg, err := p.RunJobs(payloads, fn)
 	assert.Equal(t, ret, msg)
 	assert.Nil(t, err)
-
-	p.Shutdown()
 	goleak.VerifyNone(t, opts)
 }
 
@@ -78,6 +80,7 @@ func TestError(t *testing.T) {
 		MaxWorkers: 1,
 		QueueDepth: 10,
 	})
+	opts := goleak.IgnoreCurrent()
 
 	ret := fmt.Errorf("blerg")
 	fn := func(payload interface{}) ([]byte, error) {
@@ -93,6 +96,7 @@ func TestError(t *testing.T) {
 	msg, err := p.RunJobs(payloads, fn)
 	assert.Nil(t, msg)
 	assert.Equal(t, ret, err)
+	goleak.VerifyNone(t, opts)
 }
 
 func TestMultipleErrors(t *testing.T) {
@@ -100,6 +104,7 @@ func TestMultipleErrors(t *testing.T) {
 		MaxWorkers: 10,
 		QueueDepth: 10,
 	})
+	opts := goleak.IgnoreCurrent()
 
 	ret := fmt.Errorf("blerg")
 	fn := func(payload interface{}) ([]byte, error) {
@@ -110,6 +115,7 @@ func TestMultipleErrors(t *testing.T) {
 	msg, err := p.RunJobs(payloads, fn)
 	assert.Nil(t, msg)
 	assert.Equal(t, ret, err)
+	goleak.VerifyNone(t, opts)
 }
 
 func TestTooManyJobs(t *testing.T) {
@@ -117,6 +123,7 @@ func TestTooManyJobs(t *testing.T) {
 		MaxWorkers: 10,
 		QueueDepth: 3,
 	})
+	opts := goleak.IgnoreCurrent()
 
 	fn := func(payload interface{}) ([]byte, error) {
 		return nil, nil
@@ -126,6 +133,7 @@ func TestTooManyJobs(t *testing.T) {
 	msg, err := p.RunJobs(payloads, fn)
 	assert.Nil(t, msg)
 	assert.Error(t, err)
+	goleak.VerifyNone(t, opts)
 }
 
 func TestOneWorker(t *testing.T) {
@@ -133,6 +141,7 @@ func TestOneWorker(t *testing.T) {
 		MaxWorkers: 1,
 		QueueDepth: 10,
 	})
+	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02, 0x03}
 	fn := func(payload interface{}) ([]byte, error) {
@@ -148,6 +157,7 @@ func TestOneWorker(t *testing.T) {
 	msg, err := p.RunJobs(payloads, fn)
 	assert.NoError(t, err)
 	assert.Equal(t, ret, msg)
+	goleak.VerifyNone(t, opts)
 }
 
 func TestGoingHam(t *testing.T) {
@@ -155,6 +165,7 @@ func TestGoingHam(t *testing.T) {
 		MaxWorkers: 1000,
 		QueueDepth: 10000,
 	})
+	opts := goleak.IgnoreCurrent()
 
 	wg := &sync.WaitGroup{}
 
@@ -181,6 +192,7 @@ func TestGoingHam(t *testing.T) {
 	}
 
 	wg.Wait()
+	goleak.VerifyNone(t, opts)
 }
 
 func TestShutdown(t *testing.T) {
@@ -188,6 +200,7 @@ func TestShutdown(t *testing.T) {
 		MaxWorkers: 1,
 		QueueDepth: 10,
 	})
+	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x03, 0x04}
 	fn := func(payload interface{}) ([]byte, error) {
@@ -205,4 +218,5 @@ func TestShutdown(t *testing.T) {
 	msg, err := p.RunJobs(payloads, fn)
 	assert.Nil(t, msg)
 	assert.Error(t, err)
+	goleak.VerifyNone(t, opts)
 }
