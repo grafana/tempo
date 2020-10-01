@@ -112,13 +112,17 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 		allDone <- struct{}{}
 	}()
 
-	select {
-	case msg := <-resultsCh:
-		close(stopCh)
-		wg.Done()
-		return msg, nil
-	case <-allDone:
-		return nil, err.Load()
+	var msg []byte
+	for {
+		select {
+		case msg = <-resultsCh:
+			wg.Done()
+		case <- allDone:
+			if msg != nil {
+				return msg, nil
+			}
+			return nil, err.Load()
+		}
 	}
 }
 
@@ -176,11 +180,8 @@ func runJob(job *job) {
 
 		if msg != nil {
 			select {
-			case <-job.stopCh:
-				job.wg.Done()
-				return
 			case job.resultsCh <- msg:
-				// not signalling done here to dodge race condition between results chan and done
+				// not signalling done here to dodge race condition between resultsCh and stopCh
 				return
 			default:
 			}

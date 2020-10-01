@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func TestResults(t *testing.T) {
@@ -66,6 +67,9 @@ func TestMultipleHits(t *testing.T) {
 	msg, err := p.RunJobs(payloads, fn)
 	assert.Equal(t, ret, msg)
 	assert.Nil(t, err)
+
+	p.Shutdown()
+	goleak.VerifyNone(t)
 }
 
 func TestError(t *testing.T) {
