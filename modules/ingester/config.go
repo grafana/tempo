@@ -6,6 +6,7 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 // Config for an ingester.
@@ -19,6 +20,7 @@ type Config struct {
 	MaxTracesPerBlock    int           `yaml:"traces_per_block"`
 	MaxBlockDuration     time.Duration `yaml:"max_block_duration"`
 	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
+	OverrideRingKey      string        `yaml:override_ring_key`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -35,4 +37,5 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.MaxTraceIdle, "ingester.trace-idle-period", 30*time.Second, "")
 	f.IntVar(&cfg.MaxTracesPerBlock, "ingester.traces-per-block", 10000, "")
 	f.DurationVar(&cfg.MaxBlockDuration, "ingester.max-block-duration", 4*time.Hour, "")
+	f.StringVar(&cfg.OverrideRingKey, util.PrefixConfig(prefix, "ingester.override-ring-key"), ring.IngesterRingKey, "Override key to ignore previous ring state.")
 }
