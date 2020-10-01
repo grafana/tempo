@@ -12,6 +12,8 @@ import (
 )
 
 func TestResults(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
 	p := NewPool(&Config{
 		MaxWorkers: 10,
 		QueueDepth: 10,
@@ -33,9 +35,14 @@ func TestResults(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, ret, msg)
 	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }
 
 func TestNoResults(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
 	p := NewPool(&Config{
 		MaxWorkers: 10,
 		QueueDepth: 10,
@@ -51,9 +58,14 @@ func TestNoResults(t *testing.T) {
 	assert.Nil(t, msg)
 	assert.Nil(t, err)
 	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }
 
 func TestMultipleHits(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
 	p := NewPool(&Config{
 		MaxWorkers: 10,
 		QueueDepth: 10,
@@ -74,9 +86,14 @@ func TestMultipleHits(t *testing.T) {
 	assert.Equal(t, ret, msg)
 	assert.Nil(t, err)
 	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }
 
 func TestError(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
 	p := NewPool(&Config{
 		MaxWorkers: 1,
 		QueueDepth: 10,
@@ -98,9 +115,14 @@ func TestError(t *testing.T) {
 	assert.Nil(t, msg)
 	assert.Equal(t, ret, err)
 	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }
 
 func TestMultipleErrors(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
 	p := NewPool(&Config{
 		MaxWorkers: 10,
 		QueueDepth: 10,
@@ -117,9 +139,14 @@ func TestMultipleErrors(t *testing.T) {
 	assert.Nil(t, msg)
 	assert.Equal(t, ret, err)
 	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }
 
 func TestTooManyJobs(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
 	p := NewPool(&Config{
 		MaxWorkers: 10,
 		QueueDepth: 3,
@@ -135,9 +162,14 @@ func TestTooManyJobs(t *testing.T) {
 	assert.Nil(t, msg)
 	assert.Error(t, err)
 	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }
 
 func TestOneWorker(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
 	p := NewPool(&Config{
 		MaxWorkers: 1,
 		QueueDepth: 10,
@@ -159,9 +191,14 @@ func TestOneWorker(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, ret, msg)
 	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }
 
 func TestGoingHam(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
 	p := NewPool(&Config{
 		MaxWorkers: 1000,
 		QueueDepth: 10000,
@@ -194,9 +231,14 @@ func TestGoingHam(t *testing.T) {
 
 	wg.Wait()
 	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }
 
 func TestOverloadingASmallPool(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
 	p := NewPool(&Config{
 		MaxWorkers: 1,
 		QueueDepth: 11,
@@ -221,14 +263,17 @@ func TestOverloadingASmallPool(t *testing.T) {
 
 	wg.Wait()
 	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }
 
 func TestShutdown(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
 	p := NewPool(&Config{
 		MaxWorkers: 1,
 		QueueDepth: 10,
 	})
-	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x03, 0x04}
 	fn := func(payload interface{}) ([]byte, error) {
@@ -242,7 +287,9 @@ func TestShutdown(t *testing.T) {
 	payloads := []interface{}{1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5}
 	_, _ = p.RunJobs(payloads, fn)
 	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 
+	opts := goleak.IgnoreCurrent()
 	msg, err := p.RunJobs(payloads, fn)
 	assert.Nil(t, msg)
 	assert.Error(t, err)
