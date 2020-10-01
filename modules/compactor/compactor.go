@@ -16,7 +16,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const CompactorRingKey = "compactor"
+const (
+	CompactorRingKey = "compactor"
+	waitOnStartup    = time.Minute
+)
 
 type Compactor struct {
 	services.Service
@@ -90,9 +93,8 @@ func (c *Compactor) starting(ctx context.Context) error {
 
 func (c *Compactor) running(ctx context.Context) error {
 	go func() {
-		level.Info(util.Logger).Log("msg", "waiting one poll cycle", "waitDuration", c.cfg.WaitOnStartup)
-		time.Sleep(c.cfg.WaitOnStartup)
-
+		level.Info(util.Logger).Log("msg", "waiting for compaction ring to settle", "waitDuration", waitOnStartup)
+		time.Sleep(waitOnStartup)
 		level.Info(util.Logger).Log("msg", "enabling compaction")
 		c.store.EnableCompaction(&c.cfg.Compactor, c)
 	}()

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"strconv"
 	"time"
@@ -27,12 +28,6 @@ var (
 		Help:      "Records the amount of time to compact a set of blocks.",
 		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
 	}, []string{"level"})
-	metricCompactionStopDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_duration_stop_seconds",
-		Help:      "Records the amount of time waiting on compaction jobs to stop.",
-		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
-	})
 	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_errors_total",
@@ -50,59 +45,42 @@ const (
 	outputBlocks = 1
 
 	recordsPerBatch = 1000
+	compactionCycle = time.Second
 )
 
+func (rw *readerWriter) compactionLoop() {
+	ticker := time.NewTicker(compactionCycle)
+	for range ticker.C {
+		rw.doCompaction()
+		rw.doRetention()
+	}
+}
+
 func (rw *readerWriter) doCompaction() {
-	// stop any existing compaction jobs
-	if rw.jobStopper != nil {
-		start := time.Now()
-		err := rw.jobStopper.Stop()
-		if err != nil {
-			level.Warn(rw.logger).Log("msg", "error during compaction cycle", "err", err)
-			metricCompactionErrors.Inc()
-		}
-		metricCompactionStopDuration.Observe(time.Since(start).Seconds())
+	tenants := rw.blocklistTenants()
+	if len(tenants) == 0 {
+		return
 	}
 
-	// start crazy jobs to do compaction with new list
-	tenants := rw.blocklistTenants()
+	rand.Seed(time.Now().Unix())
 
-	var err error
-	rw.jobStopper, err = rw.pool.RunStoppableJobs(tenants, func(payload interface{}, stopCh <-chan struct{}) error {
-		var warning error
-		tenantID := payload.(string)
-		blocklist := rw.blocklist(tenantID)
+	tenantID := tenants[rand.Intn(len(tenants))].(string)
+	blocklist := rw.blocklist(tenantID)
+	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
 
-		blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
-	L:
-		for {
-			select {
-			case <-stopCh:
-				return warning
-			default:
-				toBeCompacted, hashString := blockSelector.BlocksToCompact()
-				if len(toBeCompacted) == 0 {
-					// If none are suitable, bail
-					break L
-				}
-				if !rw.compactorSharder.Owns(hashString) {
-					continue
-				}
-				level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
-				if err := rw.compact(toBeCompacted, tenantID); err != nil {
-					warning = err
-					level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
-					metricCompactionErrors.Inc()
-				}
-			}
+	for {
+		toBeCompacted, hashString := blockSelector.BlocksToCompact()
+		if len(toBeCompacted) == 0 {
+			break
 		}
-
-		return warning
-	})
-
-	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to start compaction.  compaction broken until next maintenance cycle.", "err", err)
-		metricCompactionErrors.Inc()
+		if !rw.compactorSharder.Owns(hashString) {
+			continue
+		}
+		level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
+		if err := rw.compact(toBeCompacted, tenantID); err != nil {
+			level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
+			metricCompactionErrors.Inc()
+		}
 	}
 }
 

@@ -118,7 +118,6 @@ type readerWriter struct {
 	blockLists    map[string][]*encoding.BlockMeta
 	blockListsMtx sync.Mutex
 
-	jobStopper          *pool.Stopper
 	compactorCfg        *CompactorConfig
 	compactedBlockLists map[string][]*encoding.CompactedBlockMeta
 	compactorSharder    CompactorSharder
@@ -336,6 +335,8 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	}
 	rw.compactorCfg = cfg
 	rw.compactorSharder = c
+
+	go rw.compactionLoop()
 }
 
 func (rw *readerWriter) maintenanceLoop() {
@@ -356,11 +357,6 @@ func (rw *readerWriter) doMaintenance() {
 	metricMaintenanceTotal.Inc()
 
 	rw.pollBlocklist()
-
-	if rw.compactorCfg != nil {
-		rw.doCompaction()
-		rw.doRetention()
-	}
 }
 
 func (rw *readerWriter) pollBlocklist() {

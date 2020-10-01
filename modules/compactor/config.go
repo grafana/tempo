@@ -11,9 +11,8 @@ import (
 )
 
 type Config struct {
-	WaitOnStartup time.Duration               `yaml:"-"`
-	ShardingRing  cortex_compactor.RingConfig `yaml:"ring,omitempty"`
-	Compactor     tempodb.CompactorConfig     `yaml:"compaction"`
+	ShardingRing cortex_compactor.RingConfig `yaml:"ring,omitempty"`
+	Compactor    tempodb.CompactorConfig     `yaml:"compaction"`
 }
 
 // RegisterFlags registers the flags.

@@ -135,7 +135,6 @@ func (t *App) initQuerier() (services.Service, error) {
 }
 
 func (t *App) initCompactor() (services.Service, error) {
-	t.cfg.Compactor.WaitOnStartup = t.cfg.StorageConfig.Trace.MaintenanceCycle // force the compactor to wait one maintenance cycle to start to prevent collisions
 	compactor, err := compactor.New(t.cfg.Compactor, t.store)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor %w", err)
