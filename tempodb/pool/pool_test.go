@@ -196,6 +196,33 @@ func TestGoingHam(t *testing.T) {
 	goleak.VerifyNone(t, opts)
 }
 
+func TestOverloadingASmallPool(t *testing.T) {
+	p := NewPool(&Config{
+		MaxWorkers: 1,
+		QueueDepth: 11,
+	})
+	opts := goleak.IgnoreCurrent()
+
+	wg := &sync.WaitGroup{}
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			fn := func(payload interface{}) ([]byte, error) {
+				time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
+				return nil, nil
+			}
+			payloads := []interface{}{1, 2}
+			_, _ = p.RunJobs(payloads, fn)
+
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+	goleak.VerifyNone(t, opts)
+}
+
 func TestShutdown(t *testing.T) {
 	p := NewPool(&Config{
 		MaxWorkers: 1,

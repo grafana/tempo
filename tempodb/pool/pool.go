@@ -85,7 +85,6 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 	stopCh := make(chan struct{})     // way to signal to the jobs to quit
 	wg := &sync.WaitGroup{}           // way to wait for all jobs to complete
 
-	wg.Add(totalJobs)
 	// add each job one at a time.  even though we checked length above these might still fail
 	for _, payload := range payloads {
 		j := &job{
@@ -99,36 +98,25 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 
 		select {
 		case p.workQueue <- j:
+			wg.Add(1)
 			p.size.Inc()
 		default:
-			close(stopCh)
+			close(stopCh) // tell any jobs that got queued to bail out
 			return nil, fmt.Errorf("failed to add a job to work queue")
 		}
 	}
 
-	jobsDoneCh := make(chan struct{}, 1)
-	go func() {
-		wg.Wait()
-		jobsDoneCh <- struct{}{}
-	}()
+	// wait for all jobs to finish
+	wg.Wait()
 
+	// see if anything ended up in the results channel
 	var msg []byte
-	closed := false
-	for {
-		select {
-		case msg = <-resultsCh:
-			wg.Done()
-			if !closed {
-				close(stopCh)
-				closed = true
-			}
-		case <-jobsDoneCh:
-			if msg != nil {
-				return msg, nil
-			}
-			return nil, err.Load()
-		}
+	select {
+	case msg = <-resultsCh:
+	default:
 	}
+
+	return msg, err.Load()
 }
 
 func (p *Pool) Shutdown() {
@@ -173,12 +161,10 @@ func runJob(job *job) {
 		return
 	default:
 		msg, err := job.fn(job.payload)
-
 		if msg != nil {
+			close(job.stopCh) // one job was successful.  stop all others
 			select {
 			case job.resultsCh <- msg:
-				// not signalling done here to dodge race condition between resultsCh and stopCh
-				return
 			default:
 			}
 		}
