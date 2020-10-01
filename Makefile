@@ -1,3 +1,6 @@
+GOPATH := $(shell go env GOPATH)
+GORELEASER := $(GOPATH)/bin/goreleaser
+
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './vendor/*' \
@@ -17,6 +20,8 @@ GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint
 
+### Build
+
 .PHONY: tempo
 tempo:
 	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo $(BUILD_INFO) ./cmd/tempo
@@ -32,6 +37,8 @@ tempo-cli:
 .PHONY: tempo-vulture
 tempo-vulture:
 	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture $(BUILD_INFO) ./cmd/tempo-vulture
+
+### Testin' and Lintin'
 
 .PHONY: test
 test:
@@ -53,6 +60,8 @@ test-all: docker-tempo test-with-cover
 .PHONY: lint
 lint:
 	$(LINT) run
+
+### Docker Images
 
 .PHONY: docker-component # Not intended to be used directly
 docker-component: check-component
@@ -81,6 +90,8 @@ check-component:
 ifndef COMPONENT
 	$(error COMPONENT variable was not defined)
 endif
+
+### Dependencies
 
 .PHONY: gen-proto
 gen-proto:
@@ -113,3 +124,11 @@ vendor-dependencies:
 install-tools:
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/gogo/protobuf/protoc-gen-gogofaster
+
+### Release (intended to be used in the .github/workflows/images.yml)
+$(GORELEASER):
+	curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | BINDIR=$(GOPATH)/bin sh
+
+release: $(GORELEASER)
+	$(GORELEASER) build --skip-validate --rm-dist
+	$(GORELEASER) release --rm-dist

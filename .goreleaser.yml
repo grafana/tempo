@@ -1,0 +1,31 @@
+builds:
+  - main: ./cmd/tempo
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+    flags:
+      - -v
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .CommitDate }}
+    mod_timestamp: '{{ .CommitTimestamp }}'
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^.github:'
+      - '^example:'
+      - '^integration:'
+      - '^vendor:'
+snapshot:
+  name_template: '{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}'
+release:
+  draft: true
+  prerelease: auto
