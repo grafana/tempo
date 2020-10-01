@@ -14,7 +14,7 @@ import (
 type Config struct {
 	ShardingRing    cortex_compactor.RingConfig `yaml:"ring,omitempty"`
 	Compactor       tempodb.CompactorConfig     `yaml:"compaction"`
-	OverrideRingKey string                      `yaml:override_ring_key`
+	OverrideRingKey string                      `yaml:"override_ring_key"`
 }
 
 // RegisterFlags registers the flags.

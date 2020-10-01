@@ -32,7 +32,7 @@ type Config struct {
 	//  This receivers node is equivalent in format to the receiver node in the
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/master/receiver
 	Receivers       map[string]interface{} `yaml:"receivers"`
-	OverrideRingKey string                 `yaml:override_ring_key`
+	OverrideRingKey string                 `yaml:"override_ring_key"`
 
 	// For testing.
 	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
