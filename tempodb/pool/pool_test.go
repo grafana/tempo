@@ -48,6 +48,26 @@ func TestNoResults(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestMultipleHits(t *testing.T) {
+	p := NewPool(&Config{
+		MaxWorkers: 10,
+		QueueDepth: 10,
+	})
+
+	ret := []byte{0x01, 0x02}
+	fn := func(payload interface{}) ([]byte, error) {
+		if payload.(int) < 3 {
+			return ret, nil
+		}
+		return nil, nil
+	}
+	payloads := []interface{}{1, 2, 3, 4, 5}
+
+	msg, err := p.RunJobs(payloads, fn)
+	assert.Equal(t, ret, msg)
+	assert.Nil(t, err)
+}
+
 func TestError(t *testing.T) {
 	p := NewPool(&Config{
 		MaxWorkers: 1,

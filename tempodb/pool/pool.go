@@ -176,6 +176,9 @@ func runJob(job *job) {
 
 		if msg != nil {
 			select {
+			case <-job.stopCh:
+				job.wg.Done()
+				return
 			case job.resultsCh <- msg:
 				// not signalling done here to dodge race condition between results chan and done
 				return
