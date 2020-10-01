@@ -78,12 +78,27 @@ func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRa
 		wi := twbs.windowForBlock(bi)
 		wj := twbs.windowForBlock(bj)
 
-		if wi != wj {
-			return wi > wj
-		}
+		activeWindow := twbs.windowForTime(time.Now().Add(-activeWindowDuration))
+		if activeWindow <= wi && activeWindow <= wj {
+			// inside active window.  sort by:  compaction lvl -> window -> size
+			//  we should always choose the smallest two blocks whos compaction lvl and windows match
+			if bi.CompactionLevel != bj.CompactionLevel {
+				return bi.CompactionLevel < bj.CompactionLevel
+			}
 
-		if bi.CompactionLevel != bj.CompactionLevel {
-			return bi.CompactionLevel < bj.CompactionLevel
+			if wi != wj {
+				return wi > wj
+			}
+		} else {
+			// outside active window.  sort by: window -> compaction lvl -> size
+			//  we should always choose the most recent two blocks that can be compacted
+			if wi != wj {
+				return wi > wj
+			}
+
+			if bi.CompactionLevel != bj.CompactionLevel {
+				return bi.CompactionLevel < bj.CompactionLevel
+			}
 		}
 
 		return bi.TotalObjects < bj.TotalObjects

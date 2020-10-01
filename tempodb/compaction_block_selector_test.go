@@ -244,6 +244,57 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "choose lowest compaction level",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime: now.Add(-timeWindow),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000005"),
+					EndTime: now.Add(-timeWindow),
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now,
+				},
+			},
+			expectedSecond: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime: now.Add(-timeWindow),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000005"),
+					EndTime: now.Add(-timeWindow),
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -415,11 +466,6 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 					EndTime:         now,
 				},
 				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					CompactionLevel: 1,
-					EndTime:         now,
-				},
-				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					CompactionLevel: 0,
 					EndTime:         now.Add(-timeWindow),
@@ -429,6 +475,11 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 					CompactionLevel: 0,
 					EndTime:         now.Add(-timeWindow),
 					TotalObjects:    1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					CompactionLevel: 1,
+					EndTime:         now,
 				},
 			},
 		},
