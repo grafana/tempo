@@ -63,9 +63,13 @@ func (rw *readerWriter) doCompaction() {
 	blocklist := rw.blocklist(tenantID)
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
 
+	start := time.Now()
+
+	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID)
 	for {
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
 		if len(toBeCompacted) == 0 {
+			level.Info(rw.logger).Log("msg", "failed to find any blocks to compact", "tenantID", tenantID)
 			break
 		}
 		if !rw.compactorSharder.Owns(hashString) {
@@ -77,13 +81,16 @@ func (rw *readerWriter) doCompaction() {
 
 		if err == backend.ErrMetaDoesNotExist {
 			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
-			continue
 		} else if err != nil {
 			level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
 			metricCompactionErrors.Inc()
 		}
-		// after one compaction break to give other tenants an opportunity
-		break
+
+		// after a maintenance cycle bail out
+		if start.Add(rw.cfg.MaintenanceCycle).Before(time.Now()) {
+			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
+			break
+		}
 	}
 }
 
