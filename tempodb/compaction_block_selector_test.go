@@ -194,6 +194,56 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 		},
+		// {
+		// 	name: "active time window vs not",
+		// 	blocklist: []*encoding.BlockMeta{
+		// 		{
+		// 			BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+		// 			EndTime: now,
+		// 		},
+		// 		{
+		// 			BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+		// 			EndTime: now,
+		// 		},
+		// 		{
+		// 			BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+		// 			EndTime:         now,
+		// 			CompactionLevel: 1,
+		// 		},
+		// 		{
+		// 			BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+		// 			EndTime:         now.Add(-activeWindowDuration),
+		// 			CompactionLevel: 1,
+		// 		},
+		// 		{
+		// 			BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		// 			EndTime:         now.Add(-activeWindowDuration),
+		// 			CompactionLevel: 0,
+		// 		},
+		// 	},
+		// 	expected: []*encoding.BlockMeta{
+		// 		{
+		// 			BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+		// 			EndTime: now,
+		// 		},
+		// 		{
+		// 			BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+		// 			EndTime: now,
+		// 		},
+		// 	},
+		// 	expectedSecond: []*encoding.BlockMeta{
+		// 		{
+		// 			BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+		// 			EndTime:         now.Add(-activeWindowDuration),
+		// 			CompactionLevel: 1,
+		// 		},
+		// 		{
+		// 			BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		// 			EndTime:         now.Add(-activeWindowDuration),
+		// 			CompactionLevel: 0,
+		// 		},
+		// 	},
+		// },
 	}
 
 	for _, tt := range tests {

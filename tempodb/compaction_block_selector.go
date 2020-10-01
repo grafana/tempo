@@ -124,10 +124,6 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 
 			// the active window should be compacted by level
 			if activeWindow <= blockWindow {
-				sort.Slice(windowBlocks, func(i, j int) bool {
-					return windowBlocks[i].CompactionLevel < windowBlocks[j].CompactionLevel
-				})
-
 				// search forward for inputBlocks in a row that have the same compaction level
 				for i := 0; i+inputBlocks-1 < len(windowBlocks); i++ {
 					if windowBlocks[i].CompactionLevel == windowBlocks[i+inputBlocks-1].CompactionLevel {
@@ -142,9 +138,6 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 					hashString = fmt.Sprintf("%v-%v-%v", compactBlocks[0].TenantID, compactBlocks[0].CompactionLevel, currentWindow)
 				}
 			} else { // all other windows will be compacted using their two smallest blocks
-				sort.Slice(windowBlocks, func(i, j int) bool {
-					return windowBlocks[i].TotalObjects < windowBlocks[j].TotalObjects
-				})
 				compactBlocks = windowBlocks[:inputBlocks]
 				hashString = fmt.Sprintf("%v-%v", compactBlocks[0].TenantID, currentWindow)
 			}
