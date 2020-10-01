@@ -43,6 +43,7 @@ const (
 	compactionCycle = time.Second
 )
 
+// todo: pass a context/chan in to cancel this cleanly
 func (rw *readerWriter) compactionLoop() {
 	ticker := time.NewTicker(compactionCycle)
 	for range ticker.C {
