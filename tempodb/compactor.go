@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"os"
 	"strconv"
 	"time"
 
@@ -117,7 +116,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		bookmarks = append(bookmarks, newBookmark(iter))
 
 		_, err = rw.r.BlockMeta(blockMeta.BlockID, tenantID)
-		if os.IsNotExist(err) {
+		if err == backend.ErrMetaDoesNotExist {
 			// if meta doesn't exist right now it probably means this block was compacted.  warn and bail
 			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction", "blockID", blockMeta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()
