@@ -62,7 +62,7 @@ func TestMultipleHits(t *testing.T) {
 
 	ret := []byte{0x01, 0x02}
 	fn := func(payload interface{}) ([]byte, error) {
-		if payload.(int) < 3 {
+		if payload.(int) < 5 {
 			return ret, nil
 		}
 		return nil, nil
