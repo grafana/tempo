@@ -44,8 +44,8 @@ type Pool struct {
 	cfg  *Config
 	size *atomic.Int32
 
-	workQueue chan *job
-	stopCh    chan struct{}
+	workQueue  chan *job
+	shutdownCh chan struct{}
 }
 
 func NewPool(cfg *Config) *Pool {
@@ -55,10 +55,10 @@ func NewPool(cfg *Config) *Pool {
 
 	q := make(chan *job, cfg.QueueDepth)
 	p := &Pool{
-		cfg:       cfg,
-		workQueue: q,
-		size:      atomic.NewInt32(0),
-		stopCh:    make(chan struct{}),
+		cfg:        cfg,
+		workQueue:  q,
+		size:       atomic.NewInt32(0),
+		shutdownCh: make(chan struct{}),
 	}
 
 	for i := 0; i < cfg.MaxWorkers; i++ {
@@ -80,10 +80,10 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 		return nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
-	resultsCh := make(chan []byte, 1)
-	stopCh := make(chan struct{})
-	wg := &sync.WaitGroup{}
-	err := atomic.NewError(nil)
+	resultsCh := make(chan []byte, 1) // way for jobs to send back results
+	err := atomic.NewError(nil)       // way for jobs to send back an error
+	stopCh := make(chan struct{})     // way to signal to the jobs to quit
+	wg := &sync.WaitGroup{}           // way to wait for all jobs to complete
 
 	wg.Add(totalJobs)
 	// add each job one at a time.  even though we checked length above these might still fail
@@ -106,10 +106,10 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 		}
 	}
 
-	allDone := make(chan struct{}, 1)
+	jobsDoneCh := make(chan struct{}, 1)
 	go func() {
 		wg.Wait()
-		allDone <- struct{}{}
+		jobsDoneCh <- struct{}{}
 	}()
 
 	var msg []byte
@@ -122,7 +122,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 				close(stopCh)
 				closed = true
 			}
-		case <-allDone:
+		case <-jobsDoneCh:
 			if msg != nil {
 				return msg, nil
 			}
@@ -133,13 +133,13 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 
 func (p *Pool) Shutdown() {
 	close(p.workQueue)
-	close(p.stopCh)
+	close(p.shutdownCh)
 }
 
 func (p *Pool) worker(j <-chan *job) {
 	for {
 		select {
-		case <-p.stopCh:
+		case <-p.shutdownCh:
 			return
 		case j, ok := <-j:
 			if !ok {
@@ -159,7 +159,7 @@ func (p *Pool) reportQueueLength() {
 			select {
 			case <-ticker.C:
 				metricQueryQueueLength.Set(float64(p.size.Load()))
-			case <-p.stopCh:
+			case <-p.shutdownCh:
 				return
 			}
 		}
