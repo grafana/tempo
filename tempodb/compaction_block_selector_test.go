@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTimeWindowBlockSelector(t *testing.T) {
+func TestTimeWindowBlockSelectorRangeAndSize(t *testing.T) {
 	tests := []struct {
 		name           string
 		blocklist      []*encoding.BlockMeta
@@ -490,6 +490,141 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 
 			actual, _ = selector.BlocksToCompact()
 			assert.Equal(t, tt.expectedSecond, actual)
+		})
+	}
+}
+
+func TestTimeWindowBlockSelectorSort(t *testing.T) {
+	now := time.Now()
+	timeWindow := 12 * time.Hour
+
+	tests := []struct {
+		name      string
+		blocklist []*encoding.BlockMeta
+		expected  []*encoding.BlockMeta
+	}{
+		{
+			name:      "nil - nil",
+			blocklist: nil,
+			expected:  nil,
+		},
+		{
+			name:      "empty - nil",
+			blocklist: []*encoding.BlockMeta{},
+			expected:  nil,
+		},
+		{
+			name: "different time windows",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now.Add(-2*timeWindow - time.Minute),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now.Add(-timeWindow - time.Minute),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now.Add(-timeWindow - time.Minute),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now.Add(-2*timeWindow - time.Minute),
+				},
+			},
+		},
+		{
+			name: "different compaction lvls",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					CompactionLevel: 1,
+					EndTime:         now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					CompactionLevel: 0,
+					EndTime:         now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 2,
+					EndTime:         now,
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					CompactionLevel: 0,
+					EndTime:         now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					CompactionLevel: 1,
+					EndTime:         now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 2,
+					EndTime:         now,
+				},
+			},
+		},
+		{
+			name: "all things",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					CompactionLevel: 1,
+					EndTime:         now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 0,
+					EndTime:         now.Add(-timeWindow - time.Minute),
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					CompactionLevel: 0,
+					EndTime:         now,
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					CompactionLevel: 0,
+					EndTime:         now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					CompactionLevel: 1,
+					EndTime:         now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 0,
+					EndTime:         now.Add(-timeWindow - time.Minute),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			selector := newTimeWindowBlockSelector(tt.blocklist, timeWindow, 100)
+			actual := selector.(*timeWindowBlockSelector).blocklist
+			assert.Equal(t, tt.expected, actual)
 		})
 	}
 }
