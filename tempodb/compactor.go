@@ -33,11 +33,6 @@ var (
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
 	})
-	metricCompactionBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_blocks_created_total",
-		Help:      "Total number of blocks created by compactor.",
-	}, []string{"level"})
 )
 
 const (
@@ -62,8 +57,8 @@ func (rw *readerWriter) doCompaction() {
 		return
 	}
 
+	// pick a random tenant and find some blocks to compact
 	rand.Seed(time.Now().Unix())
-
 	tenantID := tenants[rand.Intn(len(tenants))].(string)
 	blocklist := rw.blocklist(tenantID)
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
@@ -74,6 +69,7 @@ func (rw *readerWriter) doCompaction() {
 			break
 		}
 		if !rw.compactorSharder.Owns(hashString) {
+			// continue on this tenant until we find something we own
 			continue
 		}
 		level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
@@ -81,6 +77,8 @@ func (rw *readerWriter) doCompaction() {
 			level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
 			metricCompactionErrors.Inc()
 		}
+		// after one compaction break to give other tenants an opportunity
+		break
 	}
 }
 
