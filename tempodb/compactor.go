@@ -119,7 +119,6 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		if err == backend.ErrMetaDoesNotExist {
 			// if meta doesn't exist right now it probably means this block was compacted.  warn and bail
 			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction", "blockID", blockMeta.BlockID, "tenantID", tenantID, "err", err)
-			metricCompactionErrors.Inc()
 			return nil
 		} else if err != nil {
 			return err
