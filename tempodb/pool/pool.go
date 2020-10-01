@@ -87,6 +87,7 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 
 	// add each job one at a time.  even though we checked length above these might still fail
 	for _, payload := range payloads {
+		wg.Add(1)
 		j := &job{
 			fn:        fn,
 			payload:   payload,
@@ -98,9 +99,9 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 
 		select {
 		case p.workQueue <- j:
-			wg.Add(1)
 			p.size.Inc()
 		default:
+			wg.Done()
 			close(stopCh) // tell any jobs that got queued to bail out
 			return nil, fmt.Errorf("failed to add a job to work queue")
 		}
