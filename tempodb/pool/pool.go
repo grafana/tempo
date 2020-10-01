@@ -118,11 +118,11 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 		select {
 		case msg = <-resultsCh:
 			wg.Done()
-			if closed == false {
+			if !closed {
 				close(stopCh)
 				closed = true
 			}
-		case <- allDone:
+		case <-allDone:
 			if msg != nil {
 				return msg, nil
 			}
