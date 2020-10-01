@@ -455,6 +455,7 @@ func (rw *readerWriter) doRetention() {
 		blocklist := rw.blocklist(tenantID)
 		for _, b := range blocklist {
 			if b.EndTime.Before(cutoff) {
+				level.Info(rw.logger).Log("msg", "marking block for deletion", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.MarkBlockCompacted(b.BlockID, tenantID)
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "failed to mark block compacted during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
@@ -470,6 +471,7 @@ func (rw *readerWriter) doRetention() {
 		compactedBlocklist := rw.compactedBlocklist(tenantID)
 		for _, b := range compactedBlocklist {
 			if b.CompactedTime.Before(cutoff) {
+				level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.ClearBlock(b.BlockID, tenantID)
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
