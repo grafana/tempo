@@ -70,7 +70,7 @@ func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRa
 		MaxCompactionObjects: maxCompactionObjects,
 	}
 
-	// sort by compaction window and then compaction level
+	// sort by compaction window, level, and then size
 	sort.Slice(twbs.blocklist, func(i, j int) bool {
 		bi := twbs.blocklist[i]
 		bj := twbs.blocklist[j]
@@ -78,11 +78,15 @@ func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRa
 		wi := twbs.windowForBlock(bi)
 		wj := twbs.windowForBlock(bj)
 
-		if wi == wj {
+		if wi != wj {
+			return wi > wj
+		}
+
+		if bi.CompactionLevel != bj.CompactionLevel {
 			return bi.CompactionLevel < bj.CompactionLevel
 		}
 
-		return wi > wj
+		return bi.TotalObjects < bj.TotalObjects
 	})
 
 	return twbs
