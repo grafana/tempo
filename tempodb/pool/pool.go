@@ -156,8 +156,9 @@ func (p *Pool) reportQueueLength() {
 }
 
 func runJob(job *job) {
+	defer job.wg.Done()
+
 	if job.stop.Load() {
-		job.wg.Done()
 		return
 	}
 
@@ -172,7 +173,6 @@ func runJob(job *job) {
 	if err != nil {
 		job.err.Store(err)
 	}
-	job.wg.Done()
 }
 
 // default is concurrency disabled
