@@ -30,7 +30,7 @@ var (
 	metricDiskCache = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "disk_cache_total",
-		Help:      "Total number of times there were errors checking the disk cache.",
+		Help:      "Total number of times the disk cache was queried.",
 	}, []string{"type", "status"})
 	metricDiskCacheClean = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
