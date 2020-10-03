@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -48,7 +47,7 @@ var (
 		Namespace: "tempodb",
 		Name:      "blocklist_length",
 		Help:      "Total number of blocks per tenant.",
-	}, []string{"tenant", "level"})
+	}, []string{"tenant"})
 	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "retention_duration_seconds",
@@ -364,7 +363,6 @@ func (rw *readerWriter) pollBlocklist() {
 		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
 	}
 
-	metricBlocklistLength.Reset()
 	for _, tenantID := range tenants {
 		blockIDs, err := rw.r.Blocks(tenantID)
 		if err != nil {
@@ -417,9 +415,7 @@ func (rw *readerWriter) pollBlocklist() {
 			continue
 		}
 
-		for _, block := range blocklist {
-			metricBlocklistLength.WithLabelValues(tenantID, strconv.Itoa(int(block.CompactionLevel))).Inc()
-		}
+		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
 
 		sort.Slice(blocklist, func(i, j int) bool {
 			return blocklist[i].StartTime.Before(blocklist[j].StartTime)
