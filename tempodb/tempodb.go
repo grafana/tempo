@@ -33,11 +33,6 @@ import (
 )
 
 var (
-	metricMaintenanceTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "tempodb",
-		Name:      "maintenance_total",
-		Help:      "Total number of times the maintenance cycle has occurred.",
-	})
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "blocklist_poll_errors_total",
@@ -351,18 +346,12 @@ func (rw *readerWriter) maintenanceLoop() {
 		return
 	}
 
-	rw.doMaintenance()
+	rw.pollBlocklist()
 
 	ticker := time.NewTicker(rw.cfg.MaintenanceCycle)
 	for range ticker.C {
-		rw.doMaintenance()
+		rw.pollBlocklist()
 	}
-}
-
-func (rw *readerWriter) doMaintenance() {
-	metricMaintenanceTotal.Inc()
-
-	rw.pollBlocklist()
 }
 
 func (rw *readerWriter) pollBlocklist() {
