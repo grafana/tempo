@@ -100,6 +100,7 @@ endif
 
 .PHONY: gen-proto
 gen-proto:
+	git submodule init
 	git submodule update
 	rm -rf ./vendor/github.com/open-telemetry/opentelemetry-proto
 	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/common/v1/common.proto --gogofaster_out=plugins=grpc:./vendor
