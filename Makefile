@@ -116,14 +116,19 @@ gen-proto:
 	  --grpc-gateway_out=logtostderr=true,grpc_api_configuration=opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service_http.yaml:./vendor
 	protoc -I opentelemetry-proto/ -I pkg/tempopb/ pkg/tempopb/tempo.proto --gogofaster_out=plugins=grpc:pkg/tempopb
 
-.PHONY: vendor-dependencies
-vendor-dependencies:
+.PHONY: vendor
+vendor:
 	go mod vendor
 	go mod tidy
+
+.PHONY: vendor-ci
+vendor-ci:
 	# ignore log.go b/c the proto version used by v0.6.1 doesn't actually have logs proto.
 	find . | grep 'vendor/go.opentelemetry.io.*go$\' | grep -v -e 'log.go$\' | xargs -L 1 sed -i $(SED_OPTS) 's+go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/+github.com/open-telemetry/opentelemetry-proto/gen/go/+g'
 	$(MAKE) gen-proto
 
+.PHONY: vendor-dependencies
+vendor-dependencies: vendor vendor-ci
 
 .PHONY: install-tools
 install-tools:
@@ -132,7 +137,7 @@ install-tools:
 
 ### Check vendored files
 .PHONY: vendor-check
-vendor-check: vendor-dependencies
+vendor-check: vendor-ci
 	git diff --name-status --exit-code
 
 ### Release (intended to be used in the .github/workflows/images.yml)
