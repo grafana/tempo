@@ -24,6 +24,11 @@ jobs:
     - name: Test
       run: make test-all
 
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v1
+      with:
+        version: '3.11.x'
+
     - name: Check vendor
       run: make vendor-check
 
