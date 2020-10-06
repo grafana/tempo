@@ -5,6 +5,7 @@
       querier: 'querier',
       ingester: 'ingester',
       distributor: 'distributor',
+      compactor: 'compactor',
     },
   },
 }
