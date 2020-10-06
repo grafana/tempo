@@ -19,7 +19,7 @@ const (
 )
 
 type Config struct {
-	clientConfig cache.MemcachedClientConfig `yaml:",squash"`
+	clientConfig cache.MemcachedClientConfig `yaml:",inline"`
 
 	TTL        time.Duration `yaml:"ttl"`
 	WritesOnly bool          `yaml:"writes_only"`
