@@ -17,7 +17,7 @@ dashboard_utils {
         .addPanel(
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route="tempo_api_traces_traceid"}' % $.jobMatcher($._config.jobs.gateway))
-        ) 
+        )
       )
       .addRow(
         g.row('Querier')
@@ -28,7 +28,7 @@ dashboard_utils {
         .addPanel(
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route="api_traces_traceid"}' % $.jobMatcher($._config.jobs.querier))
-        ) 
+        )
       )
       .addRow(
         g.row('Ingester')
@@ -39,7 +39,7 @@ dashboard_utils {
         .addPanel(
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route="/tempopb.Querier/FindTraceByID"}' % $.jobMatcher($._config.jobs.ingester))
-        ) 
+        )
       )
       .addRow(
         g.row('Querier Disk Cache')
@@ -85,7 +85,7 @@ dashboard_utils {
         .addPanel(
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route="opentelemetry_proto_collector_trace_v1_traceservice_export"}' % $.jobMatcher($._config.jobs.gateway))
-        ) 
+        )
       )
       .addRow(
         g.row('Distributor')
@@ -104,7 +104,58 @@ dashboard_utils {
         .addPanel(
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route="/tempopb.Pusher/Push"}' % $.jobMatcher($._config.jobs.ingester))
-        ) 
+        )
+      ),
+    'tempo-resources.json':
+      $.dashboard('Tempo / Resources')
+      .addClusterSelectorTemplates()
+      .addRow(
+        g.row('Gateway')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $.jobMatcher($._config.jobs.gateway)),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $.jobMatcher($._config.jobs.gateway)),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.gateway)),
+        )
+      )
+      .addRow(
+        g.row('Querier')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $.jobMatcher($._config.jobs.querier)),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $.jobMatcher($._config.jobs.querier)),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.querier)),
+        )
+      )
+      .addRow(
+        g.row('Ingester')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $.jobMatcher($._config.jobs.ingester)),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $.jobMatcher($._config.jobs.ingester)),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.ingester)),
+        )
+      )
+      .addRow(
+        g.row('Compactor')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $.jobMatcher($._config.jobs.compactor)),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $.jobMatcher($._config.jobs.compactor)),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.compactor)),
+        )
       )
   },
 }

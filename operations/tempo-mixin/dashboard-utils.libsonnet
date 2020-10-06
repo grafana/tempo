@@ -70,4 +70,43 @@ grafana {
         for target in super.targets
       ],
     },
+
+  containerCPUUsagePanel(title, job)::
+    $.panel(title) +
+    $.queryPanel([
+      'sum by(pod) (rate(container_cpu_usage_seconds_total{%s}[$__interval]))' % job,
+      'min(container_spec_cpu_quota{%s} / container_spec_cpu_period{%s})' % [job, job],
+    ], ['{{pod}}', 'limit']) +
+    {
+      seriesOverrides: [
+        {
+          alias: 'limit',
+          color: '#E02F44',
+          fill: 0,
+        },
+      ],
+    },
+
+  containerMemoryWorkingSetPanel(title, job)::
+    $.panel(title) +
+    $.queryPanel([
+      'sum by(pod) (container_memory_working_set_bytes{%s})' % job,
+      'min(container_spec_memory_limit_bytes{%s} > 0)' % job,
+    ], ['{{pod}}', 'limit']) +
+    {
+      seriesOverrides: [
+        {
+          alias: 'limit',
+          color: '#E02F44',
+          fill: 0,
+        },
+      ],
+      yaxes: $.yaxes('bytes'),
+    },
+
+  goHeapInUsePanel(title, job)::
+    $.panel(title) +
+    $.queryPanel('sum by(instance) (go_memstats_heap_inuse_bytes{%s})' % job, '{{instance}}') +
+    { yaxes: $.yaxes('bytes') },
+
 }
