@@ -72,17 +72,27 @@ func (r *readerWriter) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error)
 		return val, nil
 	}
 
-	return r.nextReader.Bloom(blockID, tenantID)
+	val, err := r.nextReader.Bloom(blockID, tenantID)
+	if err != nil {
+		r.set(context.Background(), key, val)
+	}
+
+	return val, err
 }
 
 func (r *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
-	key := key(blockID, tenantID, typeBloom)
+	key := key(blockID, tenantID, typeIndex)
 	val := r.get(key)
 	if val != nil {
 		return val, nil
 	}
 
-	return r.nextReader.Index(blockID, tenantID)
+	val, err := r.nextReader.Index(blockID, tenantID)
+	if err != nil {
+		r.set(context.Background(), key, val)
+	}
+
+	return val, err
 }
 
 func (r *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
