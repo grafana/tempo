@@ -70,7 +70,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw\"}[$__interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -79,7 +79,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\"} / container_spec_cpu_period{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\"})",
+       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -170,7 +170,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\"})",
+       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -179,7 +179,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\"} > 0)",
+       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw\"} > 0)",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -369,7 +369,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", job=~\"($namespace)/querier\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"}[$__interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -378,7 +378,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", job=~\"($namespace)/querier\"} / container_spec_cpu_period{cluster=~\"$cluster\", job=~\"($namespace)/querier\"})",
+       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -469,7 +469,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", job=~\"($namespace)/querier\"})",
+       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -478,7 +478,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", job=~\"($namespace)/querier\"} > 0)",
+       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"} > 0)",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -668,7 +668,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", job=~\"($namespace)/ingester\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"ingester\"}[$__interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -677,7 +677,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", job=~\"($namespace)/ingester\"} / container_spec_cpu_period{cluster=~\"$cluster\", job=~\"($namespace)/ingester\"})",
+       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"ingester\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"ingester\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -768,7 +768,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", job=~\"($namespace)/ingester\"})",
+       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"ingester\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -777,7 +777,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", job=~\"($namespace)/ingester\"} > 0)",
+       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"ingester\"} > 0)",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -967,7 +967,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"compactor\"}[$__interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -976,7 +976,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"} / container_spec_cpu_period{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})",
+       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"compactor\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"compactor\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1067,7 +1067,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})",
+       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"compactor\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1076,7 +1076,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"} > 0)",
+       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"compactor\"} > 0)",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,

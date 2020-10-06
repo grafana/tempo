@@ -112,10 +112,10 @@ dashboard_utils {
       .addRow(
         g.row('Gateway')
         .addPanel(
-          $.containerCPUUsagePanel('CPU', $.jobMatcher($._config.jobs.gateway)),
+          $.containerCPUUsagePanel('CPU', $._config.jobs.gateway),
         )
         .addPanel(
-          $.containerMemoryWorkingSetPanel('Memory (workingset)', $.jobMatcher($._config.jobs.gateway)),
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.gateway),
         )
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.gateway)),
@@ -124,10 +124,10 @@ dashboard_utils {
       .addRow(
         g.row('Querier')
         .addPanel(
-          $.containerCPUUsagePanel('CPU', $.jobMatcher($._config.jobs.querier)),
+          $.containerCPUUsagePanel('CPU', $._config.jobs.querier),
         )
         .addPanel(
-          $.containerMemoryWorkingSetPanel('Memory (workingset)', $.jobMatcher($._config.jobs.querier)),
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.querier),
         )
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.querier)),
@@ -136,10 +136,10 @@ dashboard_utils {
       .addRow(
         g.row('Ingester')
         .addPanel(
-          $.containerCPUUsagePanel('CPU', $.jobMatcher($._config.jobs.ingester)),
+          $.containerCPUUsagePanel('CPU', $._config.jobs.ingester),
         )
         .addPanel(
-          $.containerMemoryWorkingSetPanel('Memory (workingset)', $.jobMatcher($._config.jobs.ingester)),
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.ingester),
         )
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.ingester)),
@@ -148,10 +148,10 @@ dashboard_utils {
       .addRow(
         g.row('Compactor')
         .addPanel(
-          $.containerCPUUsagePanel('CPU', $.jobMatcher($._config.jobs.compactor)),
+          $.containerCPUUsagePanel('CPU', $._config.jobs.compactor),
         )
         .addPanel(
-          $.containerMemoryWorkingSetPanel('Memory (workingset)', $.jobMatcher($._config.jobs.compactor)),
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.compactor),
         )
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.compactor)),
