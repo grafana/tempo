@@ -19,7 +19,7 @@ const (
 )
 
 type Config struct {
-	clientConfig cache.MemcachedClientConfig `yaml:",inline"`
+	ClientConfig cache.MemcachedClientConfig `yaml:",inline"`
 
 	TTL        time.Duration `yaml:"ttl"`
 	WritesOnly bool          `yaml:"writes_only"`
@@ -34,7 +34,7 @@ type readerWriter struct {
 }
 
 func New(nextReader backend.Reader, nextWriter backend.Writer, cfg *Config, logger log.Logger) (backend.Reader, backend.Writer, error) {
-	client := cache.NewMemcachedClient(cfg.clientConfig, "tempo", prometheus.DefaultRegisterer, logger)
+	client := cache.NewMemcachedClient(cfg.ClientConfig, "tempo", prometheus.DefaultRegisterer, logger)
 	memcachedCfg := cache.MemcachedConfig{
 		Expiration:  cfg.TTL,
 		BatchSize:   0, // we are currently only requesting one key at a time, which is bad.  we could restructure Find() to batch request all blooms at once
