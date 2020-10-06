@@ -1,4 +1,4 @@
-package cache
+package diskcache
 
 import (
 	"io/ioutil"

@@ -1,6 +1,6 @@
 // +build darwin
 
-package cache
+package diskcache
 
 import "syscall"
 
