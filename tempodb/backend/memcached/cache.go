@@ -34,6 +34,16 @@ type readerWriter struct {
 }
 
 func New(nextReader backend.Reader, nextWriter backend.Writer, cfg *Config, logger log.Logger) (backend.Reader, backend.Writer, error) {
+	if cfg.ClientConfig.MaxIdleConns == 0 {
+		cfg.ClientConfig.MaxIdleConns = 16
+	}
+	if cfg.ClientConfig.Timeout == 0 {
+		cfg.ClientConfig.Timeout = 100 * time.Millisecond
+	}
+	if cfg.ClientConfig.UpdateInterval == 0 {
+		cfg.ClientConfig.UpdateInterval = time.Minute
+	}
+
 	client := cache.NewMemcachedClient(cfg.ClientConfig, "tempo", prometheus.DefaultRegisterer, logger)
 	memcachedCfg := cache.MemcachedConfig{
 		Expiration:  cfg.TTL,
