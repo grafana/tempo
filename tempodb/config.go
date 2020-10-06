@@ -21,7 +21,7 @@ type Config struct {
 	WAL     *wal.Config   `yaml:"wal"`
 
 	Diskcache *diskcache.Config `yaml:"disk_cache"`
-	Memcached *memcached.Config `yaml:"memcache"`
+	Memcached *memcached.Config `yaml:"memcached"`
 
 	MaintenanceCycle time.Duration `yaml:"maintenance_cycle"`
 }
