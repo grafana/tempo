@@ -36,7 +36,7 @@ type job struct {
 
 	wg        *sync.WaitGroup
 	resultsCh chan []byte
-	stopCh    chan struct{}
+	stop      *atomic.Bool
 	err       *atomic.Error
 }
 
@@ -44,8 +44,8 @@ type Pool struct {
 	cfg  *Config
 	size *atomic.Int32
 
-	workQueue chan interface{}
-	stopCh    chan struct{}
+	workQueue  chan *job
+	shutdownCh chan struct{}
 }
 
 func NewPool(cfg *Config) *Pool {
@@ -53,19 +53,19 @@ func NewPool(cfg *Config) *Pool {
 		cfg = defaultConfig()
 	}
 
-	q := make(chan interface{}, cfg.QueueDepth)
+	q := make(chan *job, cfg.QueueDepth)
 	p := &Pool{
-		cfg:       cfg,
-		workQueue: q,
-		size:      atomic.NewInt32(0),
-		stopCh:    make(chan struct{}),
+		cfg:        cfg,
+		workQueue:  q,
+		size:       atomic.NewInt32(0),
+		shutdownCh: make(chan struct{}),
 	}
 
 	for i := 0; i < cfg.MaxWorkers; i++ {
 		go p.worker(q)
 	}
 
-	go p.reportQueueLength()
+	p.reportQueueLength()
 
 	metricQueryQueueMax.Set(float64(cfg.QueueDepth))
 
@@ -80,20 +80,20 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 		return nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
-	resultsCh := make(chan []byte, 1)
-	stopCh := make(chan struct{})
-	wg := &sync.WaitGroup{}
-	err := atomic.NewError(nil)
+	resultsCh := make(chan []byte, 1) // way for jobs to send back results
+	err := atomic.NewError(nil)       // way for jobs to send back an error
+	stop := atomic.NewBool(false)     // way to signal to the jobs to quit
+	wg := &sync.WaitGroup{}           // way to wait for all jobs to complete
 
-	wg.Add(totalJobs)
 	// add each job one at a time.  even though we checked length above these might still fail
 	for _, payload := range payloads {
+		wg.Add(1)
 		j := &job{
 			fn:        fn,
 			payload:   payload,
 			wg:        wg,
 			resultsCh: resultsCh,
-			stopCh:    stopCh,
+			stop:      stop,
 			err:       err,
 		}
 
@@ -101,60 +101,40 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 		case p.workQueue <- j:
 			p.size.Inc()
 		default:
-			close(stopCh)
+			wg.Done()
+			stop.Store(true)
 			return nil, fmt.Errorf("failed to add a job to work queue")
 		}
 	}
 
-	allDone := make(chan struct{}, 1)
-	go func() {
-		wg.Wait()
-		allDone <- struct{}{}
-	}()
+	// wait for all jobs to finish
+	wg.Wait()
 
+	// see if anything ended up in the results channel
 	var msg []byte
-	closed := false
-	for {
-		select {
-		case msg = <-resultsCh:
-			wg.Done()
-			if !closed {
-				close(stopCh)
-				closed = true
-			}
-		case <-allDone:
-			if msg != nil {
-				return msg, nil
-			}
-			return nil, err.Load()
-		}
+	select {
+	case msg = <-resultsCh:
+	default:
 	}
+
+	return msg, err.Load()
 }
 
 func (p *Pool) Shutdown() {
 	close(p.workQueue)
-	close(p.stopCh)
+	close(p.shutdownCh)
 }
 
-func (p *Pool) worker(j <-chan interface{}) {
+func (p *Pool) worker(j <-chan *job) {
 	for {
 		select {
-		case <-p.stopCh:
+		case <-p.shutdownCh:
 			return
 		case j, ok := <-j:
 			if !ok {
 				return
 			}
-
-			switch typedJob := j.(type) {
-			case *stoppableJob:
-				runStoppableJob(typedJob)
-			case *job:
-				runJob(typedJob)
-			default:
-				panic("unexpected job type")
-			}
-
+			runJob(j)
 			p.size.Dec()
 		}
 	}
@@ -168,7 +148,7 @@ func (p *Pool) reportQueueLength() {
 			select {
 			case <-ticker.C:
 				metricQueryQueueLength.Set(float64(p.size.Load()))
-			case <-p.stopCh:
+			case <-p.shutdownCh:
 				return
 			}
 		}
@@ -176,25 +156,22 @@ func (p *Pool) reportQueueLength() {
 }
 
 func runJob(job *job) {
-	select {
-	case <-job.stopCh:
-		job.wg.Done()
-		return
-	default:
-		msg, err := job.fn(job.payload)
+	defer job.wg.Done()
 
-		if msg != nil {
-			select {
-			case job.resultsCh <- msg:
-				// not signalling done here to dodge race condition between resultsCh and stopCh
-				return
-			default:
-			}
+	if job.stop.Load() {
+		return
+	}
+
+	msg, err := job.fn(job.payload)
+	if msg != nil {
+		job.stop.Store(true) // one job was successful.  stop all others
+		select {
+		case job.resultsCh <- msg:
+		default: // if we hit default it means that something else already returned a good result.  /shrug
 		}
-		if err != nil {
-			job.err.Store(err)
-		}
-		job.wg.Done()
+	}
+	if err != nil {
+		job.err.Store(err)
 	}
 }
 
