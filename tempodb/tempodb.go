@@ -22,9 +22,10 @@ import (
 	ot_log "github.com/opentracing/opentracing-go/log"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/cache"
+	"github.com/grafana/tempo/tempodb/backend/diskcache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/backend/memcached"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
@@ -138,8 +139,16 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		return nil, nil, nil, err
 	}
 
-	if cfg.Cache != nil {
-		r, err = cache.New(r, cfg.Cache, logger)
+	if cfg.Diskcache != nil {
+		r, err = diskcache.New(r, cfg.Diskcache, logger)
+
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	if cfg.Memcached != nil {
+		r, w, err = memcached.New(r, w, cfg.Memcached, logger)
 
 		if err != nil {
 			return nil, nil, nil, err
