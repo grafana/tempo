@@ -257,6 +257,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
 		}
+		span.LogFields(ot_log.String("msg", "found bloom"))
 
 		filter := &bloom.BloomFilter{}
 		_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
@@ -276,11 +277,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		if err != nil {
 			return nil, fmt.Errorf("error reading index %v", err)
 		}
+		span.LogFields(ot_log.String("msg", "found index"))
 
 		record, err := encoding.FindRecord(id, indexBytes) // todo: replace with backend.Finder
 		if err != nil {
 			return nil, fmt.Errorf("error finding record %v", err)
 		}
+		span.LogFields(ot_log.String("msg", "found record"))
 
 		if record == nil {
 			return nil, nil
@@ -311,6 +314,9 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		}
 		level.Info(logger).Log("msg", "searching for trace in block", "traceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
 		span.LogFields(ot_log.String("msg", "searching for trace in block"), ot_log.String("traceID", hex.EncodeToString(id)), ot_log.String("block", meta.BlockID.String()), ot_log.Bool("found", foundObject != nil))
+		if foundObject != nil {
+			span.SetTag("object bytes", len(foundObject))
+		}
 		return foundObject, nil
 	})
 
