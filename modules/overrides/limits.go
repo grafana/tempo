@@ -24,6 +24,7 @@ type Limits struct {
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user"`
 	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user"`
+	MaxSpansPerTrace       int `yaml:"max_spans_per_trace"`
 
 	// Config for overrides, convenient if it goes here.
 	PerTenantOverrideConfig string        `yaml:"per_tenant_override_config"`
@@ -40,6 +41,7 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	// Ingester limits
 	f.IntVar(&l.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")
 	f.IntVar(&l.MaxGlobalTracesPerUser, "ingester.max-global-traces-per-user", 0, "Maximum number of active traces per user, across the cluster. 0 to disable.")
+	f.IntVar(&l.MaxSpansPerTrace, "ingester.max-spans-per-trace", 50e3, "Maximum number of spans per trace.  0 to disable.")
 
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	f.DurationVar(&l.PerTenantOverridePeriod, "limits.per-user-override-period", 10*time.Second, "Period with this to reload the overrides.")

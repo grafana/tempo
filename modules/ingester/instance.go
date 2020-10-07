@@ -3,18 +3,18 @@ package ingester
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
 	cortex_util "github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/weaveworks/common/httpgrpc"
+	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -277,7 +277,7 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 
 	err = i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
 	if err != nil {
-		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, err.Error())
+		return nil, status.Errorf(codes.ResourceExhausted, "max live traces per tenant exceeded, %v", err)
 	}
 
 	trace = newTrace(fp, traceID)
