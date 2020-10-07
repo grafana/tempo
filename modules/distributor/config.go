@@ -7,7 +7,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
-	"github.com/grafana/tempo/pkg/util"
 )
 
 var defaultReceivers = map[string]interface{}{
@@ -42,5 +41,5 @@ type Config struct {
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	flagext.DefaultValues(&cfg.DistributorRing)
 
-	f.StringVar(&cfg.OverrideRingKey, util.PrefixConfig(prefix, "distributor.override-ring-key"), ring.DistributorRingKey, "Override key to ignore previous ring state.")
+	cfg.OverrideRingKey = ring.DistributorRingKey
 }
