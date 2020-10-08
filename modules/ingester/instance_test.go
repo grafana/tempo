@@ -199,35 +199,35 @@ func TestInstanceLimits(t *testing.T) {
 		name   string
 		pushes []push
 	}{
-		// {
-		// 	name: "succeeds",
-		// 	pushes: []push{
-		// 		{
-		// 			req: test.MakeRequest(3, []byte{}),
-		// 		},
-		// 		{
-		// 			req: test.MakeRequest(5, []byte{}),
-		// 		},
-		// 		{
-		// 			req: test.MakeRequest(9, []byte{}),
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	name: "one fails",
-		// 	pushes: []push{
-		// 		{
-		// 			req: test.MakeRequest(3, []byte{}),
-		// 		},
-		// 		{
-		// 			req:          test.MakeRequest(15, []byte{}),
-		// 			expectsError: true,
-		// 		},
-		// 		{
-		// 			req: test.MakeRequest(9, []byte{}),
-		// 		},
-		// 	},
-		// },
+		{
+			name: "succeeds",
+			pushes: []push{
+				{
+					req: test.MakeRequest(3, []byte{}),
+				},
+				{
+					req: test.MakeRequest(5, []byte{}),
+				},
+				{
+					req: test.MakeRequest(9, []byte{}),
+				},
+			},
+		},
+		{
+			name: "one fails",
+			pushes: []push{
+				{
+					req: test.MakeRequest(3, []byte{}),
+				},
+				{
+					req:          test.MakeRequest(15, []byte{}),
+					expectsError: true,
+				},
+				{
+					req: test.MakeRequest(9, []byte{}),
+				},
+			},
+		},
 		{
 			name: "multiple pushes same trace",
 			pushes: []push{
