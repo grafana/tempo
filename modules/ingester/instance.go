@@ -280,7 +280,8 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 		return nil, status.Errorf(codes.ResourceExhausted, "max live traces per tenant exceeded, %v", err)
 	}
 
-	trace = newTrace(fp, traceID)
+	maxSpans := i.limiter.limits.MaxSpansPerTrace(i.instanceID)
+	trace = newTrace(maxSpans, fp, traceID)
 	i.traces[fp] = trace
 	i.tracesCreatedTotal.Inc()
 

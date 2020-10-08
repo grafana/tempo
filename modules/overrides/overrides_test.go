@@ -86,10 +86,8 @@ func TestOverrides(t *testing.T) {
 
 			overrides, err := NewOverrides(tt.limits)
 			require.NoError(t, err)
-			// if overrides != nil {
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
 			require.NoError(t, err)
-			// }
 
 			for user, expectedVal := range tt.expectedMaxLocalTraces {
 				assert.Equal(t, expectedVal, overrides.MaxLocalTracesPerUser(user))
