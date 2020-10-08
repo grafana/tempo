@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 
 	"github.com/stretchr/testify/assert"
@@ -170,4 +171,84 @@ func TestInstanceDoesNotRace(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 	close(end)
+}
+
+func TestInstanceLimits(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{
+		MaxSpansPerTrace: 10,
+	})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+	wal := ingester.store.WAL()
+
+	i, err := newInstance("fake", limiter, wal)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	type push struct {
+		req          *tempopb.PushRequest
+		expectsError bool
+	}
+
+	tests := []struct {
+		name   string
+		pushes []push
+	}{
+		// {
+		// 	name: "succeeds",
+		// 	pushes: []push{
+		// 		{
+		// 			req: test.MakeRequest(3, []byte{}),
+		// 		},
+		// 		{
+		// 			req: test.MakeRequest(5, []byte{}),
+		// 		},
+		// 		{
+		// 			req: test.MakeRequest(9, []byte{}),
+		// 		},
+		// 	},
+		// },
+		// {
+		// 	name: "one fails",
+		// 	pushes: []push{
+		// 		{
+		// 			req: test.MakeRequest(3, []byte{}),
+		// 		},
+		// 		{
+		// 			req:          test.MakeRequest(15, []byte{}),
+		// 			expectsError: true,
+		// 		},
+		// 		{
+		// 			req: test.MakeRequest(9, []byte{}),
+		// 		},
+		// 	},
+		// },
+		{
+			name: "multiple pushes same trace",
+			pushes: []push{
+				{
+					req: test.MakeRequest(5, []byte{0x01}),
+				},
+				{
+					req:          test.MakeRequest(7, []byte{0x01}),
+					expectsError: true,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for j, push := range tt.pushes {
+				err := i.Push(context.Background(), push.req)
+
+				assert.Equalf(t, push.expectsError, err != nil, "push %d failed", j)
+			}
+		})
+	}
 }

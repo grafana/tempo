@@ -266,7 +266,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	traceID, err := pushRequestTraceID(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get trace id %w", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to extract traceID: %v", err)
 	}
 
 	fp := util.TokenForTraceID(traceID)
@@ -277,7 +277,7 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 
 	err = i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
 	if err != nil {
-		return nil, status.Errorf(codes.ResourceExhausted, "max live traces per tenant exceeded, %v", err)
+		return nil, status.Errorf(codes.ResourceExhausted, "max live traces per tenant exceeded: %v", err)
 	}
 
 	maxSpans := i.limiter.limits.MaxSpansPerTrace(i.instanceID)
