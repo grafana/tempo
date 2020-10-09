@@ -48,7 +48,7 @@ storage:
     pool:
       max_workers: 100
       queue_depth: 10000
-    cache:
+    disk_cache:
       disk_path: /tmp/tempo/cache
       disk_max_mbs: 5
       disk_prune_count: 10

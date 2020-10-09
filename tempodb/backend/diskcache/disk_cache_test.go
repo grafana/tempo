@@ -1,6 +1,7 @@
 package diskcache
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -21,7 +22,7 @@ func TestReadOrCache(t *testing.T) {
 
 	missBytes := []byte{0x01}
 	missCalled := 0
-	missFunc := func(blockID uuid.UUID, tenantID string) ([]byte, error) {
+	missFunc := func(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
 		missCalled++
 		return missBytes, nil
 	}
@@ -37,13 +38,13 @@ func TestReadOrCache(t *testing.T) {
 	blockID := uuid.New()
 	tenantID := testTenantID
 
-	bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+	bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(context.Background(), blockID, tenantID, "type", missFunc)
 	assert.NoError(t, err)
 	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
 	assert.Equal(t, 1, missCalled)
 
-	bytes, skippableErr, err = cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+	bytes, skippableErr, err = cache.(*reader).readOrCacheKeyToDisk(context.Background(), blockID, tenantID, "type", missFunc)
 	assert.NoError(t, err)
 	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
@@ -57,7 +58,7 @@ func TestJanitor(t *testing.T) {
 
 	// 1KB per file
 	missBytes := make([]byte, 1024)
-	missFunc := func(blockID uuid.UUID, tenantID string) ([]byte, error) {
+	missFunc := func(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
 		return missBytes, nil
 	}
 
@@ -74,7 +75,7 @@ func TestJanitor(t *testing.T) {
 		blockID := uuid.New()
 		tenantID := testTenantID
 
-		bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+		bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(context.Background(), blockID, tenantID, "type", missFunc)
 		assert.NoError(t, err)
 		assert.NoError(t, skippableErr)
 		assert.Equal(t, missBytes, bytes)
@@ -95,7 +96,7 @@ func TestJanitor(t *testing.T) {
 		blockID := uuid.New()
 		tenantID := testTenantID
 
-		bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(blockID, tenantID, "type", missFunc)
+		bytes, skippableErr, err := cache.(*reader).readOrCacheKeyToDisk(context.Background(), blockID, tenantID, "type", missFunc)
 		assert.NoError(t, err)
 		assert.NoError(t, skippableErr)
 		assert.Equal(t, missBytes, bytes)

@@ -126,7 +126,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 
 		bookmarks = append(bookmarks, newBookmark(iter))
 
-		_, err = rw.r.BlockMeta(blockMeta.BlockID, tenantID)
+		_, err = rw.r.BlockMeta(context.TODO(), blockMeta.BlockID, tenantID)
 		if err != nil {
 			return err
 		}
