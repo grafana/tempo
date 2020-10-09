@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -28,9 +29,11 @@ var (
 	})
 )
 
-type JobFunc func(payload interface{}) ([]byte, error)
+type JobFunc func(ctx context.Context, payload interface{}) ([]byte, error)
 
 type job struct {
+	ctx     context.Context
+	cancel  context.CancelFunc
 	payload interface{}
 	fn      JobFunc
 
@@ -72,7 +75,10 @@ func NewPool(cfg *Config) *Pool {
 	return p
 }
 
-func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
+func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([]byte, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	totalJobs := len(payloads)
 
 	// sanity check before we even attempt to start adding jobs
@@ -89,6 +95,8 @@ func (p *Pool) RunJobs(payloads []interface{}, fn JobFunc) ([]byte, error) {
 	for _, payload := range payloads {
 		wg.Add(1)
 		j := &job{
+			ctx:       ctx,
+			cancel:    cancel,
 			fn:        fn,
 			payload:   payload,
 			wg:        wg,
@@ -162,9 +170,10 @@ func runJob(job *job) {
 		return
 	}
 
-	msg, err := job.fn(job.payload)
+	msg, err := job.fn(job.ctx, job.payload)
 	if msg != nil {
 		job.stop.Store(true) // one job was successful.  stop all others
+		job.cancel()         // cancel in-flight requests
 		select {
 		case job.resultsCh <- msg:
 		default: // if we hit default it means that something else already returned a good result.  /shrug

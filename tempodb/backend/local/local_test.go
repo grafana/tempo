@@ -52,35 +52,36 @@ func TestReadWrite(t *testing.T) {
 	_, err = fakeTracesFile.Write(fakeTraces)
 	assert.NoError(t, err, "unexpected error writing fakeTraces")
 
+	ctx := context.Background()
 	for _, id := range tenantIDs {
 		fakeMeta.TenantID = id
-		err = w.Write(context.Background(), fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		err = w.Write(ctx, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
 		assert.NoError(t, err, "unexpected error writing")
 	}
 
-	actualMeta, err := r.BlockMeta(blockID, fakeMeta.TenantID)
+	actualMeta, err := r.BlockMeta(ctx, blockID, fakeMeta.TenantID)
 	assert.NoError(t, err, "unexpected error reading indexes")
 	assert.Equal(t, fakeMeta, actualMeta)
 
-	actualIndex, err := r.Index(blockID, tenantIDs[0])
+	actualIndex, err := r.Index(ctx, blockID, tenantIDs[0])
 	assert.NoError(t, err, "unexpected error reading indexes")
 	assert.Equal(t, fakeIndex, actualIndex)
 
 	actualTrace := make([]byte, 20)
-	err = r.Object(blockID, tenantIDs[0], 100, actualTrace)
+	err = r.Object(ctx, blockID, tenantIDs[0], 100, actualTrace)
 	assert.NoError(t, err, "unexpected error reading traces")
 	assert.Equal(t, fakeTraces[100:120], actualTrace)
 
-	actualBloom, err := r.Bloom(blockID, tenantIDs[0])
+	actualBloom, err := r.Bloom(ctx, blockID, tenantIDs[0])
 	assert.NoError(t, err, "unexpected error reading bloom")
 	assert.Equal(t, fakeBloom, actualBloom)
 
-	list, err := r.Blocks(tenantIDs[0])
+	list, err := r.Blocks(ctx, tenantIDs[0])
 	assert.NoError(t, err, "unexpected error reading blocklist")
 	assert.Len(t, list, 1)
 	assert.Equal(t, blockID, list[0])
 
-	tenants, err := r.Tenants()
+	tenants, err := r.Tenants(ctx)
 	assert.NoError(t, err, "unexpected error reading tenants")
 	assert.Len(t, tenants, len(tenantIDs))
 }
@@ -146,10 +147,11 @@ func TestCompaction(t *testing.T) {
 	_, err = fakeTracesFile.Write(fakeTraces)
 	assert.NoError(t, err, "unexpected error writing fakeTraces")
 
+	ctx := context.Background()
 	for _, id := range tenantIDs {
 		fakeMeta.TenantID = id
 
-		err = w.Write(context.Background(), fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		err = w.Write(ctx, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
 		assert.NoError(t, err, "unexpected error writing")
 
 		compactedMeta, err := c.CompactedBlockMeta(blockID, id)
@@ -163,7 +165,7 @@ func TestCompaction(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, compactedMeta)
 
-		meta, err := r.BlockMeta(blockID, id)
+		meta, err := r.BlockMeta(ctx, blockID, id)
 		assert.Equal(t, backend.ErrMetaDoesNotExist, err)
 		assert.Nil(t, meta)
 
@@ -174,7 +176,7 @@ func TestCompaction(t *testing.T) {
 		assert.Equal(t, backend.ErrMetaDoesNotExist, err)
 		assert.Nil(t, compactedMeta)
 
-		meta, err = r.BlockMeta(blockID, id)
+		meta, err = r.BlockMeta(ctx, blockID, id)
 		assert.Equal(t, backend.ErrMetaDoesNotExist, err)
 		assert.Nil(t, meta)
 	}

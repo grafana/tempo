@@ -259,14 +259,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		return nil, metrics, fmt.Errorf("tenantID %s not found", tenantID)
 	}
 
-	foundBytes, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) ([]byte, error) {
+	foundBytes, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*encoding.BlockMeta)
 
-		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
+		bloomBytes, err := rw.r.Bloom(ctx, meta.BlockID, tenantID)
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
 		}
-		span.LogFields(ot_log.String("msg", "found bloom"))
 
 		filter := &bloom.BloomFilter{}
 		_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
@@ -280,26 +279,24 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 			return nil, nil
 		}
 
-		indexBytes, err := rw.r.Index(meta.BlockID, tenantID)
+		indexBytes, err := rw.r.Index(ctx, meta.BlockID, tenantID)
 		metrics.IndexReads.Inc()
 		metrics.IndexBytesRead.Add(int32(len(indexBytes)))
 		if err != nil {
 			return nil, fmt.Errorf("error reading index %v", err)
 		}
-		span.LogFields(ot_log.String("msg", "found index"))
 
 		record, err := encoding.FindRecord(id, indexBytes) // todo: replace with backend.Finder
 		if err != nil {
 			return nil, fmt.Errorf("error finding record %v", err)
 		}
-		span.LogFields(ot_log.String("msg", "found record"))
 
 		if record == nil {
 			return nil, nil
 		}
 
 		objectBytes := make([]byte, record.Length)
-		err = rw.r.Object(meta.BlockID, tenantID, record.Start, objectBytes)
+		err = rw.r.Object(ctx, meta.BlockID, tenantID, record.Start, objectBytes)
 		metrics.BlockReads.Inc()
 		metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 		if err != nil {
@@ -372,14 +369,15 @@ func (rw *readerWriter) pollBlocklist() {
 	start := time.Now()
 	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
 
-	tenants, err := rw.r.Tenants()
+	ctx := context.Background()
+	tenants, err := rw.r.Tenants(ctx)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues("").Inc()
 		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
 	}
 
 	for _, tenantID := range tenants {
-		blockIDs, err := rw.r.Blocks(tenantID)
+		blockIDs, err := rw.r.Blocks(ctx, tenantID)
 		if err != nil {
 			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
@@ -393,11 +391,11 @@ func (rw *readerWriter) pollBlocklist() {
 		listMutex := sync.Mutex{}
 		blocklist := make([]*encoding.BlockMeta, 0, len(blockIDs))
 		compactedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(blockIDs))
-		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
+		_, err = rw.pool.RunJobs(ctx, interfaceSlice, func(ctx context.Context, payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
 
 			var compactedBlockMeta *encoding.CompactedBlockMeta
-			blockMeta, err := rw.r.BlockMeta(blockID, tenantID)
+			blockMeta, err := rw.r.BlockMeta(ctx, blockID, tenantID)
 			// if the normal meta doesn't exist maybe it's compacted.
 			if err == backend.ErrMetaDoesNotExist {
 				blockMeta = nil
@@ -459,7 +457,7 @@ func (rw *readerWriter) doRetention() {
 	tenants := rw.blocklistTenants()
 
 	// todo: continued abuse of runJobs.  need a runAllJobs() method or something
-	_, err := rw.pool.RunJobs(tenants, func(payload interface{}) ([]byte, error) {
+	_, err := rw.pool.RunJobs(context.TODO(), tenants, func(_ context.Context, payload interface{}) ([]byte, error) {
 		start := time.Now()
 		defer func() { metricRetentionDuration.Observe(time.Since(start).Seconds()) }()
 
