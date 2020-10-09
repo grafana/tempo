@@ -21,8 +21,7 @@ const (
 type Config struct {
 	ClientConfig cache.MemcachedClientConfig `yaml:",inline"`
 
-	TTL        time.Duration `yaml:"ttl"`
-	WritesOnly bool          `yaml:"writes_only"`
+	TTL time.Duration `yaml:"ttl"`
 }
 
 type readerWriter struct {
@@ -30,7 +29,6 @@ type readerWriter struct {
 	nextWriter backend.Writer
 	client     *cache.Memcached
 	logger     log.Logger
-	writesOnly bool
 }
 
 func New(nextReader backend.Reader, nextWriter backend.Writer, cfg *Config, logger log.Logger) (backend.Reader, backend.Writer, error) {
@@ -56,7 +54,6 @@ func New(nextReader backend.Reader, nextWriter backend.Writer, cfg *Config, logg
 		nextReader: nextReader,
 		nextWriter: nextWriter,
 		logger:     logger,
-		writesOnly: cfg.WritesOnly,
 	}
 
 	return rw, rw, nil
