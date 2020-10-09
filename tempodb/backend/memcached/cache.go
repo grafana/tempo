@@ -80,7 +80,7 @@ func (r *readerWriter) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error)
 	}
 
 	val, err := r.nextReader.Bloom(blockID, tenantID)
-	if err != nil {
+	if err == nil {
 		r.set(context.Background(), key, val)
 	}
 
@@ -95,7 +95,7 @@ func (r *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error)
 	}
 
 	val, err := r.nextReader.Index(blockID, tenantID)
-	if err != nil {
+	if err == nil {
 		r.set(context.Background(), key, val)
 	}
 
