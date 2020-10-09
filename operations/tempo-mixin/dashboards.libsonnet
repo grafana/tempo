@@ -116,6 +116,28 @@ dashboard_utils {
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route="/tempopb.Pusher/Push"}' % $.jobMatcher($._config.jobs.ingester))
         )
+      )
+      .addRow(
+        g.row('Memcached - Ingester')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('cortex_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.ingester))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('cortex_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.ingester))
+        )
+      )
+      .addRow(
+        g.row('Memcached - Compactor')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('cortex_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('cortex_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
+        )
       ),
     'tempo-resources.json':
       $.dashboard('Tempo / Resources')
