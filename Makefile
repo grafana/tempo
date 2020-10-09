@@ -137,3 +137,16 @@ $(GORELEASER):
 release: $(GORELEASER)
 	$(GORELEASER) build --skip-validate --rm-dist
 	$(GORELEASER) release --rm-dist
+
+### Docs
+DOCS_IMAGE = grafana/docs-base:latest
+
+.PHONY: docs
+docs:
+	docker pull ${DOCS_IMAGE}
+	docker run -v ${PWD}/docs/tempo/website:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make server'
+
+.PHONY: docs-test
+docs-test:
+	docker pull ${DOCS_IMAGE}
+	docker run -v ${PWD}/docs/tempo/website:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'
