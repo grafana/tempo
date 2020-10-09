@@ -912,7 +912,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"GET\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (label_replace(label_replace(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"GET\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -999,7 +999,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"GET\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"GET\"}[$__interval])) by (le)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1008,7 +1008,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"GET\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"GET\"}[$__interval])) by (le)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1017,7 +1017,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempodb_gcs_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"GET\"}[$__interval])) * 1e3 / sum(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"GET\"}[$__interval]))",
+       "expr": "sum(rate(tempodb_gcs_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"GET\"}[$__interval])) * 1e3 / sum(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"GET\"}[$__interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,

@@ -56,11 +56,11 @@ dashboard_utils {
         g.row('GCS')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempodb_gcs_request_duration_seconds_count{%s,operation=~"GET"}' % $.jobMatcher($._config.jobs.ingester))
+          $.qpsPanel('tempodb_gcs_request_duration_seconds_count{%s,operation="GET"}' % $.jobMatcher($._config.jobs.ingester))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempodb_gcs_request_duration_seconds', '{%s,operation=~"GET"}' % $.jobMatcher($._config.jobs.ingester))
+          $.latencyPanel('tempodb_gcs_request_duration_seconds', '{%s,operation="GET"}' % $.jobMatcher($._config.jobs.ingester))
         )
       )
       .addRow(
@@ -125,6 +125,17 @@ dashboard_utils {
         )
       )
       .addRow(
+        g.row('GCS - Ingester')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('tempodb_gcs_request_duration_seconds_count{%s,operation="POST"}' % $.jobMatcher($._config.jobs.ingester))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('tempodb_gcs_request_duration_seconds', '{%s,operation="POST"}' % $.jobMatcher($._config.jobs.ingester))
+        )
+      )
+      .addRow(
         g.row('Memcached - Compactor')
         .addPanel(
           $.panel('QPS') +
@@ -133,6 +144,17 @@ dashboard_utils {
         .addPanel(
           $.panel('Latency') +
           $.latencyPanel('cortex_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
+        )
+      )
+      .addRow(
+        g.row('GCS - Compactor')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('tempodb_gcs_request_duration_seconds_count{%s,operation="POST"}' % $.jobMatcher($._config.jobs.compactor))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('tempodb_gcs_request_duration_seconds', '{%s,operation="POST"}' % $.jobMatcher($._config.jobs.compactor))
         )
       ),
     'tempo-resources.json':
