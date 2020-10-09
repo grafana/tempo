@@ -125,7 +125,13 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	default:
 	}
 
-	return msg, err.Load()
+	// ignore err if msg != nil.  otherwise errors like "context cancelled"
+	//  will take precedence over the err
+	if msg != nil {
+		return msg, nil
+	}
+
+	return nil, err.Load()
 }
 
 func (p *Pool) Shutdown() {
