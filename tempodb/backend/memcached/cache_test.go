@@ -159,7 +159,7 @@ func TestCache(t *testing.T) {
 
 			if tt.expectedObject != nil {
 				object := make([]byte, 1)
-				rw.Object(blockID, tenantID, 0, object)
+				_ = rw.Object(blockID, tenantID, 0, object)
 				assert.Equal(t, tt.expectedObject, object)
 			}
 
