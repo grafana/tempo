@@ -241,7 +241,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)
-	span, _ := opentracing.StartSpanFromContext(ctx, "store.Find")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 
 	rw.blockListsMtx.Lock()
