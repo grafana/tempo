@@ -241,7 +241,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)
-	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 
 	rw.blockListsMtx.Lock()
@@ -259,7 +259,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		return nil, metrics, fmt.Errorf("tenantID %s not found", tenantID)
 	}
 
-	foundBytes, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
+	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*encoding.BlockMeta)
 
 		bloomBytes, err := rw.r.Bloom(ctx, meta.BlockID, tenantID)

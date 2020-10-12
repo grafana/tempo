@@ -209,27 +209,27 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 }
 
 func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "gcs.Bloom")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Bloom")
 	defer span.Finish()
 
 	name := rw.bloomFileName(blockID, tenantID)
-	return rw.readAll(ctx, name)
+	return rw.readAll(derivedCtx, name)
 }
 
 func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "gcs.Index")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Index")
 	defer span.Finish()
 
 	name := rw.indexFileName(blockID, tenantID)
-	return rw.readAll(ctx, name)
+	return rw.readAll(derivedCtx, name)
 }
 
 func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
-	span, _ := opentracing.StartSpanFromContext(ctx, "gcs.Object")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Object")
 	defer span.Finish()
 
 	name := rw.objectFileName(blockID, tenantID)
-	return rw.readRange(ctx, name, int64(start), buffer)
+	return rw.readRange(derivedCtx, name, int64(start), buffer)
 }
 
 func (rw *readerWriter) Shutdown() {
