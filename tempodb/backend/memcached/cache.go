@@ -74,14 +74,14 @@ func (r *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantI
 
 func (r *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	key := key(blockID, tenantID, typeBloom)
-	val := r.get(key)
+	val := r.get(ctx, key)
 	if val != nil {
 		return val, nil
 	}
 
 	val, err := r.nextReader.Bloom(ctx, blockID, tenantID)
 	if err == nil {
-		r.set(context.Background(), key, val)
+		r.set(ctx, key, val)
 	}
 
 	return val, err
@@ -89,14 +89,14 @@ func (r *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID st
 
 func (r *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	key := key(blockID, tenantID, typeIndex)
-	val := r.get(key)
+	val := r.get(ctx, key)
 	if val != nil {
 		return val, nil
 	}
 
 	val, err := r.nextReader.Index(ctx, blockID, tenantID)
 	if err == nil {
-		r.set(context.Background(), key, val)
+		r.set(ctx, key, val)
 	}
 
 	return val, err
@@ -130,8 +130,8 @@ func (r *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendT
 	return r.nextWriter.AppendObject(ctx, tracker, meta, bObject)
 }
 
-func (r *readerWriter) get(key string) []byte {
-	found, vals, _ := r.client.Fetch(context.Background(), []string{key})
+func (r *readerWriter) get(ctx context.Context, key string) []byte {
+	found, vals, _ := r.client.Fetch(ctx, []string{key})
 	if len(found) > 0 {
 		return vals[0]
 	}
