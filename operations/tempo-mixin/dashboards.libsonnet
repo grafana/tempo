@@ -42,18 +42,25 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Querier Disk Cache')
+        g.row('Memcached')
         .addPanel(
-          g.panel('Lookups') +
-          g.queryPanel('rate(tempodb_disk_cache_total[$__interval])', '{{type}}'),
+          $.panel('QPS') +
+          $.qpsPanel('cortex_memcache_request_duration_seconds_count{%s,method=~"Memcache.Get|Memcache.GetMulti"}' % $.jobMatcher($._config.jobs.querier))
         )
         .addPanel(
-          g.panel('Misses') +
-          g.queryPanel('rate(tempodb_disk_cache_miss_total[$__interval])', '{{type}}'),
+          $.panel('Latency') +
+          $.latencyPanel('cortex_memcache_request_duration_seconds', '{%s,method=~"Memcache.Get|Memcache.GetMulti"}' % $.jobMatcher($._config.jobs.querier))
+        )
+      )
+      .addRow(
+        g.row('GCS')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('tempodb_gcs_request_duration_seconds_count{%s,operation="GET"}' % $.jobMatcher($._config.jobs.ingester))
         )
         .addPanel(
-          g.panel('Purges') +
-          $.hiddenLegendQueryPanel('rate(tempodb_disk_cache_clean_total[$__interval])', '{{pod}}'),
+          $.panel('Latency') +
+          $.latencyPanel('tempodb_gcs_request_duration_seconds', '{%s,operation="GET"}' % $.jobMatcher($._config.jobs.ingester))
         )
       )
       .addRow(
@@ -104,6 +111,50 @@ dashboard_utils {
         .addPanel(
           $.panel('Latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route="/tempopb.Pusher/Push"}' % $.jobMatcher($._config.jobs.ingester))
+        )
+      )
+      .addRow(
+        g.row('Memcached - Ingester')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('cortex_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.ingester))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('cortex_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.ingester))
+        )
+      )
+      .addRow(
+        g.row('GCS - Ingester')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('tempodb_gcs_request_duration_seconds_count{%s,operation="POST"}' % $.jobMatcher($._config.jobs.ingester))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('tempodb_gcs_request_duration_seconds', '{%s,operation="POST"}' % $.jobMatcher($._config.jobs.ingester))
+        )
+      )
+      .addRow(
+        g.row('Memcached - Compactor')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('cortex_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('cortex_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
+        )
+      )
+      .addRow(
+        g.row('GCS - Compactor')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('tempodb_gcs_request_duration_seconds_count{%s,operation="POST"}' % $.jobMatcher($._config.jobs.compactor))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('tempodb_gcs_request_duration_seconds', '{%s,operation="POST"}' % $.jobMatcher($._config.jobs.compactor))
         )
       ),
     'tempo-resources.json':
