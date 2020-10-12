@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/opentracing/opentracing-go"
 	"google.golang.org/api/iterator"
 )
 
@@ -208,18 +209,27 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 }
 
 func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Bloom")
+	defer span.Finish()
+
 	name := rw.bloomFileName(blockID, tenantID)
-	return rw.readAll(ctx, name)
+	return rw.readAll(derivedCtx, name)
 }
 
 func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Index")
+	defer span.Finish()
+
 	name := rw.indexFileName(blockID, tenantID)
-	return rw.readAll(ctx, name)
+	return rw.readAll(derivedCtx, name)
 }
 
 func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Object")
+	defer span.Finish()
+
 	name := rw.objectFileName(blockID, tenantID)
-	return rw.readRange(ctx, name, int64(start), buffer)
+	return rw.readRange(derivedCtx, name, int64(start), buffer)
 }
 
 func (rw *readerWriter) Shutdown() {
