@@ -1,3 +1,2 @@
 ## master / unreleased
 
-Frigg
