@@ -56,11 +56,11 @@ dashboard_utils {
         g.row('GCS')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempodb_gcs_request_duration_seconds_count{%s,operation="GET"}' % $.jobMatcher($._config.jobs.ingester))
+          $.qpsPanel('tempodb_gcs_request_duration_seconds_count{%s,operation="GET"}' % $.jobMatcher($._config.jobs.querier))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempodb_gcs_request_duration_seconds', '{%s,operation="GET"}' % $.jobMatcher($._config.jobs.ingester))
+          $.latencyPanel('tempodb_gcs_request_duration_seconds', '{%s,operation="GET"}' % $.jobMatcher($._config.jobs.querier))
         )
       )
       .addRow(
