@@ -71,3 +71,7 @@ Clean up:
 ```
 k3d delete --name tempo
 ```
+
+### tempo-single-binary
+The tempo single binary configuration is currently setup to store traces locally on disk, but can easily be configured to 
+store them in an S3 or GCS bucket.  See configuration docs or some of the other examples for help.
