@@ -20,8 +20,8 @@ go get example.com/some/module/pkg
 go get example.com/some/module/pkg@vX.Y.Z
 ```
 
-When updating dependencies it is important not to run the standard go modules commands due to some shenanigans with the
-OpenTelemetry protos.  For now, after making dependency changes run
+When updating dependencies it is important not to run the standard go modules commands due to the way that
+OpenTelemetry protos have been vendored.  For now, after making dependency changes run
 
 ```bash
 make vendor-dependencies
