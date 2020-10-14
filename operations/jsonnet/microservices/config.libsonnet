@@ -1,8 +1,8 @@
 {
   _images+:: {
-    tempo: 'annanay25/tempo:latest',
-    tempo_query: 'annanay25/tempo-query:latest',
-    tempo_vulture: 'annanay25/tempo-vulture:latest',
+    tempo: 'grafana/tempo:latest',
+    tempo_query: 'grafana/tempo-query:latest',
+    tempo_vulture: 'grafana/tempo-vulture:latest',
     memcached: 'memcached:1.5.17-alpine',
     memcachedExporter: 'prom/memcached-exporter:v0.6.0',
   },
@@ -30,7 +30,8 @@
     ballast_size_mbs: '1024',
     port: 3100,
     gossip_ring_port: 7946,
-    gcs_bucket: error 'Must specify a bucket',
+    backend: error 'Must specify a backend', // gcs|s3
+    bucket: error 'Must specify a bucket',
 
     overrides+:: {
       super_user:: {

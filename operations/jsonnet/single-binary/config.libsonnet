@@ -1,8 +1,8 @@
 {
     _images+:: {
-        tempo: 'annanay25/tempo:latest',
-        tempo_query: 'annanay25/tempo-query:latest',
-        tempo_vulture: 'annanay25/tempo-vulture:latest',
+        tempo: 'grafana/tempo:latest',
+        tempo_query: 'grafana/tempo-query:latest',
+        tempo_vulture: 'grafana/tempo-vulture:latest',
     },
 
     _config+:: {

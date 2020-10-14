@@ -19,12 +19,16 @@
     storage: {
       trace: {
         maintenance_cycle: '5m',
-        backend: 'gcs',
+        backend: $._config.backend,
         wal: {
           path: '/var/tempo/wal',
         },
         gcs: {
-          bucket_name: $._config.gcs_bucket,
+          bucket_name: $._config.bucket,
+          chunk_buffer_size: 10485760,  // 1024 * 1024 * 10
+        },
+        s3: {
+          bucket: $._config.bucket,
           chunk_buffer_size: 10485760,  // 1024 * 1024 * 10
         },
         pool: {
