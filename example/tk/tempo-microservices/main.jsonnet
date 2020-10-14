@@ -4,9 +4,7 @@ local minio = import 'minio/minio.libsonnet';
 
 minio + load + tempo {
     _images+:: {
-        tempo: 'joeelliott/canary-frigg:b915527c',
-        tempo_query: 'joeelliott/canary-frigg-query:b915527c',
-        tempo_vulture: 'joeelliott/canary-frigg-vulture:b915527c',
+        // images can be overridden here if desired
     },
 
     _config +:: {
