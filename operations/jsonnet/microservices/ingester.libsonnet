@@ -6,23 +6,19 @@
   local statefulset = $.apps.v1.statefulSet,
   local volume = $.core.v1.volume,
   local service = $.core.v1.service,
-  local servicePort = service.mixin.spec.portsType,
+  local servicePort = $.core.v1.servicePort,
 
   local target_name = 'ingester',
   local tempo_config_volume = 'tempo-conf',
   local tempo_data_volume = 'ingester-data',
 
   tempo_ingester_pvc::
-    pvc.new() +
-    pvc.mixin.spec.resources
-    .withRequests({ storage: $._config.ingester.pvc_size }) +
-    pvc.mixin.spec
-    .withAccessModes(['ReadWriteOnce'])
-    .withStorageClassName($._config.ingester.pvc_storage_class) +
-    pvc.mixin.metadata
-    .withLabels({ app: target_name })
-    .withNamespace($._config.namespace)
-    .withName(tempo_data_volume),
+    pvc.new(tempo_data_volume)
+    + pvc.mixin.spec.resources.withRequests({ storage: $._config.ingester.pvc_size })
+    + pvc.mixin.spec.withAccessModes(['ReadWriteOnce'])
+    + pvc.mixin.spec.withStorageClassName($._config.ingester.pvc_storage_class)
+    + pvc.mixin.metadata.withLabels({ app: target_name })
+    + pvc.mixin.metadata.withNamespace($._config.namespace),
 
   tempo_ingester_container::
     container.new(target_name, $._images.tempo) +
@@ -40,20 +36,18 @@
     ]),
 
   tempo_ingester_statefulset:
-    statefulset.new(target_name,
-                    $._config.ingester.replicas,
-                    [
-                      $.tempo_ingester_container,
-                    ],
-                    [
-                      $.tempo_ingester_pvc,
-                    ],
-                    {
-                      app: target_name,
-                      [$._config.gossip_member_label]: 'true',
-                    })
-    .withServiceName(target_name) +
-    statefulset.mixin.spec.template.spec.withVolumes([
+    statefulset.new(
+      target_name,
+      $._config.ingester.replicas,
+      self.tempo_ingester_container,
+      self.tempo_ingester_pvc,
+      {
+        app: target_name,
+        [$._config.gossip_member_label]: 'true',
+      },
+    )
+    + statefulset.mixin.spec.withServiceName(target_name)
+    + statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_configmap.metadata.name),
     ]),
 

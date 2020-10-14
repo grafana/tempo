@@ -1,19 +1,18 @@
 {
   _images+:: {
-    tempo: 'joeelliott/canary-frigg:5503f03f',
-    tempo_query: 'joeelliott/canary-frigg-query:5503f03f',
+    tempo: 'annanay25/tempo:eb72e108',
+    tempo_query: 'annanay25/tempo-query:7cfb74d5',
+    tempo_vulture: 'annanay25/tempo-vulture:7cfb74d5',
+    memcached: 'memcached:1.5.17-alpine',
+    memcachedExporter: 'prom/memcached-exporter:v0.6.0',
   },
 
   _config+:: {
     gossip_member_label: 'tempo-gossip-member',
     compactor: {
-      pvc_size: error 'Must specify a compactor pvc size',
-      pvc_storage_class: error 'Must specify a compactor pvc storage class',
       replicas: 1,
     },
     querier: {
-      pvc_size: error 'Must specify a querier pvc size',
-      pvc_storage_class: error 'Must specify a querier pvc storage class',
       replicas: 1,
     },
     ingester: {
@@ -32,6 +31,15 @@
     port: 3100,
     gossip_ring_port: 7946,
     gcs_bucket: error 'Must specify a bucket',
+
+    overrides+:: {
+      super_user:: {
+        max_traces_per_user: 100000,
+        ingestion_rate_limit: 150000,
+        ingestion_max_batch_size: 5000,
+        max_spans_per_trace: 200e3,
+      },
+    },
   },
 
   tempo_compactor_container+::
