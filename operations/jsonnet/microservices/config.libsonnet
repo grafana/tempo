@@ -1,8 +1,8 @@
 {
   _images+:: {
-    tempo: 'annanay25/tempo:eb72e108',
-    tempo_query: 'annanay25/tempo-query:7cfb74d5',
-    tempo_vulture: 'annanay25/tempo-vulture:7cfb74d5',
+    tempo: 'annanay25/tempo:latest',
+    tempo_query: 'annanay25/tempo-query:latest',
+    tempo_vulture: 'annanay25/tempo-vulture:latest',
     memcached: 'memcached:1.5.17-alpine',
     memcachedExporter: 'prom/memcached-exporter:v0.6.0',
   },

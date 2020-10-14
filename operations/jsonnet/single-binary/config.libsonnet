@@ -1,7 +1,8 @@
 {
     _images+:: {
-        tempo: 'joeelliott/canary-frigg:b14df74c',
-        tempo_query: 'joeelliott/canary-frigg-query:b14df74c',
+        tempo: 'annanay25/tempo:latest',
+        tempo_query: 'annanay25/tempo-query:latest',
+        tempo_vulture: 'annanay25/tempo-vulture:latest',
     },
 
     _config+:: {
