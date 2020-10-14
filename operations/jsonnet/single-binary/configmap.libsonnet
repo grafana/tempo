@@ -13,10 +13,10 @@
     },
     compactor: {
       compaction: {
-        blockRetention: "144h",
+        compacted_block_retention: "24h",
       }
     },
-    storage_config: {
+    storage: {
       trace: {
         backend: "local",
         wal: {
