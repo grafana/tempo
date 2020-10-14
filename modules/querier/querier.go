@@ -178,7 +178,6 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 }
 
 // forGivenIngesters runs f, in parallel, for given ingesters
-// TODO taken from Loki taken from Cortex, see if we can refactor out an usable interface.
 func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(tempopb.QuerierClient) (interface{}, error)) ([]responseFromIngesters, error) {
 	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ingester *ring.IngesterDesc) (interface{}, error) {
 		client, err := q.pool.GetClientFor(ingester.Addr)
