@@ -49,7 +49,7 @@ modules/              - top level Tempo components
   overrides/
   querier/
   storage/
-opentelemetry-proto/  - git submodule.  necessary for proto shenanigans
+opentelemetry-proto/  - git submodule.  necessary for proto vendoring
 operations/           - Tempo deployment and monitoring resources
   jsonnet/
   tempo-mixin/
