@@ -13,7 +13,8 @@
   local tempo_data_volume = 'ingester-data',
 
   tempo_ingester_pvc::
-    pvc.new(tempo_data_volume)
+    pvc.new()
+    + pvc.mixin.metadata.withName(tempo_data_volume)
     + pvc.mixin.spec.resources.withRequests({ storage: $._config.ingester.pvc_size })
     + pvc.mixin.spec.withAccessModes(['ReadWriteOnce'])
     + pvc.mixin.spec.withStorageClassName($._config.ingester.pvc_storage_class)

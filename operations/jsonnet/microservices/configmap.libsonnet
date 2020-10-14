@@ -29,7 +29,6 @@
         },
         s3: {
           bucket: $._config.bucket,
-          chunk_buffer_size: 10485760,  // 1024 * 1024 * 10
         },
         pool: {
           queue_depth: 2000,
