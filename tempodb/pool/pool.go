@@ -179,7 +179,9 @@ func runJob(job *job) {
 	msg, err := job.fn(job.ctx, job.payload)
 	if msg != nil {
 		job.stop.Store(true) // one job was successful.  stop all others
-		job.cancel()         // cancel in-flight requests
+		// Commenting out job cancellations for now because of a resource leak suspected in the GCS golang client.
+		// Issue logged here: https://github.com/googleapis/google-cloud-go/issues/3018
+		// job.cancel()
 		select {
 		case job.resultsCh <- msg:
 		default: // if we hit default it means that something else already returned a good result.  /shrug
