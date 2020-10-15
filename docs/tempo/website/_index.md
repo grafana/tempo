@@ -7,7 +7,6 @@ aliases:
 
 # Tempo Documentation
 
-Grafana Tempo is an object-store backed k/v store that can be used to store
-traces in a cheap and scalable manner. 
+<p align="center"><img src="docs/tempo/website/logo_and_name.png" alt="Tempo Logo"></p>
 
-[Guides](guides)
+Grafana Tempo is a highly robust, minimal dependency distributed tracing backend that stores and retrieves traces by id only.
