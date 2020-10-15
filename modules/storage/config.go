@@ -21,7 +21,7 @@ type Config struct {
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, gcs, local)")
-	f.DurationVar(&cfg.Trace.MaintenanceCycle, util.PrefixConfig(prefix, "trace.maintenance-cycle"), 30*time.Second, "Period at which to run the maintenance cycle.")
+	f.DurationVar(&cfg.Trace.MaintenanceCycle, util.PrefixConfig(prefix, "trace.maintenance-cycle"), 5*time.Minute, "Period at which to run the maintenance cycle.")
 
 	cfg.Trace.WAL = &wal.Config{}
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")

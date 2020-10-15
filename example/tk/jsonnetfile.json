@@ -1,24 +1,33 @@
 {
-    "dependencies": [
-        {
-            "name": "ksonnet.beta.4",
-            "source": {
-                "git": {
-                    "remote": "https://github.com/ksonnet/ksonnet-lib",
-                    "subdir": "ksonnet.beta.4"
-                }
-            },
-            "version": "master"
-        },
-        {
-            "name": "ksonnet-util",
-            "source": {
-                "git": {
-                    "remote": "https://github.com/grafana/jsonnet-libs",
-                    "subdir": "ksonnet-util"
-                }
-            },
-            "version": "master"
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "ksonnet-util"
         }
-    ]
+      },
+      "version": "master"
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "memcached"
+        }
+      },
+      "version": "master"
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/ksonnet/ksonnet-lib.git",
+          "subdir": "ksonnet.beta.4"
+        }
+      },
+      "version": "master"
+    }
+  ],
+  "legacyImports": true
 }

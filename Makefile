@@ -72,7 +72,8 @@ lint:
 docker-component: check-component
 	GOOS=linux $(MAKE) $(COMPONENT)
 	cp ./bin/linux/$(COMPONENT) ./cmd/$(COMPONENT)/
-	docker build -t $(COMPONENT) ./cmd/$(COMPONENT)/
+	docker build -t grafana/$(COMPONENT) ./cmd/$(COMPONENT)/
+	docker tag grafana/$(COMPONENT) $(COMPONENT)
 	rm ./cmd/$(COMPONENT)/$(COMPONENT)
 
 .PHONY: docker-tempo

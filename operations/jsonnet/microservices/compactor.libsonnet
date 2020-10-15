@@ -5,7 +5,7 @@
   local deployment = $.apps.v1.deployment,
   local volume = $.core.v1.volume,
   local service = $.core.v1.service,
-  local servicePort = service.mixin.spec.portsType,
+  local servicePort = $.core.v1.servicePort,
 
   local target_name = 'compactor',
   local tempo_config_volume = 'tempo-conf',
