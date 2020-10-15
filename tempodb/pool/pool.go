@@ -179,7 +179,7 @@ func runJob(job *job) {
 	msg, err := job.fn(job.ctx, job.payload)
 	if msg != nil {
 		job.stop.Store(true) // one job was successful.  stop all others
-		job.cancel()         // cancel in-flight requests
+		//job.cancel()       // commenting out for now because it leads to a resource leak
 		select {
 		case job.resultsCh <- msg:
 		default: // if we hit default it means that something else already returned a good result.  /shrug
