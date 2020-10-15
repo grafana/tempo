@@ -277,7 +277,7 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 
 	err = i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
 	if err != nil {
-		return nil, status.Errorf(codes.ResourceExhausted, "max live traces per tenant exceeded: %v", err)
+		return nil, status.Errorf(codes.FailedPrecondition, "max live traces per tenant exceeded: %v", err)
 	}
 
 	maxSpans := i.limiter.limits.MaxSpansPerTrace(i.instanceID)

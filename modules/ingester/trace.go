@@ -37,7 +37,7 @@ func (t *trace) Push(_ context.Context, req *tempopb.PushRequest) error {
 		}
 
 		if t.currentSpans+spanCount > t.maxSpans {
-			return status.Errorf(codes.ResourceExhausted, "totalSpans (%d) exceeded while adding %d spans", t.maxSpans, spanCount)
+			return status.Errorf(codes.FailedPrecondition, "totalSpans (%d) exceeded while adding %d spans", t.maxSpans, spanCount)
 		}
 
 		t.currentSpans += spanCount
