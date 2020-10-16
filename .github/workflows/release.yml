@@ -1,4 +1,4 @@
-name: Publish Docker Image
+name: Release
 on:
   push:
     tags:
@@ -7,11 +7,12 @@ on:
       - master
 
 jobs:
-  push-image:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
       - name: Build Docker image
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         run: make docker-images
       - name: Push to Dockerhub
         if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
@@ -33,3 +34,17 @@ jobs:
           else
             tag_and_push "${GITHUB_REF#"refs/tags/"}"
           fi
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          make release
+      - name: Upload release artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v2
+        with:
+          name: release-artifacts
+          path: |
+            dist/
+            !dist/*/*

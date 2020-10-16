@@ -6,7 +6,7 @@ Run the following from the project root folder to build `tempo:latest` and `temp
 that will be used in the test environment:
 
 ```console
-make docker-tempo && make docker-tempo-query
+make docker-images
 ```
 
 Note: `make docker-tempo` command needs to be run every time there are changes to the codebase.
@@ -25,6 +25,14 @@ docker-compose up
   - http://localhost:3000
 - Prometheus
   - http://localhost:9090
+
+### Find Traces
+
+The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  Logs are in the form
+
+`Emitted traceId 27896d4ea9c8429d for service frontend route /cart`
+
+Copy and paste the trace id into tempo-query to retrieve it from Tempo.
 
 ## Jsonnet/Tanka
 
@@ -63,3 +71,7 @@ Clean up:
 ```
 k3d delete --name tempo
 ```
+
+### tempo-single-binary
+The tempo single binary configuration is currently setup to store traces locally on disk, but can easily be configured to 
+store them in an S3 or GCS bucket.  See configuration docs or some of the other examples for help.

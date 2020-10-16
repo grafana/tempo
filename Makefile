@@ -1,3 +1,6 @@
+GOPATH := $(shell go env GOPATH)
+GORELEASER := $(GOPATH)/bin/goreleaser
+
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './vendor/*' \
@@ -17,6 +20,13 @@ GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint
 
+UNAME := $(shell uname -s)
+ifeq ($(UNAME), Darwin)
+    SED_OPTS := ''
+endif
+
+### Build
+
 .PHONY: tempo
 tempo:
 	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo $(BUILD_INFO) ./cmd/tempo
@@ -32,6 +42,8 @@ tempo-cli:
 .PHONY: tempo-vulture
 tempo-vulture:
 	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture $(BUILD_INFO) ./cmd/tempo-vulture
+
+### Testin' and Lintin'
 
 .PHONY: test
 test:
@@ -54,11 +66,14 @@ test-all: docker-tempo test-with-cover
 lint:
 	$(LINT) run
 
+### Docker Images
+
 .PHONY: docker-component # Not intended to be used directly
 docker-component: check-component
 	GOOS=linux $(MAKE) $(COMPONENT)
 	cp ./bin/linux/$(COMPONENT) ./cmd/$(COMPONENT)/
-	docker build -t $(COMPONENT) ./cmd/$(COMPONENT)/
+	docker build -t grafana/$(COMPONENT) ./cmd/$(COMPONENT)/
+	docker tag grafana/$(COMPONENT) $(COMPONENT)
 	rm ./cmd/$(COMPONENT)/$(COMPONENT)
 
 .PHONY: docker-tempo
@@ -81,6 +96,8 @@ check-component:
 ifndef COMPONENT
 	$(error COMPONENT variable was not defined)
 endif
+
+### Dependencies
 
 .PHONY: gen-proto
 gen-proto:
@@ -105,7 +122,7 @@ vendor-dependencies:
 	go mod vendor
 	go mod tidy
 	# ignore log.go b/c the proto version used by v0.6.1 doesn't actually have logs proto.
-	find . | grep 'vendor/go.opentelemetry.io.*go$\' | grep -v -e 'log.go$\' | xargs -L 1 sed -i 's+go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/+github.com/open-telemetry/opentelemetry-proto/gen/go/+g'
+	find . | grep 'vendor/go.opentelemetry.io.*go$\' | grep -v -e 'log.go$\' | xargs -L 1 sed -i $(SED_OPTS) 's+go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/+github.com/open-telemetry/opentelemetry-proto/gen/go/+g'
 	$(MAKE) gen-proto
 
 
@@ -113,3 +130,24 @@ vendor-dependencies:
 install-tools:
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/gogo/protobuf/protoc-gen-gogofaster
+
+### Release (intended to be used in the .github/workflows/images.yml)
+$(GORELEASER):
+	curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | BINDIR=$(GOPATH)/bin sh
+
+release: $(GORELEASER)
+	$(GORELEASER) build --skip-validate --rm-dist
+	$(GORELEASER) release --rm-dist
+
+### Docs
+DOCS_IMAGE = grafana/docs-base:latest
+
+.PHONY: docs
+docs:
+	docker pull ${DOCS_IMAGE}
+	docker run -v ${PWD}/docs/tempo/website:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make server'
+
+.PHONY: docs-test
+docs-test:
+	docker pull ${DOCS_IMAGE}
+	docker run -v ${PWD}/docs/tempo/website:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'

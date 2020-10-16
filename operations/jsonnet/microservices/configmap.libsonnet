@@ -2,7 +2,6 @@
   local configMap = $.core.v1.configMap,
 
   tempo_config:: {
-    auth_enabled: false,
     server: {
       http_listen_port: $._config.port,
     },
@@ -10,52 +9,39 @@
       receivers: $._config.distributor.receivers,
     },
     ingester: {
-      trace_idle_period: '20s',
-      traces_per_block: 200000,
-      max_block_duration: '2h',
-      flush_op_timeout: '10m',
-      max_transfer_retries: 1,
-      complete_block_timeout: '30s',
       lifecycler: {
-        num_tokens: 512,
-        heartbeat_period: '5s',
-        join_after: '5s',
         ring: {
-          heartbeat_timeout: '10m',
-          replication_factor: 3,
-          kvstore: {
-            store: 'memberlist',
-          },
+          replication_factor: 2,
         },
       },
     },
     compactor: null,
-    storage_config: {
+    storage: {
       trace: {
-        maintenanceCycle: '5m',
-        backend: 'gcs',
+        maintenance_cycle: '5m',
+        backend: $._config.backend,
         wal: {
           path: '/var/tempo/wal',
-          'bloom-filter-false-positive': 0.05,
-          'index-downsample': 100,
         },
         gcs: {
-          bucket_name: $._config.gcs_bucket,
+          bucket_name: $._config.bucket,
           chunk_buffer_size: 10485760,  // 1024 * 1024 * 10
         },
-        query_pool: {
-          max_workers: 50,
-          queue_depth: 10000,
+        s3: {
+          bucket: $._config.bucket,
         },
-        cache: {
-          'disk-path': '/var/tempo/cache',
-          'disk-max-mbs': 1024,
-          'disk-prune-count': 100,
-          'disk-clean-rate': '1m',
+        pool: {
+          queue_depth: 2000,
+        },
+        memcached: {
+          consistent_hash: true,
+          timeout: '500ms',
+          host: 'memcached',
+          service: 'memcached-client',
         },
       },
     },
-    limits_config: {
+    overrides: {
       per_tenant_override_config: '/conf/overrides.yaml',
     },
     memberlist: {
@@ -68,33 +54,33 @@
   tempo_compactor_config:: $.tempo_config {
     compactor: {
       compaction: {
-        chunkSizeBytes: 10485760,
-        maxCompactionRange: '4h',
-        maxCompactionObjects: 10000000
-        blockRetention: '144h',
-        compactedBlockRetention: '2m',
+        chunk_size_bytes: 10485760,
+        block_retention: '144h',
       },
-      sharding_enabled: true,
-      sharding_ring: {
-        heartbeat_timeout: '10m',
+      ring: {
         kvstore: {
           store: 'memberlist',
         },
       },
     },
-    storage_config+: {
+    storage+: {
       trace+: {
-        maintenanceCycle: '10m',
-        cache:: null,
+        maintenance_cycle: '10m',
       },
     },
   },
 
   tempo_querier_config:: $.tempo_config {
-    storage_config+: {
+    server+: {
+      log_level: 'debug',
+    },
+    storage+: {
       trace+: {
-        query_pool+: {
-          max_workers: 500,
+        pool+: {
+          max_workers: 200,
+        },
+        memcached+: {
+          timeout: '1s',
         },
       },
     },
@@ -106,9 +92,9 @@
       'tempo.yaml': $.util.manifestYaml($.tempo_config),
     }) +
     configMap.withDataMixin({
-      'overrides.yaml': |||
-        overrides:
-      |||,
+      'overrides.yaml': $.util.manifestYaml({
+        overrides: $._config.overrides,
+      }),
     }),
 
   tempo_compactor_configmap:

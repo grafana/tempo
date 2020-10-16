@@ -2,6 +2,10 @@ local tempo = import '../../../operations/jsonnet/single-binary/tempo.libsonnet'
 local load = import 'synthetic-load-generator/main.libsonnet';
 
 load + tempo {
+    _images+:: {
+        // override images here if desired
+    },
+
     _config +:: {
         namespace: 'default',
         pvc_size: '30Gi',
@@ -18,7 +22,6 @@ load + tempo {
     local container = $.core.v1.container,
     local containerPort = $.core.v1.containerPort,
     tempo_container+::
-        $.util.resourcesRequests('1', '500Mi') +
         container.withPortsMixin([
             containerPort.new('jaeger-http', 14268),
         ]),

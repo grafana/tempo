@@ -1,7 +1,8 @@
-package cache
+package diskcache
 
 import (
 	"container/heap"
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -14,7 +15,7 @@ import (
 )
 
 // TODO: factor out common code with readOrCacheIndexToDisk into separate function
-func (r *reader) readOrCacheBloom(blockID uuid.UUID, tenantID string, t string, shardNum int, miss bloomMissFunc) ([]byte, error, error) {
+func (r *reader) readOrCacheBloom(ctx context.Context, blockID uuid.UUID, tenantID string, t string, shardNum int, miss bloomMissFunc) ([]byte, error, error) {
 	var skippableError error
 
 	k := key(blockID, tenantID, t)
@@ -31,7 +32,7 @@ func (r *reader) readOrCacheBloom(blockID uuid.UUID, tenantID string, t string, 
 	}
 
 	metricDiskCacheMiss.WithLabelValues(t).Inc()
-	bytes, err = miss(blockID, tenantID, shardNum)
+	bytes, err = miss(ctx, blockID, tenantID, shardNum)
 	if err != nil {
 		return nil, nil, err // backend store error.  need to bubble this up
 	}
@@ -46,7 +47,7 @@ func (r *reader) readOrCacheBloom(blockID uuid.UUID, tenantID string, t string, 
 	return bytes, skippableError, nil
 }
 
-func (r *reader) readOrCacheIndex(blockID uuid.UUID, tenantID string, t string, miss indexMissFunc) ([]byte, error, error) {
+func (r *reader) readOrCacheIndex(ctx context.Context, blockID uuid.UUID, tenantID string, t string, miss indexMissFunc) ([]byte, error, error) {
 	var skippableError error
 
 	k := key(blockID, tenantID, t)
@@ -63,7 +64,7 @@ func (r *reader) readOrCacheIndex(blockID uuid.UUID, tenantID string, t string, 
 	}
 
 	metricDiskCacheMiss.WithLabelValues(t).Inc()
-	bytes, err = miss(blockID, tenantID)
+	bytes, err = miss(ctx, blockID, tenantID)
 	if err != nil {
 		return nil, nil, err // backend store error.  need to bubble this up
 	}

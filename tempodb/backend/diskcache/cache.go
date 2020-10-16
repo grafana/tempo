@@ -1,6 +1,7 @@
-package cache
+package diskcache
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -14,8 +15,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-type bloomMissFunc func(blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error)
-type indexMissFunc func(blockID uuid.UUID, tenantID string) ([]byte, error)
+type bloomMissFunc func(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error)
+type indexMissFunc func(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error)
 
 const (
 	typeBloom = "bloom"
@@ -31,7 +32,7 @@ var (
 	metricDiskCache = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "disk_cache_total",
-		Help:      "Total number of times there were errors checking the disk cache.",
+		Help:      "Total number of times the disk cache was queried.",
 	}, []string{"type", "status"})
 	metricDiskCacheClean = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
@@ -83,20 +84,20 @@ func New(next backend.Reader, cfg *Config, logger log.Logger) (backend.Reader, e
 	return r, nil
 }
 
-func (r *reader) Tenants() ([]string, error) {
-	return r.next.Tenants()
+func (r *reader) Tenants(ctx context.Context) ([]string, error) {
+	return r.next.Tenants(ctx)
 }
 
-func (r *reader) Blocks(tenantID string) ([]uuid.UUID, error) {
-	return r.next.Blocks(tenantID)
+func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
+	return r.next.Blocks(ctx, tenantID)
 }
 
-func (r *reader) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
-	return r.next.BlockMeta(blockID, tenantID)
+func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+	return r.next.BlockMeta(ctx, blockID, tenantID)
 }
 
-func (r *reader) Bloom(blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
-	b, skippableErr, err := r.readOrCacheBloom(blockID, tenantID, typeBloom, bloomShard, r.next.Bloom)
+func (r *reader) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
+	b, skippableErr, err := r.readOrCacheBloom(ctx, blockID, tenantID, typeBloom, bloomShard, r.next.Bloom)
 
 	if skippableErr != nil {
 		metricDiskCache.WithLabelValues(typeBloom, "error").Inc()
@@ -108,8 +109,8 @@ func (r *reader) Bloom(blockID uuid.UUID, tenantID string, bloomShard int) ([]by
 	return b, err
 }
 
-func (r *reader) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
-	b, skippableErr, err := r.readOrCacheIndex(blockID, tenantID, typeIndex, r.next.Index)
+func (r *reader) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	b, skippableErr, err := r.readOrCacheIndex(ctx, blockID, tenantID, typeIndex, r.next.Index)
 
 	if skippableErr != nil {
 		metricDiskCache.WithLabelValues(typeIndex, "error").Inc()
@@ -121,9 +122,9 @@ func (r *reader) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
 	return b, err
 }
 
-func (r *reader) Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
+func (r *reader) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
 	// not attempting to cache these...yet...
-	return r.next.Object(blockID, tenantID, start, buffer)
+	return r.next.Object(ctx, blockID, tenantID, start, buffer)
 }
 
 func (r *reader) Shutdown() {

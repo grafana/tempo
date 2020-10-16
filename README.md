@@ -1,64 +1,47 @@
-# Tempo
+<p align="center"><img src="docs/tempo/website/logo_and_name.png" alt="Tempo Logo"></p>
 
-Tempo is a Jaeger/Zipkin/OpenCensus compatible backend.  It is not OpenTelemetry compatible only b/c that doesn't exist yet.  Tempo ingests batches in any of the mentioned formats, buffers them and then writes them to GCS.
+Grafana Tempo is a high volume, minimal dependency distributed tracing backend.  It is supports key/value lookup only and is designed to work in concert with logs and metrics (exemplars) for discovery.
+
+Tempo is Jaeger, Zipkin, OpenCensus and OpenTelemetry compatible.  It ingests batches in any of the mentioned formats, buffers them and then writes them to GCS, S3 or local disk.  As such it is robust, cheap and easy to operate!
 
 ## Getting Started
 
-See the [example folder](example) for various ways to get started running tempo locally.
+- [Documentation](https://grafana.com/docs/tempo/latest/)
+- [Deployment Examples](./example)
+  - Deployment and log discovery Examples
+- [What is Distributed Tracing?](https://opentracing.io/docs/overview/what-is-tracing/)
 
-## Architecture
+## Getting Help
 
-Tempo is built around the Cortex architecture.  It vendors Cortex primarily for the ring/lifecycler code. 
+If you have any questions or feedback regarding Tempo:
 
-### distributor
-
-Distributors vendor the OpenTelemetry Collector to reuse their [receiver code](https://github.com/grafana/tempo/tree/master/pkg/distributor/receiver) and then use consistent ring hashing to split up a batch and push it to ingesters based on trace id.
-
-### ingester
-
-Ingesters batch traces until a configurable timeout is hit and then push them into a headblock.  Blocks are cut periodically and shipped to the backend (gcs).
-
-### querier
-
-Queriers request trace ids both from ingesters and the backend and return the set of batches matching the requested trace id.
-
-### compactor
-
-Compactors iterate over all blocks looking for candidates for compaction.  They are scaleable and use a consistent ring to decide ownership of a given set of blocks.
+- Ask a question on the Tempo Slack channel. To invite yourself to the Grafana Slack, visit [https://slack.grafana.com/](https://slack.grafana.com/) and join the #tempo channel.
+- [File an issue](https://github.com/grafana/tempo/issues/new) for bugs, issues and feature suggestions.
+- UI issues should be filed with [Grafana](https://github.com/grafana/grafana/issues/new).
 
 ## Other Components
 
 ### tempo-query
-tempo-query is jaeger-query with a [hashicorp go-plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) to support querying tempo.
+tempo-query is jaeger-query with a [hashicorp go-plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) to support querying Tempo.
 
 ### tempo-vulture
-tempo-vulture is tempo's bird based consistency checking tool.  It queries Loki, extracts trace ids and then queries tempo.  It metrics 404s and traces with missing spans.
+tempo-vulture is tempo's bird themed consistency checking tool.  It queries Loki, extracts trace ids and then queries tempo.  It metrics 404s and traces with missing spans.
 
 ### tempo-cli
-tempo-cli is place to put any utility functionality related to tempo.  Currently it only supports dumping header information for all blocks from gcs.
+tempo-cli is place to put any utility functionality related to tempo.
+
+Currently, it supports dumping header information for all blocks from gcs/s3.
 ```
-go run ./cmd/tempo-cli -gcs-bucket ops-tools-tracing-ops -tenant-id single-tenant
+go run ./cmd/tempo-cli -backend=gcs -bucket ops-tools-tracing-ops -tenant-id single-tenant
 ```
+
+It also supports connecting to tempo directly to get a trace result in JSON.
+```console
+$ go run cmd/tempo-cli/main.go -query-endpoint http://localhost:3100 -traceID 2a61c34ff39a1518 -orgID 1
+{"batches":[{"resource":{"attributes":[{"key":"service.name","value":{"Value":{"string_value":"cortex-ingester"}}}.....}
+```
+
 
 ## TempoDB
 
-[TempoDB](https://github.com/grafana/tempo/tree/master/tempodb) is contained in the tempo repository but is meant to be a stand alone key value database built on top of cloud object storage (gcs/s3).
-
-## Todo
-
-If you are getting into the project it would be worth reviewing the list of issues to get a feel for existing work on Tempo.  Below are some of the most important issues/features to resolve before considering Tempo Beta.
-
-- Determine and fix the reason for partial traces
-  - https://github.com/grafana/tempo/issues/119
-- Provide a "meta" configuration layer that tightens up config and protects Tempo from upstream changes in Cortex config.  This also includes the decision about whether or not Tempo should support ring storage mechanisms besides gossip.
-  - https://github.com/grafana/tempo/issues/7
-- Organize data storage around a page and implement a page aligned cache.
-  - https://github.com/grafana/tempo/issues/32
-  - https://github.com/grafana/tempo/issues/30
-- Clean up bad blocks with the compactor.  This is importtant b/c otherwise bad blocks live forever.
-   - https://github.com/grafana/tempo/issues/112
-- Update otelcol dependency and move to otel proto.  This should come with significant performance gains.
-  - https://github.com/grafana/tempo/issues/8
-- Add a code of conduct, contributing guidelines and changelog.
-
-And then, in order to offer hosted Tempo we would need to work out integration with Grafana.com APIs, authorization, and other things I'm not thinking of.
+[TempoDB](https://github.com/grafana/tempo/tree/master/tempodb) is included in the this repository but is meant to be a stand alone key value database built on top of cloud object storage (gcs/s3).  It is a natively multitenant, supports a WAL and is the storage engine for Tempo.

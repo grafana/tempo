@@ -16,7 +16,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const CompactorRingKey = "compactor"
+const (
+	waitOnStartup = time.Minute
+)
 
 type Compactor struct {
 	services.Service
@@ -42,14 +44,14 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 	subservices := []services.Service(nil)
 	if c.isSharded() {
 		lifecyclerCfg := c.cfg.ShardingRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", CompactorRingKey, false, prometheus.DefaultRegisterer)
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", cfg.OverrideRingKey, false, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
 		c.ringLifecycler = lifecycler
 		subservices = append(subservices, c.ringLifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", CompactorRingKey, prometheus.DefaultRegisterer)
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", cfg.OverrideRingKey, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
 		}
@@ -90,9 +92,8 @@ func (c *Compactor) starting(ctx context.Context) error {
 
 func (c *Compactor) running(ctx context.Context) error {
 	go func() {
-		level.Info(util.Logger).Log("msg", "waiting one poll cycle", "waitDuration", c.cfg.WaitOnStartup)
-		time.Sleep(c.cfg.WaitOnStartup)
-
+		level.Info(util.Logger).Log("msg", "waiting for compaction ring to settle", "waitDuration", waitOnStartup)
+		time.Sleep(waitOnStartup)
 		level.Info(util.Logger).Log("msg", "enabling compaction")
 		c.store.EnableCompaction(&c.cfg.Compactor, c)
 	}()
@@ -121,27 +122,30 @@ func (c *Compactor) stopping(_ error) error {
 }
 
 func (c *Compactor) Owns(hash string) bool {
-	if c.isSharded() {
-		hasher := fnv.New32a()
-		_, _ = hasher.Write([]byte(hash))
-		hash32 := hasher.Sum32()
-
-		// Check whether this compactor instance owns the user.
-		rs, err := c.Ring.Get(hash32, ring.Read, []ring.IngesterDesc{})
-		if err != nil {
-			level.Error(util.Logger).Log("msg", "failed to get ring", "err", err)
-			return false
-		}
-
-		if len(rs.Ingesters) != 1 {
-			level.Error(util.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Ingesters))
-			return false
-		}
-
-		return rs.Ingesters[0].Addr == c.ringLifecycler.Addr
+	if !c.isSharded() {
+		return true
 	}
 
-	return true
+	level.Debug(util.Logger).Log("msg", "checking hash", "hash", hash)
+
+	hasher := fnv.New32a()
+	_, _ = hasher.Write([]byte(hash))
+	hash32 := hasher.Sum32()
+
+	rs, err := c.Ring.Get(hash32, ring.Read, []ring.IngesterDesc{})
+	if err != nil {
+		level.Error(util.Logger).Log("msg", "failed to get ring", "err", err)
+		return false
+	}
+
+	if len(rs.Ingesters) != 1 {
+		level.Error(util.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Ingesters))
+		return false
+	}
+
+	level.Debug(util.Logger).Log("msg", "checking addresses", "owning_addr", rs.Ingesters[0].Addr, "this_addr", c.ringLifecycler.Addr)
+
+	return rs.Ingesters[0].Addr == c.ringLifecycler.Addr
 }
 
 func (c *Compactor) Combine(objA []byte, objB []byte) []byte {

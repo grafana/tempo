@@ -222,7 +222,7 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 }
 
 // Tenants implements backend.Reader
-func (rw *readerWriter) Tenants() ([]string, error) {
+func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
 	res, err := rw.core.ListObjects(rw.cfg.Bucket, "", "", "/", 0)
 	if err != nil {
@@ -238,7 +238,7 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 }
 
 // Blocks implements backend.Reader
-func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
+func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
 	res, err := rw.core.ListObjects(rw.cfg.Bucket, tenantID+"/", "", "/", 0)
 	if err != nil {
@@ -258,9 +258,9 @@ func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 }
 
 // BlockMeta implements backend.Reader
-func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
 	blockMetaFileName := util.MetaFileName(blockID, tenantID)
-	body, err := rw.readAll(context.Background(), blockMetaFileName)
+	body, err := rw.readAll(ctx, blockMetaFileName)
 	if err != nil && err.Error() == s3KeyDoesNotExist {
 		return nil, backend.ErrMetaDoesNotExist
 	}
@@ -274,21 +274,21 @@ func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding
 }
 
 // Bloom implements backend.Reader
-func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
+func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
 	bloomFileName := util.BloomFileName(blockID, tenantID, bloomShard)
-	return rw.readAll(context.Background(), bloomFileName)
+	return rw.readAll(ctx, bloomFileName)
 }
 
 // Index implements backend.Reader
-func (rw *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	indexFileName := util.IndexFileName(blockID, tenantID)
-	return rw.readAll(context.Background(), indexFileName)
+	return rw.readAll(ctx, indexFileName)
 }
 
 // Object implements backend.Reader
-func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
+func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
 	objFileName := util.ObjectFileName(blockID, tenantID)
-	return rw.readRange(context.Background(), objFileName, int64(start), buffer)
+	return rw.readRange(ctx, objFileName, int64(start), buffer)
 }
 
 // Shutdown implements backend.Reader

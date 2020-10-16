@@ -9,7 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTimeWindowBlockSelector(t *testing.T) {
+func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
+	now := time.Now()
+	timeWindow := 12 * time.Hour
+
 	tests := []struct {
 		name           string
 		blocklist      []*encoding.BlockMeta
@@ -27,7 +30,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 			expected:  nil,
 		},
 		{
-			name: "two blocks returned",
+			name: "only two",
 			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
@@ -46,7 +49,7 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 			},
 		},
 		{
-			name: "three blocks choose smallest two",
+			name: "choose smallest two",
 			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -73,177 +76,222 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 			},
 		},
 		{
-			name: "three blocks across two windows",
+			name: "different windows",
 			blocklist: []*encoding.BlockMeta{
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					TotalObjects: 0,
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
 				},
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					TotalObjects: 1,
-					EndTime:      time.Unix(1, 0),
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now.Add(-timeWindow),
 				},
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 0,
-					EndTime:      time.Unix(1, 0),
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime: now.Add(-timeWindow),
 				},
 			},
 			expected: []*encoding.BlockMeta{
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 0,
-					EndTime:      time.Unix(1, 0),
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
 				},
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					TotalObjects: 1,
-					EndTime:      time.Unix(1, 0),
-				},
-			},
-		},
-		{
-			name: "two iterations of four blocks across one window",
-			blocklist: []*encoding.BlockMeta{
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					TotalObjects: 0,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					TotalObjects: 1,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 0,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					TotalObjects: 1,
-				},
-			},
-			expected: []*encoding.BlockMeta{
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					TotalObjects: 0,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 0,
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
 				},
 			},
 			expectedSecond: []*encoding.BlockMeta{
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					TotalObjects: 1,
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now.Add(-timeWindow),
 				},
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					TotalObjects: 1,
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime: now.Add(-timeWindow),
 				},
 			},
 		},
 		{
-			name: "two iterations of four blocks across two windows",
-			blocklist: []*encoding.BlockMeta{
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					TotalObjects: 0,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					TotalObjects: 1,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 0,
-					EndTime:      time.Unix(1, 0),
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					TotalObjects: 1,
-					EndTime:      time.Unix(1, 0),
-				},
-			},
-			expected: []*encoding.BlockMeta{
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					TotalObjects: 0,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					TotalObjects: 1,
-				},
-			},
-			expectedSecond: []*encoding.BlockMeta{
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 0,
-					EndTime:      time.Unix(1, 0),
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					TotalObjects: 1,
-					EndTime:      time.Unix(1, 0),
-				},
-			},
-		},
-		{
-			name: "two iterations of six blocks across two windows",
+			name: "different sizes",
 			blocklist: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
-					TotalObjects: 1,
+					TotalObjects: 15,
 				},
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					TotalObjects: 0,
-					EndTime:      time.Unix(1, 0),
+					TotalObjects: 1,
 				},
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					TotalObjects: 1,
-					EndTime:      time.Unix(1, 0),
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
-					TotalObjects: 1,
-					EndTime:      time.Unix(2, 0),
+					TotalObjects: 3,
 				},
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 0,
-					EndTime:      time.Unix(3, 0),
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					TotalObjects: 1,
-					EndTime:      time.Unix(3, 0),
+					TotalObjects: 12,
 				},
 			},
 			expected: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					TotalObjects: 0,
-					EndTime:      time.Unix(1, 0),
+					TotalObjects: 1,
 				},
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					TotalObjects: 1,
-					EndTime:      time.Unix(1, 0),
+					TotalObjects: 3,
 				},
 			},
 			expectedSecond: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 0,
-					EndTime:      time.Unix(3, 0),
+					TotalObjects: 12,
 				},
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					TotalObjects: 1,
-					EndTime:      time.Unix(3, 0),
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					TotalObjects: 15,
+				},
+			},
+		},
+		{
+			name: "different compaction lvls",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 1,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					CompactionLevel: 1,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+			},
+			expectedSecond: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					CompactionLevel: 1,
+				},
+			},
+		},
+		{
+			name: "active time window vs not",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime:         now.Add(-activeWindowDuration - time.Minute),
+					CompactionLevel: 1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:         now.Add(-activeWindowDuration - time.Minute),
+					CompactionLevel: 0,
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now,
+				},
+			},
+			expectedSecond: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:         now.Add(-activeWindowDuration - time.Minute),
+					CompactionLevel: 0,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime:         now.Add(-activeWindowDuration - time.Minute),
+					CompactionLevel: 1,
+				},
+			},
+		},
+		{
+			name: "choose lowest compaction level",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime: now.Add(-timeWindow),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000005"),
+					EndTime: now.Add(-timeWindow),
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now,
+				},
+			},
+			expectedSecond: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime: now.Add(-timeWindow),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000005"),
+					EndTime: now.Add(-timeWindow),
 				},
 			},
 		},
@@ -262,14 +310,14 @@ func TestTimeWindowBlockSelector(t *testing.T) {
 	}
 }
 
-func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
+func TestTimeWindowBlockSelectorSort(t *testing.T) {
 	now := time.Now()
+	timeWindow := 12 * time.Hour
 
 	tests := []struct {
-		name           string
-		blocklist      []*encoding.BlockMeta
-		expected       []*encoding.BlockMeta
-		expectedSecond []*encoding.BlockMeta
+		name      string
+		blocklist []*encoding.BlockMeta
+		expected  []*encoding.BlockMeta
 	}{
 		{
 			name:      "nil - nil",
@@ -282,11 +330,15 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 			expected:  nil,
 		},
 		{
-			name: "two blocks returned",
+			name: "different time windows",
 			blocklist: []*encoding.BlockMeta{
 				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now.Add(-2 * timeWindow),
+				},
+				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now,
+					EndTime: now.Add(-timeWindow),
 				},
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -295,23 +347,22 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 			},
 			expected: []*encoding.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now,
-				},
-				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime: now.Add(-timeWindow),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now.Add(-2 * timeWindow),
+				},
 			},
 		},
 		{
-			name: "three blocks choose smallest two",
+			name: "different compaction lvls",
 			blocklist: []*encoding.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					CompactionLevel: 0,
-					EndTime:         now,
-				},
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					CompactionLevel: 1,
@@ -322,150 +373,113 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 					CompactionLevel: 0,
 					EndTime:         now,
 				},
-			},
-			expected: []*encoding.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					CompactionLevel: 0,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					CompactionLevel: 0,
-					EndTime:         now,
-				},
-			},
-		},
-		{
-			name: "three blocks choose larger two",
-			blocklist: []*encoding.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					CompactionLevel: 1,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					CompactionLevel: 0,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					CompactionLevel: 1,
-					EndTime:         now,
-				},
-			},
-			expected: []*encoding.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					CompactionLevel: 1,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					CompactionLevel: 1,
-					EndTime:         now,
-				},
-			},
-		},
-		{
-			name: "three blocks choose none",
-			blocklist: []*encoding.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					CompactionLevel: 0,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					CompactionLevel: 1,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					CompactionLevel: 2,
 					EndTime:         now,
 				},
 			},
-			expected: nil,
-		},
-		{
-			name: "four blocks across two time windows",
-			blocklist: []*encoding.BlockMeta{
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now,
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now,
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime: now.Add(-24 * time.Hour),
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					EndTime: now.Add(-24 * time.Hour),
-				},
-			},
 			expected: []*encoding.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					CompactionLevel: 0,
+					EndTime:         now,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					CompactionLevel: 1,
+					EndTime:         now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 2,
+					EndTime:         now,
 				},
 			},
 		},
 		{
-			name: "four blocks across two time windows.  skip buffer",
+			name: "different sizes",
 			blocklist: []*encoding.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now,
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime:      now,
+					TotalObjects: 2,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now,
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:      now,
+					TotalObjects: 1,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime: now.Add(-24 * time.Hour),
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					EndTime: now.Add(-24 * time.Hour),
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
-					EndTime: now.Add(-48 * time.Hour),
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000005"),
-					EndTime: now.Add(-48 * time.Hour),
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:      now,
+					TotalObjects: 0,
 				},
 			},
 			expected: []*encoding.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now,
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:      now,
+					TotalObjects: 0,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now,
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:      now,
+					TotalObjects: 1,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime:      now,
+					TotalObjects: 2,
 				},
 			},
-			expectedSecond: []*encoding.BlockMeta{
+		},
+		{
+			name: "all things",
+			blocklist: []*encoding.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
-					EndTime: now.Add(-48 * time.Hour),
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					CompactionLevel: 1,
+					EndTime:         now,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000005"),
-					EndTime: now.Add(-48 * time.Hour),
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 0,
+					EndTime:         now.Add(-timeWindow),
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					CompactionLevel: 0,
+					EndTime:         now.Add(-timeWindow),
+					TotalObjects:    1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					CompactionLevel: 0,
+					EndTime:         now,
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					CompactionLevel: 0,
+					EndTime:         now,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					CompactionLevel: 0,
+					EndTime:         now.Add(-timeWindow),
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					CompactionLevel: 0,
+					EndTime:         now.Add(-timeWindow),
+					TotalObjects:    1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					CompactionLevel: 1,
+					EndTime:         now,
 				},
 			},
 		},
@@ -473,13 +487,9 @@ func TestTimeWindowBlockSelectorActiveWindow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			selector := newTimeWindowBlockSelector(tt.blocklist, 24*time.Hour, 100)
-
-			actual, _ := selector.BlocksToCompact()
+			selector := newTimeWindowBlockSelector(tt.blocklist, timeWindow, 100)
+			actual := selector.(*timeWindowBlockSelector).blocklist
 			assert.Equal(t, tt.expected, actual)
-
-			actual, _ = selector.BlocksToCompact()
-			assert.Equal(t, tt.expectedSecond, actual)
 		})
 	}
 }

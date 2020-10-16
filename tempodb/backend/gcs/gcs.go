@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/opentracing/opentracing-go"
 	"google.golang.org/api/iterator"
 )
 
@@ -134,9 +135,9 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 	return w, nil
 }
 
-func (rw *readerWriter) Tenants() ([]string, error) {
+func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	var warning error
-	iter := rw.bucket.Objects(context.Background(), &storage.Query{
+	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Delimiter: "/",
 		Versions:  false,
 	})
@@ -158,10 +159,9 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 	return tenants, warning
 }
 
-func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
+func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 	var warning error
 
-	ctx := context.Background()
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Prefix:    tenantID + "/",
 		Delimiter: "/",
@@ -192,10 +192,10 @@ func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 	return blocks, warning
 }
 
-func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
 	name := util.MetaFileName(blockID, tenantID)
 
-	bytes, err := rw.readAll(context.Background(), name)
+	bytes, err := rw.readAll(ctx, name)
 	if err == storage.ErrObjectNotExist {
 		return nil, backend.ErrMetaDoesNotExist
 	}
@@ -212,19 +212,28 @@ func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding
 	return out, nil
 }
 
-func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
-	name := util.BloomFileName(blockID, tenantID, shardNum)
-	return rw.readAll(context.Background(), name)
+func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Bloom")
+	defer span.Finish()
+
+		name := util.BloomFileName(blockID, tenantID, shardNum)
+	return rw.readAll(derivedCtx, name)
 }
 
-func (rw *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Index")
+	defer span.Finish()
+
 	name := util.IndexFileName(blockID, tenantID)
-	return rw.readAll(context.Background(), name)
+	return rw.readAll(derivedCtx, name)
 }
 
-func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
+func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Object")
+	defer span.Finish()
+
 	name := util.ObjectFileName(blockID, tenantID)
-	return rw.readRange(context.Background(), name, int64(start), buffer)
+	return rw.readRange(derivedCtx, name, int64(start), buffer)
 }
 
 func (rw *readerWriter) Shutdown() {

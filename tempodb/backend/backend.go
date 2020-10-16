@@ -24,12 +24,12 @@ type Writer interface {
 }
 
 type Reader interface {
-	Tenants() ([]string, error)
-	Blocks(tenantID string) ([]uuid.UUID, error)
-	BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error)
-	Bloom(blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error)
-	Index(blockID uuid.UUID, tenantID string) ([]byte, error)
-	Object(blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error
+	Tenants(ctx context.Context) ([]string, error)
+	Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error)
+	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error)
+	Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error)
+	Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error)
+	Object(ctx context.Context, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error
 
 	Shutdown()
 }

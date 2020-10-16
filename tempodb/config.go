@@ -3,9 +3,10 @@ package tempodb
 import (
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend/cache"
+	"github.com/grafana/tempo/tempodb/backend/diskcache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/backend/memcached"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -16,9 +17,11 @@ type Config struct {
 	Local   *local.Config `yaml:"local"`
 	GCS     *gcs.Config   `yaml:"gcs"`
 	S3      *s3.Config    `yaml:"s3"`
-	Cache   *cache.Config `yaml:"cache"`
 	Pool    *pool.Config  `yaml:"pool,omitempty"`
 	WAL     *wal.Config   `yaml:"wal"`
+
+	Diskcache *diskcache.Config `yaml:"disk_cache"`
+	Memcached *memcached.Config `yaml:"memcached"`
 
 	MaintenanceCycle time.Duration `yaml:"maintenance_cycle"`
 }

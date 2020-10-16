@@ -2,7 +2,6 @@ auth_enabled: false
 
 server:
   http_listen_port: 3100
-  log_level: debug
 
 distributor:
   receivers:
@@ -20,8 +19,7 @@ ingester:
     final_sleep: 0s
   trace_idle_period: 10s
   traces_per_block: 100
-  max_block_duration: 1h
-  complete_block_timeout: 2m
+  max_block_duration: 5m
 
 compactor:
   compaction:
@@ -29,7 +27,7 @@ compactor:
     compaction_window: 1h
     max_compaction_objects: 1000000
     block_retention: 1h
-    compacted_block_retention: 2m
+    compacted_block_retention: 10m
 
 storage:
   trace:
@@ -48,7 +46,7 @@ storage:
     pool:
       max_workers: 100
       queue_depth: 10000
-    cache:
+    disk_cache:
       disk_path: /tmp/tempo/cache
       disk_max_mbs: 5
       disk_prune_count: 10
