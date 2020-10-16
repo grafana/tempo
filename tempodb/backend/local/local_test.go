@@ -9,11 +9,10 @@ import (
 	"path"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/bloom"
-
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -79,7 +78,7 @@ func TestReadWrite(t *testing.T) {
 	assert.Equal(t, fakeTraces[100:120], actualTrace)
 
 	for i := 0; i < 10; i++ {
-		actualBloom, err := r.Bloom(blockID, tenantIDs[0], uint64(i))
+		actualBloom, err := r.Bloom(blockID, tenantIDs[0], i)
 		assert.NoError(t, err, "unexpected error reading bloom")
 		assert.Equal(t, fakeBloom[i], actualBloom)
 	}

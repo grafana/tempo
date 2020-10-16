@@ -98,7 +98,7 @@ func (rw *readerWriter) WriteBlockMeta(_ context.Context, tracker backend.Append
 	}
 
 	for i, b := range bBloom {
-		bloomFileName := rw.bloomFileName(blockID, tenantID, uint64(i))
+		bloomFileName := rw.bloomFileName(blockID, tenantID, i)
 		err = ioutil.WriteFile(bloomFileName, b, 0644)
 		if err != nil {
 			os.RemoveAll(blockFolder)
@@ -205,7 +205,7 @@ func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding
 	return out, nil
 }
 
-func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string, bloomShard uint64) ([]byte, error) {
+func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
 	filename := rw.bloomFileName(blockID, tenantID, bloomShard)
 	return ioutil.ReadFile(filename)
 }
@@ -240,8 +240,8 @@ func (rw *readerWriter) metaFileName(blockID uuid.UUID, tenantID string) string 
 	return path.Join(rw.rootPath(blockID, tenantID), "meta.json")
 }
 
-func (rw *readerWriter) bloomFileName(blockID uuid.UUID, tenantID string, bloomShard uint64) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "bloom"+"-"+strconv.Itoa(int(bloomShard)))
+func (rw *readerWriter) bloomFileName(blockID uuid.UUID, tenantID string, bloomShard int) string {
+	return path.Join(rw.rootPath(blockID, tenantID), "bloom-"+strconv.Itoa(bloomShard))
 }
 
 func (rw *readerWriter) indexFileName(blockID uuid.UUID, tenantID string) string {

@@ -14,7 +14,7 @@ import (
 )
 
 // TODO: factor out common code with readOrCacheIndexToDisk into separate function
-func (r *reader) readOrCacheBloom(blockID uuid.UUID, tenantID string, t string, shardNum uint64, miss bloomMissFunc) ([]byte, error, error) {
+func (r *reader) readOrCacheBloom(blockID uuid.UUID, tenantID string, t string, shardNum int, miss bloomMissFunc) ([]byte, error, error) {
 	var skippableError error
 
 	k := key(blockID, tenantID, t)

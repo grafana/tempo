@@ -126,7 +126,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		size, err := rw.core.Client.PutObjectWithContext(
 			ctx,
 			rw.cfg.Bucket,
-			util.BloomFileName(blockID, tenantID, uint64(i)),
+			util.BloomFileName(blockID, tenantID, i),
 			bytes.NewReader(b),
 			int64(len(b)),
 			options,
@@ -274,7 +274,7 @@ func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding
 }
 
 // Bloom implements backend.Reader
-func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string, bloomShard uint64) ([]byte, error) {
+func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
 	bloomFileName := util.BloomFileName(blockID, tenantID, bloomShard)
 	return rw.readAll(context.Background(), bloomFileName)
 }

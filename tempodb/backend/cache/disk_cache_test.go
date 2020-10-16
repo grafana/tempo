@@ -25,7 +25,7 @@ func TestReadOrCache(t *testing.T) {
 		indexMissCalled++
 		return missBytes, nil
 	}
-	bloomMissFunc := func(blockID uuid.UUID, tenantID string, shardNum uint64) ([]byte, error) {
+	bloomMissFunc := func(blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
 		bloomMissCalled++
 		return missBytes, nil
 	}

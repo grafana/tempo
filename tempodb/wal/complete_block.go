@@ -4,8 +4,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/grafana/tempo/pkg/bloom"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"go.uber.org/atomic"
 )
 

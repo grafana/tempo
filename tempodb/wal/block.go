@@ -5,8 +5,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/grafana/tempo/pkg/bloom"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 type WriteableBlock interface {

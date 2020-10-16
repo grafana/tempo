@@ -12,8 +12,8 @@ func MetaFileName(blockID uuid.UUID, tenantID string) string {
 	return path.Join(RootPath(blockID, tenantID), "meta.json")
 }
 
-func BloomFileName(blockID uuid.UUID, tenantID string, bloomShard uint64) string {
-	return path.Join(RootPath(blockID, tenantID), "bloom"+"-"+strconv.Itoa(int(bloomShard)))
+func BloomFileName(blockID uuid.UUID, tenantID string, bloomShard int) string {
+	return path.Join(RootPath(blockID, tenantID), "bloom-"+strconv.Itoa(bloomShard))
 }
 
 func IndexFileName(blockID uuid.UUID, tenantID string) string {

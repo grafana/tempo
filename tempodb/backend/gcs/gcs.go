@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/tempo/pkg/bloom"
 	"github.com/grafana/tempo/tempodb/backend/util"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
@@ -90,7 +90,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	tenantID := meta.TenantID
 
 	for i := 0; i < bloom.GetShardNum(); i++ {
-		err := rw.writeAll(ctx, util.BloomFileName(blockID, tenantID, uint64(i)), bBloom[i])
+		err := rw.writeAll(ctx, util.BloomFileName(blockID, tenantID, i), bBloom[i])
 		if err != nil {
 			return err
 		}
@@ -212,7 +212,7 @@ func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding
 	return out, nil
 }
 
-func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string, shardNum uint64) ([]byte, error) {
+func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
 	name := util.BloomFileName(blockID, tenantID, shardNum)
 	return rw.readAll(context.Background(), name)
 }

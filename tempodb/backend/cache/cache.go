@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-type bloomMissFunc func(blockID uuid.UUID, tenantID string, bloomShard uint64) ([]byte, error)
+type bloomMissFunc func(blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error)
 type indexMissFunc func(blockID uuid.UUID, tenantID string) ([]byte, error)
 
 const (
@@ -95,7 +95,7 @@ func (r *reader) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockM
 	return r.next.BlockMeta(blockID, tenantID)
 }
 
-func (r *reader) Bloom(blockID uuid.UUID, tenantID string, bloomShard uint64) ([]byte, error) {
+func (r *reader) Bloom(blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
 	b, skippableErr, err := r.readOrCacheBloom(blockID, tenantID, typeBloom, bloomShard, r.next.Bloom)
 
 	if skippableErr != nil {

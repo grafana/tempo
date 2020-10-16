@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/grafana/tempo/pkg/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
@@ -54,7 +54,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	var delObjects []string
 	delObjects = append(delObjects, util.CompactedMetaFileName(blockID, tenantID))
 	for i := 0; i < bloom.GetShardNum(); i++ {
-		delObjects = append(delObjects, util.BloomFileName(blockID, tenantID, uint64(i)))
+		delObjects = append(delObjects, util.BloomFileName(blockID, tenantID, i))
 	}
 	delObjects = append(delObjects, util.IndexFileName(blockID, tenantID))
 	delObjects = append(delObjects, util.ObjectFileName(blockID, tenantID))

@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/bloom"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 type CompactorBlock struct {

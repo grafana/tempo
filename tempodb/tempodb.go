@@ -22,13 +22,13 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 
-	"github.com/grafana/tempo/pkg/bloom"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/cache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -262,9 +262,9 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	foundBytes, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) ([]byte, error) {
 		meta := payload.(*encoding.BlockMeta)
 
-		shardKey := uint64(bloom.ShardKeyForTraceID(id))
+		shardKey := bloom.ShardKeyForTraceID(id)
 		level.Debug(logger).Log("msg", "fetching bloom", "shardKey", shardKey)
-		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID, shardKey)
+		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID, int(shardKey))
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
 		}
