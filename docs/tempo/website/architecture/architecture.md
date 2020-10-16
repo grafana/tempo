@@ -3,7 +3,9 @@ title: Architecture
 draft: true
 ---
 
-<p align="center"><img src="docs/tempo/website/tempo_arch.png" alt="Tempo Architecture"></p>
+## Architecture
+
+<p align="center"><img src="tempo_arch.png" alt="Tempo Architecture"></p>
 
 
 ## Distributor
