@@ -13,6 +13,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/gogo/status"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/logging"
@@ -74,10 +75,11 @@ var (
 type Distributor struct {
 	services.Service
 
-	cfg           Config
-	clientCfg     ingester_client.Config
-	ingestersRing ring.ReadRing
-	pool          *ring_client.Pool
+	cfg             Config
+	clientCfg       ingester_client.Config
+	ingestersRing   ring.ReadRing
+	pool            *ring_client.Pool
+	DistributorRing *ring.Ring
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -100,17 +102,23 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	// Create the configured ingestion rate limit strategy (local or global).
 	var ingestionRateStrategy limiter.RateLimiterStrategy
-	var distributorsRing *ring.Lifecycler
+	var distributorRing *ring.Ring
 
 	if o.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
-		var err error
-		distributorsRing, err = ring.NewLifecycler(cfg.DistributorRing.ToLifecyclerConfig(), nil, "distributor", cfg.OverrideRingKey, false, prometheus.DefaultRegisterer)
+		lifecyclerCfg := cfg.DistributorRing.ToLifecyclerConfig()
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, err
 		}
+		subservices = append(subservices, lifecycler)
+		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, lifecycler)
 
-		subservices = append(subservices, distributorsRing)
-		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, distributorsRing)
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, prometheus.DefaultRegisterer)
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to initialize distributor ring")
+		}
+		distributorRing = ring
+		subservices = append(subservices, distributorRing)
 	} else {
 		ingestionRateStrategy = newLocalIngestionRateStrategy(o)
 	}
@@ -129,6 +137,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		clientCfg:            clientCfg,
 		ingestersRing:        ingestersRing,
 		pool:                 pool,
+		DistributorRing:      distributorRing,
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 	}
 
