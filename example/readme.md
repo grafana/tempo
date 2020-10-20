@@ -13,7 +13,8 @@ Tempo Query is also the method by which Grafana queries traces.  Notice that the
 
 ## Docker Compose
 
-The [docker-compose](./docker-compose) examples are simpler and designed to show minimal configuration. 
+The [docker-compose](./docker-compose) examples are simpler and designed to show minimal configuration.  This is a great place
+to get started with Tempo and learn about various trace discovery flows.
 
 - [local storage](./docker-compose/readme.md#local-storage)
   - At its simplest Tempo only requires a few parameters that identify where to store traces.
