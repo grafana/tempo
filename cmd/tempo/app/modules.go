@@ -70,12 +70,6 @@ func (t *App) initServer() (services.Service, error) {
 }
 
 func (t *App) initRing() (services.Service, error) {
-	// if we're in single binary mode we're going to some settings on force ingester ring config
-	if t.cfg.Target == All {
-		t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.Store = "inmemory"
-		t.cfg.Ingester.LifecyclerConfig.Addr = "127.0.0.1"
-	}
-
 	ring, err := tempo_ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", t.cfg.Ingester.OverrideRingKey, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ring %w", err)

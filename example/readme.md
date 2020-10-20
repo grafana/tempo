@@ -15,7 +15,7 @@ Tempo Query is also the method by which Grafana queries traces.  Notice that the
 
 The [docker-compose](./docker-compose) examples are simpler and designed to show minimal configuration. 
 
-- [local storage](./docker-compose/readme.md#local)
+- [local storage](./docker-compose/readme.md#local-storage)
   - At its simplest Tempo only requires a few parameters that identify where to store traces.
 - [s3/minio storage](./docker-compose/readme.md#s3)
   - To reduce complexity not all config options are exposed on the command line.  This example uses the minio/s3 backend with a config file.
@@ -26,7 +26,7 @@ The [docker-compose](./docker-compose) examples are simpler and designed to show
 
 The [jsonnet](./tk) examples are more complex and show off the full range of configuration available to Tempo.
 
-- [single binary](./tk/readme.md#single_binary)
+- [single binary](./tk/readme.md#single-binary)
   - A single binary jsonnet deployment.  Valuable for getting started with advanced configuration.
 - [microservices](./tk/readme.md#microservices)
   - Tempo as a set of independently scalable microservices.  This is recommended for high volume full production deployments.
