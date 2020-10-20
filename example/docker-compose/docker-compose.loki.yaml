@@ -50,7 +50,7 @@ services:
     volumes:
       - ./datasources:/etc/grafana/provisioning/datasources
       - ./dashboards-provisioning:/etc/grafana/provisioning/dashboards
-      - ./dashboards:/var/lib/grafana/dashboards
+      - ../../operations/tempo-mixin/out:/var/lib/grafana/dashboards
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
