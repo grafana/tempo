@@ -12,7 +12,7 @@ If you're convinced this is the place for you then keep reading!
 The Jsonnet is meant to be applied to with (tanka)[https://github.com/grafana/tanka].  To test the jsonnet locally requires:
 
 - k3d > v1.6.0
-- tanka > v0.8.0
+- tanka > v0.12.0
 
 ```console
 k3d create --name tempo \
