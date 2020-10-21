@@ -135,6 +135,7 @@ vendor-dependencies: vendor vendor-ci
 install-tools:
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/gogo/protobuf/protoc-gen-gogofaster
+	go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
 
 ### Check vendored files
 .PHONY: vendor-check
