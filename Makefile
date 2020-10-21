@@ -137,7 +137,7 @@ install-tools:
 	go get -u github.com/gogo/protobuf/protoc-gen-gogofaster
 
 ### Check vendored files
-.PHONY: vendor-check
+.PHONY: install-tools vendor-check
 vendor-check: vendor-ci
 	git diff --name-status --exit-code
 
