@@ -1,16 +1,17 @@
 local tempo = import '../../../operations/jsonnet/microservices/tempo.libsonnet';
 local load = import 'synthetic-load-generator/main.libsonnet';
+local minio = import 'minio/minio.libsonnet';
 
-load + tempo {
+minio + load + tempo {
+    _images+:: {
+        // images can be overridden here if desired
+    },
+
     _config +:: {
         namespace: 'default',
         compactor+: {
-            pvc_size: '5Gi',
-            pvc_storage_class: 'local-path',
         },
         querier+: {
-            pvc_size: '5Gi',
-            pvc_storage_class: 'local-path',
         },
         ingester+: {
             pvc_size: '5Gi',
@@ -26,17 +27,20 @@ load + tempo {
                 },
             },
         },
-        gcs_bucket: 'overriding_for_local_testing',
+        backend: 's3',
+        bucket: 'tempo',
     },
 
-    // manually overriding for local testing.  technically once a trace is flushed to the backend it
-    //  will not be queryable with this config
+    // manually overriding to get tempo to talk to minio
     tempo_config +:: {
-        storage_config+: {
+        auth_enabled: false,
+        storage+: {
             trace+: {
-                backend: 'local',
-                'local': {
-                   path: '/tmp/tempo/traces',
+                s3+: {
+                   endpoint: 'minio:9000',
+                   access_key: 'tempo',
+                   secret_key: 'supersecret',
+                   insecure: true,
                 },
             },
         },

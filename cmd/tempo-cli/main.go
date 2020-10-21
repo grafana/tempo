@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -118,7 +119,7 @@ func getBackendUtils(backend, bucket, s3Endpoint, s3User, s3Pass string) (tempod
 func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, blockID string) error {
 	id := uuid.MustParse(blockID)
 
-	meta, err := r.BlockMeta(id, tenantID)
+	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
 	if err != nil {
 		return err
 	}
@@ -173,7 +174,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 }
 
 func dumpBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration) error {
-	blockIDs, err := r.Blocks(tenantID)
+	blockIDs, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return err
 	}
@@ -183,7 +184,7 @@ func dumpBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID 
 	totalObjects := 0
 	out := make([][]string, 0)
 	for _, id := range blockIDs {
-		meta, err := r.BlockMeta(id, tenantID)
+		meta, err := r.BlockMeta(context.Background(), id, tenantID)
 		if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
 			return err
 		}
@@ -193,7 +194,7 @@ func dumpBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID 
 			return err
 		}
 
-		indexBytes, err := r.Index(id, tenantID)
+		indexBytes, err := r.Index(context.Background(), id, tenantID)
 		totalIDs := -1
 		duplicateIDs := -1
 		if err == nil {

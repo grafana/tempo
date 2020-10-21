@@ -72,7 +72,8 @@ lint:
 docker-component: check-component
 	GOOS=linux $(MAKE) $(COMPONENT)
 	cp ./bin/linux/$(COMPONENT) ./cmd/$(COMPONENT)/
-	docker build -t $(COMPONENT) ./cmd/$(COMPONENT)/
+	docker build -t grafana/$(COMPONENT) ./cmd/$(COMPONENT)/
+	docker tag grafana/$(COMPONENT) $(COMPONENT)
 	rm ./cmd/$(COMPONENT)/$(COMPONENT)
 
 .PHONY: docker-tempo
@@ -149,3 +150,16 @@ $(GORELEASER):
 release: $(GORELEASER)
 	$(GORELEASER) build --skip-validate --rm-dist
 	$(GORELEASER) release --rm-dist
+
+### Docs
+DOCS_IMAGE = grafana/docs-base:latest
+
+.PHONY: docs
+docs:
+	docker pull ${DOCS_IMAGE}
+	docker run -v ${PWD}/docs/tempo/website:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make server'
+
+.PHONY: docs-test
+docs-test:
+	docker pull ${DOCS_IMAGE}
+	docker run -v ${PWD}/docs/tempo/website:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'

@@ -142,7 +142,7 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 	return dst, nil
 }
 
-func (rw *readerWriter) Tenants() ([]string, error) {
+func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	folders, err := ioutil.ReadDir(rw.cfg.Path)
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func (rw *readerWriter) Tenants() ([]string, error) {
 	return tenants, nil
 }
 
-func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
+func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 	var warning error
 	path := path.Join(rw.cfg.Path, tenantID)
 	folders, err := ioutil.ReadDir(path)
@@ -183,7 +183,7 @@ func (rw *readerWriter) Blocks(tenantID string) ([]uuid.UUID, error) {
 	return blocks, warning
 }
 
-func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
 	filename := rw.metaFileName(blockID, tenantID)
 	bytes, err := ioutil.ReadFile(filename)
 	if os.IsNotExist(err) {
@@ -202,17 +202,17 @@ func (rw *readerWriter) BlockMeta(blockID uuid.UUID, tenantID string) (*encoding
 	return out, nil
 }
 
-func (rw *readerWriter) Bloom(blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	filename := rw.bloomFileName(blockID, tenantID)
 	return ioutil.ReadFile(filename)
 }
 
-func (rw *readerWriter) Index(blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	filename := rw.indexFileName(blockID, tenantID)
 	return ioutil.ReadFile(filename)
 }
 
-func (rw *readerWriter) Object(blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
+func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
 	filename := rw.tracesFileName(blockID, tenantID)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)

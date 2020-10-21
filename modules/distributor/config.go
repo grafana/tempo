@@ -4,6 +4,7 @@ import (
 	"flag"
 
 	cortex_distributor "github.com/cortexproject/cortex/pkg/distributor"
+	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 )
@@ -26,11 +27,11 @@ var defaultReceivers = map[string]interface{}{
 type Config struct {
 	// Distributors ring
 	DistributorRing cortex_distributor.RingConfig `yaml:"ring,omitempty"`
-
 	// receivers map for shim.
 	//  This receivers node is equivalent in format to the receiver node in the
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/master/receiver
-	Receivers map[string]interface{} `yaml:"receivers"`
+	Receivers       map[string]interface{} `yaml:"receivers"`
+	OverrideRingKey string                 `yaml:"override_ring_key"`
 
 	// For testing.
 	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
@@ -39,4 +40,6 @@ type Config struct {
 // RegisterFlagsAndApplyDefaults registers flags and applies defaults
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	flagext.DefaultValues(&cfg.DistributorRing)
+
+	cfg.OverrideRingKey = ring.DistributorRingKey
 }

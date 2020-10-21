@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -23,9 +22,10 @@ import (
 	ot_log "github.com/opentracing/opentracing-go/log"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/cache"
+	"github.com/grafana/tempo/tempodb/backend/diskcache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/backend/memcached"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
@@ -33,11 +33,6 @@ import (
 )
 
 var (
-	metricMaintenanceTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "tempodb",
-		Name:      "maintenance_total",
-		Help:      "Total number of times the maintenance cycle has occurred.",
-	})
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "blocklist_poll_errors_total",
@@ -53,7 +48,7 @@ var (
 		Namespace: "tempodb",
 		Name:      "blocklist_length",
 		Help:      "Total number of blocks per tenant.",
-	}, []string{"tenant", "level"})
+	}, []string{"tenant"})
 	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "retention_duration_seconds",
@@ -144,8 +139,16 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		return nil, nil, nil, err
 	}
 
-	if cfg.Cache != nil {
-		r, err = cache.New(r, cfg.Cache, logger)
+	if cfg.Diskcache != nil {
+		r, err = diskcache.New(r, cfg.Diskcache, logger)
+
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	if cfg.Memcached != nil {
+		r, w, err = memcached.New(r, w, cfg.Memcached, logger)
 
 		if err != nil {
 			return nil, nil, nil, err
@@ -238,7 +241,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)
-	span, _ := opentracing.StartSpanFromContext(ctx, "store.Find")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 
 	rw.blockListsMtx.Lock()
@@ -256,10 +259,10 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		return nil, metrics, fmt.Errorf("tenantID %s not found", tenantID)
 	}
 
-	foundBytes, err := rw.pool.RunJobs(copiedBlocklist, func(payload interface{}) ([]byte, error) {
+	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*encoding.BlockMeta)
 
-		bloomBytes, err := rw.r.Bloom(meta.BlockID, tenantID)
+		bloomBytes, err := rw.r.Bloom(ctx, meta.BlockID, tenantID)
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
 		}
@@ -276,7 +279,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 			return nil, nil
 		}
 
-		indexBytes, err := rw.r.Index(meta.BlockID, tenantID)
+		indexBytes, err := rw.r.Index(ctx, meta.BlockID, tenantID)
 		metrics.IndexReads.Inc()
 		metrics.IndexBytesRead.Add(int32(len(indexBytes)))
 		if err != nil {
@@ -293,7 +296,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		}
 
 		objectBytes := make([]byte, record.Length)
-		err = rw.r.Object(meta.BlockID, tenantID, record.Start, objectBytes)
+		err = rw.r.Object(ctx, meta.BlockID, tenantID, record.Start, objectBytes)
 		metrics.BlockReads.Inc()
 		metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 		if err != nil {
@@ -317,6 +320,9 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		}
 		level.Info(logger).Log("msg", "searching for trace in block", "traceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
 		span.LogFields(ot_log.String("msg", "searching for trace in block"), ot_log.String("traceID", hex.EncodeToString(id)), ot_log.String("block", meta.BlockID.String()), ot_log.Bool("found", foundObject != nil))
+		if foundObject != nil {
+			span.SetTag("object bytes", len(foundObject))
+		}
 		return foundObject, nil
 	})
 
@@ -333,45 +339,45 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	rw.compactorCfg = cfg
 	rw.compactorSharder = c
 
+	if rw.cfg.MaintenanceCycle == 0 {
+		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  compaction and retention disabled.")
+		return
+	}
+
 	if cfg != nil {
-		level.Info(rw.logger).Log("msg", "compaction enabled.")
+		level.Info(rw.logger).Log("msg", "compaction and retention enabled.")
 		go rw.compactionLoop()
+		go rw.retentionLoop()
 	}
 }
 
 func (rw *readerWriter) maintenanceLoop() {
 	if rw.cfg.MaintenanceCycle == 0 {
-		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  tempodb querying, compaction and retention effectively disabled.")
+		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  blocklist polling disabled.")
 		return
 	}
 
-	rw.doMaintenance()
+	rw.pollBlocklist()
 
 	ticker := time.NewTicker(rw.cfg.MaintenanceCycle)
 	for range ticker.C {
-		rw.doMaintenance()
+		rw.pollBlocklist()
 	}
-}
-
-func (rw *readerWriter) doMaintenance() {
-	metricMaintenanceTotal.Inc()
-
-	rw.pollBlocklist()
 }
 
 func (rw *readerWriter) pollBlocklist() {
 	start := time.Now()
 	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
 
-	tenants, err := rw.r.Tenants()
+	ctx := context.Background()
+	tenants, err := rw.r.Tenants(ctx)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues("").Inc()
 		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
 	}
 
-	metricBlocklistLength.Reset()
 	for _, tenantID := range tenants {
-		blockIDs, err := rw.r.Blocks(tenantID)
+		blockIDs, err := rw.r.Blocks(ctx, tenantID)
 		if err != nil {
 			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
@@ -385,11 +391,11 @@ func (rw *readerWriter) pollBlocklist() {
 		listMutex := sync.Mutex{}
 		blocklist := make([]*encoding.BlockMeta, 0, len(blockIDs))
 		compactedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(blockIDs))
-		_, err = rw.pool.RunJobs(interfaceSlice, func(payload interface{}) ([]byte, error) {
+		_, err = rw.pool.RunJobs(ctx, interfaceSlice, func(ctx context.Context, payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
 
 			var compactedBlockMeta *encoding.CompactedBlockMeta
-			blockMeta, err := rw.r.BlockMeta(blockID, tenantID)
+			blockMeta, err := rw.r.BlockMeta(ctx, blockID, tenantID)
 			// if the normal meta doesn't exist maybe it's compacted.
 			if err == backend.ErrMetaDoesNotExist {
 				blockMeta = nil
@@ -422,9 +428,7 @@ func (rw *readerWriter) pollBlocklist() {
 			continue
 		}
 
-		for _, block := range blocklist {
-			metricBlocklistLength.WithLabelValues(tenantID, strconv.Itoa(int(block.CompactionLevel))).Inc()
-		}
+		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
 
 		sort.Slice(blocklist, func(i, j int) bool {
 			return blocklist[i].StartTime.Before(blocklist[j].StartTime)
@@ -440,11 +444,20 @@ func (rw *readerWriter) pollBlocklist() {
 	}
 }
 
+// todo: pass a context/chan in to cancel this cleanly
+//  once a maintenance cycle cleanup any blocks
+func (rw *readerWriter) retentionLoop() {
+	ticker := time.NewTicker(rw.cfg.MaintenanceCycle)
+	for range ticker.C {
+		rw.doRetention()
+	}
+}
+
 func (rw *readerWriter) doRetention() {
 	tenants := rw.blocklistTenants()
 
 	// todo: continued abuse of runJobs.  need a runAllJobs() method or something
-	_, err := rw.pool.RunJobs(tenants, func(payload interface{}) ([]byte, error) {
+	_, err := rw.pool.RunJobs(context.TODO(), tenants, func(_ context.Context, payload interface{}) ([]byte, error) {
 		start := time.Now()
 		defer func() { metricRetentionDuration.Observe(time.Since(start).Seconds()) }()
 

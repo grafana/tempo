@@ -1,7 +1,8 @@
-package cache
+package diskcache
 
 import (
 	"container/heap"
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -13,7 +14,7 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
-func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t string, miss missFunc) ([]byte, error, error) {
+func (r *reader) readOrCacheKeyToDisk(ctx context.Context, blockID uuid.UUID, tenantID string, t string, miss missFunc) ([]byte, error, error) {
 	var skippableError error
 
 	k := key(blockID, tenantID, t)
@@ -30,7 +31,7 @@ func (r *reader) readOrCacheKeyToDisk(blockID uuid.UUID, tenantID string, t stri
 	}
 
 	metricDiskCacheMiss.WithLabelValues(t).Inc()
-	bytes, err = miss(blockID, tenantID)
+	bytes, err = miss(ctx, blockID, tenantID)
 	if err != nil {
 		return nil, nil, err // backend store error.  need to bubble this up
 	}

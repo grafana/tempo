@@ -1,6 +1,6 @@
 // +build linux
 
-package cache
+package diskcache
 
 import "syscall"
 

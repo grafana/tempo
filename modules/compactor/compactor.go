@@ -17,8 +17,7 @@ import (
 )
 
 const (
-	CompactorRingKey = "compactor"
-	waitOnStartup    = time.Minute
+	waitOnStartup = time.Minute
 )
 
 type Compactor struct {
@@ -45,14 +44,14 @@ func New(cfg Config, store storage.Store) (*Compactor, error) {
 	subservices := []services.Service(nil)
 	if c.isSharded() {
 		lifecyclerCfg := c.cfg.ShardingRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", CompactorRingKey, false, prometheus.DefaultRegisterer)
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", cfg.OverrideRingKey, false, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
 		c.ringLifecycler = lifecycler
 		subservices = append(subservices, c.ringLifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", CompactorRingKey, prometheus.DefaultRegisterer)
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", cfg.OverrideRingKey, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
 		}
