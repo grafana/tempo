@@ -58,7 +58,7 @@ Copy one of these trace ids.
 4. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%7D%5D) and paste the trace id to request it from Tempo. 
 Also notice that you can query Tempo metrics from the Prometheus data source setup in Grafana.
 
-## Loki
+## Loki Derived Fields
 
 1. First we have to install the Loki docker driver.  This allows applications in our docker-compose to ship their logs
 to Loki.

@@ -9,4 +9,10 @@ aliases:
 
 <p align="center"><img src="logo_and_name.png" alt="Tempo Logo"></p>
 
-Grafana Tempo is a highly robust, minimal dependency distributed tracing backend that stores and retrieves traces by id only.
+Grafana Tempo is an open source, easy-to-use and high-scale distributed tracing backend. Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki.
+
+- [Getting Started](getting-started/)
+- [Community](community/)
+- [Configuration](configuration/)
+- [Integration Guides/Trace Discovery](guides/)
+- [Architecture](architecture/)
