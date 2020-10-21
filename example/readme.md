@@ -1,77 +1,33 @@
-# Example
+# Examples
 
-## Build images
+These folders contain example deployments of Tempo.  They are a good resource for getting some basic configurations together.
 
-Run the following from the project root folder to build `tempo:latest` and `tempo-query:latest` images
-that will be used in the test environment:
+#### Tempo Query
 
-```console
-make docker-images
-```
+Note that even in the single binary deploys a second image named `tempo-query` is being deployed.  Tempo itself does not 
+provide a way to visualize traces and relies on [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) to do so.  `tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc)
+that allows it to speak with Tempo.
 
-Note: `make docker-tempo` command needs to be run every time there are changes to the codebase.
+Tempo Query is also the method by which Grafana queries traces.  Notice that the Grafana datasource in all examples is pointed to
+`tempo-query`.
 
 ## Docker Compose
 
-```
-cd docker-compose
-docker-compose up
-```
-- Tempo
-  - http://localhost:3100
-- Tempo-Query
-  - http://localhost:16686
-- Grafana
-  - http://localhost:3000
-- Prometheus
-  - http://localhost:9090
+The [docker-compose](./docker-compose) examples are simpler and designed to show minimal configuration.  This is a great place
+to get started with Tempo and learn about various trace discovery flows.
 
-### Find Traces
-
-The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  Logs are in the form
-
-`Emitted traceId 27896d4ea9c8429d for service frontend route /cart`
-
-Copy and paste the trace id into tempo-query to retrieve it from Tempo.
+- [local storage](./docker-compose/readme.md#local-storage)
+  - At its simplest Tempo only requires a few parameters that identify where to store traces.
+- [s3/minio storage](./docker-compose/readme.md#s3)
+  - To reduce complexity not all config options are exposed on the command line.  This example uses the minio/s3 backend with a config file.
+- [loki log flow](./docker-compose/readme.md#loki)
+  - This example brings in Loki and shows how to use a log flow to discover traces.
 
 ## Jsonnet/Tanka
 
-The Jsonnet is meant to be applied to with (tanka)[https://github.com/grafana/tanka].  To test the jsonnet locally requires:
+The [jsonnet](./tk) examples are more complex and show off the full range of configuration available to Tempo.
 
-- k3d > v1.6.0
-- tanka > v0.8.0
-
-```
-cd tk
-k3d create --name tempo \
-           --publish 16686:80
-
-export KUBECONFIG="$(k3d get-kubeconfig --name='tempo')"
-
-# double check you're applying to your local k3d before running this!
-#   deployment_type can be single-binary or microservices
-tk apply <deployment_type>
-```
-
-After the applications are running check the load generators logs
-
-```
-kc logs synthetic-load-generator-75bfc5d545-xz5rz
-...
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId e9f4add3ac7c7115 for service frontend route /product
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId 3890ea9c4d7fab00 for service frontend route /cart
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId c36fc5169bf0693d for service frontend route /cart
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId ebaf7d02b96b30fc for service frontend route /cart
-20/03/03 21:30:02 INFO ScheduledTraceGenerator: Emitted traceId 23a09a0efd0d1ef0 for service frontend route /cart
-```
-
-Extract a trace id and view it in your browser at `http://localhost:16686/trace/<traceid>`
-
-Clean up:
-```
-k3d delete --name tempo
-```
-
-### tempo-single-binary
-The tempo single binary configuration is currently setup to store traces locally on disk, but can easily be configured to 
-store them in an S3 or GCS bucket.  See configuration docs or some of the other examples for help.
+- [single binary](./tk/readme.md#single-binary)
+  - A single binary jsonnet deployment.  Valuable for getting started with advanced configuration.
+- [microservices](./tk/readme.md#microservices)
+  - Tempo as a set of independently scalable microservices.  This is recommended for high volume full production deployments.

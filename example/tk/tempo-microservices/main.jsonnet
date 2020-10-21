@@ -27,6 +27,9 @@ minio + load + tempo {
                 },
             },
         },
+        vulture+:{
+            replicas: 0,
+        },
         backend: 's3',
         bucket: 'tempo',
     },
