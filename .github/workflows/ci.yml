@@ -21,9 +21,6 @@ jobs:
       with:
         version: v1.30
 
-    - name: Test
-      run: make test-all
-
     - name: Install Protoc
       uses: arduino/setup-protoc@v1
       with:
@@ -31,6 +28,9 @@ jobs:
 
     - name: Check vendor
       run: make vendor-check
+
+    - name: Test
+      run: make test-all
 
     - name: Build Tempo
       run: make tempo
