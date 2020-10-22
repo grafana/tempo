@@ -1,0 +1,31 @@
+kind: pipeline
+name: docker-amd64
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: image-tag
+  image: alpine
+  commands:
+  - apk add --no-cache bash git
+  - git fetch origin --tags
+  - echo $(git rev-parse --short HEAD) > .tags
+
+- name: build-tempo-image
+  image: plugins/docker
+  settings:
+    dockerfile: cmd/tempo/Dockerfile
+    repo: grafana/tempo
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+  when:
+    ref:
+    - refs/heads/master
+    - refs/tags/v*
+  depends_on:
+  - image-tag
+
