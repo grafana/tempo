@@ -11,6 +11,10 @@ steps:
   commands:
   - git fetch origin --tags
   - echo $(git rev-parse --short HEAD) > .tags
+  when:
+    ref:
+    - refs/heads/master
+    - refs/tags/v*
 
 - name: build-tempo-image
   image: plugins/docker
@@ -25,5 +29,3 @@ steps:
     ref:
     - refs/heads/master
     - refs/tags/v*
-  depends_on:
-  - image-tag
