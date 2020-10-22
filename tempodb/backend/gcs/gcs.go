@@ -216,7 +216,7 @@ func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID s
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Bloom")
 	defer span.Finish()
 
-		name := util.BloomFileName(blockID, tenantID, shardNum)
+	name := util.BloomFileName(blockID, tenantID, shardNum)
 	return rw.readAll(derivedCtx, name)
 }
 

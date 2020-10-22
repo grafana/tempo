@@ -3,10 +3,11 @@ package bloom
 import (
 	"bytes"
 
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/willf/bloom"
 )
 
-const shardNum = 16
+const shardNum = 10
 
 type ShardedBloomFilter struct {
 	blooms []*bloom.BloomFilter
@@ -43,8 +44,7 @@ func (b *ShardedBloomFilter) WriteTo() ([][]byte, error) {
 }
 
 func ShardKeyForTraceID(traceID []byte) int {
-	// least significant bits obtained by &'ing the last byte with a 0x0F
-	return int(traceID[len(traceID)-1] & 0x0F)
+	return int(util.TokenForTraceID(traceID)) % shardNum
 }
 
 // Test implements bloom.Test -> required only for testing
