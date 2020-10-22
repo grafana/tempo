@@ -43,6 +43,11 @@ tempo-cli:
 tempo-vulture:
 	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture $(BUILD_INFO) ./cmd/tempo-vulture
 
+.PHONY: exe
+exe:
+	GOOS=linux $(MAKE) $(COMPONENT)
+	cp ./bin/linux/$(COMPONENT) ./cmd/$(COMPONENT)/
+
 ### Testin' and Lintin'
 
 .PHONY: test
@@ -69,9 +74,7 @@ lint:
 ### Docker Images
 
 .PHONY: docker-component # Not intended to be used directly
-docker-component: check-component
-	GOOS=linux $(MAKE) $(COMPONENT)
-	cp ./bin/linux/$(COMPONENT) ./cmd/$(COMPONENT)/
+docker-component: check-component exe
 	docker build -t grafana/$(COMPONENT) ./cmd/$(COMPONENT)/
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
 	rm ./cmd/$(COMPONENT)/$(COMPONENT)
