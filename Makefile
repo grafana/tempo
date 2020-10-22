@@ -136,7 +136,7 @@ install-tools:
 ### Check vendored files
 .PHONY: vendor-check
 vendor-check: install-tools vendor-dependencies
-	git diff --name-status --exit-code
+	git diff --exit-code
 
 ### Release (intended to be used in the .github/workflows/images.yml)
 $(GORELEASER):
