@@ -19,6 +19,10 @@ If you have any questions or feedback regarding Tempo:
 - [File an issue](https://github.com/grafana/tempo/issues/new) for bugs, issues and feature suggestions.
 - UI issues should be filed with [Grafana](https://github.com/grafana/grafana/issues/new).
 
+## OpenTelemetry
+
+Tempo's receiver layer, wire format and storage format are all based directly on [standards](https://github.com/open-telemetry/opentelemetry-proto) and [code](https://github.com/open-telemetry/opentelemetry-collector) established by [OpenTelemetry](https://opentelemetry.io/).  We support open standards at Grafana!
+
 ## Other Components
 
 ### tempo-query

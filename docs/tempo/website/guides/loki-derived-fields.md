@@ -111,7 +111,6 @@ Follow the guide to configure Tempo datasource in Grafana.
 
 To configure the Loki datasource in Grafana follow the guide - https://grafana.com/docs/grafana/latest/features/datasources/loki/
 
-
 ### Derived fields are set up. (optional)
 
 Refer to this document for more information on setting up derived fields in Grafana.

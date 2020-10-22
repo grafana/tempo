@@ -20,7 +20,7 @@ to get started with Tempo and learn about various trace discovery flows.
   - At its simplest Tempo only requires a few parameters that identify where to store traces.
 - [s3/minio storage](./docker-compose/readme.md#s3)
   - To reduce complexity not all config options are exposed on the command line.  This example uses the minio/s3 backend with a config file.
-- [loki log flow](./docker-compose/readme.md#loki)
+- [Trace discovery with Loki](./docker-compose/readme.md#loki-derived-fields)
   - This example brings in Loki and shows how to use a log flow to discover traces.
 
 ## Jsonnet/Tanka
