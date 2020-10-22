@@ -21,7 +21,7 @@ If you have any questions or feedback regarding Tempo:
 
 ## OpenTelemetry
 
-Tempo's receiver layer, wire format and storage format are all based directly on [standards](https://github.com/open-telemetry/opentelemetry-proto) and [code](https://github.com/open-telemetry/opentelemetry-collector) established by [OpenTelmetry](https://opentelemetry.io/).  We support open standards at Grafana!
+Tempo's receiver layer, wire format and storage format are all based directly on [standards](https://github.com/open-telemetry/opentelemetry-proto) and [code](https://github.com/open-telemetry/opentelemetry-collector) established by [OpenTelemetry](https://opentelemetry.io/).  We support open standards at Grafana!
 
 ## Other Components
 
