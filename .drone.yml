@@ -15,6 +15,7 @@ steps:
 - name: build-tempo-binary
   image: golang:1.15.3-alpine
   commands:
+  - apk add make
   - COMPONENT=tempo make exe
   - COMPONENT=tempo-query make exe
   - COMPONENT=tempo-vulture make exe
