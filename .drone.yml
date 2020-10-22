@@ -7,7 +7,7 @@ platform:
 
 steps:
 - name: image-tag
-  image: alpine:git
+  image: alpine/git
   commands:
   - git fetch origin --tags
   - echo $(git rev-parse --short HEAD) > .tags
