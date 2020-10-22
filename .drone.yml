@@ -12,11 +12,36 @@ steps:
   - git fetch origin --tags
   - echo $(git rev-parse --short HEAD) > .tags
 
+- name: build-tempo-binary
+  image: golang:1.15.3-alpine
+  commands:
+  - make docker-images
+
 - name: build-tempo-image
   image: plugins/docker
   settings:
     dockerfile: cmd/tempo/Dockerfile
     repo: grafana/tempo
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+
+- name: build-tempo-query-image
+  image: plugins/docker
+  settings:
+    dockerfile: cmd/tempo-query/Dockerfile
+    repo: grafana/tempo-query
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+
+- name: build-tempo-vulture-image
+  image: plugins/docker
+  settings:
+    dockerfile: cmd/tempo-vulture/Dockerfile
+    repo: grafana/tempo-vulture
     username:
       from_secret: docker_username
     password:
