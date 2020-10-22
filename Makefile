@@ -101,6 +101,7 @@ endif
 
 .PHONY: gen-proto
 gen-proto:
+	git submodule init
 	git submodule update
 	rm -rf ./vendor/github.com/open-telemetry/opentelemetry-proto
 	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/common/v1/common.proto --gogofaster_out=plugins=grpc:./vendor
@@ -130,6 +131,16 @@ vendor-dependencies:
 install-tools:
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/gogo/protobuf/protoc-gen-gogofaster
+	go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
+
+.PHONE: clear-protos
+clear-protos:
+	rm -rf opentelemetry-proto
+
+### Check vendored files
+.PHONY: vendor-check
+vendor-check: clear-protos install-tools vendor-dependencies
+	git diff --exit-code
 
 ### Release (intended to be used in the .github/workflows/images.yml)
 $(GORELEASER):
