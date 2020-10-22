@@ -27,10 +27,16 @@
     jaeger_ui: {
       base_path: '/',
     },
+    vulture: {
+      replicas: 0,
+      loki_user: '',
+      loki_pass: '',
+      loki_base_url: '',
+    },
     ballast_size_mbs: '1024',
     port: 3100,
     gossip_ring_port: 7946,
-    backend: error 'Must specify a backend', // gcs|s3
+    backend: error 'Must specify a backend',  // gcs|s3
     bucket: error 'Must specify a bucket',
 
     overrides+:: {

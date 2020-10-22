@@ -2,6 +2,7 @@ package distributor
 
 import (
 	"flag"
+	"time"
 
 	cortex_distributor "github.com/cortexproject/cortex/pkg/distributor"
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -40,6 +41,8 @@ type Config struct {
 // RegisterFlagsAndApplyDefaults registers flags and applies defaults
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	flagext.DefaultValues(&cfg.DistributorRing)
+	cfg.DistributorRing.KVStore.Store = "memberlist"
+	cfg.DistributorRing.HeartbeatTimeout = 5 * time.Minute
 
 	cfg.OverrideRingKey = ring.DistributorRingKey
 }

@@ -12,10 +12,10 @@
       containerPort.new('prom-metrics', port),
     ]) +
     container.withArgs([
-      '-loki-base-url=https://logs-dev-ops-tools1.grafana.net',
+      '-loki-base-url=' + $._config.vulture.loki_base_url,
       '-loki-query={cluster="ops-tools1", job="cortex-ops/query-frontend"} |= "query_range"',
-      '-loki-user=29',
-      '-loki-pass=eyJrIjoiZWFlYmJmNjQzMTIwYWJmZjBiOTRiZjJlN2Y5OWQwYWZhYThjNjBmMiIsIm4iOiJsb2tpLXJlYWQtbG9raS1jYW5hcnkiLCJpZCI6NTAwMH0=',
+      '-loki-user=' + $._config.vulture.loki_user,
+      '-loki-pass=' + $._config.vulture.loki_pass,
       '-prometheus-listen-address=:' + port,
       '-tempo-base-url=http://querier:3100',
       '-logtostderr=true',
@@ -26,7 +26,7 @@
 
   tempo_vulture_deployment:
     deployment.new(target_name,
-                   1,
+                   $._config.vulture.replicas,
                    [
                      $.tempo_vulture_container,
                    ],
