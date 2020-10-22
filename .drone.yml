@@ -7,9 +7,8 @@ platform:
 
 steps:
 - name: image-tag
-  image: alpine
+  image: alpine:git
   commands:
-  - apk add --no-cache bash git
   - git fetch origin --tags
   - echo $(git rev-parse --short HEAD) > .tags
 
@@ -28,4 +27,3 @@ steps:
     - refs/tags/v*
   depends_on:
   - image-tag
-
