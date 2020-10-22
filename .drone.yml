@@ -15,7 +15,9 @@ steps:
 - name: build-tempo-binary
   image: golang:1.15.3-alpine
   commands:
-  - make docker-images
+  - COMPONENT=tempo make exe
+  - COMPONENT=tempo-query make exe
+  - COMPONENT=tempo-vulture make exe
 
 - name: build-tempo-image
   image: plugins/docker
