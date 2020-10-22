@@ -133,9 +133,13 @@ install-tools:
 	go get -u github.com/gogo/protobuf/protoc-gen-gogofaster
 	go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
 
+.PHONE: clear-protos
+clear-protos:
+	rm -rf opentelemetry-proto
+
 ### Check vendored files
 .PHONY: vendor-check
-vendor-check: install-tools vendor-dependencies
+vendor-check: clear-protos install-tools vendor-dependencies
 	git diff --exit-code
 
 ### Release (intended to be used in the .github/workflows/images.yml)
