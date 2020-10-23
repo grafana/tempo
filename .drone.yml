@@ -54,7 +54,6 @@ steps:
 trigger:
   ref:
   - refs/heads/master
-  - refs/heads/drone-pipeline
   - refs/tags/**
 
 ---
