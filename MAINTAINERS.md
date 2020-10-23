@@ -1,2 +1,2 @@
-@joe-elliott
-@annanay25
+* @joe-elliott
+* @annanay25
