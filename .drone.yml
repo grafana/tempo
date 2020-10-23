@@ -11,7 +11,7 @@ steps:
   image: alpine/git
   commands:
   - git fetch origin --tags
-  - echo $(git rev-parse --short HEAD) > .tags
+  - echo $(./tools/image-tag) > .tags
 
 - name: build-tempo-binary
   image: golang:1.15.3-alpine
