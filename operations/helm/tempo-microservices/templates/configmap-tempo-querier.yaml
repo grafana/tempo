@@ -6,17 +6,6 @@ metadata:
 data:
   tempo.yaml: |
     auth_enabled: false
-    compactor: null
-    distributor:
-        receivers:
-            jaeger:
-                protocols:
-                    thrift_http: null
-            opencensus: null
-    ingester:
-        lifecycler:
-            ring:
-                replication_factor: 2
     memberlist:
         abort_if_cluster_join_fails: false
         bind_port: 7946
@@ -29,10 +18,7 @@ data:
         log_level: debug
     storage:
         trace:
-            backend: s3
-            gcs:
-                bucket_name: tempo
-                chunk_buffer_size: 1.048576e+07
+            {{- toYaml .Values.backend | nindent 12 }}
             maintenance_cycle: 5m
             memcached:
                 consistent_hash: true
@@ -42,11 +28,5 @@ data:
             pool:
                 max_workers: 200
                 queue_depth: 2000
-            s3:
-                access_key: tempo
-                bucket: tempo
-                endpoint: minio:9000
-                insecure: true
-                secret_key: supersecret
             wal:
                 path: /var/tempo/wal

@@ -5,7 +5,7 @@ metadata:
   namespace: default
 spec:
   minReadySeconds: 10
-  replicas: 1
+  replicas: {{ .Values.querier.replicas }}
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -18,8 +18,6 @@ spec:
       maxUnavailable: 1
   template:
     metadata:
-      annotations:
-        config_hash: 55af6a9a8eb2a4bfd8f40ded2cadeeb9
       labels:
         app: querier
         name: querier
@@ -30,16 +28,14 @@ spec:
         - -target=querier
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
-        image: grafana/tempo:latest
+        image: {{ .Values.querier.image }}
         imagePullPolicy: IfNotPresent
         name: querier
         ports:
         - containerPort: 3100
           name: prom-metrics
         resources:
-          requests:
-            cpu: 500m
-            memory: 500Mi
+          {{- toYaml .Values.querier.resources | nindent 10 }}
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
@@ -47,12 +43,14 @@ spec:
         - --query.base-path=/
         - --grpc-storage-plugin.configuration-file=/conf/tempo-query.yaml
         - --query.bearer-token-propagation=true
-        image: grafana/tempo-query:latest
+        image: {{ .Values.tempoQuery.image }}
         imagePullPolicy: IfNotPresent
         name: tempo-query
         ports:
         - containerPort: 16686
           name: jaeger-ui
+        resources:
+            {{- toYaml .Values.tempoQuery.resources | nindent 10 }}
         volumeMounts:
         - mountPath: /conf
           name: tempo-query-conf

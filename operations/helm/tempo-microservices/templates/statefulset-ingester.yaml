@@ -4,7 +4,7 @@ metadata:
   name: ingester
   namespace: default
 spec:
-  replicas: 3
+  replicas: {{ .Values.ingester.replicas }}
   selector:
     matchLabels:
       app: ingester
@@ -23,16 +23,14 @@ spec:
         - -target=ingester
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
-        image: grafana/tempo:latest
+        image: {{ .Values.ingester.image }}
         imagePullPolicy: IfNotPresent
         name: ingester
         ports:
         - containerPort: 3100
           name: prom-metrics
         resources:
-          requests:
-            cpu: 500m
-            memory: 500Mi
+          {{- toYaml .Values.ingester.resources | nindent 10 }}
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
