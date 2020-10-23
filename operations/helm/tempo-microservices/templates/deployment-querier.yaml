@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: querier
-  namespace: default
 spec:
   minReadySeconds: 10
   replicas: {{ .Values.querier.replicas }}

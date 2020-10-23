@@ -4,7 +4,6 @@ metadata:
   labels:
     name: tempo
   name: tempo
-  namespace: default
 spec:
   ports:
   - name: tempo-prom-metrics

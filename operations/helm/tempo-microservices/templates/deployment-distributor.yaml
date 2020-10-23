@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: distributor
-  namespace: default
 spec:
   minReadySeconds: 10
   replicas: {{ .Values.distributor.replicas }}

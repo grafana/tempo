@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: ingester
-  namespace: default
 spec:
   replicas: {{ .Values.ingester.replicas }}
   selector:
@@ -47,7 +46,6 @@ spec:
       labels:
         app: ingester
       name: ingester-data
-      namespace: default
     spec:
       accessModes:
       - ReadWriteOnce

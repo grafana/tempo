@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: tempo
-  namespace: default
 spec:
   replicas: 1
   selector:
@@ -65,7 +64,6 @@ spec:
       labels:
         app: tempo
       name: tempo-data
-      namespace: default
     spec:
       accessModes:
       - ReadWriteOnce

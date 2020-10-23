@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: memcached
-  namespace: default
 spec:
   replicas: {{ .Values.memcached.replicas }}
   selector:
