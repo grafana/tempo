@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo
+  namespace: default
+data:
+  overrides.yaml: |
+    overrides:
+  tempo.yaml: |
+    auth_enabled: false
+    compactor:
+      compaction:
+        compacted_block_retention: {{ .Values.retention }}
+    distributor:
+      receivers:
+        {{- toYaml .Values.tempo.receivers | nindent 8 }}
+    ingester: {}
+    server:
+      http_listen_port: 3100
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /tmp/tempo/traces
+        wal:
+          path: /var/tempo/wal
