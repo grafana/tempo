@@ -53,21 +53,3 @@ In particular, we found that the following principles match how we work:
 ## Releases
 
 Releases MUST follow [Semantic Versioning](https://semver.org/) in naming and SHOULD follow Semantic Versioning as closely as reasonably possible for non-library software.
-
-Release branches MUST be split from the following branches.
-- MAJOR release branches MUST be based on master.
-- MINOR release branches MUST be based on master.
-- PATCH release branches MUST be split from the relevant MINOR release branch’s most current PATCH
-
-Security releases follow the same process but MUST be prepared in secret. Security releases MUST NOT include changes which are not related to the security fix. Normal release processes MUST accommodate the security release process. SECURITY.md MUST be followed.
-
-PRs intended for inclusion in the next PATCH release MUST be labeled with `cherry-pick-needed` so they can be picked up by automated release tooling.
-
-Releases follow the following cadence
-- MAJOR: Yearly
-- MINOR: Every 4-6 weeks
-- PATCH: As needed
-
-Releases SHOULD NOT be delayed by pending changes.
-
-Releases MUST be coordinated with the relevant subsystem maintainers.
