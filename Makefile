@@ -47,7 +47,6 @@ tempo-vulture:
 exe:
 	GOOS=linux $(MAKE) $(COMPONENT)
 	cp ./bin/linux/$(COMPONENT) ./cmd/$(COMPONENT)/
-	cp ./bin/linux/$(COMPONENT) .
 
 ### Testin' and Lintin'
 
