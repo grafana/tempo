@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ingester
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ingester
+      name: ingester
+      tempo-gossip-member: "true"
+  serviceName: ingester
+  template:
+    metadata:
+      labels:
+        app: ingester
+        name: ingester
+        tempo-gossip-member: "true"
+    spec:
+      containers:
+      - args:
+        - -target=ingester
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        image: grafana/tempo:latest
+        imagePullPolicy: IfNotPresent
+        name: ingester
+        ports:
+        - containerPort: 3100
+          name: prom-metrics
+        resources:
+          requests:
+            cpu: 500m
+            memory: 500Mi
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+        - mountPath: /var/tempo
+          name: ingester-data
+      volumes:
+      - configMap:
+          name: tempo
+        name: tempo-conf
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - metadata:
+      labels:
+        app: ingester
+      name: ingester-data
+      namespace: default
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi
+      storageClassName: local-path

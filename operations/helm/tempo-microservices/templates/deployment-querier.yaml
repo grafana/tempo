@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: querier
+  namespace: default
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: querier
+      name: querier
+      tempo-gossip-member: "true"
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      annotations:
+        config_hash: 55af6a9a8eb2a4bfd8f40ded2cadeeb9
+      labels:
+        app: querier
+        name: querier
+        tempo-gossip-member: "true"
+    spec:
+      containers:
+      - args:
+        - -target=querier
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        image: grafana/tempo:latest
+        imagePullPolicy: IfNotPresent
+        name: querier
+        ports:
+        - containerPort: 3100
+          name: prom-metrics
+        resources:
+          requests:
+            cpu: 500m
+            memory: 500Mi
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+      - args:
+        - --query.base-path=/
+        - --grpc-storage-plugin.configuration-file=/conf/tempo-query.yaml
+        - --query.bearer-token-propagation=true
+        image: grafana/tempo-query:latest
+        imagePullPolicy: IfNotPresent
+        name: tempo-query
+        ports:
+        - containerPort: 16686
+          name: jaeger-ui
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-query-conf
+      volumes:
+      - configMap:
+          name: tempo-query
+        name: tempo-query-conf
+      - configMap:
+          name: tempo-querier
+        name: tempo-conf

@@ -26,9 +26,8 @@ Grafana to run our hosted Tempo offering.
 
 ```console
 # double check you're applying to your local k3d before running this!
-#   deployment_type can be single-binary or microservices
 helm install ../../operations/helm/tempo-microservices/ --generate-name
-kubectl create -f synthetic-load-generator.yaml
+kubectl create -f microservices-extras.yaml
 ```
 
 ### Single Binary
@@ -37,9 +36,8 @@ store them in an S3 or GCS bucket.  See configuration docs or some of the other 
 
 ```console
 # double check you're applying to your local k3d before running this!
-#   deployment_type can be single-binary or microservices
 helm install ../../operations/helm/tempo-single-binary/ --generate-name
-kubectl create -f synthetic-load-generator.yaml
+kubectl create -f single-binary-extras.yaml
 ```
 
 ### View a trace

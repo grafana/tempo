@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo
+  namespace: default
+data:
+  overrides.yaml: |
+    overrides: {}
+  tempo.yaml: |
+    auth_enabled: false
+    compactor: null
+    distributor:
+        receivers:
+            jaeger:
+                protocols:
+                    thrift_http: null
+            opencensus: null
+    ingester:
+        lifecycler:
+            ring:
+                replication_factor: 2
+    memberlist:
+        abort_if_cluster_join_fails: false
+        bind_port: 7946
+        join_members:
+          - gossip-ring.default.svc.cluster.local:7946
+    overrides:
+        per_tenant_override_config: /conf/overrides.yaml
+    server:
+        http_listen_port: 3100
+    storage:
+        trace:
+            backend: s3
+            gcs:
+                bucket_name: tempo
+                chunk_buffer_size: 1.048576e+07
+            maintenance_cycle: 5m
+            memcached:
+                consistent_hash: true
+                host: memcached
+                service: memcached-client
+                timeout: 500ms
+            pool:
+                queue_depth: 2000
+            s3:
+                access_key: tempo
+                bucket: tempo
+                endpoint: minio:9000
+                insecure: true
+                secret_key: supersecret
+            wal:
+                path: /var/tempo/wal

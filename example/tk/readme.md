@@ -29,7 +29,6 @@ Grafana to run our hosted Tempo offering.
 
 ```console
 # double check you're applying to your local k3d before running this!
-#   deployment_type can be single-binary or microservices
 tk apply tempo-microservices
 ```
 
@@ -39,7 +38,6 @@ store them in an S3 or GCS bucket.  See configuration docs or some of the other 
 
 ```console
 # double check you're applying to your local k3d before running this!
-#   deployment_type can be single-binary or microservices
 tk apply tempo-single-binary
 ```
 
