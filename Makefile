@@ -47,7 +47,6 @@ tempo-vulture:
 exe:
 	GOOS=linux $(MAKE) $(COMPONENT)
 	cp ./bin/linux/$(COMPONENT) ./cmd/$(COMPONENT)/
-	cp ./bin/linux/$(COMPONENT) .
 
 ### Testin' and Lintin'
 
@@ -76,7 +75,7 @@ lint:
 
 .PHONY: docker-component # Not intended to be used directly
 docker-component: check-component exe
-	docker build -t grafana/$(COMPONENT) ./cmd/$(COMPONENT)/
+	docker build -t grafana/$(COMPONENT) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
 	rm ./cmd/$(COMPONENT)/$(COMPONENT)
 

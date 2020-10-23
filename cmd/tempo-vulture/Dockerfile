@@ -1,4 +1,4 @@
 FROM alpine:3.9 as certs
 RUN apk --update add ca-certificates
-COPY tempo-vulture /
+COPY cmd/tempo-vulture/tempo-vulture /
 ENTRYPOINT ["/tempo-vulture"]
