@@ -21,7 +21,8 @@ type appender struct {
 
 func NewAppender(writer io.Writer) Appender {
 	return &appender{
-		writer: writer,
+		writer:  writer,
+		records: []*Record{},
 	}
 }
 
