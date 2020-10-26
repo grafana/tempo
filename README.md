@@ -1,3 +1,6 @@
+
+
+
 <p align="center"><img src="docs/tempo/website/logo_and_name.png" alt="Tempo Logo"></p>
 
 Grafana Tempo is a high volume, minimal dependency distributed tracing backend.  It is supports key/value lookup only and is designed to work in concert with logs and metrics (exemplars) for discovery.
