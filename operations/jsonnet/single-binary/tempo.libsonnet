@@ -6,7 +6,7 @@
   local containerPort = $.core.v1.containerPort,
   local volumeMount = $.core.v1.volumeMount,
   local pvc = $.core.v1.persistentVolumeClaim,
-  local deployment = $.apps.v1.deployment,
+  local statefulset = $.apps.v1.statefulSet,
   local volume = $.core.v1.volume,
   local service = $.core.v1.service,
   local servicePort = service.mixin.spec.portsType,
@@ -28,7 +28,7 @@
     pvc.mixin.metadata
     .withLabels({ app: 'tempo' })
     .withNamespace($._config.namespace)
-    .withName('tempo-pvc') +
+    .withName(tempo_data_volume) +
     { kind: 'PersistentVolumeClaim', apiVersion: 'v1' },
 
   tempo_container::
@@ -58,27 +58,26 @@
       volumeMount.new(tempo_query_config_volume, '/conf'),
     ]),
 
-  tempo_deployment:
-    deployment.new('tempo',
+  tempo_statefulset:
+    statefulset.new('tempo',
                    1,
                    [
                      $.tempo_container,
                      $.tempo_query_container,
                    ],
+                   self.tempo_pvc,
                    { app: 'tempo' }) +
-    deployment.mixin.spec.template.metadata.withAnnotations({
+    statefulset.mixin.spec.withServiceName('tempo') +
+    statefulset.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_configmap)),
     }) +
-    deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(0) +
-    deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
-    deployment.mixin.spec.template.spec.withVolumes([
+    statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
       volume.fromConfigMap(tempo_config_volume, $.tempo_configmap.metadata.name),
-      volume.fromPersistentVolumeClaim(tempo_data_volume, $.tempo_pvc.metadata.name),
     ]),
 
   tempo_service:
-    $.util.serviceFor($.tempo_deployment)
+    $.util.serviceFor($.tempo_statefulset)
     + service.mixin.spec.withPortsMixin([
       servicePort.withName('http').withPort(80).withTargetPort(16686),
     ]),

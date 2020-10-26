@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-compactor
+data:  
+  tempo.yaml: |
+    auth_enabled: false
+    compactor:
+        compaction:
+            block_retention: {{ .Values.retention }}
+        ring:
+            kvstore:
+                store: memberlist
+    memberlist:
+        abort_if_cluster_join_fails: false
+        bind_port: 7946
+        join_members:
+          - gossip-ring.default.svc.cluster.local:7946
+    server:
+        http_listen_port: 3100
+    storage:
+        trace:
+            {{- toYaml .Values.backend | nindent 12 }}
+            maintenance_cycle: 10m
+            memcached:
+                consistent_hash: true
+                host: memcached
+                service: memcached-client
+                timeout: 500ms
+            pool:
+                queue_depth: 2000
+            wal:
+                path: /var/tempo/wal

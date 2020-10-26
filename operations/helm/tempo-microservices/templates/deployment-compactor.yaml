@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compactor
+spec:
+  minReadySeconds: 10
+  replicas: {{ .Values.compactor.replicas }}
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: compactor
+      name: compactor
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: compactor
+        name: compactor
+    spec:
+      containers:
+      - args:
+        - -target=compactor
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        image: {{ .Values.compactor.image }}
+        imagePullPolicy: IfNotPresent
+        name: compactor
+        ports:
+        - containerPort: 3100
+          name: prom-metrics
+        resources:
+          {{- toYaml .Values.compactor.resources | nindent 10 }}
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+      volumes:
+      - configMap:
+          name: tempo-compactor
+        name: tempo-conf

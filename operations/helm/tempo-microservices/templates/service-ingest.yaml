@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: distributor
+  name: ingest
+spec:
+  clusterIP: None
+  ports:
+  - name: distributor-jaeger-thrift-compact
+    port: 6831
+    protocol: UDP
+    targetPort: 6831
+  - name: distributor-jaeger-thrift-binary
+    port: 6832
+    protocol: UDP
+    targetPort: 6832
+  - name: distributor-jaeger-thrift-http
+    port: 14268
+    protocol: TCP
+    targetPort: 14268
+  - name: distributor-jaeger-grpc
+    port: 14250
+    protocol: TCP
+    targetPort: 14250
+  - name: distributor-zipkin
+    port: 9411
+    protocol: TCP
+    targetPort: 9411
+  - name: distributor-otlp
+    port: 55680
+    protocol: TCP
+    targetPort: 55680
+  - name: distributor-opencensus
+    port: 55678
+    protocol: TCP
+    targetPort: 55678
+  selector:
+    app: distributor
+    name: distributor
+    tempo-gossip-member: "true"

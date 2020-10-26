@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: distributor
+spec:
+  minReadySeconds: 10
+  replicas: {{ .Values.distributor.replicas }}
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: distributor
+      name: distributor
+      tempo-gossip-member: "true"
+  template:
+    metadata:
+      labels:
+        app: distributor
+        name: distributor
+        tempo-gossip-member: "true"
+    spec:
+      containers:
+      - args:
+        - -target=distributor
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        image: {{ .Values.distributor.image }}
+        imagePullPolicy: IfNotPresent
+        name: distributor
+        ports:
+        - containerPort: 3100
+          name: prom-metrics
+        - containerPort: 55678
+          name: opencensus
+        - containerPort: 14268
+          name: jaeger-http
+        resources:
+          {{- toYaml .Values.distributor.resources | nindent 10 }}
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+      volumes:
+      - configMap:
+          name: tempo
+        name: tempo-conf

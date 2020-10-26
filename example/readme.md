@@ -25,9 +25,22 @@ to get started with Tempo and learn about various trace discovery flows.
 
 ## Jsonnet/Tanka
 
-The [jsonnet](./tk) examples are more complex and show off the full range of configuration available to Tempo.
+The [jsonnet](./tk) examples are more complex and show off the full range of configuration available to Tempo.  The
+Helm and jsonnet examples are equivalent.  They are both provided for people who prefer different configuration
+mechanisms.
 
 - [single binary](./tk/readme.md#single-binary)
   - A single binary jsonnet deployment.  Valuable for getting started with advanced configuration.
 - [microservices](./tk/readme.md#microservices)
+  - Tempo as a set of independently scalable microservices.  This is recommended for high volume full production deployments.
+
+## Helm
+
+The [helm](./helm) examples are more complex and show off the full range of configuration available to Tempo.  The
+Helm and jsonnet examples are equivalent.  They are both provided for people who prefer different configuration
+mechanisms.
+
+- [single binary](./helm/readme.md#single-binary)
+  - A single binary jsonnet deployment.  Valuable for getting started with advanced configuration.
+- [microservices](./helm/readme.md#microservices)
   - Tempo as a set of independently scalable microservices.  This is recommended for high volume full production deployments.

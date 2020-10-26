@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tempo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tempo
+      name: tempo
+  serviceName: tempo
+  template:
+    metadata:
+      annotations:
+        config_hash: 048105ce8af8f0494186fdb27162f952
+      labels:
+        app: tempo
+        name: tempo
+    spec:
+      containers:
+      - args:
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        image: {{ .Values.tempo.image }}
+        imagePullPolicy: IfNotPresent
+        name: tempo
+        ports:
+        - containerPort: 3100
+          name: prom-metrics
+        resources:
+          {{- toYaml .Values.tempo.resources | nindent 10 }}
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+        - mountPath: /var/tempo
+          name: tempo-data
+      - args:
+        - --query.base-path=/
+        - --grpc-storage-plugin.configuration-file=/conf/tempo-query.yaml
+        image: {{ .Values.tempoQuery.image }}
+        imagePullPolicy: IfNotPresent
+        name: tempo-query
+        ports:
+        - containerPort: 16686
+          name: jaeger-ui
+        resources:
+          {{- toYaml .Values.tempoQuery.resources | nindent 10 }}  
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-query-conf
+      volumes:
+      - configMap:
+          name: tempo-query
+        name: tempo-query-conf
+      - configMap:
+          name: tempo
+        name: tempo-conf
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      labels:
+        app: tempo
+      name: tempo-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.storage.capacity }}
+      storageClassName: {{ .Values.storage.storageClassName }}
