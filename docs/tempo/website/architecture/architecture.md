@@ -7,7 +7,7 @@ draft: true
 
 This document provides an overview of the major components that comprise Tempo.  Please refer to [the examples](https://github.com/grafana/tempo/tree/master/example) to see some deployment options.
 
-<p align="center"><img src="tempo_arch.png" alt="Tempo Architecture"></p>
+<p align="center"><img src="../tempo_arch.png" alt="Tempo Architecture"></p>
 
 ## Tempo
 
@@ -16,8 +16,8 @@ This document provides an overview of the major components that comprise Tempo. 
 Accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin.
 Routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring](consistent-hash-ring/).
 
-The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector). 
-For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto).  For this reason 
+The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
+For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto).  For this reason
 the [Grafana Agent](https://github.com/grafana/agent) uses the otlp exporter/receiver to send spans to Tempo.
 
 ### Ingester
@@ -25,10 +25,10 @@ the [Grafana Agent](https://github.com/grafana/agent) uses the otlp exporter/rec
 Batches traces into blocks, blooms, indexes and flushes to backend.  Blocks in the backend are generated in the following layout.
 
 ```
-<bucketname> / <tenantID> / <blockID> / <meta.json> 
-.                                     / <bloom> 
-.                                     / <index> 
-.                                     / <data> 
+<bucketname> / <tenantID> / <blockID> / <meta.json>
+.                                     / <bloom>
+.                                     / <index>
+.                                     / <data>
 ```
 
 ### Querier
