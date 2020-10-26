@@ -19,8 +19,7 @@ make docker-images
 
 ## Storage options
 
-Tempo can be run locally with Local Storage or an S3 (Minio) backend. Choose any
-one of the storage options.
+Tempo can be run with local storage, S3, or GCS backends. See below for examples of [local](#local-storage) and [S3 (Minio)](#s3) storage.
 
 ### Local Storage
 
@@ -103,10 +102,14 @@ http://localhost:9000 and use the username/password of `tempo`/`supersecret`.
 3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
 
 ```console
+docker-compose logs -f synthetic-load-generator
+.
+.
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 48367daf25266daa for service frontend route /currency
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 10e50d2aca58d5e7 for service frontend route /cart
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 51a4ac1638ee4c63 for service frontend route /shipping
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 1219370c6a796a6d for service frontend route /product
+.
 ```
 
 Logs are in the form

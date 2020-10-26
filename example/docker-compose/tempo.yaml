@@ -4,7 +4,7 @@ server:
   http_listen_port: 3100
 
 distributor:
-  receivers:                           # this configuration will listen on all ports and protocols that tempo is capable of. 
+  receivers:                           # this configuration will listen on all ports and protocols that tempo is capable of.
     jaeger:                            # the receives all come from the OpenTelemetry collector.  more configuration information can
       protocols:                       # be found there: https://github.com/open-telemetry/opentelemetry-collector/tree/master/receiver
         thrift_http:                   #
@@ -16,7 +16,7 @@ distributor:
       protocols:
         http:
         grpc:
-    opencensus:                                  
+    opencensus:
 
 ingester:
   trace_idle_period: 10s               # the length of time after a trace has not received spans to consider it complete and flush it
@@ -26,7 +26,7 @@ ingester:
 compactor:
   compaction:
     compaction_window: 1h              # blocks in this time window will be compacted together
-    max_compaction_objects: 1000000    # maximum size of compacted 
+    max_compaction_objects: 1000000    # maximum size of compacted blocks
     block_retention: 1h
     compacted_block_retention: 10m
 
