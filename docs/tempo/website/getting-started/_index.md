@@ -101,6 +101,6 @@ Some highlights:
   - This jsonnet based example shows a complete microservice based deployment.
 
 
-## Grafana Agent
+## Grafana Cloud Agent
 
-The Grafana Agent is already set up to use Tempo.  Refer to the [configuration](https://github.com/grafana/agent/blob/master/docs/configuration-reference.md#tempo_config) and [example](https://github.com/grafana/agent/blob/master/example/docker-compose/agent/config/agent.yaml) for details.
+The Grafana Cloud Agent is already set up to use Tempo. Refer to the [configuration](https://github.com/grafana/agent/blob/master/docs/configuration-reference.md#tempo_config) and [example](https://github.com/grafana/agent/blob/master/example/docker-compose/agent/config/agent.yaml) for details.
