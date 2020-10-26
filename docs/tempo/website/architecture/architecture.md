@@ -1,6 +1,5 @@
 ---
 title: Architecture
-draft: true
 ---
 
 ## Architecture
