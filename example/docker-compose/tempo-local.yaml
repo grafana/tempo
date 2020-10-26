@@ -32,17 +32,13 @@ compactor:
 
 storage:
   trace:
-    backend: s3                        # backend configuration to use
+    backend: local                     # backend configuration to use
     wal:
       path: /tmp/tempo/wal             # where to store the the wal locally
       bloom_filter_false_positive: .05 # bloom filter false positive rate.  lower values create larger filters but fewer false positives
       index_downsample: 10             # number of traces per index record
-    s3:
-      bucket: tempo                    # how to store data in s3
-      endpoint: minio:9000
-      access_key: tempo
-      secret_key: supersecret
-      insecure: true
+    local:
+      path: /tmp/tempo
     pool:
       max_workers: 100                 # the worker pool mainly drives querying, but is also used for polling the blocklist
       queue_depth: 10000
