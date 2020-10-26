@@ -1,6 +1,5 @@
 ---
 title: Integration guides
-draft: true
 weight: 400
 ---
 

@@ -1,6 +1,5 @@
 ---
 title: Getting started
-draft: true
 weight: 100
 ---
 

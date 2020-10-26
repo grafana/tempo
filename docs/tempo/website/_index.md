@@ -1,6 +1,5 @@
 ---
 title: Tempo Documentation
-draft: true
 aliases:
   - /docs/tempo/
 ---

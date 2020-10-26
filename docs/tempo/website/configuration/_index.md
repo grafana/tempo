@@ -1,10 +1,9 @@
 ---
 title: Configuration
-draft: true
 weight: 300
 ---
 
-This document contains most configuration options and details of what they impact. 
+This document contains most configuration options and details of what they impact.
 
 ### Authentication/Server
 Tempo uses the Weaveworks/common server.  See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.

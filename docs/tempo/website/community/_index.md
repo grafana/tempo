@@ -1,6 +1,5 @@
 ---
 title: Community
-draft: true
 weight: 200
 ---
 
