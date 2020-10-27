@@ -24,7 +24,7 @@ When updating dependencies it is important not to run the standard go modules co
 OpenTelemetry protos have been vendored.  For now, after making dependency changes run
 
 ```bash
-make vendor-dependencies
+make vendor-check
 ```
 
 We are hoping to improve this in the future.
