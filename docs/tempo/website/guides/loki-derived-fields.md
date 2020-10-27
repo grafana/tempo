@@ -1,12 +1,11 @@
 ---
 title: Loki Derived Fields
-draft: true
 ---
 
 Guide on integrating Tempo with Loki and Derived fields in Grafana.
 
 ## Requirements
- 
+
 ### Application is instrumented for tracing
 
 To instrument an application for
@@ -63,7 +62,7 @@ To extend the above example:
         if !ok {
             return "", false
         }
-    
+
         return sctx.TraceID().String(), true
     }
 
@@ -110,7 +109,6 @@ Follow the guide to configure Tempo datasource in Grafana.
 ### Loki datasource is configured in Grafana. (optional)
 
 To configure the Loki datasource in Grafana follow the guide - https://grafana.com/docs/grafana/latest/features/datasources/loki/
-
 
 ### Derived fields are set up. (optional)
 

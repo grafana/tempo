@@ -43,6 +43,11 @@ tempo-cli:
 tempo-vulture:
 	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture $(BUILD_INFO) ./cmd/tempo-vulture
 
+.PHONY: exe
+exe:
+	GOOS=linux $(MAKE) $(COMPONENT)
+	cp ./bin/linux/$(COMPONENT) ./cmd/$(COMPONENT)/
+
 ### Testin' and Lintin'
 
 .PHONY: test
@@ -69,10 +74,8 @@ lint:
 ### Docker Images
 
 .PHONY: docker-component # Not intended to be used directly
-docker-component: check-component
-	GOOS=linux $(MAKE) $(COMPONENT)
-	cp ./bin/linux/$(COMPONENT) ./cmd/$(COMPONENT)/
-	docker build -t grafana/$(COMPONENT) ./cmd/$(COMPONENT)/
+docker-component: check-component exe
+	docker build -t grafana/$(COMPONENT) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
 	rm ./cmd/$(COMPONENT)/$(COMPONENT)
 
@@ -101,6 +104,7 @@ endif
 
 .PHONY: gen-proto
 gen-proto:
+	git submodule init
 	git submodule update
 	rm -rf ./vendor/github.com/open-telemetry/opentelemetry-proto
 	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/common/v1/common.proto --gogofaster_out=plugins=grpc:./vendor
@@ -130,6 +134,16 @@ vendor-dependencies:
 install-tools:
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/gogo/protobuf/protoc-gen-gogofaster
+	go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
+
+.PHONE: clear-protos
+clear-protos:
+	rm -rf opentelemetry-proto
+
+### Check vendored files
+.PHONY: vendor-check
+vendor-check: clear-protos install-tools vendor-dependencies
+	git diff --exit-code
 
 ### Release (intended to be used in the .github/workflows/images.yml)
 $(GORELEASER):

@@ -136,6 +136,7 @@ github.com/blang/semver
 # github.com/bombsimon/wsl/v3 v3.1.0
 github.com/bombsimon/wsl/v3
 # github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
+## explicit
 github.com/bradfitz/gomemcache/memcache
 # github.com/cenkalti/backoff/v4 v4.0.2
 github.com/cenkalti/backoff/v4
@@ -406,7 +407,7 @@ github.com/golang/glog
 # github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 github.com/golang/groupcache/lru
 github.com/golang/groupcache/singleflight
-# github.com/golang/protobuf v1.4.2
+# github.com/golang/protobuf v1.4.3
 ## explicit
 github.com/golang/protobuf/descriptor
 github.com/golang/protobuf/internal/gengogrpc
@@ -554,7 +555,7 @@ github.com/grpc-ecosystem/go-grpc-middleware/util/metautils
 # github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340
 github.com/grpc-ecosystem/go-grpc-prometheus
 github.com/grpc-ecosystem/go-grpc-prometheus/packages/grpcstatus
-# github.com/grpc-ecosystem/grpc-gateway v1.14.6
+# github.com/grpc-ecosystem/grpc-gateway v1.15.2
 ## explicit
 github.com/grpc-ecosystem/grpc-gateway/internal
 github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options
@@ -772,7 +773,6 @@ github.com/olekukonko/tablewriter
 # github.com/open-telemetry/opentelemetry-proto v0.4.0
 ## explicit
 github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1
-github.com/open-telemetry/opentelemetry-proto/gen/go/metrics/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1
 # github.com/opencontainers/go-digest v1.0.0
@@ -1449,7 +1449,8 @@ google.golang.org/appengine/internal/socket
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/socket
 google.golang.org/appengine/urlfetch
-# google.golang.org/genproto v0.0.0-20200710124503-20a17af7bd0e
+# google.golang.org/genproto v0.0.0-20201026171402-d4b8fe4fd877
+## explicit
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/bigtable/admin/v2
@@ -1460,7 +1461,7 @@ google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/status
 google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/protobuf/field_mask
-# google.golang.org/grpc v1.30.0 => google.golang.org/grpc v1.29.1
+# google.golang.org/grpc v1.32.0 => google.golang.org/grpc v1.29.1
 ## explicit
 google.golang.org/grpc
 google.golang.org/grpc/attributes

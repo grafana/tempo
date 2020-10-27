@@ -4,50 +4,45 @@ server:
   http_listen_port: 3100
 
 distributor:
-  receivers:
-    jaeger:
+  receivers:                           # this configuration will listen on all ports and protocols that tempo is capable of.
+    jaeger:                            # the receives all come from the OpenTelemetry collector.  more configuration information can
+      protocols:                       # be found there: https://github.com/open-telemetry/opentelemetry-collector/tree/master/receiver
+        thrift_http:                   #
+        grpc:                          # for a production deployment you should only enable the receivers you need!
+        thrift_binary:
+        thrift_compact:
+    zipkin:
+    otlp:
       protocols:
-        thrift_http:
+        http:
+        grpc:
+    opencensus:
 
 ingester:
-  lifecycler:
-    address: 127.0.0.1
-    ring:
-      kvstore:
-        store: inmemory
-      replication_factor: 1
-    final_sleep: 0s
-  trace_idle_period: 10s
-  traces_per_block: 100
-  max_block_duration: 5m
+  trace_idle_period: 10s               # the length of time after a trace has not received spans to consider it complete and flush it
+  traces_per_block: 100                # cut the head block when it his this number of traces or ...
+  max_block_duration: 5m               #   this much time passes
 
 compactor:
   compaction:
-    chunk_size_bytes: 1048576 # 1024 * 1024
-    compaction_window: 1h
-    max_compaction_objects: 1000000
+    compaction_window: 1h              # blocks in this time window will be compacted together
+    max_compaction_objects: 1000000    # maximum size of compacted blocks
     block_retention: 1h
     compacted_block_retention: 10m
 
 storage:
   trace:
-    maintenance_cycle: 30s
-    backend: s3
+    backend: s3                        # backend configuration to use
     wal:
-      path: /tmp/tempo/wal
-      bloom_filter_false_positive: .05
-      index_downsample: 10
+      path: /tmp/tempo/wal             # where to store the the wal locally
+      bloom_filter_false_positive: .05 # bloom filter false positive rate.  lower values create larger filters but fewer false positives
+      index_downsample: 10             # number of traces per index record
     s3:
-      bucket: tempo
+      bucket: tempo                    # how to store data in s3
       endpoint: minio:9000
       access_key: tempo
       secret_key: supersecret
       insecure: true
     pool:
-      max_workers: 100
+      max_workers: 100                 # the worker pool mainly drives querying, but is also used for polling the blocklist
       queue_depth: 10000
-    disk_cache:
-      disk_path: /tmp/tempo/cache
-      disk_max_mbs: 5
-      disk_prune_count: 10
-      disk_clean_rate: 30s

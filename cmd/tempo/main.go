@@ -126,5 +126,13 @@ func loadConfig() (*app.Config, error) {
 	flagext.IgnoredFlag(flag.CommandLine, configFileOption, "Configuration file to load")
 	flag.Parse()
 
+	// after loading config, let's force some values if in single binary mode
+	// if we're in single binary mode we're going to force some settings b/c nothing else makes sense
+	if config.Target == app.All {
+		config.Ingester.LifecyclerConfig.RingConfig.KVStore.Store = "inmemory"
+		config.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor = 1
+		config.Ingester.LifecyclerConfig.Addr = "127.0.0.1"
+	}
+
 	return config, nil
 }
