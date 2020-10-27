@@ -4,7 +4,7 @@ local dashboard_utils = import 'dashboard-utils.libsonnet';
 
 dashboard_utils {
   grafanaDashboards+: {
-    // 'tempo-operational.json': import './tempo-operational.json',
+    'tempo-operational.json': import './tempo-operational.json',
     'tempo-reads.json':
       $.dashboard('Tempo / Reads')
       .addClusterSelectorTemplates()
