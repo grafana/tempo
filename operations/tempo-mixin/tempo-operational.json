@@ -25,8 +25,8 @@
     "editable": true,
     "gnetId": null,
     "graphTooltip": 1,
-    "id": 1425,
-    "iteration": 1603745012490,
+    "id": 6,
+    "iteration": 1603829138071,
     "links": [],
     "panels": [
       {
@@ -2010,8 +2010,9 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "histogram_quantile(.5, sum(rate(tempo_query_reads_bucket[$__rate_interval])) by (layer, le))",
+            "expr": "histogram_quantile(.5, sum(rate(tempo_query_reads_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (layer, le))",
             "hide": false,
+            "interval": "",
             "legendFormat": "{{layer}}",
             "refId": "A"
           }
@@ -2105,18 +2106,20 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "histogram_quantile(.99, sum(rate(tempo_query_bytes_read_bucket[$__rate_interval])) by (le))",
+            "expr": "histogram_quantile(.99, sum(rate(tempo_query_bytes_read_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
             "interval": "",
             "legendFormat": ".99",
             "refId": "A"
           },
           {
-            "expr": "histogram_quantile(.9, sum(rate(tempo_query_bytes_read_bucket[$__rate_interval])) by (le))",
+            "expr": "histogram_quantile(.9, sum(rate(tempo_query_bytes_read_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
+            "interval": "",
             "legendFormat": ".9",
             "refId": "B"
           },
           {
-            "expr": "histogram_quantile(.5, sum(rate(tempo_query_bytes_read_bucket[$__rate_interval])) by (le))",
+            "expr": "histogram_quantile(.5, sum(rate(tempo_query_bytes_read_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
+            "interval": "",
             "legendFormat": ".5",
             "refId": "C"
           }
@@ -2317,8 +2320,9 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "histogram_quantile(.99, sum(rate(tempo_query_reads_bucket[$__rate_interval])) by (layer, le))",
+            "expr": "histogram_quantile(.99, sum(rate(tempo_query_reads_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (layer, le))",
             "hide": false,
+            "interval": "",
             "legendFormat": "{{layer}}",
             "refId": "A"
           }
@@ -2426,7 +2430,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "rate(tempo_distributor_spans_received_total[$__rate_interval])",
+            "expr": "rate(tempo_distributor_spans_received_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])",
             "interval": "",
             "legendFormat": "{{pod}}",
             "refId": "A"
@@ -2521,7 +2525,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "rate(tempo_ingester_traces_created_total[$__rate_interval])",
+            "expr": "rate(tempo_ingester_traces_created_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -2711,7 +2715,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "increase(tempo_ingester_failed_flushes_total[5m]) > 0",
+            "expr": "increase(tempo_ingester_failed_flushes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]) > 0",
             "interval": "",
             "legendFormat": "{{pod}}",
             "refId": "A"
@@ -2806,7 +2810,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "sum(increase(tempo_ingester_blocks_cleared_total[1h]))",
+            "expr": "sum(increase(tempo_ingester_blocks_cleared_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -2901,17 +2905,19 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "histogram_quantile(.99, sum(rate(tempo_ingester_flush_duration_seconds_bucket[$__rate_interval])) by (le))",
+            "expr": "histogram_quantile(.99, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
+            "interval": "",
             "legendFormat": ".99",
             "refId": "A"
           },
           {
-            "expr": "histogram_quantile(.9, sum(rate(tempo_ingester_flush_duration_seconds_bucket[$__rate_interval])) by (le))",
+            "expr": "histogram_quantile(.9, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
+            "interval": "",
             "legendFormat": ".9",
             "refId": "B"
           },
           {
-            "expr": "histogram_quantile(.5, sum(rate(tempo_ingester_flush_duration_seconds_bucket[$__rate_interval])) by (le))",
+            "expr": "histogram_quantile(.5, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
             "interval": "",
             "legendFormat": ".5",
             "refId": "C"
@@ -3101,13 +3107,13 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "sum(rate(tempo_receiver_accepted_spans{namespace=\"tracing-ops\"}[$__rate_interval]))",
+            "expr": "sum(rate(tempo_receiver_accepted_spans{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
             "interval": "",
             "legendFormat": "accepted",
             "refId": "A"
           },
           {
-            "expr": "sum(rate(tempo_receiver_refused_spans{namespace=\"tracing-ops\"}[$__rate_interval]))",
+            "expr": "sum(rate(tempo_receiver_refused_spans{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
             "interval": "",
             "legendFormat": "refused",
             "refId": "B"
@@ -4343,7 +4349,7 @@
             "pluginVersion": "7.2.1",
             "targets": [
               {
-                "expr": "sum(rate(tempo_vulture_trace_error_total{error=\"notfound\"}[1h])) by (secondsago) / sum(rate(tempo_vulture_trace_total[1h])) by (secondsago)",
+                "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\", error=\"notfound\"}[1h])) by (secondsago) / sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])) by (secondsago)",
                 "interval": "",
                 "legendFormat": "{{secondsago}}",
                 "refId": "A"
@@ -4472,7 +4478,7 @@
             "pluginVersion": "7.2.1",
             "targets": [
               {
-                "expr": "sum(rate(tempo_vulture_trace_error_total{error=\"missingspans\"}[1h])) by (secondsago) / sum(rate(tempo_vulture_trace_total[1h])) by (secondsago)",
+                "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\", error=\"missingspans\"}[1h])) by (secondsago) / sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])) by (secondsago)",
                 "interval": "",
                 "legendFormat": "{{secondsago}}",
                 "refId": "A"
@@ -4496,6 +4502,7 @@
       "list": [
         {
           "current": {},
+          "error": null,
           "hide": 0,
           "includeAll": false,
           "label": null,
@@ -4510,6 +4517,7 @@
         },
         {
           "current": {},
+          "error": null,
           "hide": 0,
           "includeAll": false,
           "label": null,
@@ -4528,6 +4536,7 @@
           "current": {},
           "datasource": "$ds",
           "definition": "label_values(tempo_build_info, cluster)",
+          "error": null,
           "hide": 0,
           "includeAll": false,
           "label": null,
@@ -4550,6 +4559,7 @@
           "current": {},
           "datasource": "$ds",
           "definition": "label_values(kube_pod_container_info{image=~\".*tempo.*\", cluster=\"$cluster\"}, namespace)",
+          "error": null,
           "hide": 0,
           "includeAll": false,
           "label": null,
@@ -4570,10 +4580,11 @@
         {
           "allValue": ".*",
           "current": {
-            "selected": true,
+            "selected": false,
             "text": "All",
             "value": "$__all"
           },
+          "error": null,
           "hide": 0,
           "includeAll": true,
           "label": null,
@@ -4638,5 +4649,5 @@
     "timezone": "",
     "title": "Tempo Operational",
     "uid": "AOFXrRUZz",
-    "version": 86
+    "version": 1
   }
