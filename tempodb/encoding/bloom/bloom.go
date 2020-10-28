@@ -17,8 +17,13 @@ func NewWithEstimates(n uint, fp float64) *ShardedBloomFilter {
 	b := &ShardedBloomFilter{
 		blooms: make([]*bloom.BloomFilter, shardNum),
 	}
+
+	itemsPerBloom := n / shardNum
+	if itemsPerBloom == 0 {
+		itemsPerBloom = 1
+	}
 	for i := 0; i < shardNum; i++ {
-		b.blooms[i] = bloom.NewWithEstimates(n/shardNum, fp)
+		b.blooms[i] = bloom.NewWithEstimates(itemsPerBloom, fp)
 	}
 
 	return b

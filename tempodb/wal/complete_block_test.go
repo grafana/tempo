@@ -7,7 +7,7 @@ import (
 )
 
 func TestZeroFlushedTime(t *testing.T) {
-	c := &CompleteBlock{}
+	c := NewCompleteBlock()
 
 	assert.True(t, c.FlushedTime().IsZero())
 }

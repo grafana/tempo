@@ -73,13 +73,12 @@ func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Compl
 	// 3) move from completeddir -> realdir
 	// 4) remove old
 	records := h.appender.Records()
-	orderedBlock := &CompleteBlock{
-		block: block{
-			meta:     encoding.NewBlockMeta(h.meta.TenantID, uuid.New()),
-			filepath: walConfig.CompletedFilepath,
-		},
-		bloom: bloom.NewWithEstimates(uint(len(records)), walConfig.BloomFP),
+	orderedBlock := NewCompleteBlock()
+	orderedBlock.block = block{
+		meta:     encoding.NewBlockMeta(h.meta.TenantID, uuid.New()),
+		filepath: walConfig.CompletedFilepath,
 	}
+	orderedBlock.bloom = bloom.NewWithEstimates(uint(len(records)), walConfig.BloomFP)
 	orderedBlock.meta.StartTime = h.meta.StartTime
 	orderedBlock.meta.EndTime = h.meta.EndTime
 	orderedBlock.meta.MinID = h.meta.MinID

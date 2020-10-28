@@ -22,6 +22,13 @@ type CompleteBlock struct {
 	walFilename string
 }
 
+func NewCompleteBlock() *CompleteBlock {
+	return &CompleteBlock{
+		bloom:   nil,
+		records: make([]*encoding.Record, 0),
+	}
+}
+
 func (c *CompleteBlock) Records() []*encoding.Record {
 	return c.records
 }

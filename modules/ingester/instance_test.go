@@ -57,7 +57,7 @@ func TestInstance(t *testing.T) {
 		block = i.GetBlockToBeFlushed()
 	}
 	assert.NotNil(t, block)
-	assert.Nil(t, i.completingBlock, 1)
+	assert.Nil(t, i.completingBlock)
 	assert.Len(t, i.completeBlocks, 1)
 
 	err = ingester.store.WriteBlock(context.Background(), block)
