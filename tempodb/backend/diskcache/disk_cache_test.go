@@ -23,15 +23,19 @@ func TestReadOrCache(t *testing.T) {
 	missBytes := []byte{0x01}
 	indexMissCalled := 0
 	bloomMissCalled := 0
+
+	// indexMiss function to be called when the key is not cached
 	indexMiss := func(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
 		indexMissCalled++
 		return missBytes, nil
 	}
+	// bloomMiss function to be called when the bloomKey is not cached
 	bloomMiss := func(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
 		bloomMissCalled++
 		return missBytes, nil
 	}
 
+	// create new cache
 	cache, err := New(nil, &Config{
 		Path:           tempDir,
 		MaxDiskMBs:     1024,
@@ -43,19 +47,29 @@ func TestReadOrCache(t *testing.T) {
 	blockID := uuid.New()
 	tenantID := testTenantID
 
-	bytes, skippableErr, err := cache.(*reader).readOrCacheIndex(context.Background(), blockID, tenantID, "type", indexMiss)
+	// get key from cache
+	bytes, skippableErr, err := cache.(*reader).readOrCacheIndex(context.Background(), blockID, tenantID, indexMiss)
 	assert.NoError(t, err)
 	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
 	assert.Equal(t, 1, indexMissCalled)
 
-	bytes, skippableErr, err = cache.(*reader).readOrCacheIndex(context.Background(), blockID, tenantID, "type", indexMiss)
+	// make sure the missFunc is not called again since the key is cached already
+	bytes, skippableErr, err = cache.(*reader).readOrCacheIndex(context.Background(), blockID, tenantID, indexMiss)
 	assert.NoError(t, err)
 	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
 	assert.Equal(t, 1, indexMissCalled)
 
-	bytes, skippableErr, err = cache.(*reader).readOrCacheBloom(context.Background(), blockID, tenantID, "type", 1, bloomMiss)
+	// get key from cache
+	bytes, skippableErr, err = cache.(*reader).readOrCacheBloom(context.Background(), blockID, tenantID, 0, bloomMiss)
+	assert.NoError(t, err)
+	assert.NoError(t, skippableErr)
+	assert.Equal(t, missBytes, bytes)
+	assert.Equal(t, 1, bloomMissCalled)
+
+	// make sure the missFunc is not called again since the key is cached already
+	bytes, skippableErr, err = cache.(*reader).readOrCacheBloom(context.Background(), blockID, tenantID, 0, bloomMiss)
 	assert.NoError(t, err)
 	assert.NoError(t, skippableErr)
 	assert.Equal(t, missBytes, bytes)
@@ -86,7 +100,7 @@ func TestJanitor(t *testing.T) {
 		blockID := uuid.New()
 		tenantID := testTenantID
 
-		bytes, skippableErr, err := cache.(*reader).readOrCacheIndex(context.Background(), blockID, tenantID, "type", missFunc)
+		bytes, skippableErr, err := cache.(*reader).readOrCacheIndex(context.Background(), blockID, tenantID, missFunc)
 		assert.NoError(t, err)
 		assert.NoError(t, skippableErr)
 		assert.Equal(t, missBytes, bytes)
@@ -107,7 +121,7 @@ func TestJanitor(t *testing.T) {
 		blockID := uuid.New()
 		tenantID := testTenantID
 
-		bytes, skippableErr, err := cache.(*reader).readOrCacheIndex(context.Background(), blockID, tenantID, "type", missFunc)
+		bytes, skippableErr, err := cache.(*reader).readOrCacheIndex(context.Background(), blockID, tenantID, missFunc)
 		assert.NoError(t, err)
 		assert.NoError(t, skippableErr)
 		assert.Equal(t, missBytes, bytes)

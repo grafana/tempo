@@ -15,10 +15,10 @@ import (
 )
 
 // TODO: factor out common code with readOrCacheIndexToDisk into separate function
-func (r *reader) readOrCacheBloom(ctx context.Context, blockID uuid.UUID, tenantID string, t string, shardNum int, miss bloomMissFunc) ([]byte, error, error) {
+func (r *reader) readOrCacheBloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int, miss bloomMissFunc) ([]byte, error, error) {
 	var skippableError error
 
-	k := key(blockID, tenantID, t)
+	k := bloomKey(blockID, tenantID, typeBloom, shardNum)
 	filename := path.Join(r.cfg.Path, k)
 
 	bytes, err := ioutil.ReadFile(filename)
@@ -31,7 +31,7 @@ func (r *reader) readOrCacheBloom(ctx context.Context, blockID uuid.UUID, tenant
 		return bytes, nil, nil
 	}
 
-	metricDiskCacheMiss.WithLabelValues(t).Inc()
+	metricDiskCacheMiss.WithLabelValues(typeBloom).Inc()
 	bytes, err = miss(ctx, blockID, tenantID, shardNum)
 	if err != nil {
 		return nil, nil, err // backend store error.  need to bubble this up
@@ -47,10 +47,10 @@ func (r *reader) readOrCacheBloom(ctx context.Context, blockID uuid.UUID, tenant
 	return bytes, skippableError, nil
 }
 
-func (r *reader) readOrCacheIndex(ctx context.Context, blockID uuid.UUID, tenantID string, t string, miss indexMissFunc) ([]byte, error, error) {
+func (r *reader) readOrCacheIndex(ctx context.Context, blockID uuid.UUID, tenantID string, miss indexMissFunc) ([]byte, error, error) {
 	var skippableError error
 
-	k := key(blockID, tenantID, t)
+	k := key(blockID, tenantID, typeIndex)
 	filename := path.Join(r.cfg.Path, k)
 
 	bytes, err := ioutil.ReadFile(filename)
@@ -63,7 +63,7 @@ func (r *reader) readOrCacheIndex(ctx context.Context, blockID uuid.UUID, tenant
 		return bytes, nil, nil
 	}
 
-	metricDiskCacheMiss.WithLabelValues(t).Inc()
+	metricDiskCacheMiss.WithLabelValues(typeIndex).Inc()
 	bytes, err = miss(ctx, blockID, tenantID)
 	if err != nil {
 		return nil, nil, err // backend store error.  need to bubble this up

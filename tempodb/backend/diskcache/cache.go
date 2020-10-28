@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -97,7 +98,7 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 }
 
 func (r *reader) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
-	b, skippableErr, err := r.readOrCacheBloom(ctx, blockID, tenantID, typeBloom, bloomShard, r.next.Bloom)
+	b, skippableErr, err := r.readOrCacheBloom(ctx, blockID, tenantID, bloomShard, r.next.Bloom)
 
 	if skippableErr != nil {
 		metricDiskCache.WithLabelValues(typeBloom, "error").Inc()
@@ -110,7 +111,7 @@ func (r *reader) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, 
 }
 
 func (r *reader) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	b, skippableErr, err := r.readOrCacheIndex(ctx, blockID, tenantID, typeIndex, r.next.Index)
+	b, skippableErr, err := r.readOrCacheIndex(ctx, blockID, tenantID, r.next.Index)
 
 	if skippableErr != nil {
 		metricDiskCache.WithLabelValues(typeIndex, "error").Inc()
@@ -134,4 +135,8 @@ func (r *reader) Shutdown() {
 
 func key(blockID uuid.UUID, tenantID string, t string) string {
 	return blockID.String() + ":" + tenantID + ":" + t
+}
+
+func bloomKey(blockID uuid.UUID, tenantID string, t string, shardNum int) string {
+	return blockID.String() + ":" + tenantID + ":" + t + ":" + strconv.Itoa(shardNum)
 }
