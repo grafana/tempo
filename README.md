@@ -11,6 +11,16 @@ Tempo is Jaeger, Zipkin, OpenCensus and OpenTelemetry compatible.  It ingests ba
   - Deployment and log discovery Examples
 - [What is Distributed Tracing?](https://opentracing.io/docs/overview/what-is-tracing/)
 
+## Further Reading
+
+To learn more about Tempo, consult the following documents & talks:
+
+- October 2020 Launch blog post: "[Announcing Grafana Tempo, a massively scalable distributed tracing system][tempo-launch-post]"
+- October 2020 Motivations and tradeoffs blog post: "[Tempo: A game of trade-offs][tempo-tradeoffs-post]"
+
+[tempo-launch-post]: https://grafana.com/blog/2020/10/27/announcing-grafana-tempo-a-massively-scalable-distributed-tracing-system/
+[tempo-tradeoffs-post]: https://gouthamve.dev/tempo-a-game-of-trade-offs/
+
 ## Getting Help
 
 If you have any questions or feedback regarding Tempo:
