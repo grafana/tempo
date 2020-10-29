@@ -3,15 +3,10 @@ services:
 
   tempo:
     image: grafana/tempo:latest
-    command: 
-      - "-storage.trace.backend=local"                  # tell tempo where to permanently put traces
-      - "-storage.trace.local.path=/tmp/tempo/traces"   
-      - "-storage.trace.wal.path=/tmp/tempo/wal"        # tell tempo where to store the wal
-      - "-auth.enabled=false"                           # disables the requirement for the X-Scope-OrgID header
-      - "-server.http-listen-port=3100" 
+    command: ["-config.file=/etc/tempo.yaml"]
     volumes:
-      - ./tempo.yaml:/etc/tempo.yaml
-      - /tmp/tempo:/tmp/tempo
+      - ./tempo-local.yaml:/etc/tempo.yaml
+      - ./tempo-local-storage:/tmp/tempo
     ports:
       - "14268"  # jaeger ingest
       - "3100"   # tempo
