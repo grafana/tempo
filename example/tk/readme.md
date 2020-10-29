@@ -2,14 +2,14 @@
 
 Congratulations!  You have successfully found the jsonnet/tanka examples.  These examples are meant for
 advanced users looking to deploy Tempo in a microservices pattern.  If you are just getting started
-might I recommend the (docker-compose examples)[../docker-compose].  The docker-compose examples also are much
+might I recommend the [docker-compose examples](../docker-compose).  The docker-compose examples also are much
 better at demonstrating trace discovery flows using Loki and other tools.
 
 If you're convinced this is the place for you then keep reading!
 
 ### Initial Steps
 
-The Jsonnet is meant to be applied to with (tanka)[https://github.com/grafana/tanka].  To test the jsonnet locally requires:
+The Jsonnet is meant to be applied to with [tanka](https://github.com/grafana/tanka).  To test the jsonnet locally requires:
 
 - k3d > v1.6.0
 - tanka > v0.12.0
