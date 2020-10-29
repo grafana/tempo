@@ -10,8 +10,7 @@ services:
       - "-auth.enabled=false"                           # disables the requirement for the X-Scope-OrgID header
       - "-server.http-listen-port=3100" 
     volumes:
-      - ./tempo.yaml:/etc/tempo.yaml
-      - /tmp/tempo:/tmp/tempo
+      - ./example-data/tempo:/tmp/tempo
     ports:
       - "14268"  # jaeger ingest
     logging:
@@ -23,7 +22,7 @@ services:
     image: grafana/tempo-query:latest
     command: ["--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml"]
     volumes:
-      - ./tempo-query.yaml:/etc/tempo-query.yaml
+      - ./etc/tempo-query.yaml:/etc/tempo-query.yaml
     ports:
       - "16686:16686"  # jaeger-ui
     logging:
@@ -34,7 +33,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     volumes:
-      - ./prometheus.yaml:/etc/prometheus.yaml
+      - ./etc/prometheus.yaml:/etc/prometheus.yaml
     entrypoint:
       - /bin/prometheus
       - --config.file=/etc/prometheus.yaml
@@ -48,8 +47,8 @@ services:
   grafana:
     image: grafana/grafana:7.3.0-beta1
     volumes:
-      - ./datasources:/etc/grafana/provisioning/datasources
-      - ./dashboards-provisioning:/etc/grafana/provisioning/dashboards
+      - ./example-data/datasources:/etc/grafana/provisioning/datasources
+      - ./example-data/dashboards-provisioning:/etc/grafana/provisioning/dashboards
       - ../../operations/tempo-mixin/out:/var/lib/grafana/dashboards
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true

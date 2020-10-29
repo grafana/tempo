@@ -5,36 +5,24 @@ services:
     image: grafana/tempo:latest
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
-      - ./tempo.yaml:/etc/tempo.yaml
-      - /tmp/tempo:/tmp/tempo
+      - ./etc/tempo-local.yaml:/etc/tempo.yaml
+      - ./example-data/tempo:/tmp/tempo
     ports:
-      - "14268"      # jaeger
-      - "3100:3100"  # tempo
-
-  minio:
-    image: minio/minio:RELEASE.2020-07-27T18-37-02Z
-    environment:
-      - MINIO_ACCESS_KEY=tempo
-      - MINIO_SECRET_KEY=supersecret
-    ports:
-      - "9000:9000"
-    entrypoint:
-      - sh
-      - -euc
-      - mkdir -p /data/tempo && /usr/bin/minio server /data
+      - "14268"  # jaeger ingest
+      - "3100"   # tempo
 
   tempo-query:
     image: grafana/tempo-query:latest
     command: ["--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml"]
     volumes:
-      - ./tempo-query.yaml:/etc/tempo-query.yaml
+      - ./etc/tempo-query.yaml:/etc/tempo-query.yaml
     ports:
       - "16686:16686"  # jaeger-ui
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
     volumes:
-      - ./load-generator.json:/etc/load-generator.json
+      - ./etc/load-generator.json:/etc/load-generator.json
     environment:
       - TOPOLOGY_FILE=/etc/load-generator.json
       - JAEGER_COLLECTOR_URL=http://tempo:14268
@@ -44,7 +32,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     volumes:
-      - ./prometheus.yaml:/etc/prometheus.yaml
+      - ./etc/prometheus.yaml:/etc/prometheus.yaml
     entrypoint:
       - /bin/prometheus
       - --config.file=/etc/prometheus.yaml
@@ -54,8 +42,8 @@ services:
   grafana:
     image: grafana/grafana:7.3.0-beta1
     volumes:
-      - ./datasources:/etc/grafana/provisioning/datasources
-      - ./dashboards-provisioning:/etc/grafana/provisioning/dashboards
+      - ./example-data/datasources:/etc/grafana/provisioning/datasources
+      - ./example-data/dashboards-provisioning:/etc/grafana/provisioning/dashboards
       - ../../operations/tempo-mixin/out:/var/lib/grafana/dashboards
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
