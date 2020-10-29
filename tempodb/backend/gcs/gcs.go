@@ -7,9 +7,11 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
 	"strings"
 	"time"
+
+	"github.com/grafana/tempo/tempodb/backend/util"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
@@ -49,7 +51,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
+func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
@@ -64,7 +66,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 	}
 	defer src.Close()
 
-	w := rw.writer(ctx, rw.objectFileName(blockID, tenantID))
+	w := rw.writer(ctx, util.ObjectFileName(blockID, tenantID))
 	defer w.Close()
 	_, err = io.Copy(w, src)
 	if err != nil {
@@ -79,7 +81,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 	return nil
 }
 
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte) error {
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	if tracker != nil {
 		w := tracker.(*storage.Writer)
 		_ = w.Close()
@@ -88,12 +90,14 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
-	err := rw.writeAll(ctx, rw.bloomFileName(blockID, tenantID), bBloom)
-	if err != nil {
-		return err
+	for i := 0; i < bloom.GetShardNum(); i++ {
+		err := rw.writeAll(ctx, util.BloomFileName(blockID, tenantID, i), bBloom[i])
+		if err != nil {
+			return err
+		}
 	}
 
-	err = rw.writeAll(ctx, rw.indexFileName(blockID, tenantID), bIndex)
+	err := rw.writeAll(ctx, util.IndexFileName(blockID, tenantID), bIndex)
 	if err != nil {
 		return err
 	}
@@ -104,7 +108,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	}
 
 	// write meta last.  this will prevent blocklist from returning a partial block
-	err = rw.writeAll(ctx, rw.metaFileName(blockID, tenantID), bMeta)
+	err = rw.writeAll(ctx, util.MetaFileName(blockID, tenantID), bMeta)
 	if err != nil {
 		return err
 	}
@@ -118,7 +122,7 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 		blockID := meta.BlockID
 		tenantID := meta.TenantID
 
-		w = rw.writer(ctx, rw.objectFileName(blockID, tenantID))
+		w = rw.writer(ctx, util.ObjectFileName(blockID, tenantID))
 	} else {
 		w = tracker.(*storage.Writer)
 	}
@@ -189,7 +193,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 }
 
 func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
-	name := rw.metaFileName(blockID, tenantID)
+	name := util.MetaFileName(blockID, tenantID)
 
 	bytes, err := rw.readAll(ctx, name)
 	if err == storage.ErrObjectNotExist {
@@ -208,11 +212,11 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 	return out, nil
 }
 
-func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Bloom")
 	defer span.Finish()
 
-	name := rw.bloomFileName(blockID, tenantID)
+	name := util.BloomFileName(blockID, tenantID, shardNum)
 	return rw.readAll(derivedCtx, name)
 }
 
@@ -220,7 +224,7 @@ func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID s
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Index")
 	defer span.Finish()
 
-	name := rw.indexFileName(blockID, tenantID)
+	name := util.IndexFileName(blockID, tenantID)
 	return rw.readAll(derivedCtx, name)
 }
 
@@ -228,32 +232,12 @@ func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID 
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Object")
 	defer span.Finish()
 
-	name := rw.objectFileName(blockID, tenantID)
+	name := util.ObjectFileName(blockID, tenantID)
 	return rw.readRange(derivedCtx, name, int64(start), buffer)
 }
 
 func (rw *readerWriter) Shutdown() {
 
-}
-
-func (rw *readerWriter) metaFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "meta.json")
-}
-
-func (rw *readerWriter) bloomFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "bloom")
-}
-
-func (rw *readerWriter) indexFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "index")
-}
-
-func (rw *readerWriter) objectFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "data")
-}
-
-func (rw *readerWriter) rootPath(blockID uuid.UUID, tenantID string) string {
-	return path.Join(tenantID, blockID.String())
 }
 
 func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {

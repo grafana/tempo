@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/willf/bloom"
+	willf_bloom "github.com/willf/bloom"
 	"go.uber.org/atomic"
 
 	"github.com/cortexproject/cortex/pkg/util"
@@ -28,6 +28,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/memcached"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -183,14 +184,13 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 		return err
 	}
 
-	bloomBuffer := &bytes.Buffer{}
-	_, err = c.BloomFilter().WriteTo(bloomBuffer)
+	bloomBuffers, err := c.BloomFilter().WriteTo()
 	if err != nil {
 		return err
 	}
 
 	meta := c.BlockMeta()
-	err = rw.w.Write(ctx, meta, bloomBuffer.Bytes(), indexBytes, c.ObjectFilePath())
+	err = rw.w.Write(ctx, meta, bloomBuffers, indexBytes, c.ObjectFilePath())
 	if err != nil {
 		return err
 	}
@@ -210,14 +210,13 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		return err
 	}
 
-	bloomBuffer := &bytes.Buffer{}
-	_, err = c.BloomFilter().WriteTo(bloomBuffer)
+	bloomBuffers, err := c.BloomFilter().WriteTo()
 	if err != nil {
 		return err
 	}
 
 	meta := c.BlockMeta()
-	err = rw.w.WriteBlockMeta(ctx, tracker, meta, bloomBuffer.Bytes(), indexBytes)
+	err = rw.w.WriteBlockMeta(ctx, tracker, meta, bloomBuffers, indexBytes)
 	if err != nil {
 		return err
 	}
@@ -262,12 +261,14 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*encoding.BlockMeta)
 
-		bloomBytes, err := rw.r.Bloom(ctx, meta.BlockID, tenantID)
+		shardKey := bloom.ShardKeyForTraceID(id)
+		level.Debug(logger).Log("msg", "fetching bloom", "shardKey", shardKey)
+		bloomBytes, err := rw.r.Bloom(ctx, meta.BlockID, tenantID, shardKey)
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
 		}
 
-		filter := &bloom.BloomFilter{}
+		filter := &willf_bloom.BloomFilter{}
 		_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
 		if err != nil {
 			return nil, fmt.Errorf("error parsing bloom %v", err)

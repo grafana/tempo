@@ -2,6 +2,7 @@ package memcached
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/chunk/cache"
@@ -72,14 +73,14 @@ func (r *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantI
 	return r.nextReader.BlockMeta(ctx, blockID, tenantID)
 }
 
-func (r *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	key := key(blockID, tenantID, typeBloom)
+func (r *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
+	key := bloomKey(blockID, tenantID, typeBloom, shardNum)
 	val := r.get(ctx, key)
 	if val != nil {
 		return val, nil
 	}
 
-	val, err := r.nextReader.Bloom(ctx, blockID, tenantID)
+	val, err := r.nextReader.Bloom(ctx, blockID, tenantID, shardNum)
 	if err == nil {
 		r.set(ctx, key, val)
 	}
@@ -112,15 +113,19 @@ func (r *readerWriter) Shutdown() {
 }
 
 // Writer
-func (r *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
-	r.set(ctx, key(meta.BlockID, meta.TenantID, typeBloom), bBloom)
+func (r *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
+	for i, b := range bBloom {
+		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, typeBloom, i), b)
+	}
 	r.set(ctx, key(meta.BlockID, meta.TenantID, typeIndex), bIndex)
 
 	return r.nextWriter.Write(ctx, meta, bBloom, bIndex, objectFilePath)
 }
 
-func (r *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte) error {
-	r.set(ctx, key(meta.BlockID, meta.TenantID, typeBloom), bBloom)
+func (r *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
+	for i, b := range bBloom {
+		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, typeBloom, i), b)
+	}
 	r.set(ctx, key(meta.BlockID, meta.TenantID, typeIndex), bIndex)
 
 	return r.nextWriter.WriteBlockMeta(ctx, tracker, meta, bBloom, bIndex)
@@ -144,4 +149,8 @@ func (r *readerWriter) set(ctx context.Context, key string, val []byte) {
 
 func key(blockID uuid.UUID, tenantID string, t string) string {
 	return blockID.String() + ":" + tenantID + ":" + t
+}
+
+func bloomKey(blockID uuid.UUID, tenantID string, t string, shardNum int) string {
+	return blockID.String() + ":" + tenantID + ":" + t + strconv.Itoa(shardNum)
 }

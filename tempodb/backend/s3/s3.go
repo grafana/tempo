@@ -64,7 +64,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
+func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
 	if err := util.FileExists(objectFilePath); err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 }
 
 // WriteBlockMeta implements backend.Writer
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte) error {
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	if tracker != nil {
 		a := tracker.(AppenderTracker)
 		completeParts := make([]minio.CompletePart, 0)
@@ -122,20 +122,22 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		PartSize: rw.cfg.PartSize,
 	}
 
-	size, err := rw.core.Client.PutObjectWithContext(
-		ctx,
-		rw.cfg.Bucket,
-		util.BloomFileName(blockID, tenantID),
-		bytes.NewReader(bBloom),
-		int64(len(bBloom)),
-		options,
-	)
-	if err != nil {
-		return err
+	for i, b := range bBloom {
+		size, err := rw.core.Client.PutObjectWithContext(
+			ctx,
+			rw.cfg.Bucket,
+			util.BloomFileName(blockID, tenantID, i),
+			bytes.NewReader(b),
+			int64(len(b)),
+			options,
+		)
+		if err != nil {
+			return errors.Wrap(err, "error uploading bloom filter to s3")
+		}
+		level.Debug(rw.logger).Log("msg", "block bloom uploaded to s3", "shard", i, "size", size)
 	}
-	level.Debug(rw.logger).Log("msg", "block bloom uploaded to s3", "size", size)
 
-	size, err = rw.core.Client.PutObjectWithContext(
+	size, err := rw.core.Client.PutObjectWithContext(
 		ctx,
 		rw.cfg.Bucket,
 		util.IndexFileName(blockID, tenantID),
@@ -144,13 +146,13 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		options,
 	)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error uploading index to s3")
 	}
 	level.Debug(rw.logger).Log("msg", "block index uploaded to s3", "size", size)
 
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error unmarshalling block meta json")
 	}
 
 	// write meta last.  this will prevent blocklist from returning a partial block
@@ -163,7 +165,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		options,
 	)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error uploading block meta to s3")
 	}
 	level.Debug(rw.logger).Log("msg", "block meta uploaded to s3", "size", size)
 
@@ -272,8 +274,8 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 }
 
 // Bloom implements backend.Reader
-func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	bloomFileName := util.BloomFileName(blockID, tenantID)
+func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
+	bloomFileName := util.BloomFileName(blockID, tenantID, bloomShard)
 	return rw.readAll(ctx, bloomFileName)
 }
 

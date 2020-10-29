@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/willf/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 type CompactorBlock struct {
@@ -15,7 +15,7 @@ type CompactorBlock struct {
 
 	metas []*encoding.BlockMeta
 
-	bloom *bloom.BloomFilter
+	bloom *bloom.ShardedBloomFilter
 
 	appendBuffer *bytes.Buffer
 	appender     encoding.Appender
@@ -102,7 +102,7 @@ func (c *CompactorBlock) BlockMeta() *encoding.BlockMeta {
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) BloomFilter() *bloom.BloomFilter {
+func (c *CompactorBlock) BloomFilter() *bloom.ShardedBloomFilter {
 	return c.bloom
 }
 

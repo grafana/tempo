@@ -6,12 +6,12 @@ import (
 	"sync"
 
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/willf/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 type WriteableBlock interface {
 	BlockMeta() *encoding.BlockMeta
-	BloomFilter() *bloom.BloomFilter
+	BloomFilter() *bloom.ShardedBloomFilter
 	Records() []*encoding.Record
 	ObjectFilePath() string
 

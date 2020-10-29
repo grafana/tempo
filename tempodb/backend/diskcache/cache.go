@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -15,7 +16,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-type missFunc func(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error)
+type bloomMissFunc func(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error)
+type indexMissFunc func(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error)
 
 const (
 	typeBloom = "bloom"
@@ -95,8 +97,8 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	return r.next.BlockMeta(ctx, blockID, tenantID)
 }
 
-func (r *reader) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	b, skippableErr, err := r.readOrCacheKeyToDisk(ctx, blockID, tenantID, typeBloom, r.next.Bloom)
+func (r *reader) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
+	b, skippableErr, err := r.readOrCacheBloom(ctx, blockID, tenantID, bloomShard, r.next.Bloom)
 
 	if skippableErr != nil {
 		metricDiskCache.WithLabelValues(typeBloom, "error").Inc()
@@ -109,7 +111,7 @@ func (r *reader) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) 
 }
 
 func (r *reader) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	b, skippableErr, err := r.readOrCacheKeyToDisk(ctx, blockID, tenantID, typeIndex, r.next.Index)
+	b, skippableErr, err := r.readOrCacheIndex(ctx, blockID, tenantID, r.next.Index)
 
 	if skippableErr != nil {
 		metricDiskCache.WithLabelValues(typeIndex, "error").Inc()
@@ -133,4 +135,8 @@ func (r *reader) Shutdown() {
 
 func key(blockID uuid.UUID, tenantID string, t string) string {
 	return blockID.String() + ":" + tenantID + ":" + t
+}
+
+func bloomKey(blockID uuid.UUID, tenantID string, t string, shardNum int) string {
+	return blockID.String() + ":" + tenantID + ":" + t + ":" + strconv.Itoa(shardNum)
 }

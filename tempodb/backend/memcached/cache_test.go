@@ -32,7 +32,7 @@ func (m *mockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, 
 func (m *mockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
 	return m.meta, nil
 }
-func (m *mockReader) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (m *mockReader) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
 	return m.bloom, nil
 }
 func (m *mockReader) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
@@ -47,10 +47,10 @@ func (m *mockReader) Shutdown() {}
 type mockWriter struct {
 }
 
-func (m *mockWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte, objectFilePath string) error {
+func (m *mockWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
 	return nil
 }
-func (m *mockWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte) error {
+func (m *mockWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	return nil
 }
 func (m *mockWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
@@ -80,6 +80,7 @@ func (m *mockCache) Set(item *memcache.Item) error {
 func TestCache(t *testing.T) {
 	tenantID := "test"
 	blockID := uuid.New()
+	shardNum := 0
 
 	tests := []struct {
 		name            string
@@ -153,7 +154,7 @@ func TestCache(t *testing.T) {
 			assert.Equal(t, tt.expectedBlocks, blocks)
 			meta, _ := rw.BlockMeta(ctx, blockID, tenantID)
 			assert.Equal(t, tt.expectedMeta, meta)
-			bloom, _ := rw.Bloom(ctx, blockID, tenantID)
+			bloom, _ := rw.Bloom(ctx, blockID, tenantID, shardNum)
 			assert.Equal(t, tt.expectedBloom, bloom)
 			index, _ := rw.Index(ctx, blockID, tenantID)
 			assert.Equal(t, tt.expectedIndex, index)
@@ -171,7 +172,7 @@ func TestCache(t *testing.T) {
 			mockR.blocks = nil
 			mockR.meta = nil
 
-			bloom, _ = rw.Bloom(ctx, blockID, tenantID)
+			bloom, _ = rw.Bloom(ctx, blockID, tenantID, shardNum)
 			assert.Equal(t, tt.expectedBloom, bloom)
 			index, _ = rw.Index(ctx, blockID, tenantID)
 			assert.Equal(t, tt.expectedIndex, index)

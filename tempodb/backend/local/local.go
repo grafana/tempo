@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -31,7 +32,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte, tracesFilePath string) error {
+func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, tracesFilePath string) error {
 	err := rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
 	if err != nil {
 		return err
@@ -69,7 +70,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 	return err
 }
 
-func (rw *readerWriter) WriteBlockMeta(_ context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom []byte, bIndex []byte) error {
+func (rw *readerWriter) WriteBlockMeta(_ context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
@@ -96,11 +97,13 @@ func (rw *readerWriter) WriteBlockMeta(_ context.Context, tracker backend.Append
 		return err
 	}
 
-	bloomFileName := rw.bloomFileName(blockID, tenantID)
-	err = ioutil.WriteFile(bloomFileName, bBloom, 0644)
-	if err != nil {
-		os.RemoveAll(blockFolder)
-		return err
+	for i, b := range bBloom {
+		bloomFileName := rw.bloomFileName(blockID, tenantID, i)
+		err = ioutil.WriteFile(bloomFileName, b, 0644)
+		if err != nil {
+			os.RemoveAll(blockFolder)
+			return err
+		}
 	}
 
 	indexFileName := rw.indexFileName(blockID, tenantID)
@@ -202,8 +205,8 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 	return out, nil
 }
 
-func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	filename := rw.bloomFileName(blockID, tenantID)
+func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
+	filename := rw.bloomFileName(blockID, tenantID, bloomShard)
 	return ioutil.ReadFile(filename)
 }
 
@@ -237,8 +240,8 @@ func (rw *readerWriter) metaFileName(blockID uuid.UUID, tenantID string) string 
 	return path.Join(rw.rootPath(blockID, tenantID), "meta.json")
 }
 
-func (rw *readerWriter) bloomFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "bloom")
+func (rw *readerWriter) bloomFileName(blockID uuid.UUID, tenantID string, bloomShard int) string {
+	return path.Join(rw.rootPath(blockID, tenantID), "bloom-"+strconv.Itoa(bloomShard))
 }
 
 func (rw *readerWriter) indexFileName(blockID uuid.UUID, tenantID string) string {
