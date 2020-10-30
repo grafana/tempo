@@ -76,6 +76,17 @@ func main() {
 	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
 	ballast := make([]byte, *ballastMBs*1024*1024)
 
+	// Warn the user for suspect configurations
+	if config.Ingester.CompleteBlockTimeout < config.StorageConfig.Trace.MaintenanceCycle {
+		level.Warn(util.Logger).Log("msg", "ingester.CompleteBlockTimeout < storage.trace.maintenance-cycle",
+			"explan", "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block")
+	}
+
+	if config.Compactor.Compactor.BlockRetention < config.StorageConfig.Trace.MaintenanceCycle {
+		level.Warn(util.Logger).Log("msg", "compactor.CompactedBlockRetention < storage.trace.maintenance-cycle",
+			"explan", "Queriers and Compactors may attempt to read a block that no longer exists")
+	}
+
 	// Start Tempo
 	t, err := app.New(*config)
 	if err != nil {
