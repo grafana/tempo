@@ -48,7 +48,7 @@ minio + load + tempo {
             },
         },
     },
-    
+
     local service = $.core.v1.service,
     tempo_service:
         $.util.serviceFor($.tempo_distributor_deployment)

@@ -1,6 +1,6 @@
 (import 'ksonnet-util/kausal.libsonnet') +
 (import 'configmap.libsonnet') +
-(import 'config.libsonnet') + 
+(import 'config.libsonnet') +
 {
   local container = $.core.v1.container,
   local containerPort = $.core.v1.containerPort,

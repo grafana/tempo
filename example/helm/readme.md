@@ -31,7 +31,7 @@ kubectl create -f microservices-extras.yaml
 ```
 
 ### Single Binary
-The Tempo single binary configuration is currently setup to store traces locally on disk, but can easily be configured to 
+The Tempo single binary configuration is currently setup to store traces locally on disk, but can easily be configured to
 store them in an S3 or GCS bucket.  See configuration docs or some of the other examples for help.
 
 ```console

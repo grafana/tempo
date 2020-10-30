@@ -44,7 +44,7 @@ spec:
         - containerPort: 16686
           name: jaeger-ui
         resources:
-          {{- toYaml .Values.tempoQuery.resources | nindent 10 }}  
+          {{- toYaml .Values.tempoQuery.resources | nindent 10 }}
         volumeMounts:
         - mountPath: /conf
           name: tempo-query-conf

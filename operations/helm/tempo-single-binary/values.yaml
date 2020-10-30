@@ -4,7 +4,7 @@ storage:
     storageClassName: local-path
 tempo:
   image: grafana/tempo:latest
-  resources: 
+  resources:
     requests:
       cpu:      1
       memory:   4Gi
@@ -14,7 +14,7 @@ tempo:
         thrift_http: null
 tempoQuery:
   image: grafana/tempo-query:latest
-  resources: 
+  resources:
     requests:
       cpu:      50m
       memory:   100Mi

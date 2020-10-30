@@ -13,7 +13,7 @@ backend:
 distributor:
   replicas: 2
   image: grafana/tempo:latest
-  resources: 
+  resources:
     requests:
       cpu:      1
       memory:   500Mi
@@ -24,33 +24,33 @@ distributor:
 compactor:
   replicas: 1
   image: grafana/tempo:latest
-  resources: 
+  resources:
     requests:
       cpu:      250m
       memory:   1Gi
 ingester:
   replicas: 3
   image: grafana/tempo:latest
-  resources: 
+  resources:
     requests:
       cpu:      1
       memory:   1.5Gi
 resources:
   image: grafana/tempo:latest
-  resources: 
+  resources:
     requests:
       cpu:      500m
       memory:   2Gi
 querier:
   replicas: 1
   image: grafana/tempo:latest
-  resources: 
+  resources:
     requests:
       cpu:      250m
       memory:   500Mi
 tempoQuery:
   image: grafana/tempo-query:latest
-  resources: 
+  resources:
     requests:
       cpu:      50m
       memory:   100Mi

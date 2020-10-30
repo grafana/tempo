@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: tempo-compactor
-data:  
+data:
   tempo.yaml: |
     auth_enabled: false
     compactor:

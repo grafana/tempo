@@ -4,7 +4,7 @@ These folders contain example deployments of Tempo.  They are a good resource fo
 
 #### Tempo Query
 
-Note that even in the single binary deploys a second image named `tempo-query` is being deployed.  Tempo itself does not 
+Note that even in the single binary deploys a second image named `tempo-query` is being deployed.  Tempo itself does not
 provide a way to visualize traces and relies on [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) to do so.  `tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc)
 that allows it to speak with Tempo.
 
