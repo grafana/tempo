@@ -4,3 +4,4 @@
 /bin
 .idea
 /dist
+/example/docker-compose/example-data/tempo

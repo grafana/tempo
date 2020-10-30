@@ -22,10 +22,11 @@ make docker-images
 Tempo can be run with local storage, S3, or GCS backends. See below for examples of [local](#local-storage) and [S3 (Minio)](#s3) storage.
 
 ### Local Storage
+In this example all data is stored locally in the example-data/tempo folder.
 
-1. First start up the local stack.
+1. First start up the local stack. 
 ```
-docker-compose -f docker-compose.local.yaml up -d
+docker-compose up -d
 ```
 
 At this point, the following containers should be spun up -
@@ -43,7 +44,7 @@ docker-compose_tempo_1                      /tempo -storage.trace.back ...   Up 
 
 2. If you're interested you can see the wal/blocks as they are being created.
 ```
-ls /tmp/tempo
+ls ./example-data/tempo
 ```
 
 3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
@@ -71,14 +72,15 @@ Also notice that you can query Tempo metrics from the Prometheus data source set
 5. To stop the setup use -
 
 ```console
-docker-compose -f docker-compose.local.yaml down -v
+docker-compose down -v
 ```
 
 ### S3
+In this example tempo is configured to write data to S3 via MinIO which presents an S3 compatible API.
 
 1. First start up the s3 stack.
 ```
-docker-compose up -d
+docker-compose -f docker-compose.s3.minio.yaml up -d
 ```
 
 At this point, the following containers should be spun up -
@@ -124,10 +126,11 @@ Also notice that you can query Tempo metrics from the Prometheus data source set
 5. To stop the setup use -
 
 ```console
-docker-compose down -v
+docker-compose -f docker-compose.s3.minio.yaml down -v
 ```
 
 ## Loki Derived Fields
+This example presents a complete setup using Loki to process all container logs, and linking between the extracted traceIDs and tempo.
 
 1. First we have to install the Loki docker driver.  This allows applications in our docker-compose to ship their logs
 to Loki.
