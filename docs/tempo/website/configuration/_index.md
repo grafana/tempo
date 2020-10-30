@@ -16,7 +16,7 @@ server:
 
 ### [Distributor](https://github.com/grafana/tempo/blob/master/modules/distributor/config.go)
 Distributors are responsible for receiving spans and forwarding them to the appropriate ingesters.  The below configuration
-exposes the otlp receiver on port 0.0.0.0:5680.  [This configuration](https://github.com/grafana/tempo/blob/master/example/docker-compose/tempo.yaml) shows how to
+exposes the otlp receiver on port 0.0.0.0:5680.  [This configuration](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-s3-minio.yaml) shows how to
 configure all available receiver options.
 
 ```

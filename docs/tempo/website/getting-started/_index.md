@@ -15,10 +15,10 @@ First, set up a docker network as shown -
 docker network create docker-tempo
 ```
 
-Next, download the [configuration file](https://github.com/grafana/tempo/blob/master/example/docker-compose/tempo-local.yaml) using the following command -
+Next, download the [configuration file](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-local.yaml) using the following command -
 
 ```
-curl -o tempo.yaml https://raw.githubusercontent.com/grafana/tempo/master/example/docker-compose/tempo-local.yaml
+curl -o tempo.yaml https://raw.githubusercontent.com/grafana/tempo/master/example/docker-compose/etc/tempo-local.yaml
 ```
 
 The config file above configures Tempo to listen on default ports for a number of protocols.
@@ -45,10 +45,10 @@ docker run -d --rm -p 6831:6831/udp --name tempo -v $(PWD)/tempo-local.yaml:/etc
 
 ### Spin up Tempo Query container
 
-Download the [configuration file](https://github.com/grafana/tempo/blob/master/example/docker-compose/tempo-query.yaml) using the following command -
+Download the [configuration file](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-query.yaml) using the following command -
 
 ```
-curl -o tempo-query.yaml https://raw.githubusercontent.com/grafana/tempo/master/example/docker-compose/tempo-query.yaml
+curl -o tempo-query.yaml https://raw.githubusercontent.com/grafana/tempo/master/example/docker-compose/etc/tempo-query.yaml
 ```
 
 Use this config file to fire up the Tempo Query container -
@@ -91,12 +91,12 @@ Happy tracing!
 If you don't have an application to instrument at the moment, fret not! A number of [examples](https://github.com/grafana/tempo/tree/master/example) have been provided which show off various deployment and [configuration](../configuration) options.
 
 Some highlights:
-- [Configuration](https://github.com/grafana/tempo/blob/master/example/docker-compose/tempo.yaml)
+- [Configuration](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-s3-minio.yaml)
   - Shows S3/minio config
   - Shows how to start all receivers with their default endpoints
   - Shows most configuration options
-- [Docker-compose](https://github.com/grafana/tempo/blob/master/example/docker-compose/docker-compose.local.yaml)
-  - Shows an extremely basic configuration.  Just use a few cli options to tell Tempo where to put traces.
+- [Docker-compose](https://github.com/grafana/tempo/blob/master/example/docker-compose/docker-compose.yaml)
+  - Shows an extremely basic configuration with local storage.
 - [Microservices](https://github.com/grafana/tempo/tree/master/example/tk)
   - This jsonnet based example shows a complete microservice based deployment.
 
