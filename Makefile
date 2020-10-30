@@ -1,5 +1,5 @@
 # Version number
-VERSION=$(shell cat "./VERSION" 2> /dev/null)
+VERSION=$(shell ./tools/image-tag | cut -d, -f 1)
 
 GIT_REVISION := $(shell git rev-parse --short HEAD)
 GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
