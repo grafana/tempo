@@ -75,7 +75,7 @@ services:
     image: dgzlopes/hotrod
     ports: 
       - "8080:8080"
-    command: ["all","-j","http://localhost:3000"]
+    command: ["all","-j","http://localhost:3000","-m","prometheus"]
     environment:
       - JAEGER_AGENT_HOST=tempo
       - JAEGER_ENDPOINT=http://tempo:14268/api/traces # send traces to Tempo
