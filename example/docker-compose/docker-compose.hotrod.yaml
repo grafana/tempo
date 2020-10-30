@@ -1,0 +1,87 @@
+version: "2"
+services:
+
+  tempo:
+    image: grafana/tempo:latest
+    command: 
+      - "-storage.trace.backend=local"                  # tell tempo where to permanently put traces
+      - "-storage.trace.local.path=/tmp/tempo/traces"   
+      - "-storage.trace.wal.path=/tmp/tempo/wal"        # tell tempo where to store the wal
+      - "-auth.enabled=false"                           # disables the requirement for the X-Scope-OrgID header
+      - "-server.http-listen-port=3100" 
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+      - /tmp/tempo:/tmp/tempo
+    ports:
+      - "14268"  # jaeger ingest
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
+
+  tempo-query:
+    image: grafana/tempo-query:latest
+    command: ["--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml"]
+    volumes:
+      - ./tempo-query.yaml:/etc/tempo-query.yaml
+    ports:
+      - "16686:16686"  # jaeger-ui
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus.yaml
+    entrypoint:
+      - /bin/prometheus
+      - --config.file=/etc/prometheus.yaml
+    ports:
+      - "9090:9090"
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
+
+  grafana:
+    image: grafana/grafana:7.3.0-beta1
+    volumes:
+      - ./datasources:/etc/grafana/provisioning/datasources
+      - ./dashboards-provisioning:/etc/grafana/provisioning/dashboards
+      - ../../operations/tempo-mixin/out:/var/lib/grafana/dashboards
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+      - "3000:3000"
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
+
+  loki:
+    image: grafana/loki:latest
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"                                   # loki needs to be exposed so it receives logs
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
+  hotrod:
+    image: dgzlopes/hotrod
+    ports: 
+      - "8080:8080"
+    command: ["all","-j","http://localhost:3000"]
+    environment:
+      - JAEGER_AGENT_HOST=tempo
+      - JAEGER_ENDPOINT=http://tempo:14268/api/traces # send traces to Tempo
+    depends_on:
+      - tempo
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
