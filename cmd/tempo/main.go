@@ -25,7 +25,17 @@ import (
 
 const appName = "tempo"
 
+// Version is set via build flag -ldflags -X main.Version
+var (
+	Version  string
+	Branch   string
+	Revision string
+)
+
 func init() {
+	version.Version = Version
+	version.Branch = Branch
+	version.Revision = Revision
 	prometheus.MustRegister(version.NewCollector(appName))
 }
 
