@@ -26,8 +26,8 @@ jobs:
       with:
         version: '3.11.2'
 
-    - name: Check vendor
-      run: make vendor-check
+#    - name: Check vendor
+#      run: make vendor-check
 
     - name: Test
       run: make test-all
