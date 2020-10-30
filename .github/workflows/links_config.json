@@ -1,0 +1,25 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^https://github.com"
+    },
+    {
+      "pattern": "opentracing.io"
+    },
+    {
+      "pattern": "opentelemetry.io"
+    },
+    {
+      "pattern": "^http://127.0.0.1"
+    },
+    {
+      "pattern": "^http://localhost"
+    }
+    ],
+	"replacementPatterns": [
+		{
+			"pattern": "^/",
+			"replacement": "file:///github/workspace/"
+		}
+	]
+}
