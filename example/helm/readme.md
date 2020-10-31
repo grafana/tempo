@@ -21,7 +21,7 @@ export KUBECONFIG="$(k3d get-kubeconfig --name='tempo')"
 Next either deploy the microservices or the single binary.
 
 ### Microservices
-The microservices deploy of Tempo is fault tolerant, high volume, independently scaleable.  This jsonnet is in use by
+The microservices deploy of Tempo is fault tolerant, high volume, independently scalable.  This jsonnet is in use by
 Grafana to run our hosted Tempo offering.
 
 ```console
@@ -31,7 +31,7 @@ kubectl create -f microservices-extras.yaml
 ```
 
 ### Single Binary
-The Tempo single binary configuration is currently setup to store traces locally on disk, but can easily be configured to 
+The Tempo single binary configuration is currently setup to store traces locally on disk, but can easily be configured to
 store them in an S3 or GCS bucket.  See configuration docs or some of the other examples for help.
 
 ```console

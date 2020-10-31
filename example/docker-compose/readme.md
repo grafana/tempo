@@ -3,7 +3,7 @@
 So you found your way to the docker-compose examples?  This is a great place to get started with Tempo, learn
 some basic configuration and learn about various trace discovery flows.
 
-If you are interested in more complex configuraiton we would recommend the [tanka/jsonnet examples](../tk/readme.md).
+If you are interested in more complex configuration we would recommend the [tanka/jsonnet examples](../tk/readme.md).
 
 ### Build Images (Optional)
 
