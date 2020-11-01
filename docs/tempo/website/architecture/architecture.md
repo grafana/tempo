@@ -13,7 +13,7 @@ This document provides an overview of the major components that comprise Tempo. 
 ### Distributor
 
 Accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin.
-Routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring](consistent-hash-ring/).
+Routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring](consistent-hash-ring.md).
 
 The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
 For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto).  For this reason
