@@ -30,6 +30,10 @@ func QueryTrace(baseURL, id, orgID string) (*tempopb.Trace, error) {
 		}
 	}()
 
+	if resp.StatusCode == 404 {
+		return nil, fmt.Errorf("not found traceID: %s", id)
+	}
+
 	trace := &tempopb.Trace{}
 	unmarshaller := &jsonpb.Unmarshaler{}
 	err = unmarshaller.Unmarshal(resp.Body, trace)

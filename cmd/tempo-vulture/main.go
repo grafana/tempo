@@ -115,6 +115,11 @@ func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []stri
 		glog.Error("tempo url ", baseURL+"/api/traces/"+id)
 		trace, err := util.QueryTrace(baseURL, id, tempoOrgID)
 		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				glog.Error("trace not found ", id)
+				tm.notfound++
+				continue
+			}
 			return nil, err
 		}
 
