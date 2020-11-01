@@ -30,7 +30,7 @@ func QueryTrace(baseURL, id, orgID string) (*tempopb.Trace, error) {
 		}
 	}()
 
-	if resp.StatusCode == 404 {
+	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("not found traceID: %s", id)
 	}
 
