@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 
 	"github.com/grafana/tempo/pkg/util"
@@ -101,7 +102,8 @@ func main() {
 }
 
 func getBackendUtils(backend, bucket, s3Endpoint, s3User, s3Pass string) (tempodb_backend.Reader, tempodb_backend.Writer, tempodb_backend.Compactor, error) {
-	if backend == "s3" {
+	switch backend {
+	case "s3":
 		return s3.New(&s3.Config{
 			Bucket:    bucket,
 			Endpoint:  s3Endpoint,
@@ -109,11 +111,18 @@ func getBackendUtils(backend, bucket, s3Endpoint, s3User, s3Pass string) (tempod
 			SecretKey: s3Pass,
 			Insecure:  true,
 		})
+	case "gcs":
+		return gcs.New(&gcs.Config{
+			BucketName:      bucket,
+			ChunkBufferSize: 10 * 1024 * 1024,
+		})
+	case "local":
+		return local.New(&local.Config{
+			Path: bucket,
+		})
+	default:
+		return nil, nil, nil, fmt.Errorf("unknown backend %s", backend)
 	}
-	return gcs.New(&gcs.Config{
-		BucketName:      bucket,
-		ChunkBufferSize: 10 * 1024 * 1024,
-	})
 }
 
 func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, blockID string) error {
