@@ -46,8 +46,8 @@ var (
 	metricIngesterAppendFailures = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_ingester_append_failures_total",
-		Help:      "The total number of failed batch appends sent to ingesters.",
-	}, []string{"ingester"})
+		Help:      "The total number of failed batch appends to ingesters.",
+	}, []string{"ingester", "tenant"})
 	metricSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_spans_received_total",
@@ -251,7 +251,10 @@ func (d *Distributor) send(ctx context.Context, ingesterAddr string, req *tempop
 	_, err = c.(tempopb.PusherClient).Push(ctx, req)
 	metricIngesterAppends.WithLabelValues(ingesterAddr).Inc()
 	if err != nil {
-		metricIngesterAppendFailures.WithLabelValues(ingesterAddr).Inc()
+		userID, err := user.ExtractOrgID(ctx)
+		if err != nil {
+			metricIngesterAppendFailures.WithLabelValues(ingesterAddr, userID).Inc()
+		}
 	}
 	return err
 }
