@@ -23,7 +23,7 @@ dashboard_utils {
         g.row('Jaeger Query')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('jaeger_query_latency_count{%s, operation="get_trace"}' % $.jobMatcher($._config.jobs.querier))
+          $.qpsPanel('jaeger_rpc_http_requests_total{%s, endpoint="/api/traces/-traceID-"}' % $.jobMatcher($._config.jobs.querier))
         )
         .addPanel(
           $.panel('Latency') +

@@ -282,7 +282,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(jaeger_query_latency_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", operation=\"get_trace\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (label_replace(label_replace(rate(jaeger_rpc_http_requests_total{cluster=~\"$cluster\", job=~\"($namespace)/querier\", endpoint=\"/api/traces/-traceID-\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
