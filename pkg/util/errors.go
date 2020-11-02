@@ -2,11 +2,15 @@ package util
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// ErrTraceNotFound can be used when we don't find a trace
+var ErrTraceNotFound = errors.New("trace not found")
 
 // The MultiError type implements the error interface, and contains the
 // Errors used to construct it.
