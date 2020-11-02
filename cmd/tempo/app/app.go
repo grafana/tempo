@@ -83,6 +83,19 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 }
 
+// CheckConfig checks if config values are suspect.
+func (c *Config) CheckConfig() {
+	if c.Ingester.CompleteBlockTimeout < c.StorageConfig.Trace.MaintenanceCycle {
+		level.Warn(util.Logger).Log("msg", "3ingester.CompleteBlockTimeout < storage.trace.maintenance-cycle",
+			"explan", "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block")
+	}
+
+	if c.Compactor.Compactor.BlockRetention < c.StorageConfig.Trace.MaintenanceCycle {
+		level.Warn(util.Logger).Log("msg", "compactor.CompactedBlockRetention < storage.trace.maintenance-cycle",
+			"explan", "Queriers and Compactors may attempt to read a block that no longer exists")
+	}
+}
+
 // App is the root datastructure.
 type App struct {
 	cfg Config

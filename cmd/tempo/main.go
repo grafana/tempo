@@ -76,6 +76,9 @@ func main() {
 	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
 	ballast := make([]byte, *ballastMBs*1024*1024)
 
+	// Warn the user for suspect configurations
+	config.CheckConfig()
+
 	// Start Tempo
 	t, err := app.New(*config)
 	if err != nil {
