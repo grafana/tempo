@@ -4,6 +4,13 @@ VERSION=$(shell ./tools/image-tag | cut -d, -f 1)
 GIT_REVISION := $(shell git rev-parse --short HEAD)
 GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 
+NAMESPACE ?= grafana
+BUILDX_OUTPUT ?= --load
+PLATFORMS ?= linux/amd64
+
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+
 GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
@@ -35,24 +42,24 @@ endif
 
 .PHONY: tempo
 tempo:
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo $(BUILD_INFO) ./cmd/tempo
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-$(GOARCH) $(BUILD_INFO) ./cmd/tempo
 
 .PHONY: tempo-query
 tempo-query:
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-query $(BUILD_INFO) ./cmd/tempo-query
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-query-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-query
 
 .PHONY: tempo-cli
 tempo-cli:
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-cli $(BUILD_INFO) ./cmd/tempo-cli
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-cli-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-cli
 
 .PHONY: tempo-vulture
 tempo-vulture:
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture $(BUILD_INFO) ./cmd/tempo-vulture
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-vulture
 
 .PHONY: exe
 exe:
-	GOOS=linux $(MAKE) $(COMPONENT)
-	cp ./bin/linux/$(COMPONENT) ./cmd/$(COMPONENT)/
+	GOOS=$(GOOS) $(MAKE) $(COMPONENT)
+	cp ./bin/$(GOOS)/$(COMPONENT)-$(GOARCH) ./cmd/$(COMPONENT)/$(COMPONENT)
 
 ### Testin' and Lintin'
 
@@ -80,10 +87,8 @@ lint:
 ### Docker Images
 
 .PHONY: docker-component # Not intended to be used directly
-docker-component: check-component exe
-	docker build -t grafana/$(COMPONENT) -f ./cmd/$(COMPONENT)/Dockerfile .
-	docker tag grafana/$(COMPONENT) $(COMPONENT)
-	rm ./cmd/$(COMPONENT)/$(COMPONENT)
+docker-component: check-component
+	docker buildx build $(BUILDX_OUTPUT) --platform=$(PLATFORMS) -t $(NAMESPACE)/$(COMPONENT) -f ./cmd/$(COMPONENT)/Dockerfile .
 
 .PHONY: docker-tempo
 docker-tempo:
@@ -99,6 +104,10 @@ docker-tempo-vulture:
 
 .PHONY: docker-images
 docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
+
+.PHONY: publish-docker-images
+publish-docker-images:
+	PLATFORMS=linux/amd64,linux/arm64 BUILDX_OUTPUT=--push $(MAKE) docker-images
 
 .PHONY: check-component
 check-component:

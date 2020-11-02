@@ -1,4 +1,18 @@
-FROM alpine:3.9 as certs
-RUN apk --update add ca-certificates
-COPY cmd/tempo/tempo /
+FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.15.3-alpine AS builder
+
+RUN apk --update add ca-certificates make git
+
+WORKDIR /go/src
+COPY ./ ./
+
+ARG TARGETARCH
+RUN GOARCH=${TARGETARCH} make tempo
+
+FROM alpine:3.9
+
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+ARG TARGETARCH
+COPY --from=builder /go/src/bin/linux/tempo-${TARGETARCH} /tempo
+
 ENTRYPOINT ["/tempo"]

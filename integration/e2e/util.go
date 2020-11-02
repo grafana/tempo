@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	image = "tempo:latest"
+	image = "grafana/tempo:latest"
 )
 
 func newTempoAllInOne() *cortex_e2e.HTTPService {
