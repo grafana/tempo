@@ -30,6 +30,7 @@
     container.new('tempo-query', $._images.tempo_query) +
     container.withPorts([
       containerPort.new('jaeger-ui', 16686),
+      containerPort.new('jaeger-metrics', 16687),
     ]) +
     container.withArgs([
       '--query.base-path=' + $._config.jaeger_ui.base_path,
