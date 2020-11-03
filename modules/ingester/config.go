@@ -38,6 +38,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.MaxTraceIdle, "ingester.trace-idle-period", 30*time.Second, "Duration after which to consider a trace complete if no spans have been received")
 	f.IntVar(&cfg.MaxTracesPerBlock, "ingester.traces-per-block", 50000, "Maximum number of traces allowed in the head block before cutting it")
 	f.DurationVar(&cfg.MaxBlockDuration, "ingester.max-block-duration", time.Hour, "Maximum duration which the head block can be appended to before cutting it.")
-	f.DurationVar(&cfg.CompleteBlockTimeout, "ingester.complete-block-timeout", storage.DefaultMaintenanceCycle, "Duration to keep the headb blocks in the ingester after it has been cut.")
+	f.DurationVar(&cfg.CompleteBlockTimeout, "ingester.complete-block-timeout", storage.DefaultBlocklistPoll, "Duration to keep the headb blocks in the ingester after it has been cut.")
 	cfg.OverrideRingKey = ring.IngesterRingKey
 }

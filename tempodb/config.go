@@ -23,7 +23,7 @@ type Config struct {
 	Diskcache *diskcache.Config `yaml:"disk_cache"`
 	Memcached *memcached.Config `yaml:"memcached"`
 
-	MaintenanceCycle time.Duration `yaml:"maintenance_cycle"`
+	BlocklistPoll time.Duration `yaml:"blocklist_poll"`
 }
 
 type CompactorConfig struct {
