@@ -86,12 +86,12 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 // CheckConfig checks if config values are suspect.
 func (c *Config) CheckConfig() {
 	if c.Ingester.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
-		level.Warn(util.Logger).Log("msg", "3ingester.CompleteBlockTimeout < storage.trace.maintenance-cycle",
+		level.Warn(util.Logger).Log("msg", "ingester.complete_block_timeout < storage.trace.blocklist_poll",
 			"explan", "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block")
 	}
 
 	if c.Compactor.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
-		level.Warn(util.Logger).Log("msg", "compactor.CompactedBlockRetention < storage.trace.maintenance-cycle",
+		level.Warn(util.Logger).Log("msg", "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
 			"explan", "Queriers and Compactors may attempt to read a block that no longer exists")
 	}
 }
