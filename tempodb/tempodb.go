@@ -382,6 +382,11 @@ func (rw *readerWriter) pollBlocklist() {
 		if err != nil {
 			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
+			rw.blockListsMtx.Lock()
+			delete(rw.blockLists, tenantID)
+			delete(rw.compactedBlockLists, tenantID)
+			rw.blockListsMtx.Unlock()
+			level.Error(rw.logger).Log("msg", "deleted in-memory blocklists", "tenantID", tenantID)
 		}
 
 		interfaceSlice := make([]interface{}, 0, len(blockIDs))
