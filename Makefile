@@ -111,7 +111,7 @@ endif
 # Copied from OpenTelemetry Collector Makefile
 DOCKER_PROTOBUF ?= otel/build-protobuf:0.1.0
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD}/$(PROTO_INTERMEDIATE_DIR) ${DOCKER_PROTOBUF} --proto_path=${PWD}
-PROTO_INCLUDES := -I/usr/include/github.com/gogo/protobuf -I./opentelemetry-proto/ -Ipkg/tempopb/ -I./
+PROTO_INCLUDES := -I./opentelemetry-proto/ -Ipkg/tempopb/ -I./
 
 .PHONY: gen-proto
 gen-proto:
@@ -140,12 +140,6 @@ vendor-dependencies:
 	find . | grep 'vendor/go.opentelemetry.io.*go$\' | grep -v -e 'log.go$\' | xargs -L 1 sed -i $(SED_OPTS) 's+go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/+github.com/open-telemetry/opentelemetry-proto/gen/go/+g'
 	$(MAKE) gen-proto
 
-
-.PHONY: install-tools
-install-tools:
-	go get -u github.com/golang/protobuf/protoc-gen-go
-	go get -u github.com/gogo/protobuf/protoc-gen-gogofaster
-	go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
 
 .PHONE: clear-protos
 clear-protos:
