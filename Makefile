@@ -108,24 +108,29 @@ endif
 
 ### Dependencies
 
+# Copied from OpenTelemetry Collector Makefile
+DOCKER_PROTOBUF ?= otel/build-protobuf:0.1.0
+PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD}/$(PROTO_INTERMEDIATE_DIR) ${DOCKER_PROTOBUF} --proto_path=${PWD}
+PROTO_INCLUDES := -I/usr/include/github.com/gogo/protobuf -I./opentelemetry-proto/ -Ipkg/tempopb/ -I./
+
 .PHONY: gen-proto
 gen-proto:
 	git submodule init
 	git submodule update
 	rm -rf ./vendor/github.com/open-telemetry/opentelemetry-proto
-	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/common/v1/common.proto --gogofaster_out=plugins=grpc:./vendor
-	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/resource/v1/resource.proto --gogofaster_out=plugins=grpc:./vendor
+	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/common/v1/common.proto --gogofaster_out=plugins=grpc:./vendor
+	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/resource/v1/resource.proto --gogofaster_out=plugins=grpc:./vendor
 	# protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/logs/v1/logs.proto --gogofaster_out=plugins=grpc:./vendor
-	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/metrics/v1/metrics.proto --gogofaster_out=plugins=grpc:./vendor
-	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/trace/v1/trace.proto --gogofaster_out=plugins=grpc:./vendor
+	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/metrics/v1/metrics.proto --gogofaster_out=plugins=grpc:./vendor
+	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/trace/v1/trace.proto --gogofaster_out=plugins=grpc:./vendor
 	# protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/logs/v1/logs_service.proto --gogofaster_out=plugins=grpc:./vendor
-	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto --gogofaster_out=plugins=grpc:./vendor
-	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto \
+	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto --gogofaster_out=plugins=grpc:./vendor
+	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto \
 	  --grpc-gateway_out=logtostderr=true,grpc_api_configuration=opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service_http.yaml:./vendor
-	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto --gogofaster_out=plugins=grpc:./vendor
-	protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto \
+	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto --gogofaster_out=plugins=grpc:./vendor
+	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto \
 	  --grpc-gateway_out=logtostderr=true,grpc_api_configuration=opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service_http.yaml:./vendor
-	protoc -I opentelemetry-proto/ -I pkg/tempopb/ pkg/tempopb/tempo.proto --gogofaster_out=plugins=grpc:pkg/tempopb
+	$(PROTOC) $(PROTO_INCLUDES) pkg/tempopb/tempo.proto --gogofaster_out=plugins=grpc:pkg/tempopb
 
 .PHONY: vendor-dependencies
 vendor-dependencies:
@@ -148,7 +153,7 @@ clear-protos:
 
 ### Check vendored files
 .PHONY: vendor-check
-vendor-check: clear-protos install-tools vendor-dependencies
+vendor-check: clear-protos vendor-dependencies
 	git diff --exit-code
 
 ### Release (intended to be used in the .github/workflows/images.yml)
