@@ -18,7 +18,7 @@
     compactor: null,
     storage: {
       trace: {
-        maintenance_cycle: '5m',
+        blocklist_poll: '5m',
         backend: $._config.backend,
         wal: {
           path: '/var/tempo/wal',
@@ -65,7 +65,7 @@
     },
     storage+: {
       trace+: {
-        maintenance_cycle: '10m',
+        blocklist_poll: '10m',
       },
     },
   },

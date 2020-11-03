@@ -18,12 +18,12 @@ type Config struct {
 	Trace tempodb.Config `yaml:"trace"`
 }
 
-var DefaultMaintenanceCycle = 5 * time.Minute
+var DefaultBlocklistPoll = 5 * time.Minute
 
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, gcs, local)")
-	f.DurationVar(&cfg.Trace.MaintenanceCycle, util.PrefixConfig(prefix, "trace.maintenance-cycle"), DefaultMaintenanceCycle, "Period at which to run the maintenance cycle.")
+	f.DurationVar(&cfg.Trace.BlocklistPoll, util.PrefixConfig(prefix, "trace.maintenance-cycle"), DefaultBlocklistPoll, "Period at which to run the maintenance cycle.")
 
 	cfg.Trace.WAL = &wal.Config{}
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")

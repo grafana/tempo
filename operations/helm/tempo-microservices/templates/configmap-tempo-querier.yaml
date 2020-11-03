@@ -18,7 +18,7 @@ data:
     storage:
         trace:
             {{- toYaml .Values.backend | nindent 12 }}
-            maintenance_cycle: 5m
+            blocklist_poll: 5m
             memcached:
                 consistent_hash: true
                 host: memcached

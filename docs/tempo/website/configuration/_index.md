@@ -62,7 +62,7 @@ storage:
         backend: gcs                             # store traces in gcs
         gcs:
             bucket_name: ops-tools-tracing-ops   # store traces in this bucket
-        maintenance_cycle: 5m                    # how often to repoll the backend for new blocks
+        blocklist_poll: 5m                    # how often to repoll the backend for new blocks
         memcached:                               # optional memcached configuration
             consistent_hash: true
             host: memcached

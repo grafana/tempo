@@ -60,7 +60,7 @@ func TestCompaction(t *testing.T) {
 			IndexDownsample: 11,
 			BloomFP:         .01,
 		},
-		MaintenanceCycle: 0,
+		BlocklistPoll: 0,
 	}, log.NewNopLogger())
 
 	c.EnableCompaction(&CompactorConfig{
@@ -183,7 +183,7 @@ func TestSameIDCompaction(t *testing.T) {
 			IndexDownsample: rand.Int()%20 + 1,
 			BloomFP:         .01,
 		},
-		MaintenanceCycle: 0,
+		BlocklistPoll: 0,
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 

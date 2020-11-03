@@ -86,7 +86,7 @@ func (rw *readerWriter) doCompaction() {
 		}
 
 		// after a maintenance cycle bail out
-		if start.Add(rw.cfg.MaintenanceCycle).Before(time.Now()) {
+		if start.Add(rw.cfg.BlocklistPoll).Before(time.Now()) {
 			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
 			break
 		}

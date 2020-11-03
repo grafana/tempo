@@ -340,7 +340,7 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	rw.compactorCfg = cfg
 	rw.compactorSharder = c
 
-	if rw.cfg.MaintenanceCycle == 0 {
+	if rw.cfg.BlocklistPoll == 0 {
 		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  compaction and retention disabled.")
 		return
 	}
@@ -353,14 +353,14 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 }
 
 func (rw *readerWriter) maintenanceLoop() {
-	if rw.cfg.MaintenanceCycle == 0 {
+	if rw.cfg.BlocklistPoll == 0 {
 		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  blocklist polling disabled.")
 		return
 	}
 
 	rw.pollBlocklist()
 
-	ticker := time.NewTicker(rw.cfg.MaintenanceCycle)
+	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
 	for range ticker.C {
 		rw.pollBlocklist()
 	}
@@ -448,7 +448,7 @@ func (rw *readerWriter) pollBlocklist() {
 // todo: pass a context/chan in to cancel this cleanly
 //  once a maintenance cycle cleanup any blocks
 func (rw *readerWriter) retentionLoop() {
-	ticker := time.NewTicker(rw.cfg.MaintenanceCycle)
+	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
 	for range ticker.C {
 		rw.doRetention()
 	}

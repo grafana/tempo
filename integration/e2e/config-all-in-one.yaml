@@ -27,7 +27,7 @@ ingester:
 
 storage:
   trace:
-    maintenance_cycle: 2s
+    blocklist_poll: 2s
     backend: s3
     s3:
       bucket: tempo

@@ -39,7 +39,7 @@ func TestDB(t *testing.T) {
 			IndexDownsample: 17,
 			BloomFP:         .01,
 		},
-		MaintenanceCycle: 0,
+		BlocklistPoll: 0,
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
@@ -112,7 +112,7 @@ func TestRetention(t *testing.T) {
 			IndexDownsample: 17,
 			BloomFP:         .01,
 		},
-		MaintenanceCycle: 0,
+		BlocklistPoll: 0,
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
