@@ -43,6 +43,8 @@ spec:
         ports:
         - containerPort: 16686
           name: jaeger-ui
+        - containerPort: 16687
+          name: jaeger-metrics
         resources:
           {{- toYaml .Values.tempoQuery.resources | nindent 10 }}  
         volumeMounts:

@@ -20,6 +20,17 @@ dashboard_utils {
         )
       )
       .addRow(
+        g.row('Jaeger Query')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('jaeger_rpc_http_requests_total{%s, endpoint="/api/traces/-traceID-"}' % $.jobMatcher($._config.jobs.querier))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('jaeger_query_latency', '{%s,operation="get_trace"}' % $.jobMatcher($._config.jobs.querier))
+        )
+      )
+      .addRow(
         g.row('Querier')
         .addPanel(
           $.panel('QPS') +
