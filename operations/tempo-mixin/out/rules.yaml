@@ -1,0 +1,15 @@
+"groups":
+- "name": "tempo_rules"
+  "rules":
+  - "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket[1m])) by (le, namespace, job, route))"
+    "record": "namespace_job_route:tempo_request_duration_seconds:99quantile"
+  - "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket[1m])) by (le, namespace, job, route))"
+    "record": "namespace_job_route:tempo_request_duration_seconds:50quantile"
+  - "expr": "sum(rate(tempo_request_duration_seconds_sum[1m])) by (namespace, job, route) / sum(rate(tempo_request_duration_seconds_count[1m])) by (namespace, job, route)"
+    "record": "namespace_job_route:tempo_request_duration_seconds:avg"
+  - "expr": "sum(rate(tempo_request_duration_seconds_bucket[1m])) by (le, namespace, job, route)"
+    "record": "namespace_job_route:tempo_request_duration_seconds_bucket:sum_rate"
+  - "expr": "sum(rate(tempo_request_duration_seconds_sum[1m])) by (namespace, job, route)"
+    "record": "namespace_job_route:tempo_request_duration_seconds_sum:sum_rate"
+  - "expr": "sum(rate(tempo_request_duration_seconds_count[1m])) by (namespace, job, route)"
+    "record": "namespace_job_route:tempo_request_duration_seconds_count:sum_rate"
