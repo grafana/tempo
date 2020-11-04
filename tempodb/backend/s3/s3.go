@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"strings"
 
 	log_util "github.com/cortexproject/cortex/pkg/util"
@@ -15,7 +16,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/minio/minio-go/v6"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/pkg/errors"
 )
 
@@ -32,7 +34,29 @@ type readerWriter struct {
 
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	l := log_util.Logger
-	core, err := minio.NewCore(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, !cfg.Insecure)
+	creds := credentials.NewChainCredentials([]credentials.Provider{
+		&credentials.EnvAWS{},
+		&credentials.Static{
+			Value: credentials.Value{
+				AccessKeyID:     cfg.AccessKey,
+				SecretAccessKey: cfg.SecretKey,
+			},
+		},
+		&credentials.EnvMinio{},
+		&credentials.FileAWSCredentials{},
+		&credentials.FileMinioClient{},
+		&credentials.IAM{
+			Client: &http.Client{
+				Transport: http.DefaultTransport,
+			},
+		},
+	})
+	opts := &minio.Options{
+		Secure: !cfg.Insecure,
+		Creds:  creds,
+		Region: cfg.Region,
+	}
+	core, err := minio.NewCore(cfg.Endpoint, opts)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -41,9 +65,9 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	//client.SetCustomTransport(minio.DefaultTransport(!cfg.Insecure))
 
 	// make bucket name if doesn't exist already
-	err = core.MakeBucket(cfg.Bucket, cfg.Region)
+	err = core.MakeBucket(context.Background(), cfg.Bucket, minio.MakeBucketOptions{Region: cfg.Region})
 	if err != nil {
-		exists, errBucketExists := core.BucketExists(cfg.Bucket)
+		exists, errBucketExists := core.BucketExists(context.Background(), cfg.Bucket)
 		if errBucketExists == nil && !exists {
 			return nil, nil, nil, errors.Wrap(err, "cannot create bucket in s3, invalid permissions")
 		} else if errBucketExists != nil {
@@ -70,7 +94,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 	}
 
 	objName := util.ObjectFileName(meta.BlockID, meta.TenantID)
-	size, err := rw.core.FPutObjectWithContext(
+	info, err := rw.core.FPutObject(
 		ctx,
 		rw.cfg.Bucket,
 		objName,
@@ -81,7 +105,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 		return errors.Wrapf(err, "error writing object to s3 backend, object %s", objName)
 	}
 
-	level.Debug(rw.logger).Log("msg", "object uploaded to s3", "objectName", objName, "size", size)
+	level.Debug(rw.logger).Log("msg", "object uploaded to s3", "objectName", objName, "size", info.Size)
 
 	err = rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
 	if err != nil {
@@ -104,7 +128,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		}
 		level.Debug(rw.logger).Log("msg", "marking compacted block complete", "parts", len(completeParts))
 		objName := util.ObjectFileName(meta.BlockID, meta.TenantID)
-		etag, err := rw.core.CompleteMultipartUploadWithContext(
+		etag, err := rw.core.CompleteMultipartUpload(
 			ctx,
 			rw.cfg.Bucket,
 			objName,
@@ -123,7 +147,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	}
 
 	for i, b := range bBloom {
-		size, err := rw.core.Client.PutObjectWithContext(
+		size, err := rw.core.Client.PutObject(
 			ctx,
 			rw.cfg.Bucket,
 			util.BloomFileName(blockID, tenantID, i),
@@ -137,7 +161,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		level.Debug(rw.logger).Log("msg", "block bloom uploaded to s3", "shard", i, "size", size)
 	}
 
-	size, err := rw.core.Client.PutObjectWithContext(
+	size, err := rw.core.Client.PutObject(
 		ctx,
 		rw.cfg.Bucket,
 		util.IndexFileName(blockID, tenantID),
@@ -156,7 +180,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	}
 
 	// write meta last.  this will prevent blocklist from returning a partial block
-	size, err = rw.core.Client.PutObjectWithContext(
+	size, err = rw.core.Client.PutObject(
 		ctx,
 		rw.cfg.Bucket,
 		util.MetaFileName(blockID, tenantID),
@@ -188,6 +212,7 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 		a = tracker.(AppenderTracker)
 	} else {
 		id, err := rw.core.NewMultipartUpload(
+			ctx,
 			rw.cfg.Bucket,
 			util.ObjectFileName(meta.BlockID, meta.TenantID),
 			options,
@@ -201,7 +226,7 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 	level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", util.ObjectFileName(meta.BlockID, meta.TenantID))
 
 	a.partNum++
-	objPart, err := rw.core.PutObjectPartWithContext(
+	objPart, err := rw.core.PutObjectPart(
 		ctx,
 		rw.cfg.Bucket,
 		util.ObjectFileName(meta.BlockID, meta.TenantID),
@@ -296,7 +321,7 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
-	reader, _, _, err := rw.core.GetObjectWithContext(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
+	reader, _, _, err := rw.core.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
 	if err != nil {
 		// do not change or wrap this error
 		// we need to compare the specific err message
@@ -312,7 +337,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 }
 
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
-	reader, info, _, err := rw.core.GetObjectWithContext(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
+	reader, info, _, err := rw.core.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
 	if err != nil && err.Error() == s3KeyDoesNotExist {
 		return nil, minio.ObjectInfo{}, backend.ErrMetaDoesNotExist
 	} else if err != nil {
@@ -333,7 +358,7 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	if err != nil {
 		return errors.Wrap(err, "error setting headers for range read in s3")
 	}
-	reader, _, _, err := rw.core.GetObjectWithContext(ctx, rw.cfg.Bucket, objName, options)
+	reader, _, _, err := rw.core.GetObject(ctx, rw.cfg.Bucket, objName, options)
 	if err != nil {
 		return errors.Wrapf(err, "error in range read from s3 backend, bucket: %s, objName: %s", rw.cfg.Bucket, objName)
 	}
