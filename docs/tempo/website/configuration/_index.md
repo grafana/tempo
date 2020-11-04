@@ -61,6 +61,15 @@ compactor:
 ### [Storage](https://github.com/grafana/tempo/blob/master/tempodb/config.go)
 The storage block is used to configure TempoDB.
 
+For the s3 backend, the following authentication methods are supported:
+
+- AWS env vars (static AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+- Static access key and secret credentials specified in `storage.trace.s3.access_key` and `storage.trace.s3.secret_key`
+- Minio env vars
+- AWS shared credentials config file
+- Minio shared credentials config file
+- AWS IAM (IRSA via WebIdentity, EC2 instance role)
+
 ```
 storage:
     trace:
