@@ -255,7 +255,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	rw.blockListsMtx.Unlock()
 
 	if !found {
-		return nil, metrics, fmt.Errorf("tenantID %s not found", tenantID)
+		return nil, metrics, nil
 	}
 
 	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
