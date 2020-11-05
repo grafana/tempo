@@ -11,15 +11,13 @@ If you're convinced this is the place for you then keep reading!
 
 To test the Helm example locally requires:
 
-- k3d > v3.0.0
+- k3d > v3.2.0
 - helm > v3.0.0
 
 Create a cluster
 
 ```console
 k3d cluster create tempo --api-port 6443 --port "16686:80@loadbalancer"
-
-export KUBECONFIG="$(k3d kubeconfig write tempo)"
 ```
 
 Next either deploy the microservices or the single binary.
