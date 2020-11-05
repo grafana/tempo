@@ -29,6 +29,7 @@ compactor:
     max_compaction_objects: 1000000    # maximum size of compacted blocks
     block_retention: 1h
     compacted_block_retention: 10m
+    flush_size_bytes: 5242880
 
 storage:
   trace:

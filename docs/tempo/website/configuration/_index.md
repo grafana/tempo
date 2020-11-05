@@ -41,12 +41,17 @@ ingester:
 ```
 
 ### [Compactor](https://github.com/grafana/tempo/blob/master/modules/compactor/config.go)
-Compactors stream blocks from the storage backend, combine them and write them back.
+Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
 
 ```
 compactor:
     compaction:
-        block_retention: 336h       # duration to keep blocks
+        block_retention: 336h               # duration to keep blocks
+        compacted_block_retention: 1h       # duration to keep blocks that have been compacted elsewhere
+        compaction_window: 1h               # blocks in this time window will be compacted together
+        chunk_size_bytes: 10485760          # amount of data to buffer from input blocks
+        flush_size_bytes: 31457280          # flush data to backend when buffer is this large
+        max_compaction_objects: 1000000     # maximum traces in a compacted block
     ring:
         kvstore:
             store: memberlist       # in a high volume environment multiple compactors need to work together to keep up with incoming blocks.

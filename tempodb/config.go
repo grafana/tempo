@@ -28,6 +28,7 @@ type Config struct {
 
 type CompactorConfig struct {
 	ChunkSizeBytes          uint32        `yaml:"chunk_size_bytes"` // todo: do we need this?
+	FlushSizeBytes          uint32        `yaml:"flush_size_bytes"`
 	MaxCompactionRange      time.Duration `yaml:"compaction_window"`
 	MaxCompactionObjects    int           `yaml:"max_compaction_objects"`
 	BlockRetention          time.Duration `yaml:"block_retention"`

@@ -17,10 +17,11 @@ type Config struct {
 	OverrideRingKey string                      `yaml:"override_ring_key"`
 }
 
-// RegisterFlags registers the flags.
+// RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.Compactor = tempodb.CompactorConfig{
-		ChunkSizeBytes:          10485760, // 10 MiB
+		ChunkSizeBytes:          10 * 1024 * 1024, // 10 MiB
+		FlushSizeBytes:          30 * 1024 * 1024, // 30 MiB
 		CompactedBlockRetention: time.Hour,
 	}
 
