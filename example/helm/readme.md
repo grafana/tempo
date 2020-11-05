@@ -9,13 +9,17 @@ If you're convinced this is the place for you then keep reading!
 
 ### Initial Steps
 
+To test the Help example locally requires:
+
+- k3d > v3.0.0
+- helm > v3.0.0
+
 Create a cluster
 
 ```console
-k3d create --name tempo \
-           --publish 16686:80
+k3d cluster create tempo --api-port 6443 --port "16686:80@loadbalancer"
 
-export KUBECONFIG="$(k3d get-kubeconfig --name='tempo')"
+export KUBECONFIG="$(k3d kubeconfig write tempo)"
 ```
 
 Next either deploy the microservices or the single binary.
@@ -56,5 +60,5 @@ Extract a trace id and view it in your browser at `http://localhost:16686/trace/
 
 ### Clean up
 ```console
-k3d delete --name tempo
+k3d cluster delete tempo
 ```
