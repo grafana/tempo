@@ -65,10 +65,10 @@ For the s3 backend, the following authentication methods are supported:
 
 - AWS env vars (static AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
 - Static access key and secret credentials specified in `storage.trace.s3.access_key` and `storage.trace.s3.secret_key`
-- Minio env vars
-- AWS shared credentials config file
-- Minio shared credentials config file
-- AWS IAM (IRSA via WebIdentity, EC2 instance role)
+- Minio env vars (MINIO_ACCESS_KEY and MINIO_SECRET_KEY)
+- AWS shared credentials [config file](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/create-shared-credentials-file.html)
+- Minio client credentials [config file](https://github.com/minio/mc/blob/master/docs/minio-client-configuration-files.md)
+- AWS IAM ([IRSA via WebIdentity](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html), [EC2 instance role](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html))
 
 ```
 storage:
