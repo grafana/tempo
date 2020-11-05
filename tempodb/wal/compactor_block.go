@@ -65,6 +65,10 @@ func (c *CompactorBlock) CurrentBuffer() []byte {
 	return c.appendBuffer.Bytes()
 }
 
+func (c *CompactorBlock) CurrentBufferLength() int {
+	return c.appendBuffer.Len()
+}
+
 func (c *CompactorBlock) ResetBuffer() {
 	c.appendBuffer.Reset()
 }

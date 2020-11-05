@@ -38,7 +38,6 @@ const (
 	inputBlocks  = 2
 	outputBlocks = 1
 
-	recordsPerBatch = 1000
 	compactionCycle = 30 * time.Second
 )
 
@@ -182,7 +181,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 		lowestBookmark.clear()
 
 		// write partial block
-		if currentBlock.Length()%recordsPerBatch == 0 {
+		if currentBlock.CurrentBufferLength() >= int(rw.compactorCfg.FlushSizeBytes) {
 			tracker, err = appendBlock(rw, tracker, currentBlock)
 			if err != nil {
 				return errors.Wrap(err, "error writing partial block")
