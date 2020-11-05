@@ -28,6 +28,8 @@ services:
     command: ["--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml"]
     volumes:
       - ./etc/tempo-query.yaml:/etc/tempo-query.yaml
+    depends_on:
+      - tempo
     ports:
       - "16686:16686"  # jaeger-ui
 

@@ -25,6 +25,8 @@ services:
       - ./etc/tempo-query.yaml:/etc/tempo-query.yaml
     ports:
       - "16686:16686"  # jaeger-ui
+    depends_on:
+      - tempo
     logging:
       driver: loki
       options:

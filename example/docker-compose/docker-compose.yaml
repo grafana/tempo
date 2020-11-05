@@ -18,6 +18,8 @@ services:
       - ./etc/tempo-query.yaml:/etc/tempo-query.yaml
     ports:
       - "16686:16686"  # jaeger-ui
+    depends_on:
+      - tempo
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
