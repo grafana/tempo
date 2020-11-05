@@ -9,7 +9,7 @@ If you're convinced this is the place for you then keep reading!
 
 ### Initial Steps
 
-To test the Help example locally requires:
+To test the Helm example locally requires:
 
 - k3d > v3.0.0
 - helm > v3.0.0
