@@ -44,6 +44,9 @@ storage:
       access_key: tempo
       secret_key: supersecret
       insecure: true
+      # For using AWS, select the appropriate regional endpoint and region
+      # endpoint: s3.dualstack.us-west-2.amazonaws.com
+      # region: us-west-2
     pool:
       max_workers: 100                 # the worker pool mainly drives querying, but is also used for polling the blocklist
       queue_depth: 10000

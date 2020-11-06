@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/minio/minio-go/v7"
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
@@ -24,7 +25,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 
 	metaFileName := util.MetaFileName(blockID, tenantID)
 	// copy meta.json to meta.compacted.json
-	_, err := rw.core.CopyObjectWithContext(
+	_, err := rw.core.CopyObject(
 		context.TODO(),
 		rw.cfg.Bucket,
 		metaFileName,
@@ -37,7 +38,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	}
 
 	// delete meta.json
-	return rw.core.RemoveObject(rw.cfg.Bucket, metaFileName)
+	return rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, metaFileName, minio.RemoveObjectOptions{})
 }
 
 func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
@@ -59,7 +60,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	delObjects = append(delObjects, util.IndexFileName(blockID, tenantID))
 	delObjects = append(delObjects, util.ObjectFileName(blockID, tenantID))
 	for _, obj := range delObjects {
-		err := rw.core.RemoveObject(rw.cfg.Bucket, obj)
+		err := rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, obj, minio.RemoveObjectOptions{})
 		if err != nil {
 			return errors.Wrapf(err, "error deleting obj from s3: %s", obj)
 		}
