@@ -59,6 +59,7 @@ func (rw *readerWriter) doCompaction() {
 	rand.Seed(time.Now().Unix())
 	tenantID := tenants[rand.Intn(len(tenants))].(string)
 	blocklist := rw.blocklist(tenantID)
+
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
 
 	start := time.Now()
@@ -67,7 +68,7 @@ func (rw *readerWriter) doCompaction() {
 	for {
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
 		if len(toBeCompacted) == 0 {
-			level.Info(rw.logger).Log("msg", "failed to find any blocks to compact", "tenantID", tenantID)
+			level.Info(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 			break
 		}
 		if !rw.compactorSharder.Owns(hashString) {
@@ -132,6 +133,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	}
 
 	recordsPerBlock := (totalRecords / outputBlocks)
+	var newCompactedBlocks []*encoding.BlockMeta
 	var currentBlock *wal.CompactorBlock
 	var tracker backend.AppendTracker
 
@@ -170,6 +172,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 				return errors.Wrap(err, "error making new compacted block")
 			}
 			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
+			newCompactedBlocks = append(newCompactedBlocks, currentBlock.BlockMeta())
 		}
 
 		// writing to the current block will cause the id to escape the iterator so we need to make a copy of it
@@ -208,12 +211,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	}
 
 	// mark old blocks compacted so they don't show up in polling
-	for _, meta := range blockMetas {
-		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
-			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
-			metricCompactionErrors.Inc()
-		}
-	}
+	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
 
 	return nil
 }
@@ -268,4 +266,26 @@ func compactionLevelForBlocks(blockMetas []*encoding.BlockMeta) uint8 {
 	}
 
 	return level
+}
+
+func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*encoding.BlockMeta, newBlocks []*encoding.BlockMeta) {
+	for _, meta := range oldBlocks {
+		// Mark in the backend
+		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
+			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
+			metricCompactionErrors.Inc()
+		}
+	}
+
+	// Converted outgoing blocks into compacted entries.
+	newCompactions := make([]*encoding.CompactedBlockMeta, 0, len(oldBlocks))
+	for _, newBlock := range oldBlocks {
+		newCompactions = append(newCompactions, &encoding.CompactedBlockMeta{
+			BlockMeta:     *newBlock,
+			CompactedTime: time.Now(),
+		})
+	}
+
+	// Update blocklist in memory
+	rw.updateBlocklist(tenantID, newBlocks, oldBlocks, newCompactions, nil)
 }

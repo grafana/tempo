@@ -240,3 +240,77 @@ func TestSameIDCompaction(t *testing.T) {
 	}
 	assert.Equal(t, blockCount-blocksPerCompaction, records)
 }
+
+func TestCompactionUpdatesBlocklist(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	r, w, c, err := New(&Config{
+		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		WAL: &wal.Config{
+			Filepath:        path.Join(tempDir, "wal"),
+			IndexDownsample: rand.Int()%20 + 1,
+			BloomFP:         .01,
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      24 * time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{})
+
+	// Cut x blocks with y records each
+	blockCount := 5
+	recordCount := 1
+	cutTestBlocks(t, w, blockCount, recordCount)
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist()
+
+	// compact everything
+	err = rw.compact(rw.blocklist(testTenantID), testTenantID)
+	assert.NoError(t, err)
+
+	// New blocklist contains 1 compacted block with everything
+	blocks := rw.blocklist(testTenantID)
+	assert.Equal(t, 1, len(blocks))
+	assert.Equal(t, uint8(1), blocks[0].CompactionLevel)
+	assert.Equal(t, blockCount*recordCount, blocks[0].TotalObjects)
+
+	// Compacted list contains all old blocks
+	assert.Equal(t, blockCount, len(rw.compactedBlocklist(testTenantID)))
+}
+
+func cutTestBlocks(t *testing.T, w Writer, blockCount int, recordCount int) {
+	wal := w.WAL()
+	for i := 0; i < blockCount; i++ {
+		head, err := wal.NewBlock(uuid.New(), testTenantID)
+		assert.NoError(t, err)
+
+		for j := 0; j < recordCount; j++ {
+			// Use i and j to ensure unique ids
+			err = head.Write(
+				[]byte{byte(i), byte(j), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+				[]byte{0x01, 0x02, 0x03})
+			assert.NoError(t, err, "unexpected error writing rec")
+		}
+
+		complete, err := head.Complete(wal, &mockSharder{})
+		assert.NoError(t, err)
+
+		err = w.WriteBlock(context.Background(), complete)
+		assert.NoError(t, err)
+	}
+}
