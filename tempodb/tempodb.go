@@ -574,9 +574,7 @@ func (rw *readerWriter) cleanMissingTenants(tenants []string) {
 
 // updateBlocklist Add and remove regular or compacted blocks from the in-memory blocklist.
 // Changes are temporary and will be overwritten on the next poll.
-func (rw *readerWriter) updateBlocklist(tenantID string,
-	add []*encoding.BlockMeta, remove []*encoding.BlockMeta,
-	compactedAdd []*encoding.CompactedBlockMeta, compactedRemove []*encoding.CompactedBlockMeta) {
+func (rw *readerWriter) updateBlocklist(tenantID string, add []*encoding.BlockMeta, remove []*encoding.BlockMeta, compactedAdd []*encoding.CompactedBlockMeta) {
 	if tenantID == "" {
 		return
 	}
@@ -601,18 +599,5 @@ func (rw *readerWriter) updateBlocklist(tenantID string,
 	rw.blockLists[tenantID] = newblocklist
 
 	// ******** Compacted blocks ********
-	toRemoveCompacted := make(map[*encoding.CompactedBlockMeta]bool)
-	for _, m := range compactedRemove {
-		toRemoveCompacted[m] = true
-	}
-
-	compactedBlocklist := rw.compactedBlockLists[tenantID]
-	newcompactedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(compactedBlocklist)-len(compactedRemove)+len(compactedAdd))
-	for _, m := range blocklist {
-		if _, ok := toRemove[m]; !ok {
-			newblocklist = append(newblocklist, m)
-		}
-	}
-	newcompactedBlocklist = append(newcompactedBlocklist, compactedAdd...)
-	rw.compactedBlockLists[tenantID] = newcompactedBlocklist
+	rw.compactedBlockLists[tenantID] = append(rw.compactedBlockLists[tenantID], compactedAdd...)
 }

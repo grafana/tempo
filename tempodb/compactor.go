@@ -287,5 +287,5 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*encoding.Bloc
 	}
 
 	// Update blocklist in memory
-	rw.updateBlocklist(tenantID, newBlocks, oldBlocks, newCompactions, nil)
+	rw.updateBlocklist(tenantID, newBlocks, oldBlocks, newCompactions)
 }
