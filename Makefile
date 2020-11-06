@@ -55,7 +55,6 @@ tempo-vulture:
 .PHONY: exe
 exe:
 	GOOS=linux $(MAKE) $(COMPONENT)
-	cp ./bin/linux/$(COMPONENT)-$(GOARCH) ./cmd/$(COMPONENT)/$(COMPONENT)
 
 ### Testin' and Lintin'
 
@@ -86,7 +85,6 @@ lint:
 docker-component: check-component exe
 	docker build -t grafana/$(COMPONENT) --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
-	rm ./cmd/$(COMPONENT)/$(COMPONENT)
 
 .PHONY: docker-tempo
 docker-tempo:
