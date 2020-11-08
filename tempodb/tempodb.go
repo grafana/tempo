@@ -377,18 +377,34 @@ func (rw *readerWriter) pollBlocklist() {
 		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
 	}
 
+	tenantSet := make(map[string]bool)
+	for _, tenantID := range tenants {
+		tenantSet[tenantID] = true
+	}
+
+	for tenantID := range rw.blockLists {
+		if _, present := tenantSet[tenantID]; !present {
+			rw.blockListsMtx.Lock()
+			delete(rw.blockLists, tenantID)
+			rw.blockListsMtx.Unlock()
+			level.Info(rw.logger).Log("msg", "deleted in-memory blocklists", "tenantID", tenantID)
+		}
+	}
+
+	for tenantID := range rw.compactedBlockLists {
+		if _, present := tenantSet[tenantID]; !present {
+			rw.blockListsMtx.Lock()
+			delete(rw.compactedBlockLists, tenantID)
+			rw.blockListsMtx.Unlock()
+			level.Info(rw.logger).Log("msg", "deleted in-memory compacted blocklists", "tenantID", tenantID)
+		}
+	}
+
 	for _, tenantID := range tenants {
 		blockIDs, err := rw.r.Blocks(ctx, tenantID)
 		if err != nil {
 			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
-		}
-		if len(blockIDs) == 0 {
-			rw.blockListsMtx.Lock()
-			delete(rw.blockLists, tenantID)
-			delete(rw.compactedBlockLists, tenantID)
-			rw.blockListsMtx.Unlock()
-			level.Info(rw.logger).Log("msg", "deleted in-memory blocklists", "tenantID", tenantID)
 		}
 
 		interfaceSlice := make([]interface{}, 0, len(blockIDs))
@@ -430,6 +446,12 @@ func (rw *readerWriter) pollBlocklist() {
 			return nil, nil
 		})
 
+		if len(compactedBlocklist) == 0 {
+			rw.blockListsMtx.Lock()
+			delete(rw.compactedBlockLists, tenantID)
+			rw.blockListsMtx.Unlock()
+			level.Info(rw.logger).Log("msg", "deleted in-memory compacted blocklists", "tenantID", tenantID)
+		}
 		if err != nil {
 			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 			level.Error(rw.logger).Log("msg", "run blocklist jobs", "tenantID", tenantID, "err", err)
