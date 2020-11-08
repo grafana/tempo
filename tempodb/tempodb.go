@@ -446,12 +446,6 @@ func (rw *readerWriter) pollBlocklist() {
 			return nil, nil
 		})
 
-		if len(compactedBlocklist) == 0 {
-			rw.blockListsMtx.Lock()
-			delete(rw.compactedBlockLists, tenantID)
-			rw.blockListsMtx.Unlock()
-			level.Info(rw.logger).Log("msg", "deleted in-memory compacted blocklists", "tenantID", tenantID)
-		}
 		if err != nil {
 			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 			level.Error(rw.logger).Log("msg", "run blocklist jobs", "tenantID", tenantID, "err", err)
