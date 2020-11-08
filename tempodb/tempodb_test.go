@@ -211,7 +211,6 @@ func TestBlockCleanup(t *testing.T) {
 
 	complete, err := head.Complete(wal, &mockSharder{})
 	assert.NoError(t, err)
-	blockID = complete.BlockMeta().BlockID
 
 	err = w.WriteBlock(context.Background(), complete)
 	assert.NoError(t, err)
