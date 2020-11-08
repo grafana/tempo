@@ -218,13 +218,18 @@ func TestBlockCleanup(t *testing.T) {
 
 	rw := r.(*readerWriter)
 
+	// poll
+	rw.pollBlocklist()
+
+	assert.Len(t, rw.blockLists[testTenantID], 1)
+
 	os.RemoveAll(tempDir + "/traces/" + testTenantID)
 
 	// poll
 	rw.pollBlocklist()
 
-	assert.Len(t, rw.blockLists[testTenantID], 0)
-	assert.Len(t, rw.compactedBlockLists[testTenantID], 0)
+	_, ok := rw.blockLists[testTenantID]
+	assert.False(t, ok)
 }
 
 func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
