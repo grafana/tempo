@@ -291,6 +291,16 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 
 	// Compacted list contains all old blocks
 	assert.Equal(t, blockCount, len(rw.compactedBlocklist(testTenantID)))
+
+	// Make sure all expected traces are found.
+	for i := 0; i < blockCount; i++ {
+		for j := 0; j < recordCount; j++ {
+			trace, _, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j))
+			assert.NotNil(t, trace)
+			assert.Greater(t, len(trace), 0)
+			assert.NoError(t, err)
+		}
+	}
 }
 
 func cutTestBlocks(t *testing.T, w Writer, blockCount int, recordCount int) {
@@ -302,7 +312,7 @@ func cutTestBlocks(t *testing.T, w Writer, blockCount int, recordCount int) {
 		for j := 0; j < recordCount; j++ {
 			// Use i and j to ensure unique ids
 			err = head.Write(
-				[]byte{byte(i), byte(j), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+				makeTraceID(i, j),
 				[]byte{0x01, 0x02, 0x03})
 			assert.NoError(t, err, "unexpected error writing rec")
 		}
@@ -313,4 +323,8 @@ func cutTestBlocks(t *testing.T, w Writer, blockCount int, recordCount int) {
 		err = w.WriteBlock(context.Background(), complete)
 		assert.NoError(t, err)
 	}
+}
+
+func makeTraceID(i int, j int) []byte {
+	return []byte{byte(i), byte(j), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 }
