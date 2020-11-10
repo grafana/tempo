@@ -231,6 +231,57 @@ func TestBlockCleanup(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestCleanMissingTenants(t *testing.T) {
+	tests := []struct {
+		name      string
+		tenants   []string
+		blocklist map[string][]*encoding.BlockMeta
+		expected  map[string][]*encoding.BlockMeta
+	}{
+		{
+			name:      "one missing tenant",
+			tenants:   []string{"foo"},
+			blocklist: map[string][]*encoding.BlockMeta{"foo": {{}}, "bar": {{}}},
+			expected:  map[string][]*encoding.BlockMeta{"foo": {{}}},
+		},
+		{
+			name:      "no missing tenants",
+			tenants:   []string{"foo", "bar"},
+			blocklist: map[string][]*encoding.BlockMeta{"foo": {{}}, "bar": {{}}},
+			expected:  map[string][]*encoding.BlockMeta{"foo": {{}}, "bar": {{}}},
+		},
+		{
+			name:      "all missing tenants",
+			tenants:   []string{},
+			blocklist: map[string][]*encoding.BlockMeta{"foo": {{}}, "bar": {{}}},
+			expected:  map[string][]*encoding.BlockMeta{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _, _, err := New(&Config{
+				Backend: "local",
+				Local: &local.Config{
+					Path: path.Join("/tmp", "traces"),
+				},
+				WAL: &wal.Config{
+					Filepath:        path.Join("/tmp", "wal"),
+					IndexDownsample: 17,
+					BloomFP:         .01,
+				},
+				BlocklistPoll: 0,
+			}, log.NewNopLogger())
+			assert.NoError(t, err)
+
+			rw := r.(*readerWriter)
+
+			rw.blockLists = tt.blocklist
+			rw.cleanMissingTenants(tt.tenants)
+			assert.Equal(t, rw.blockLists, tt.expected)
+		})
+	}
+}
+
 func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
 	rw.pollBlocklist()
 
