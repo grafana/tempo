@@ -30,6 +30,8 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
+    build_args:
+    - TARGETARCH=amd64
 
 - name: build-tempo-query-image
   image: plugins/docker
@@ -40,6 +42,8 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
+    build_args:
+    - TARGETARCH=amd64
 
 - name: build-tempo-vulture-image
   image: plugins/docker
@@ -50,6 +54,8 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
+    build_args:
+    - TARGETARCH=amd64
 
 trigger:
   ref:
