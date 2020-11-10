@@ -571,3 +571,38 @@ func (rw *readerWriter) cleanMissingTenants(tenants []string) {
 		}
 	}
 }
+
+// updateBlocklist Add and remove regular or compacted blocks from the in-memory blocklist.
+// Changes are temporary and will be overwritten on the next poll.
+func (rw *readerWriter) updateBlocklist(tenantID string, add []*encoding.BlockMeta, remove []*encoding.BlockMeta, compactedAdd []*encoding.CompactedBlockMeta) {
+	if tenantID == "" {
+		return
+	}
+
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	// ******** Regular blocks ********
+	blocklist := rw.blockLists[tenantID]
+
+	matchedRemovals := make(map[uuid.UUID]struct{})
+	for _, b := range blocklist {
+		for _, rem := range remove {
+			if b.BlockID == rem.BlockID {
+				matchedRemovals[rem.BlockID] = struct{}{}
+			}
+		}
+	}
+
+	newblocklist := make([]*encoding.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
+	for _, b := range blocklist {
+		if _, ok := matchedRemovals[b.BlockID]; !ok {
+			newblocklist = append(newblocklist, b)
+		}
+	}
+	newblocklist = append(newblocklist, add...)
+	rw.blockLists[tenantID] = newblocklist
+
+	// ******** Compacted blocks ********
+	rw.compactedBlockLists[tenantID] = append(rw.compactedBlockLists[tenantID], compactedAdd...)
+}
