@@ -311,3 +311,283 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 		lastTime = b.StartTime
 	}
 }
+
+func TestUpdateBlocklist(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	r, _, _, err := New(&Config{
+		Backend: "local",
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		WAL: &wal.Config{
+			Filepath:        path.Join(tempDir, "wal"),
+			IndexDownsample: 17,
+			BloomFP:         .01,
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	rw := r.(*readerWriter)
+
+	tests := []struct {
+		name     string
+		existing []*encoding.BlockMeta
+		add      []*encoding.BlockMeta
+		remove   []*encoding.BlockMeta
+		expected []*encoding.BlockMeta
+	}{
+		{
+			name:     "all nil",
+			existing: nil,
+			add:      nil,
+			remove:   nil,
+			expected: nil,
+		},
+		{
+			name:     "add to nil",
+			existing: nil,
+			add: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+			},
+			remove: nil,
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+			},
+		},
+		{
+			name: "add to existing",
+			existing: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+			},
+			add: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+			remove: nil,
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+		},
+		{
+			name:     "remove from nil",
+			existing: nil,
+			add:      nil,
+			remove: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "remove nil",
+			existing: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+			add:    nil,
+			remove: nil,
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+		},
+		{
+			name: "remove existing",
+			existing: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+			add: nil,
+			remove: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+		},
+		{
+			name: "remove no match",
+			existing: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+			},
+			add: nil,
+			remove: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+			},
+		},
+		{
+			name: "add and remove",
+			existing: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+			add: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+				},
+			},
+			remove: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rw.blockLists[testTenantID] = tt.existing
+			rw.updateBlocklist(testTenantID, tt.add, tt.remove, nil)
+
+			assert.Equal(t, len(tt.expected), len(rw.blockLists[testTenantID]))
+
+			for i := range tt.expected {
+				assert.Equal(t, tt.expected[i].BlockID, rw.blockLists[testTenantID][i].BlockID)
+			}
+		})
+	}
+}
+
+func TestUpdateBlocklistCompacted(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	r, _, _, err := New(&Config{
+		Backend: "local",
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		WAL: &wal.Config{
+			Filepath:        path.Join(tempDir, "wal"),
+			IndexDownsample: 17,
+			BloomFP:         .01,
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	rw := r.(*readerWriter)
+
+	tests := []struct {
+		name     string
+		existing []*encoding.CompactedBlockMeta
+		add      []*encoding.CompactedBlockMeta
+		expected []*encoding.CompactedBlockMeta
+	}{
+		{
+			name:     "all nil",
+			existing: nil,
+			add:      nil,
+			expected: nil,
+		},
+		{
+			name:     "add to nil",
+			existing: nil,
+			add: []*encoding.CompactedBlockMeta{
+				{
+					BlockMeta: encoding.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+			},
+			expected: []*encoding.CompactedBlockMeta{
+				{
+					BlockMeta: encoding.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+			},
+		},
+		{
+			name: "add to existing",
+			existing: []*encoding.CompactedBlockMeta{
+				{
+					BlockMeta: encoding.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+			},
+			add: []*encoding.CompactedBlockMeta{
+				{
+					BlockMeta: encoding.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+			expected: []*encoding.CompactedBlockMeta{
+				{
+					BlockMeta: encoding.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+				{
+					BlockMeta: encoding.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rw.compactedBlockLists[testTenantID] = tt.existing
+			rw.updateBlocklist(testTenantID, nil, nil, tt.add)
+
+			assert.Equal(t, len(tt.expected), len(rw.compactedBlockLists[testTenantID]))
+
+			for i := range tt.expected {
+				assert.Equal(t, tt.expected[i].BlockID, rw.compactedBlockLists[testTenantID][i].BlockID)
+			}
+		})
+	}
+}

@@ -583,16 +583,21 @@ func (rw *readerWriter) updateBlocklist(tenantID string, add []*encoding.BlockMe
 	defer rw.blockListsMtx.Unlock()
 
 	// ******** Regular blocks ********
-	toRemove := make(map[*encoding.BlockMeta]bool)
-	for _, m := range remove {
-		toRemove[m] = true
+	blocklist := rw.blockLists[tenantID]
+
+	matchedRemovals := make(map[uuid.UUID]struct{})
+	for _, b := range blocklist {
+		for _, rem := range remove {
+			if b.BlockID == rem.BlockID {
+				matchedRemovals[rem.BlockID] = struct{}{}
+			}
+		}
 	}
 
-	blocklist := rw.blockLists[tenantID]
-	newblocklist := make([]*encoding.BlockMeta, 0, len(blocklist)-len(remove)+len(add))
-	for _, m := range blocklist {
-		if _, ok := toRemove[m]; !ok {
-			newblocklist = append(newblocklist, m)
+	newblocklist := make([]*encoding.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
+	for _, b := range blocklist {
+		if _, ok := matchedRemovals[b.BlockID]; !ok {
+			newblocklist = append(newblocklist, b)
 		}
 	}
 	newblocklist = append(newblocklist, add...)
