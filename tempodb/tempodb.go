@@ -548,9 +548,9 @@ func (rw *readerWriter) compactedBlocklist(tenantID string) []*encoding.Compacte
 }
 
 func (rw *readerWriter) cleanMissingTenants(tenants []string) {
-	tenantSet := make(map[string]bool)
+	tenantSet := make(map[string]struct{})
 	for _, tenantID := range tenants {
-		tenantSet[tenantID] = true
+		tenantSet[tenantID] = struct{}{}
 	}
 
 	for tenantID := range rw.blockLists {
