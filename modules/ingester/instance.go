@@ -118,12 +118,11 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 			if err != nil {
 				return err
 			}
-			i.bytesWrittenTotal.Add(float64(len(out)))
 			err = i.headBlock.Write(trace.traceID, out)
 			if err != nil {
 				return err
 			}
-
+			i.bytesWrittenTotal.Add(float64(len(out)))
 			delete(i.traces, key)
 		}
 	}
