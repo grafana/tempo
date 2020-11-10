@@ -3,5 +3,6 @@
 /tempo-vulture
 /bin
 .idea
+.vscode
 /dist
 /example/docker-compose/example-data/tempo
