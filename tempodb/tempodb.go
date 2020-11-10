@@ -377,6 +377,8 @@ func (rw *readerWriter) pollBlocklist() {
 		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
 	}
 
+	rw.cleanMissingTenants(tenants)
+
 	for _, tenantID := range tenants {
 		blockIDs, err := rw.r.Blocks(ctx, tenantID)
 		if err != nil {
@@ -543,4 +545,29 @@ func (rw *readerWriter) compactedBlocklist(tenantID string) []*encoding.Compacte
 	copiedBlocklist = append(copiedBlocklist, rw.compactedBlockLists[tenantID]...)
 
 	return copiedBlocklist
+}
+
+func (rw *readerWriter) cleanMissingTenants(tenants []string) {
+	tenantSet := make(map[string]struct{})
+	for _, tenantID := range tenants {
+		tenantSet[tenantID] = struct{}{}
+	}
+
+	for tenantID := range rw.blockLists {
+		if _, present := tenantSet[tenantID]; !present {
+			rw.blockListsMtx.Lock()
+			delete(rw.blockLists, tenantID)
+			rw.blockListsMtx.Unlock()
+			level.Info(rw.logger).Log("msg", "deleted in-memory blocklists", "tenantID", tenantID)
+		}
+	}
+
+	for tenantID := range rw.compactedBlockLists {
+		if _, present := tenantSet[tenantID]; !present {
+			rw.blockListsMtx.Lock()
+			delete(rw.compactedBlockLists, tenantID)
+			rw.blockListsMtx.Unlock()
+			level.Info(rw.logger).Log("msg", "deleted in-memory compacted blocklists", "tenantID", tenantID)
+		}
+	}
 }
