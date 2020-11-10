@@ -1,4 +1,5 @@
 FROM alpine:3.9 as certs
 RUN apk --update add ca-certificates
-COPY cmd/tempo/tempo /
+ARG TARGETARCH
+COPY bin/linux/tempo-${TARGETARCH} /tempo
 ENTRYPOINT ["/tempo"]
