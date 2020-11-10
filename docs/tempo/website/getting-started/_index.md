@@ -37,7 +37,7 @@ Choose the port corresponding to the protocol you wish to use to send traces to 
 Compact format (port 6831).
 
 ```
-docker run -d --rm -p 6831:6831/udp --name tempo -v $(PWD)/tempo-local.yaml:/etc/tempo-local.yaml \
+docker run -d --rm -p 6831:6831/udp --name tempo -v $(pwd)/tempo-local.yaml:/etc/tempo-local.yaml \
     --network docker-tempo \
     grafana/tempo:latest \
     -config.file=/etc/tempo-local.yaml
@@ -54,7 +54,7 @@ curl -o tempo-query.yaml https://raw.githubusercontent.com/grafana/tempo/master/
 Use this config file to fire up the Tempo Query container -
 
 ```
-docker run -d --rm -p 16686:16686 -v $(PWD)/tempo-query.yaml:/etc/tempo-query.yaml \
+docker run -d --rm -p 16686:16686 -v $(pwd)/tempo-query.yaml:/etc/tempo-query.yaml \
     --network docker-tempo \
     grafana/tempo-query:latest \
     --grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml
