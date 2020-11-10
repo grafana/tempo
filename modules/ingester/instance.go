@@ -33,6 +33,11 @@ var (
 		Name:      "ingester_traces_created_total",
 		Help:      "The total number of traces created per tenant.",
 	}, []string{"tenant"})
+	metricBytesWrittenTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "ingester_bytes_written_total",
+		Help:      "The total bytes written per tenant.",
+	}, []string{"tenant"})
 	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "ingester_blocks_cleared_total",
@@ -52,6 +57,7 @@ type instance struct {
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
+	bytesWrittenTotal  prometheus.Counter
 	limiter            *Limiter
 	wal                *tempodb_wal.WAL
 }
@@ -62,6 +68,7 @@ func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*in
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
+		bytesWrittenTotal:  metricBytesWrittenTotal.WithLabelValues(instanceID),
 		limiter:            limiter,
 		wal:                wal,
 	}
@@ -111,12 +118,11 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 			if err != nil {
 				return err
 			}
-
 			err = i.headBlock.Write(trace.traceID, out)
 			if err != nil {
 				return err
 			}
-
+			i.bytesWrittenTotal.Add(float64(len(out)))
 			delete(i.traces, key)
 		}
 	}
