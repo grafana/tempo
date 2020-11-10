@@ -33,10 +33,10 @@ var (
 		Name:      "ingester_traces_created_total",
 		Help:      "The total number of traces created per tenant.",
 	}, []string{"tenant"})
-	metricBytesProcessedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricBytesWrittenTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "ingester_bytes_processed_total",
-		Help:      "The total bytes processed per tenant.",
+		Name:      "ingester_bytes_written_total",
+		Help:      "The total bytes written per tenant.",
 	}, []string{"tenant"})
 	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -55,22 +55,22 @@ type instance struct {
 	completeBlocks  []*tempodb_wal.CompleteBlock
 	lastBlockCut    time.Time
 
-	instanceID          string
-	tracesCreatedTotal  prometheus.Counter
-	bytesProcessedTotal prometheus.Counter
-	limiter             *Limiter
-	wal                 *tempodb_wal.WAL
+	instanceID         string
+	tracesCreatedTotal prometheus.Counter
+	bytesWrittenTotal  prometheus.Counter
+	limiter            *Limiter
+	wal                *tempodb_wal.WAL
 }
 
 func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[uint32]*trace{},
 
-		instanceID:          instanceID,
-		tracesCreatedTotal:  metricTracesCreatedTotal.WithLabelValues(instanceID),
-		bytesProcessedTotal: metricBytesProcessedTotal.WithLabelValues(instanceID),
-		limiter:             limiter,
-		wal:                 wal,
+		instanceID:         instanceID,
+		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
+		bytesWrittenTotal:  metricBytesWrittenTotal.WithLabelValues(instanceID),
+		limiter:            limiter,
+		wal:                wal,
 	}
 	err := i.resetHeadBlock()
 	if err != nil {
@@ -118,7 +118,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 			if err != nil {
 				return err
 			}
-			i.bytesProcessedTotal.Add(float64(len(out)))
+			i.bytesWrittenTotal.Add(float64(len(out)))
 			err = i.headBlock.Write(trace.traceID, out)
 			if err != nil {
 				return err
