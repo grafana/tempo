@@ -5,7 +5,7 @@ This document details release procedures for Tempo.  Currently it's pretty dang 
 - Push a semver tag to master.  Something like:
   - `git tag -a v0.3.0`
   - `git push origin --tags`
-- This will initiate the build process in Github Actions and Drone.  The tagged docker iamge should
+- This will initiate the build process in Github Actions and Drone.  The tagged docker image should
   be available here shortly: https://hub.docker.com/r/grafana/tempo/tags?page=1&ordering=last_updated
 - A Github Release Draft should also be available here:  https://github.com/grafana/tempo/releases
   - Link the Changelog
