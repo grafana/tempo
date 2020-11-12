@@ -222,7 +222,8 @@ func TestSameIDCompaction(t *testing.T) {
 
 	rw := r.(*readerWriter)
 
-	tracesCombinedStart := GetCounterValue(metricCompactionTracesCombined)
+	tracesCombinedStart, err := GetCounterValue(metricCompactionTracesCombined)
+	assert.NoError(t, err)
 
 	// poll
 	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
@@ -245,13 +246,18 @@ func TestSameIDCompaction(t *testing.T) {
 	}
 	assert.Equal(t, blockCount-blocksPerCompaction, records)
 
-	assert.Equal(t, float64(1), GetCounterValue(metricCompactionTracesCombined)-tracesCombinedStart)
+	tracesCombinedFinish, err := GetCounterValue(metricCompactionTracesCombined)
+	assert.NoError(t, err)
+	assert.Equal(t, float64(1), tracesCombinedFinish-tracesCombinedStart)
 }
 
-func GetCounterValue(metric prometheus.Counter) float64 {
+func GetCounterValue(metric prometheus.Counter) (float64, error) {
 	var m = &dto.Metric{}
-	metric.Write(m)
-	return m.Counter.GetValue()
+	err := metric.Write(m)
+	if err != nil {
+		return 0, err
+	}
+	return m.Counter.GetValue(), nil
 }
 
 func TestCompactionUpdatesBlocklist(t *testing.T) {
