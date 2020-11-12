@@ -21,6 +21,7 @@ func (rw *readerWriter) doRetention() {
 
 	// todo: continued abuse of runJobs.  need a runAllJobs() method or something
 	_, err := rw.pool.RunJobs(context.TODO(), tenants, func(_ context.Context, payload interface{}) ([]byte, error) {
+
 		start := time.Now()
 		defer func() { metricRetentionDuration.Observe(time.Since(start).Seconds()) }()
 
@@ -30,7 +31,7 @@ func (rw *readerWriter) doRetention() {
 		cutoff := time.Now().Add(-rw.compactorCfg.BlockRetention)
 		blocklist := rw.blocklist(tenantID)
 		for _, b := range blocklist {
-			if b.EndTime.Before(cutoff) {
+			if b.EndTime.Before(cutoff) && rw.compactorSharder.Owns(b.BlockID.String()) {
 				level.Info(rw.logger).Log("msg", "marking block for deletion", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.MarkBlockCompacted(b.BlockID, tenantID)
 				if err != nil {
@@ -46,7 +47,7 @@ func (rw *readerWriter) doRetention() {
 		cutoff = time.Now().Add(-rw.compactorCfg.CompactedBlockRetention)
 		compactedBlocklist := rw.compactedBlocklist(tenantID)
 		for _, b := range compactedBlocklist {
-			if b.CompactedTime.Before(cutoff) {
+			if b.CompactedTime.Before(cutoff) && rw.compactorSharder.Owns(b.BlockID.String()) {
 				level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
 				err := rw.c.ClearBlock(b.BlockID, tenantID)
 				if err != nil {
