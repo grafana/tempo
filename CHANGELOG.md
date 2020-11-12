@@ -1,5 +1,6 @@
 ## master / unreleased
 
+* [ENHANCEMENT] Add compaction_traces_combined_total metric. [#339](https://github.com/grafana/tempo/pull/339)
 * [BUGFIX] Frequent errors logged by compactor regarding meta not found [#327](https://github.com/grafana/tempo/pull/327)
 
 ## v0.3.0
