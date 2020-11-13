@@ -222,7 +222,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 	rw := r.(*readerWriter)
 
-	tracesCombinedStart, err := GetCounterValue(metricCompactionTracesCombined)
+	combinedStart, err := GetCounterValue(metricCompactionObjectsCombined)
 	assert.NoError(t, err)
 
 	// poll
@@ -246,9 +246,9 @@ func TestSameIDCompaction(t *testing.T) {
 	}
 	assert.Equal(t, blockCount-blocksPerCompaction, records)
 
-	tracesCombinedFinish, err := GetCounterValue(metricCompactionTracesCombined)
+	combinedFinish, err := GetCounterValue(metricCompactionObjectsCombined)
 	assert.NoError(t, err)
-	assert.Equal(t, float64(1), tracesCombinedFinish-tracesCombinedStart)
+	assert.Equal(t, float64(1), combinedFinish-combinedStart)
 }
 
 func GetCounterValue(metric prometheus.Counter) (float64, error) {
