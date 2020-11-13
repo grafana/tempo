@@ -5,7 +5,7 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -19,7 +19,7 @@ func (r *reader) readOrCacheBloom(ctx context.Context, blockID uuid.UUID, tenant
 	var skippableError error
 
 	k := bloomKey(blockID, tenantID, typeBloom, shardNum)
-	filename := path.Join(r.cfg.Path, k)
+	filename := filepath.Join(r.cfg.Path, k)
 
 	bytes, err := ioutil.ReadFile(filename)
 
@@ -51,7 +51,7 @@ func (r *reader) readOrCacheIndex(ctx context.Context, blockID uuid.UUID, tenant
 	var skippableError error
 
 	k := key(blockID, tenantID, typeIndex)
-	filename := path.Join(r.cfg.Path, k)
+	filename := filepath.Join(r.cfg.Path, k)
 
 	bytes, err := ioutil.ReadFile(filename)
 
@@ -152,7 +152,7 @@ func clean(folder string, allowedMBs int, pruneCount int) (bool, error) {
 			continue
 		}
 
-		err = os.Remove(path.Join(folder, info.Name()))
+		err = os.Remove(filepath.Join(folder, info.Name()))
 	}
 
 	return true, err

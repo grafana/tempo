@@ -1,5 +1,6 @@
 ## master / unreleased
 
+* [CHANGE] From path.Join to filepath.Join [#338](https://github.com/grafana/tempo/pull/338)
 * [BUGFIX] Frequent errors logged by compactor regarding meta not found [#327](https://github.com/grafana/tempo/pull/327)
 
 ## v0.3.0
