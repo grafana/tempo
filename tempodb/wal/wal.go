@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -46,7 +46,7 @@ func New(c *Config) (*WAL, error) {
 	}
 
 	if c.CompletedFilepath == "" {
-		completedFilepath := path.Join(c.Filepath, completedDir)
+		completedFilepath := filepath.Join(c.Filepath, completedDir)
 		err = os.RemoveAll(completedFilepath)
 		if err != nil {
 			return nil, err
