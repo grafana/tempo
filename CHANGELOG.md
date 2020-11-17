@@ -1,5 +1,6 @@
 ## master / unreleased
 
+* [BUGFIX] Remove hard coded log level in Tanka operation [#345](https://github.com/grafana/tempo/pull/345)
 * [CHANGE] From path.Join to filepath.Join [#338](https://github.com/grafana/tempo/pull/338)
 * [CHANGE] Upgrade Cortex from v1.3.0 to v.1.4.0 [#341](https://github.com/grafana/tempo/pull/341)
 * [ENHANCEMENT] Add tempodb_compaction_objects_combined metric. [#339](https://github.com/grafana/tempo/pull/339)
