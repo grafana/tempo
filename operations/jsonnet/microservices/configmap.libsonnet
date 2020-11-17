@@ -71,9 +71,6 @@
   },
 
   tempo_querier_config:: $.tempo_config {
-    server+: {
-      log_level: 'debug',
-    },
     storage+: {
       trace+: {
         pool+: {
