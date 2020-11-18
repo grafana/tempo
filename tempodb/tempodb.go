@@ -259,9 +259,14 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	}
 
 	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
-		meta := payload.(*encoding.BlockMeta)
+		span, ctx := opentracing.StartSpanFromContext(ctx, "block.Find")
+		defer span.Finish()
 
+		meta := payload.(*encoding.BlockMeta)
 		shardKey := bloom.ShardKeyForTraceID(id)
+
+		span.SetTag("blockID", meta.BlockID)
+		span.SetTag("shardKey", shardKey)
 		bloomBytes, err := rw.r.Bloom(ctx, meta.BlockID, tenantID, shardKey)
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
@@ -273,6 +278,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 			return nil, fmt.Errorf("error parsing bloom %v", err)
 		}
 
+		span.LogFields(ot_log.String("msg", "bloom"), ot_log.Int("bytes", len(bloomBytes)))
 		metrics.BloomFilterReads.Inc()
 		metrics.BloomFilterBytesRead.Add(int32(len(bloomBytes)))
 		if !filter.Test(id) {
@@ -280,6 +286,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		}
 
 		indexBytes, err := rw.r.Index(ctx, meta.BlockID, tenantID)
+		span.LogFields(ot_log.String("msg", "index"), ot_log.Int("bytes", len(indexBytes)))
 		metrics.IndexReads.Inc()
 		metrics.IndexBytesRead.Add(int32(len(indexBytes)))
 		if err != nil {
@@ -297,6 +304,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 
 		objectBytes := make([]byte, record.Length)
 		err = rw.r.Object(ctx, meta.BlockID, tenantID, record.Start, objectBytes)
+		span.LogFields(ot_log.String("msg", "object"), ot_log.Int("bytes", len(objectBytes)))
 		metrics.BlockReads.Inc()
 		metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 		if err != nil {
@@ -319,10 +327,10 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 			}
 		}
 		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
-		span.LogFields(ot_log.String("msg", "searching for trace in block"), ot_log.String("traceID", hex.EncodeToString(id)), ot_log.String("block", meta.BlockID.String()), ot_log.Bool("found", foundObject != nil))
-		if foundObject != nil {
-			span.SetTag("object bytes", len(foundObject))
-		}
+		span.LogFields(ot_log.String("msg", "complete"),
+			ot_log.String("findTraceID", hex.EncodeToString(id)),
+			ot_log.Bool("found", foundObject != nil),
+			ot_log.Int("bytes", len(foundObject)))
 		return foundObject, nil
 	})
 
