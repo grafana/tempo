@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/storage v1.6.0
 	contrib.go.opencensus.io/exporter/prometheus v0.2.0
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
-	github.com/cortexproject/cortex v1.3.0
+	github.com/cortexproject/cortex v1.4.0
 	github.com/go-kit/kit v0.10.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/gogo/status v1.0.3
@@ -27,13 +27,14 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.11.1
-	github.com/prometheus/prometheus v1.8.2-0.20200722151933-4a8531a64b32
+	github.com/prometheus/prometheus v1.8.2-0.20200819132913-cb830b0a9c78
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/uber-go/atomic v1.4.0
-	github.com/weaveworks/common v0.0.0-20200820123129-280614068c5e
+	github.com/weaveworks/common v0.0.0-20200914083218-61ffdd448099
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.22.3
@@ -62,6 +63,8 @@ replace (
 
 // additional Cortex or upstream required replaces
 replace (
+	github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
+	github.com/opentracing-contrib/go-grpc => github.com/pracucci/go-grpc v0.0.0-20201022134131-ef559b8db645
 	github.com/satori/go.uuid => github.com/satori/go.uuid v1.2.0
-	k8s.io/client-go => k8s.io/client-go v0.18.3
+	k8s.io/client-go => k8s.io/client-go v0.19.2
 )

@@ -12,6 +12,7 @@ import (
 	prom_storage "github.com/prometheus/prometheus/storage"
 	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/instrument"
+	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 
 	"github.com/cortexproject/cortex/pkg/alertmanager"
@@ -34,6 +35,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ruler"
 	"github.com/cortexproject/cortex/pkg/storegateway"
 	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/runtimeconfig"
 	"github.com/cortexproject/cortex/pkg/util/services"
@@ -48,7 +50,9 @@ const (
 	Overrides           string = "overrides"
 	Server              string = "server"
 	Distributor         string = "distributor"
+	DistributorService  string = "distributor-service"
 	Ingester            string = "ingester"
+	IngesterService     string = "ingester-service"
 	Flusher             string = "flusher"
 	Querier             string = "querier"
 	StoreQueryable      string = "store-queryable"
@@ -71,14 +75,14 @@ func (t *Cortex) initAPI() (services.Service, error) {
 	t.Cfg.API.ServerPrefix = t.Cfg.Server.PathPrefix
 	t.Cfg.API.LegacyHTTPPrefix = t.Cfg.HTTPPrefix
 
-	a, err := api.New(t.Cfg.API, t.Server, util.Logger)
+	a, err := api.New(t.Cfg.API, t.Cfg.Server, t.Server, util.Logger)
 	if err != nil {
 		return nil, err
 	}
 
 	t.API = a
 
-	t.API.RegisterAPI(t.Cfg)
+	t.API.RegisterAPI(t.Cfg.Server.PathPrefix, t.Cfg)
 
 	return nil, nil
 }
@@ -111,7 +115,6 @@ func (t *Cortex) initServer() (services.Service, error) {
 
 func (t *Cortex) initRing() (serv services.Service, err error) {
 	t.Cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.Multi.ConfigProvider = multiClientRuntimeConfigChannel(t.RuntimeConfig)
-	t.Cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.Ring, err = ring.New(t.Cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", ring.IngesterRingKey, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
@@ -124,6 +127,19 @@ func (t *Cortex) initRing() (serv services.Service, err error) {
 }
 
 func (t *Cortex) initRuntimeConfig() (services.Service, error) {
+	// We need to modify LimitsConfig before calling SetDefaultLimitsForYAMLUnmarshalling later in this method
+	// but also if runtime-config is not used, for setting limits used by initOverrides.
+	// TODO: Remove this in Cortex 1.6.
+	if t.Cfg.Ruler.EvaluationDelay != 0 && t.Cfg.LimitsConfig.RulerEvaluationDelay == 0 {
+		t.Cfg.LimitsConfig.RulerEvaluationDelay = t.Cfg.Ruler.EvaluationDelay
+
+		// No need to report if this field isn't going to be used.
+		if t.Cfg.Target == All || t.Cfg.Target == Ruler {
+			flagext.DeprecatedFlagsUsed.Inc()
+			level.Warn(util.Logger).Log("msg", "Using DEPRECATED YAML config field ruler.evaluation_delay_duration, please use limits.ruler_evaluation_delay_duration instead.")
+		}
+	}
+
 	if t.Cfg.RuntimeConfig.LoadPath == "" {
 		t.Cfg.RuntimeConfig.LoadPath = t.Cfg.LimitsConfig.PerTenantOverrideConfig
 		t.Cfg.RuntimeConfig.ReloadPeriod = t.Cfg.LimitsConfig.PerTenantOverridePeriod
@@ -150,9 +166,8 @@ func (t *Cortex) initOverrides() (serv services.Service, err error) {
 	return nil, err
 }
 
-func (t *Cortex) initDistributor() (serv services.Service, err error) {
+func (t *Cortex) initDistributorService() (serv services.Service, err error) {
 	t.Cfg.Distributor.DistributorRing.ListenPort = t.Cfg.Server.GRPCListenPort
-	t.Cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	// Check whether the distributor can join the distributors ring, which is
 	// whenever it's not running as an internal dependency (ie. querier or
@@ -164,9 +179,13 @@ func (t *Cortex) initDistributor() (serv services.Service, err error) {
 		return
 	}
 
+	return t.Distributor, nil
+}
+
+func (t *Cortex) initDistributor() (serv services.Service, err error) {
 	t.API.RegisterDistributor(t.Distributor, t.Cfg.Distributor)
 
-	return t.Distributor, nil
+	return nil, nil
 }
 
 func (t *Cortex) initQuerier() (serv services.Service, err error) {
@@ -181,9 +200,29 @@ func (t *Cortex) initQuerier() (serv services.Service, err error) {
 		Buckets:   instrument.DefBuckets,
 	}, []string{"method", "route", "status_code", "ws"})
 
+	receivedMessageSize := promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "cortex",
+		Name:      "querier_request_message_bytes",
+		Help:      "Size (in bytes) of messages received in the request to the querier.",
+		Buckets:   middleware.BodySizeBuckets,
+	}, []string{"method", "route"})
+
+	sentMessageSize := promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "cortex",
+		Name:      "querier_response_message_bytes",
+		Help:      "Size (in bytes) of messages sent in response by the querier.",
+		Buckets:   middleware.BodySizeBuckets,
+	}, []string{"method", "route"})
+
+	inflightRequests := promauto.With(prometheus.DefaultRegisterer).NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "cortex",
+		Name:      "querier_inflight_requests",
+		Help:      "Current number of inflight requests to the querier.",
+	}, []string{"method", "route"})
+
 	// if we are not configured for single binary mode then the querier needs to register its paths externally
 	registerExternally := t.Cfg.Target != All
-	handler := t.API.RegisterQuerier(queryable, engine, t.Distributor, registerExternally, t.TombstonesLoader, querierRequestDuration)
+	handler := t.API.RegisterQuerier(queryable, engine, t.Distributor, registerExternally, t.TombstonesLoader, querierRequestDuration, receivedMessageSize, sentMessageSize, inflightRequests)
 
 	// single binary mode requires a properly configured worker.  if the operator did not attempt to configure the
 	//  worker we will attempt an automatic configuration here
@@ -274,9 +313,8 @@ func (t *Cortex) tsdbIngesterConfig() {
 	t.Cfg.Ingester.BlocksStorageConfig = t.Cfg.BlocksStorage
 }
 
-func (t *Cortex) initIngester() (serv services.Service, err error) {
+func (t *Cortex) initIngesterService() (serv services.Service, err error) {
 	t.Cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.Multi.ConfigProvider = multiClientRuntimeConfigChannel(t.RuntimeConfig)
-	t.Cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.Cfg.Ingester.LifecyclerConfig.ListenPort = t.Cfg.Server.GRPCListenPort
 	t.Cfg.Ingester.ShardByAllLabels = t.Cfg.Distributor.ShardByAllLabels
 	t.tsdbIngesterConfig()
@@ -286,9 +324,13 @@ func (t *Cortex) initIngester() (serv services.Service, err error) {
 		return
 	}
 
+	return t.Ingester, nil
+}
+
+func (t *Cortex) initIngester() (serv services.Service, err error) {
 	t.API.RegisterIngester(t.Ingester, t.Cfg.Distributor)
 
-	return t.Ingester, nil
+	return nil, nil
 }
 
 func (t *Cortex) initFlusher() (serv services.Service, err error) {
@@ -298,6 +340,7 @@ func (t *Cortex) initFlusher() (serv services.Service, err error) {
 		t.Cfg.Flusher,
 		t.Cfg.Ingester,
 		t.Store,
+		t.Overrides,
 		prometheus.DefaultRegisterer,
 	)
 	if err != nil {
@@ -483,18 +526,18 @@ func (t *Cortex) initRuler() (serv services.Service, err error) {
 	}
 
 	t.Cfg.Ruler.Ring.ListenPort = t.Cfg.Server.GRPCListenPort
-	t.Cfg.Ruler.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	rulerRegisterer := prometheus.WrapRegistererWith(prometheus.Labels{"engine": "ruler"}, prometheus.DefaultRegisterer)
 	queryable, engine := querier.New(t.Cfg.Querier, t.Overrides, t.Distributor, t.StoreQueryables, t.TombstonesLoader, rulerRegisterer)
 
+	managerFactory := ruler.DefaultTenantManagerFactory(t.Cfg.Ruler, t.Distributor, queryable, engine, t.Overrides)
+	manager, err := ruler.NewDefaultMultiTenantManager(t.Cfg.Ruler, managerFactory, prometheus.DefaultRegisterer, util.Logger)
+	if err != nil {
+		return nil, err
+	}
+
 	t.Ruler, err = ruler.NewRuler(
 		t.Cfg.Ruler,
-		ruler.DefaultTenantManagerFactory(
-			t.Cfg.Ruler,
-			t.Distributor,
-			queryable,
-			engine,
-		),
+		manager,
 		prometheus.DefaultRegisterer,
 		util.Logger,
 		t.RulerStorage,
@@ -535,7 +578,6 @@ func (t *Cortex) initAlertManager() (serv services.Service, err error) {
 
 func (t *Cortex) initCompactor() (serv services.Service, err error) {
 	t.Cfg.Compactor.ShardingRing.ListenPort = t.Cfg.Server.GRPCListenPort
-	t.Cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	t.Compactor, err = compactor.NewCompactor(t.Cfg.Compactor, t.Cfg.BlocksStorage, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
@@ -553,7 +595,6 @@ func (t *Cortex) initStoreGateway() (serv services.Service, err error) {
 	}
 
 	t.Cfg.StoreGateway.ShardingRing.ListenPort = t.Cfg.Server.GRPCListenPort
-	t.Cfg.StoreGateway.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	t.StoreGateway, err = storegateway.NewStoreGateway(t.Cfg.StoreGateway, t.Cfg.BlocksStorage, t.Overrides, t.Cfg.Server.LogLevel, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
@@ -571,7 +612,15 @@ func (t *Cortex) initMemberlistKV() (services.Service, error) {
 	t.Cfg.MemberlistKV.Codecs = []codec.Codec{
 		ring.GetCodec(),
 	}
-	t.MemberlistKV = memberlist.NewKVInitService(&t.Cfg.MemberlistKV)
+	t.MemberlistKV = memberlist.NewKVInitService(&t.Cfg.MemberlistKV, util.Logger)
+
+	// Update the config.
+	t.Cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.Cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.Cfg.StoreGateway.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.Cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.Cfg.Ruler.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+
 	return t.MemberlistKV, nil
 }
 
@@ -607,9 +656,11 @@ func (t *Cortex) setupModuleManager() error {
 	mm.RegisterModule(Ring, t.initRing, modules.UserInvisibleModule)
 	mm.RegisterModule(Overrides, t.initOverrides, modules.UserInvisibleModule)
 	mm.RegisterModule(Distributor, t.initDistributor)
+	mm.RegisterModule(DistributorService, t.initDistributorService, modules.UserInvisibleModule)
 	mm.RegisterModule(Store, t.initChunkStore, modules.UserInvisibleModule)
 	mm.RegisterModule(DeleteRequestsStore, t.initDeleteRequestsStore, modules.UserInvisibleModule)
 	mm.RegisterModule(Ingester, t.initIngester)
+	mm.RegisterModule(IngesterService, t.initIngesterService, modules.UserInvisibleModule)
 	mm.RegisterModule(Flusher, t.initFlusher)
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(StoreQueryable, t.initStoreQueryables, modules.UserInvisibleModule)
@@ -626,24 +677,26 @@ func (t *Cortex) setupModuleManager() error {
 
 	// Add dependencies
 	deps := map[string][]string{
-		API:            {Server},
-		Ring:           {API, RuntimeConfig, MemberlistKV},
-		Overrides:      {RuntimeConfig},
-		Distributor:    {Ring, API, Overrides},
-		Store:          {Overrides, DeleteRequestsStore},
-		Ingester:       {Overrides, Store, API, RuntimeConfig, MemberlistKV},
-		Flusher:        {Store, API},
-		Querier:        {Overrides, Distributor, Store, Ring, API, StoreQueryable},
-		StoreQueryable: {Overrides, Store},
-		QueryFrontend:  {API, Overrides, DeleteRequestsStore},
-		TableManager:   {API},
-		Ruler:          {Overrides, Distributor, Store, StoreQueryable, RulerStorage},
-		Configs:        {API},
-		AlertManager:   {API},
-		Compactor:      {API},
-		StoreGateway:   {API, Overrides},
-		Purger:         {Store, DeleteRequestsStore, API},
-		All:            {QueryFrontend, Querier, Ingester, Distributor, TableManager, Purger, StoreGateway, Ruler},
+		API:                {Server},
+		Ring:               {API, RuntimeConfig, MemberlistKV},
+		Overrides:          {RuntimeConfig},
+		Distributor:        {DistributorService, API},
+		DistributorService: {Ring, Overrides},
+		Store:              {Overrides, DeleteRequestsStore},
+		Ingester:           {IngesterService, API},
+		IngesterService:    {Overrides, Store, RuntimeConfig, MemberlistKV},
+		Flusher:            {Store, API},
+		Querier:            {Overrides, DistributorService, Store, Ring, API, StoreQueryable, MemberlistKV},
+		StoreQueryable:     {Overrides, Store, MemberlistKV},
+		QueryFrontend:      {API, Overrides, DeleteRequestsStore},
+		TableManager:       {API},
+		Ruler:              {Overrides, DistributorService, Store, StoreQueryable, RulerStorage},
+		Configs:            {API},
+		AlertManager:       {API},
+		Compactor:          {API, MemberlistKV},
+		StoreGateway:       {API, Overrides, MemberlistKV},
+		Purger:             {Store, DeleteRequestsStore, API},
+		All:                {QueryFrontend, Querier, Ingester, Distributor, TableManager, Purger, StoreGateway, Ruler},
 	}
 	for mod, targets := range deps {
 		if err := mm.AddDependency(mod, targets...); err != nil {

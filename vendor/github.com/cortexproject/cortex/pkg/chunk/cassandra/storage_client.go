@@ -57,7 +57,7 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&cfg.Port, "cassandra.port", 9042, "Port that Cassandra is running on")
 	f.StringVar(&cfg.Keyspace, "cassandra.keyspace", "", "Keyspace to use in Cassandra.")
 	f.StringVar(&cfg.Consistency, "cassandra.consistency", "QUORUM", "Consistency level for Cassandra.")
-	f.IntVar(&cfg.ReplicationFactor, "cassandra.replication-factor", 1, "Replication factor to use in Cassandra.")
+	f.IntVar(&cfg.ReplicationFactor, "cassandra.replication-factor", 3, "Replication factor to use in Cassandra.")
 	f.BoolVar(&cfg.DisableInitialHostLookup, "cassandra.disable-initial-host-lookup", false, "Instruct the cassandra driver to not attempt to get host info from the system.peers table.")
 	f.BoolVar(&cfg.SSL, "cassandra.ssl", false, "Use SSL when connecting to cassandra instances.")
 	f.BoolVar(&cfg.HostVerification, "cassandra.host-verification", true, "Require SSL certificate validation.")
@@ -90,15 +90,9 @@ func (cfg *Config) Validate() error {
 }
 
 func (cfg *Config) session(name string, reg prometheus.Registerer) (*gocql.Session, error) {
-	consistency, err := gocql.ParseConsistencyWrapper(cfg.Consistency)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
 	cluster := gocql.NewCluster(strings.Split(cfg.Addresses, ",")...)
 	cluster.Port = cfg.Port
 	cluster.Keyspace = cfg.Keyspace
-	cluster.Consistency = consistency
 	cluster.BatchObserver = observer{}
 	cluster.QueryObserver = observer{}
 	cluster.Timeout = cfg.Timeout
@@ -118,7 +112,7 @@ func (cfg *Config) session(name string, reg prometheus.Registerer) (*gocql.Sessi
 	if !cfg.ConvictHosts {
 		cluster.ConvictionPolicy = noopConvictionPolicy{}
 	}
-	if err = cfg.setClusterConfig(cluster); err != nil {
+	if err := cfg.setClusterConfig(cluster); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
@@ -141,6 +135,12 @@ func (cfg *Config) session(name string, reg prometheus.Registerer) (*gocql.Sessi
 
 // apply config settings to a cassandra ClusterConfig
 func (cfg *Config) setClusterConfig(cluster *gocql.ClusterConfig) error {
+	consistency, err := gocql.ParseConsistencyWrapper(cfg.Consistency)
+	if err != nil {
+		return errors.Wrap(err, "unable to parse the configured consistency")
+	}
+
+	cluster.Consistency = consistency
 	cluster.DisableInitialHostLookup = cfg.DisableInitialHostLookup
 
 	if cfg.SSL {
@@ -223,8 +223,6 @@ type StorageClient struct {
 
 // NewStorageClient returns a new StorageClient.
 func NewStorageClient(cfg Config, schemaCfg chunk.SchemaConfig, registerer prometheus.Registerer) (*StorageClient, error) {
-	pkgutil.WarnExperimentalUse("Cassandra Backend")
-
 	readSession, err := cfg.session("index-read", registerer)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -408,8 +406,6 @@ type ObjectClient struct {
 
 // NewObjectClient returns a new ObjectClient.
 func NewObjectClient(cfg Config, schemaCfg chunk.SchemaConfig, registerer prometheus.Registerer) (*ObjectClient, error) {
-	pkgutil.WarnExperimentalUse("Cassandra Backend")
-
 	readSession, err := cfg.session("chunks-read", registerer)
 	if err != nil {
 		return nil, errors.WithStack(err)

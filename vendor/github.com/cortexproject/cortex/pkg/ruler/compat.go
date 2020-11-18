@@ -22,6 +22,7 @@ type Pusher interface {
 }
 
 type pusherAppender struct {
+	ctx     context.Context
 	pusher  Pusher
 	labels  []labels.Labels
 	samples []client.Sample
@@ -44,7 +45,7 @@ func (a *pusherAppender) AddFast(_ uint64, _ int64, _ float64) error {
 func (a *pusherAppender) Commit() error {
 	// Since a.pusher is distributor, client.ReuseSlice will be called in a.pusher.Push.
 	// We shouldn't call client.ReuseSlice here.
-	_, err := a.pusher.Push(user.InjectOrgID(context.Background(), a.userID), client.ToWriteRequest(a.labels, a.samples, nil, client.RULE))
+	_, err := a.pusher.Push(user.InjectOrgID(a.ctx, a.userID), client.ToWriteRequest(a.labels, a.samples, nil, client.RULE))
 	a.labels = nil
 	a.samples = nil
 	return err
@@ -63,19 +64,29 @@ type PusherAppendable struct {
 }
 
 // Appender returns a storage.Appender
-func (t *PusherAppendable) Appender() storage.Appender {
+func (t *PusherAppendable) Appender(ctx context.Context) storage.Appender {
 	return &pusherAppender{
+		ctx:    ctx,
 		pusher: t.pusher,
 		userID: t.userID,
 	}
 }
 
+// RulesLimits is the one function we need from limits.Overrides, and
+// is here to limit coupling.
+type RulesLimits interface {
+	EvaluationDelay(usedID string) time.Duration
+}
+
 // engineQueryFunc returns a new query function using the rules.EngineQueryFunc function
 // and passing an altered timestamp.
-func engineQueryFunc(engine *promql.Engine, q storage.Queryable, delay time.Duration) rules.QueryFunc {
-	orig := rules.EngineQueryFunc(engine, q)
+func engineQueryFunc(engine *promql.Engine, q storage.Queryable, overrides RulesLimits, userID string) rules.QueryFunc {
 	return func(ctx context.Context, qs string, t time.Time) (promql.Vector, error) {
-		return orig(ctx, qs, t.Add(-delay))
+		orig := rules.EngineQueryFunc(engine, q)
+		// Delay the evaluation of all rules by a set interval to give a buffer
+		// to metric that haven't been forwarded to cortex yet.
+		evaluationDelay := overrides.EvaluationDelay(userID)
+		return orig(ctx, qs, t.Add(-evaluationDelay))
 	}
 }
 
@@ -92,6 +103,7 @@ func DefaultTenantManagerFactory(
 	p Pusher,
 	q storage.Queryable,
 	engine *promql.Engine,
+	overrides RulesLimits,
 ) ManagerFactory {
 	return func(
 		ctx context.Context,
@@ -103,7 +115,7 @@ func DefaultTenantManagerFactory(
 		return rules.NewManager(&rules.ManagerOptions{
 			Appendable:      &PusherAppendable{pusher: p, userID: userID},
 			Queryable:       q,
-			QueryFunc:       engineQueryFunc(engine, q, cfg.EvaluationDelay),
+			QueryFunc:       engineQueryFunc(engine, q, overrides, userID),
 			Context:         user.InjectOrgID(ctx, userID),
 			ExternalURL:     cfg.ExternalURL.URL,
 			NotifyFunc:      SendAlerts(notifier, cfg.ExternalURL.URL.String()),
