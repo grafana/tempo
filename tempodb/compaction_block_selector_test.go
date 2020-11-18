@@ -358,6 +358,59 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash2:  "",
 		},
 		{
+			name: "doesn't exceed max compaction objects",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					TotalObjects: 99,
+					EndTime:      now,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					TotalObjects: 2,
+					EndTime:      now,
+				},
+			},
+			expected:       nil,
+			expectedHash:   "",
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
+			name: "Returns as many blocks as possible without exceeding max compaction objects",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					TotalObjects: 50,
+					EndTime:      now,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					TotalObjects: 50,
+					EndTime:      now,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					TotalObjects: 50,
+					EndTime:      now,
+				}},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					TotalObjects: 50,
+					EndTime:      now,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					TotalObjects: 50,
+					EndTime:      now,
+				},
+			},
+			expectedHash:   fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
 			// First compaction gets 3 blocks, second compaction gets 2 more
 			name:           "choose more than 2 blocks",
 			maxInputBlocks: 3,
