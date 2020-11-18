@@ -6,6 +6,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
+	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -134,6 +135,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
 	}
 
+	span.LogFields(ot_log.String("msg", "searching ingesters"))
 	// get responses from all ingesters in parallel
 	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
 		return client.FindTraceByID(opentracing.ContextWithSpan(ctx, span), req)
@@ -146,7 +148,12 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	for _, r := range responses {
 		trace := r.response.(*tempopb.TraceByIDResponse).Trace
 		if trace != nil {
-			completeTrace = tempo_util.CombineTraceProtos(completeTrace, trace)
+			var spanCountA, spanCountB, spanCountTotal int
+			completeTrace, spanCountA, spanCountB, spanCountTotal = tempo_util.CombineTraceProtos(completeTrace, trace)
+			span.LogFields(ot_log.String("msg", "combined trace protos"),
+				ot_log.Int("spansCountA", spanCountA),
+				ot_log.Int("spansCountB", spanCountB),
+				ot_log.Int("spansCountTotal", spanCountTotal))
 		}
 	}
 
@@ -163,6 +170,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, err
 		}
 
+		span.LogFields(ot_log.String("msg", "found backend trace"), ot_log.Int("len", len(foundBytes)))
 		completeTrace = out
 		metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads.Load()))
 		metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead.Load()))
