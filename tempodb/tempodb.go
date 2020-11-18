@@ -262,7 +262,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		meta := payload.(*encoding.BlockMeta)
 
 		shardKey := bloom.ShardKeyForTraceID(id)
-		level.Debug(logger).Log("msg", "fetching bloom", "shardKey", shardKey)
 		bloomBytes, err := rw.r.Bloom(ctx, meta.BlockID, tenantID, shardKey)
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
