@@ -79,7 +79,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id encoding.ID) ([]byte, FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id encoding.ID, blockStart []byte, blockEnd []byte) ([]byte, FindMetrics, error)
 	Shutdown()
 }
 
@@ -228,7 +228,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID) ([]byte, FindMetrics, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID, blockStart []byte, blockEnd []byte) ([]byte, FindMetrics, error) {
 	metrics := FindMetrics{
 		BloomFilterReads:     atomic.NewInt32(0),
 		BloomFilterBytesRead: atomic.NewInt32(0),
@@ -246,10 +246,20 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	rw.blockListsMtx.Lock()
 	blocklist, found := rw.blockLists[tenantID]
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
+
+	var err error
+	isSharded := false
+	if blockStart != nil && blockEnd != nil {
+		isSharded = true
+	}
+
 	for _, b := range blocklist {
 		// if in range copy
 		if bytes.Compare(id, b.MinID) != -1 && bytes.Compare(id, b.MaxID) != 1 {
-			copiedBlocklist = append(copiedBlocklist, b)
+			blockIDBytes, _ := b.BlockID.MarshalBinary()
+			if !isSharded || bytes.Compare(blockIDBytes, blockStart) != -1 && bytes.Compare(blockIDBytes, blockEnd) != 1 {
+				copiedBlocklist = append(copiedBlocklist, b)
+			}
 		}
 	}
 	rw.blockListsMtx.Unlock()

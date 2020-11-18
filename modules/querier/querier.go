@@ -152,7 +152,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	// if the ingester didn't have it check the store.
 	if completeTrace == nil {
-		foundBytes, metrics, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID)
+		foundBytes, metrics, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}

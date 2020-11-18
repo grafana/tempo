@@ -24,10 +24,16 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	traceID, ok := vars[TraceIDVar]
-
 	if !ok {
 		http.Error(w, "please provide a traceID", http.StatusBadRequest)
 		return
+	}
+
+	isSharded := false
+	blockStart, startExists := vars["blockStart"]
+	blockEnd, endExists := vars["blockEnd"]
+	if startExists && endExists {
+		isSharded = true
 	}
 
 	byteID, err := util.HexStringToTraceID(traceID)
@@ -36,9 +42,14 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+	req := &tempopb.TraceByIDRequest{
 		TraceID: byteID,
-	})
+	}
+	if isSharded {
+		req.BlockEnd = []byte(blockEnd)
+		req.BlockStart = []byte(blockStart)
+	}
+	resp, err := q.FindTraceByID(ctx, req)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

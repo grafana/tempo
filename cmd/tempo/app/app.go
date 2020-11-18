@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/cortexproject/cortex/pkg/querier/frontend"
 	"net/http"
 
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -44,6 +45,7 @@ type Config struct {
 	Distributor    distributor.Config     `yaml:"distributor,omitempty"`
 	IngesterClient ingester_client.Config `yaml:"ingester_client,omitempty"`
 	Querier        querier.Config         `yaml:"querier,omitempty"`
+	Frontend       querier.FrontendConfig `yaml:"frontend,omitempty"`
 	Compactor      compactor.Config       `yaml:"compactor,omitempty"`
 	Ingester       ingester.Config        `yaml:"ingester,omitempty"`
 	StorageConfig  storage.Config         `yaml:"storage,omitempty"`
@@ -110,6 +112,7 @@ type App struct {
 	overrides    *overrides.Overrides
 	distributor  *distributor.Distributor
 	querier      *querier.Querier
+	frontend     *frontend.Frontend
 	compactor    *compactor.Compactor
 	ingester     *ingester.Ingester
 	store        storage.Store
