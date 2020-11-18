@@ -79,6 +79,10 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int
 		return traceA, spanCountA, 0, spanCountTotal
 	}
 
+	spanCountA = 0
+	spanCountB = 0
+	spanCountTotal = 0
+
 	spansInA := make(map[uint32]struct{})
 	for _, batchA := range traceA.Batches {
 		for _, ilsA := range batchA.InstrumentationLibrarySpans {

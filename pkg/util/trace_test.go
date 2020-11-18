@@ -106,3 +106,53 @@ func sortTrace(t *tempopb.Trace) {
 		}
 	}
 }
+
+// logic of actually combining traces should be tested above.  focusing on the spancounts here
+func TestCombineProtos(t *testing.T) {
+	sameTrace := test.MakeTraceWithSpanCount(10, 10, []byte{0x01, 0x03})
+
+	tests := []struct {
+		traceA        *tempopb.Trace
+		traceB        *tempopb.Trace
+		expectedA     int
+		expectedB     int
+		expectedTotal int
+	}{
+		{
+			traceA:        nil,
+			traceB:        test.MakeTraceWithSpanCount(10, 10, []byte{0x01, 0x03}),
+			expectedA:     0,
+			expectedB:     -1,
+			expectedTotal: -1,
+		},
+		{
+			traceA:        test.MakeTraceWithSpanCount(10, 10, []byte{0x01, 0x03}),
+			traceB:        nil,
+			expectedA:     -1,
+			expectedB:     0,
+			expectedTotal: -1,
+		},
+		{
+			traceA:        test.MakeTraceWithSpanCount(10, 10, []byte{0x01, 0x03}),
+			traceB:        test.MakeTraceWithSpanCount(10, 10, []byte{0x01, 0x01}),
+			expectedA:     100,
+			expectedB:     100,
+			expectedTotal: 200,
+		},
+		{
+			traceA:        sameTrace,
+			traceB:        sameTrace,
+			expectedA:     100,
+			expectedB:     100,
+			expectedTotal: 100,
+		},
+	}
+
+	for _, tt := range tests {
+		_, actualA, actualB, actualTotal := CombineTraceProtos(tt.traceA, tt.traceB)
+
+		assert.Equal(t, tt.expectedA, actualA)
+		assert.Equal(t, tt.expectedB, actualB)
+		assert.Equal(t, tt.expectedTotal, actualTotal)
+	}
+}
