@@ -318,7 +318,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 				break
 			}
 		}
-		level.Info(logger).Log("msg", "searching for trace in block", "traceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
+		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
 		span.LogFields(ot_log.String("msg", "searching for trace in block"), ot_log.String("traceID", hex.EncodeToString(id)), ot_log.String("block", meta.BlockID.String()), ot_log.Bool("found", foundObject != nil))
 		if foundObject != nil {
 			span.SetTag("object bytes", len(foundObject))
