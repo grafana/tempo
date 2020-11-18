@@ -65,7 +65,7 @@ func (rw *readerWriter) doCompaction() {
 	tenantID := tenants[rand.Intn(len(tenants))].(string)
 	blocklist := rw.blocklist(tenantID)
 
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
+	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects, defaultMinInputBlocks, defaultMaxInputBlocks)
 
 	start := time.Now()
 

@@ -18,6 +18,8 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 	tests := []struct {
 		name           string
 		blocklist      []*encoding.BlockMeta
+		minInputBlocks int // optional, defaults to global const
+		maxInputBlocks int // optional, defaults to global const
 		expected       []*encoding.BlockMeta
 		expectedHash   string
 		expectedSecond []*encoding.BlockMeta
@@ -76,6 +78,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime:      now,
 				},
 			},
+			maxInputBlocks: 2,
 			expected: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -157,6 +160,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					TotalObjects: 12,
 				},
 			},
+			maxInputBlocks: 2,
 			expected: []*encoding.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -336,11 +340,102 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			},
 			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Add(-timeWindow).Unix()),
 		},
+		{
+			name: "doesn't choose across time windows",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now.Add(-timeWindow),
+				},
+			},
+			expected:       nil,
+			expectedHash:   "",
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
+			// First compaction gets 3 blocks, second compaction gets 2 more
+			name:           "choose more than 2 blocks",
+			maxInputBlocks: 3,
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:      now,
+					TotalObjects: 1,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:      now,
+					TotalObjects: 2,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime:      now,
+					TotalObjects: 3,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:      now,
+					TotalObjects: 4,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000005"),
+					EndTime:      now,
+					TotalObjects: 5,
+				},
+			},
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:      now,
+					TotalObjects: 1,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:      now,
+					TotalObjects: 2,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime:      now,
+					TotalObjects: 3,
+				},
+			},
+			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedSecond: []*encoding.BlockMeta{
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:      now,
+					TotalObjects: 4,
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000005"),
+					EndTime:      now,
+					TotalObjects: 5,
+				},
+			},
+			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100)
+
+			min := defaultMinInputBlocks
+			if tt.minInputBlocks > 0 {
+				min = tt.minInputBlocks
+			}
+
+			max := defaultMaxInputBlocks
+			if tt.maxInputBlocks > 0 {
+				max = tt.maxInputBlocks
+			}
+
+			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, min, max)
 
 			actual, hash := selector.BlocksToCompact()
 			assert.Equal(t, tt.expected, actual)
@@ -530,7 +625,7 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			selector := newTimeWindowBlockSelector(tt.blocklist, timeWindow, 100)
+			selector := newTimeWindowBlockSelector(tt.blocklist, timeWindow, 100, defaultMinInputBlocks, defaultMaxInputBlocks)
 			actual := selector.(*timeWindowBlockSelector).blocklist
 			assert.Equal(t, tt.expected, actual)
 		})
