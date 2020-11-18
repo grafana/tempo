@@ -65,23 +65,19 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 //  All spans are combined into traceA.  spanCountA, B, and Total are returned for
 //  logging purposes.
 func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int, int) {
-	spanCountA := -1
-	spanCountB := -1
-	spanCountTotal := -1
-
 	// if one or the other is nil just return 0 for the one that's nil and -1 for the other.  this will be a clear indication this
 	// code path was taken without unnecessarily counting spans
 	if traceA == nil {
-		return traceB, 0, spanCountB, spanCountTotal
+		return traceB, 0, -1, -1
 	}
 
 	if traceB == nil {
-		return traceA, spanCountA, 0, spanCountTotal
+		return traceA, -1, 0, -1
 	}
 
-	spanCountA = 0
-	spanCountB = 0
-	spanCountTotal = 0
+	spanCountA := 0
+	spanCountB := 0
+	spanCountTotal := 0
 
 	spansInA := make(map[uint32]struct{})
 	for _, batchA := range traceA.Batches {
