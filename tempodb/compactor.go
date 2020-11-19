@@ -27,6 +27,11 @@ var (
 		Help:      "Records the amount of time to compact a set of blocks.",
 		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
 	}, []string{"level"})
+	metricCompactionObjectsProcessed = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_objects_processed_total",
+		Help:      "Total number of objects processed during compaction.",
+	})
 	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_errors_total",
@@ -188,6 +193,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 			return err
 		}
 		lowestBookmark.clear()
+		metricCompactionObjectsProcessed.Inc()
 
 		// write partial block
 		if currentBlock.CurrentBufferLength() >= int(rw.compactorCfg.FlushSizeBytes) {

@@ -124,6 +124,9 @@ func TestCompaction(t *testing.T) {
 
 	rw.pollBlocklist()
 
+	processedStart, err := GetCounterValue(metricCompactionObjectsProcessed)
+	assert.NoError(t, err)
+
 	blocklist := rw.blocklist(testTenantID)
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, defaultMinInputBlocks, 2)
 
@@ -153,6 +156,11 @@ func TestCompaction(t *testing.T) {
 		records += meta.TotalObjects
 	}
 	assert.Equal(t, blockCount*recordCount, records)
+
+	// Check metric
+	processedEnd, err := GetCounterValue(metricCompactionObjectsProcessed)
+	assert.NoError(t, err)
+	assert.Equal(t, float64(blockCount*recordCount), processedEnd-processedStart)
 
 	// now see if we can find our ids
 	for i, id := range allIds {
