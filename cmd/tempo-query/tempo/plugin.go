@@ -10,7 +10,6 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/hashicorp/go-hclog"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
@@ -26,13 +25,11 @@ import (
 
 type Backend struct {
 	tempoEndpoint string
-	logger        hclog.Logger
 }
 
-func New(cfg *Config, logger hclog.Logger) *Backend {
+func New(cfg *Config) *Backend {
 	return &Backend{
 		tempoEndpoint: "http://" + cfg.Backend + "/api/traces/",
-		logger:        logger,
 	}
 }
 
@@ -82,7 +79,6 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("failed to unmarshal trace json, err: %w. Tempo response body: %s", err, string(body))
 	}
 
-	b.logger.Error("starting otlp to jaeger", "findTraceID", hexID)
 	span.LogFields(ot_log.String("msg", "otlp to Jaeger"))
 	otTrace := ot_pdata.TracesFromOtlp(out.Batches)
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
@@ -96,7 +92,6 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		ProcessMap: []jaeger.Trace_ProcessMapping{},
 	}
 
-	b.logger.Error("add process information", "findTraceID", hexID)
 	span.LogFields(ot_log.String("msg", "build process map"))
 	// otel proto conversion doesn't set jaeger processes
 	for _, batch := range jaegerBatches {
