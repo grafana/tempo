@@ -7,6 +7,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/memcached"
+	"github.com/grafana/tempo/tempodb/backend/redis"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -22,6 +23,7 @@ type Config struct {
 
 	Diskcache *diskcache.Config `yaml:"disk_cache"`
 	Memcached *memcached.Config `yaml:"memcached"`
+	Redis     *redis.Config     `yaml:"redis"`
 
 	BlocklistPoll time.Duration `yaml:"blocklist_poll"`
 }
