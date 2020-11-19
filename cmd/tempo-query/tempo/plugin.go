@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/hashicorp/go-hclog"
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/metadata"
 
@@ -23,6 +24,7 @@ import (
 
 type Backend struct {
 	tempoEndpoint string
+	logger        hclog.Logger
 }
 
 func New(cfg *Config) *Backend {
@@ -69,6 +71,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("failed to unmarshal trace json, err: %w. Tempo response body: %s", err, string(body))
 	}
 
+	b.logger.Error("starting otlp to jaeger", "findTraceID", hexID)
 	otTrace := ot_pdata.TracesFromOtlp(out.Batches)
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
 
@@ -81,6 +84,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		ProcessMap: []jaeger.Trace_ProcessMapping{},
 	}
 
+	b.logger.Error("add process information", "findTraceID", hexID)
 	for _, batch := range jaegerBatches {
 		// otel proto conversion doesn't set jaeger spans for some reason.
 		for _, s := range batch.Spans {
