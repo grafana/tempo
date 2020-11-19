@@ -10,8 +10,6 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/metadata"
 
@@ -38,17 +36,9 @@ func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]ja
 }
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
-
-	span, _ := opentracing.StartSpanFromContext(ctx, "GRPC Plugin GetTrace")
-	defer span.Finish()
-
 	req, err := http.NewRequestWithContext(ctx, "GET", b.tempoEndpoint+hexID, nil)
 	if err != nil {
 		return nil, err
-	}
-
-	if tracer := opentracing.GlobalTracer(); tracer != nil {
-		tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
 	}
 
 	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers
@@ -79,7 +69,6 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("failed to unmarshal trace json, err: %w. Tempo response body: %s", err, string(body))
 	}
 
-	span.LogFields(ot_log.String("msg", "otlp to Jaeger"))
 	otTrace := ot_pdata.TracesFromOtlp(out.Batches)
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
 
@@ -92,9 +81,8 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		ProcessMap: []jaeger.Trace_ProcessMapping{},
 	}
 
-	span.LogFields(ot_log.String("msg", "build process map"))
-	// otel proto conversion doesn't set jaeger processes
 	for _, batch := range jaegerBatches {
+		// otel proto conversion doesn't set jaeger spans for some reason.
 		for _, s := range batch.Spans {
 			s.Process = batch.Process
 		}
