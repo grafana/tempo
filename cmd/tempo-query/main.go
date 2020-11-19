@@ -11,6 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	jaeger_config "github.com/uber/jaeger-client-go/config"
 )
 
 func main() {
@@ -42,6 +43,8 @@ func main() {
 	cfg := &tempo.Config{}
 	cfg.InitFromViper(v)
 
+	initJaeger("grpc-plugin")
+
 	backend := tempo.New(cfg)
 	grpc.Serve(&plugin{backend: backend})
 }
@@ -60,4 +63,14 @@ func (p *plugin) SpanReader() spanstore.Reader {
 
 func (p *plugin) SpanWriter() spanstore.Writer {
 	return p.backend
+}
+
+func initJaeger(service string) {
+	// .FromEnv() uses standard environment variables to allow for easy configuration
+	cfg, err := jaeger_config.FromEnv()
+	if err != nil {
+		panic(err)
+	}
+
+	cfg.InitGlobalTracer(service)
 }
