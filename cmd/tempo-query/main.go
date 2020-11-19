@@ -42,7 +42,7 @@ func main() {
 	cfg := &tempo.Config{}
 	cfg.InitFromViper(v)
 
-	backend := tempo.New(cfg)
+	backend := tempo.New(cfg, logger)
 	grpc.Serve(&plugin{backend: backend})
 }
 

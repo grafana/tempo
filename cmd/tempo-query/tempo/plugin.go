@@ -27,9 +27,10 @@ type Backend struct {
 	logger        hclog.Logger
 }
 
-func New(cfg *Config) *Backend {
+func New(cfg *Config, logger hclog.Logger) *Backend {
 	return &Backend{
 		tempoEndpoint: "http://" + cfg.Backend + "/api/traces/",
+		logger:        logger,
 	}
 }
 
