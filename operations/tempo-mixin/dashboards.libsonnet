@@ -184,15 +184,15 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Querier')
+        g.row('Distributor')
         .addPanel(
-          $.containerCPUUsagePanel('CPU', $._config.jobs.querier),
+          $.containerCPUUsagePanel('CPU', $._config.jobs.distributor),
         )
         .addPanel(
-          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.querier),
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.distributor),
         )
         .addPanel(
-          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.querier)),
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.distributor)),
         )
       )
       .addRow(
@@ -205,6 +205,18 @@ dashboard_utils {
         )
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.ingester)),
+        )
+      )
+      .addRow(
+        g.row('Querier')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $._config.jobs.querier),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.querier),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.querier)),
         )
       )
       .addRow(
