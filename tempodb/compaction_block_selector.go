@@ -147,9 +147,8 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 			if activeWindow <= blockWindow {
 				// search forward for inputBlocks in a row that have the same compaction level
 				// Gather as many as possible while staying within limits
-				maxOffset := len(windowBlocks) - (twbs.MinInputBlocks - 1)
-				for i := 0; i <= maxOffset; i++ {
-					for j := i + 1; j <= maxOffset &&
+				for i := 0; i <= len(windowBlocks)-twbs.MinInputBlocks+1; i++ {
+					for j := i + 1; j <= len(windowBlocks)-1 &&
 						windowBlocks[i].CompactionLevel == windowBlocks[j].CompactionLevel &&
 						len(compactBlocks)+1 <= twbs.MaxInputBlocks &&
 						totalObjects(compactBlocks)+windowBlocks[j].TotalObjects <= twbs.MaxCompactionObjects; j++ {
@@ -162,7 +161,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 				}
 
 				compact = false
-				if len(compactBlocks) > 0 {
+				if len(compactBlocks) >= twbs.MinInputBlocks {
 					compact = true
 					hashString = fmt.Sprintf("%v-%v-%v", compactBlocks[0].TenantID, compactBlocks[0].CompactionLevel, currentWindow)
 				}

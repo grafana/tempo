@@ -473,6 +473,72 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			},
 			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
 		},
+		{
+			name: "honors minimum block count",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+				},
+			},
+			minInputBlocks: 3,
+			maxInputBlocks: 3,
+			expected:       nil,
+			expectedHash:   "",
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
+			name: "can choose blocks not at the lowest compaction level",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:         now,
+					CompactionLevel: 0,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+			},
+			minInputBlocks: 3,
+			maxInputBlocks: 3,
+			expected: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:         now,
+					CompactionLevel: 1,
+				},
+			},
+			expectedHash:   fmt.Sprintf("%v-%v-%v", tenantID, 1, now.Unix()),
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
 	}
 
 	for _, tt := range tests {
