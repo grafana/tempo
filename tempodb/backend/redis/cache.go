@@ -35,6 +35,9 @@ func New(nextReader backend.Reader, nextWriter backend.Writer, cfg *Config, logg
 	if cfg.ClientConfig.Timeout == 0 {
 		cfg.ClientConfig.Timeout = 100 * time.Millisecond
 	}
+	if cfg.ClientConfig.Expiration == 0 {
+		cfg.ClientConfig.Expiration = cfg.TTL
+	}
 
 	client := cache.NewRedisClient(&cfg.ClientConfig)
 
