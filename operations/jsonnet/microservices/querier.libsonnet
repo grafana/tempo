@@ -24,10 +24,7 @@
     ]) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
-    ]) +
-    container.withEnvMap({
-      JAEGER_DISABLED: 'true',
-    }),
+    ]),
 
   tempo_query_container::
     container.new('tempo-query', $._images.tempo_query) +
@@ -42,7 +39,10 @@
     ]) +
     container.withVolumeMounts([
       volumeMount.new(tempo_query_config_volume, '/conf'),
-    ]),
+    ]) +
+    container.withEnvMap({
+      JAEGER_DISABLED: 'true',
+    }),
 
   tempo_querier_deployment:
     deployment.new(
