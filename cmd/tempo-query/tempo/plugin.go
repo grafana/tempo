@@ -39,7 +39,7 @@ func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]ja
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "GRPC Plugin GetTrace")
+	span, _ := opentracing.StartSpanFromContext(ctx, "GetTrace")
 	defer span.Finish()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", b.tempoEndpoint+hexID, nil)
@@ -48,7 +48,8 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	}
 
 	if tracer := opentracing.GlobalTracer(); tracer != nil {
-		tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
+		// this is not really loggable or anything we can react to.  just ignoring this error
+		_ = tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
 	}
 
 	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -40,11 +41,16 @@ func main() {
 		}
 	}
 
+	closer, err := initJaeger("tempo-grpc-plugin")
+	if err != nil {
+		logger.Error("failed to init tracer", "error", err)
+	}
+	defer closer.Close()
+
 	cfg := &tempo.Config{}
 	cfg.InitFromViper(v)
 
 	backend := tempo.New(cfg)
-	initJaeger("tempo-grpc-plugin")
 	grpc.Serve(&plugin{backend: backend})
 }
 
@@ -64,12 +70,12 @@ func (p *plugin) SpanWriter() spanstore.Writer {
 	return p.backend
 }
 
-func initJaeger(service string) {
+func initJaeger(service string) (io.Closer, error) {
 	// .FromEnv() uses standard environment variables to allow for easy configuration
 	cfg, err := jaeger_config.FromEnv()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	cfg.InitGlobalTracer(service)
+	return cfg.InitGlobalTracer(service)
 }
