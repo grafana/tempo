@@ -1123,7 +1123,7 @@ github.com/ultraware/funlen
 github.com/ultraware/whitespace
 # github.com/uudashr/gocognit v1.0.1
 github.com/uudashr/gocognit
-# github.com/weaveworks/common v0.0.0-20200914083218-61ffdd448099
+# github.com/weaveworks/common v0.0.0-20201029142910-313edde7a455
 ## explicit
 github.com/weaveworks/common/aws
 github.com/weaveworks/common/errors
