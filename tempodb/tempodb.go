@@ -259,9 +259,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	}
 
 	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
-		span, ctx := opentracing.StartSpanFromContext(ctx, "block.Find")
-		defer span.Finish()
-
 		meta := payload.(*encoding.BlockMeta)
 		shardKey := bloom.ShardKeyForTraceID(id)
 
@@ -278,7 +275,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 			return nil, fmt.Errorf("error parsing bloom %v", err)
 		}
 
-		span.LogFields(ot_log.String("msg", "bloom"), ot_log.Int("bytes", len(bloomBytes)))
 		metrics.BloomFilterReads.Inc()
 		metrics.BloomFilterBytesRead.Add(int32(len(bloomBytes)))
 		if !filter.Test(id) {
@@ -286,7 +282,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		}
 
 		indexBytes, err := rw.r.Index(ctx, meta.BlockID, tenantID)
-		span.LogFields(ot_log.String("msg", "index"), ot_log.Int("bytes", len(indexBytes)))
 		metrics.IndexReads.Inc()
 		metrics.IndexBytesRead.Add(int32(len(indexBytes)))
 		if err != nil {
@@ -304,7 +299,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 
 		objectBytes := make([]byte, record.Length)
 		err = rw.r.Object(ctx, meta.BlockID, tenantID, record.Start, objectBytes)
-		span.LogFields(ot_log.String("msg", "object"), ot_log.Int("bytes", len(objectBytes)))
 		metrics.BlockReads.Inc()
 		metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 		if err != nil {
