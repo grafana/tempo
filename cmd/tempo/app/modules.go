@@ -7,8 +7,6 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/cortex"
 	"github.com/cortexproject/cortex/pkg/querier/frontend"
-	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
-	querier_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
@@ -18,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/server"
+	"github.com/weaveworks/common/middleware"
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -133,12 +132,12 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 	t.querier = querier
 
-	//tracesHandler := middleware.Merge(
-	//	t.httpAuthMiddleware,
-	//).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	//t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
+	tracesHandler := middleware.Merge(
+		t.httpAuthMiddleware,
+	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
+	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
-	return querier_worker.NewQuerierWorker(t.Cfg.Worker, httpgrpc_server.NewServer(querier.TraceByIDHandler), util.Logger, prometheus.DefaultRegisterer)
+	return t.querier, nil
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
