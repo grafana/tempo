@@ -27,11 +27,11 @@ var (
 		Help:      "Records the amount of time to compact a set of blocks.",
 		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
 	}, []string{"level"})
-	metricCompactionObjectsProcessed = promauto.NewCounter(prometheus.CounterOpts{
+	metricCompactionObjectsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_objects_processed_total",
 		Help:      "Total number of objects processed during compaction.",
-	})
+	}, []string{"level"})
 	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_errors_total",
@@ -113,12 +113,13 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	}
 
 	compactionLevel := compactionLevelForBlocks(blockMetas)
+	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
 	nextCompactionLevel := compactionLevel + 1
 
 	start := time.Now()
 	defer func() {
 		level.Info(rw.logger).Log("msg", "compaction complete")
-		metricCompactionDuration.WithLabelValues(strconv.Itoa(int(compactionLevel))).Observe(time.Since(start).Seconds())
+		metricCompactionDuration.WithLabelValues(compactionLevelLabel).Observe(time.Since(start).Seconds())
 	}()
 
 	var err error
@@ -193,7 +194,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 			return err
 		}
 		lowestBookmark.clear()
-		metricCompactionObjectsProcessed.Inc()
+		metricCompactionObjectsProcessed.WithLabelValues(compactionLevelLabel).Inc()
 
 		// write partial block
 		if currentBlock.CurrentBufferLength() >= int(rw.compactorCfg.FlushSizeBytes) {
