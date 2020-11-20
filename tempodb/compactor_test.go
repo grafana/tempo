@@ -124,7 +124,10 @@ func TestCompaction(t *testing.T) {
 
 	rw.pollBlocklist()
 
-	processedStart, err := GetCounterValue(metricCompactionObjectsProcessed)
+	processedStart, err := GetCounterVecValue(metricCompactionObjectsProcessed, "0")
+	assert.NoError(t, err)
+
+	blocksStart, err := GetCounterVecValue(metricCompactionBlocks, "0")
 	assert.NoError(t, err)
 
 	blocklist := rw.blocklist(testTenantID)
@@ -158,9 +161,13 @@ func TestCompaction(t *testing.T) {
 	assert.Equal(t, blockCount*recordCount, records)
 
 	// Check metric
-	processedEnd, err := GetCounterValue(metricCompactionObjectsProcessed)
+	processedEnd, err := GetCounterVecValue(metricCompactionObjectsProcessed, "0")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(blockCount*recordCount), processedEnd-processedStart)
+
+	blocksEnd, err := GetCounterVecValue(metricCompactionBlocks, "0")
+	assert.NoError(t, err)
+	assert.Equal(t, float64(blockCount), blocksEnd-blocksStart)
 
 	// now see if we can find our ids
 	for i, id := range allIds {
@@ -263,6 +270,14 @@ func GetCounterValue(metric prometheus.Counter) (float64, error) {
 	var m = &dto.Metric{}
 	err := metric.Write(m)
 	if err != nil {
+		return 0, err
+	}
+	return m.Counter.GetValue(), nil
+}
+
+func GetCounterVecValue(metric *prometheus.CounterVec, label string) (float64, error) {
+	var m = &dto.Metric{}
+	if err := metric.WithLabelValues(label).Write(m); err != nil {
 		return 0, err
 	}
 	return m.Counter.GetValue(), nil

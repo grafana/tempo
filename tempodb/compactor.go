@@ -21,6 +21,11 @@ import (
 )
 
 var (
+	metricCompactionBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_blocks_total",
+		Help:      "Total number of blocks compacted.",
+	}, []string{"level"})
 	metricCompactionDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_duration_seconds",
@@ -225,6 +230,8 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 
 	// mark old blocks compacted so they don't show up in polling
 	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
+
+	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
 
 	return nil
 }
