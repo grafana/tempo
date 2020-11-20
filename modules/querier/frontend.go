@@ -2,8 +2,10 @@ package querier
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"github.com/cortexproject/cortex/pkg/querier/frontend"
+	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
@@ -13,7 +15,16 @@ import (
 )
 
 type FrontendConfig struct {
-	ShardNum int `yaml:"shard_num,omitempty"`
+	frontend.Config `yaml:",inline"`
+	ShardNum int    `yaml:"shard_num,omitempty"`
+}
+
+func (cfg *FrontendConfig) ApplyDefaults() {
+	cfg.Config.CompressResponses = false
+	cfg.Config.DownstreamURL = ""
+	cfg.Config.LogQueriesLongerThan = 0
+	cfg.Config.MaxOutstandingPerTenant = 100
+	cfg.ShardNum = 4
 }
 
 // NewTripperware returns a Tripperware configured with a middleware to split requests
@@ -29,11 +40,11 @@ func NewTripperware(cfg FrontendConfig, logger log.Logger, registerer prometheus
 		// get the http request, add some custom parameters to it, split it, and call downstream roundtripper
 		rt := NewRoundTripper(next, ShardingWare(cfg.ShardNum, logger, registerer))
 		return frontend.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
-			userID, err := user.ExtractOrgID(r.Context())
-			if err != nil {
-				return nil, err
-			}
-			queriesPerTenant.WithLabelValues(userID).Inc()
+			level.Info(util.Logger).Log("msg", "request received by custom tripperware")
+			orgID := r.Header.Get(user.OrgIDHeaderName)
+			queriesPerTenant.WithLabelValues(orgID).Inc()
+
+			r = r.WithContext(user.InjectOrgID(r.Context(), orgID))
 			return rt.RoundTrip(r)
 		})
 	}, nil
@@ -79,11 +90,13 @@ func NewRoundTripper(next http.RoundTripper, middlewares ...Middleware) http.Rou
 }
 
 func (q roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	level.Info(util.Logger).Log("blockStart", r.URL.Query().Get("blockStart"), "blockEnd", r.URL.Query().Get("blockEnd"))
 	return q.handler.Do(r)
 }
 
 // Do implements Handler.
 func (q roundTripper) Do(r *http.Request) (*http.Response, error) {
+	level.Info(util.Logger).Log("msg", "roundTripper.Do called")
 	return q.next.RoundTrip(r)
 }
 
@@ -92,10 +105,11 @@ func ShardingWare(shardNum int, logger log.Logger, registerer prometheus.Registe
 		return shardQuery{
 			next:     next,
 			shardNum: shardNum,
+			logger:   logger,
 			splitByCounter: promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 				Namespace: "tempo",
-				Name:      "frontend_split_queries_total",
-				Help:      "Total number of underlying query requests after the split by interval is applied",
+				Name:      "query_frontend_split_queries_total",
+				Help:      "Total number of underlying query requests after sharding",
 			}, []string{"user"}),
 		}
 	})
@@ -119,29 +133,26 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 	}
 
 	// create sharded queries
-	// fixme: using a constant 4 for now, change to "shardNum" partitions
-	uuidBoundary0 := string(0)
-	uuidBoundary1 := string(1 << 14)
-	uuidBoundary2 := string(1 << 15)
-	uuidBoundary3 := string((1 << 15) + (1 << 14))
-	uuidBoundary4 := string((1 << 16) - 1)
+	boundaryBytes := make([][]byte, s.shardNum+1)
+	for i := 0; i < s.shardNum+1; i ++ {
+		boundaryBytes[i] = make([]byte, 0)
+	}
+	const MaxUint = ^uint64(0)
+	const MaxInt = int64(MaxUint >> 1)
+	for i := 0; i < s.shardNum; i++ {
+		binary.PutVarint(boundaryBytes[i], MaxInt*(int64(i))/int64(s.shardNum))
+		binary.PutVarint(boundaryBytes[i], 0)
+	}
+	binary.PutVarint(boundaryBytes[s.shardNum], MaxInt)
+	binary.PutVarint(boundaryBytes[s.shardNum], MaxInt)
 
-	reqs := make([]*http.Request, 4)
-	reqs[0] = r
-	reqs[0].URL.Query().Add("blockStart", uuidBoundary0)
-	reqs[0].URL.Query().Add("blockEnd", uuidBoundary1)
-	reqs[1] = r
-	reqs[1].URL.Query().Add("blockStart", uuidBoundary1)
-	reqs[1].URL.Query().Add("blockEnd", uuidBoundary2)
-	reqs[2] = r
-	reqs[2].URL.Query().Add("blockStart", uuidBoundary2)
-	reqs[2].URL.Query().Add("blockEnd", uuidBoundary3)
-	reqs[3] = r
-	reqs[3].URL.Query().Add("blockStart", uuidBoundary3)
-	reqs[3].URL.Query().Add("blockEnd", uuidBoundary4)
-
-	// fixme: change to "shardNum"
-	s.splitByCounter.WithLabelValues(userID).Add(4)
+	reqs := make([]*http.Request, s.shardNum)
+	for i := 0; i < s.shardNum; i++ {
+		reqs[i] = r
+		reqs[i].URL.Query().Add("blockStart", string(boundaryBytes[i]))
+		reqs[i].URL.Query().Add("blockEnd", string(boundaryBytes[i+1]))
+	}
+	s.splitByCounter.WithLabelValues(userID).Add(float64(s.shardNum))
 
 	rrs, err := DoRequests(r.Context(), s.next, reqs)
 	if err != nil {
@@ -180,7 +191,8 @@ func DoRequests(ctx context.Context, downstream Handler, reqs []*http.Request) (
 	}()
 
 	respChan, errChan := make(chan RequestResponse), make(chan error)
-	parallelism := 10 // todo: make this configurable using limits
+	// todo: make this configurable using limits
+	parallelism := 10
 	if parallelism > len(reqs) {
 		parallelism = len(reqs)
 	}

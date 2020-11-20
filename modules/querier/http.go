@@ -30,9 +30,9 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isSharded := false
-	blockStart, startExists := vars["blockStart"]
-	blockEnd, endExists := vars["blockEnd"]
-	if startExists && endExists {
+	blockStart := r.URL.Query().Get("blockStart")
+	blockEnd := r.URL.Query().Get("blockStart")
+	if len(blockStart) > 0 && len(blockEnd) > 0 {
 		isSharded = true
 	}
 

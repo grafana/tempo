@@ -257,9 +257,10 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		// if in range copy
 		if bytes.Compare(id, b.MinID) != -1 && bytes.Compare(id, b.MaxID) != 1 {
 			blockIDBytes, _ := b.BlockID.MarshalBinary()
-			// if not sharded copy over directly
-			// if sharded check block is in shard boundaries
-			if !isSharded || bytes.Compare(blockIDBytes, blockStart) != -1 && bytes.Compare(blockIDBytes, blockEnd) != 1 {
+			// if not sharded - copy over directly
+			// if sharded - check block is in shard boundaries
+			//            - blockStart <= blockIDBytes < blockEnd
+			if !isSharded || bytes.Compare(blockIDBytes, blockStart) >= 0 && bytes.Compare(blockIDBytes, blockEnd) < 0 {
 				copiedBlocklist = append(copiedBlocklist, b)
 			}
 		}

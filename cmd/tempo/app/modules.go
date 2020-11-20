@@ -143,12 +143,7 @@ func (t *App) initQuerier() (services.Service, error) {
 func (t *App) initQueryFrontend() (services.Service, error) {
 	var err error
 	// frontend has its own roundTripper. f.roundTripper is f
-	t.frontend, err = frontend.New(frontend.Config{
-		MaxOutstandingPerTenant: 100,
-		CompressResponses:       false,
-		DownstreamURL:           "",
-		LogQueriesLongerThan:    0,
-	}, util.Logger, prometheus.DefaultRegisterer)
+	t.frontend, err = frontend.New(t.cfg.Frontend.Config, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
@@ -158,11 +153,12 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	// tripperware will be called before f.roundTripper (which handles roundtripgrpc)
+	// tripperware will be called before f.roundTripper (which calls roundtripgrpc)
 	t.frontend.Wrap(tripperware)
 
 	frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
-	t.server.HTTP.Handle("/api/traces/{traceID}", t.frontend.Handler())
+	// register at a different endpoint for now
+	t.server.HTTP.Handle("/api/traces/frontend/{traceID}", t.frontend.Handler())
 
 	return nil, nil
 }

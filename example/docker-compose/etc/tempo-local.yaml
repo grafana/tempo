@@ -38,7 +38,7 @@ storage:
       bloom_filter_false_positive: .05 # bloom filter false positive rate.  lower values create larger filters but fewer false positives
       index_downsample: 10             # number of traces per index record
     local:
-      path: /tmp/tempo
+      path: /tmp/tempo/blocks
     pool:
       max_workers: 100                 # the worker pool mainly drives querying, but is also used for polling the blocklist
       queue_depth: 10000
