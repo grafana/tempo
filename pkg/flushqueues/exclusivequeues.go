@@ -56,10 +56,8 @@ func (f *ExclusiveQueues) ClearKey(key string) {
 }
 
 // Stop closes all queues
-func (f *ExclusiveQueues) Stop() error {
+func (f *ExclusiveQueues) Stop() {
 	for _, q := range f.queues {
 		q.Close()
 	}
-
-	return nil
 }
