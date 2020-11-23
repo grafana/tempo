@@ -26,12 +26,6 @@ var (
 		Name:      "compaction_blocks_total",
 		Help:      "Total number of blocks compacted.",
 	}, []string{"level"})
-	metricCompactionDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_duration_seconds",
-		Help:      "Records the amount of time to compact a set of blocks.",
-		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
-	}, []string{"level"})
 	metricCompactionObjectsWritten = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_objects_written",
@@ -126,10 +120,8 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
 	nextCompactionLevel := compactionLevel + 1
 
-	start := time.Now()
 	defer func() {
 		level.Info(rw.logger).Log("msg", "compaction complete")
-		metricCompactionDuration.WithLabelValues(compactionLevelLabel).Observe(time.Since(start).Seconds())
 	}()
 
 	var err error
