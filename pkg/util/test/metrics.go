@@ -22,3 +22,11 @@ func GetGaugeValue(metric prometheus.Gauge) (float64, error) {
 	}
 	return m.Gauge.GetValue(), nil
 }
+
+func GetCounterVecValue(metric *prometheus.CounterVec, label string) (float64, error) {
+	var m = &dto.Metric{}
+	if err := metric.WithLabelValues(label).Write(m); err != nil {
+		return 0, err
+	}
+	return m.Counter.GetValue(), nil
+}
