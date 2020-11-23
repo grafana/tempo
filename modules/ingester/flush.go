@@ -104,9 +104,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 
 	// see if any complete blocks are ready to be flushed
 	if instance.GetBlockToBeFlushed() != nil {
-		i.flushQueueIndex++
-		flushQueueIndex := i.flushQueueIndex % i.cfg.ConcurrentFlushes
-		i.flushQueues[flushQueueIndex].Enqueue(&flushOp{
+		i.flushQueues.Enqueue(&flushOp{
 			time.Now().Unix(),
 			instance.instanceID,
 		})
@@ -120,7 +118,7 @@ func (i *Ingester) flushLoop(j int) {
 	}()
 
 	for {
-		o := i.flushQueues[j].Dequeue()
+		o := i.flushQueues.Dequeue(j)
 		if o == nil {
 			return
 		}
@@ -134,7 +132,7 @@ func (i *Ingester) flushLoop(j int) {
 
 			// re-queue failed flush
 			op.from += int64(flushBackoff)
-			i.flushQueues[j].Enqueue(op)
+			i.flushQueues.Enqueue(op)
 		}
 	}
 }

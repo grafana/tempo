@@ -53,7 +53,8 @@ type instance struct {
 	headBlock       *tempodb_wal.AppendBlock
 	completingBlock *tempodb_wal.AppendBlock
 	completeBlocks  []*tempodb_wal.CompleteBlock
-	lastBlockCut    time.Time
+
+	lastBlockCut time.Time
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
