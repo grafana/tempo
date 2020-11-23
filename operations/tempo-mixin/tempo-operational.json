@@ -4522,8 +4522,8 @@
         "fill": 1,
         "fillGradient": 0,
         "gridPos": {
-          "h": 8,
-          "w": 7,
+          "h": 6,
+          "w": 4,
           "x": 0,
           "y": 77
         },
@@ -4610,6 +4610,7 @@
         "dashLength": 10,
         "dashes": false,
         "datasource": "$ds",
+        "description": "",
         "fieldConfig": {
           "defaults": {
             "custom": {}
@@ -4619,9 +4620,9 @@
         "fill": 1,
         "fillGradient": 0,
         "gridPos": {
-          "h": 8,
-          "w": 7,
-          "x": 7,
+          "h": 6,
+          "w": 4,
+          "x": 4,
           "y": 77
         },
         "hiddenSeries": false,
@@ -4652,7 +4653,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "sum(rate(tempodb_compaction_objects_processed_total[$__rate_interval])) by (level)",
+            "expr": "sum(rate(tempodb_compaction_objects_written{job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -4662,7 +4663,7 @@
         "timeFrom": null,
         "timeRegions": [],
         "timeShift": null,
-        "title": "Objects Processed / s",
+        "title": "Objects Written / s",
         "tooltip": {
           "shared": true,
           "sort": 0,
@@ -4704,6 +4705,101 @@
         "bars": false,
         "dashLength": 10,
         "dashes": false,
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {}
+          },
+          "overrides": []
+        },
+        "fill": 1,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 6,
+          "w": 4,
+          "x": 8,
+          "y": 77
+        },
+        "hiddenSeries": false,
+        "id": 88,
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "alertThreshold": true
+        },
+        "percentage": false,
+        "pluginVersion": "7.4.0-7095pre",
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "expr": "sum(rate(tempodb_compaction_bytes_written{job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
+            "interval": "",
+            "legendFormat": "",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "title": "Bytes Written / s",
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,  
         "datasource": "$ds",
         "fieldConfig": {
           "defaults": {
@@ -4714,9 +4810,9 @@
         "fill": 1,
         "fillGradient": 0,
         "gridPos": {
-          "h": 8,
-          "w": 7,
-          "x": 14,
+          "h": 6,
+          "w": 4,
+          "x": 12,
           "y": 77
         },
         "hiddenSeries": false,
