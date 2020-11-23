@@ -20,9 +20,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/prometheus/client_golang/prometheus"
-
-	dto "github.com/prometheus/client_model/go"
 )
 
 type mockSharder struct {
@@ -222,7 +219,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 	rw := r.(*readerWriter)
 
-	combinedStart, err := GetCounterValue(metricCompactionObjectsCombined)
+	combinedStart, err := test.GetCounterValue(metricCompactionObjectsCombined)
 	assert.NoError(t, err)
 
 	// poll
@@ -246,18 +243,9 @@ func TestSameIDCompaction(t *testing.T) {
 	}
 	assert.Equal(t, blockCount-blocksPerCompaction, records)
 
-	combinedFinish, err := GetCounterValue(metricCompactionObjectsCombined)
+	combinedFinish, err := test.GetCounterValue(metricCompactionObjectsCombined)
 	assert.NoError(t, err)
 	assert.Equal(t, float64(1), combinedFinish-combinedStart)
-}
-
-func GetCounterValue(metric prometheus.Counter) (float64, error) {
-	var m = &dto.Metric{}
-	err := metric.Write(m)
-	if err != nil {
-		return 0, err
-	}
-	return m.Counter.GetValue(), nil
 }
 
 func TestCompactionUpdatesBlocklist(t *testing.T) {
