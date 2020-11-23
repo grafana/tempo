@@ -7,15 +7,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type FlushQueues struct {
+type ExclusiveQueues struct {
 	queues     []*util.PriorityQueue
 	index      int
 	activeKeys sync.Map
 }
 
 // New creates a new set of flush queues with a prom gauge to track current depth
-func New(queues int, metric prometheus.Gauge) *FlushQueues {
-	f := &FlushQueues{
+func New(queues int, metric prometheus.Gauge) *ExclusiveQueues {
+	f := &ExclusiveQueues{
 		queues: make([]*util.PriorityQueue, queues),
 	}
 
@@ -27,7 +27,7 @@ func New(queues int, metric prometheus.Gauge) *FlushQueues {
 }
 
 // Enqueue adds the op to the next queue and prevents any other items to be added with this key
-func (f *FlushQueues) Enqueue(op util.Op, force bool) {
+func (f *ExclusiveQueues) Enqueue(op util.Op, force bool) {
 	_, ok := f.activeKeys.Load(op.Key())
 	if ok && !force {
 		return
@@ -40,17 +40,17 @@ func (f *FlushQueues) Enqueue(op util.Op, force bool) {
 }
 
 // Dequeue removes the next op from the requested queue
-func (f *FlushQueues) Dequeue(q int) util.Op {
+func (f *ExclusiveQueues) Dequeue(q int) util.Op {
 	return f.queues[q].Dequeue()
 }
 
 // ClearKey unblocks the requested key.  This should be called only after a flush has been successful
-func (f *FlushQueues) ClearKey(key string) {
+func (f *ExclusiveQueues) ClearKey(key string) {
 	f.activeKeys.Delete(key)
 }
 
 // Stop closes all queues
-func (f *FlushQueues) Stop() error {
+func (f *ExclusiveQueues) Stop() error {
 	for _, q := range f.queues {
 		q.Close()
 	}

@@ -48,7 +48,7 @@ type Ingester struct {
 	lifecycler *ring.Lifecycler
 	store      storage.Store
 
-	flushQueues     *flushqueues.FlushQueues
+	flushQueues     *flushqueues.ExclusiveQueues
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
