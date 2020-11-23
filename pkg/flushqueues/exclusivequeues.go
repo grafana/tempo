@@ -27,21 +27,27 @@ func New(queues int, metric prometheus.Gauge) *ExclusiveQueues {
 }
 
 // Enqueue adds the op to the next queue and prevents any other items to be added with this key
-func (f *ExclusiveQueues) Enqueue(op util.Op, force bool) {
+func (f *ExclusiveQueues) Enqueue(op util.Op) {
 	_, ok := f.activeKeys.Load(op.Key())
-	if ok && !force {
+	if ok {
 		return
 	}
 
 	f.activeKeys.Store(op.Key(), struct{}{})
+	f.Requeue(op)
+}
+
+// Dequeue removes the next op from the requested queue.  After dequeueing the calling
+//  process either needs to call ClearKey or Requeue
+func (f *ExclusiveQueues) Dequeue(q int) util.Op {
+	return f.queues[q].Dequeue()
+}
+
+// Requeue adds an op that is presumed to already be covered by activeKeys
+func (f *ExclusiveQueues) Requeue(op util.Op) {
 	f.index++
 	flushQueueIndex := f.index % len(f.queues)
 	f.queues[flushQueueIndex].Enqueue(op)
-}
-
-// Dequeue removes the next op from the requested queue
-func (f *ExclusiveQueues) Dequeue(q int) util.Op {
-	return f.queues[q].Dequeue()
 }
 
 // ClearKey unblocks the requested key.  This should be called only after a flush has been successful
