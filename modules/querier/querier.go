@@ -36,7 +36,7 @@ var (
 		Namespace: "tempo",
 		Name:      "query_bytes_read",
 		Help:      "bytes read",
-		Buckets:   prometheus.ExponentialBuckets(1024, 2, 10),
+		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 8),
 	}, []string{"layer"})
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
