@@ -4555,7 +4555,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "increase(tempodb_compaction_objects_combined_total{job=~\"$namespace/compactor\"}[$__rate_interval])",
+            "expr": "increase(tempodb_compaction_objects_combined_total{cluster=\"$cluster\",job=~\"$namespace/compactor\"}[$__rate_interval])",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -4653,7 +4653,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "sum(rate(tempodb_compaction_objects_written{job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
+            "expr": "sum(rate(tempodb_compaction_objects_written{cluster=\"$cluster\",job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -4748,7 +4748,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "sum(rate(tempodb_compaction_bytes_written{job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
+            "expr": "sum(rate(tempodb_compaction_bytes_written{cluster=\"$cluster\",job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -4843,7 +4843,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "sum(increase(tempodb_compaction_blocks_total[5m])) by (level)",
+            "expr": "sum(increase(tempodb_compaction_blocks_total{cluster=\"$cluster\",job=\"$namespace/compactor\"}[5m])) by (level)",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
