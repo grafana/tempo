@@ -126,14 +126,13 @@ func (i *Ingester) flushLoop(j int) {
 		}
 		op := o.(*flushOp)
 
-		level.Debug(util.Logger).Log("msg", "flushing stream", "userid", op.userID, "fp")
+		level.Debug(util.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
 
 		err := i.flushUserTraces(op.userID)
 		if err != nil {
 			level.Error(util.WithUserID(op.userID, util.Logger)).Log("msg", "failed to flush user", "err", err)
-		}
 
-		if err != nil {
+			// re-queue failed flush
 			op.from += int64(flushBackoff)
 			i.flushQueues[j].Enqueue(op)
 		}
