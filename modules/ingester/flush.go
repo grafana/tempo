@@ -107,7 +107,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 		i.flushQueues.Enqueue(&flushOp{
 			time.Now().Unix(),
 			instance.instanceID,
-		})
+		}, false)
 	}
 }
 
@@ -132,8 +132,11 @@ func (i *Ingester) flushLoop(j int) {
 
 			// re-queue failed flush
 			op.from += int64(flushBackoff)
-			i.flushQueues.Enqueue(op)
+			i.flushQueues.Enqueue(op, true)
+			continue
 		}
+
+		i.flushQueues.ClearKey(op.Key())
 	}
 }
 
