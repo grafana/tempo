@@ -95,5 +95,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 	}
 
 	records := cb.Records()
-	assert.Equal(t, math.Ceil(float64(numObjects)/3), float64(len(records)))
+	assert.Equal(t, math.Ceil(float64(numObjects)/float64(walCfg.IndexDownsample)), float64(len(records)))
+
+	assert.Equal(t, numObjects, cb.CurrentBufferedObjects())
 }

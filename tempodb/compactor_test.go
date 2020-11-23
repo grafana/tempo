@@ -94,7 +94,7 @@ func TestCompaction(t *testing.T) {
 			_, err = rand.Read(id)
 			assert.NoError(t, err, "unexpected creating random id")
 
-			req := test.MakeRequest(i*10, id)
+			req := test.MakeRequest(10, id)
 			reqs = append(reqs, req)
 			ids = append(ids, id)
 
@@ -260,6 +260,14 @@ func GetCounterValue(metric prometheus.Counter) (float64, error) {
 	return m.Counter.GetValue(), nil
 }
 
+func GetCounterVecValue(metric *prometheus.CounterVec, label string) (float64, error) {
+	var m = &dto.Metric{}
+	if err := metric.WithLabelValues(label).Write(m); err != nil {
+		return 0, err
+	}
+	return m.Counter.GetValue(), nil
+}
+
 func TestCompactionUpdatesBlocklist(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -320,6 +328,77 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 			assert.NoError(t, err)
 		}
 	}
+}
+
+func TestCompactionMetrics(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	r, w, c, err := New(&Config{
+		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		WAL: &wal.Config{
+			Filepath:        path.Join(tempDir, "wal"),
+			IndexDownsample: rand.Int()%20 + 1,
+			BloomFP:         .01,
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      24 * time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{})
+
+	// Cut x blocks with y records each
+	blockCount := 5
+	recordCount := 1
+	cutTestBlocks(t, w, blockCount, recordCount)
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist()
+
+	// Get starting metrics
+	processedStart, err := GetCounterVecValue(metricCompactionObjectsWritten, "0")
+	assert.NoError(t, err)
+
+	blocksStart, err := GetCounterVecValue(metricCompactionBlocks, "0")
+	assert.NoError(t, err)
+
+	bytesStart, err := GetCounterVecValue(metricCompactionBytesWritten, "0")
+	assert.NoError(t, err)
+
+	// compact everything
+	err = rw.compact(rw.blocklist(testTenantID), testTenantID)
+	assert.NoError(t, err)
+
+	// Check metric
+	processedEnd, err := GetCounterVecValue(metricCompactionObjectsWritten, "0")
+	assert.NoError(t, err)
+	assert.Equal(t, float64(blockCount*recordCount), processedEnd-processedStart)
+
+	blocksEnd, err := GetCounterVecValue(metricCompactionBlocks, "0")
+	assert.NoError(t, err)
+	assert.Equal(t, float64(blockCount), blocksEnd-blocksStart)
+
+	bytesEnd, err := GetCounterVecValue(metricCompactionBytesWritten, "0")
+	assert.NoError(t, err)
+	bytesPerRecord :=
+		4 /* total length */ +
+			4 /* id length */ +
+			16 /* id */ +
+			3 /* test record length */
+	assert.Equal(t, float64(blockCount*recordCount*bytesPerRecord), bytesEnd-bytesStart)
 }
 
 func cutTestBlocks(t *testing.T, w Writer, blockCount int, recordCount int) {

@@ -17,8 +17,9 @@ type CompactorBlock struct {
 
 	bloom *bloom.ShardedBloomFilter
 
-	appendBuffer *bytes.Buffer
-	appender     encoding.Appender
+	bufferedObjects int
+	appendBuffer    *bytes.Buffer
+	appender        encoding.Appender
 }
 
 func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*encoding.BlockMeta, filepath string, estimatedObjects int) (*CompactorBlock, error) {
@@ -56,6 +57,7 @@ func (c *CompactorBlock) Write(id encoding.ID, object []byte) error {
 	if err != nil {
 		return err
 	}
+	c.bufferedObjects++
 	c.meta.ObjectAdded(id)
 	c.bloom.Add(id)
 	return nil
@@ -69,8 +71,13 @@ func (c *CompactorBlock) CurrentBufferLength() int {
 	return c.appendBuffer.Len()
 }
 
+func (c *CompactorBlock) CurrentBufferedObjects() int {
+	return c.bufferedObjects
+}
+
 func (c *CompactorBlock) ResetBuffer() {
 	c.appendBuffer.Reset()
+	c.bufferedObjects = 0
 }
 
 func (c *CompactorBlock) Length() int {
