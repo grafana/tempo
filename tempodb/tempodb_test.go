@@ -117,7 +117,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01})
+	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01}, nil, nil)
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
 }

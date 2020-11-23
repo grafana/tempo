@@ -49,8 +49,8 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		req.BlockEnd = []byte(blockEnd)
 		req.BlockStart = []byte(blockStart)
 	}
-	resp, err := q.FindTraceByID(ctx, req)
 
+	resp, err := q.FindTraceByID(ctx, req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
