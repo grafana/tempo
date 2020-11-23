@@ -52,8 +52,8 @@ func (i *Ingester) Flush() {
 	}
 }
 
-// FlushHandler triggers a flush of all in memory chunks.  Mainly used for
-// local testing.
+// FlushHandler calls sweepUsers(true) which will force push all traces into the WAL and force
+//  mark all head blocks as ready to flush.
 func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 	i.sweepUsers(true)
 	w.WriteHeader(http.StatusNoContent)
