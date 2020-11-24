@@ -1,7 +1,7 @@
 package util
 
 import (
-	"hash/fnv"
+	"bytes"
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
@@ -11,14 +11,7 @@ import (
 
 func CombineTraces(objA []byte, objB []byte) []byte {
 	// if the byte arrays are the same, we can return quickly
-	hasher := fnv.New32a()
-
-	_, _ = hasher.Write(objA)
-	hashA := hasher.Sum32()
-	hasher.Reset()
-	_, _ = hasher.Write(objB)
-	hashB := hasher.Sum32()
-	if hashA == hashB {
+	if bytes.Compare(objA, objB) == 0 {
 		return objA
 	}
 
