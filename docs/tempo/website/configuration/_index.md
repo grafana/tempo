@@ -59,16 +59,10 @@ compactor:
 ```
 
 ### [Storage](https://github.com/grafana/tempo/blob/master/tempodb/config.go)
-The storage block is used to configure TempoDB.
+The storage block is used to configure TempoDB.  It supports S3, GCS, local file system, and optionally can use memcached for increased query performance.  
 
-For the s3 backend, the following authentication methods are supported:
-
-- AWS env vars (static AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
-- Static access key and secret credentials specified in `storage.trace.s3.access_key` and `storage.trace.s3.secret_key`
-- Minio env vars (MINIO_ACCESS_KEY and MINIO_SECRET_KEY)
-- AWS shared credentials [config file](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/create-shared-credentials-file.html)
-- Minio client credentials [config file](https://github.com/minio/mc/blob/master/docs/minio-client-configuration-files.md)
-- AWS IAM ([IRSA via WebIdentity](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html), [EC2 instance role](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html))
+The example below shows common options.  For platform specific options see the following:
+* [S3](s3/)
 
 ```
 storage:
@@ -76,7 +70,8 @@ storage:
         backend: gcs                             # store traces in gcs
         gcs:
             bucket_name: ops-tools-tracing-ops   # store traces in this bucket
-        blocklist_poll: 5m                    # how often to repoll the backend for new blocks
+
+        blocklist_poll: 5m                       # how often to repoll the backend for new blocks
         memcached:                               # optional memcached configuration
             consistent_hash: true
             host: memcached
