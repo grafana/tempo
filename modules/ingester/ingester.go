@@ -19,6 +19,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
@@ -47,9 +48,7 @@ type Ingester struct {
 	lifecycler *ring.Lifecycler
 	store      storage.Store
 
-	// One queue per flush thread.
-	flushQueues     []*util.PriorityQueue
-	flushQueueIndex int
+	flushQueues     *flushqueues.ExclusiveQueues
 	flushQueuesDone sync.WaitGroup
 
 	limiter *Limiter
@@ -63,12 +62,11 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingeste
 		cfg:         cfg,
 		instances:   map[string]*instance{},
 		store:       store,
-		flushQueues: make([]*util.PriorityQueue, cfg.ConcurrentFlushes),
+		flushQueues: flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
 	}
 
 	i.flushQueuesDone.Add(cfg.ConcurrentFlushes)
 	for j := 0; j < cfg.ConcurrentFlushes; j++ {
-		i.flushQueues[j] = util.NewPriorityQueue(metricFlushQueueLength)
 		go i.flushLoop(j)
 	}
 
@@ -134,6 +132,11 @@ func (i *Ingester) stopping(_ error) error {
 	if i.lifecycler != nil {
 		// Next initiate our graceful exit from the ring.
 		return services.StopAndAwaitTerminated(context.Background(), i.lifecycler)
+	}
+
+	if i.flushQueues != nil {
+		i.flushQueues.Stop()
+		i.flushQueuesDone.Wait()
 	}
 
 	return nil

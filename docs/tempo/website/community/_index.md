@@ -1,14 +1,10 @@
 ---
 title: Community
-weight: 200
+weight: 500
 ---
 
-## Communicate
-
-- [Grafana Slack](https://slack.grafana.com/) #tempo channel
-- [Google Groups](https://groups.google.com/forum/#!forum/tempo-users)
-
-## Contribute
+# Contribute
+This page lists resources for developers who want to contribute to the Tempo software ecosystem.
 
 - [Governance](https://github.com/grafana/tempo/blob/master/GOVERNANCE.md)
 - [Contributing](https://github.com/grafana/tempo/blob/master/CONTRIBUTING.md)

@@ -20,9 +20,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/prometheus/client_golang/prometheus"
-
-	dto "github.com/prometheus/client_model/go"
 )
 
 type mockSharder struct {
@@ -222,7 +219,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 	rw := r.(*readerWriter)
 
-	combinedStart, err := GetCounterValue(metricCompactionObjectsCombined)
+	combinedStart, err := test.GetCounterValue(metricCompactionObjectsCombined)
 	assert.NoError(t, err)
 
 	// poll
@@ -246,26 +243,9 @@ func TestSameIDCompaction(t *testing.T) {
 	}
 	assert.Equal(t, blockCount-blocksPerCompaction, records)
 
-	combinedFinish, err := GetCounterValue(metricCompactionObjectsCombined)
+	combinedFinish, err := test.GetCounterValue(metricCompactionObjectsCombined)
 	assert.NoError(t, err)
 	assert.Equal(t, float64(1), combinedFinish-combinedStart)
-}
-
-func GetCounterValue(metric prometheus.Counter) (float64, error) {
-	var m = &dto.Metric{}
-	err := metric.Write(m)
-	if err != nil {
-		return 0, err
-	}
-	return m.Counter.GetValue(), nil
-}
-
-func GetCounterVecValue(metric *prometheus.CounterVec, label string) (float64, error) {
-	var m = &dto.Metric{}
-	if err := metric.WithLabelValues(label).Write(m); err != nil {
-		return 0, err
-	}
-	return m.Counter.GetValue(), nil
 }
 
 func TestCompactionUpdatesBlocklist(t *testing.T) {
@@ -369,13 +349,13 @@ func TestCompactionMetrics(t *testing.T) {
 	rw.pollBlocklist()
 
 	// Get starting metrics
-	processedStart, err := GetCounterVecValue(metricCompactionObjectsWritten, "0")
+	processedStart, err := test.GetCounterVecValue(metricCompactionObjectsWritten, "0")
 	assert.NoError(t, err)
 
-	blocksStart, err := GetCounterVecValue(metricCompactionBlocks, "0")
+	blocksStart, err := test.GetCounterVecValue(metricCompactionBlocks, "0")
 	assert.NoError(t, err)
 
-	bytesStart, err := GetCounterVecValue(metricCompactionBytesWritten, "0")
+	bytesStart, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 
 	// compact everything
@@ -383,15 +363,15 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check metric
-	processedEnd, err := GetCounterVecValue(metricCompactionObjectsWritten, "0")
+	processedEnd, err := test.GetCounterVecValue(metricCompactionObjectsWritten, "0")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(blockCount*recordCount), processedEnd-processedStart)
 
-	blocksEnd, err := GetCounterVecValue(metricCompactionBlocks, "0")
+	blocksEnd, err := test.GetCounterVecValue(metricCompactionBlocks, "0")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(blockCount), blocksEnd-blocksStart)
 
-	bytesEnd, err := GetCounterVecValue(metricCompactionBytesWritten, "0")
+	bytesEnd, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 	bytesPerRecord :=
 		4 /* total length */ +
