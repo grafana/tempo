@@ -5,7 +5,7 @@ weight: 200
 
 # Configuration
 
-This section explains the configuration options for Tempo as well as the details of what they impact.
+This section explains the configuration options for Tempo as well as the details of what they impact. It includes:
 
   - [Authentication/Server](#authenticationserver)
   - [Distributor](#distributor)

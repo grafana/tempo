@@ -3,12 +3,12 @@ title: Getting started
 weight: 100
 ---
 
-# Getting started
+# Getting started with Tempo
 
 Getting started with Tempo is easy.  For an application already instrumented for tracing, this guide can help quickly set it up with Tempo. If you're looking for a demo application to play around with Tempo, skip to the [examples](#examples-with-demo-app) section at the bottom of this page.
-## Setting up Tempo
 
-### Spin up Tempo backend
+> **Note:** The Grafana Cloud Agent is already set up to use Tempo. Refer to the [configuration](https://github.com/grafana/agent/blob/master/docs/configuration-reference.md#tempo_config) and [example](https://github.com/grafana/agent/blob/master/example/docker-compose/agent/config/agent.yaml) for details.
+### Step 1: Spin up Tempo backend
 
 First, set up a docker network as shown -
 
@@ -44,7 +44,7 @@ docker run -d --rm -p 6831:6831/udp --name tempo -v $(pwd)/tempo-local.yaml:/etc
     -config.file=/etc/tempo-local.yaml
 ```
 
-### Spin up Tempo Query container
+## Step 2: Spin up Tempo Query container
 
 Download the [configuration file](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-query.yaml) using the following command -
 
@@ -63,7 +63,7 @@ docker run -d --rm -p 16686:16686 -v $(pwd)/tempo-query.yaml:/etc/tempo-query.ya
 
 Make sure the UI is accessible at http://localhost:16686. If the UI looks similar to the Jaeger Query UI, that's because it is! Tempo Query uses the Jaeger Query framework together with a hashicorp go-grpc plugin to query the Tempo backend.
 
-### Send traces from the application to Tempo
+## Step 3: Send traces from the application to Tempo
 
 Depending on the client SDK used for instrumentation, the parameters to configure might be different. The following example shows configuration parameters for applications instrumented with the [Jaeger Golang Client](https://github.com/jaegertracing/jaeger-client-go).
 
@@ -76,29 +76,10 @@ JAEGER_AGENT_PORT=6831
 
 For a complete list of SDKs, visit the [OpenTelemetry Registry](https://opentelemetry.io/registry/?s=sdk).
 
-### Query for traces
+## Step 4: Query for traces
 
 You're all set to use Tempo! Make sure you're logging trace ids in your application logs, because Tempo can only retrieve a trace when queried with its ID.
 
 View the logs of the application, copy a traceID and paste it in the Query UI at http://localhost:16686 ("Search by Trace ID" - In the navbar at the top). Happy tracing!
 
 <p align="center"><img src="tempo-query-ui.png" alt="Tempo Query UI"></p>
-
-## Examples with demo app
-
-If you don't have an application to instrument at the moment, fret not! A number of [examples](https://github.com/grafana/tempo/tree/master/example) have been provided which show off various deployment and [configuration](../configuration) options.
-
-Some highlights:
-- [Configuration](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-s3-minio.yaml)
-  - Shows S3/minio config
-  - Shows how to start all receivers with their default endpoints
-  - Shows most configuration options
-- [Docker-compose](https://github.com/grafana/tempo/blob/master/example/docker-compose/docker-compose.yaml)
-  - Shows an extremely basic configuration with local storage.
-- [Microservices](https://github.com/grafana/tempo/tree/master/example/tk)
-  - This jsonnet based example shows a complete microservice based deployment.
-
-
-## Grafana Cloud Agent
-
-The Grafana Cloud Agent is already set up to use Tempo. Refer to the [configuration](https://github.com/grafana/agent/blob/master/docs/configuration-reference.md#tempo_config) and [example](https://github.com/grafana/agent/blob/master/example/docker-compose/agent/config/agent.yaml) for details.
