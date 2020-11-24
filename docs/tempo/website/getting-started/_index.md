@@ -3,8 +3,9 @@ title: Getting started
 weight: 100
 ---
 
-Getting started with Tempo is easy.  For an application already instrumented for tracing, this guide can help quickly set it up with Tempo. If you're looking for a demo application to play around with Tempo, skip to the [examples](#examples-with-demo-app) section at the bottom of this page.
+# Getting started
 
+Getting started with Tempo is easy.  For an application already instrumented for tracing, this guide can help quickly set it up with Tempo. If you're looking for a demo application to play around with Tempo, skip to the [examples](#examples-with-demo-app) section at the bottom of this page.
 ## Setting up Tempo
 
 ### Spin up Tempo backend
@@ -79,12 +80,9 @@ For a complete list of SDKs, visit the [OpenTelemetry Registry](https://opentele
 
 You're all set to use Tempo! Make sure you're logging trace ids in your application logs, because Tempo can only retrieve a trace when queried with its ID.
 
-View the logs of the application, copy a traceID and paste it in the Query UI at http://localhost:16686 ("Search by Trace ID" - In the navbar at the top).
+View the logs of the application, copy a traceID and paste it in the Query UI at http://localhost:16686 ("Search by Trace ID" - In the navbar at the top). Happy tracing!
 
 <p align="center"><img src="tempo-query-ui.png" alt="Tempo Query UI"></p>
-
-Happy tracing!
-
 
 ## Examples with demo app
 
