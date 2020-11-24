@@ -183,6 +183,6 @@ func BenchmarkCombineTracesIdentical(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		CombineTraces(b1, b1)
+		CombineTraces(b1, b2)
 	}
 }

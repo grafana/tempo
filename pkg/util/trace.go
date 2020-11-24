@@ -11,7 +11,7 @@ import (
 
 func CombineTraces(objA []byte, objB []byte) []byte {
 	// if the byte arrays are the same, we can return quickly
-	if bytes.Compare(objA, objB) == 0 {
+	if bytes.Equal(objA, objB) {
 		return objA
 	}
 
