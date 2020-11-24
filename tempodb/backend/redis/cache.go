@@ -13,11 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	typeBloom = "bloom"
-	typeIndex = "index"
-)
-
 type Config struct {
 	ClientConfig cache.RedisConfig `yaml:",inline"`
 
@@ -65,7 +60,7 @@ func (r *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantI
 }
 
 func (r *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
-	key := bloomKey(blockID, tenantID, typeBloom, shardNum)
+	key := bloomKey(blockID, tenantID, shardNum)
 	val := r.get(ctx, key)
 	if val != nil {
 		return val, nil
@@ -80,7 +75,7 @@ func (r *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID st
 }
 
 func (r *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	key := key(blockID, tenantID, typeIndex)
+	key := key(blockID, tenantID)
 	val := r.get(ctx, key)
 	if val != nil {
 		return val, nil
@@ -106,18 +101,18 @@ func (r *readerWriter) Shutdown() {
 // Writer
 func (r *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
 	for i, b := range bBloom {
-		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, typeBloom, i), b)
+		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, i), b)
 	}
-	r.set(ctx, key(meta.BlockID, meta.TenantID, typeIndex), bIndex)
+	r.set(ctx, key(meta.BlockID, meta.TenantID), bIndex)
 
 	return r.nextWriter.Write(ctx, meta, bBloom, bIndex, objectFilePath)
 }
 
 func (r *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	for i, b := range bBloom {
-		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, typeBloom, i), b)
+		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, i), b)
 	}
-	r.set(ctx, key(meta.BlockID, meta.TenantID, typeIndex), bIndex)
+	r.set(ctx, key(meta.BlockID, meta.TenantID), bIndex)
 
 	return r.nextWriter.WriteBlockMeta(ctx, tracker, meta, bBloom, bIndex)
 }
@@ -138,10 +133,10 @@ func (r *readerWriter) set(ctx context.Context, key string, val []byte) {
 	r.client.Store(ctx, []string{key}, [][]byte{val})
 }
 
-func key(blockID uuid.UUID, tenantID string, t string) string {
-	return blockID.String() + ":" + tenantID + ":" + t
+func key(blockID uuid.UUID, tenantID string) string {
+	return blockID.String() + ":" + tenantID + ":bloom"
 }
 
-func bloomKey(blockID uuid.UUID, tenantID string, t string, shardNum int) string {
-	return blockID.String() + ":" + tenantID + ":" + t + strconv.Itoa(shardNum)
+func bloomKey(blockID uuid.UUID, tenantID string, shardNum int) string {
+	return blockID.String() + ":" + tenantID + ":index" + strconv.Itoa(shardNum)
 }
