@@ -156,3 +156,33 @@ func TestCombineProtos(t *testing.T) {
 		assert.Equal(t, tt.expectedTotal, actualTotal)
 	}
 }
+
+func BenchmarkCombineTraces(b *testing.B) {
+	t1 := test.MakeTrace(10, []byte{0x01, 0x02})
+	t2 := test.MakeTrace(10, []byte{0x01, 0x03})
+
+	b1, err := proto.Marshal(t1)
+	assert.NoError(b, err)
+	b2, err := proto.Marshal(t2)
+	assert.NoError(b, err)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		CombineTraces(b1, b2)
+	}
+}
+
+func BenchmarkCombineTracesIdentical(b *testing.B) {
+	t1 := test.MakeTrace(10, []byte{0x01, 0x02})
+
+	b1, err := proto.Marshal(t1)
+	assert.NoError(b, err)
+
+	var b2 []byte
+	b2 = append(b2, b1...)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		CombineTraces(b1, b2)
+	}
+}
