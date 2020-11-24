@@ -51,7 +51,7 @@ func (f *ExclusiveQueues) Requeue(op util.Op) {
 	f.queues[flushQueueIndex].Enqueue(op)
 }
 
-// ClearKey unblocks the requested key.  This should be called only after a flush has been successful
+// Clear unblocks the requested op.  This should be called only after a flush has been successful
 func (f *ExclusiveQueues) Clear(op util.Op) {
 	f.activeKeys.Delete(op.Key())
 }
