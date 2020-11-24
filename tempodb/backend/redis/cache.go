@@ -134,9 +134,9 @@ func (r *readerWriter) set(ctx context.Context, key string, val []byte) {
 }
 
 func key(blockID uuid.UUID, tenantID string) string {
-	return blockID.String() + ":" + tenantID + ":bloom"
+	return blockID.String() + ":" + tenantID
 }
 
 func bloomKey(blockID uuid.UUID, tenantID string, shardNum int) string {
-	return blockID.String() + ":" + tenantID + ":index" + strconv.Itoa(shardNum)
+	return blockID.String() + ":" + tenantID + strconv.Itoa(shardNum)
 }
