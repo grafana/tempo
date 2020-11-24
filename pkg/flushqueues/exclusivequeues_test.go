@@ -60,7 +60,7 @@ func TestExclusiveQueues(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 0, int(length))
 
-	q.ClearKey(op.key)
+	q.Clear(op)
 	length, err = test.GetGaugeValue(gauge)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, int(length))

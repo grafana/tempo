@@ -136,7 +136,7 @@ func (i *Ingester) flushLoop(j int) {
 			continue
 		}
 
-		i.flushQueues.ClearKey(op.Key())
+		i.flushQueues.Clear(op)
 	}
 }
 

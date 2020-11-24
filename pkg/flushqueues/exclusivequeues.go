@@ -51,8 +51,8 @@ func (f *ExclusiveQueues) Requeue(op util.Op) {
 }
 
 // ClearKey unblocks the requested key.  This should be called only after a flush has been successful
-func (f *ExclusiveQueues) ClearKey(key string) {
-	f.activeKeys.Delete(key)
+func (f *ExclusiveQueues) Clear(op util.Op) {
+	f.activeKeys.Delete(op.Key())
 }
 
 // Stop closes all queues
