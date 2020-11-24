@@ -5,11 +5,12 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/uber-go/atomic"
 )
 
 type ExclusiveQueues struct {
 	queues     []*util.PriorityQueue
-	index      int
+	index      *atomic.Int32
 	activeKeys sync.Map
 }
 
@@ -17,6 +18,7 @@ type ExclusiveQueues struct {
 func New(queues int, metric prometheus.Gauge) *ExclusiveQueues {
 	f := &ExclusiveQueues{
 		queues: make([]*util.PriorityQueue, queues),
+		index:  atomic.NewInt32(0),
 	}
 
 	for j := 0; j < queues; j++ {
@@ -45,8 +47,7 @@ func (f *ExclusiveQueues) Dequeue(q int) util.Op {
 
 // Requeue adds an op that is presumed to already be covered by activeKeys
 func (f *ExclusiveQueues) Requeue(op util.Op) {
-	f.index++
-	flushQueueIndex := f.index % len(f.queues)
+	flushQueueIndex := int(f.index.Inc()) % len(f.queues)
 	f.queues[flushQueueIndex].Enqueue(op)
 }
 
