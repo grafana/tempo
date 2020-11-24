@@ -68,9 +68,9 @@ compactor:
 ```
 
 ## [Storage](https://github.com/grafana/tempo/blob/master/tempodb/config.go)
-The storage block is used to configure TempoDB.  It supports S3, GCS, local file system, and optionally can use memcached for increased query performance.  
+The storage block is used to configure TempoDB. It supports S3, GCS, local file system, and optionally can use memcached for increased query performance.  
 
-The example below shows common options.  For platform specific options see the following:
+The following example shows common options.  For platform-specific options refer to the following:
 * [S3](s3/)
 
 ```
