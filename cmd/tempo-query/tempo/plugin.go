@@ -38,25 +38,27 @@ func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]ja
 	return nil, nil
 }
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
-	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
-
-	idBytes, _ := util.HexStringToTraceID(hexID)
-	req := &tempopb.TraceByIDRequest{
-		TraceID: idBytes,
-	}
-
-	resp, err := b.client.FindTraceByID(ctx, req)
-
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "GetTrace")
 	defer span.Finish()
 
 	if tracer := opentracing.GlobalTracer(); tracer != nil {
 		ctx = derivedCtx
 	}
+
+	// create TraceByIDRequest
+	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
+	idBytes, _ := util.HexStringToTraceID(hexID)
+	req := &tempopb.TraceByIDRequest{
+		TraceID: idBytes,
+	}
+
+	// Call querier
+	resp, err := b.client.FindTraceByID(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("error reading response from tempo: %w", err)
 	}
 
+	// convert from otlp to jaeger format
 	span.LogFields(ot_log.String("msg", "otlp to Jaeger"))
 	otTrace := ot_pdata.TracesFromOtlp(resp.Trace.Batches)
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
