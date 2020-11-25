@@ -42,7 +42,10 @@ func main() {
 	cfg := &tempo.Config{}
 	cfg.InitFromViper(v)
 
-	backend := tempo.New(cfg)
+	backend, err := tempo.New(cfg)
+	if err != nil {
+		logger.Error("failed to connect to tempo", "error", err)
+	}
 	grpc.Serve(&plugin{backend: backend})
 }
 

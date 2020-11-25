@@ -3,31 +3,34 @@ package tempo
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"net/http"
+	"github.com/grafana/tempo/pkg/util"
+	"google.golang.org/grpc"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/weaveworks/common/user"
-	"google.golang.org/grpc/metadata"
-	"github.com/golang/protobuf/proto"
-
 	jaeger "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
+	"google.golang.org/grpc/metadata"
 
 	ot_pdata "go.opentelemetry.io/collector/consumer/pdata"
 	ot_jaeger "go.opentelemetry.io/collector/translator/trace/jaeger"
 )
 
 type Backend struct {
-	tempoEndpoint string
+	client tempopb.QuerierClient
 }
 
-func New(cfg *Config) *Backend {
-	return &Backend{
-		tempoEndpoint: "http://" + cfg.Backend + "/api/traces/",
+func New(cfg *Config) (*Backend, error) {
+	conn, err := grpc.Dial(cfg.Backend, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
 	}
+	client := tempopb.NewQuerierClient(conn)
+
+	return &Backend{
+		client: client,
+	}, nil
 }
 
 func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]jaeger.DependencyLink, error) {
@@ -35,42 +38,49 @@ func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]ja
 }
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
-	req, err := http.NewRequestWithContext(ctx, "GET", b.tempoEndpoint+hexID, nil)
-	if err != nil {
-		return nil, err
+	//req, err := http.NewRequestWithContext(ctx, "GET", b.tempoEndpoint+hexID, nil)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	//// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers
+	//// so we are going to extract the tenant id from the header, if it exists and use it
+	//tenantID, found := extractBearerToken(ctx)
+	//if found {
+	//	req.Header.Set(user.OrgIDHeaderName, tenantID)
+	//}
+
+	//resp, err := http.DefaultClient.Do(req)
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed get to tempo %w", err)
+	//}
+	//defer resp.Body.Close()
+	//
+	//if resp.StatusCode == http.StatusNotFound {
+	//	return nil, jaeger_spanstore.ErrTraceNotFound
+	//}
+	//
+	//body, err := ioutil.ReadAll(resp.Body)
+	//if err != nil {
+	//	return nil, fmt.Errorf("error reading response from tempo: %w", err)
+	//}
+	//out := &tempopb.Trace{}
+	//err = proto.Unmarshal(body, out)
+	//if err != nil {
+	//	return nil, fmt.Errorf("failed to unmarshal trace proto, err: %w. Tempo response body: %s", err, string(body))
+	//}
+
+	idBytes, _ := util.HexStringToTraceID(hexID)
+	req := &tempopb.TraceByIDRequest{
+		TraceID: idBytes,
 	}
 
-	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers
-	// so we are going to extract the tenant id from the header, if it exists and use it
-	tenantID, found := extractBearerToken(ctx)
-	if found {
-		req.Header.Set(user.OrgIDHeaderName, tenantID)
-	}
-
-	// Set content type to grpc
-	req.Header.Set("Content-type", "application/grpc")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed get to tempo %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, jaeger_spanstore.ErrTraceNotFound
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
+	resp, err := b.client.FindTraceByID(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("error reading response from tempo: %w", err)
 	}
-	out := &tempopb.Trace{}
-	err = proto.Unmarshal(body, out)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal trace proto, err: %w. Tempo response body: %s", err, string(body))
-	}
 
-	otTrace := ot_pdata.TracesFromOtlp(out.Batches)
+	otTrace := ot_pdata.TracesFromOtlp(resp.Trace.Batches)
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
 
 	if err != nil {

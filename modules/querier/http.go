@@ -3,6 +3,8 @@ package querier
 import (
 	"context"
 	"fmt"
+	cortex_util "github.com/cortexproject/cortex/pkg/util"
+	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/proto"
 	"net/http"
 	"time"
@@ -30,6 +32,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// todo: this logic needs to move into FindTraceByID
 	isSharded := false
 	blockStart := r.URL.Query().Get("blockStart")
 	blockEnd := r.URL.Query().Get("blockStart")
@@ -62,8 +65,10 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get("Content-type") == "application/grpc" {
-		b, err := proto.Marshal(resp.Trace)
+	if r.Header.Get("Tempo-query-content-type") == "application/grpc" {
+		level.Info(cortex_util.Logger).Log("msg", "received content type application/grpc")
+		trace := &tempopb.Trace{Batches: resp.Trace.Batches}
+		b, err := proto.Marshal(trace)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

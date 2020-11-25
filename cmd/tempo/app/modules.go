@@ -2,12 +2,11 @@ package app
 
 import (
 	"fmt"
-	frontend2 "github.com/grafana/tempo/modules/frontend"
 	"net/http"
 	"os"
 
 	"github.com/cortexproject/cortex/pkg/cortex"
-	"github.com/cortexproject/cortex/pkg/querier/frontend"
+	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
@@ -15,6 +14,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/google/uuid"
+	frontend "github.com/grafana/tempo/modules/frontend"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
@@ -120,7 +120,7 @@ func (t *App) initIngester() (services.Service, error) {
 	t.ingester = ingester
 
 	tempopb.RegisterPusherServer(t.server.GRPC, t.ingester)
-	tempopb.RegisterQuerierServer(t.server.GRPC, t.ingester)
+	tempopb.RegisterIngesterServer(t.server.GRPC, t.ingester)
 	t.server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
 	return t.ingester, nil
 }
@@ -138,26 +138,27 @@ func (t *App) initQuerier() (services.Service, error) {
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
+	tempopb.RegisterQuerierServer(t.server.GRPC, t.querier)
+
 	return t.querier, nil
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
 	var err error
-	// frontend has its own roundTripper. f.roundTripper is f
-	t.frontend, err = frontend.New(t.cfg.Frontend.Config, util.Logger, prometheus.DefaultRegisterer)
+	t.frontend, err = cortex_frontend.New(t.cfg.Frontend.Config, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
 
 	// custom tripperware that splits requests
-	tripperware, err := frontend2.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
+	tripperware, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
 	// tripperware will be called before f.roundTripper (which calls roundtripgrpc)
 	t.frontend.Wrap(tripperware)
 
-	frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
+	cortex_frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
 	// register at a different endpoint for now
 	t.server.HTTP.Handle("/api/traces/frontend/{traceID}", t.frontend.Handler())
 
@@ -236,9 +237,9 @@ func (t *App) setupModuleManager() error {
 		Ring:        {Server, MemberlistKV},
 		Distributor: {Ring, Server, Overrides},
 		Ingester:    {Store, Server, Overrides, MemberlistKV},
-		Querier:     {Store, Ring, Frontend},
+		Querier:     {Store, Server},
 		Compactor:   {Store, Server, MemberlistKV},
-		All:         {Compactor, Querier, Ingester, Distributor, Frontend},
+		All:         {Compactor, Querier, Ingester, Distributor},
 	}
 
 	for mod, targets := range deps {
