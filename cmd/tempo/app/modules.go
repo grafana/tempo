@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/cortexproject/cortex/pkg/cortex"
-	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
@@ -14,7 +13,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/google/uuid"
-	frontend "github.com/grafana/tempo/modules/frontend"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
@@ -37,7 +35,6 @@ const (
 	Distributor  string = "distributor"
 	Ingester     string = "ingester"
 	Querier      string = "querier"
-	Frontend string = "frontend"
 	Compactor    string = "compactor"
 	Store        string = "store"
 	MemberlistKV string = "memberlist-kv"
@@ -143,28 +140,6 @@ func (t *App) initQuerier() (services.Service, error) {
 	return t.querier, nil
 }
 
-func (t *App) initQueryFrontend() (services.Service, error) {
-	var err error
-	t.frontend, err = cortex_frontend.New(t.cfg.Frontend.Config, util.Logger, prometheus.DefaultRegisterer)
-	if err != nil {
-		return nil, err
-	}
-
-	// custom tripperware that splits requests
-	tripperware, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
-	if err != nil {
-		return nil, err
-	}
-	// tripperware will be called before f.roundTripper (which calls roundtripgrpc)
-	t.frontend.Wrap(tripperware)
-
-	cortex_frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
-	// register at a different endpoint for now
-	t.server.HTTP.Handle("/api/traces/frontend/{traceID}", t.frontend.Handler())
-
-	return nil, nil
-}
-
 func (t *App) initCompactor() (services.Service, error) {
 	compactor, err := compactor.New(t.cfg.Compactor, t.store)
 	if err != nil {
@@ -223,7 +198,6 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Distributor, t.initDistributor)
 	mm.RegisterModule(Ingester, t.initIngester)
 	mm.RegisterModule(Querier, t.initQuerier)
-	mm.RegisterModule(Frontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
 	mm.RegisterModule(All, nil)
@@ -233,7 +207,6 @@ func (t *App) setupModuleManager() error {
 		// Overrides:    nil,
 		// Store:        nil,
 		// MemberlistKV: nil,
-		Frontend:    {Server},
 		Ring:        {Server, MemberlistKV},
 		Distributor: {Ring, Server, Overrides},
 		Ingester:    {Store, Server, Overrides, MemberlistKV},

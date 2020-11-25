@@ -5,8 +5,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/cortexproject/cortex/pkg/querier/frontend"
-	frontend2 "github.com/grafana/tempo/modules/frontend"
 	"net/http"
 
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -46,7 +44,6 @@ type Config struct {
 	Distributor    distributor.Config       `yaml:"distributor,omitempty"`
 	IngesterClient ingester_client.Config   `yaml:"ingester_client,omitempty"`
 	Querier        querier.Config           `yaml:"querier,omitempty"`
-	Frontend       frontend2.FrontendConfig `yaml:"frontend,omitempty"`
 	Compactor      compactor.Config         `yaml:"compactor,omitempty"`
 	Ingester       ingester.Config          `yaml:"ingester,omitempty"`
 	StorageConfig  storage.Config           `yaml:"storage,omitempty"`
@@ -81,7 +78,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Distributor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "distributor"), f)
 	c.Ingester.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "ingester"), f)
 	c.Querier.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "querier"), f)
-	c.Frontend.ApplyDefaults()
 	c.Compactor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "storage"), f)
 
@@ -114,7 +110,6 @@ type App struct {
 	overrides    *overrides.Overrides
 	distributor  *distributor.Distributor
 	querier      *querier.Querier
-	frontend     *frontend.Frontend
 	compactor    *compactor.Compactor
 	ingester     *ingester.Ingester
 	store        storage.Store
