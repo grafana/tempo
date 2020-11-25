@@ -143,5 +143,5 @@ func key(blockID uuid.UUID, tenantID string) string {
 }
 
 func bloomKey(blockID uuid.UUID, tenantID string, shardNum int) string {
-	return blockID.String() + ":" + tenantID + typeBloom + strconv.Itoa(shardNum)
+	return blockID.String() + ":" + tenantID + ":" + typeBloom + strconv.Itoa(shardNum)
 }
