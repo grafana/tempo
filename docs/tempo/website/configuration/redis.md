@@ -3,6 +3,9 @@ title: Redis
 ---
 
 # Redis Configuration
+
+> Note: Redis support is experimental
+
 Redis caching is configured in the storage block.
 
 ```
