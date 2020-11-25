@@ -13,6 +13,11 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	typeBloom = "bloom"
+	typeIndex = "index"
+)
+
 type Config struct {
 	ClientConfig cache.RedisConfig `yaml:",inline"`
 
@@ -134,9 +139,9 @@ func (r *readerWriter) set(ctx context.Context, key string, val []byte) {
 }
 
 func key(blockID uuid.UUID, tenantID string) string {
-	return blockID.String() + ":" + tenantID
+	return blockID.String() + ":" + tenantID + ":" + typeIndex
 }
 
 func bloomKey(blockID uuid.UUID, tenantID string, shardNum int) string {
-	return blockID.String() + ":" + tenantID + strconv.Itoa(shardNum)
+	return blockID.String() + ":" + tenantID + typeBloom + strconv.Itoa(shardNum)
 }

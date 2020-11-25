@@ -90,8 +90,6 @@ storage:
         redis:                                   # optional redis configuration 
             endpoint: redis
             timeout: 500ms
-            db: 0
-            expiration: 0s
         pool:                                    # the worker pool is used primarily when finding traces by id, but is also used by other
             max_workers: 50                      # total number of workers pulling jobs from the queue
             queue_depth: 2000                    # length of job queue
