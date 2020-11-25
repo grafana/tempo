@@ -1,4 +1,4 @@
-package querier
+package frontend
 
 import (
 	"context"
@@ -118,7 +118,7 @@ func ShardingWare(shardNum int, logger log.Logger, registerer prometheus.Registe
 type shardQuery struct {
 	next     Handler
 	shardNum int
-	logger log.Logger
+	logger   log.Logger
 	// Metrics.
 	splitByCounter *prometheus.CounterVec
 }

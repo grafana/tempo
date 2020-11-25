@@ -18,6 +18,7 @@ message TraceByIDRequest {
   bytes traceID = 1;
   bytes blockStart = 2;
   bytes blockEnd = 3;
+  bool queryIngesters = 4;
 }
 
 message TraceByIDResponse {

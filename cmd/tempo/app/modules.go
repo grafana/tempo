@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	frontend2 "github.com/grafana/tempo/modules/frontend"
 	"net/http"
 	"os"
 
@@ -15,8 +16,8 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/weaveworks/common/server"
 	"github.com/weaveworks/common/middleware"
+	"github.com/weaveworks/common/server"
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -149,7 +150,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 
 	// custom tripperware that splits requests
-	tripperware, err := querier.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
+	tripperware, err := frontend2.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}

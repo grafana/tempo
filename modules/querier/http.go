@@ -3,6 +3,7 @@ package querier
 import (
 	"context"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"net/http"
 	"time"
 
@@ -42,15 +43,15 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := &tempopb.TraceByIDRequest{
+	tidReq := &tempopb.TraceByIDRequest{
 		TraceID: byteID,
 	}
 	if isSharded {
-		req.BlockEnd = []byte(blockEnd)
-		req.BlockStart = []byte(blockStart)
+		tidReq.BlockEnd = []byte(blockEnd)
+		tidReq.BlockStart = []byte(blockStart)
 	}
 
-	resp, err := q.FindTraceByID(ctx, req)
+	resp, err := q.FindTraceByID(ctx, tidReq)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -59,6 +60,19 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	if resp.Trace == nil || len(resp.Trace.Batches) == 0 {
 		http.Error(w, fmt.Sprintf("Unable to find %s", traceID), http.StatusNotFound)
 		return
+	}
+
+	if r.Header.Get("Content-type") == "application/grpc" {
+		b, err := proto.Marshal(resp.Trace)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, err = w.Write(b)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	marshaller := &jsonpb.Marshaler{}
