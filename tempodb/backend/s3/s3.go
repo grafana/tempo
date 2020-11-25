@@ -32,24 +32,54 @@ type readerWriter struct {
 	core   *minio.Core
 }
 
+type overrideSignatureVersion struct {
+	useV2    bool
+	upstream credentials.Provider
+}
+
+func (s *overrideSignatureVersion) Retrieve() (credentials.Value, error) {
+	v, err := s.upstream.Retrieve()
+	if err != nil {
+		return v, err
+	}
+
+	if s.useV2 && !v.SignerType.IsAnonymous() {
+		v.SignerType = credentials.SignatureV2
+	}
+
+	return v, nil
+}
+
+func (s *overrideSignatureVersion) IsExpired() bool {
+	return s.upstream.IsExpired()
+}
+
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	l := log_util.Logger
+
+	wrapCredentialsProvider := func(p credentials.Provider) credentials.Provider {
+		if cfg.SignatureV2 {
+			return &overrideSignatureVersion{useV2: cfg.SignatureV2, upstream: p}
+		}
+		return p
+	}
+
 	creds := credentials.NewChainCredentials([]credentials.Provider{
-		&credentials.EnvAWS{},
-		&credentials.Static{
+		wrapCredentialsProvider(&credentials.EnvAWS{}),
+		wrapCredentialsProvider(&credentials.Static{
 			Value: credentials.Value{
 				AccessKeyID:     cfg.AccessKey,
 				SecretAccessKey: cfg.SecretKey,
 			},
-		},
-		&credentials.EnvMinio{},
-		&credentials.FileAWSCredentials{},
-		&credentials.FileMinioClient{},
-		&credentials.IAM{
+		}),
+		wrapCredentialsProvider(&credentials.EnvMinio{}),
+		wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
+		wrapCredentialsProvider(&credentials.FileMinioClient{}),
+		wrapCredentialsProvider(&credentials.IAM{
 			Client: &http.Client{
 				Transport: http.DefaultTransport,
 			},
-		},
+		}),
 	})
 	opts := &minio.Options{
 		Secure: !cfg.Insecure,

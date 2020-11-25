@@ -369,7 +369,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"distributor\"}[$__interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -378,7 +378,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"})",
+       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"distributor\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"distributor\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -469,7 +469,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"})",
+       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"distributor\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -478,7 +478,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"} > 0)",
+       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"distributor\"} > 0)",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -565,7 +565,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/querier\"})",
+       "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -619,7 +619,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Querier",
+   "title": "Distributor",
    "titleSize": "h6"
   },
   {
@@ -967,6 +967,305 @@
      "steppedLine": false,
      "targets": [
       {
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"}[$__interval]))",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{pod}}",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"})",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "CPU",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 11,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+      {
+       "alias": "limit",
+       "color": "#E02F44",
+       "fill": 0
+      }
+     ],
+     "spaceLength": 10,
+     "span": 4,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"})",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{pod}}",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"querier\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Memory (workingset)",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "bytes",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 12,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 4,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/querier\"})",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{instance}}",
+       "legendLink": null,
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Memory (go heap inuse)",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "bytes",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Querier",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 13,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+      {
+       "alias": "limit",
+       "color": "#E02F44",
+       "fill": 0
+      }
+     ],
+     "spaceLength": 10,
+     "span": 4,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
        "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"compactor\"}[$__interval]))",
        "format": "time_series",
        "interval": "1m",
@@ -1034,7 +1333,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 11,
+     "id": 14,
      "legend": {
       "avg": false,
       "current": false,
@@ -1134,7 +1433,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 12,
+     "id": 15,
      "legend": {
       "avg": false,
       "current": false,

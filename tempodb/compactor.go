@@ -21,11 +21,20 @@ import (
 )
 
 var (
-	metricCompactionDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	metricCompactionBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
-		Name:      "compaction_duration_seconds",
-		Help:      "Records the amount of time to compact a set of blocks.",
-		Buckets:   prometheus.ExponentialBuckets(30, 2, 10),
+		Name:      "compaction_blocks_total",
+		Help:      "Total number of blocks compacted.",
+	}, []string{"level"})
+	metricCompactionObjectsWritten = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_objects_written",
+		Help:      "Total number of objects written to backend during compaction.",
+	}, []string{"level"})
+	metricCompactionBytesWritten = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_bytes_written",
+		Help:      "Total number of bytes written to backend during compaction.",
 	}, []string{"level"})
 	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
@@ -65,7 +74,7 @@ func (rw *readerWriter) doCompaction() {
 	tenantID := tenants[rand.Intn(len(tenants))].(string)
 	blocklist := rw.blocklist(tenantID)
 
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects)
+	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects, defaultMinInputBlocks, defaultMaxInputBlocks)
 
 	start := time.Now()
 
@@ -108,12 +117,11 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	}
 
 	compactionLevel := compactionLevelForBlocks(blockMetas)
+	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
 	nextCompactionLevel := compactionLevel + 1
 
-	start := time.Now()
 	defer func() {
 		level.Info(rw.logger).Log("msg", "compaction complete")
-		metricCompactionDuration.WithLabelValues(strconv.Itoa(int(compactionLevel))).Observe(time.Since(start).Seconds())
 	}()
 
 	var err error
@@ -219,6 +227,8 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	// mark old blocks compacted so they don't show up in polling
 	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
 
+	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
+
 	return nil
 }
 
@@ -227,6 +237,11 @@ func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 	if err != nil {
 		return nil, err
 	}
+
+	compactionLevelLabel := strconv.Itoa(int(block.BlockMeta().CompactionLevel - 1))
+	metricCompactionObjectsWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferedObjects()))
+	metricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferLength()))
+
 	block.ResetBuffer()
 
 	return tracker, nil

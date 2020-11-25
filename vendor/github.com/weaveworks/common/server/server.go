@@ -349,7 +349,9 @@ func New(cfg Config) (*Server, error) {
 
 // RegisterInstrumentation on the given router.
 func RegisterInstrumentation(router *mux.Router) {
-	router.Handle("/metrics", promhttp.Handler())
+	router.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+	}))
 	router.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
 }
 

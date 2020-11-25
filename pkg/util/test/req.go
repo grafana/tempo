@@ -57,3 +57,15 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 
 	return trace
 }
+
+func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempopb.Trace {
+	trace := &tempopb.Trace{
+		Batches: make([]*opentelemetry_proto_trace_v1.ResourceSpans, 0),
+	}
+
+	for i := 0; i < requests; i++ {
+		trace.Batches = append(trace.Batches, MakeRequest(spansEach, traceID).Batch)
+	}
+
+	return trace
+}

@@ -52,8 +52,8 @@ func (i *Ingester) Flush() {
 	}
 }
 
-// FlushHandler triggers a flush of all in memory chunks.  Mainly used for
-// local testing.
+// FlushHandler calls sweepUsers(true) which will force push all traces into the WAL and force
+//  mark all head blocks as ready to flush.
 func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 	i.sweepUsers(true)
 	w.WriteHeader(http.StatusNoContent)
@@ -104,9 +104,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 
 	// see if any complete blocks are ready to be flushed
 	if instance.GetBlockToBeFlushed() != nil {
-		i.flushQueueIndex++
-		flushQueueIndex := i.flushQueueIndex % i.cfg.ConcurrentFlushes
-		i.flushQueues[flushQueueIndex].Enqueue(&flushOp{
+		i.flushQueues.Enqueue(&flushOp{
 			time.Now().Unix(),
 			instance.instanceID,
 		})
@@ -120,23 +118,25 @@ func (i *Ingester) flushLoop(j int) {
 	}()
 
 	for {
-		o := i.flushQueues[j].Dequeue()
+		o := i.flushQueues.Dequeue(j)
 		if o == nil {
 			return
 		}
 		op := o.(*flushOp)
 
-		level.Debug(util.Logger).Log("msg", "flushing stream", "userid", op.userID, "fp")
+		level.Debug(util.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
 
 		err := i.flushUserTraces(op.userID)
 		if err != nil {
 			level.Error(util.WithUserID(op.userID, util.Logger)).Log("msg", "failed to flush user", "err", err)
+
+			// re-queue failed flush
+			op.from += int64(flushBackoff)
+			i.flushQueues.Requeue(op)
+			continue
 		}
 
-		if err != nil {
-			op.from += int64(flushBackoff)
-			i.flushQueues[j].Enqueue(op)
-		}
+		i.flushQueues.Clear(op)
 	}
 }
 

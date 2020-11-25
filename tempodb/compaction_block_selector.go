@@ -14,7 +14,9 @@ type CompactionBlockSelector interface {
 }
 
 const (
-	activeWindowDuration = 24 * time.Hour
+	activeWindowDuration  = 24 * time.Hour
+	defaultMinInputBlocks = 2
+	defaultMaxInputBlocks = 8
 )
 
 /*************************** Simple Block Selector **************************/
@@ -57,15 +59,19 @@ func (sbs *simpleBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, string
 
 type timeWindowBlockSelector struct {
 	blocklist            []*encoding.BlockMeta
+	MinInputBlocks       int
+	MaxInputBlocks       int
 	MaxCompactionRange   time.Duration // Size of the time window - say 6 hours
 	MaxCompactionObjects int           // maximum size of compacted objects
 }
 
 var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 
-func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int) CompactionBlockSelector {
+func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, minInputBlocks int, maxInputBlocks int) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
 		blocklist:            append([]*encoding.BlockMeta(nil), blocklist...),
+		MinInputBlocks:       minInputBlocks,
+		MaxInputBlocks:       maxInputBlocks,
 		MaxCompactionRange:   maxCompactionRange,
 		MaxCompactionObjects: maxCompactionObjects,
 	}
@@ -126,7 +132,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 		}
 
 		// did we find enough blocks?
-		if len(windowBlocks) >= inputBlocks {
+		if len(windowBlocks) >= twbs.MinInputBlocks {
 			var compactBlocks []*encoding.BlockMeta
 
 			// blocks in the currently active window
@@ -140,29 +146,31 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 			// the active window should be compacted by level
 			if activeWindow <= blockWindow {
 				// search forward for inputBlocks in a row that have the same compaction level
-				for i := 0; i+inputBlocks-1 < len(windowBlocks); i++ {
-					if windowBlocks[i].CompactionLevel == windowBlocks[i+inputBlocks-1].CompactionLevel {
-						compactBlocks = windowBlocks[i : i+inputBlocks]
+				// Gather as many as possible while staying within limits
+				for i := 0; i <= len(windowBlocks)-twbs.MinInputBlocks+1; i++ {
+					for j := i + 1; j <= len(windowBlocks)-1 &&
+						windowBlocks[i].CompactionLevel == windowBlocks[j].CompactionLevel &&
+						len(compactBlocks)+1 <= twbs.MaxInputBlocks &&
+						totalObjects(compactBlocks)+windowBlocks[j].TotalObjects <= twbs.MaxCompactionObjects; j++ {
+						compactBlocks = windowBlocks[i : j+1]
+					}
+					if len(compactBlocks) > 0 {
+						// Found a stripe of blocks
 						break
 					}
 				}
 
 				compact = false
-				if len(compactBlocks) > 0 {
+				if len(compactBlocks) >= twbs.MinInputBlocks {
 					compact = true
 					hashString = fmt.Sprintf("%v-%v-%v", compactBlocks[0].TenantID, compactBlocks[0].CompactionLevel, currentWindow)
 				}
 			} else { // all other windows will be compacted using their two smallest blocks
-				compactBlocks = windowBlocks[:inputBlocks]
+				compactBlocks = windowBlocks[:twbs.MinInputBlocks]
 				hashString = fmt.Sprintf("%v-%v", compactBlocks[0].TenantID, currentWindow)
 			}
 
-			// are they small enough
-			totalObjects := 0
-			for _, block := range compactBlocks {
-				totalObjects += block.TotalObjects
-			}
-			if totalObjects > twbs.MaxCompactionObjects {
+			if totalObjects(compactBlocks) > twbs.MaxCompactionObjects {
 				compact = false
 			}
 
@@ -189,6 +197,14 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 		twbs.blocklist = twbs.blocklist[cursor:]
 	}
 	return nil, ""
+}
+
+func totalObjects(blocks []*encoding.BlockMeta) int {
+	totalObjects := 0
+	for _, b := range blocks {
+		totalObjects += b.TotalObjects
+	}
+	return totalObjects
 }
 
 func (twbs *timeWindowBlockSelector) windowForBlock(meta *encoding.BlockMeta) int64 {

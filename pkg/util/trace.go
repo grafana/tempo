@@ -1,7 +1,7 @@
 package util
 
 import (
-	"hash/fnv"
+	"bytes"
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
@@ -11,14 +11,7 @@ import (
 
 func CombineTraces(objA []byte, objB []byte) []byte {
 	// if the byte arrays are the same, we can return quickly
-	hasher := fnv.New32a()
-
-	_, _ = hasher.Write(objA)
-	hashA := hasher.Sum32()
-	hasher.Reset()
-	_, _ = hasher.Write(objB)
-	hashB := hasher.Sum32()
-	if hashA == hashB {
+	if bytes.Equal(objA, objB) {
 		return objA
 	}
 
@@ -51,7 +44,7 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 		return bytes
 	}
 
-	traceComplete := CombineTraceProtos(traceA, traceB)
+	traceComplete, _, _, _ := CombineTraceProtos(traceA, traceB)
 
 	bytes, err := proto.Marshal(traceComplete)
 	if err != nil {
@@ -62,20 +55,29 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 }
 
 // CombineTraceProtos combines two trace protos into one.  Note that it is destructive.
-//  All spans are combined into traceA.
-func CombineTraceProtos(traceA, traceB *tempopb.Trace) *tempopb.Trace {
+//  All spans are combined into traceA.  spanCountA, B, and Total are returned for
+//  logging purposes.
+func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int, int) {
+	// if one or the other is nil just return 0 for the one that's nil and -1 for the other.  this will be a clear indication this
+	// code path was taken without unnecessarily counting spans
 	if traceA == nil {
-		return traceB
+		return traceB, 0, -1, -1
 	}
 
 	if traceB == nil {
-		return traceA
+		return traceA, -1, 0, -1
 	}
+
+	spanCountA := 0
+	spanCountB := 0
+	spanCountTotal := 0
 
 	spansInA := make(map[uint32]struct{})
 	for _, batchA := range traceA.Batches {
 		for _, ilsA := range batchA.InstrumentationLibrarySpans {
 			for _, spanA := range ilsA.Spans {
+				spanCountA++
+				spanCountTotal++
 				spansInA[TokenForTraceID(spanA.SpanId)] = struct{}{}
 			}
 		}
@@ -88,6 +90,7 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) *tempopb.Trace {
 		for _, ilsB := range batchB.InstrumentationLibrarySpans {
 			notFoundSpans := ilsB.Spans[:0]
 			for _, spanB := range ilsB.Spans {
+				spanCountB++
 				// if found in A, remove from the batch
 				_, ok := spansInA[TokenForTraceID(spanB.SpanId)]
 				if !ok {
@@ -96,6 +99,7 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) *tempopb.Trace {
 			}
 
 			if len(notFoundSpans) > 0 {
+				spanCountTotal += len(notFoundSpans)
 				ilsB.Spans = notFoundSpans
 				notFoundILS = append(notFoundILS, ilsB)
 			}
@@ -108,5 +112,5 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) *tempopb.Trace {
 		}
 	}
 
-	return traceA
+	return traceA, spanCountA, spanCountB, spanCountTotal
 }
