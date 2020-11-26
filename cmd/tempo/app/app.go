@@ -40,15 +40,15 @@ type Config struct {
 	AuthEnabled bool   `yaml:"auth_enabled,omitempty"`
 	HTTPPrefix  string `yaml:"http_prefix"`
 
-	Server         server.Config            `yaml:"server,omitempty"`
-	Distributor    distributor.Config       `yaml:"distributor,omitempty"`
-	IngesterClient ingester_client.Config   `yaml:"ingester_client,omitempty"`
-	Querier        querier.Config           `yaml:"querier,omitempty"`
-	Compactor      compactor.Config         `yaml:"compactor,omitempty"`
-	Ingester       ingester.Config          `yaml:"ingester,omitempty"`
-	StorageConfig  storage.Config           `yaml:"storage,omitempty"`
-	LimitsConfig   overrides.Limits         `yaml:"overrides,omitempty"`
-	MemberlistKV   memberlist.KVConfig      `yaml:"memberlist,omitempty"`
+	Server         server.Config          `yaml:"server,omitempty"`
+	Distributor    distributor.Config     `yaml:"distributor,omitempty"`
+	IngesterClient ingester_client.Config `yaml:"ingester_client,omitempty"`
+	Querier        querier.Config         `yaml:"querier,omitempty"`
+	Compactor      compactor.Config       `yaml:"compactor,omitempty"`
+	Ingester       ingester.Config        `yaml:"ingester,omitempty"`
+	StorageConfig  storage.Config         `yaml:"storage,omitempty"`
+	LimitsConfig   overrides.Limits       `yaml:"overrides,omitempty"`
+	MemberlistKV   memberlist.KVConfig    `yaml:"memberlist,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers flag.

@@ -3,9 +3,6 @@ package querier
 import (
 	"context"
 	"fmt"
-	cortex_util "github.com/cortexproject/cortex/pkg/util"
-	"github.com/go-kit/kit/log/level"
-	"github.com/golang/protobuf/proto"
 	"net/http"
 	"time"
 
@@ -32,29 +29,15 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// todo: this logic needs to move into FindTraceByID
-	isSharded := false
-	blockStart := r.URL.Query().Get("blockStart")
-	blockEnd := r.URL.Query().Get("blockStart")
-	if len(blockStart) > 0 && len(blockEnd) > 0 {
-		isSharded = true
-	}
-
 	byteID, err := util.HexStringToTraceID(traceID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	tidReq := &tempopb.TraceByIDRequest{
+	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID: byteID,
-	}
-	if isSharded {
-		tidReq.BlockEnd = []byte(blockEnd)
-		tidReq.BlockStart = []byte(blockStart)
-	}
-
-	resp, err := q.FindTraceByID(ctx, tidReq)
+	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -63,21 +46,6 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	if resp.Trace == nil || len(resp.Trace.Batches) == 0 {
 		http.Error(w, fmt.Sprintf("Unable to find %s", traceID), http.StatusNotFound)
 		return
-	}
-
-	if r.Header.Get("Tempo-query-content-type") == "application/grpc" {
-		level.Info(cortex_util.Logger).Log("msg", "received content type application/grpc")
-		trace := &tempopb.Trace{Batches: resp.Trace.Batches}
-		b, err := proto.Marshal(trace)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		_, err = w.Write(b)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 	}
 
 	marshaller := &jsonpb.Marshaler{}
