@@ -41,11 +41,11 @@ var (
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
 	})
-	metricCompactionObjectsCombined = promauto.NewCounter(prometheus.CounterOpts{
+	metricCompactionObjectsCombined = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_objects_combined_total",
 		Help:      "Total number of objects combined during compaction.",
-	})
+	}, []string{"level"})
 )
 
 const (
@@ -167,7 +167,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 			if bytes.Equal(currentID, lowestID) {
 				lowestObject = rw.compactorSharder.Combine(currentObject, lowestObject)
 				b.clear()
-				metricCompactionObjectsCombined.Inc()
+				metricCompactionObjectsCombined.WithLabelValues(compactionLevelLabel).Inc()
 			} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
 				lowestID = currentID
 				lowestObject = currentObject

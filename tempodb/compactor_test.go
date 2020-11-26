@@ -219,7 +219,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 	rw := r.(*readerWriter)
 
-	combinedStart, err := test.GetCounterValue(metricCompactionObjectsCombined)
+	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	assert.NoError(t, err)
 
 	// poll
@@ -243,7 +243,7 @@ func TestSameIDCompaction(t *testing.T) {
 	}
 	assert.Equal(t, blockCount-blocksPerCompaction, records)
 
-	combinedFinish, err := test.GetCounterValue(metricCompactionObjectsCombined)
+	combinedFinish, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(1), combinedFinish-combinedStart)
 }
