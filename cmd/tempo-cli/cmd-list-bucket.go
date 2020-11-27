@@ -28,7 +28,15 @@ func (l *lsBucketCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	return dumpBucket(r, c, l.TenantID, time.Hour, l.LoadIndex)
+	windowDuration := time.Hour
+
+	results, err := loadBucket(r, c, l.TenantID, windowDuration, l.LoadIndex)
+	if err != nil {
+		return err
+	}
+
+	displayResults(results, windowDuration, l.LoadIndex)
+	return nil
 }
 
 type bucketStats struct {
@@ -43,10 +51,10 @@ type bucketStats struct {
 	duplicateIDs int
 }
 
-func dumpBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, loadIndex bool) error {
+func loadBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, loadIndex bool) ([]bucketStats, error) {
 	blockIDs, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fmt.Println("total blocks: ", len(blockIDs))
@@ -57,12 +65,12 @@ func dumpBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID 
 
 		meta, err := r.BlockMeta(context.Background(), id, tenantID)
 		if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
-			return err
+			return nil, err
 		}
 
 		compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
 		if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
-			return err
+			return nil, err
 		}
 
 		totalIDs := -1
@@ -73,7 +81,7 @@ func dumpBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID 
 			if err == nil {
 				records, err := encoding.UnmarshalRecords(indexBytes)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				duplicateIDs = 0
 				totalIDs = len(records)
@@ -111,29 +119,71 @@ func dumpBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID 
 		return bI.window < bJ.window
 	})
 
+	return results, nil
+}
+
+func displayResults(results []bucketStats, windowDuration time.Duration, includeIndexInfo bool) {
+
+	columns := []string{"id", "lvl", "count", "window", "start", "end", "duration"}
+	if includeIndexInfo {
+		columns = append(columns, "idx", "dupe")
+	}
+
 	totalObjects := 0
 	out := make([][]string, 0)
 	for _, r := range results {
 
-		out = append(out, []string{
-			r.id.String(),
-			strconv.Itoa(int(r.compactionLevel)),
-			strconv.Itoa(r.totalIDs),
-			strconv.Itoa(r.objects),
-			strconv.Itoa(int(r.window)),
-			strconv.Itoa(r.duplicateIDs),
-			r.start.Format(time.RFC3339),
-			r.end.Format(time.RFC3339),
-		})
+		line := make([]string, 0)
+
+		for _, c := range columns {
+			s := ""
+			switch c {
+			case "id":
+				s = r.id.String()
+			case "lvl":
+				s = strconv.Itoa(int(r.compactionLevel))
+			case "count":
+				s = strconv.Itoa(r.objects)
+			case "window":
+				// Display compaction window in human-readable format
+				window := time.Unix(r.window*int64(windowDuration.Seconds()), 0).UTC()
+				s = window.Format(time.RFC3339)
+			case "start":
+				s = r.start.Format(time.RFC3339)
+			case "end":
+				s = r.end.Format(time.RFC3339)
+			case "duration":
+				// Time range included in bucket
+				s = fmt.Sprint(r.end.Sub(r.start).Round(time.Second))
+			case "idx":
+				// Number of entries in the index (may not be the same as the block when index downsampling enabled)
+				s = strconv.Itoa(r.totalIDs)
+			case "dupe":
+				// Number of duplicate IDs found in the index
+				s = strconv.Itoa(r.duplicateIDs)
+			}
+
+			line = append(line, s)
+		}
+
+		out = append(out, line)
 		totalObjects += r.objects
+	}
+
+	footer := make([]string, 0)
+	for _, c := range columns {
+		switch c {
+		case "count":
+			footer = append(footer, strconv.Itoa(totalObjects))
+		default:
+			footer = append(footer, "")
+		}
 	}
 
 	fmt.Println()
 	w := tablewriter.NewWriter(os.Stdout)
-	w.SetHeader([]string{"id", "lvl", "idx", "count", "window", "dupe", "start", "end"})
-	w.SetFooter([]string{"", "", "", strconv.Itoa(totalObjects), "", "", "", ""})
+	w.SetHeader(columns)
+	w.SetFooter(footer)
 	w.AppendBulk(out)
 	w.Render()
-
-	return nil
 }
