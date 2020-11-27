@@ -21,7 +21,7 @@ type globalOptions struct {
 }
 
 type backendOptions struct {
-	ConfigFile string `type:"path"`
+	ConfigFile string `type:"path" help:"Path to tempo config file"`
 	Backend    string `help:"backend to connect to (s3/gcs)"`
 	Bucket     string `help:"bucket to scan"`
 
@@ -33,9 +33,12 @@ type backendOptions struct {
 var cli struct {
 	globalOptions
 
-	Query    queryCmd    `cmd:"" help:"retrieve trace from api"`
-	LsBlock  lsBlockCmd  `cmd:"" help:"List information about a block"`
-	LsBucket lsBucketCmd `cmd:"" help:"List contents of bucket."`
+	List struct {
+		Block  lsBlockCmd  `cmd:"" help:"List information about a block"`
+		Bucket lsBucketCmd `cmd:"" help:"List contents of bucket."`
+	} `cmd:""`
+
+	Query queryCmd `cmd:"" help:"query tempo api"`
 }
 
 func main() {

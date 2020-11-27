@@ -17,7 +17,7 @@ type lsBlockCmd struct {
 
 	TenantID   string `arg:"" help:"tenant-id within the bucket"`
 	BlockID    string `arg:"" help:"block ID to list"`
-	CheckDupes bool   `help:"check contents of block for duplicate trace IDs"`
+	CheckDupes bool   `help:"check contents of block for duplicate trace IDs (warning, can be intense)"`
 }
 
 func (cmd *lsBlockCmd) Run(ctx *globalOptions) error {
