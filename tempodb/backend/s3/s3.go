@@ -177,7 +177,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	}
 
 	for i, b := range bBloom {
-		size, err := rw.core.Client.PutObject(
+		info, err := rw.core.Client.PutObject(
 			ctx,
 			rw.cfg.Bucket,
 			util.BloomFileName(blockID, tenantID, i),
@@ -188,10 +188,10 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		if err != nil {
 			return errors.Wrap(err, "error uploading bloom filter to s3")
 		}
-		level.Debug(rw.logger).Log("msg", "block bloom uploaded to s3", "shard", i, "size", size)
+		level.Debug(rw.logger).Log("msg", "block bloom uploaded to s3", "shard", i, "size", info.Size)
 	}
 
-	size, err := rw.core.Client.PutObject(
+	info, err := rw.core.Client.PutObject(
 		ctx,
 		rw.cfg.Bucket,
 		util.IndexFileName(blockID, tenantID),
@@ -202,7 +202,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	if err != nil {
 		return errors.Wrap(err, "error uploading index to s3")
 	}
-	level.Debug(rw.logger).Log("msg", "block index uploaded to s3", "size", size)
+	level.Debug(rw.logger).Log("msg", "block index uploaded to s3", "size", info.Size)
 
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
@@ -210,7 +210,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	}
 
 	// write meta last.  this will prevent blocklist from returning a partial block
-	size, err = rw.core.Client.PutObject(
+	info, err = rw.core.Client.PutObject(
 		ctx,
 		rw.cfg.Bucket,
 		util.MetaFileName(blockID, tenantID),
@@ -221,7 +221,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	if err != nil {
 		return errors.Wrap(err, "error uploading block meta to s3")
 	}
-	level.Debug(rw.logger).Log("msg", "block meta uploaded to s3", "size", size)
+	level.Debug(rw.logger).Log("msg", "block meta uploaded to s3", "size", info.Size)
 
 	return nil
 }
