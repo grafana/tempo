@@ -23,7 +23,7 @@ type listBlocksCmd struct {
 }
 
 func (l *listBlocksCmd) Run(ctx *globalOptions) error {
-	r, _, c, err := loadBackend(&l.backendOptions, ctx)
+	r, c, err := loadBackend(&l.backendOptions, ctx)
 	if err != nil {
 		return err
 	}

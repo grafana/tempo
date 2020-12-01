@@ -14,7 +14,7 @@ type queryCmd struct {
 	OrgID string `help:"optional orgID"`
 }
 
-func (cmd *queryCmd) Run(ctx *globalOptions) error {
+func (cmd *queryCmd) Run(_ *globalOptions) error {
 
 	// util.QueryTrace will only add orgID header if len(orgID) > 0
 	trace, err := util.QueryTrace(cmd.APIEndpoint, cmd.TraceID, cmd.OrgID)

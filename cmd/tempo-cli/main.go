@@ -52,7 +52,7 @@ func main() {
 	ctx.FatalIfErrorf(err)
 }
 
-func loadBackend(b *backendOptions, g *globalOptions) (tempodb_backend.Reader, tempodb_backend.Writer, tempodb_backend.Compactor, error) {
+func loadBackend(b *backendOptions, g *globalOptions) (tempodb_backend.Reader, tempodb_backend.Compactor, error) {
 	// Defaults
 	cfg := app.Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
@@ -61,12 +61,12 @@ func loadBackend(b *backendOptions, g *globalOptions) (tempodb_backend.Reader, t
 	if g.ConfigFile != "" {
 		buff, err := ioutil.ReadFile(g.ConfigFile)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to read configFile %s: %w", g.ConfigFile, err)
+			return nil, nil, fmt.Errorf("failed to read configFile %s: %w", g.ConfigFile, err)
 		}
 
 		err = yaml.UnmarshalStrict(buff, &cfg)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to parse configFile %s: %w", g.ConfigFile, err)
+			return nil, nil, fmt.Errorf("failed to parse configFile %s: %w", g.ConfigFile, err)
 		}
 	}
 
@@ -87,25 +87,24 @@ func loadBackend(b *backendOptions, g *globalOptions) (tempodb_backend.Reader, t
 
 	var err error
 	var r tempodb_backend.Reader
-	var w tempodb_backend.Writer
 	var c tempodb_backend.Compactor
 
 	switch cfg.StorageConfig.Trace.Backend {
 	case "local":
-		r, w, c, err = local.New(cfg.StorageConfig.Trace.Local)
+		r, _, c, err = local.New(cfg.StorageConfig.Trace.Local)
 	case "gcs":
-		r, w, c, err = gcs.New(cfg.StorageConfig.Trace.GCS)
+		r, _, c, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 	case "s3":
-		r, w, c, err = s3.New(cfg.StorageConfig.Trace.S3)
+		r, _, c, err = s3.New(cfg.StorageConfig.Trace.S3)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.StorageConfig.Trace.Backend)
 	}
 
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	return r, w, c, nil
+	return r, c, nil
 }
 
 func blockStats(meta *encoding.BlockMeta, compactedMeta *encoding.CompactedBlockMeta, windowRange time.Duration) (int, uint8, int64, time.Time, time.Time) {
