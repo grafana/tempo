@@ -18,24 +18,24 @@ import (
 )
 
 type globalOptions struct {
+	ConfigFile string `type:"path" short:"c" help:"Path to tempo config file"`
 }
 
 type backendOptions struct {
-	ConfigFile string `type:"path" help:"Path to tempo config file"`
-	Backend    string `help:"backend to connect to (s3/gcs)"`
-	Bucket     string `help:"bucket to scan"`
+	Backend string `help:"backend to connect to (s3/gcs/local), optional, overrides backend in config file" enum:",s3,gcs,local"`
+	Bucket  string `help:"bucket to scan, optional, overrides bucket in config file"`
 
-	S3Endpoint string `name:"s3-endpoint" help:"s3 endpoint"`
-	S3User     string `name:"s3-user" help:"s3 username override"`
-	S3Pass     string `name:"s3-pass" help:"s3 password override"`
+	S3Endpoint string `name:"s3-endpoint" help:"s3 endpoint (s3.dualstack.us-east-2.amazonaws.com), optional, overrides endpoint in config file"`
+	S3User     string `name:"s3-user" help:"s3 username, optional, overrides username in config file"`
+	S3Pass     string `name:"s3-pass" help:"s3 password, optional, overrides password in config file"`
 }
 
 var cli struct {
 	globalOptions
 
 	List struct {
-		Block  lsBlockCmd  `cmd:"" help:"List information about a block"`
-		Bucket lsBucketCmd `cmd:"" help:"List contents of bucket."`
+		Block  listBlockCmd  `cmd:"" help:"List information about a block"`
+		Blocks listBlocksCmd `cmd:"" help:"List information about all blocks in a bucket"`
 	} `cmd:""`
 
 	Query queryCmd `cmd:"" help:"query tempo api"`
@@ -45,28 +45,28 @@ func main() {
 	ctx := kong.Parse(&cli,
 		kong.UsageOnError(),
 		kong.ConfigureHelp(kong.HelpOptions{
-			Compact: true,
+			//Compact: true,
 		}),
 	)
 	err := ctx.Run(&cli.globalOptions)
 	ctx.FatalIfErrorf(err)
 }
 
-func loadBackend(b *backendOptions) (tempodb_backend.Reader, tempodb_backend.Writer, tempodb_backend.Compactor, error) {
+func loadBackend(b *backendOptions, g *globalOptions) (tempodb_backend.Reader, tempodb_backend.Writer, tempodb_backend.Compactor, error) {
 	// Defaults
 	cfg := app.Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
 	// Existing config
-	if b.ConfigFile != "" {
-		buff, err := ioutil.ReadFile(b.ConfigFile)
+	if g.ConfigFile != "" {
+		buff, err := ioutil.ReadFile(g.ConfigFile)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to read configFile %s: %w", b.ConfigFile, err)
+			return nil, nil, nil, fmt.Errorf("failed to read configFile %s: %w", g.ConfigFile, err)
 		}
 
 		err = yaml.UnmarshalStrict(buff, &cfg)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to parse configFile %s: %w", b.ConfigFile, err)
+			return nil, nil, nil, fmt.Errorf("failed to parse configFile %s: %w", g.ConfigFile, err)
 		}
 	}
 

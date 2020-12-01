@@ -12,7 +12,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
-type lsBlockCmd struct {
+type listBlockCmd struct {
 	backendOptions
 
 	TenantID   string `arg:"" help:"tenant-id within the bucket"`
@@ -20,8 +20,8 @@ type lsBlockCmd struct {
 	CheckDupes bool   `help:"check contents of block for duplicate trace IDs (warning, can be intense)"`
 }
 
-func (cmd *lsBlockCmd) Run(ctx *globalOptions) error {
-	r, _, c, err := loadBackend(&cmd.backendOptions)
+func (cmd *listBlockCmd) Run(ctx *globalOptions) error {
+	r, _, c, err := loadBackend(&cmd.backendOptions, ctx)
 	if err != nil {
 		return err
 	}

@@ -15,15 +15,15 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-type lsBucketCmd struct {
-	backendOptions
-
+type listBlocksCmd struct {
 	TenantID  string `arg:"" help:"tenant-id within the bucket"`
 	LoadIndex bool   `help:"load block indexes and display additional information"`
+
+	backendOptions
 }
 
-func (l *lsBucketCmd) Run(ctx *globalOptions) error {
-	r, _, c, err := loadBackend(&l.backendOptions)
+func (l *listBlocksCmd) Run(ctx *globalOptions) error {
+	r, _, c, err := loadBackend(&l.backendOptions, ctx)
 	if err != nil {
 		return err
 	}
