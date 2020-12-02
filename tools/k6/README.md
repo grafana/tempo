@@ -56,3 +56,8 @@ You can use environment variables or the `-e` CLI flag for that:
 ```bash
 $ k6 run -e INGESTER_ENDPOINT=tempo.example.com script.js
 ```
+
+## Resources
+
+- Zipkin HTTP API [docs](https://zipkin.io/zipkin-api/#/default/get_trace__traceId_).
+- k6 [docs](https://k6.io/docs/).
