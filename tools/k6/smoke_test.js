@@ -8,6 +8,8 @@ const INGESTER_ENDPOINT = __ENV.INGESTER_ENDPOINT != null ? __ENV.INGESTER_ENDPO
 const QUERY_ENDPOINT = __ENV.QUERY_ENDPOINT != null ? __ENV.QUERY_ENDPOINT : "http://0.0.0.0:3100";
 const QUERIER_ENDPOINT = __ENV.QUERIER_ENDPOINT != null ? __ENV.QUERIER_ENDPOINT : "http://0.0.0.0:3100";
 
+const WRITE_WAIT = 1;
+const READ_WAIT = 1;
 const STEADY_CHECK_WAIT = 5;
 const ORG_ID = 0;
 const START_TIME = Math.round((new Date()).getTime() / 1000);
@@ -58,6 +60,8 @@ export function writePath() {
   check(res, {
     'write status is 202': (r) => r.status === 202,
   }, { type: 'write' });
+
+  sleep(WRITE_WAIT);
 }
 
 export function readPath() {
@@ -74,6 +78,8 @@ export function readPath() {
   check(res, {
     'read status is 200': (r) => r.status === 200,
   }, { type: 'read' });
+
+  sleep(READ_WAIT);
 }
 
 export function steadyStateCheck() {
