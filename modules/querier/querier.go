@@ -137,7 +137,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	span.LogFields(ot_log.String("msg", "searching ingesters"))
 	// get responses from all ingesters in parallel
-	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.IngesterClient) (interface{}, error) {
+	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
 		return client.FindTraceByID(opentracing.ContextWithSpan(ctx, span), req)
 	})
 	if err != nil {
@@ -186,14 +186,14 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 }
 
 // forGivenIngesters runs f, in parallel, for given ingesters
-func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.IngesterClient) (interface{}, error)) ([]responseFromIngesters, error) {
+func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (interface{}, error)) ([]responseFromIngesters, error) {
 	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ingester *ring.IngesterDesc) (interface{}, error) {
 		client, err := q.pool.GetClientFor(ingester.Addr)
 		if err != nil {
 			return nil, err
 		}
 
-		resp, err := f(client.(tempopb.IngesterClient))
+		resp, err := f(client.(tempopb.QuerierClient))
 		if err != nil {
 			return nil, err
 		}

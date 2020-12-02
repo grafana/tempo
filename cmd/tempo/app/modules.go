@@ -117,7 +117,6 @@ func (t *App) initIngester() (services.Service, error) {
 	t.ingester = ingester
 
 	tempopb.RegisterPusherServer(t.server.GRPC, t.ingester)
-	tempopb.RegisterIngesterServer(t.server.GRPC, t.ingester)
 	t.server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
 	return t.ingester, nil
 }

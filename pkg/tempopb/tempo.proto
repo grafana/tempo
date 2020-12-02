@@ -14,10 +14,6 @@ service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
 }
 
-service Ingester {
-  rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
-}
-
 message TraceByIDRequest {
   bytes traceID = 1;
   bytes blockStart = 2;

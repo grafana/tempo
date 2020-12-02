@@ -1,17 +1,22 @@
 package tempo
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"github.com/grafana/tempo/pkg/util"
-	"google.golang.org/grpc"
+	"io/ioutil"
+	"net/http"
 	"time"
 
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/weaveworks/common/user"
+	"google.golang.org/grpc/metadata"
 
 	jaeger "github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 
 	ot_pdata "go.opentelemetry.io/collector/consumer/pdata"
@@ -19,48 +24,64 @@ import (
 )
 
 type Backend struct {
-	client tempopb.QuerierClient
+	tempoEndpoint string
 }
 
-func New(cfg *Config) (*Backend, error) {
-	conn, err := grpc.Dial(cfg.Backend, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	client := tempopb.NewQuerierClient(conn)
-
+func New(cfg *Config) *Backend {
 	return &Backend{
-		client: client,
-	}, nil
+		tempoEndpoint: "http://" + cfg.Backend + "/api/traces/",
+	}
 }
 
 func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]jaeger.DependencyLink, error) {
 	return nil, nil
 }
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "GetTrace")
+	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "GetTrace")
 	defer span.Finish()
 
+	req, err := http.NewRequestWithContext(ctx, "GET", b.tempoEndpoint+hexID, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	if tracer := opentracing.GlobalTracer(); tracer != nil {
-		ctx = derivedCtx
+		// this is not really loggable or anything we can react to.  just ignoring this error
+		_ = tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
 	}
 
-	// create TraceByIDRequest
-	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
-	idBytes, _ := util.HexStringToTraceID(hexID)
-	req := &tempopb.TraceByIDRequest{
-		TraceID: idBytes,
+	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers
+	// so we are going to extract the tenant id from the header, if it exists and use it
+	tenantID, found := extractBearerToken(ctx)
+	if found {
+		req.Header.Set(user.OrgIDHeaderName, tenantID)
 	}
 
-	// Call querier
-	resp, err := b.client.FindTraceByID(ctx, req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed get to tempo %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, jaeger_spanstore.ErrTraceNotFound
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("error reading response from tempo: %w", err)
 	}
+	out := &tempopb.Trace{}
+	unmarshaller := &jsonpb.Unmarshaler{}
+	err = unmarshaller.Unmarshal(bytes.NewReader(body), out)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal trace json, err: %w. Tempo response body: %s", err, string(body))
+	}
 
-	// convert from otlp to jaeger format
 	span.LogFields(ot_log.String("msg", "otlp to Jaeger"))
-	otTrace := ot_pdata.TracesFromOtlp(resp.Trace.Batches)
+	otTrace := ot_pdata.TracesFromOtlp(out.Batches)
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
 
 	if err != nil {
@@ -103,4 +124,14 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 }
 func (b *Backend) WriteSpan(span *jaeger.Span) error {
 	return nil
+}
+
+func extractBearerToken(ctx context.Context) (string, bool) {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		values := md.Get(spanstore.BearerTokenKey)
+		if len(values) > 0 {
+			return values[0], true
+		}
+	}
+	return "", false
 }
