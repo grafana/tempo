@@ -42,18 +42,7 @@ tempo-query is jaeger-query with a [hashicorp go-plugin](https://github.com/jaeg
 tempo-vulture is tempo's bird themed consistency checking tool.  It queries Loki, extracts trace ids and then queries tempo.  It metrics 404s and traces with missing spans.
 
 ### tempo-cli
-tempo-cli is the place to put any utility functionality related to tempo.
-
-Currently, it supports dumping header information for all blocks from gcs/s3.
-```
-go run ./cmd/tempo-cli -backend=gcs -bucket ops-tools-tracing-ops -tenant-id single-tenant
-```
-
-It also supports connecting to tempo directly to get a trace result in JSON.
-```console
-$ go run cmd/tempo-cli/main.go -query-endpoint http://localhost:3100 -traceID 2a61c34ff39a1518 -orgID 1
-{"batches":[{"resource":{"attributes":[{"key":"service.name","value":{"Value":{"string_value":"cortex-ingester"}}}.....}
-```
+tempo-cli is the place to put any utility functionality related to tempo.  See [Documentation](https://grafana.com/docs/tempo/latest/cli/) for more info.
 
 
 ## TempoDB
