@@ -285,7 +285,8 @@ func BenchmarkInstancePush(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Rotate trace ID
 		binary.LittleEndian.PutUint32(request.Batch.InstrumentationLibrarySpans[0].Spans[0].TraceId, uint32(i))
-		instance.Push(context.Background(), request)
+		err = instance.Push(context.Background(), request)
+		assert.NoError(b, err)
 	}
 }
 
@@ -299,6 +300,7 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		instance.Push(context.Background(), request)
+		err = instance.Push(context.Background(), request)
+		assert.NoError(b, err)
 	}
 }
