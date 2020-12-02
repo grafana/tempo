@@ -3,6 +3,8 @@ package ingester
 import (
 	"context"
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"sync"
 	"time"
 
@@ -61,6 +63,8 @@ type instance struct {
 	bytesWrittenTotal  prometheus.Counter
 	limiter            *Limiter
 	wal                *tempodb_wal.WAL
+
+	hash hash.Hash32
 }
 
 func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*instance, error) {
@@ -72,6 +76,8 @@ func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*in
 		bytesWrittenTotal:  metricBytesWrittenTotal.WithLabelValues(instanceID),
 		limiter:            limiter,
 		wal:                wal,
+
+		hash: fnv.New32(),
 	}
 	err := i.resetHeadBlock()
 	if err != nil {
@@ -276,7 +282,7 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to extract traceID: %v", err)
 	}
 
-	fp := util.TokenForTraceID(traceID)
+	fp := i.tokenForTraceID(traceID)
 	trace, ok := i.traces[fp]
 	if ok {
 		return trace, nil
@@ -293,6 +299,13 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	i.tracesCreatedTotal.Inc()
 
 	return trace, nil
+}
+
+// tokenForTraceID hash trace ID, should be called under lock
+func (i *instance) tokenForTraceID(id []byte) uint32 {
+	i.hash.Reset()
+	_, _ = i.hash.Write(id)
+	return i.hash.Sum32()
 }
 
 // resetHeadBlock() should be called under lock

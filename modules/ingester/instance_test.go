@@ -2,6 +2,7 @@ package ingester
 
 import (
 	"context"
+	"encoding/binary"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/wal"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -250,5 +252,53 @@ func TestInstanceLimits(t *testing.T) {
 				assert.Equalf(t, push.expectsError, err != nil, "push %d failed", j)
 			}
 		})
+	}
+}
+
+func defaultInstance(t assert.TestingT, tempDir string) *instance {
+	limits, err := overrides.NewOverrides(overrides.Limits{})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	wal, err := wal.New(&wal.Config{
+		Filepath:        tempDir,
+		IndexDownsample: 2,
+		BloomFP:         .01,
+	})
+	assert.NoError(t, err, "unexpected error creating wal")
+
+	instance, err := newInstance("fake", limiter, wal)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	return instance
+}
+
+func BenchmarkInstancePush(b *testing.B) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(b, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+
+	instance := defaultInstance(b, tempDir)
+	request := test.MakeRequest(10, []byte{})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Rotate trace ID
+		binary.LittleEndian.PutUint32(request.Batch.InstrumentationLibrarySpans[0].Spans[0].TraceId, uint32(i))
+		instance.Push(context.Background(), request)
+	}
+}
+
+func BenchmarkInstancePushExistingTrace(b *testing.B) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(b, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+
+	instance := defaultInstance(b, tempDir)
+	request := test.MakeRequest(10, []byte{})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		instance.Push(context.Background(), request)
 	}
 }
