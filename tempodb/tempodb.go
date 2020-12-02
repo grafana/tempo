@@ -249,7 +249,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 
 	var err error
 	isSharded := false
-	if blockStart != nil && blockEnd != nil {
+	if len(blockStart) > 0 && len(blockEnd) > 0 {
 		isSharded = true
 	}
 

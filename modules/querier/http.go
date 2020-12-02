@@ -6,14 +6,20 @@ import (
 	"net/http"
 	"time"
 
+	cortex_util "github.com/cortexproject/cortex/pkg/util"
+	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
-	TraceIDVar = "traceID"
+	TraceIDVar        = "traceID"
+	BlockStartKey     = "blockStart"
+	BlockEndKey       = "blockEnd"
+	QueryIngestersKey = "queryIngesters"
 )
 
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
@@ -36,7 +42,10 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-		TraceID: byteID,
+		TraceID:        byteID,
+		BlockStart:     []byte(r.URL.Query().Get(BlockStartKey)),
+		BlockEnd:       []byte(r.URL.Query().Get(BlockEndKey)),
+		QueryIngesters: r.URL.Query().Get(QueryIngestersKey) == "true",
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -46,6 +55,21 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	if resp.Trace == nil || len(resp.Trace.Batches) == 0 {
 		http.Error(w, fmt.Sprintf("Unable to find %s", traceID), http.StatusNotFound)
 		return
+	}
+
+	if r.Header.Get("Accepts") == "application/protobuf" {
+		level.Info(cortex_util.Logger).Log("msg", "received content type application/grpc")
+		trace := &tempopb.Trace{Batches: resp.Trace.Batches}
+		b, err := proto.Marshal(trace)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, err = w.Write(b)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	marshaller := &jsonpb.Marshaler{}

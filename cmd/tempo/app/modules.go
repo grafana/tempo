@@ -117,6 +117,7 @@ func (t *App) initIngester() (services.Service, error) {
 	t.ingester = ingester
 
 	tempopb.RegisterPusherServer(t.server.GRPC, t.ingester)
+	tempopb.RegisterQuerierServer(t.server.GRPC, t.ingester)
 	t.server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
 	return t.ingester, nil
 }
@@ -132,9 +133,8 @@ func (t *App) initQuerier() (services.Service, error) {
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
-	tempopb.RegisterQuerierServer(t.server.GRPC, t.querier)
+	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
 	return t.querier, nil
 }
