@@ -15,7 +15,6 @@ The general syntax for commands in Tempo CLI is:
 ```bash
 tempo-cli command [subcommand] [options] [arguments...]
 ```
-Remove extra space.
 `--help` or `-h` displays the help for a command or subcommand.
 
 **Example:**
@@ -25,7 +24,7 @@ tempo-cli command [subcommand] -h
 ```
 
 ## Running Tempo CLI
-Tempo CLI is currently only available as source and a working go installation is required to build it.  It can be compiled to a native binary and executed normally, or it can be executed using the `go run` command. 
+Tempo CLI is currently available as source. A working Go installation is required to build it. It can be compiled to a native binary and executed normally, or it can be executed using the `go run` command. 
 
 **Example:**
 ```bash
@@ -75,7 +74,7 @@ Arguments:
 - `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
 
 Options:
-- `--load-index` Also load the block indexes and perform integrity checks for duplicates. _Warning:_ can be intense.
+- `--load-index` Also load the block indexes and perform integrity checks for duplicates. **Note:** can be intense.
 
 **Output:**
 Explanation of output:
@@ -106,7 +105,7 @@ Arguments:
 - `block-id` The block ID as UUID string.
 
 Options:
-- `--check-dupes` Also load the block data and perform integrity check for duplicates. _Warning:_ can be intense.
+- `--check-dupes` Also load the block data and perform integrity check for duplicates. **Note:** can be intense.
 
 **Example:**
 ```bash
