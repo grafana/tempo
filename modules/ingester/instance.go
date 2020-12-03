@@ -222,7 +222,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 
 	// live traces
 	i.tracesMtx.Lock()
-	if liveTrace, ok := i.traces[util.TokenForTraceID(id)]; ok {
+	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
 		foundBytes, err := proto.Marshal(liveTrace.trace)
 		if err != nil {
 			i.tracesMtx.Unlock()

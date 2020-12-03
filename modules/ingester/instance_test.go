@@ -304,3 +304,22 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 		assert.NoError(b, err)
 	}
 }
+
+func BenchmarkInstanceFindTraceByID(b *testing.B) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(b, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+
+	instance := defaultInstance(b, tempDir)
+	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	request := test.MakeRequest(10, traceID)
+	err = instance.Push(context.Background(), request)
+	assert.NoError(b, err)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		trace, err := instance.FindTraceByID(traceID)
+		assert.NotNil(b, trace)
+		assert.NoError(b, err)
+	}
+}
