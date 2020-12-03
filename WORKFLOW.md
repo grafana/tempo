@@ -23,7 +23,7 @@ Significant changes MUST be discussed and agreed upon with the relevant subsyste
 ## Merging PRs (Pull Requests)
 
 Depending on the size and complexity of a PR, different requirements MUST be applied. Any team member contributing substantially to a PR MUST NOT count against review requirements.
-Commits MUST be merged into master using PRs. They MUST NOT be merged into master directly.
+Commits MUST be merged into master using PRs. They MUST NOT be pushed to master directly.
 - Every merge MUST be approved by at least one team member.
 - Non-trivial changes MUST be approved by at least
   - two team members, or
