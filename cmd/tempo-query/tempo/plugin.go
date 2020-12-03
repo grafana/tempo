@@ -1,9 +1,9 @@
 package tempo
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"github.com/grafana/tempo/pkg/util"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -60,7 +60,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	}
 
 	// Set content type to grpc
-	req.Header.Set("Accepts", "application/protobuf")
+	req.Header.Set(util.ContentTypeHeaderKey, util.ProtobufTypeHeaderValue)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
