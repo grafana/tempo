@@ -28,3 +28,20 @@ global rate limiting strategy.  If this occurs port-forward to 3100 on a distrib
 "Forget" button to drop any unhealthy distributors.
 
 Note that this more of an art than a science: https://github.com/grafana/tempo/issues/142
+
+## TempoCompactionsFailing
+## TempoFlushesFailing
+
+Check ingester logs for flushes and compactor logs for compations.  Failed flushes or compactions could be caused by any number of
+different things.  Permissions issues, rate limiting, failing backend, ...  So check the logs and use your best judgement on how to
+resolve.
+
+In the case of failed compactions your blocklist is now growing and you may be creating a bunch of partially written "orphaned"
+blocks.  An orphaned block is a block without a `meta.json` that is not currently being created.  These will be invisible to
+Tempo and will just hang out forever (or until a bucket lifecycle policy deletes them).  First, resolve the issue so that your 
+compactors can get the blocklist under control to prevent high query latencies.  Next try to identify any "orphaned" blocks and
+remove them.
+
+In the case of failed flushes your local WAL disk is now filling up.  Tempo will continue to retry sending the blocks
+until it succeeds, but at some point your WAL files will start failing to write due to out of disk issues.  If the problem 
+persists consider killing the block that's failing to upload in `/var/tempo/wal` and restarting the ingester.
