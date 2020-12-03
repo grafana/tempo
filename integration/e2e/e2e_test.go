@@ -3,13 +3,23 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
+	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/pkg/tempopb"
+
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
+	"github.com/gogo/protobuf/jsonpb"
+	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -26,8 +36,8 @@ func TestAllInOne(t *testing.T) {
 	require.NotNil(t, minio)
 	require.NoError(t, s.StartAndWaitReady(minio))
 
-	require.NoError(t, copyFileToSharedDir(s, configAllInOne, "config.yaml"))
-	tempo := newTempoAllInOne()
+	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOne, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
@@ -73,17 +83,17 @@ func TestMicroservices(t *testing.T) {
 	require.NotNil(t, minio)
 	require.NoError(t, s.StartAndWaitReady(minio))
 
-	require.NoError(t, copyFileToSharedDir(s, configMicroservices, "config.yaml"))
-	tempoIngester1 := newTempoIngester(1)
+	require.NoError(t, util.CopyFileToSharedDir(s, configMicroservices, "config.yaml"))
+	tempoIngester1 := util.NewTempoIngester(1)
 	require.NoError(t, s.StartAndWaitReady(tempoIngester1))
 
-	tempoIngester2 := newTempoIngester(2)
+	tempoIngester2 := util.NewTempoIngester(2)
 	require.NoError(t, s.StartAndWaitReady(tempoIngester2))
 
-	tempoDistributor := newTempoDistributor()
+	tempoDistributor := util.NewTempoDistributor()
 	require.NoError(t, s.StartAndWaitReady(tempoDistributor))
 
-	tempoQuerier := newTempoQuerier()
+	tempoQuerier := util.NewTempoQuerier()
 	require.NoError(t, s.StartAndWaitReady(tempoQuerier))
 
 	// wait for 2 active ingesters
@@ -160,4 +170,47 @@ func TestMicroservices(t *testing.T) {
 
 	batch = makeThriftBatch()
 	require.Error(t, c.EmitBatch(context.Background(), batch))
+}
+
+func makeThriftBatch() *thrift.Batch {
+	var spans []*thrift.Span
+	spans = append(spans, &thrift.Span{
+		TraceIdLow:    rand.Int63(),
+		TraceIdHigh:   0,
+		SpanId:        rand.Int63(),
+		ParentSpanId:  0,
+		OperationName: "my operation",
+		References:    nil,
+		Flags:         0,
+		StartTime:     time.Now().Unix(),
+		Duration:      1,
+		Tags:          nil,
+		Logs:          nil,
+	})
+	return &thrift.Batch{Spans: spans}
+}
+
+//nolint:unparam
+func queryAndAssertTrace(t *testing.T, url string, expectedName string, expectedBatches int) {
+	res, err := cortex_e2e.GetRequest(url)
+	require.NoError(t, err)
+	out := &tempopb.Trace{}
+	unmarshaller := &jsonpb.Unmarshaler{}
+	assert.NoError(t, unmarshaller.Unmarshal(res.Body, out))
+	assert.Len(t, out.Batches, expectedBatches)
+	assert.Equal(t, expectedName, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name)
+	defer res.Body.Close()
+}
+
+func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
+	// new jaeger grpc exporter
+	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
+	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
