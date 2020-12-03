@@ -2,6 +2,8 @@ package util
 
 import (
 	"bytes"
+	"hash"
+	"hash/fnv"
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
@@ -72,14 +74,16 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int
 	spanCountB := 0
 	spanCountTotal := 0
 
+	h := fnv.New32()
+
 	spansInA := make(map[uint32]struct{})
 	for _, batchA := range traceA.Batches {
 		for _, ilsA := range batchA.InstrumentationLibrarySpans {
 			for _, spanA := range ilsA.Spans {
-				spanCountA++
-				spanCountTotal++
-				spansInA[TokenForTraceID(spanA.SpanId)] = struct{}{}
+				spansInA[tokenForID(h, spanA.SpanId)] = struct{}{}
 			}
+			spanCountA += len(ilsA.Spans)
+			spanCountTotal += len(ilsA.Spans)
 		}
 	}
 
@@ -90,13 +94,13 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int
 		for _, ilsB := range batchB.InstrumentationLibrarySpans {
 			notFoundSpans := ilsB.Spans[:0]
 			for _, spanB := range ilsB.Spans {
-				spanCountB++
 				// if found in A, remove from the batch
-				_, ok := spansInA[TokenForTraceID(spanB.SpanId)]
+				_, ok := spansInA[tokenForID(h, spanB.SpanId)]
 				if !ok {
 					notFoundSpans = append(notFoundSpans, spanB)
 				}
 			}
+			spanCountB += len(ilsB.Spans)
 
 			if len(notFoundSpans) > 0 {
 				spanCountTotal += len(notFoundSpans)
@@ -113,4 +117,10 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int
 	}
 
 	return traceA, spanCountA, spanCountB, spanCountTotal
+}
+
+func tokenForID(h hash.Hash32, b []byte) uint32 {
+	h.Reset()
+	_, _ = h.Write(b)
+	return h.Sum32()
 }
