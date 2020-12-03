@@ -42,11 +42,14 @@ func TestAllInOne(t *testing.T) {
 
 func runK6Test(k6 *cortex_e2e.ConcreteService, testjs string) error {
 	fmt.Println("------ " + testjs + " ------")
-	stdout, _, err := k6.Exec(cortex_e2e.NewCommand("k6", "run", "--quiet", filepath.Join(cortex_e2e.ContainerSharedDir, testjs)))
+	stdout, stderr, err := k6.Exec(cortex_e2e.NewCommand("k6", "run", "--quiet", filepath.Join(cortex_e2e.ContainerSharedDir, testjs)))
 	fmt.Println("------ stdout ------")
 	fmt.Println(stdout)
-	fmt.Println("------ stderr ------")
-	fmt.Println(stdout)
+
+	if err != nil {
+		fmt.Println("------ stderr ------")
+		fmt.Println(stderr)
+	}
 
 	return err
 }

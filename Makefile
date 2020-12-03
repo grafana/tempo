@@ -73,11 +73,11 @@ test-with-cover:
 # test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all
 test-all: docker-tempo test-with-cover
-	$(GOTEST) $(GOTEST_OPT) ./integration/e2e
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
 
 .PHONY: test-bench
 test-bench: docker-tempo
-	$(GOTEST) $(GOTEST_OPT) ./integration/bench
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
 
 .PHONY: lint
 lint:
