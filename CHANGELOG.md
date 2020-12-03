@@ -1,5 +1,7 @@
 ## master / unreleased
 
+* [CHANGE] Redo tempo-cli with basic command structure and improvements [#385](https://github.com/grafana/tempo/pull/385)
+
 ## v0.4.0
 
 * [CHANGE] From path.Join to filepath.Join [#338](https://github.com/grafana/tempo/pull/338)
