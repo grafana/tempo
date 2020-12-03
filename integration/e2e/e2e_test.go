@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	configAllInOne      = "./config-all-in-one.yaml"
-	configMicroservices = "./config-microservices.yaml"
+	configAllInOne      = "config-all-in-one.yaml"
+	configMicroservices = "config-microservices.yaml"
 )
 
 func TestAllInOne(t *testing.T) {
@@ -85,16 +85,10 @@ func TestMicroservices(t *testing.T) {
 
 	require.NoError(t, util.CopyFileToSharedDir(s, configMicroservices, "config.yaml"))
 	tempoIngester1 := util.NewTempoIngester(1)
-	require.NoError(t, s.StartAndWaitReady(tempoIngester1))
-
 	tempoIngester2 := util.NewTempoIngester(2)
-	require.NoError(t, s.StartAndWaitReady(tempoIngester2))
-
 	tempoDistributor := util.NewTempoDistributor()
-	require.NoError(t, s.StartAndWaitReady(tempoDistributor))
-
 	tempoQuerier := util.NewTempoQuerier()
-	require.NoError(t, s.StartAndWaitReady(tempoQuerier))
+	require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoDistributor, tempoQuerier))
 
 	// wait for 2 active ingesters
 	time.Sleep(1 * time.Second)

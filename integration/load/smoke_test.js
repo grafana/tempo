@@ -54,7 +54,7 @@ export function writePath() {
   var trace = [Span({ traceId: traceId })];
   var payload = JSON.stringify(trace);
 
-  console.log(`type=write traceId=${traceId}`);
+  // console.log(`type=write traceId=${traceId}`);
 
   let res = http.post(WRITE_ENDPOINT, payload);
   check(res, {
