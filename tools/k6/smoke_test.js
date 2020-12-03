@@ -1,12 +1,12 @@
 import { randomSeed, check, sleep } from 'k6';
-import http from "k6/http"
+import http from "k6/http";
 import { generateId, Span } from './modules/util.js';
 
-const WRITE_ENDPOINT = __ENV.WRITE_ENDPOINT != null ? __ENV.WRITE_ENDPOINT : "http://0.0.0.0:9411";
-const DISTRIBUTOR_ENDPOINT = __ENV.DISTRIBUTOR_ENDPOINT != null ? __ENV.DISTRIBUTOR_ENDPOINT : "http://0.0.0.0:3100";
-const INGESTER_ENDPOINT = __ENV.INGESTER_ENDPOINT != null ? __ENV.INGESTER_ENDPOINT : "http://0.0.0.0:3100";
-const QUERY_ENDPOINT = __ENV.QUERY_ENDPOINT != null ? __ENV.QUERY_ENDPOINT : "http://0.0.0.0:3100";
-const QUERIER_ENDPOINT = __ENV.QUERIER_ENDPOINT != null ? __ENV.QUERIER_ENDPOINT : "http://0.0.0.0:3100";
+const WRITE_ENDPOINT = __ENV.WRITE_ENDPOINT || "http://0.0.0.0:9411";
+const DISTRIBUTOR_ENDPOINT = __ENV.DISTRIBUTOR_ENDPOINT || "http://0.0.0.0:3100";
+const INGESTER_ENDPOINT = __ENV.INGESTER_ENDPOINT || "http://0.0.0.0:3100";
+const QUERY_ENDPOINT = __ENV.QUERY_ENDPOINT || "http://0.0.0.0:3100";
+const QUERIER_ENDPOINT = __ENV.QUERIER_ENDPOINT || "http://0.0.0.0:3100";
 
 const WRITE_WAIT = 1;
 const READ_WAIT = 1;
@@ -51,7 +51,7 @@ export function writePath() {
   randomSeed(START_TIME + __ITER);
 
   var traceId = generateId(14);
-  var trace = [Span({ traceId: traceId })]
+  var trace = [Span({ traceId: traceId })];
   var payload = JSON.stringify(trace);
 
   console.log(`type=write traceId=${traceId}`);
@@ -84,13 +84,13 @@ export function readPath() {
 
 export function steadyStateCheck() {
   // Check Distributors health
-  let res = http.get(`${DISTRIBUTOR_ENDPOINT}/ready`)
+  let res = http.get(`${DISTRIBUTOR_ENDPOINT}/ready`);
   check(res, {
     'distributor status is 200': (r) => r.status === 200,
   }, { type: 'steady', service: 'distributor' });
 
   // Check Ingesters health
-  res = http.get(`${INGESTER_ENDPOINT}/ready`)
+  res = http.get(`${INGESTER_ENDPOINT}/ready`);
   check(res, {
     'ingester status is 200': (r) => r.status === 200,
   }, { type: 'steady', service: 'ingester' });
@@ -102,7 +102,7 @@ export function steadyStateCheck() {
   }, { type: 'steady', service: 'query' });
 
   // Check Querier health
-  res = http.get(`${QUERIER_ENDPOINT}/ready`)
+  res = http.get(`${QUERIER_ENDPOINT}/ready`);
   check(res, {
     'querier status is 200': (r) => r.status === 200,
   }, { type: 'steady', service: 'querier' });

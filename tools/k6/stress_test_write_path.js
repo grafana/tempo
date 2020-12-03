@@ -1,10 +1,10 @@
-import { sleep, check } from "k6"
-import http from "k6/http"
+import { sleep, check } from "k6";
+import http from "k6/http";
 import { Span } from './modules/util.js';
 
-const WRITE_ENDPOINT = __ENV.WRITE_ENDPOINT != null ? __ENV.WRITE_ENDPOINT : "http://0.0.0.0:9411";
-const DISTRIBUTOR_ENDPOINT = __ENV.DISTRIBUTOR_ENDPOINT != null ? __ENV.DISTRIBUTOR_ENDPOINT : "http://0.0.0.0:3100";
-const INGESTER_ENDPOINT = __ENV.INGESTER_ENDPOINT != null ? __ENV.INGESTER_ENDPOINT : "http://0.0.0.0:3100";
+const WRITE_ENDPOINT = __ENV.WRITE_ENDPOINT || "http://0.0.0.0:9411";
+const DISTRIBUTOR_ENDPOINT = __ENV.DISTRIBUTOR_ENDPOINT || "http://0.0.0.0:3100";
+const INGESTER_ENDPOINT = __ENV.INGESTER_ENDPOINT || "http://0.0.0.0:3100";
 
 const STEADY_CHECK_WAIT = 5;
 
@@ -37,7 +37,7 @@ export let options = {
     'checks{type:steady}': [{ threshold: 'rate>0.9', abortOnFail: true }],
     http_req_duration: ['p(99)<1500'], // 99% of requests must complete below 1.5s
   }
-}
+};
 
 export function writePath() {
   var rootSpan = Span();
@@ -72,5 +72,5 @@ export function steadyStateCheck() {
     'ingester is status 200': (r) => r.status === 200
   }, { type: 'steady', service: 'ingester' });
 
-  sleep(STEADY_CHECK_WAIT)
+  sleep(STEADY_CHECK_WAIT);
 }
