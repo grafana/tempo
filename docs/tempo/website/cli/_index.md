@@ -7,7 +7,7 @@ weight: 450
 
 # Tempo CLI
 
-Tempo CLI is a separate executable that contains utility functions related to tempo.  It is not required for a working install, but may be helpful for analysis or troubleshooting.
+Tempo CLI is a separate executable that contains utility functions related to the tempo software.  Although it is not required for a working installation, Tempo CLI can be helpful for deeper analysis or for troubleshooting.
 
 ## Tempo CLI command syntax
 
@@ -15,7 +15,7 @@ The general syntax for commands in Tempo CLI is:
 ```bash
 tempo-cli command [subcommand] [options] [arguments...]
 ```
-
+Remove extra space.
 `--help` or `-h` displays the help for a command or subcommand.
 
 **Example:**
@@ -35,14 +35,14 @@ go run ./cmd/tempo-cli [arguments...]
 
 ## Backend options
 
-Tempo CLI connects directly to the storage backend for some commands, meaning it requires the ability to read from S3, GCS, or file-system storage.  The backend can be configured in a few ways:
+Tempo CLI connects directly to the storage backend for some commands, meaning that it requires the ability to read from S3, GCS, or file-system storage.  The backend can be configured in a few ways:
 
-* Load an existing tempo config file using `--config-file` (`-c`) option. This is the recommended option for frequent usage. See [Configuration](../configuration/) documentation for more information.
-* Specify the individual settings:
-    * `--backend <value>` The storage backend type, one of `s3`, `gcs`, `local`
-    * `--bucket <value>` The bucket name.  The meaning of this value is backend specific. See configuration documentation for more information.
+* Load an existing tempo configuration file using the `--config-file` (`-c`) option. This is the recommended option for frequent usage. Refer to [Configuration](../configuration/) documentation for more information.
+* Specify individual settings:
+    * `--backend <value>` The storage backend type, one of `s3`, `gcs`, and `local`.
+    * `--bucket <value>` The bucket name. The meaning of this value is backend-specific. Refer to [Configuration](../configuration/) documentation for more information.
     * `--s3-endpoint <value>` The S3 API endpoint (i.e. s3.dualstack.us-east-2.amazonaws.com).
-    * `--s3-user <value>`, `--s3-password <value>` The S3 user name and password (or access key and secret key). Optional, tempo-cli supports the same authentication mechanisms as tempo. See [S3 permissions documentation](../configuration/s3/#permissions) for more information.
+    * `--s3-user <value>`, `--s3-password <value>` The S3 user name and password (or access key and secret key). Optional, as Tempo CLI supports the same authentication mechanisms as Tempo. See [S3 permissions documentation](../configuration/s3/#permissions) for more information.
 
 Each option applies only to the command in which it is used. For example, `--backend <value>` does not permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 
@@ -53,11 +53,11 @@ tempo-cli query <api-endpoint> <trace-id>
 ```
 
 Arguments:
-- `api-endpoint` Url for tempo api
-- `trace-id` Trace ID as hexadecimal string
+- `api-endpoint` URL for tempo API.
+- `trace-id` Trace ID as a hexadecimal string.
 
 Options:
-- `--org-id <value>` Organization ID (for use in multi-tenant setup)
+- `--org-id <value>` Organization ID (for use in multi-tenant setup).
 
 **Example:**
 ```bash
@@ -79,15 +79,15 @@ Options:
 
 **Output:**
 Explanation of output:
-- `ID` block ID
-- `Lvl` Compaction level of the block
-- `Count` Number of objects stored in the block
-- `Window` The time window as considered for compaction purposes
-- `Start` The earliest timestamp stored in the block
-- `End` The latest timestamp stored in the block
-- `Duration` Time duration between start and end
-- `Idx` Number of records stored in the index (present when --load-index is specified)
-- `Dupe` Number of duplicate entries in the index. Should be zero.  (present when --load-index is specified)
+- `ID` Block ID.
+- `Lvl` Compaction level of the block.
+- `Count` Number of objects stored in the block.
+- `Window` The time window considered for compaction purposes.
+- `Start` The earliest timestamp stored in the block.
+- `End` The latest timestamp stored in the block.
+- `Duration` Time duration between start and end.
+- `Idx` Number of records stored in the index (present when --load-index is specified).
+- `Dupe` Number of duplicate entries in the index. Should be zero.  (present when --load-index is specified).
 
 **Example:**
 ```bash
