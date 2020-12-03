@@ -24,7 +24,7 @@ tempo-cli command [subcommand] -h
 ```
 
 ## Running Tempo CLI
-Tempo CLI is currently available as source. A working Go installation is required to build it. It can be compiled to a native binary and executed normally, or it can be executed using the `go run` command. 
+Tempo CLI is currently available as source code. A working Go installation is required to build it. It can be compiled to a native binary and executed normally, or it can be executed using the `go run` command. 
 
 **Example:**
 ```bash
