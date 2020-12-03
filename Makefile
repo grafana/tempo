@@ -24,7 +24,7 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
 GO_OPT= -mod vendor -ldflags "-X main.Branch=$(GIT_BRANCH) -X main.Revision=$(GIT_REVISION) -X main.Version=$(VERSION)"
-GOTEST_OPT?= -race -timeout 5m -count=1
+GOTEST_OPT?= -race -timeout 10m -count=1
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint
@@ -70,10 +70,14 @@ benchmark:
 test-with-cover: 
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
-# test-all includes integration tests so we build our docker image first
+# test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all
 test-all: docker-tempo test-with-cover
-	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) ./integration/e2e
+	$(GOTEST) $(GOTEST_OPT) ./integration/e2e
+
+.PHONY: test-bench
+test-bench: docker-tempo
+	$(GOTEST) $(GOTEST_OPT) ./integration/bench
 
 .PHONY: lint
 lint:
