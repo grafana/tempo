@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	cortex_util "github.com/cortexproject/cortex/pkg/util"
-	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
