@@ -60,7 +60,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	}
 
 	// Set content type to grpc
-	req.Header.Set(util.ContentTypeHeaderKey, util.ProtobufTypeHeaderValue)
+	req.Header.Set(util.AcceptHeaderKey, util.ProtobufTypeHeaderValue)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

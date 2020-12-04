@@ -1,6 +1,6 @@
 package util
 
 const (
-	ContentTypeHeaderKey    = "Accept"
+	AcceptHeaderKey         = "Accept"
 	ProtobufTypeHeaderValue = "application/protobuf"
 )

@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -47,9 +48,9 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	valid, blockStart, blockEnd, queryIngesters := validateAndSanitizeRequest(r)
-	if !valid {
-		http.Error(w, "invalid parameters", http.StatusBadRequest)
+	blockStart, blockEnd, queryIngesters, err := validateAndSanitizeRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	span.LogFields(
@@ -74,7 +75,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get(util.ContentTypeHeaderKey) == util.ProtobufTypeHeaderValue {
+	if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
 		b, err := proto.Marshal(resp.Trace)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -97,7 +98,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // return values are (valid, blockStart, blockEnd, queryIngesters)
-func validateAndSanitizeRequest(r *http.Request) (bool, string, string, bool) {
+func validateAndSanitizeRequest(r *http.Request) (string, string, bool, error) {
 	// get parameter values
 	q := r.URL.Query().Get(QueryIngestersKey)
 	start := r.URL.Query().Get(BlockStartKey)
@@ -110,7 +111,7 @@ func validateAndSanitizeRequest(r *http.Request) (bool, string, string, bool) {
 	} else if q == "false" {
 		queryIngesters = false
 	} else {
-		return false, "", "", false
+		return "", "", false, fmt.Errorf("invalid value for queryIngesters %s", q)
 	}
 
 	// validate start. it should either be empty or a valid uuid
@@ -119,7 +120,7 @@ func validateAndSanitizeRequest(r *http.Request) (bool, string, string, bool) {
 	} else {
 		_, err := uuid.Parse(start)
 		if err != nil {
-			return false, "", "", false
+			return "", "", false, errors.Wrap(err, "invalid value for blockStart")
 		}
 	}
 
@@ -129,9 +130,9 @@ func validateAndSanitizeRequest(r *http.Request) (bool, string, string, bool) {
 	} else {
 		_, err := uuid.Parse(end)
 		if err != nil {
-			return false, "", "", false
+			return "", "", false, errors.Wrap(err, "invalid value for blockEnd")
 		}
 	}
 
-	return true, start, end, queryIngesters
+	return start, end, queryIngesters, nil
 }

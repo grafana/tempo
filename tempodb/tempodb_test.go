@@ -121,10 +121,10 @@ func TestBlockSharding(t *testing.T) {
 	assert.NoError(t, err)
 
 	// create block with known ID
-	bID := uuid.New()
+	blockID := uuid.New()
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(bID, testTenantID)
+	head, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err)
 
 	// add a trace to the block
@@ -152,7 +152,6 @@ func TestBlockSharding(t *testing.T) {
 	blocks := r.(*readerWriter).blockLists[testTenantID]
 	r.(*readerWriter).blockListsMtx.Unlock()
 	assert.Len(t, blocks, 1)
-	blockID := blocks[0].BlockID
 
 	// check if it respects the blockstart/blockend params - case1: hit
 	blockStart := uuid.MustParse(BlockIDMin).String()
@@ -168,7 +167,7 @@ func TestBlockSharding(t *testing.T) {
 
 	// check if it respects the blockstart/blockend params - case2: miss
 	blockStart = uuid.MustParse(BlockIDMin).String()
-	blockEnd = blockID.String()
+	blockEnd = uuid.MustParse(BlockIDMin).String()
 	bFound, _, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
 	assert.Len(t, bFound, 0)
