@@ -77,7 +77,6 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get(util.ContentTypeHeaderKey) == util.ProtobufTypeHeaderValue {
-		level.Info(cortex_util.Logger).Log("msg", "received content type application/protobuf")
 		b, err := proto.Marshal(resp.Trace)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
