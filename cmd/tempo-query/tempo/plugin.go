@@ -3,13 +3,13 @@ package tempo
 import (
 	"context"
 	"fmt"
-	"github.com/grafana/tempo/pkg/util"
 	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"

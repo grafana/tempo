@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 )
@@ -23,8 +24,6 @@ const (
 	BlockStartKey     = "blockStart"
 	BlockEndKey       = "blockEnd"
 	QueryIngestersKey = "queryIngesters"
-	blockIDMin        = "00000000-0000-0000-0000-000000000000"
-	blockIDMax        = "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
 )
 
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
@@ -119,7 +118,7 @@ func validateAndSanitizeRequest(r *http.Request) (bool, string, string, bool) {
 
 	// validate start. it should either be empty or a valid uuid
 	if len(start) == 0 {
-		start = blockIDMin
+		start = tempodb.BlockIDMin
 	} else {
 		_, err := uuid.Parse(start)
 		if err != nil {
@@ -129,7 +128,7 @@ func validateAndSanitizeRequest(r *http.Request) (bool, string, string, bool) {
 
 	// validate end. it should either be empty or a valid uuid
 	if len(end) == 0 {
-		end = blockIDMax
+		end = tempodb.BlockIDMax
 	} else {
 		_, err := uuid.Parse(end)
 		if err != nil {

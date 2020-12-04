@@ -1,7 +1,6 @@
 package tempodb
 
 import (
-	"bytes"
 	"context"
 	"io/ioutil"
 	"math/rand"
@@ -87,7 +86,7 @@ func TestDB(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, _, err := r.Find(context.Background(), testTenantID, id, nil, nil)
+		bFound, _, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
@@ -122,10 +121,10 @@ func TestBlockSharding(t *testing.T) {
 	assert.NoError(t, err)
 
 	// create block with known ID
-	blockID := uuid.New()
+	bID := uuid.New()
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID)
+	head, err := wal.NewBlock(bID, testTenantID)
 	assert.NoError(t, err)
 
 	// add a trace to the block
@@ -148,43 +147,28 @@ func TestBlockSharding(t *testing.T) {
 	// poll
 	r.(*readerWriter).pollBlocklist()
 
+	// get blockID
 	r.(*readerWriter).blockListsMtx.Lock()
 	blocks := r.(*readerWriter).blockLists[testTenantID]
 	r.(*readerWriter).blockListsMtx.Unlock()
 	assert.Len(t, blocks, 1)
-	blockIDBytes, err := blocks[0].BlockID.MarshalBinary()
-	assert.NoError(t, err)
+	blockID := blocks[0].BlockID
 
-	// test if it finds the trace with nil params - backward compatibility
-	bFound, _, err := r.Find(context.Background(), testTenantID, id, nil, nil)
+	// check if it respects the blockstart/blockend params - case1: hit
+	blockStart := uuid.MustParse(BlockIDMin).String()
+	blockEnd := uuid.MustParse(BlockIDMax).String()
+	bFound, _, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
+	assert.Greater(t, len(bFound), 0)
 
 	out := &tempopb.PushRequest{}
 	err = proto.Unmarshal(bFound, out)
 	assert.NoError(t, err)
 	assert.True(t, proto.Equal(out, req))
 
-	// check if it respects the blockstart/blockend params - case1: hit
-	blockStart, err := uuid.MustParse("00000000-0000-0000-0000-000000000000").MarshalBinary()
-	assert.NoError(t, err)
-	assert.True(t, bytes.Compare(blockIDBytes, blockStart) > 0)
-	blockEnd, err := uuid.MustParse("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF").MarshalBinary()
-	assert.NoError(t, err)
-	assert.True(t, bytes.Compare(blockIDBytes, blockEnd) < 0)
-	bFound, _, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
-	assert.NoError(t, err)
-	assert.Greater(t, len(bFound), 0)
-
-	out = &tempopb.PushRequest{}
-	err = proto.Unmarshal(bFound, out)
-	assert.NoError(t, err)
-	assert.True(t, proto.Equal(out, req))
-
 	// check if it respects the blockstart/blockend params - case2: miss
-	blockStart, err = uuid.MustParse("00000000-0000-0000-0000-000000000000").MarshalBinary()
-	assert.NoError(t, err)
-	blockEnd, err = uuid.MustParse("00000000-0000-0000-0000-000000000000").MarshalBinary()
-	assert.NoError(t, err)
+	blockStart = uuid.MustParse(BlockIDMin).String()
+	blockEnd = blockID.String()
 	bFound, _, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
 	assert.Len(t, bFound, 0)
@@ -209,7 +193,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01}, nil, nil)
+	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
 }

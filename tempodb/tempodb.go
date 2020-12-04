@@ -33,6 +33,11 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
+const (
+	BlockIDMin = "00000000-0000-0000-0000-000000000000"
+	BlockIDMax = "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
+)
+
 var (
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
