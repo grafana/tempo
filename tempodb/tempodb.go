@@ -79,7 +79,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id encoding.ID, blockStart []byte, blockEnd []byte) ([]byte, FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, FindMetrics, error)
 	Shutdown()
 }
 
@@ -228,7 +228,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID, blockStart []byte, blockEnd []byte) ([]byte, FindMetrics, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, FindMetrics, error) {
 	metrics := FindMetrics{
 		BloomFilterReads:     atomic.NewInt32(0),
 		BloomFilterBytesRead: atomic.NewInt32(0),
@@ -243,24 +243,34 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 
+	blockStartUUID, err := uuid.Parse(blockStart)
+	if err != nil {
+		return nil, metrics, err
+	}
+	blockStartBytes, err := blockStartUUID.MarshalBinary()
+	if err != nil {
+		return nil, metrics, err
+	}
+	blockEndUUID, err := uuid.Parse(blockEnd)
+	if err != nil {
+		return nil, metrics, err
+	}
+	blockEndBytes, err := blockEndUUID.MarshalBinary()
+	if err != nil {
+		return nil, metrics, err
+	}
+
 	rw.blockListsMtx.Lock()
 	blocklist, found := rw.blockLists[tenantID]
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
-
-	var err error
-	isSharded := false
-	if len(blockStart) > 0 && len(blockEnd) > 0 {
-		isSharded = true
-	}
 
 	for _, b := range blocklist {
 		// if in range copy
 		if bytes.Compare(id, b.MinID) != -1 && bytes.Compare(id, b.MaxID) != 1 {
 			blockIDBytes, _ := b.BlockID.MarshalBinary()
-			// if not sharded - copy over directly
-			// if sharded - check block is in shard boundaries
-			//              blockStart <= blockIDBytes < blockEnd
-			if !isSharded || ((bytes.Compare(blockIDBytes, blockStart) >= 0) && (bytes.Compare(blockIDBytes, blockEnd) < 0)) {
+			// check block is in shard boundaries
+			// blockStartBytes <= blockIDBytes < blockEndBytes
+			if (bytes.Compare(blockIDBytes, blockStartBytes) >= 0) && (bytes.Compare(blockIDBytes, blockEndBytes) < 0) {
 				copiedBlocklist = append(copiedBlocklist, b)
 			}
 		}

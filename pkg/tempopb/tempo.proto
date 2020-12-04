@@ -16,8 +16,8 @@ service Querier {
 
 message TraceByIDRequest {
   bytes traceID = 1;
-  bytes blockStart = 2;
-  bytes blockEnd = 3;
+  string blockStart = 2;
+  string blockEnd = 3;
   bool queryIngesters = 4;
 }
 

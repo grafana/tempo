@@ -126,34 +126,36 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.FindTraceByID")
 	defer span.Finish()
 
-	key := tempo_util.TokenFor(userID, req.TraceID)
-
-	const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
-	var descs [maxExpectedReplicationSet]ring.IngesterDesc
-	replicationSet, err := q.ring.Get(key, ring.Read, descs[:0])
-	if err != nil {
-		return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
-	}
-
-	span.LogFields(ot_log.String("msg", "searching ingesters"))
-	// get responses from all ingesters in parallel
-	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
-		return client.FindTraceByID(opentracing.ContextWithSpan(ctx, span), req)
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "error querying ingesters in Querier.FindTraceByID")
-	}
-
 	var completeTrace *tempopb.Trace
-	for _, r := range responses {
-		trace := r.response.(*tempopb.TraceByIDResponse).Trace
-		if trace != nil {
-			var spanCountA, spanCountB, spanCountTotal int
-			completeTrace, spanCountA, spanCountB, spanCountTotal = tempo_util.CombineTraceProtos(completeTrace, trace)
-			span.LogFields(ot_log.String("msg", "combined trace protos"),
-				ot_log.Int("spansCountA", spanCountA),
-				ot_log.Int("spansCountB", spanCountB),
-				ot_log.Int("spansCountTotal", spanCountTotal))
+	if req.QueryIngesters {
+		key := tempo_util.TokenFor(userID, req.TraceID)
+
+		const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
+		var descs [maxExpectedReplicationSet]ring.IngesterDesc
+		replicationSet, err := q.ring.Get(key, ring.Read, descs[:0])
+		if err != nil {
+			return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
+		}
+
+		span.LogFields(ot_log.String("msg", "searching ingesters"))
+		// get responses from all ingesters in parallel
+		responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
+			return client.FindTraceByID(opentracing.ContextWithSpan(ctx, span), req)
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "error querying ingesters in Querier.FindTraceByID")
+		}
+
+		for _, r := range responses {
+			trace := r.response.(*tempopb.TraceByIDResponse).Trace
+			if trace != nil {
+				var spanCountA, spanCountB, spanCountTotal int
+				completeTrace, spanCountA, spanCountB, spanCountTotal = tempo_util.CombineTraceProtos(completeTrace, trace)
+				span.LogFields(ot_log.String("msg", "combined trace protos"),
+					ot_log.Int("spansCountA", spanCountA),
+					ot_log.Int("spansCountB", spanCountB),
+					ot_log.Int("spansCountTotal", spanCountTotal))
+			}
 		}
 	}
 

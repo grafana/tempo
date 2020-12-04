@@ -10,9 +10,12 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/opentracing/opentracing-go"
+	ot_log "github.com/opentracing/opentracing-go/log"
 )
 
 const (
@@ -20,6 +23,8 @@ const (
 	BlockStartKey     = "blockStart"
 	BlockEndKey       = "blockEnd"
 	QueryIngestersKey = "queryIngesters"
+	blockIDMin        = "00000000-0000-0000-0000-000000000000"
+	blockIDMax        = "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
 )
 
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
@@ -27,6 +32,9 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
 	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandler")
+	defer span.Finish()
 
 	vars := mux.Vars(r)
 	traceID, ok := vars[TraceIDVar]
@@ -41,11 +49,23 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// validate request
+	valid, blockStart, blockEnd, queryIngesters := validateAndSanitizeRequest(r)
+	if !valid {
+		http.Error(w, "invalid parameters", http.StatusBadRequest)
+		return
+	}
+	span.LogFields(
+		ot_log.String("msg", "validated request"),
+		ot_log.String("blockStart", blockStart),
+		ot_log.String("blockEnd", blockEnd),
+		ot_log.Bool("queryIngesters", queryIngesters))
+
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:        byteID,
-		BlockStart:     []byte(r.URL.Query().Get(BlockStartKey)),
-		BlockEnd:       []byte(r.URL.Query().Get(BlockEndKey)),
-		QueryIngesters: r.URL.Query().Get(QueryIngestersKey) == "true",
+		BlockStart:     blockStart,
+		BlockEnd:       blockEnd,
+		QueryIngesters: queryIngesters,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -78,4 +98,44 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+// return values are (valid, blockStart, blockEnd, queryIngesters)
+func validateAndSanitizeRequest(r *http.Request) (bool, string, string, bool) {
+	// get parameter values
+	q := r.URL.Query().Get(QueryIngestersKey)
+	start := r.URL.Query().Get(BlockStartKey)
+	end := r.URL.Query().Get(BlockEndKey)
+
+	// validate queryIngesters. it should either be empty or one of (true|false)
+	var queryIngesters bool
+	if len(q) == 0 || q == "true" {
+		queryIngesters = true
+	} else if q == "false" {
+		queryIngesters = false
+	} else {
+		return false, "", "", false
+	}
+
+	// validate start. it should either be empty or a valid uuid
+	if len(start) == 0 {
+		start = blockIDMin
+	} else {
+		_, err := uuid.Parse(start)
+		if err != nil {
+			return false, "", "", false
+		}
+	}
+
+	// validate end. it should either be empty or a valid uuid
+	if len(end) == 0 {
+		end = blockIDMax
+	} else {
+		_, err := uuid.Parse(end)
+		if err != nil {
+			return false, "", "", false
+		}
+	}
+
+	return true, start, end, queryIngesters
 }
