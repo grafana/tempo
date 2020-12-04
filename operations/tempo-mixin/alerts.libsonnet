@@ -67,6 +67,32 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoDistributorUnhealthy'
             },
           },
+          {
+            alert: 'TempoCompactionsFailing',
+            expr: |||
+              sum by (cluster, namespace) (increase(tempodb_compaction_errors_total{}[1h])) > 1
+            |||,
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Greater than 1 compactions have failed in the past hour.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoCompactionsFailing'
+            },
+          },
+          {
+            alert: 'TempoFlushesFailing',
+            expr: |||
+              sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[1h])) > 1
+            |||,
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Greater than 1 flushes have failed in the past hour.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoFlushesFailing'
+            },
+          },
         ],
       },
     ],
