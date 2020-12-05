@@ -27,8 +27,8 @@ export let options = {
     }
   },
   thresholds: {
-    // the rate of successful checks should be higher than 50% for the write path
-    'checks{type:write}': [{ threshold: 'rate>0.5', abortOnFail: true }],
+    // the rate of successful checks should be higher than 90% for the write path
+    'checks{type:write}': [{ threshold: 'rate>0.9', abortOnFail: false }],
     // the rate of successful checks should be higher than 90% for the steady checks
     'checks{type:steady}': [{ threshold: 'rate>0.9', abortOnFail: true }],
     http_req_duration: ['p(99)<1500'], // 99% of requests must complete below 1.5s
