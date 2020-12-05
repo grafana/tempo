@@ -32,9 +32,6 @@ jobs:
     - name: Test
       run: make test-all
 
-    - name: Bench
-      run: make test-bench
-
     - name: Build Tempo
       run: make tempo
 
