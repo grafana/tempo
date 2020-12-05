@@ -15,6 +15,9 @@ export let options = {
       exec: 'writePath',
       startVUs: 1,
       stages: [
+        { duration: '2m', target: 5 },
+        { duration: '1m', target: 10 },
+        { duration: '1m', target: 0 },
         { duration: '1m', target: 5 },
       ],
       gracefulRampDown: '5s',
@@ -23,7 +26,7 @@ export let options = {
       executor: 'constant-vus',
       exec: 'steadyStateCheck',
       vus: 1,
-      duration: '1m'
+      duration: '5m'
     }
   },
   thresholds: {
