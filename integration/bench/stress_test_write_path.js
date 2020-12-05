@@ -46,8 +46,6 @@ export function writePath() {
 
   var payload = JSON.stringify(trace);
 
-  // console.log(`type=write traceId=${rootId}`);
-
   let res = http.post(WRITE_ENDPOINT, payload);
   check(res, {
     'write is status 202': (r) => r.status === 202
