@@ -4446,7 +4446,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "increase(tempodb_compaction_objects_combined_total{cluster=\"$cluster\",job=~\"$namespace/compactor\"}[$__rate_interval])",
+            "expr": "sum(rate(tempodb_compaction_objects_combined_total{cluster=\"$cluster\",job=~\"$namespace/compactor\"}[$__rate_interval])) by (level)",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -4456,7 +4456,7 @@
         "timeFrom": null,
         "timeRegions": [],
         "timeShift": null,
-        "title": "Objects Combined",
+        "title": "Objects Combined / s",
         "tooltip": {
           "shared": true,
           "sort": 0,

@@ -1549,129 +1549,6 @@
     "y": 7
    },
    "hiddenSeries": false,
-   "id": 52,
-   "legend": {
-    "avg": false,
-    "current": false,
-    "max": false,
-    "min": false,
-    "show": false,
-    "total": false,
-    "values": false
-   },
-   "lines": false,
-   "linewidth": 1,
-   "nullPointMode": "connected",
-   "options": {
-    "alertThreshold": true
-   },
-   "percentage": false,
-   "pluginVersion": "7.2.1",
-   "pointradius": 2,
-   "points": true,
-   "renderer": "flot",
-   "seriesOverrides": [
-
-   ],
-   "spaceLength": 10,
-   "stack": false,
-   "steppedLine": false,
-   "targets": [
-    {
-     "expr": "histogram_quantile(.99, sum(rate(tempodb_compaction_duration_seconds_bucket{job=~\"$namespace/compactor\"}[$__rate_interval])) by (le,level))",
-     "interval": "",
-     "legendFormat": ".99-{{level}}",
-     "refId": "A"
-    },
-    {
-     "expr": "histogram_quantile(.9, sum(rate(tempodb_compaction_duration_seconds_bucket{job=~\"$namespace/compactor\"}[$__rate_interval])) by (le,level))",
-     "hide": true,
-     "interval": "",
-     "legendFormat": ".9-{{level}}",
-     "refId": "B"
-    },
-    {
-     "expr": "histogram_quantile(.5, sum(rate(tempodb_compaction_duration_seconds_bucket{job=~\"$namespace/compactor\"}[$__rate_interval])) by (le,level))",
-     "hide": true,
-     "interval": "",
-     "legendFormat": ".5-{{level}}",
-     "refId": "C"
-    }
-   ],
-   "thresholds": [
-
-   ],
-   "timeFrom": null,
-   "timeRegions": [
-
-   ],
-   "timeShift": null,
-   "title": "compaction duration",
-   "tooltip": {
-    "shared": true,
-    "sort": 0,
-    "value_type": "individual"
-   },
-   "type": "graph",
-   "xaxis": {
-    "buckets": null,
-    "mode": "time",
-    "name": null,
-    "show": true,
-    "values": [
-
-    ]
-   },
-   "yaxes": [
-    {
-     "format": "s",
-     "label": null,
-     "logBase": 1,
-     "max": null,
-     "min": null,
-     "show": true
-    },
-    {
-     "format": "short",
-     "label": null,
-     "logBase": 1,
-     "max": null,
-     "min": null,
-     "show": true
-    }
-   ],
-   "yaxis": {
-    "align": false,
-    "alignLevel": null
-   }
-  },
-  {
-   "aliasColors": {
-
-   },
-   "bars": false,
-   "dashLength": 10,
-   "dashes": false,
-   "datasource": "$ds",
-   "fieldConfig": {
-    "defaults": {
-     "custom": {
-
-     }
-    },
-    "overrides": [
-
-    ]
-   },
-   "fill": 1,
-   "fillGradient": 0,
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 18,
-    "y": 7
-   },
-   "hiddenSeries": false,
    "id": 53,
    "legend": {
     "avg": false,
@@ -1783,7 +1660,7 @@
    "gridPos": {
     "h": 5,
     "w": 3,
-    "x": 21,
+    "x": 18,
     "y": 7
    },
    "hiddenSeries": false,
@@ -5140,8 +5017,8 @@
    "fill": 1,
    "fillGradient": 0,
    "gridPos": {
-    "h": 8,
-    "w": 7,
+    "h": 6,
+    "w": 4,
     "x": 0,
     "y": 77
    },
@@ -5175,7 +5052,7 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "increase(tempodb_compaction_objects_combined_total{job=~\"$namespace/compactor\"}[$__rate_interval])",
+     "expr": "sum(rate(tempodb_compaction_objects_combined_total{cluster=\"$cluster\",job=~\"$namespace/compactor\"}[$__rate_interval])) by (level)",
      "interval": "",
      "legendFormat": "",
      "refId": "A"
@@ -5189,7 +5066,7 @@
 
    ],
    "timeShift": null,
-   "title": "Objects Combined",
+   "title": "Objects Combined / s",
    "tooltip": {
     "shared": true,
     "sort": 0,
@@ -5217,6 +5094,334 @@
     },
     {
      "$$hashKey": "object:151",
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "description": "",
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+
+     }
+    },
+    "overrides": [
+
+    ]
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 6,
+    "w": 4,
+    "x": 4,
+    "y": 77
+   },
+   "hiddenSeries": false,
+   "id": 85,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": false,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "7.3.0-beta1",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": true,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(rate(tempodb_compaction_objects_written{cluster=\"$cluster\",job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
+     "interval": "",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Objects Written / s",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": null,
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+
+     }
+    },
+    "overrides": [
+
+    ]
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 6,
+    "w": 4,
+    "x": 8,
+    "y": 77
+   },
+   "hiddenSeries": false,
+   "id": 88,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "7.4.0-7095pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(rate(tempodb_compaction_bytes_written{cluster=\"$cluster\",job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
+     "interval": "",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Bytes Written / s",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+
+     }
+    },
+    "overrides": [
+
+    ]
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 6,
+    "w": 4,
+    "x": 12,
+    "y": 77
+   },
+   "hiddenSeries": false,
+   "id": 86,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": false,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "7.3.0-beta1",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": true,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(increase(tempodb_compaction_blocks_total{cluster=\"$cluster\",job=\"$namespace/compactor\"}[5m])) by (level)",
+     "interval": "",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Blocks Compacted",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
      "format": "short",
      "label": null,
      "logBase": 1,

@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"fmt"
 	"math/rand"
 	"sort"
 	"testing"
@@ -184,5 +185,21 @@ func BenchmarkCombineTracesIdentical(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		CombineTraces(b1, b2)
+	}
+}
+
+func BenchmarkCombineTraceProtos(b *testing.B) {
+	sizes := []int{1, 10, 1000, 10000, 100000}
+
+	for _, size := range sizes {
+		b.Run(fmt.Sprint(size), func(b *testing.B) {
+			t1 := test.MakeTraceWithSpanCount(1, size, []byte{0x01, 0x02})
+			t2 := test.MakeTraceWithSpanCount(1, size, []byte{0x01, 0x03})
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				CombineTraceProtos(t1, t2)
+			}
+		})
 	}
 }

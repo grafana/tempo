@@ -68,10 +68,11 @@ compactor:
 ```
 
 ## [Storage](https://github.com/grafana/tempo/blob/master/tempodb/config.go)
-The storage block is used to configure TempoDB. It supports S3, GCS, local file system, and optionally can use memcached for increased query performance.  
+The storage block is used to configure TempoDB. It supports S3, GCS, local file system, and optionally can use Memcached or Redis for increased query performance.  
 
 The following example shows common options.  For platform-specific options refer to the following:
 * [S3](s3/)
+* [Redis](redis/)
 
 ```
 storage:
@@ -85,6 +86,9 @@ storage:
             consistent_hash: true
             host: memcached
             service: memcached-client
+            timeout: 500ms
+        redis:                                   # optional redis configuration 
+            endpoint: redis
             timeout: 500ms
         pool:                                    # the worker pool is used primarily when finding traces by id, but is also used by other
             max_workers: 50                      # total number of workers pulling jobs from the queue

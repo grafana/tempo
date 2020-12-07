@@ -5,4 +5,5 @@
 .idea
 .vscode
 /dist
+/cmd/tempo-cli/tempo-cli
 /example/docker-compose/example-data/tempo

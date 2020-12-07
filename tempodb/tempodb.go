@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/memcached"
+	"github.com/grafana/tempo/tempodb/backend/redis"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/bloom"
@@ -155,6 +156,14 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 
 	if cfg.Memcached != nil {
 		r, w, err = memcached.New(r, w, cfg.Memcached, logger)
+
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	if cfg.Redis != nil {
+		r, w, err = redis.New(r, w, cfg.Redis, logger)
 
 		if err != nil {
 			return nil, nil, nil, err
