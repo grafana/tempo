@@ -52,12 +52,15 @@ If the value of `tempo_distributor_spans_received_total` is 0, possible reasons 
 - If the application is also running inside docker, make sure the application is sending traces to the correct endpoint (`tempo:<receiver-port>`).
 
 #### Case 2 - `tempodb_blocklist_length` is 0
-If the value of tempodb_blocklist_length is 0, the possible reason is:
-Insufficient permissions to write to the back-end.
-Solution:
-Log in to GCS/S3 to check if the blocks are present in the bucket. If you are using a local back-end, look inside /tmp/local/traces to see if the blocks are present.
-If blocks are missing, then it might indicate permission problems. Tempo Ingester requires LIST, GET and PUT permissions on the bucket. Ensure the container running the ingester has these permissions provided. 
-If you still see nothing, please file an issue on the Tempo repository with a description and the configuration used.
+
+If the value of `tempodb_blocklist_length` is 0, the possible reason is -
+- Insufficient permissions to write to the back-end.
+
+#### Solution
+
+- Log in to GCS/S3 to check if the blocks are present in the bucket. If you are using the local backend, look inside `/tmp/local/traces` to see if the blocks are present.
+- If blocks are missing, then it might indicate permission problems. Tempo Ingester requires LIST, GET and PUT permissions on the bucket. Ensure the container running the ingester has these permissions provided.
+- If you still see nothing, please [file an issue](https://github.com/grafana/tempo/issues/new/choose) on the Tempo repository with a description and the configuration used.
 
 ### Diagnosing and fixing issues with querying traces
 If you have determined that data has been ingested correctly into Tempo, then it is time to investigate possible issues with querying the data.
@@ -114,7 +117,8 @@ Possible reasons why the compactor may not be running are:
 
 - Check metric `tempodb_compaction_bytes_written`
 If this is greater than zero, it means the compactor is running and writing to the backend
-0 Check metric `tempodb_compaction_errors_total`
+0
+- Check metric `tempodb_compaction_errors_total`
 If this metric is greater than zero, it likely means there are permission related issues
 
 #### Solutions:
