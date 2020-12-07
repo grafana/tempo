@@ -1,6 +1,7 @@
 ## master / unreleased
 
 * [CHANGE] Redo tempo-cli with basic command structure and improvements [#385](https://github.com/grafana/tempo/pull/385)
+* [CHANGE] Add content negotiation support and sharding parameters to Querier [#375](https://github.com/grafana/tempo/pull/375)
 
 ## v0.4.0
 
