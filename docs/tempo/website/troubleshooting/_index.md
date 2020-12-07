@@ -37,16 +37,16 @@ If the value of `tempo_distributor_spans_received_total` is 0, possible reasons 
 - Find out which communication protocol is being used by the application to emit traces. This is unique to every client SDK. For instance: Jaeger Golang Client uses `Thrift Compact over UDP` by default.
 - Check the list of supported protocols and their ports and ensure that the correct combination is being used. You will find the list of supported protocols and ports here: https://grafana.com/docs/tempo/latest/getting-started/#step-1-spin-up-tempo-backend
 
-#### Fixing sampling issues
+##### Fixing sampling issues
 - These issues can be tricky to determine because most SDKs use a probabilistic sampler by default. This may lead to just one in a 1000 records being picked up.
 - Check the sampling configuration of the tracer being initialized in the application and make sure it has a high sampling rate.
 - Some clients also provide metrics on the number of spans reported from the application, for example `jaeger_tracer_reporter_spans_total`. Check the value of that metric if available and make sure it is greater than zero.
 - Another way to diagnose this problem would be to generate lots and lots of traces to see if some records make their way to Tempo.
 
-#### Fixing incorrect endpoint issue
+##### Fixing incorrect endpoint issue
 - If the application is also running inside docker, make sure the application is sending traces to the correct endpoint (`tempo:<receiver-port>`).
 
-#### Issue 2 - `tempodb_blocklist_length` is 0
+### Issue 2 - `tempodb_blocklist_length` is 0
 
 If the value of `tempodb_blocklist_length` is 0, the possible reason is -
 - Insufficient permissions to write to the back-end.
@@ -87,8 +87,7 @@ This could happen because of a number of reasons and some have been detailed in 
 ### Diagnosing the issue 
 
 If the pipeline is not reporting any dropped spans, check whether application spans are being dropped by Tempo. The following metrics help determine this -
-- `tempo_receiver_refused_spans`
-The value of `tempo_receiver_refused_spans` should be 0.
+- `tempo_receiver_refused_spans`. The value of `tempo_receiver_refused_spans` should be 0.
 If the value of `tempo_receiver_refused_spans` is greater than 0, then the possible reason is the application spans are being dropped due to rate limiting.
 
 #### Solution
