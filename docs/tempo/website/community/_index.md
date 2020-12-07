@@ -1,6 +1,6 @@
 ---
 title: Community
-weight: 500
+weight: 600
 ---
 
 # Contribute
