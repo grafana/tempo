@@ -1,4 +1,9 @@
-#Troubleshooting missing traces
+---
+title: Troubleshooting
+weight: 550
+---
+
+# Troubleshooting missing traces
 
 This topic helps with day zero operational issues that may come up when getting started with Tempo. It walks through debugging each part of the ingestion and query pipeline to drill down and diagnose issues. 
 
