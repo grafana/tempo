@@ -91,11 +91,9 @@ If the pipeline is not reporting any dropped spans, check whether application sp
 The value of `tempo_receiver_refused_spans` should be 0.
 If the value of `tempo_receiver_refused_spans` is greater than 0, then the possible reason is the application spans are being dropped due to rate limiting.
 
-#### Solution:
-
+#### Solution
 - The rate limiting may be appropriate and does not need to be fixed. The metric simply explained the cause of the missing spans, and there is nothing more to be done.
 - If more ingestion volume is needed, increase the configuration for the rate limiting, by adding this CLI flag to Tempo at startup - https://github.com/grafana/tempo/blob/78f3554ca30bd5a4dec01629b8b7b2b0b2b489be/modules/overrides/limits.go#L42
-
 
 ## 3. Problem: Getting error message ‘Too many jobs in the queue’
 You may see this error if the compactor isn’t running and the blocklist size has exploded. 
@@ -106,10 +104,8 @@ Possible reasons why the compactor may not be running are:
 - Incorrect configuration settings.
 
 ### Diagnosing the issue
-
 - Check metric `tempodb_compaction_bytes_written`
 If this is greater than zero (0), it means the compactor is running and writing to the backend.
-0
 - Check metric `tempodb_compaction_errors_total`
 If this metric is greater than zero (0), it likely means there are permission related issues.
 
