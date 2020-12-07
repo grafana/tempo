@@ -62,6 +62,7 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 type flushOp struct {
 	from   int64
 	userID string
+	tries int
 }
 
 func (o *flushOp) Key() string {
@@ -107,6 +108,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 		i.flushQueues.Enqueue(&flushOp{
 			time.Now().Unix(),
 			instance.instanceID,
+			1,
 		})
 	}
 }
@@ -116,6 +118,9 @@ func (i *Ingester) flushLoop(j int) {
 		level.Debug(util.Logger).Log("msg", "Ingester.flushLoop() exited")
 		i.flushQueuesDone.Done()
 	}()
+
+	// starts dead-letter-queue shoveler
+	go i.dqlShoveler()
 
 	for {
 		o := i.flushQueues.Dequeue(j)
@@ -132,7 +137,12 @@ func (i *Ingester) flushLoop(j int) {
 
 			// re-queue failed flush
 			op.from += int64(flushBackoff)
-			i.flushQueues.Requeue(op)
+			op.tries++
+			if op.tries < i.cfg.MaxFlushTries {
+				i.flushQueues.Requeue(op)
+			} else {
+				i.flushQueues.EnqueueInDLQ(op)
+			}
 			continue
 		}
 
@@ -171,4 +181,25 @@ func (i *Ingester) flushUserTraces(userID string) error {
 	}
 
 	return nil
+}
+
+func (i *Ingester) dqlShoveler() {
+	for {
+		select {
+		case <-time.After(60 * time.Second):
+			o := i.flushQueues.DequeueFromDQL()
+			if o == nil {
+				return
+			}
+			op := o.(*flushOp)
+			op.tries = 0
+
+			level.Debug(util.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
+
+			op.from += int64(flushBackoff)
+			op.tries++
+			// puts it back to the flush queue
+			i.flushQueues.Requeue(op)
+		}
+	}
 }

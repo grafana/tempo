@@ -21,6 +21,7 @@ type Config struct {
 	MaxBlockDuration     time.Duration `yaml:"max_block_duration"`
 	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
 	OverrideRingKey      string        `yaml:"override_ring_key"`
+	MaxFlushTries        int  `yaml:"max_flush_tries"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.

@@ -10,6 +10,7 @@ import (
 
 type ExclusiveQueues struct {
 	queues     []*util.PriorityQueue
+	dlq        *util.PriorityQueue
 	index      *atomic.Int32
 	activeKeys sync.Map
 }
@@ -18,6 +19,7 @@ type ExclusiveQueues struct {
 func New(queues int, metric prometheus.Gauge) *ExclusiveQueues {
 	f := &ExclusiveQueues{
 		queues: make([]*util.PriorityQueue, queues),
+		dlq: util.NewPriorityQueue(metric),
 		index:  atomic.NewInt32(0),
 	}
 
@@ -51,6 +53,15 @@ func (f *ExclusiveQueues) Requeue(op util.Op) {
 	f.queues[flushQueueIndex].Enqueue(op)
 }
 
+func (f *ExclusiveQueues) EnqueueInDLQ(op util.Op) {
+	f.dlq.Enqueue(op)
+}
+
+
+func (f *ExclusiveQueues) DequeueFromDQL() util.Op {
+	return f.dlq.Dequeue()
+}
+
 // Clear unblocks the requested op.  This should be called only after a flush has been successful
 func (f *ExclusiveQueues) Clear(op util.Op) {
 	f.activeKeys.Delete(op.Key())
@@ -61,4 +72,5 @@ func (f *ExclusiveQueues) Stop() {
 	for _, q := range f.queues {
 		q.Close()
 	}
+	f.dlq.Close()
 }
