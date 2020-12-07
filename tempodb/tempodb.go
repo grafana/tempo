@@ -34,6 +34,11 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
+const (
+	BlockIDMin = "00000000-0000-0000-0000-000000000000"
+	BlockIDMax = "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
+)
+
 var (
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
@@ -80,7 +85,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id encoding.ID) ([]byte, FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, FindMetrics, error)
 	Shutdown()
 }
 
@@ -237,7 +242,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID) ([]byte, FindMetrics, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, FindMetrics, error) {
 	metrics := FindMetrics{
 		BloomFilterReads:     atomic.NewInt32(0),
 		BloomFilterBytesRead: atomic.NewInt32(0),
@@ -252,17 +257,41 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 
+	blockStartUUID, err := uuid.Parse(blockStart)
+	if err != nil {
+		return nil, metrics, err
+	}
+	blockStartBytes, err := blockStartUUID.MarshalBinary()
+	if err != nil {
+		return nil, metrics, err
+	}
+	blockEndUUID, err := uuid.Parse(blockEnd)
+	if err != nil {
+		return nil, metrics, err
+	}
+	blockEndBytes, err := blockEndUUID.MarshalBinary()
+	if err != nil {
+		return nil, metrics, err
+	}
+
 	rw.blockListsMtx.Lock()
 	blocklist, found := rw.blockLists[tenantID]
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
+
 	for _, b := range blocklist {
 		// if in range copy
 		if bytes.Compare(id, b.MinID) != -1 && bytes.Compare(id, b.MaxID) != 1 {
-			copiedBlocklist = append(copiedBlocklist, b)
+			blockIDBytes, _ := b.BlockID.MarshalBinary()
+			// check block is in shard boundaries
+			// blockStartBytes <= blockIDBytes <= blockEndBytes
+			if (bytes.Compare(blockIDBytes, blockStartBytes) >= 0) && (bytes.Compare(blockIDBytes, blockEndBytes) <= 0) {
+				copiedBlocklist = append(copiedBlocklist, b)
+			}
 		}
 	}
 	rw.blockListsMtx.Unlock()
 
+	// deliberately placed outside the blocklist mtx unlock
 	if !found {
 		return nil, metrics, nil
 	}

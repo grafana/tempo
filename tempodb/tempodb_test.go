@@ -54,7 +54,6 @@ func TestDB(t *testing.T) {
 	blockID := uuid.New()
 
 	wal := w.WAL()
-	assert.NoError(t, err)
 
 	head, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err)
@@ -87,7 +86,7 @@ func TestDB(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, _, err := r.Find(context.Background(), testTenantID, id)
+		bFound, _, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
@@ -96,6 +95,82 @@ func TestDB(t *testing.T) {
 
 		assert.True(t, proto.Equal(out, reqs[i]))
 	}
+}
+
+func TestBlockSharding(t *testing.T) {
+	// push a req with some traceID
+	// cut headblock & write to backend
+	// search with different shards and check if its respecting the params
+
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	r, w, _, err := New(&Config{
+		Backend: "local",
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		WAL: &wal.Config{
+			Filepath:        path.Join(tempDir, "wal"),
+			IndexDownsample: 17,
+			BloomFP:         .01,
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	// create block with known ID
+	blockID := uuid.New()
+	wal := w.WAL()
+
+	head, err := wal.NewBlock(blockID, testTenantID)
+	assert.NoError(t, err)
+
+	// add a trace to the block
+	id := make([]byte, 16)
+	rand.Read(id)
+	req := test.MakeRequest(rand.Int()%1000, id)
+
+	bReq, err := proto.Marshal(req)
+	assert.NoError(t, err)
+	err = head.Write(id, bReq)
+	assert.NoError(t, err, "unexpected error writing req")
+
+	// write block to backend
+	complete, err := head.Complete(wal, &mockSharder{})
+	assert.NoError(t, err)
+
+	err = w.WriteBlock(context.Background(), complete)
+	assert.NoError(t, err)
+
+	// poll
+	r.(*readerWriter).pollBlocklist()
+
+	// get blockID
+	r.(*readerWriter).blockListsMtx.Lock()
+	blocks := r.(*readerWriter).blockLists[testTenantID]
+	r.(*readerWriter).blockListsMtx.Unlock()
+	assert.Len(t, blocks, 1)
+
+	// check if it respects the blockstart/blockend params - case1: hit
+	blockStart := uuid.MustParse(BlockIDMin).String()
+	blockEnd := uuid.MustParse(BlockIDMax).String()
+	bFound, _, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
+	assert.NoError(t, err)
+	assert.Greater(t, len(bFound), 0)
+
+	out := &tempopb.PushRequest{}
+	err = proto.Unmarshal(bFound, out)
+	assert.NoError(t, err)
+	assert.True(t, proto.Equal(out, req))
+
+	// check if it respects the blockstart/blockend params - case2: miss
+	blockStart = uuid.MustParse(BlockIDMin).String()
+	blockEnd = uuid.MustParse(BlockIDMin).String()
+	bFound, _, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
+	assert.NoError(t, err)
+	assert.Len(t, bFound, 0)
 }
 
 func TestNilOnUnknownTenantID(t *testing.T) {
@@ -117,7 +192,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01})
+	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
 }

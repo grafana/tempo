@@ -1,15 +1,15 @@
 package tempo
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
@@ -59,6 +59,9 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		req.Header.Set(user.OrgIDHeaderName, tenantID)
 	}
 
+	// Set content type to grpc
+	req.Header.Set(util.AcceptHeaderKey, util.ProtobufTypeHeaderValue)
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed get to tempo %w", err)
@@ -74,10 +77,9 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("error reading response from tempo: %w", err)
 	}
 	out := &tempopb.Trace{}
-	unmarshaller := &jsonpb.Unmarshaler{}
-	err = unmarshaller.Unmarshal(bytes.NewReader(body), out)
+	err = proto.Unmarshal(body, out)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal trace json, err: %w. Tempo response body: %s", err, string(body))
+		return nil, fmt.Errorf("failed to unmarshal trace proto, err: %w. Tempo response body: %s", err, string(body))
 	}
 
 	span.LogFields(ot_log.String("msg", "otlp to Jaeger"))
