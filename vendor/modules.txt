@@ -1,4 +1,4 @@
-# cloud.google.com/go v0.56.0
+# cloud.google.com/go v0.66.0
 cloud.google.com/go
 cloud.google.com/go/compute/metadata
 cloud.google.com/go/iam
@@ -12,7 +12,7 @@ cloud.google.com/go/longrunning/autogen
 cloud.google.com/go/bigtable
 cloud.google.com/go/bigtable/bttest
 cloud.google.com/go/bigtable/internal/option
-# cloud.google.com/go/storage v1.6.0
+# cloud.google.com/go/storage v1.12.0
 ## explicit
 cloud.google.com/go/storage
 # contrib.go.opencensus.io/exporter/prometheus v0.2.0
@@ -513,7 +513,7 @@ github.com/gomodule/redigo/redis
 github.com/google/addlicense
 # github.com/google/btree v1.0.0
 github.com/google/btree
-# github.com/google/go-cmp v0.5.1
+# github.com/google/go-cmp v0.5.2
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
@@ -525,7 +525,7 @@ github.com/google/go-github/github
 github.com/google/go-querystring/query
 # github.com/google/gofuzz v1.1.0
 github.com/google/gofuzz
-# github.com/google/pprof v0.0.0-20200708004538-1a94d8640e99
+# github.com/google/pprof v0.0.0-20200905233945-acf8798be1f7
 github.com/google/pprof/profile
 # github.com/google/uuid v1.1.1
 ## explicit
@@ -803,6 +803,7 @@ github.com/olekukonko/tablewriter
 # github.com/open-telemetry/opentelemetry-proto v0.4.0
 ## explicit
 github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1
+github.com/open-telemetry/opentelemetry-proto/gen/go/metrics/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1
 # github.com/opencontainers/go-digest v1.0.0
@@ -1253,7 +1254,7 @@ go.mongodb.org/mongo-driver/bson/bsonrw
 go.mongodb.org/mongo-driver/bson/bsontype
 go.mongodb.org/mongo-driver/bson/primitive
 go.mongodb.org/mongo-driver/x/bsonx/bsoncore
-# go.opencensus.io v0.22.3
+# go.opencensus.io v0.22.4
 ## explicit
 go.opencensus.io
 go.opencensus.io/internal
@@ -1363,7 +1364,7 @@ golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/modfile
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.0.0-20200822124328-c89045814202
+# golang.org/x/net v0.0.0-20200904194848-62affa334b73
 golang.org/x/net/bpf
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -1384,7 +1385,7 @@ golang.org/x/net/netutil
 golang.org/x/net/proxy
 golang.org/x/net/publicsuffix
 golang.org/x/net/trace
-# golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+# golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 golang.org/x/oauth2
 golang.org/x/oauth2/google
 golang.org/x/oauth2/internal
@@ -1393,7 +1394,7 @@ golang.org/x/oauth2/jwt
 # golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.0.0-20200728102440-3e129f6d46b1
+# golang.org/x/sys v0.0.0-20200905004654-be1d3432aa8f
 golang.org/x/sys/cpu
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
@@ -1409,7 +1410,7 @@ golang.org/x/text/width
 # golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e
 ## explicit
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20200725200936-102e7d357031
+# golang.org/x/tools v0.0.0-20200918232735-d647fc253266
 golang.org/x/tools/cmd/goimports
 golang.org/x/tools/go/analysis
 golang.org/x/tools/go/analysis/passes/asmdecl
@@ -1470,12 +1471,13 @@ golang.org/x/tools/internal/fastwalk
 golang.org/x/tools/internal/gocommand
 golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
+golang.org/x/tools/internal/lsp/fuzzy
 golang.org/x/tools/internal/packagesinternal
 golang.org/x/tools/internal/typesinternal
 # golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
-# google.golang.org/api v0.29.0
+# google.golang.org/api v0.32.0
 ## explicit
 google.golang.org/api/cloudresourcemanager/v1
 google.golang.org/api/compute/v1
@@ -1483,6 +1485,7 @@ google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
 google.golang.org/api/internal
 google.golang.org/api/internal/gensupport
+google.golang.org/api/internal/impersonate
 google.golang.org/api/internal/third_party/uritemplates
 google.golang.org/api/iterator
 google.golang.org/api/option

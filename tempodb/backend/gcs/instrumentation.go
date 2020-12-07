@@ -1,15 +1,12 @@
 package gcs
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"google.golang.org/api/option"
-	google_http "google.golang.org/api/transport/http"
 )
 
 var (
@@ -29,18 +26,11 @@ type instrumentedTransport struct {
 	next     http.RoundTripper
 }
 
-func instrumentation(ctx context.Context, scope string) (option.ClientOption, error) {
-	transport, err := google_http.NewTransport(ctx, http.DefaultTransport, option.WithScopes(scope))
-	if err != nil {
-		return nil, err
+func newInstrumentedTransport(next http.RoundTripper) http.RoundTripper {
+	return instrumentedTransport{
+		observer: gcsRequestDuration,
+		next:     next,
 	}
-	client := &http.Client{
-		Transport: instrumentedTransport{
-			observer: gcsRequestDuration,
-			next:     transport,
-		},
-	}
-	return option.WithHTTPClient(client), nil
 }
 
 func (i instrumentedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
