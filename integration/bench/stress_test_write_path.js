@@ -15,24 +15,23 @@ export let options = {
       exec: 'writePath',
       startVUs: 1,
       stages: [
-        { duration: '10m', target: 5 },
-        { duration: '7m', target: 10 },
-        { duration: '4m', target: 15 },
-        { duration: '1m', target: 20 },
-        { duration: '5m', target: 0 },
+        { duration: '2m', target: 5 },
+        { duration: '1m', target: 10 },
+        { duration: '1m', target: 0 },
+        { duration: '1m', target: 5 },
       ],
-      gracefulRampDown: '5s'
+      gracefulRampDown: '5s',
     },
     steadyStateCheck: {
       executor: 'constant-vus',
       exec: 'steadyStateCheck',
       vus: 1,
-      duration: '27m'
+      duration: '5m'
     }
   },
   thresholds: {
-    // the rate of successful checks should be higher than 99% for the write path
-    'checks{type:write}': [{ threshold: 'rate>0.99', abortOnFail: true }],
+    // the rate of successful checks should be higher than 90% for the write path
+    'checks{type:write}': [{ threshold: 'rate>0.9', abortOnFail: false }],
     // the rate of successful checks should be higher than 90% for the steady checks
     'checks{type:steady}': [{ threshold: 'rate>0.9', abortOnFail: true }],
     http_req_duration: ['p(99)<1500'], // 99% of requests must complete below 1.5s
@@ -49,8 +48,6 @@ export function writePath() {
   ];
 
   var payload = JSON.stringify(trace);
-
-  console.log(`type=write traceId=${rootId}`);
 
   let res = http.post(WRITE_ENDPOINT, payload);
   check(res, {

@@ -1,0 +1,40 @@
+auth_enabled: false
+
+target: all
+
+server:
+  http_listen_port: 3100
+  log_level: error
+
+distributor:
+  receivers:
+    zipkin:
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  trace_idle_period: 1s
+  traces_per_block: 10000
+  max_block_duration: 10m
+
+storage:
+  trace:
+    blocklist_poll: 2s
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: tempo_e2e-minio-9000:9000  # TODO: this is brittle, fix this eventually
+      access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
+      secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
+      insecure: true
+    pool:
+      max_workers: 10
+      queue_depth: 100
+
+overrides:
+  max_traces_per_user: 50000
