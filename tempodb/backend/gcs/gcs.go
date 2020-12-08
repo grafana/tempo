@@ -104,6 +104,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 	w := rw.writer(ctx, util.ObjectFileName(blockID, tenantID))
 	_, err = io.Copy(w, src)
 	if err != nil {
+		w.Close()
 		return err
 	}
 
@@ -282,6 +283,7 @@ func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) err
 
 	_, err := w.Write(b)
 	if err != nil {
+		w.Close()
 		return err
 	}
 
