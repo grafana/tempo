@@ -17,7 +17,7 @@ type Config struct {
 	TTL time.Duration `yaml:"ttl"`
 }
 
-type MemcachedCache struct {
+type Cache struct {
 	client *cortex_cache.Memcached
 }
 
@@ -38,23 +38,23 @@ func NewCache(cfg *Config, logger log.Logger) cache.Cache {
 		BatchSize:   0, // we are currently only requesting one key at a time, which is bad.  we could restructure Find() to batch request all blooms at once
 		Parallelism: 0,
 	}
-	return &MemcachedCache{
+	return &Cache{
 		client: cortex_cache.NewMemcached(memcachedCfg, client, "tempo", prometheus.DefaultRegisterer, logger),
 	}
 }
 
-func (m *MemcachedCache) Store(ctx context.Context, key string, val []byte) {
+func (m *Cache) Store(ctx context.Context, key string, val []byte) {
 	m.client.Store(ctx, []string{key}, [][]byte{val})
 }
 
-func (r *MemcachedCache) Fetch(ctx context.Context, key string) []byte {
-	found, vals, _ := r.client.Fetch(ctx, []string{key})
+func (m *Cache) Fetch(ctx context.Context, key string) []byte {
+	found, vals, _ := m.client.Fetch(ctx, []string{key})
 	if len(found) > 0 {
 		return vals[0]
 	}
 	return nil
 }
 
-func (m *MemcachedCache) Shutdown() {
+func (m *Cache) Shutdown() {
 	m.client.Stop()
 }

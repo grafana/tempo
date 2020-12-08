@@ -16,7 +16,7 @@ type Config struct {
 	TTL time.Duration `yaml:"ttl"`
 }
 
-type RedisCache struct {
+type Cache struct {
 	client *cortex_cache.RedisCache
 }
 
@@ -29,16 +29,16 @@ func NewCache(cfg *Config, logger log.Logger) cache.Cache {
 	}
 
 	client := cortex_cache.NewRedisClient(&cfg.ClientConfig)
-	return &RedisCache{
+	return &Cache{
 		client: cortex_cache.NewRedisCache("tempo", client, logger),
 	}
 }
 
-func (r *RedisCache) Store(ctx context.Context, key string, val []byte) {
+func (r *Cache) Store(ctx context.Context, key string, val []byte) {
 	r.client.Store(ctx, []string{key}, [][]byte{val})
 }
 
-func (r *RedisCache) Fetch(ctx context.Context, key string) []byte {
+func (r *Cache) Fetch(ctx context.Context, key string) []byte {
 	found, vals, _ := r.client.Fetch(ctx, []string{key})
 	if len(found) > 0 {
 		return vals[0]
@@ -46,6 +46,6 @@ func (r *RedisCache) Fetch(ctx context.Context, key string) []byte {
 	return nil
 }
 
-func (r *RedisCache) Shutdown() {
+func (r *Cache) Shutdown() {
 	r.client.Stop()
 }
