@@ -19,7 +19,7 @@ type ExclusiveQueues struct {
 func New(queues int, metric prometheus.Gauge) *ExclusiveQueues {
 	f := &ExclusiveQueues{
 		queues: make([]*util.PriorityQueue, queues),
-		dlq: util.NewPriorityQueue(metric),
+		dlq:    util.NewPriorityQueue(metric),
 		index:  atomic.NewInt32(0),
 	}
 
@@ -56,7 +56,6 @@ func (f *ExclusiveQueues) Requeue(op util.Op) {
 func (f *ExclusiveQueues) EnqueueInDLQ(op util.Op) {
 	f.dlq.Enqueue(op)
 }
-
 
 func (f *ExclusiveQueues) DequeueFromDQL() util.Op {
 	return f.dlq.Dequeue()

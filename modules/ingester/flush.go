@@ -62,7 +62,7 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 type flushOp struct {
 	from   int64
 	userID string
-	tries int
+	tries  int
 }
 
 func (o *flushOp) Key() string {
@@ -185,21 +185,19 @@ func (i *Ingester) flushUserTraces(userID string) error {
 
 func (i *Ingester) dqlShoveler() {
 	for {
-		select {
-		case <-time.After(60 * time.Second):
-			o := i.flushQueues.DequeueFromDQL()
-			if o == nil {
-				return
-			}
-			op := o.(*flushOp)
-			op.tries = 0
-
-			level.Debug(util.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
-
-			op.from += int64(flushBackoff)
-			op.tries++
-			// puts it back to the flush queue
-			i.flushQueues.Requeue(op)
+		time.Sleep(60 * time.Second)
+		o := i.flushQueues.DequeueFromDQL()
+		if o == nil {
+			return
 		}
+		op := o.(*flushOp)
+		op.tries = 0
+
+		level.Debug(util.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
+
+		op.from += int64(flushBackoff)
+		op.tries++
+		// puts it back to the flush queue
+		i.flushQueues.Requeue(op)
 	}
 }
