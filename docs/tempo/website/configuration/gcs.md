@@ -2,8 +2,8 @@
 title: Google Cloud Storage (GCS)
 ---
 
-# GCS Configuration
-GCS backend is configured in the storage block.  Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support a custom prefix to nest within a shared bucket.
+# Google Cloud Storage (GCS) configuration
+GCS backend is configured in the storage block. Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support a custom prefix to nest within a shared bucket.
 
 ```
 storage:
