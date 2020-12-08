@@ -55,6 +55,7 @@ type Querier struct {
 	store  storage.Store
 	limits *overrides.Overrides
 
+	subservices *services.Manager
 	subservicesWatcher *services.FailureWatcher
 }
 
@@ -82,34 +83,49 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 		limits: limits,
 	}
 
-	q.subservicesWatcher = services.NewFailureWatcher()
-	q.subservicesWatcher.WatchService(q.pool)
-
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
 	return q, nil
 }
 
-func (q *Querier) starting(ctx context.Context) error {
-	err := services.StartAndAwaitRunning(ctx, q.pool)
-	if err != nil {
-		return fmt.Errorf("failed to start pool %w", err)
-	}
+// todo: fix name, its confusing
+func (q *Querier) RegisterSubservices(w services.Service) error {
+	var err error
+	q.subservices, err = services.NewManager(w, q.pool)
+	q.subservicesWatcher = services.NewFailureWatcher()
+	q.subservicesWatcher.WatchManager(q.subservices)
+	return err
+}
 
+func (q *Querier) starting(ctx context.Context) error {
+	if q.subservices != nil {
+		err := services.StartManagerAndAwaitHealthy(ctx, q.subservices)
+		if err != nil {
+			return fmt.Errorf("failed to start subservices %w", err)
+		}
+	}
 	return nil
 }
 
 func (q *Querier) running(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return nil
-	case err := <-q.subservicesWatcher.Chan():
-		return fmt.Errorf("querier subservices failed %w", err)
+	if q.subservices != nil {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-q.subservicesWatcher.Chan():
+			return fmt.Errorf("subservices failed %w", err)
+		}
+	} else {
+		<-ctx.Done()
 	}
+	return nil
 }
 
 // Called after distributor is asked to stop via StopAsync.
 func (q *Querier) stopping(_ error) error {
-	return services.StopAndAwaitTerminated(context.Background(), q.pool)
+	if q.subservices != nil {
+		return services.StopManagerAndAwaitStopped(context.Background(), q.subservices)
+	}
+	return nil
 }
 
 // FindTraceByID implements tempopb.Querier.

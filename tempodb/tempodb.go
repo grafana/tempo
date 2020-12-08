@@ -300,8 +300,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 		meta := payload.(*encoding.BlockMeta)
 		shardKey := bloom.ShardKeyForTraceID(id)
 
-		span.SetTag("blockID", meta.BlockID)
-		span.SetTag("shardKey", shardKey)
 		bloomBytes, err := rw.r.Bloom(ctx, meta.BlockID, tenantID, shardKey)
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving bloom %v", err)
@@ -358,14 +356,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 				break
 			}
 		}
-		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
-		span.LogFields(ot_log.String("msg", "complete"),
-			ot_log.String("findTraceID", hex.EncodeToString(id)),
+		span.LogFields(ot_log.String("blockID", meta.BlockID.String()),
 			ot_log.Bool("found", foundObject != nil),
 			ot_log.Int("bytes", len(foundObject)))
 		return foundObject, nil
 	})
 
+	level.Info(logger).Log("msg", "search for trace complete", "findTraceID", hex.EncodeToString(id), "found", len(foundBytes) > 0)
 	return foundBytes, metrics, err
 }
 

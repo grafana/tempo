@@ -6,6 +6,9 @@ import (
 	"os"
 
 	"github.com/cortexproject/cortex/pkg/cortex"
+	cortex_querier "github.com/cortexproject/cortex/pkg/querier"
+	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
+	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
@@ -19,6 +22,7 @@ import (
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
+	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
@@ -35,6 +39,7 @@ const (
 	Distributor  string = "distributor"
 	Ingester     string = "ingester"
 	Querier      string = "querier"
+	Frontend     string = "frontend"
 	Compactor    string = "compactor"
 	Store        string = "store"
 	MemberlistKV string = "memberlist-kv"
@@ -133,10 +138,48 @@ func (t *App) initQuerier() (services.Service, error) {
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-
 	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
-	return t.querier, nil
+	worker, err := cortex_frontend.NewWorker(
+		t.cfg.Worker,
+		cortex_querier.Config{
+			MaxConcurrent: t.cfg.Querier.MaxConcurrent,
+		},
+		httpgrpc_server.NewServer(tracesHandler),
+		util.Logger,
+		)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create frontend worker %w", err)
+	}
+
+	err = querier.RegisterSubservices(worker)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register frontend worker %w", err)
+	}
+
+	return querier, nil
+}
+
+func (t *App) initQueryFrontend() (services.Service, error) {
+	var err error
+	t.frontend, err = cortex_frontend.New(t.cfg.Frontend.Config, util.Logger, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, err
+	}
+
+	// custom tripperware that splits requests
+	tripperware, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, err
+	}
+	// tripperware will be called before f.roundTripper (which calls roundtripgrpc)
+	t.frontend.Wrap(tripperware)
+
+	cortex_frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
+	// register at a different endpoint for now
+	t.server.HTTP.Handle("/api/traces/frontend/{traceID}", t.frontend.Handler())
+
+	return nil, nil
 }
 
 func (t *App) initCompactor() (services.Service, error) {
@@ -197,6 +240,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Distributor, t.initDistributor)
 	mm.RegisterModule(Ingester, t.initIngester)
 	mm.RegisterModule(Querier, t.initQuerier)
+	mm.RegisterModule(Frontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
 	mm.RegisterModule(All, nil)
@@ -206,12 +250,13 @@ func (t *App) setupModuleManager() error {
 		// Overrides:    nil,
 		// Store:        nil,
 		// MemberlistKV: nil,
+		Frontend:    {Server},
 		Ring:        {Server, MemberlistKV},
 		Distributor: {Ring, Server, Overrides},
 		Ingester:    {Store, Server, Overrides, MemberlistKV},
 		Querier:     {Store, Ring},
 		Compactor:   {Store, Server, MemberlistKV},
-		All:         {Compactor, Querier, Ingester, Distributor},
+		All:         {Compactor, Frontend, Querier, Ingester, Distributor},
 	}
 
 	for mod, targets := range deps {

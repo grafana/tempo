@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util"
@@ -25,6 +26,7 @@ import (
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/modules/frontend"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
@@ -40,15 +42,17 @@ type Config struct {
 	AuthEnabled bool   `yaml:"auth_enabled,omitempty"`
 	HTTPPrefix  string `yaml:"http_prefix"`
 
-	Server         server.Config          `yaml:"server,omitempty"`
-	Distributor    distributor.Config     `yaml:"distributor,omitempty"`
-	IngesterClient ingester_client.Config `yaml:"ingester_client,omitempty"`
-	Querier        querier.Config         `yaml:"querier,omitempty"`
-	Compactor      compactor.Config       `yaml:"compactor,omitempty"`
-	Ingester       ingester.Config        `yaml:"ingester,omitempty"`
-	StorageConfig  storage.Config         `yaml:"storage,omitempty"`
-	LimitsConfig   overrides.Limits       `yaml:"overrides,omitempty"`
-	MemberlistKV   memberlist.KVConfig    `yaml:"memberlist,omitempty"`
+	Server         server.Config            `yaml:"server,omitempty"`
+	Distributor    distributor.Config       `yaml:"distributor,omitempty"`
+	IngesterClient ingester_client.Config   `yaml:"ingester_client,omitempty"`
+	Querier        querier.Config           `yaml:"querier,omitempty"`
+	Frontend       frontend.FrontendConfig `yaml:"frontend,omitempty"`
+	Worker         cortex_frontend.WorkerConfig   `yaml:"frontend_worker"`
+	Compactor      compactor.Config         `yaml:"compactor,omitempty"`
+	Ingester       ingester.Config          `yaml:"ingester,omitempty"`
+	StorageConfig  storage.Config           `yaml:"storage,omitempty"`
+	LimitsConfig   overrides.Limits         `yaml:"overrides,omitempty"`
+	MemberlistKV   memberlist.KVConfig      `yaml:"memberlist,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers flag.
@@ -78,6 +82,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Distributor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "distributor"), f)
 	c.Ingester.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "ingester"), f)
 	c.Querier.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "querier"), f)
+	c.Frontend.ApplyDefaults()
+	// todo: add worker defaults
 	c.Compactor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "storage"), f)
 
@@ -110,6 +116,7 @@ type App struct {
 	overrides    *overrides.Overrides
 	distributor  *distributor.Distributor
 	querier      *querier.Querier
+	frontend     *cortex_frontend.Frontend
 	compactor    *compactor.Compactor
 	ingester     *ingester.Ingester
 	store        storage.Store
