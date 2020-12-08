@@ -1,16 +1,12 @@
-package redis
+package cache
 
 import (
 	"context"
 	"strconv"
-	"time"
-
-	"github.com/cortexproject/cortex/pkg/chunk/cache"
-	"github.com/go-kit/kit/log"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 const (
@@ -18,34 +14,23 @@ const (
 	typeIndex = "index"
 )
 
-type Config struct {
-	ClientConfig cache.RedisConfig `yaml:",inline"`
-
-	TTL time.Duration `yaml:"ttl"`
-}
-
 type readerWriter struct {
 	nextReader backend.Reader
 	nextWriter backend.Writer
-	client     *cache.RedisCache
-	logger     log.Logger
+	cache      Cache
 }
 
-func New(nextReader backend.Reader, nextWriter backend.Writer, cfg *Config, logger log.Logger) (backend.Reader, backend.Writer, error) {
-	if cfg.ClientConfig.Timeout == 0 {
-		cfg.ClientConfig.Timeout = 100 * time.Millisecond
-	}
-	if cfg.ClientConfig.Expiration == 0 {
-		cfg.ClientConfig.Expiration = cfg.TTL
-	}
+type Cache interface {
+	Fetch(ctx context.Context, key string) []byte
+	Store(ctx context.Context, key string, val []byte)
+	Shutdown()
+}
 
-	client := cache.NewRedisClient(&cfg.ClientConfig)
-
+func NewCache(nextReader backend.Reader, nextWriter backend.Writer, cache Cache) (backend.Reader, backend.Writer, error) {
 	rw := &readerWriter{
-		client:     cache.NewRedisCache("tempo", client, logger),
+		cache:      cache,
 		nextReader: nextReader,
 		nextWriter: nextWriter,
-		logger:     logger,
 	}
 
 	return rw, rw, nil
@@ -66,14 +51,14 @@ func (r *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantI
 
 func (r *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
 	key := bloomKey(blockID, tenantID, shardNum)
-	val := r.get(ctx, key)
+	val := r.cache.Fetch(ctx, key)
 	if val != nil {
 		return val, nil
 	}
 
 	val, err := r.nextReader.Bloom(ctx, blockID, tenantID, shardNum)
 	if err == nil {
-		r.set(ctx, key, val)
+		r.cache.Store(ctx, key, val)
 	}
 
 	return val, err
@@ -81,14 +66,14 @@ func (r *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID st
 
 func (r *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	key := key(blockID, tenantID)
-	val := r.get(ctx, key)
+	val := r.cache.Fetch(ctx, key)
 	if val != nil {
 		return val, nil
 	}
 
 	val, err := r.nextReader.Index(ctx, blockID, tenantID)
 	if err == nil {
-		r.set(ctx, key, val)
+		r.cache.Store(ctx, key, val)
 	}
 
 	return val, err
@@ -98,26 +83,21 @@ func (r *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID s
 	return r.nextReader.Object(ctx, blockID, tenantID, start, buffer)
 }
 
-func (r *readerWriter) Shutdown() {
-	r.nextReader.Shutdown()
-	r.client.Stop()
-}
-
 // Writer
 func (r *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
 	for i, b := range bBloom {
-		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, i), b)
+		r.cache.Store(ctx, bloomKey(meta.BlockID, meta.TenantID, i), b)
 	}
-	r.set(ctx, key(meta.BlockID, meta.TenantID), bIndex)
+	r.cache.Store(ctx, key(meta.BlockID, meta.TenantID), bIndex)
 
 	return r.nextWriter.Write(ctx, meta, bBloom, bIndex, objectFilePath)
 }
 
 func (r *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	for i, b := range bBloom {
-		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, i), b)
+		r.cache.Store(ctx, bloomKey(meta.BlockID, meta.TenantID, i), b)
 	}
-	r.set(ctx, key(meta.BlockID, meta.TenantID), bIndex)
+	r.cache.Store(ctx, key(meta.BlockID, meta.TenantID), bIndex)
 
 	return r.nextWriter.WriteBlockMeta(ctx, tracker, meta, bBloom, bIndex)
 }
@@ -126,16 +106,9 @@ func (r *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendT
 	return r.nextWriter.AppendObject(ctx, tracker, meta, bObject)
 }
 
-func (r *readerWriter) get(ctx context.Context, key string) []byte {
-	found, vals, _ := r.client.Fetch(ctx, []string{key})
-	if len(found) > 0 {
-		return vals[0]
-	}
-	return nil
-}
-
-func (r *readerWriter) set(ctx context.Context, key string, val []byte) {
-	r.client.Store(ctx, []string{key}, [][]byte{val})
+func (r *readerWriter) Shutdown() {
+	r.nextReader.Shutdown()
+	r.cache.Shutdown()
 }
 
 func key(blockID uuid.UUID, tenantID string) string {
