@@ -2,16 +2,19 @@ package gcs
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/pkg/errors"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
@@ -19,6 +22,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/opentracing/opentracing-go"
 	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
+	google_http "google.golang.org/api/transport/http"
 )
 
 type readerWriter struct {
@@ -30,17 +35,41 @@ type readerWriter struct {
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	ctx := context.Background()
 
-	option, err := instrumentation(ctx, storage.ScopeReadWrite)
-	if err != nil {
-		return nil, nil, nil, err
+	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+
+	transportOptions := []option.ClientOption{}
+	if cfg.Insecure {
+		transportOptions = append(transportOptions, option.WithoutAuthentication())
+		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	client, err := storage.NewClient(ctx, option)
+	transport, err := google_http.NewTransport(ctx, customTransport, transportOptions...)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, errors.Wrap(err, "creating transport")
+	}
+	transport = newInstrumentedTransport(transport)
+
+	storageClientOptions := []option.ClientOption{
+		option.WithHTTPClient(&http.Client{
+			Transport: transport,
+		}),
+		option.WithScopes(storage.ScopeReadWrite),
+	}
+	if cfg.Endpoint != "" {
+		storageClientOptions = append(storageClientOptions, option.WithEndpoint(cfg.Endpoint))
+	}
+
+	client, err := storage.NewClient(ctx, storageClientOptions...)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "creating storage client")
 	}
 
 	bucket := client.Bucket(cfg.BucketName)
+
+	// Check bucket exists by getting attrs
+	if _, err = bucket.Attrs(ctx); err != nil {
+		return nil, nil, nil, errors.Wrap(err, "getting bucket attrs")
+	}
 
 	rw := &readerWriter{
 		cfg:    cfg,
@@ -67,8 +96,13 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 	defer src.Close()
 
 	w := rw.writer(ctx, util.ObjectFileName(blockID, tenantID))
-	defer w.Close()
 	_, err = io.Copy(w, src)
+	if err != nil {
+		w.Close()
+		return err
+	}
+
+	err = w.Close()
 	if err != nil {
 		return err
 	}
@@ -136,7 +170,6 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 }
 
 func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
-	var warning error
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Delimiter: "/",
 		Versions:  false,
@@ -150,13 +183,13 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 			break
 		}
 		if err != nil {
-			warning = err
-			continue
+			return tenants, errors.Wrap(err, "iterating tenants")
 		}
+
 		tenants = append(tenants, strings.TrimSuffix(attrs.Prefix, "/"))
 	}
 
-	return tenants, warning
+	return tenants, nil
 }
 
 func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
@@ -175,8 +208,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 			break
 		}
 		if err != nil {
-			warning = err
-			continue
+			return blocks, errors.Wrap(err, "iterating blocks")
 		}
 
 		idString := strings.TrimSuffix(strings.TrimPrefix(attrs.Prefix, tenantID+"/"), "/")
@@ -200,7 +232,7 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 		return nil, backend.ErrMetaDoesNotExist
 	}
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "read block meta from gcs")
 	}
 
 	out := &encoding.BlockMeta{}
@@ -242,20 +274,20 @@ func (rw *readerWriter) Shutdown() {
 
 func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {
 	w := rw.writer(ctx, name)
-	defer w.Close()
 
 	_, err := w.Write(b)
 	if err != nil {
+		w.Close()
 		return err
 	}
 
-	return nil
+	err = w.Close()
+	return err
 }
 
 func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
 	w := rw.bucket.Object(name).NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
-
 	return w
 }
 
