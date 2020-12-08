@@ -42,7 +42,6 @@ storage:
       bucket_name: tempo
       endpoint: https://gcs:4443/storage/v1/
       insecure: true
-      project_id: test
     pool:
       max_workers: 100                 # the worker pool mainly drives querying, but is also used for polling the blocklist
       queue_depth: 10000

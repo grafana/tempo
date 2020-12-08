@@ -15,6 +15,4 @@ storage:
             endpoint: https://storage.googleapis.com/storage/v1/  # optional. api endpoint override
             insecure: false                                       # optional. Set to true to disable authentication 
                                                                   #   and certificate checks.
-            project_id: project                                   # optional if bucket already exists. Project ID
-                                                                  #   to use when creating bucket on first run.
 ```

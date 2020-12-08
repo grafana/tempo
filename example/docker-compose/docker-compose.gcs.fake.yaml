@@ -18,6 +18,9 @@ services:
     command: -public-host gcs:4443
     ports:
       - "4443:4443"
+    volumes:
+      # This creates an empty tempo bucket
+      - ./example-data/gcs/tempo/:/data/tempo/
 
   tempo-query:
     image: grafana/tempo-query:latest

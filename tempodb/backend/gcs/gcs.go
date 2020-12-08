@@ -66,15 +66,9 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 
 	bucket := client.Bucket(cfg.BucketName)
 
-	// Create bucket if needed.
+	// Check bucket exists by getting attrs
 	if _, err = bucket.Attrs(ctx); err != nil {
-		if err == storage.ErrBucketNotExist {
-			if err = bucket.Create(ctx, cfg.ProjectID, nil); err != nil {
-				return nil, nil, nil, errors.Wrap(err, "creating bucket")
-			}
-		} else {
-			return nil, nil, nil, errors.Wrap(err, "getting bucket attrs")
-		}
+		return nil, nil, nil, errors.Wrap(err, "getting bucket attrs")
 	}
 
 	rw := &readerWriter{
