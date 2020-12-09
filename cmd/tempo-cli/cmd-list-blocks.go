@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/olekukonko/tablewriter"
@@ -53,49 +54,35 @@ func loadBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID 
 	}
 
 	fmt.Println("total blocks: ", len(blockIDs))
-	results := make([]blockStats, 0)
+
+	// Load in parallel
+	wg := newBoundedWaitGroup(10)
+	resultsCh := make(chan blockStats, len(blockIDs))
 
 	for _, id := range blockIDs {
-		fmt.Print(".")
+		wg.Add(1)
 
-		meta, err := r.BlockMeta(context.Background(), id, tenantID)
-		if err == tempodb_backend.ErrMetaDoesNotExist && !includeCompacted {
-			continue
-		} else if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
-			return nil, err
-		}
+		go func(id2 uuid.UUID) {
+			defer wg.Done()
 
-		compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-		if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
-			return nil, err
-		}
-
-		totalIDs := -1
-		duplicateIDs := -1
-
-		if loadIndex {
-			indexBytes, err := r.Index(context.Background(), id, tenantID)
-			if err == nil {
-				records, err := encoding.UnmarshalRecords(indexBytes)
-				if err != nil {
-					return nil, err
-				}
-				duplicateIDs = 0
-				totalIDs = len(records)
-				for i := 1; i < len(records); i++ {
-					if bytes.Equal(records[i-1].ID, records[i].ID) {
-						duplicateIDs++
-					}
-				}
+			b, err := loadBlock(r, c, tenantID, id2, windowRange, loadIndex, includeCompacted)
+			if err != nil {
+				fmt.Println("Error loading block:", id2, err)
+				return
 			}
-		}
 
-		results = append(results, blockStats{
-			unifiedBlockMeta: getMeta(meta, compactedMeta, windowRange),
+			if b != nil {
+				resultsCh <- *b
+			}
+		}(id)
+	}
 
-			totalIDs:     totalIDs,
-			duplicateIDs: duplicateIDs,
-		})
+	wg.Wait()
+	close(resultsCh)
+
+	results := make([]blockStats, 0)
+	for b := range resultsCh {
+		results = append(results, b)
 	}
 
 	sort.Slice(results, func(i, j int) bool {
@@ -103,6 +90,49 @@ func loadBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID 
 	})
 
 	return results, nil
+}
+
+func loadBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, id uuid.UUID, windowRange time.Duration, loadIndex bool, includeCompacted bool) (*blockStats, error) {
+	fmt.Print(".")
+
+	meta, err := r.BlockMeta(context.Background(), id, tenantID)
+	if err == tempodb_backend.ErrMetaDoesNotExist && !includeCompacted {
+		return nil, nil
+	} else if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
+		return nil, err
+	}
+
+	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
+	if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
+		return nil, err
+	}
+
+	totalIDs := -1
+	duplicateIDs := -1
+
+	if loadIndex {
+		indexBytes, err := r.Index(context.Background(), id, tenantID)
+		if err == nil {
+			records, err := encoding.UnmarshalRecords(indexBytes)
+			if err != nil {
+				return nil, err
+			}
+			duplicateIDs = 0
+			totalIDs = len(records)
+			for i := 1; i < len(records); i++ {
+				if bytes.Equal(records[i-1].ID, records[i].ID) {
+					duplicateIDs++
+				}
+			}
+		}
+	}
+
+	return &blockStats{
+		unifiedBlockMeta: getMeta(meta, compactedMeta, windowRange),
+
+		totalIDs:     totalIDs,
+		duplicateIDs: duplicateIDs,
+	}, nil
 }
 
 func displayResults(results []blockStats, windowDuration time.Duration, includeIndexInfo bool, includeCompacted bool) {

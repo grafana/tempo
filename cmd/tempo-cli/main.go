@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -150,4 +151,32 @@ func getMeta(meta *encoding.BlockMeta, compactedMeta *encoding.CompactedBlockMet
 		end:             time.Unix(0, 0),
 		compacted:       false,
 	}
+}
+
+// boundedWaitGroup like a normal wait group except limits number of active goroutines to given capacity.
+type boundedWaitGroup struct {
+	wg sync.WaitGroup
+	ch chan struct{} // Chan buffer size is used to limit concurrency.
+}
+
+func newBoundedWaitGroup(cap int) boundedWaitGroup {
+	return boundedWaitGroup{ch: make(chan struct{}, cap)}
+}
+
+func (bwg *boundedWaitGroup) Add(delta int) {
+	for i := 0; i > delta; i-- {
+		<-bwg.ch
+	}
+	for i := 0; i < delta; i++ {
+		bwg.ch <- struct{}{}
+	}
+	bwg.wg.Add(delta)
+}
+
+func (bwg *boundedWaitGroup) Done() {
+	bwg.Add(-1)
+}
+
+func (bwg *boundedWaitGroup) Wait() {
+	bwg.wg.Wait()
 }
