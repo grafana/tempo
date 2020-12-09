@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/cmd/tempo/app"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -107,12 +108,46 @@ func loadBackend(b *backendOptions, g *globalOptions) (tempodb_backend.Reader, t
 	return r, c, nil
 }
 
-func blockStats(meta *encoding.BlockMeta, compactedMeta *encoding.CompactedBlockMeta, windowRange time.Duration) (int, uint8, int64, time.Time, time.Time) {
-	if meta != nil {
-		return meta.TotalObjects, meta.CompactionLevel, meta.EndTime.Unix() / int64(windowRange/time.Second), meta.StartTime, meta.EndTime
-	} else if compactedMeta != nil {
-		return compactedMeta.TotalObjects, compactedMeta.CompactionLevel, compactedMeta.EndTime.Unix() / int64(windowRange/time.Second), compactedMeta.StartTime, compactedMeta.EndTime
-	}
+type unifiedBlockMeta struct {
+	id              uuid.UUID
+	compactionLevel uint8
+	objects         int
+	window          int64
+	start           time.Time
+	end             time.Time
+	compacted       bool
+}
 
-	return -1, 0, -1, time.Unix(0, 0), time.Unix(0, 0)
+func getMeta(meta *encoding.BlockMeta, compactedMeta *encoding.CompactedBlockMeta, windowRange time.Duration) unifiedBlockMeta {
+	if meta != nil {
+		return unifiedBlockMeta{
+			id:              meta.BlockID,
+			compactionLevel: meta.CompactionLevel,
+			objects:         meta.TotalObjects,
+			window:          meta.EndTime.Unix() / int64(windowRange/time.Second),
+			start:           meta.StartTime,
+			end:             meta.EndTime,
+			compacted:       false,
+		}
+	}
+	if compactedMeta != nil {
+		return unifiedBlockMeta{
+			id:              compactedMeta.BlockID,
+			compactionLevel: compactedMeta.CompactionLevel,
+			objects:         compactedMeta.TotalObjects,
+			window:          compactedMeta.EndTime.Unix() / int64(windowRange/time.Second),
+			start:           compactedMeta.StartTime,
+			end:             compactedMeta.EndTime,
+			compacted:       true,
+		}
+	}
+	return unifiedBlockMeta{
+		id:              uuid.UUID{},
+		compactionLevel: 0,
+		objects:         -1,
+		window:          -1,
+		start:           time.Unix(0, 0),
+		end:             time.Unix(0, 0),
+		compacted:       false,
+	}
 }
