@@ -138,7 +138,7 @@ func (t *App) initQuerier() (services.Service, error) {
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
+	t.server.HTTP.Handle("/querier/api/traces/{traceID}", tracesHandler)
 
 	worker, err := cortex_frontend.NewWorker(
 		t.cfg.Worker,
@@ -177,7 +177,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	cortex_frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
 	// register at a different endpoint for now
-	t.server.HTTP.Handle("/api/traces/frontend/{traceID}", t.frontend.Handler())
+	t.server.HTTP.Handle("/api/traces/{traceID}", t.frontend.Handler())
 
 	return nil, nil
 }
