@@ -74,6 +74,7 @@ Arguments:
 - `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
 
 Options:
+- `--include-compacted` Include blocks that have been compacted. Default behavior is to display only active blocks.
 - `--load-index` Also load the block indexes and perform integrity checks for duplicates. **Note:** can be intense.
 
 **Output:**
@@ -84,9 +85,11 @@ Explanation of output:
 - `Window` The time window considered for compaction purposes.
 - `Start` The earliest timestamp stored in the block.
 - `End` The latest timestamp stored in the block.
+- `Age` The age of the block.
 - `Duration` Time duration between start and end.
 - `Idx` Number of records stored in the index (present when --load-index is specified).
 - `Dupe` Number of duplicate entries in the index. Should be zero.  (present when --load-index is specified).
+- `Cmp` Whether the block has been compacted (present when --include-compacted is specified).
 
 **Example:**
 ```bash
