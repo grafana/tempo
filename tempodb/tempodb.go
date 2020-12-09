@@ -22,6 +22,7 @@ import (
 	ot_log "github.com/opentracing/opentracing-go/log"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/diskcache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -138,6 +139,8 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		r, w, c, err = gcs.New(cfg.GCS)
 	case "s3":
 		r, w, c, err = s3.New(cfg.S3)
+	case "azure":
+		r, w, c, err = azure.New(cfg.Azure)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.Backend)
 	}

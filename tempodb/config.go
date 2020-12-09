@@ -3,6 +3,7 @@ package tempodb
 import (
 	"time"
 
+	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/diskcache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -18,6 +19,7 @@ type Config struct {
 	Local   *local.Config `yaml:"local"`
 	GCS     *gcs.Config   `yaml:"gcs"`
 	S3      *s3.Config    `yaml:"s3"`
+	Azure   *azure.Config `yaml:"azure"`
 	Pool    *pool.Config  `yaml:"pool,omitempty"`
 	WAL     *wal.Config   `yaml:"wal"`
 
