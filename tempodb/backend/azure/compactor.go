@@ -77,7 +77,11 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		marker = list.NextMarker
 
 		for _, blob := range list.Segment.BlobItems {
-			rw.delete(ctx, blob.Name)
+			err = rw.delete(ctx, blob.Name)
+			if err != nil {
+				warning = err
+				continue
+			}
 		}
 		// Continue iterating if we are not done.
 		if !marker.NotDone() {

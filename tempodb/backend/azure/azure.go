@@ -13,7 +13,6 @@ import (
 	"time"
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/go-kit/kit/log"
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -28,7 +27,6 @@ const Dir = "/"
 
 type readerWriter struct {
 	cfg          *Config
-	logger       log.Logger
 	containerURL blob.ContainerURL
 }
 
@@ -317,7 +315,11 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	); err != nil {
 		return backend.ErrMetaDoesNotExist
 	}
+
 	_, err = bytes.NewReader(destBuffer).Read(destBuffer)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -372,6 +374,9 @@ func getContainerURL(ctx context.Context, conf *Config) (blob.ContainerURL, erro
 
 	if conf.DevelopmentMode {
 		u, err = url.Parse(fmt.Sprintf("http://%s:10000/%s", conf.Endpoint, conf.StorageAccountName))
+	}
+	if err != nil {
+		return blob.ContainerURL{}, err
 	}
 
 	service := blob.NewServiceURL(*u, p)
