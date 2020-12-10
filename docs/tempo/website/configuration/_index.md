@@ -71,6 +71,7 @@ compactor:
 The storage block is used to configure TempoDB. It supports S3, GCS, local file system, and optionally can use Memcached or Redis for increased query performance.  
 
 The following example shows common options.  For platform-specific options refer to the following:
+* [GCS](gcs/)
 * [S3](s3/)
 * [Redis](redis/)
 
