@@ -9,13 +9,13 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"gopkg.in/yaml.v2"
 
 	"github.com/alecthomas/kong"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
+	"github.com/grafana/tempo/tempodb/backend/s3"
 )
 
 type globalOptions struct {

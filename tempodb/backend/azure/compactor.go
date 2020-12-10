@@ -8,10 +8,11 @@ import (
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
+
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/pkg/errors"
 )
 
 type BlobAttributes struct {
@@ -35,8 +36,8 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	compactedMetaFilename := util.CompactedMetaFileName(blockID, tenantID)
 	ctx := context.TODO()
 
-	// TODO: this can be simplified
-	src, err := rw.readAll(ctx, metaFilename, 0, blob.CountToEnd)
+	// TODO: is there a better way to read=>copy=>delete?
+	src, err := rw.readAll(ctx, metaFilename)
 	if err != nil {
 		return err
 	}
@@ -113,7 +114,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
-	bytes, err := rw.readAll(ctx, name, 0, blob.CountToEnd)
+	bytes, err := rw.readAll(ctx, name)
 	if err != nil {
 		return nil, time.Time{}, err
 	}

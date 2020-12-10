@@ -23,7 +23,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
-// Dir is used to model a directory structure in an blob.
+// Dir represents the char separator used by the blob virtual directory structure
 const Dir = "/"
 
 type readerWriter struct {
@@ -107,7 +107,6 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 		return err
 	}
 
-	// write meta last.  this will prevent blocklist from returning a partial block
 	err = rw.writeAll(ctx, util.MetaFileName(blockID, tenantID), bMeta)
 	if err != nil {
 		return err
@@ -125,13 +124,16 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 	if tracker == nil {
 		blockID := meta.BlockID
 		tenantID := meta.TenantID
+
 		a.Name = util.ObjectFileName(blockID, tenantID)
+
 		err := rw.writeAll(ctx, util.ObjectFileName(blockID, tenantID), bObject)
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		a = tracker.(AppenderTracker)
+
 		_, err := rw.append(ctx, bObject, a.Name)
 		if err != nil {
 			return nil, err
@@ -159,6 +161,7 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 		for _, blob := range list.Segment.BlobPrefixes {
 			tenants = append(tenants, strings.TrimSuffix(blob.Name, Dir))
 		}
+
 		// Continue iterating if we are not done.
 		if !marker.NotDone() {
 			break
@@ -205,12 +208,9 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 
 	name := util.MetaFileName(blockID, tenantID)
 
-	bytes, err := rw.readAll(ctx, name, 0, blob.CountToEnd)
+	bytes, err := rw.readAll(ctx, name)
 	if err != nil {
 		return nil, backend.ErrMetaDoesNotExist
-	}
-	if err != nil {
-		return nil, errors.Wrap(err, "read block meta from azure")
 	}
 
 	out := &encoding.BlockMeta{}
@@ -221,20 +221,23 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 
 	return out, nil
 }
+
 func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Bloom")
 	defer span.Finish()
 
 	name := util.BloomFileName(blockID, tenantID, shardNum)
-	return rw.readAll(derivedCtx, name, 0, blob.CountToEnd)
+	return rw.readAll(derivedCtx, name)
 }
+
 func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Index")
 	defer span.Finish()
 
 	name := util.IndexFileName(blockID, tenantID)
-	return rw.readAll(derivedCtx, name, 0, blob.CountToEnd)
+	return rw.readAll(derivedCtx, name)
 }
+
 func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Object")
 	defer span.Finish()
@@ -248,6 +251,7 @@ func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID 
 func (rw *readerWriter) Shutdown() {
 
 }
+
 func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {
 	err := rw.writer(ctx, bytes.NewReader(b), name)
 	if err != nil {
@@ -256,6 +260,7 @@ func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) err
 
 	return nil
 }
+
 func (rw *readerWriter) append(ctx context.Context, src []byte, name string) (string, error) {
 	appendBlobURL := rw.containerURL.NewAppendBlobURL(name)
 
@@ -265,7 +270,9 @@ func (rw *readerWriter) append(ctx context.Context, src []byte, name string) (st
 		return "", errors.Errorf("cannot upload Azure blob, address: %s", name)
 	}
 	return resp.RequestID(), nil
+
 }
+
 func (rw *readerWriter) writer(ctx context.Context, src io.Reader, name string) error {
 	blobURL := rw.containerURL.NewBlockBlobURL(name)
 
@@ -279,6 +286,7 @@ func (rw *readerWriter) writer(ctx context.Context, src io.Reader, name string) 
 	}
 	return nil
 }
+
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, destBuffer []byte) error {
 	blobURL := rw.containerURL.NewBlockBlobURL(name)
 
@@ -314,7 +322,7 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	return nil
 }
 
-func (rw *readerWriter) readAll(ctx context.Context, name string, offset, length int64) ([]byte, error) {
+func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
 	blobURL := rw.containerURL.NewBlockBlobURL(name)
 
 	var props *blob.BlobGetPropertiesResponse
@@ -323,17 +331,9 @@ func (rw *readerWriter) readAll(ctx context.Context, name string, offset, length
 		return nil, backend.ErrMetaDoesNotExist
 	}
 
-	var size int64
+	destBuffer := make([]byte, props.ContentLength())
 
-	if length > 0 && length <= props.ContentLength()-offset {
-		size = length
-	} else {
-		size = props.ContentLength() - offset
-	}
-
-	destBuffer := make([]byte, size)
-
-	if err := blob.DownloadBlobToBuffer(context.Background(), blobURL.BlobURL, offset, size,
+	if err := blob.DownloadBlobToBuffer(context.Background(), blobURL.BlobURL, 0, props.ContentLength(),
 		destBuffer, blob.DownloadFromBlobOptions{
 			BlockSize:   blob.BlobDefaultDownloadBlockSize,
 			Parallelism: uint16(3),
@@ -378,13 +378,12 @@ func getContainerURL(ctx context.Context, conf *Config) (blob.ContainerURL, erro
 
 	return service.NewContainerURL(conf.ContainerName), nil
 }
-
 func getContainer(ctx context.Context, conf *Config) (blob.ContainerURL, error) {
 	c, err := getContainerURL(ctx, conf)
 	if err != nil {
 		return blob.ContainerURL{}, err
 	}
-	// Getting container properties to check if it exists or not. Returns error which will be parsed further.
+	// Getting container properties to check if container exists
 	_, err = c.GetProperties(ctx, blob.LeaseAccessConditions{})
 	return c, err
 }
