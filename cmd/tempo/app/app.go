@@ -47,7 +47,6 @@ type Config struct {
 	IngesterClient ingester_client.Config   `yaml:"ingester_client,omitempty"`
 	Querier        querier.Config           `yaml:"querier,omitempty"`
 	Frontend       frontend.FrontendConfig `yaml:"frontend,omitempty"`
-	Worker         cortex_frontend.WorkerConfig   `yaml:"frontend_worker"`
 	Compactor      compactor.Config         `yaml:"compactor,omitempty"`
 	Ingester       ingester.Config          `yaml:"ingester,omitempty"`
 	StorageConfig  storage.Config           `yaml:"storage,omitempty"`
@@ -83,7 +82,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Ingester.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "ingester"), f)
 	c.Querier.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "querier"), f)
 	c.Frontend.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "frontend"), f)
-	// todo: add worker defaults
 	c.Compactor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "storage"), f)
 

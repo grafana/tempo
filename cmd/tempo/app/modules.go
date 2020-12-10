@@ -5,10 +5,9 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/go-kit/kit/log/level"
 	"github.com/cortexproject/cortex/pkg/cortex"
-	cortex_querier "github.com/cortexproject/cortex/pkg/querier"
 	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
-	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
@@ -128,6 +127,18 @@ func (t *App) initIngester() (services.Service, error) {
 }
 
 func (t *App) initQuerier() (services.Service, error) {
+	// validate worker config
+	// if we're not in single binary mode and worker address is not specified - bail
+	if t.cfg.Target != All && t.cfg.Querier.Worker.Address == "" {
+		return nil, fmt.Errorf("frontend worker address not specified")
+	} else if t.cfg.Target == All {
+		// if we're in single binary mode with no worker address specified, register default endpoint
+		if t.cfg.Querier.Worker.Address == "" {
+			t.cfg.Querier.Worker.Address = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
+			level.Warn(util.Logger).Log("msg", "Worker address is empty in single binary mode.  Attempting automatic worker configuration.  If queries are unresponsive consider configuring the worker explicitly.", "address", t.cfg.Querier.Worker.Address)
+		}
+	}
+
 	// todo: make ingester client a module instead of passing config everywhere
 	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides)
 	if err != nil {
@@ -138,26 +149,7 @@ func (t *App) initQuerier() (services.Service, error) {
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.server.HTTP.Handle("/querier/api/traces/{traceID}", tracesHandler)
-
-	worker, err := cortex_frontend.NewWorker(
-		t.cfg.Worker,
-		cortex_querier.Config{
-			MaxConcurrent: t.cfg.Querier.MaxConcurrent,
-		},
-		httpgrpc_server.NewServer(tracesHandler),
-		util.Logger,
-		)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create frontend worker %w", err)
-	}
-
-	err = querier.RegisterSubservices(worker)
-	if err != nil {
-		return nil, fmt.Errorf("failed to register frontend worker %w", err)
-	}
-
-	return querier, nil
+	return t.querier, t.querier.CreateAndRegisterWorker(tracesHandler)
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
@@ -176,7 +168,6 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.frontend.Wrap(tripperware)
 
 	cortex_frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
-	// register at a different endpoint for now
 	t.server.HTTP.Handle("/api/traces/{traceID}", t.frontend.Handler())
 
 	return nil, nil

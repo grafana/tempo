@@ -356,13 +356,15 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 				break
 			}
 		}
-		span.LogFields(ot_log.String("blockID", meta.BlockID.String()),
+		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
+		span.LogFields(
+			ot_log.String("msg", "searching for trace in block"),
+			ot_log.String("blockID", meta.BlockID.String()),
 			ot_log.Bool("found", foundObject != nil),
 			ot_log.Int("bytes", len(foundObject)))
 		return foundObject, nil
 	})
 
-	level.Info(logger).Log("msg", "search for trace complete", "findTraceID", hex.EncodeToString(id), "found", len(foundBytes) > 0)
 	return foundBytes, metrics, err
 }
 

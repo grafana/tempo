@@ -8,7 +8,7 @@ import (
 
 type FrontendConfig struct {
 	frontend.Config `yaml:",inline"`
-	ShardNum int    `yaml:"shard_num,omitempty"`
+	QueryShards int    `yaml:"query_shards,omitempty"`
 }
 
 func (cfg *FrontendConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -16,6 +16,6 @@ func (cfg *FrontendConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.
 	cfg.Config.DownstreamURL = ""
 	cfg.Config.LogQueriesLongerThan = 0
 	cfg.Config.MaxOutstandingPerTenant = 100
-	cfg.ShardNum = 4
+	cfg.QueryShards = 4
 }
 

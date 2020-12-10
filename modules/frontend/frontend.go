@@ -5,17 +5,14 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"net/http"
-
 	"github.com/cortexproject/cortex/pkg/querier/frontend"
-	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/grafana/tempo/modules/querier"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
-
-	"github.com/grafana/tempo/modules/querier"
+	"net/http"
 )
 
 // NewTripperware returns a Tripperware configured with a middleware to split requests
@@ -29,9 +26,8 @@ func NewTripperware(cfg FrontendConfig, logger log.Logger, registerer prometheus
 
 	return func(next http.RoundTripper) http.RoundTripper {
 		// get the http request, add some custom parameters to it, split it, and call downstream roundtripper
-		rt := NewRoundTripper(next, ShardingWare(cfg.ShardNum, logger, registerer))
+		rt := NewRoundTripper(next, ShardingWare(cfg.QueryShards, logger, registerer))
 		return frontend.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
-			level.Info(util.Logger).Log("msg", "request received by custom tripperware")
 			orgID := r.Header.Get(user.OrgIDHeaderName)
 			queriesPerTenant.WithLabelValues(orgID).Inc()
 
@@ -81,21 +77,19 @@ func NewRoundTripper(next http.RoundTripper, middlewares ...Middleware) http.Rou
 }
 
 func (q roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
-	level.Info(util.Logger).Log("blockStart", r.URL.Query().Get("blockStart"), "blockEnd", r.URL.Query().Get("blockEnd"))
 	return q.handler.Do(r)
 }
 
 // Do implements Handler.
 func (q roundTripper) Do(r *http.Request) (*http.Response, error) {
-	level.Info(util.Logger).Log("msg", "roundTripper.Do called")
 	return q.next.RoundTrip(r)
 }
 
-func ShardingWare(shardNum int, logger log.Logger, registerer prometheus.Registerer) Middleware {
+func ShardingWare(queryShards int, logger log.Logger, registerer prometheus.Registerer) Middleware {
 	return MiddlewareFunc(func(next Handler) Handler {
 		return shardQuery{
 			next:        next,
-			queryShards: shardNum,
+			queryShards: queryShards,
 			logger:      logger,
 			splitByCounter: promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 				Namespace: "tempo",
@@ -118,8 +112,6 @@ type shardQuery struct {
 
 // Do implements Handler
 func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
-	level.Info(s.logger).Log("msg", "shardQuery called")
-
 	userID, err := user.ExtractOrgID(r.Context())
 	if err != nil {
 		return nil, err
@@ -132,15 +124,19 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 
 	reqs := make([]*http.Request, s.queryShards)
 	for i := 0; i < s.queryShards; i++ {
-		reqs[i] = r
-		reqs[i].URL.Query().Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i]))
-		reqs[i].URL.Query().Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i+1]))
+		reqs[i] = r.Clone(r.Context())
+		q := reqs[i].URL.Query()
+		q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i]))
+		q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i+1]))
 
 		if i==0 {
-			reqs[i].URL.Query().Add(querier.QueryIngestersKey, "true")
+			q.Add(querier.QueryIngestersKey, "true")
 		} else {
-			reqs[i].URL.Query().Add(querier.QueryIngestersKey, "false")
+			q.Add(querier.QueryIngestersKey, "false")
 		}
+
+		// adding to RequestURI ONLY because weaveworks/common uses the RequestURI field to translate from
+		reqs[i].RequestURI = reqs[i].URL.RequestURI() + "?" + q.Encode()
 	}
 	s.splitByCounter.WithLabelValues(userID).Add(float64(s.queryShards))
 
@@ -165,20 +161,20 @@ func createBlockShards(queryShards int) [][]byte {
 	}
 
 	// create sharded queries
-	boundaryBytes := make([][]byte, queryShards+1)
+	blockBoundaries := make([][]byte, queryShards+1)
 	for i := 0; i < queryShards+1; i ++ {
-		boundaryBytes[i] = make([]byte, 16)
+		blockBoundaries[i] = make([]byte, 16)
 	}
 	const MaxUint = uint64(^uint8(0))
 	for i := 0; i < queryShards; i++ {
-		binary.LittleEndian.PutUint64(boundaryBytes[i][:8], (MaxUint/uint64(queryShards))*uint64(i))
-		binary.LittleEndian.PutUint64(boundaryBytes[i][8:], 0)
+		binary.LittleEndian.PutUint64(blockBoundaries[i][:8], (MaxUint/uint64(queryShards))*uint64(i))
+		binary.LittleEndian.PutUint64(blockBoundaries[i][8:], 0)
 	}
 	const MaxUint64 = ^uint64(0)
-	binary.LittleEndian.PutUint64(boundaryBytes[queryShards][:8], MaxUint64)
-	binary.LittleEndian.PutUint64(boundaryBytes[queryShards][8:], MaxUint64)
+	binary.LittleEndian.PutUint64(blockBoundaries[queryShards][:8], MaxUint64)
+	binary.LittleEndian.PutUint64(blockBoundaries[queryShards][8:], MaxUint64)
 
-	return boundaryBytes
+	return blockBoundaries
 }
 
 // RequestResponse contains a request response and the respective request that was used.

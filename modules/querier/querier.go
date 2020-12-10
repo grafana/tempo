@@ -3,6 +3,7 @@ package querier
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
@@ -12,10 +13,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
 
+	cortex_querier "github.com/cortexproject/cortex/pkg/querier"
+	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
+	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -87,10 +91,25 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 	return q, nil
 }
 
-// todo: fix name, its confusing
-func (q *Querier) RegisterSubservices(w services.Service) error {
+func (q *Querier) CreateAndRegisterWorker(tracesHandler http.Handler) error {
+	worker, err := cortex_frontend.NewWorker(
+		q.cfg.Worker,
+		cortex_querier.Config{
+			MaxConcurrent: q.cfg.MaxConcurrentQueries,
+		},
+		httpgrpc_server.NewServer(tracesHandler),
+		util.Logger,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create frontend worker: %w", err)
+	}
+
+	return q.RegisterSubservices(worker, q.pool)
+}
+
+func (q *Querier) RegisterSubservices(s ...services.Service) error {
 	var err error
-	q.subservices, err = services.NewManager(w, q.pool)
+	q.subservices, err = services.NewManager(s...)
 	q.subservicesWatcher = services.NewFailureWatcher()
 	q.subservicesWatcher.WatchManager(q.subservices)
 	return err
