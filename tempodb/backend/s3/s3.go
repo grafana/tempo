@@ -84,7 +84,6 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	opts := &minio.Options{
 		Secure: !cfg.Insecure,
 		Creds:  creds,
-		Region: cfg.Region,
 	}
 	core, err := minio.NewCore(cfg.Endpoint, opts)
 	if err != nil {
