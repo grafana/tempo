@@ -32,6 +32,7 @@ type readerWriter struct {
 	containerURL blob.ContainerURL
 }
 
+// New creates a Azure blob container
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	ctx := context.Background()
 
@@ -366,10 +367,13 @@ func getContainerURL(ctx context.Context, conf *Config) (blob.ContainerURL, erro
 		Retry:     retryOptions,
 		Telemetry: blob.TelemetryOptions{Value: "Tempo"},
 	})
+
 	u, err := url.Parse(fmt.Sprintf("https://%s.%s", conf.StorageAccountName, conf.Endpoint))
-	if err != nil {
-		return blob.ContainerURL{}, err
+
+	if conf.DevelopmentMode {
+		u, err = url.Parse(fmt.Sprintf("http://%s:10000/%s", conf.Endpoint, conf.StorageAccountName))
 	}
+
 	service := blob.NewServiceURL(*u, p)
 
 	return service.NewContainerURL(conf.ContainerName), nil

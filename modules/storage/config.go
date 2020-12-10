@@ -37,6 +37,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.Trace.Azure.ContainerName, util.PrefixConfig(prefix, "trace.azure.container_name"), "", "azure container to store blocks in.")
 	f.StringVar(&cfg.Trace.Azure.Endpoint, util.PrefixConfig(prefix, "trace.azure.endpoint"), "", "azure endpoint to push blocks to.")
 	f.IntVar(&cfg.Trace.Azure.MaxRetries, util.PrefixConfig(prefix, "trace.azure.max_retries"), 3, "Number of retries before give up.")
+	f.BoolVar(&cfg.Trace.Azure.DevelopmentMode, util.PrefixConfig(prefix, "trace.azure.development_mode"), false, "Use azurite as the backend storage.")
 
 	cfg.Trace.S3 = &s3.Config{}
 	f.StringVar(&cfg.Trace.S3.Bucket, util.PrefixConfig(prefix, "trace.s3.bucket"), "", "s3 bucket to store blocks in.")

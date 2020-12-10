@@ -47,7 +47,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	}
 
 	// delete the old file
-	return rw.Delete(ctx, metaFilename)
+	return rw.delete(ctx, metaFilename)
 }
 
 func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
@@ -76,7 +76,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		marker = list.NextMarker
 
 		for _, blob := range list.Segment.BlobItems {
-			rw.Delete(ctx, blob.Name)
+			rw.delete(ctx, blob.Name)
 		}
 		// Continue iterating if we are not done.
 		if !marker.NotDone() {
@@ -118,7 +118,7 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 		return nil, time.Time{}, err
 	}
 
-	att, err := rw.Attributes(ctx, name)
+	att, err := rw.getAttributes(ctx, name)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -126,7 +126,7 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 }
 
 // Attributes returns information about the specified blob using his name.
-func (rw *readerWriter) Attributes(ctx context.Context, name string) (BlobAttributes, error) {
+func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
 	blobURL, err := getBlobURL(ctx, rw.cfg, name)
 	if err != nil {
 		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob URL, blob: %s", name)
@@ -145,7 +145,7 @@ func (rw *readerWriter) Attributes(ctx context.Context, name string) (BlobAttrib
 }
 
 // Delete removes the blob with the given name.
-func (rw *readerWriter) Delete(ctx context.Context, name string) error {
+func (rw *readerWriter) delete(ctx context.Context, name string) error {
 	blobURL, err := getBlobURL(ctx, rw.cfg, name)
 	if err != nil {
 		return errors.Wrapf(err, "cannot get Azure blob URL, address: %s", name)

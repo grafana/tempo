@@ -6,4 +6,5 @@ type Config struct {
 	ContainerName      string `yaml:"container_name"`
 	Endpoint           string `yaml:"endpoint_suffix"`
 	MaxRetries         int    `yaml:"max_retries"`
+	DevelopmentMode    bool   `yaml:"development_mode"`
 }
