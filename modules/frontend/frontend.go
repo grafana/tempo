@@ -136,7 +136,7 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 		}
 
 		// adding to RequestURI ONLY because weaveworks/common uses the RequestURI field to translate from
-		reqs[i].RequestURI = reqs[i].URL.RequestURI() + "?" + q.Encode()
+		reqs[i].RequestURI = "/querier" + reqs[i].URL.RequestURI() + "?" + q.Encode()
 	}
 	s.splitByCounter.WithLabelValues(userID).Add(float64(s.queryShards))
 

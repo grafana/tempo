@@ -37,9 +37,9 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	var traceID string
 	splits := strings.Split(r.RequestURI, "?")
 	if len(splits) == 0 {
-		traceID = strings.TrimPrefix(r.RequestURI, "/api/traces/")
+		traceID = strings.TrimPrefix(r.RequestURI, "/querier/api/traces/")
 	} else {
-		traceID = strings.TrimPrefix(splits[0], "/api/traces/")
+		traceID = strings.TrimPrefix(splits[0], "/querier/api/traces/")
 	}
 
 	if len(traceID) == 0 {
