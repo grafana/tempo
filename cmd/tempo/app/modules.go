@@ -149,7 +149,10 @@ func (t *App) initQuerier() (services.Service, error) {
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	return t.querier, t.querier.CreateAndRegisterWorker(tracesHandler)
+
+	// todo: figure this out
+	t.server.HTTP.Handle("/querier/api/traces/{traceID}", tracesHandler)
+	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTP)
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
