@@ -150,7 +150,6 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 
-	// todo: figure this out
 	t.server.HTTP.Handle("/querier/api/traces/{traceID}", tracesHandler)
 	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTP)
 }
@@ -170,10 +169,17 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// tripperware will be called before f.roundTripper (which calls roundtripgrpc)
 	t.frontend.Wrap(tripperware)
 
-	cortex_frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
-	t.server.HTTP.Handle("/api/traces/{traceID}", t.frontend.Handler())
+	tracesHandler := middleware.Merge(
+		t.httpAuthMiddleware,
+	).Wrap(t.frontend.Handler())
 
-	return nil, nil
+	cortex_frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
+	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
+
+	return services.NewIdleService(nil, func(_ error) error {
+		t.frontend.Close()
+		return nil
+	}), nil
 }
 
 func (t *App) initCompactor() (services.Service, error) {

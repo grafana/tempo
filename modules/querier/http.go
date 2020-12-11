@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -34,15 +34,9 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandler")
 	defer span.Finish()
 
-	var traceID string
-	splits := strings.Split(r.RequestURI, "?")
-	if len(splits) == 0 {
-		traceID = strings.TrimPrefix(r.RequestURI, "/querier/api/traces/")
-	} else {
-		traceID = strings.TrimPrefix(splits[0], "/querier/api/traces/")
-	}
-
-	if len(traceID) == 0 {
+	vars := mux.Vars(r)
+	traceID, ok := vars[TraceIDVar]
+	if !ok {
 		http.Error(w, "please provide a traceID", http.StatusBadRequest)
 		return
 	}

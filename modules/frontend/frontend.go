@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"net/http"
+
 	"github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -12,7 +14,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
-	"net/http"
+)
+
+const (
+	querierPrefix = "/querier"
+	queryDelimiter = "?"
 )
 
 // NewTripperware returns a Tripperware configured with a middleware to split requests
@@ -28,10 +34,8 @@ func NewTripperware(cfg FrontendConfig, logger log.Logger, registerer prometheus
 		// get the http request, add some custom parameters to it, split it, and call downstream roundtripper
 		rt := NewRoundTripper(next, ShardingWare(cfg.QueryShards, logger, registerer))
 		return frontend.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
-			orgID := r.Header.Get(user.OrgIDHeaderName)
+			orgID, _ := user.ExtractOrgID(r.Context())
 			queriesPerTenant.WithLabelValues(orgID).Inc()
-
-			r = r.WithContext(user.InjectOrgID(r.Context(), orgID))
 			return rt.RoundTrip(r)
 		})
 	}, nil
@@ -91,11 +95,6 @@ func ShardingWare(queryShards int, logger log.Logger, registerer prometheus.Regi
 			next:        next,
 			queryShards: queryShards,
 			logger:      logger,
-			splitByCounter: promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
-				Namespace: "tempo",
-				Name:      "query_frontend_split_queries_total",
-				Help:      "Total number of underlying query requests after sharding.",
-			}, []string{"tenant"}),
 		}
 	})
 }
@@ -105,9 +104,6 @@ type shardQuery struct {
 	queryShards     int
 	logger          log.Logger
 	blockBoundaries [][]byte
-
-	// Metrics.
-	splitByCounter *prometheus.CounterVec
 }
 
 // Do implements Handler
@@ -135,10 +131,10 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 			q.Add(querier.QueryIngestersKey, "false")
 		}
 
+		reqs[i].Header.Set(user.OrgIDHeaderName, userID)
 		// adding to RequestURI ONLY because weaveworks/common uses the RequestURI field to translate from
-		reqs[i].RequestURI = "/querier" + reqs[i].URL.RequestURI() + "?" + q.Encode()
+		reqs[i].RequestURI = querierPrefix + reqs[i].URL.RequestURI() + queryDelimiter + q.Encode()
 	}
-	s.splitByCounter.WithLabelValues(userID).Add(float64(s.queryShards))
 
 	rrs, err := DoRequests(r.Context(), s.next, reqs)
 	if err != nil {
@@ -146,6 +142,7 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 	}
 
 	// todo: add merging logic here if there are more than one results
+	var statusError int
 	for _, rr := range rrs {
 		if rr.Response.StatusCode == http.StatusOK {
 			return rr.Response, nil
