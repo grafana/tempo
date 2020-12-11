@@ -84,7 +84,6 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	opts := &minio.Options{
 		Secure: !cfg.Insecure,
 		Creds:  creds,
-		Region: cfg.Region,
 	}
 	core, err := minio.NewCore(cfg.Endpoint, opts)
 	if err != nil {
@@ -94,18 +93,14 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	// TODO: add custom transport with instrumentation.
 	//client.SetCustomTransport(minio.DefaultTransport(!cfg.Insecure))
 
-	// make bucket name if doesn't exist already
-	err = core.MakeBucket(context.Background(), cfg.Bucket, minio.MakeBucketOptions{Region: cfg.Region})
-	if err != nil {
-		exists, errBucketExists := core.BucketExists(context.Background(), cfg.Bucket)
-		if errBucketExists == nil && !exists {
-			return nil, nil, nil, errors.Wrap(err, "cannot create bucket in s3, invalid permissions")
-		} else if errBucketExists != nil {
-			// try listing objects
-			_, err := core.ListObjects(cfg.Bucket, "", "", "/", 0)
-			if err != nil {
-				return nil, nil, nil, errors.Wrapf(err, "cannot list objects in s3 bucket, invalid permissions")
-			}
+	exists, errBucketExists := core.BucketExists(context.Background(), cfg.Bucket)
+	if errBucketExists == nil && !exists {
+		return nil, nil, nil, errors.Wrap(err, "cannot access s3 bucket, doesn't exist")
+	} else if errBucketExists != nil {
+		// try listing objects
+		_, err := core.ListObjects(cfg.Bucket, "", "", "/", 0)
+		if err != nil {
+			return nil, nil, nil, errors.Wrapf(err, "cannot list objects in s3 bucket, invalid permissions")
 		}
 	}
 
