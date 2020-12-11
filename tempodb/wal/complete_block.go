@@ -38,6 +38,10 @@ func (c *CompleteBlock) ObjectFilePath() string {
 }
 
 func (c *CompleteBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]byte, error) {
+	if !c.bloom.Test(id) {
+		return nil, nil
+	}
+
 	file, err := c.file()
 	if err != nil {
 		return nil, err
