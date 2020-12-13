@@ -7,10 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
@@ -22,32 +20,25 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
-// Dir represents the char separator used by the blob virtual directory structure
-const Dir = "/"
+const (
+	// dir represents the char separator used by the blob virtual directory structure
+	dir = "/"
+	// max parallelism on uploads
+	maxParallelism = 3
+)
 
 type readerWriter struct {
 	cfg          *Config
 	containerURL blob.ContainerURL
 }
 
-// New creates a Azure blob container
+// New gets the Azure blob container
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	ctx := context.Background()
 
-	container, err := createContainer(ctx, cfg)
+	container, err := GetContainer(ctx, cfg)
 	if err != nil {
-		ret, ok := err.(blob.StorageError)
-		if !ok {
-			return nil, nil, nil, errors.Wrap(err, "creating storage container")
-		}
-		if ret.ServiceCode() == "ContainerAlreadyExists" {
-			container, err = getContainer(ctx, cfg)
-			if err != nil {
-				return nil, nil, nil, errors.Wrap(err, "getting storage container")
-			}
-		} else {
-			return nil, nil, nil, errors.Wrap(err, "creating storage container")
-		}
+		return nil, nil, nil, errors.Wrap(err, "getting storage container")
 	}
 
 	rw := &readerWriter{
@@ -147,7 +138,7 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 
 	tenants := make([]string, 0)
 	for {
-		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, Dir, blob.ListBlobsSegmentOptions{
+		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, dir, blob.ListBlobsSegmentOptions{
 			Details: blob.BlobListingDetails{},
 		})
 		if err != nil {
@@ -157,7 +148,7 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 		marker = list.NextMarker
 
 		for _, blob := range list.Segment.BlobPrefixes {
-			tenants = append(tenants, strings.TrimSuffix(blob.Name, Dir))
+			tenants = append(tenants, strings.TrimSuffix(blob.Name, dir))
 		}
 
 		// Continue iterating if we are not done.
@@ -168,28 +159,26 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	return tenants, nil
 }
 func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
-	var warning error
+
 	blocks := make([]uuid.UUID, 0)
 
 	marker := blob.Marker{}
 
 	for {
-		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, Dir, blob.ListBlobsSegmentOptions{
-			Prefix:  tenantID + Dir,
+		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, dir, blob.ListBlobsSegmentOptions{
+			Prefix:  tenantID + dir,
 			Details: blob.BlobListingDetails{},
 		})
 		if err != nil {
-			warning = err
-			continue
+			return nil, err
 		}
 		marker = list.NextMarker
 
 		for _, blob := range list.Segment.BlobPrefixes {
-			idString := strings.TrimSuffix(strings.TrimPrefix(blob.Name, tenantID+"/"), "/")
+			idString := strings.TrimSuffix(strings.TrimPrefix(blob.Name, tenantID+dir), dir)
 			blockID, err := uuid.Parse(idString)
 			if err != nil {
-				warning = fmt.Errorf("failed parse on blockID %s: %v", idString, err)
-				continue
+				return nil, fmt.Errorf("failed parse on blockID %s: %v", idString, err)
 			}
 			blocks = append(blocks, blockID)
 		}
@@ -199,7 +188,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 		}
 
 	}
-	return blocks, warning
+	return blocks, nil
 }
 
 func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
@@ -208,7 +197,13 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 
 	bytes, err := rw.readAll(ctx, name)
 	if err != nil {
-		return nil, backend.ErrMetaDoesNotExist
+		ret, ok := err.(blob.StorageError)
+		if !ok {
+			return nil, errors.Wrap(err, "reading storage container")
+		}
+		if ret.ServiceCode() == "BlobNotFound" {
+			return nil, backend.ErrMetaDoesNotExist
+		}
 	}
 
 	out := &encoding.BlockMeta{}
@@ -265,7 +260,7 @@ func (rw *readerWriter) append(ctx context.Context, src []byte, name string) (st
 	resp, err := appendBlobURL.AppendBlock(ctx, bytes.NewReader(src), blob.AppendBlobAccessConditions{}, nil)
 
 	if err != nil {
-		return "", errors.Errorf("cannot upload Azure blob, address: %s", name)
+		return "", err
 	}
 	return resp.RequestID(), nil
 
@@ -276,8 +271,8 @@ func (rw *readerWriter) writer(ctx context.Context, src io.Reader, name string) 
 
 	if _, err := blob.UploadStreamToBlockBlob(ctx, src, blobURL,
 		blob.UploadStreamToBlockBlobOptions{
-			BufferSize: 3 * 1024 * 1024,
-			MaxBuffers: 4,
+			BufferSize: rw.cfg.BufferSize,
+			MaxBuffers: rw.cfg.MaxBuffers,
 		},
 	); err != nil {
 		return errors.Errorf("cannot upload Azure blob, address: %s", name)
@@ -306,14 +301,14 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	if err := blob.DownloadBlobToBuffer(context.Background(), blobURL.BlobURL, offset, size,
 		destBuffer, blob.DownloadFromBlobOptions{
 			BlockSize:   blob.BlobDefaultDownloadBlockSize,
-			Parallelism: uint16(3),
+			Parallelism: maxParallelism,
 			Progress:    nil,
 			RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
-				MaxRetryRequests: rw.cfg.MaxRetries,
+				MaxRetryRequests: maxRetries,
 			},
 		},
 	); err != nil {
-		return backend.ErrMetaDoesNotExist
+		return err
 	}
 
 	_, err = bytes.NewReader(destBuffer).Read(destBuffer)
@@ -330,7 +325,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	var props *blob.BlobGetPropertiesResponse
 	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{})
 	if err != nil {
-		return nil, backend.ErrMetaDoesNotExist
+		return nil, err
 	}
 
 	destBuffer := make([]byte, props.ContentLength())
@@ -338,77 +333,15 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	if err := blob.DownloadBlobToBuffer(context.Background(), blobURL.BlobURL, 0, props.ContentLength(),
 		destBuffer, blob.DownloadFromBlobOptions{
 			BlockSize:   blob.BlobDefaultDownloadBlockSize,
-			Parallelism: uint16(3),
+			Parallelism: uint16(maxParallelism),
 			Progress:    nil,
 			RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
-				MaxRetryRequests: rw.cfg.MaxRetries,
+				MaxRetryRequests: maxRetries,
 			},
 		},
 	); err != nil {
-		return nil, backend.ErrMetaDoesNotExist
+		return nil, err
 	}
 
 	return destBuffer, nil
-}
-
-func getContainerURL(ctx context.Context, conf *Config) (blob.ContainerURL, error) {
-	c, err := blob.NewSharedKeyCredential(conf.StorageAccountName, conf.StorageAccountKey)
-	if err != nil {
-		return blob.ContainerURL{}, err
-	}
-
-	retryOptions := blob.RetryOptions{
-		MaxTries: int32(conf.MaxRetries),
-		Policy:   blob.RetryPolicyExponential,
-	}
-	if deadline, ok := ctx.Deadline(); ok {
-		retryOptions.TryTimeout = time.Until(deadline)
-	}
-
-	p := blob.NewPipeline(c, blob.PipelineOptions{
-		Retry:     retryOptions,
-		Telemetry: blob.TelemetryOptions{Value: "Tempo"},
-	})
-
-	u, err := url.Parse(fmt.Sprintf("https://%s.%s", conf.StorageAccountName, conf.Endpoint))
-
-	if conf.DevelopmentMode {
-		u, err = url.Parse(fmt.Sprintf("http://%s:10000/%s", conf.Endpoint, conf.StorageAccountName))
-	}
-	if err != nil {
-		return blob.ContainerURL{}, err
-	}
-
-	service := blob.NewServiceURL(*u, p)
-
-	return service.NewContainerURL(conf.ContainerName), nil
-}
-func getContainer(ctx context.Context, conf *Config) (blob.ContainerURL, error) {
-	c, err := getContainerURL(ctx, conf)
-	if err != nil {
-		return blob.ContainerURL{}, err
-	}
-	// Getting container properties to check if container exists
-	_, err = c.GetProperties(ctx, blob.LeaseAccessConditions{})
-	return c, err
-}
-
-func createContainer(ctx context.Context, conf *Config) (blob.ContainerURL, error) {
-	c, err := getContainerURL(ctx, conf)
-	if err != nil {
-		return blob.ContainerURL{}, err
-	}
-	_, err = c.Create(
-		ctx,
-		blob.Metadata{},
-		blob.PublicAccessNone)
-	return c, err
-}
-
-func getBlobURL(ctx context.Context, conf *Config, blobName string) (blob.BlockBlobURL, error) {
-	c, err := getContainerURL(ctx, conf)
-	if err != nil {
-		return blob.BlockBlobURL{}, err
-	}
-	return c.NewBlockBlobURL(blobName), nil
 }

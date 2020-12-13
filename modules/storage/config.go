@@ -23,7 +23,7 @@ var DefaultBlocklistPoll = 5 * time.Minute
 
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, gcs, local)")
+	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, azure, gcs, local)")
 	f.DurationVar(&cfg.Trace.BlocklistPoll, util.PrefixConfig(prefix, "trace.maintenance-cycle"), DefaultBlocklistPoll, "Period at which to run the maintenance cycle.")
 
 	cfg.Trace.WAL = &wal.Config{}
@@ -32,12 +32,13 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.IntVar(&cfg.Trace.WAL.IndexDownsample, util.PrefixConfig(prefix, "trace.wal.index-downsample"), 100, "Number of traces per index record.")
 
 	cfg.Trace.Azure = &azure.Config{}
-	f.StringVar(&cfg.Trace.Azure.StorageAccountName, util.PrefixConfig(prefix, "trace.azure.storage_account_name"), "", "azure account name.")
-	f.StringVar(&cfg.Trace.Azure.StorageAccountKey, util.PrefixConfig(prefix, "trace.azure.storage_account_key"), "", "azure access key.")
-	f.StringVar(&cfg.Trace.Azure.ContainerName, util.PrefixConfig(prefix, "trace.azure.container_name"), "", "azure container to store blocks in.")
-	f.StringVar(&cfg.Trace.Azure.Endpoint, util.PrefixConfig(prefix, "trace.azure.endpoint"), "", "azure endpoint to push blocks to.")
-	f.IntVar(&cfg.Trace.Azure.MaxRetries, util.PrefixConfig(prefix, "trace.azure.max_retries"), 3, "Number of retries before give up.")
-	f.BoolVar(&cfg.Trace.Azure.DevelopmentMode, util.PrefixConfig(prefix, "trace.azure.development_mode"), false, "Use azurite as the backend storage.")
+	f.StringVar(&cfg.Trace.Azure.StorageAccountName, util.PrefixConfig(prefix, "trace.azure.storage-account-name"), "", "Azure storage account name.")
+	f.StringVar(&cfg.Trace.Azure.StorageAccountKey, util.PrefixConfig(prefix, "trace.azure.storage-account-key"), "", "Azure storage access key.")
+	f.StringVar(&cfg.Trace.Azure.ContainerName, util.PrefixConfig(prefix, "trace.azure.container-name"), "", "Azure container name to store blocks in.")
+	f.StringVar(&cfg.Trace.Azure.Endpoint, util.PrefixConfig(prefix, "trace.azure.endpoint"), "", "Azure endpoint to push blocks to.")
+	f.IntVar(&cfg.Trace.Azure.MaxBuffers, util.PrefixConfig(prefix, "trace.azure.max-buffers"), 4, "Number of simultaneous uploads.")
+	f.IntVar(&cfg.Trace.Azure.BufferSize, util.PrefixConfig(prefix, "trace.azure.buffer-size"), 3*1024*1024, "Sizes the buffer used to read data from source.")
+	f.BoolVar(&cfg.Trace.Azure.DevelopmentMode, util.PrefixConfig(prefix, "trace.azure.development-mode"), false, "Use azurite as the backend storage.")
 
 	cfg.Trace.S3 = &s3.Config{}
 	f.StringVar(&cfg.Trace.S3.Bucket, util.PrefixConfig(prefix, "trace.s3.bucket"), "", "s3 bucket to store blocks in.")

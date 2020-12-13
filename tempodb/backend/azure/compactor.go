@@ -132,7 +132,7 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 
 // Attributes returns information about the specified blob using his name.
 func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
-	blobURL, err := getBlobURL(ctx, rw.cfg, name)
+	blobURL, err := GetBlobURL(ctx, rw.cfg, name)
 	if err != nil {
 		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob URL, blob: %s", name)
 	}
@@ -151,7 +151,7 @@ func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAtt
 
 // Delete removes the blob with the given name.
 func (rw *readerWriter) delete(ctx context.Context, name string) error {
-	blobURL, err := getBlobURL(ctx, rw.cfg, name)
+	blobURL, err := GetBlobURL(ctx, rw.cfg, name)
 	if err != nil {
 		return errors.Wrapf(err, "cannot get Azure blob URL, address: %s", name)
 	}

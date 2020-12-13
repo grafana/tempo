@@ -39,12 +39,11 @@ storage:
       bloom_filter_false_positive: .05 # bloom filter false positive rate.  lower values create larger filters but fewer false positives
       index_downsample: 10             # number of traces per index record
     azure:
-      container_name: tempo                    # how to store data in azure
-      endpoint_suffix: azurite
-      storage_account_name: "devstoreaccount1"
-      storage_account_key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
-      development_mode: true
-      max_retries: 3
+      container-name: tempo                    # how to store data in azure
+      endpoint-suffix: azurite:10000
+      storage-account-name: "devstoreaccount1" # Default Azurite storage account
+      storage-account-key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" # Default azurite sorage key
+      development-mode: true
       # For using Azure storage, select the appropriate regional endpoint
       # default endpoint: blob.core.windows.net
     pool:

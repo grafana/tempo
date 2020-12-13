@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	image = "tempo:latest"
+	image        = "tempo:latest"
+	azuriteImage = "mcr.microsoft.com/azure-storage/azurite"
 )
 
 func NewTempoAllInOne() *cortex_e2e.HTTPService {
@@ -30,6 +31,20 @@ func NewTempoAllInOne() *cortex_e2e.HTTPService {
 		3100,  // http all things
 		14250, // jaeger grpc ingest
 		9411,  // zipkin ingest (used by load)
+	)
+
+	s.SetBackoff(tempoBackoff())
+
+	return s
+}
+
+func NewAzurite() *cortex_e2e.HTTPService {
+	s := cortex_e2e.NewHTTPService(
+		"azurite",
+		azuriteImage, // Create the the azurite container
+		e2e.NewCommandWithoutEntrypoint("sh", "-c", "azurite -l /data --blobHost 0.0.0.0"),
+		e2e.NewHTTPReadinessProbe(10000, "/devstoreaccount1?comp=list", 403, 403), //If we get 403 the Azurite is ready
+		10000, // blob storage port
 	)
 
 	s.SetBackoff(tempoBackoff())

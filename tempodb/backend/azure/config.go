@@ -1,10 +1,11 @@
 package azure
 
 type Config struct {
-	StorageAccountName string `yaml:"storage_account_name"`
-	StorageAccountKey  string `yaml:"storage_account_key"`
-	ContainerName      string `yaml:"container_name"`
-	Endpoint           string `yaml:"endpoint_suffix"`
-	MaxRetries         int    `yaml:"max_retries"`
-	DevelopmentMode    bool   `yaml:"development_mode"`
+	StorageAccountName string `yaml:"storage-account-name"`
+	StorageAccountKey  string `yaml:"storage-account-key"`
+	ContainerName      string `yaml:"container-name"`
+	Endpoint           string `yaml:"endpoint-suffix"`
+	DevelopmentMode    bool   `yaml:"development-mode"`
+	MaxBuffers         int    `yaml:"max-buffers"`
+	BufferSize         int    `yaml:"buffer-size"`
 }
