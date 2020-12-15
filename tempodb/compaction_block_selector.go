@@ -76,6 +76,20 @@ func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRa
 		MaxCompactionObjects: maxCompactionObjects,
 	}
 
+	activeWindow := twbs.windowForTime(time.Now().Add(-activeWindowDuration))
+
+	// exclude blocks that fall in last window from active -> inactive cut-over
+	// blocks in this window will not be compacted in order to avoid
+	// ownership conflicts where two compactors process the same block
+	// at the same time as it transitions from last active window to first inactive window.
+	var newBlocks []*encoding.BlockMeta
+	for _, b := range twbs.blocklist {
+		if twbs.windowForBlock(b) != activeWindow {
+			newBlocks = append(newBlocks, b)
+		}
+	}
+	twbs.blocklist = newBlocks
+
 	// sort by compaction window, level, and then size
 	sort.Slice(twbs.blocklist, func(i, j int) bool {
 		bi := twbs.blocklist[i]
@@ -84,7 +98,6 @@ func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRa
 		wi := twbs.windowForBlock(bi)
 		wj := twbs.windowForBlock(bj)
 
-		activeWindow := twbs.windowForTime(time.Now().Add(-activeWindowDuration))
 		if activeWindow <= wi && activeWindow <= wj {
 			// inside active window.  sort by:  compaction lvl -> window -> size
 			//  we should always choose the smallest two blocks whos compaction lvl and windows match
