@@ -139,60 +139,6 @@ func TestAppend(t *testing.T) {
 	assert.Equal(t, numMsgs, i)
 }
 
-func TestIterator(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	wal, err := New(&Config{
-		Filepath:        tempDir,
-		IndexDownsample: 2,
-		BloomFP:         0.1,
-	})
-	assert.NoError(t, err, "unexpected error creating temp wal")
-
-	blockID := uuid.New()
-
-	block, err := wal.NewBlock(blockID, testTenantID)
-	assert.NoError(t, err, "unexpected error creating block")
-
-	numMsgs := 10
-	for i := 0; i < numMsgs; i++ {
-		traceID := make([]byte, 16)
-		rand.Read(traceID)
-
-		req := test.MakeRequest(rand.Int()%1000, traceID)
-		bReq, err := proto.Marshal(req)
-		assert.NoError(t, err)
-		err = block.Write(traceID, bReq)
-		assert.NoError(t, err, "unexpected error writing req")
-	}
-
-	i := 0
-	completeBlock, err := block.Complete(wal, &mockCombiner{})
-	assert.NoError(t, err)
-
-	iterator, err := completeBlock.Iterator()
-	assert.NoError(t, err)
-
-	for {
-		id, msg, err := iterator.Next()
-		assert.NoError(t, err)
-
-		if id == nil {
-			break
-		}
-
-		req := &tempopb.PushRequest{}
-		err = proto.Unmarshal(msg, req)
-		assert.NoError(t, err)
-		i++
-	}
-
-	assert.NoError(t, err, "unexpected error iterating")
-	assert.Equal(t, numMsgs, i)
-}
-
 func TestCompleteBlock(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)

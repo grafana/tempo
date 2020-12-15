@@ -52,16 +52,6 @@ func (c *CompleteBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) (
 	return finder.Find(id)
 }
 
-func (c *CompleteBlock) Iterator() (encoding.Iterator, error) {
-	name := c.fullFilename()
-	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
-
-	return encoding.NewIterator(f), nil
-}
-
 func (c *CompleteBlock) Clear() error {
 	if c.readFile != nil {
 		_ = c.readFile.Close()
