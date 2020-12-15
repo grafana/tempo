@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/go-kit/kit/log/level"
 	"github.com/cortexproject/cortex/pkg/cortex"
 	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -14,6 +13,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
+	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/middleware"

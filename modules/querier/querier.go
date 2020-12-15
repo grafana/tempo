@@ -59,7 +59,7 @@ type Querier struct {
 	store  storage.Store
 	limits *overrides.Overrides
 
-	subservices *services.Manager
+	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 }
 

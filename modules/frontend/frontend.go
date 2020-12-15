@@ -5,15 +5,18 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/grafana/tempo/modules/querier"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/tempo/modules/querier"
 )
 
 const (
@@ -31,11 +34,17 @@ func NewTripperware(cfg FrontendConfig, logger log.Logger, registerer prometheus
 	}, []string{"tenant"})
 
 	return func(next http.RoundTripper) http.RoundTripper {
-		// get the http request, add some custom parameters to it, split it, and call downstream roundtripper
+		// Get the http request, add custom parameters to it, split it, and call downstream roundtripper
 		rt := NewRoundTripper(next, ShardingWare(cfg.QueryShards, logger, registerer))
 		return frontend.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
 			queriesPerTenant.WithLabelValues(orgID).Inc()
+
+			// tracing instrumentation
+			span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.RoundTrip")
+			defer span.Finish()
+
+			r = r.WithContext(ctx)
 			return rt.RoundTrip(r)
 		})
 	}, nil
@@ -142,16 +151,23 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 	}
 
 	// todo: add merging logic here if there are more than one results
-	var statusError int
+	var errCode int
+	var errBody []byte
 	for _, rr := range rrs {
 		if rr.Response.StatusCode == http.StatusOK {
 			return rr.Response, nil
 		}
+		defer rr.Response.Body.Close()
+		if rr.Response.StatusCode > errCode {
+			errCode = rr.Response.StatusCode
+			errBody, _ = ioutil.ReadAll(rr.Response.Body)
+		}
 	}
 
-	return nil, fmt.Errorf("trace not found")
+	return nil, fmt.Errorf("%s", errBody)
 }
 
+// createBlockShards splits the blockrange into queryshard parts
 func createBlockShards(queryShards int) [][]byte {
 	if queryShards == 0 {
 		return nil
@@ -180,7 +196,7 @@ type RequestResponse struct {
 	Response *http.Response
 }
 
-// DoRequests executes a list of requests in parallel. The limits parameters is used to limit parallelism per single request.
+// DoRequests executes a list of requests in parallel.
 func DoRequests(ctx context.Context, downstream Handler, reqs []*http.Request) ([]RequestResponse, error) {
 	// If one of the requests fail, we want to be able to cancel the rest of them.
 	ctx, cancel := context.WithCancel(ctx)
