@@ -27,6 +27,7 @@ type CompleteBlock struct {
 	once     sync.Once
 }
 
+// NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
 func NewCompleteBlock(originatingMeta *BlockMeta, iterator Iterator, bloomFP float64, estimatedObjects int, indexDownsample int, filepath string, walFilename string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
 		meta:        NewBlockMeta(originatingMeta.TenantID, uuid.New()),
@@ -78,14 +79,35 @@ func NewCompleteBlock(originatingMeta *BlockMeta, iterator Iterator, bloomFP flo
 	return c, nil
 }
 
+// Records implements WriteableBlock
 func (c *CompleteBlock) Records() []*Record {
 	return c.records
 }
 
+// ObjectFilePath implements WriteableBlock
 func (c *CompleteBlock) ObjectFilePath() string {
 	return c.fullFilename()
 }
 
+// Flushed implements WriteableBlock.  Note that it also cleans up the wal file that this is
+//  built off of
+func (c *CompleteBlock) Flushed() error {
+	c.flushedTime.Store(time.Now().Unix())
+	return os.Remove(c.walFilename) // now that we are flushed, remove our wal file
+}
+
+// BlockMeta implements WriteableBlock
+func (c *CompleteBlock) BlockMeta() *BlockMeta {
+	return c.meta
+}
+
+// BloomFilter implements WriteableBlock
+func (c *CompleteBlock) BloomFilter() *bloom.ShardedBloomFilter {
+	return c.bloom
+}
+
+// Find searches the for the provided trace id.  A CompleteBlock should never
+//  have multiples of a single id so not sure why this uses a DedupingFinder.
 func (c *CompleteBlock) Find(id ID, combiner ObjectCombiner) ([]byte, error) {
 	if !c.bloom.Test(id) {
 		return nil, nil
@@ -101,6 +123,7 @@ func (c *CompleteBlock) Find(id ID, combiner ObjectCombiner) ([]byte, error) {
 	return finder.Find(id)
 }
 
+// Clear removes the backing file.
 func (c *CompleteBlock) Clear() error {
 	if c.readFile != nil {
 		_ = c.readFile.Close()
@@ -110,25 +133,14 @@ func (c *CompleteBlock) Clear() error {
 	return os.Remove(name)
 }
 
+// FlushedTime returns the time the block was flushed.  Will return 0
+//  if the block was never flushed
 func (c *CompleteBlock) FlushedTime() time.Time {
 	unixTime := c.flushedTime.Load()
 	if unixTime == 0 {
 		return time.Time{} // return 0 time.  0 unix time is jan 1, 1970
 	}
 	return time.Unix(unixTime, 0)
-}
-
-func (c *CompleteBlock) Flushed() error {
-	c.flushedTime.Store(time.Now().Unix())
-	return os.Remove(c.walFilename) // now that we are flushed, remove our wal file
-}
-
-func (c *CompleteBlock) BlockMeta() *BlockMeta {
-	return c.meta
-}
-
-func (c *CompleteBlock) BloomFilter() *bloom.ShardedBloomFilter {
-	return c.bloom
 }
 
 func (c *CompleteBlock) fullFilename() string {
