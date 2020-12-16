@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,12 +25,6 @@ func (m *mockCombiner) Combine(objA []byte, objB []byte) []byte {
 	}
 
 	return objB
-}
-
-func TestZeroFlushedTime(t *testing.T) {
-	c := NewCompleteBlock(nil, nil, "", "")
-
-	assert.True(t, c.FlushedTime().IsZero())
 }
 
 func TestCompleteBlock(t *testing.T) { // jpe restore this original test in the wal folder
@@ -74,16 +67,25 @@ func TestCompleteBlock(t *testing.T) { // jpe restore this original test in the 
 	err = writer.Flush()
 	assert.NoError(t, err, "unexpected error flushing writer")
 
+	originatingMeta := NewBlockMeta(testTenantID, uuid.New())
+	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
+	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
+
 	iterator := NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
-	block := NewCompleteBlock(NewBlockMeta(testTenantID, uuid.New()), bloom.NewWithEstimates(10, .01), tempDir, "")
-	err = block.WriteAll(iterator, indexDownsample, 10, time.Now(), time.Now())
+	block, err := NewCompleteBlock(originatingMeta, iterator, .01, numMsgs, indexDownsample, tempDir, "")
 	assert.NoError(t, err, "unexpected error completing block")
+
+	// assert no flushed time
+	assert.True(t, block.FlushedTime().IsZero())
 
 	// test downsample config
 	assert.Equal(t, numMsgs/indexDownsample+1, len(block.records))
 
 	assert.True(t, bytes.Equal(block.meta.MinID, minID))
 	assert.True(t, bytes.Equal(block.meta.MaxID, maxID))
+	assert.Equal(t, originatingMeta.StartTime, block.meta.StartTime)
+	assert.Equal(t, originatingMeta.EndTime, block.meta.EndTime)
+	assert.Equal(t, originatingMeta.TenantID, block.meta.TenantID)
 
 	for i, id := range ids {
 		out := &tempopb.PushRequest{}

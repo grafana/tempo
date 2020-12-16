@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"go.uber.org/atomic"
 )
@@ -26,25 +27,23 @@ type CompleteBlock struct {
 	once     sync.Once
 }
 
-func NewCompleteBlock(meta *BlockMeta, bloom *bloom.ShardedBloomFilter, filepath string, walFilename string) *CompleteBlock {
-	return &CompleteBlock{
-		meta:        meta,
-		bloom:       bloom,
+func NewCompleteBlock(originatingMeta *BlockMeta, iterator Iterator, bloomFP float64, estimatedObjects int, indexDownsample int, filepath string, walFilename string) (*CompleteBlock, error) {
+	c := &CompleteBlock{
+		meta:        NewBlockMeta(originatingMeta.TenantID, uuid.New()),
+		bloom:       bloom.NewWithEstimates(uint(estimatedObjects), bloomFP),
 		records:     make([]*Record, 0),
 		filepath:    filepath,
 		walFilename: walFilename,
 	}
-}
 
-func (c *CompleteBlock) WriteAll(iterator Iterator, indexDownsample int, estimatedObjects int, startTime time.Time, endTime time.Time) error {
 	_, err := os.Create(c.fullFilename())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	appendFile, err := os.OpenFile(c.fullFilename(), os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	appender := NewBufferedAppender(appendFile, indexDownsample, estimatedObjects)
@@ -56,7 +55,7 @@ func (c *CompleteBlock) WriteAll(iterator Iterator, indexDownsample int, estimat
 		if err != nil {
 			_ = appendFile.Close()
 			_ = os.Remove(c.fullFilename())
-			return err
+			return nil, err
 		}
 
 		c.meta.ObjectAdded(bytesID)
@@ -67,16 +66,16 @@ func (c *CompleteBlock) WriteAll(iterator Iterator, indexDownsample int, estimat
 		if err != nil {
 			_ = appendFile.Close()
 			_ = os.Remove(c.fullFilename())
-			return err
+			return nil, err
 		}
 	}
 	appender.Complete()
 	appendFile.Close()
 	c.records = appender.Records()
-	c.meta.StartTime = startTime
-	c.meta.EndTime = endTime
+	c.meta.StartTime = originatingMeta.StartTime
+	c.meta.EndTime = originatingMeta.EndTime
 
-	return nil
+	return c, nil
 }
 
 func (c *CompleteBlock) Records() []*Record {

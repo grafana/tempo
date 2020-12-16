@@ -97,10 +97,6 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
 	return newAppendBlock(id, tenantID, w.c.Filepath)
 }
 
-func (w *WAL) config() *Config {
-	return w.c
-}
-
 func parseFilename(name string) (uuid.UUID, string, error) {
 	i := strings.Index(name, ":")
 

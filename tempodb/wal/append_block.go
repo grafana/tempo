@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
@@ -66,17 +65,7 @@ func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*encod
 		}
 	}
 
-	walConfig := w.config() // jpe - if we move the below configs we can remove this method and param to this function
-
-	// 1) create a new block in work dir
-	// 2) append all objects from this block in order
-	// 3) move from completeddir -> realdir
-	// 4) remove old
 	records := h.appender.Records()
-	meta := encoding.NewBlockMeta(h.meta.TenantID, uuid.New())
-	bloom := bloom.NewWithEstimates(uint(len(records)), walConfig.BloomFP)                                // jpe - move bloomfp config
-	orderedBlock := encoding.NewCompleteBlock(meta, bloom, walConfig.CompletedFilepath, h.fullFilename()) // jpe move completed filepath config?
-
 	readFile, err := h.file()
 	if err != nil {
 		return nil, err
@@ -88,7 +77,7 @@ func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*encod
 		return nil, err
 	}
 
-	err = orderedBlock.WriteAll(iterator, walConfig.IndexDownsample, len(records), h.meta.StartTime, h.meta.EndTime) // jpe - move index downsample?
+	orderedBlock, err := encoding.NewCompleteBlock(h.meta, iterator, w.c.BloomFP, len(records), w.c.IndexDownsample, w.c.CompletedFilepath, h.fullFilename())
 	if err != nil {
 		return nil, err
 	}
