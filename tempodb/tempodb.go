@@ -79,8 +79,17 @@ var (
 	})
 )
 
+type WriteableBlock interface {
+	BlockMeta() *encoding.BlockMeta
+	BloomFilter() *bloom.ShardedBloomFilter
+	Records() []*encoding.Record
+	ObjectFilePath() string
+
+	Flushed() error
+}
+
 type Writer interface {
-	WriteBlock(ctx context.Context, block wal.WriteableBlock) error
+	WriteBlock(ctx context.Context, block WriteableBlock) error
 	WAL() *wal.WAL
 }
 
@@ -191,7 +200,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) error {
+func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error {
 	records := c.Records()
 	indexBytes, err := encoding.MarshalRecords(records)
 	if err != nil {
@@ -217,7 +226,7 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) er
 	return nil
 }
 
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, c wal.WriteableBlock) error {
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, c WriteableBlock) error {
 	records := c.Records()
 	indexBytes, err := encoding.MarshalRecords(records)
 	if err != nil {
