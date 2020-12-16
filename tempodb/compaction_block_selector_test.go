@@ -539,6 +539,21 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedSecond: nil,
 			expectedHash2:  "",
 		},
+		{
+			name: "doesn't select blocks in last active window",
+			blocklist: []*encoding.BlockMeta{
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:         now.Add(-activeWindowDuration),
+					CompactionLevel: 0,
+				},
+				{
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:         now.Add(-activeWindowDuration),
+					CompactionLevel: 0,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -569,7 +584,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 
 func TestTimeWindowBlockSelectorSort(t *testing.T) {
 	now := time.Now()
-	timeWindow := 12 * time.Hour
+	timeWindow := time.Hour
 
 	tests := []struct {
 		name      string
