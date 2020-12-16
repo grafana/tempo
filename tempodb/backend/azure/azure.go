@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -178,7 +177,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 			idString := strings.TrimSuffix(strings.TrimPrefix(blob.Name, tenantID+dir), dir)
 			blockID, err := uuid.Parse(idString)
 			if err != nil {
-				return nil, fmt.Errorf("failed parse on blockID %s: %v", idString, err)
+				return nil, errors.Wrapf(err, "failed parse on blockID %s", idString)
 			}
 			blocks = append(blocks, blockID)
 		}
@@ -275,7 +274,7 @@ func (rw *readerWriter) writer(ctx context.Context, src io.Reader, name string) 
 			MaxBuffers: rw.cfg.MaxBuffers,
 		},
 	); err != nil {
-		return errors.Errorf("cannot upload Azure blob, address: %s", name)
+		return errors.Wrapf(err, "cannot upload blob, name: %s", name)
 	}
 	return nil
 }
@@ -286,7 +285,7 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	var props *blob.BlobGetPropertiesResponse
 	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{})
 	if err != nil {
-		return backend.ErrMetaDoesNotExist
+		return err
 	}
 
 	length := int64(len(destBuffer))
@@ -308,7 +307,7 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 			},
 		},
 	); err != nil {
-		return err
+		return errors.Wrapf(err, "cannot download blob, name: %s", name)
 	}
 
 	_, err = bytes.NewReader(destBuffer).Read(destBuffer)
@@ -340,7 +339,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 			},
 		},
 	); err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "cannot download blob, name: %s", name)
 	}
 
 	return destBuffer, nil

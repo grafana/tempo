@@ -29,11 +29,10 @@ compactor:
     max_compaction_objects: 1000000    # maximum size of compacted blocks
     block_retention: 1h
     compacted_block_retention: 10m
-    flush_size_bytes: 5242880
 
 storage:
   trace:
-    backend: azure                        # backend configuration to use
+    backend: azure                     # backend configuration to use
     wal:
       path: /tmp/tempo/wal             # where to store the the wal locally
       bloom_filter_false_positive: .05 # bloom filter false positive rate.  lower values create larger filters but fewer false positives
@@ -44,8 +43,6 @@ storage:
       storage-account-name: "devstoreaccount1" # Default Azurite storage account
       storage-account-key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" # Default azurite sorage key
       development-mode: true
-      # For using Azure storage, select the appropriate regional endpoint
-      # default endpoint: blob.core.windows.net
     pool:
       max_workers: 100                 # the worker pool mainly drives querying, but is also used for polling the blocklist
       queue_depth: 10000

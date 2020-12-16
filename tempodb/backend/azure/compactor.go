@@ -36,7 +36,6 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	compactedMetaFilename := util.CompactedMetaFileName(blockID, tenantID)
 	ctx := context.TODO()
 
-	// TODO: is there a better way to read=>copy=>delete?
 	src, err := rw.readAll(ctx, metaFilename)
 	if err != nil {
 		return err
@@ -134,7 +133,7 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
 	blobURL, err := GetBlobURL(ctx, rw.cfg, name)
 	if err != nil {
-		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob URL, blob: %s", name)
+		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob URL, name: %s", name)
 	}
 
 	var props *blob.BlobGetPropertiesResponse
@@ -153,11 +152,11 @@ func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAtt
 func (rw *readerWriter) delete(ctx context.Context, name string) error {
 	blobURL, err := GetBlobURL(ctx, rw.cfg, name)
 	if err != nil {
-		return errors.Wrapf(err, "cannot get Azure blob URL, address: %s", name)
+		return errors.Wrapf(err, "cannot get Azure blob URL, name: %s", name)
 	}
 
 	if _, err = blobURL.Delete(ctx, blob.DeleteSnapshotsOptionInclude, blob.BlobAccessConditions{}); err != nil {
-		return errors.Wrapf(err, "error deleting blob, address: %s", name)
+		return errors.Wrapf(err, "error deleting blob, name: %s", name)
 	}
 	return nil
 }
