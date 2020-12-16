@@ -72,6 +72,9 @@ minio + load + tempo {
     tempo_querier_container+::
         $.util.resourcesRequests('500m', '500Mi'),
 
+    tempo_query_frontend_container+::
+        $.util.resourcesRequests('300m', '500Mi'),
+
     local ingress = $.extensions.v1beta1.ingress,
     ingress:
         ingress.new() +
@@ -83,7 +86,7 @@ minio + load + tempo {
         ingress.mixin.spec.withRules(
             ingress.mixin.specType.rulesType.mixin.http.withPaths(
                 ingress.mixin.spec.rulesType.mixin.httpType.pathsType.withPath('/') +
-                ingress.mixin.specType.mixin.backend.withServiceName('querier') +
+                ingress.mixin.specType.mixin.backend.withServiceName('query-frontend') +
                 ingress.mixin.specType.mixin.backend.withServicePort(16686)
             ),
         ),

@@ -85,6 +85,11 @@
         },
       },
     },
+    querier+: {
+      frontend_worker+: {
+        frontend_address: 'query-frontend-discovery.%s.svc.cluster.local:9095' % [$._config.namespace],
+      }
+    }
   },
 
   tempo_configmap:
