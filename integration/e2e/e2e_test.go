@@ -69,6 +69,7 @@ func TestAllInOne(t *testing.T) {
 	// test metrics
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
+	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_query_frontend_queries_total"))
 
 	// query trace - should fetch from backend
 	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
@@ -87,8 +88,9 @@ func TestMicroservices(t *testing.T) {
 	tempoIngester1 := util.NewTempoIngester(1)
 	tempoIngester2 := util.NewTempoIngester(2)
 	tempoDistributor := util.NewTempoDistributor()
+	tempoQueryFrontend := util.NewTempoQueryFrontend()
 	tempoQuerier := util.NewTempoQuerier()
-	require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoDistributor, tempoQuerier))
+	require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoDistributor, tempoQueryFrontend, tempoQuerier))
 
 	// wait for 2 active ingesters
 	time.Sleep(1 * time.Second)
@@ -124,7 +126,7 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	// query an in-memory trace
-	queryAndAssertTrace(t, "http://"+tempoQuerier.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
+	queryAndAssertTrace(t, "http://"+tempoQueryFrontend.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 
 	// flush trace to backend
 	res, err := cortex_e2e.GetRequest("http://" + tempoIngester1.Endpoint(3100) + "/flush")
@@ -143,9 +145,10 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Equals(2), "tempodb_blocklist_length"))
 	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(2), "tempodb_blocklist_length"))
+	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_query_frontend_queries_total"))
 
 	// query trace - should fetch from backend
-	queryAndAssertTrace(t, "http://"+tempoQuerier.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
+	queryAndAssertTrace(t, "http://"+tempoQueryFrontend.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 
 	// stop an ingester and confirm we can still write and query
 	err = tempoIngester2.Stop()
@@ -156,7 +159,7 @@ func TestMicroservices(t *testing.T) {
 	hexID = fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
 
 	// query an in-memory trace
-	queryAndAssertTrace(t, "http://"+tempoQuerier.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
+	queryAndAssertTrace(t, "http://"+tempoQueryFrontend.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 
 	// stop another ingester and confirm things fail
 	err = tempoIngester1.Stop()
