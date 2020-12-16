@@ -76,7 +76,7 @@ func (c *CompactorBlock) Complete() {
 	c.appender.Complete()
 }
 
-func (c *CompactorBlock) Clear() error { // jpe remove?
+func (c *CompactorBlock) Clear() error {
 	return nil
 }
 

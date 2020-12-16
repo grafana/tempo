@@ -27,7 +27,7 @@ func (m *mockCombiner) Combine(objA []byte, objB []byte) []byte {
 	return objB
 }
 
-func TestCompleteBlock(t *testing.T) { // jpe restore this original test in the wal folder
+func TestCompleteBlock(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
