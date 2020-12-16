@@ -18,7 +18,7 @@
     compactor: null,
     storage: {
       trace: {
-        blocklist_poll: '5m',
+        blocklist_poll: '0',
         backend: $._config.backend,
         wal: {
           path: '/var/tempo/wal',
@@ -76,6 +76,7 @@
     },
     storage+: {
       trace+: {
+        blocklist_poll: '5m',
         pool+: {
           max_workers: 200,
         },

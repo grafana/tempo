@@ -3,7 +3,7 @@ module github.com/grafana/tempo
 go 1.15
 
 require (
-	cloud.google.com/go/storage v1.6.0
+	cloud.google.com/go/storage v1.12.0
 	contrib.go.opencensus.io/exporter/prometheus v0.2.0
 	github.com/alecthomas/kong v0.2.11
 	github.com/alicebob/miniredis v2.5.0+incompatible
@@ -40,16 +40,15 @@ require (
 	github.com/weaveworks/common v0.0.0-20201029142910-313edde7a455
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
-	go.opencensus.io v0.22.3
+	go.opencensus.io v0.22.4
 	go.opentelemetry.io/collector v0.6.1
 	go.uber.org/atomic v1.6.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.15.0
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e
-	google.golang.org/api v0.29.0
+	google.golang.org/api v0.32.0
 	google.golang.org/genproto v0.0.0-20201028140639-c77dae4b0522 // indirect
 	google.golang.org/grpc v1.33.1
-	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 )
 

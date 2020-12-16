@@ -16,8 +16,9 @@ import (
 )
 
 type listBlocksCmd struct {
-	TenantID  string `arg:"" help:"tenant-id within the bucket"`
-	LoadIndex bool   `help:"load block indexes and display additional information"`
+	TenantID         string `arg:"" help:"tenant-id within the bucket"`
+	LoadIndex        bool   `help:"load block indexes and display additional information"`
+	IncludeCompacted bool   `help:"include compacted blocks"`
 
 	backendOptions
 }
@@ -30,103 +31,118 @@ func (l *listBlocksCmd) Run(ctx *globalOptions) error {
 
 	windowDuration := time.Hour
 
-	results, err := loadBucket(r, c, l.TenantID, windowDuration, l.LoadIndex)
+	results, err := loadBucket(r, c, l.TenantID, windowDuration, l.LoadIndex, l.IncludeCompacted)
 	if err != nil {
 		return err
 	}
 
-	displayResults(results, windowDuration, l.LoadIndex)
+	displayResults(results, windowDuration, l.LoadIndex, l.IncludeCompacted)
 	return nil
 }
 
-type bucketStats struct {
-	id              uuid.UUID
-	compactionLevel uint8
-	objects         int
-	window          int64
-	start           time.Time
-	end             time.Time
+type blockStats struct {
+	unifiedBlockMeta
 
 	totalIDs     int
 	duplicateIDs int
 }
 
-func loadBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, loadIndex bool) ([]bucketStats, error) {
+func loadBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, loadIndex bool, includeCompacted bool) ([]blockStats, error) {
 	blockIDs, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
 	}
 
 	fmt.Println("total blocks: ", len(blockIDs))
-	results := make([]bucketStats, 0)
+
+	// Load in parallel
+	wg := newBoundedWaitGroup(10)
+	resultsCh := make(chan blockStats, len(blockIDs))
 
 	for _, id := range blockIDs {
-		fmt.Print(".")
+		wg.Add(1)
 
-		meta, err := r.BlockMeta(context.Background(), id, tenantID)
-		if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
-			return nil, err
-		}
+		go func(id2 uuid.UUID) {
+			defer wg.Done()
 
-		compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-		if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
-			return nil, err
-		}
-
-		totalIDs := -1
-		duplicateIDs := -1
-
-		if loadIndex {
-			indexBytes, err := r.Index(context.Background(), id, tenantID)
-			if err == nil {
-				records, err := encoding.UnmarshalRecords(indexBytes)
-				if err != nil {
-					return nil, err
-				}
-				duplicateIDs = 0
-				totalIDs = len(records)
-				for i := 1; i < len(records); i++ {
-					if bytes.Equal(records[i-1].ID, records[i].ID) {
-						duplicateIDs++
-					}
-				}
+			b, err := loadBlock(r, c, tenantID, id2, windowRange, loadIndex, includeCompacted)
+			if err != nil {
+				fmt.Println("Error loading block:", id2, err)
+				return
 			}
-		}
 
-		objects, lvl, window, start, end := blockStats(meta, compactedMeta, windowRange)
+			if b != nil {
+				resultsCh <- *b
+			}
+		}(id)
+	}
 
-		results = append(results, bucketStats{
-			id:              id,
-			compactionLevel: lvl,
-			objects:         objects,
-			window:          window,
-			start:           start,
-			end:             end,
+	wg.Wait()
+	close(resultsCh)
 
-			totalIDs:     totalIDs,
-			duplicateIDs: duplicateIDs,
-		})
+	results := make([]blockStats, 0)
+	for b := range resultsCh {
+		results = append(results, b)
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		bI := results[i]
-		bJ := results[j]
-
-		if bI.window == bJ.window {
-			return bI.compactionLevel < bJ.compactionLevel
-		}
-
-		return bI.window < bJ.window
+		return results[i].end.Before(results[j].end)
 	})
 
 	return results, nil
 }
 
-func displayResults(results []bucketStats, windowDuration time.Duration, includeIndexInfo bool) {
+func loadBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, id uuid.UUID, windowRange time.Duration, loadIndex bool, includeCompacted bool) (*blockStats, error) {
+	fmt.Print(".")
 
-	columns := []string{"id", "lvl", "count", "window", "start", "end", "duration"}
+	meta, err := r.BlockMeta(context.Background(), id, tenantID)
+	if err == tempodb_backend.ErrMetaDoesNotExist && !includeCompacted {
+		return nil, nil
+	} else if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
+		return nil, err
+	}
+
+	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
+	if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
+		return nil, err
+	}
+
+	totalIDs := -1
+	duplicateIDs := -1
+
+	if loadIndex {
+		indexBytes, err := r.Index(context.Background(), id, tenantID)
+		if err == nil {
+			records, err := encoding.UnmarshalRecords(indexBytes)
+			if err != nil {
+				return nil, err
+			}
+			duplicateIDs = 0
+			totalIDs = len(records)
+			for i := 1; i < len(records); i++ {
+				if bytes.Equal(records[i-1].ID, records[i].ID) {
+					duplicateIDs++
+				}
+			}
+		}
+	}
+
+	return &blockStats{
+		unifiedBlockMeta: getMeta(meta, compactedMeta, windowRange),
+
+		totalIDs:     totalIDs,
+		duplicateIDs: duplicateIDs,
+	}, nil
+}
+
+func displayResults(results []blockStats, windowDuration time.Duration, includeIndexInfo bool, includeCompacted bool) {
+
+	columns := []string{"id", "lvl", "count", "window", "start", "end", "duration", "age"}
 	if includeIndexInfo {
 		columns = append(columns, "idx", "dupe")
+	}
+	if includeCompacted {
+		columns = append(columns, "cmp")
 	}
 
 	totalObjects := 0
@@ -155,12 +171,21 @@ func displayResults(results []bucketStats, windowDuration time.Duration, include
 			case "duration":
 				// Time range included in bucket
 				s = fmt.Sprint(r.end.Sub(r.start).Round(time.Second))
+			case "age":
+				s = fmt.Sprint(time.Since(r.end).Round(time.Second))
 			case "idx":
 				// Number of entries in the index (may not be the same as the block when index downsampling enabled)
 				s = strconv.Itoa(r.totalIDs)
 			case "dupe":
 				// Number of duplicate IDs found in the index
 				s = strconv.Itoa(r.duplicateIDs)
+			case "cmp":
+				// Compacted?
+				if r.compacted {
+					s = "Y"
+				} else {
+					s = " "
+				}
 			}
 
 			line = append(line, s)
