@@ -1,7 +1,6 @@
 package wal
 
 import (
-	"bytes"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -137,70 +136,6 @@ func TestAppend(t *testing.T) {
 		i++
 	}
 	assert.Equal(t, numMsgs, i)
-}
-
-func TestCompleteBlock(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	indexDownsample := 13
-	wal, err := New(&Config{
-		Filepath:        tempDir,
-		IndexDownsample: indexDownsample,
-		BloomFP:         .01,
-	})
-	assert.NoError(t, err, "unexpected error creating temp wal")
-
-	blockID := uuid.New()
-
-	block, err := wal.NewBlock(blockID, testTenantID)
-	assert.NoError(t, err, "unexpected error creating block")
-
-	numMsgs := 100
-	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
-	ids := make([][]byte, 0, numMsgs)
-	for i := 0; i < numMsgs; i++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-		req := test.MakeRequest(rand.Int()%1000, id)
-		reqs = append(reqs, req)
-		ids = append(ids, id)
-		bReq, err := proto.Marshal(req)
-		assert.NoError(t, err)
-		err = block.Write(id, bReq)
-		assert.NoError(t, err, "unexpected error writing req")
-	}
-
-	complete, err := block.Complete(wal, &mockCombiner{})
-	assert.NoError(t, err, "unexpected error completing block")
-	// test downsample config
-	assert.Equal(t, numMsgs/indexDownsample+1, len(complete.records))
-
-	assert.True(t, bytes.Equal(complete.meta.MinID, block.meta.MinID))
-	assert.True(t, bytes.Equal(complete.meta.MaxID, block.meta.MaxID))
-
-	for i, id := range ids {
-		out := &tempopb.PushRequest{}
-		foundBytes, err := complete.Find(id, &mockCombiner{})
-		assert.NoError(t, err)
-
-		err = proto.Unmarshal(foundBytes, out)
-		assert.NoError(t, err)
-
-		assert.True(t, proto.Equal(out, reqs[i]))
-		assert.True(t, complete.BloomFilter().Test(id))
-	}
-
-	// confirm order
-	var prev *encoding.Record
-	for _, r := range complete.records {
-		if prev != nil {
-			assert.Greater(t, r.Start, prev.Start)
-		}
-
-		prev = r
-	}
 }
 
 func TestWorkDir(t *testing.T) {

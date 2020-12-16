@@ -97,10 +97,6 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
 	return newAppendBlock(id, tenantID, w.c.Filepath)
 }
 
-func (w *WAL) NewCompactorBlock(id uuid.UUID, tenantID string, metas []*encoding.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
-	return newCompactorBlock(id, tenantID, w.c.BloomFP, w.c.IndexDownsample, metas, w.c.CompletedFilepath, estimatedObjects)
-}
-
 func (w *WAL) config() *Config {
 	return w.c
 }

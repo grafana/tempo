@@ -1,4 +1,4 @@
-package wal
+package encoding
 
 import (
 	"bytes"
@@ -10,13 +10,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCompactorBlockError(t *testing.T) {
-	_, err := newCompactorBlock(uuid.New(), "", 0, 0, nil, "", 0)
+	_, err := NewCompactorBlock(uuid.New(), "", 0, 0, nil, 0)
 	assert.Error(t, err)
 }
 
@@ -25,15 +24,12 @@ func TestCompactorBlockWrite(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	walCfg := &Config{
-		Filepath:        tempDir,
-		IndexDownsample: 3,
-		BloomFP:         .01,
-	}
-	wal, err := New(walCfg)
 	assert.NoError(t, err)
 
-	metas := []*encoding.BlockMeta{
+	indexDownsample := 3
+	bloomFP := .01
+
+	metas := []*BlockMeta{
 		{
 			StartTime: time.Unix(10000, 0),
 			EndTime:   time.Unix(20000, 0),
@@ -45,11 +41,11 @@ func TestCompactorBlockWrite(t *testing.T) {
 	}
 
 	numObjects := (rand.Int() % 20) + 1
-	cb, err := wal.NewCompactorBlock(uuid.New(), testTenantID, metas, numObjects)
+	cb, err := NewCompactorBlock(uuid.New(), testTenantID, bloomFP, indexDownsample, metas, numObjects)
 	assert.NoError(t, err)
 
-	var minID encoding.ID
-	var maxID encoding.ID
+	var minID ID
+	var maxID ID
 
 	ids := make([][]byte, 0)
 	for i := 0; i < numObjects; i++ {
@@ -95,7 +91,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 	}
 
 	records := cb.Records()
-	assert.Equal(t, math.Ceil(float64(numObjects)/float64(walCfg.IndexDownsample)), float64(len(records)))
+	assert.Equal(t, math.Ceil(float64(numObjects)/float64(indexDownsample)), float64(len(records)))
 
 	assert.Equal(t, numObjects, cb.CurrentBufferedObjects())
 }

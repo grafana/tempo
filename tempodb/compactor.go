@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -147,7 +146,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 
 	recordsPerBlock := (totalRecords / outputBlocks)
 	var newCompactedBlocks []*encoding.BlockMeta
-	var currentBlock *wal.CompactorBlock
+	var currentBlock *encoding.CompactorBlock
 	var tracker backend.AppendTracker
 
 	for !allDone(bookmarks) {
@@ -181,7 +180,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 
 		// make a new block if necessary
 		if currentBlock == nil {
-			currentBlock, err = rw.wal.NewCompactorBlock(uuid.New(), tenantID, blockMetas, recordsPerBlock)
+			currentBlock, err = encoding.NewCompactorBlock(uuid.New(), tenantID, rw.cfg.WAL.BloomFP, rw.cfg.WAL.IndexDownsample, blockMetas, recordsPerBlock)
 			if err != nil {
 				return errors.Wrap(err, "error making new compacted block")
 			}
@@ -232,7 +231,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	return nil
 }
 
-func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.CompactorBlock) (backend.AppendTracker, error) {
+func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.CompactorBlock) (backend.AppendTracker, error) {
 	tracker, err := rw.w.AppendObject(context.TODO(), tracker, block.BlockMeta(), block.CurrentBuffer())
 	if err != nil {
 		return nil, err
@@ -247,7 +246,7 @@ func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 	return tracker, nil
 }
 
-func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.CompactorBlock) error {
+func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.CompactorBlock) error {
 	level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", block.BlockMeta()))
 
 	tracker, err := appendBlock(rw, tracker, block)

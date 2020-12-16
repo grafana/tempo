@@ -1,28 +1,25 @@
-package wal
+package encoding
 
 import (
 	"bytes"
 	"fmt"
-	"os"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 type CompactorBlock struct {
-	block
-
-	metas []*encoding.BlockMeta
+	compactedMeta *BlockMeta
+	inMetas       []*BlockMeta
 
 	bloom *bloom.ShardedBloomFilter
 
 	bufferedObjects int
 	appendBuffer    *bytes.Buffer
-	appender        encoding.Appender
+	appender        Appender
 }
 
-func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*encoding.BlockMeta, filepath string, estimatedObjects int) (*CompactorBlock, error) {
+func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
 	if len(metas) == 0 {
 		return nil, fmt.Errorf("empty block meta list")
 	}
@@ -32,33 +29,24 @@ func newCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	}
 
 	c := &CompactorBlock{
-		block: block{
-			meta:     encoding.NewBlockMeta(tenantID, id),
-			filepath: filepath,
-		},
-		bloom: bloom.NewWithEstimates(uint(estimatedObjects), bloomFP),
-		metas: metas,
-	}
-
-	name := c.fullFilename()
-	_, err := os.Create(name)
-	if err != nil {
-		return nil, err
+		compactedMeta: NewBlockMeta(tenantID, id),
+		bloom:         bloom.NewWithEstimates(uint(estimatedObjects), bloomFP),
+		inMetas:       metas,
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender = encoding.NewBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
+	c.appender = NewBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
 
 	return c, nil
 }
 
-func (c *CompactorBlock) Write(id encoding.ID, object []byte) error {
+func (c *CompactorBlock) Write(id ID, object []byte) error {
 	err := c.appender.Append(id, object)
 	if err != nil {
 		return err
 	}
 	c.bufferedObjects++
-	c.meta.ObjectAdded(id)
+	c.compactedMeta.ObjectAdded(id)
 	c.bloom.Add(id)
 	return nil
 }
@@ -88,19 +76,19 @@ func (c *CompactorBlock) Complete() {
 	c.appender.Complete()
 }
 
-func (c *CompactorBlock) Clear() error {
-	return os.Remove(c.fullFilename())
+func (c *CompactorBlock) Clear() error { // jpe remove?
+	return nil
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) BlockMeta() *encoding.BlockMeta {
-	meta := c.meta
+func (c *CompactorBlock) BlockMeta() *BlockMeta {
+	meta := c.compactedMeta
 
-	meta.StartTime = c.metas[0].StartTime
-	meta.EndTime = c.metas[0].EndTime
+	meta.StartTime = c.inMetas[0].StartTime
+	meta.EndTime = c.inMetas[0].EndTime
 
 	// everything should be correct here except the start/end times which we will get from the passed in metas
-	for _, m := range c.metas[1:] {
+	for _, m := range c.inMetas[1:] {
 		if m.StartTime.Before(meta.StartTime) {
 			meta.StartTime = m.StartTime
 		}
@@ -124,7 +112,7 @@ func (c *CompactorBlock) Flushed() error {
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) Records() []*encoding.Record {
+func (c *CompactorBlock) Records() []*Record {
 	return c.appender.Records()
 }
 
