@@ -5,7 +5,6 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend/cache/memcached"
 	"github.com/grafana/tempo/tempodb/backend/cache/redis"
-	"github.com/grafana/tempo/tempodb/backend/diskcache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -22,7 +21,6 @@ type Config struct {
 	WAL     *wal.Config   `yaml:"wal"`
 
 	Cache     string            `yaml:"cache"`
-	Diskcache *diskcache.Config `yaml:"disk_cache"`
 	Memcached *memcached.Config `yaml:"memcached"`
 	Redis     *redis.Config     `yaml:"redis"`
 

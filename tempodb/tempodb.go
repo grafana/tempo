@@ -25,7 +25,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/cache"
 	"github.com/grafana/tempo/tempodb/backend/cache/memcached"
 	"github.com/grafana/tempo/tempodb/backend/cache/redis"
-	"github.com/grafana/tempo/tempodb/backend/diskcache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -145,14 +144,6 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 
 	if err != nil {
 		return nil, nil, nil, err
-	}
-
-	if cfg.Diskcache != nil {
-		r, err = diskcache.New(r, cfg.Diskcache, logger)
-
-		if err != nil {
-			return nil, nil, nil, err
-		}
 	}
 
 	var cacheBackend cache.Cache
