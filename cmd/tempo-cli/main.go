@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/tempodb/backend"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"gopkg.in/yaml.v2"
 
 	"github.com/alecthomas/kong"
@@ -119,7 +119,7 @@ type unifiedBlockMeta struct {
 	compacted       bool
 }
 
-func getMeta(meta *encoding.BlockMeta, compactedMeta *encoding.CompactedBlockMeta, windowRange time.Duration) unifiedBlockMeta {
+func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta, windowRange time.Duration) unifiedBlockMeta {
 	if meta != nil {
 		return unifiedBlockMeta{
 			id:              meta.BlockID,

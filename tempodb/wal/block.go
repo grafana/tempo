@@ -5,11 +5,11 @@ import (
 	"os"
 	"sync"
 
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type block struct {
-	meta     *encoding.BlockMeta
+	meta     *backend.BlockMeta
 	filepath string
 	readFile *os.File
 

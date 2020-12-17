@@ -5,12 +5,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 type CompactorBlock struct {
-	compactedMeta *BlockMeta
-	inMetas       []*BlockMeta
+	compactedMeta *backend.BlockMeta
+	inMetas       []*backend.BlockMeta
 
 	bloom *bloom.ShardedBloomFilter
 
@@ -19,7 +20,7 @@ type CompactorBlock struct {
 	appender        Appender
 }
 
-func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
+func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
 	if len(metas) == 0 {
 		return nil, fmt.Errorf("empty block meta list")
 	}
@@ -29,7 +30,7 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	}
 
 	c := &CompactorBlock{
-		compactedMeta: NewBlockMeta(tenantID, id),
+		compactedMeta: backend.NewBlockMeta(tenantID, id),
 		bloom:         bloom.NewWithEstimates(uint(estimatedObjects), bloomFP),
 		inMetas:       metas,
 	}
@@ -81,7 +82,7 @@ func (c *CompactorBlock) Clear() error {
 }
 
 // implements WriteableBlock
-func (c *CompactorBlock) BlockMeta() *BlockMeta {
+func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
 	meta := c.compactedMeta
 
 	meta.StartTime = c.inMetas[0].StartTime

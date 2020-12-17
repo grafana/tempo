@@ -80,7 +80,7 @@ var (
 )
 
 type WriteableBlock interface {
-	BlockMeta() *encoding.BlockMeta
+	BlockMeta() *backend.BlockMeta
 	BloomFilter() *bloom.ShardedBloomFilter
 	Records() []*encoding.Record
 	ObjectFilePath() string
@@ -126,11 +126,11 @@ type readerWriter struct {
 
 	logger        log.Logger
 	cfg           *Config
-	blockLists    map[string][]*encoding.BlockMeta
+	blockLists    map[string][]*backend.BlockMeta
 	blockListsMtx sync.Mutex
 
 	compactorCfg        *CompactorConfig
-	compactedBlockLists map[string][]*encoding.CompactedBlockMeta
+	compactedBlockLists map[string][]*backend.CompactedBlockMeta
 	compactorSharder    CompactorSharder
 }
 
@@ -181,13 +181,13 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 
 	rw := &readerWriter{
 		c:                   c,
-		compactedBlockLists: make(map[string][]*encoding.CompactedBlockMeta),
+		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
 		r:                   r,
 		w:                   w,
 		cfg:                 cfg,
 		logger:              logger,
 		pool:                pool.NewPool(cfg.Pool),
-		blockLists:          make(map[string][]*encoding.BlockMeta),
+		blockLists:          make(map[string][]*backend.BlockMeta),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -306,7 +306,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	}
 
 	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
-		meta := payload.(*encoding.BlockMeta)
+		meta := payload.(*backend.BlockMeta)
 		shardKey := bloom.ShardKeyForTraceID(id)
 
 		span.SetTag("blockID", meta.BlockID)
@@ -440,12 +440,12 @@ func (rw *readerWriter) pollBlocklist() {
 		}
 
 		listMutex := sync.Mutex{}
-		blocklist := make([]*encoding.BlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(blockIDs))
+		blocklist := make([]*backend.BlockMeta, 0, len(blockIDs))
+		compactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
 		_, err = rw.pool.RunJobs(ctx, interfaceSlice, func(ctx context.Context, payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
 
-			var compactedBlockMeta *encoding.CompactedBlockMeta
+			var compactedBlockMeta *backend.CompactedBlockMeta
 			blockMeta, err := rw.r.BlockMeta(ctx, blockID, tenantID)
 			// if the normal meta doesn't exist maybe it's compacted.
 			if err == backend.ErrMetaDoesNotExist {
@@ -507,7 +507,7 @@ func (rw *readerWriter) blocklistTenants() []interface{} {
 	return tenants
 }
 
-func (rw *readerWriter) blocklist(tenantID string) []*encoding.BlockMeta {
+func (rw *readerWriter) blocklist(tenantID string) []*backend.BlockMeta {
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 
@@ -515,13 +515,13 @@ func (rw *readerWriter) blocklist(tenantID string) []*encoding.BlockMeta {
 		return nil
 	}
 
-	copiedBlocklist := make([]*encoding.BlockMeta, 0, len(rw.blockLists[tenantID]))
+	copiedBlocklist := make([]*backend.BlockMeta, 0, len(rw.blockLists[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, rw.blockLists[tenantID]...)
 	return copiedBlocklist
 }
 
 // todo:  make separate compacted list mutex?
-func (rw *readerWriter) compactedBlocklist(tenantID string) []*encoding.CompactedBlockMeta {
+func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.CompactedBlockMeta {
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 
@@ -529,7 +529,7 @@ func (rw *readerWriter) compactedBlocklist(tenantID string) []*encoding.Compacte
 		return nil
 	}
 
-	copiedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(rw.compactedBlockLists[tenantID]))
+	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(rw.compactedBlockLists[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, rw.compactedBlockLists[tenantID]...)
 
 	return copiedBlocklist
@@ -562,7 +562,7 @@ func (rw *readerWriter) cleanMissingTenants(tenants []string) {
 
 // updateBlocklist Add and remove regular or compacted blocks from the in-memory blocklist.
 // Changes are temporary and will be overwritten on the next poll.
-func (rw *readerWriter) updateBlocklist(tenantID string, add []*encoding.BlockMeta, remove []*encoding.BlockMeta, compactedAdd []*encoding.CompactedBlockMeta) {
+func (rw *readerWriter) updateBlocklist(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta) {
 	if tenantID == "" {
 		return
 	}
@@ -582,7 +582,7 @@ func (rw *readerWriter) updateBlocklist(tenantID string, add []*encoding.BlockMe
 		}
 	}
 
-	newblocklist := make([]*encoding.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
+	newblocklist := make([]*backend.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
 	for _, b := range blocklist {
 		if _, ok := matchedRemovals[b.BlockID]; !ok {
 			newblocklist = append(newblocklist, b)

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -84,7 +84,7 @@ func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
 
 		blocks = append(blocks, &ReplayBlock{
 			block: block{
-				meta:     encoding.NewBlockMeta(tenantID, blockID),
+				meta:     backend.NewBlockMeta(tenantID, blockID),
 				filepath: w.c.Filepath,
 			},
 		})

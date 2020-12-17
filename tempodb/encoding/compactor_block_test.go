@@ -10,8 +10,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 
 	"github.com/stretchr/testify/assert"
+)
+
+const (
+	testTenantID = "fake"
 )
 
 func TestCompactorBlockError(t *testing.T) {
@@ -29,7 +34,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 	indexDownsample := 3
 	bloomFP := .01
 
-	metas := []*BlockMeta{
+	metas := []*backend.BlockMeta{
 		{
 			StartTime: time.Unix(10000, 0),
 			EndTime:   time.Unix(20000, 0),
@@ -78,8 +83,8 @@ func TestCompactorBlockWrite(t *testing.T) {
 
 	assert.Equal(t, time.Unix(10000, 0), meta.StartTime)
 	assert.Equal(t, time.Unix(25000, 0), meta.EndTime)
-	assert.Equal(t, minID, meta.MinID)
-	assert.Equal(t, maxID, meta.MaxID)
+	assert.Equal(t, minID, ID(meta.MinID))
+	assert.Equal(t, maxID, ID(meta.MaxID))
 	assert.Equal(t, testTenantID, meta.TenantID)
 	assert.Equal(t, numObjects, meta.TotalObjects)
 

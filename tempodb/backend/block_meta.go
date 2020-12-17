@@ -1,4 +1,4 @@
-package encoding
+package backend
 
 import (
 	"bytes"
@@ -16,8 +16,8 @@ type CompactedBlockMeta struct {
 type BlockMeta struct {
 	Version         string    `json:"format"`
 	BlockID         uuid.UUID `json:"blockID"`
-	MinID           ID        `json:"minID"`
-	MaxID           ID        `json:"maxID"`
+	MinID           []byte    `json:"minID"`
+	MaxID           []byte    `json:"maxID"`
 	TenantID        string    `json:"tenantID"`
 	StartTime       time.Time `json:"startTime"`
 	EndTime         time.Time `json:"endTime"`
@@ -40,7 +40,7 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
 	return b
 }
 
-func (b *BlockMeta) ObjectAdded(id ID) {
+func (b *BlockMeta) ObjectAdded(id []byte) {
 	b.EndTime = time.Now()
 
 	if len(b.MinID) == 0 || bytes.Compare(id, b.MinID) == -1 {

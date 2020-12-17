@@ -9,7 +9,6 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
@@ -17,7 +16,7 @@ import (
 type mockReader struct {
 	tenants []string
 	blocks  []uuid.UUID
-	meta    *encoding.BlockMeta
+	meta    *backend.BlockMeta
 	bloom   []byte
 	index   []byte
 	object  []byte
@@ -29,7 +28,7 @@ func (m *mockReader) Tenants(ctx context.Context) ([]string, error) {
 func (m *mockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 	return m.blocks, nil
 }
-func (m *mockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (m *mockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	return m.meta, nil
 }
 func (m *mockReader) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
@@ -47,13 +46,13 @@ func (m *mockReader) Shutdown() {}
 type mockWriter struct {
 }
 
-func (m *mockWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
+func (m *mockWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
 	return nil
 }
-func (m *mockWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
+func (m *mockWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	return nil
 }
-func (m *mockWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
+func (m *mockWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
 	return nil, nil
 }
 
@@ -86,13 +85,13 @@ func TestCache(t *testing.T) {
 		name            string
 		readerTenants   []string
 		readerBlocks    []uuid.UUID
-		readerMeta      *encoding.BlockMeta
+		readerMeta      *backend.BlockMeta
 		readerBloom     []byte
 		readerIndex     []byte
 		readerObject    []byte
 		expectedTenants []string
 		expectedBlocks  []uuid.UUID
-		expectedMeta    *encoding.BlockMeta
+		expectedMeta    *backend.BlockMeta
 		expectedBloom   []byte
 		expectedIndex   []byte
 		expectedObject  []byte

@@ -6,16 +6,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"go.uber.org/atomic"
+
+	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 // CompleteBlock represent a block that has been "cut", is ready to be flushed and is not appendable.
 // A CompleteBlock also knows the filepath of the append wal file it was cut from.  It is responsible for
 // cleaning this block up once it has been flushed to the backend.
 type CompleteBlock struct {
-	meta    *BlockMeta
+	meta    *backend.BlockMeta
 	bloom   *bloom.ShardedBloomFilter
 	records []*Record
 
@@ -28,9 +30,9 @@ type CompleteBlock struct {
 }
 
 // NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
-func NewCompleteBlock(originatingMeta *BlockMeta, iterator Iterator, bloomFP float64, estimatedObjects int, indexDownsample int, filepath string, walFilename string) (*CompleteBlock, error) {
+func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator Iterator, bloomFP float64, estimatedObjects int, indexDownsample int, filepath string, walFilename string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
-		meta:        NewBlockMeta(originatingMeta.TenantID, uuid.New()),
+		meta:        backend.NewBlockMeta(originatingMeta.TenantID, uuid.New()),
 		bloom:       bloom.NewWithEstimates(uint(estimatedObjects), bloomFP),
 		records:     make([]*Record, 0),
 		filepath:    filepath,
@@ -97,7 +99,7 @@ func (c *CompleteBlock) Flushed() error {
 }
 
 // BlockMeta implements WriteableBlock
-func (c *CompleteBlock) BlockMeta() *BlockMeta {
+func (c *CompleteBlock) BlockMeta() *backend.BlockMeta {
 	return c.meta
 }
 
