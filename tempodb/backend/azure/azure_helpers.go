@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
@@ -32,9 +33,12 @@ func GetContainerURL(ctx context.Context, conf *Config) (blob.ContainerURL, erro
 
 	u, err := url.Parse(fmt.Sprintf("https://%s.%s", conf.StorageAccountName, conf.Endpoint))
 
-	if conf.DevelopmentMode {
+	// If the endpoint doesn't start with blob.core we can assume Azurite is being used
+	// So the endpoint should follow Azurite URL style
+	if !strings.HasPrefix(conf.Endpoint, "blob.core") {
 		u, err = url.Parse(fmt.Sprintf("http://%s/%s", conf.Endpoint, conf.StorageAccountName))
 	}
+
 	if err != nil {
 		return blob.ContainerURL{}, err
 	}

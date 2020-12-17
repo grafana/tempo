@@ -5,7 +5,6 @@ type Config struct {
 	StorageAccountKey  string `yaml:"storage-account-key"`
 	ContainerName      string `yaml:"container-name"`
 	Endpoint           string `yaml:"endpoint-suffix"`
-	DevelopmentMode    bool   `yaml:"development-mode"`
 	MaxBuffers         int    `yaml:"max-buffers"`
 	BufferSize         int    `yaml:"buffer-size"`
 }

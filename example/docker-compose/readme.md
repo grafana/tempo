@@ -140,14 +140,16 @@ docker-compose -f docker-compose.azure.azurite.yaml up -d
 At this point, the following containers should be spun up -
 
 ```console
-$ docker-compose ps
-                  Name                                 Command               State                        Ports
--------------------------------------------------------------------------------------------------------------------------------------
-docker-compose_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp
-docker-compose_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp
+$ docker-compose -f docker-compose.azure.azurite.yaml ps
+                  Name                                 Command               State                         Ports
+--------------------------------------------------------------------------------------------------------------------------------------
+docker-compose_azure-cli_1                  az storage container creat ...   Exit 0
+docker-compose_azurite_1                    docker-entrypoint.sh azuri ...   Up       0.0.0.0:10000->10000/tcp, 10001/tcp
+docker-compose_grafana_1                    /run.sh                          Up       0.0.0.0:3000->3000/tcp
+docker-compose_prometheus_1                 /bin/prometheus --config.f ...   Up       0.0.0.0:9090->9090/tcp
 docker-compose_synthetic-load-generator_1   ./start.sh                       Up
-docker-compose_tempo-query_1                /go/bin/query-linux --grpc ...   Up      0.0.0.0:16686->16686/tcp
-docker-compose_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:32768->14268/tcp, 0.0.0.0:3100->3100/tcp
+docker-compose_tempo-query_1                /go/bin/query-linux --grpc ...   Up       0.0.0.0:16686->16686/tcp
+docker-compose_tempo_1                      /tempo -config.file=/etc/t ...   Up       0.0.0.0:32768->14268/tcp, 0.0.0.0:3100->3100/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.  Check [Azure Storage Explorer](https://azure.microsoft.com/en-us/features/storage-explorer/) and [Azurite docs](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite).

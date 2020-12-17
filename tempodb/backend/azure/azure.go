@@ -198,10 +198,12 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 	if err != nil {
 		ret, ok := err.(blob.StorageError)
 		if !ok {
-			return nil, errors.Wrap(err, "reading storage container")
+			return nil, errors.Wrapf(err, "reading storage container: %s", name)
 		}
 		if ret.ServiceCode() == "BlobNotFound" {
 			return nil, backend.ErrMetaDoesNotExist
+		} else {
+			return nil, errors.Wrapf(err, "reading Azure blob container: %s", name)
 		}
 	}
 

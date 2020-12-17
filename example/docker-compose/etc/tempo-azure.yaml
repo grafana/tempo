@@ -42,7 +42,6 @@ storage:
       endpoint-suffix: azurite:10000
       storage-account-name: "devstoreaccount1" # Default Azurite storage account
       storage-account-key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" # Default azurite sorage key
-      development-mode: true
     pool:
       max_workers: 100                 # the worker pool mainly drives querying, but is also used for polling the blocklist
       queue_depth: 10000

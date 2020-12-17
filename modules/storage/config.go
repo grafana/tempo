@@ -37,8 +37,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.Trace.Azure.ContainerName, util.PrefixConfig(prefix, "trace.azure.container-name"), "", "Azure container name to store blocks in.")
 	f.StringVar(&cfg.Trace.Azure.Endpoint, util.PrefixConfig(prefix, "trace.azure.endpoint"), "blob.core.windows.net", "Azure endpoint to push blocks to.")
 	f.IntVar(&cfg.Trace.Azure.MaxBuffers, util.PrefixConfig(prefix, "trace.azure.max-buffers"), 4, "Number of simultaneous uploads.")
-	f.IntVar(&cfg.Trace.Azure.BufferSize, util.PrefixConfig(prefix, "trace.azure.buffer-size"), 3*1024*1024, "Sizes the buffer used to read data from source.")
-	f.BoolVar(&cfg.Trace.Azure.DevelopmentMode, util.PrefixConfig(prefix, "trace.azure.development-mode"), false, "Use azurite as the backend storage.")
+	cfg.Trace.Azure.BufferSize = 3 * 1024 * 1024
 
 	cfg.Trace.S3 = &s3.Config{}
 	f.StringVar(&cfg.Trace.S3.Bucket, util.PrefixConfig(prefix, "trace.s3.bucket"), "", "s3 bucket to store blocks in.")
