@@ -79,15 +79,6 @@ var (
 	})
 )
 
-type WriteableBlock interface {
-	BlockMeta() *backend.BlockMeta
-	BloomFilter() *bloom.ShardedBloomFilter
-	Records() []*encoding.Record
-	ObjectFilePath() string
-
-	Flushed() error
-}
-
 type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
 	WAL() *wal.WAL
@@ -105,6 +96,10 @@ type Compactor interface {
 type CompactorSharder interface {
 	Combine(objA []byte, objB []byte) []byte
 	Owns(hash string) bool
+}
+
+type WriteableBlock interface {
+	Write(ctx context.Context, w backend.Writer) error
 }
 
 type FindMetrics struct {
@@ -201,50 +196,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error {
-	records := c.Records()
-	indexBytes, err := encoding.MarshalRecords(records)
-	if err != nil {
-		return err
-	}
-
-	bloomBuffers, err := c.BloomFilter().WriteTo()
-	if err != nil {
-		return err
-	}
-
-	meta := c.BlockMeta()
-	err = rw.w.Write(ctx, meta, bloomBuffers, indexBytes, c.ObjectFilePath())
-	if err != nil {
-		return err
-	}
-
-	err = c.Flushed()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, c WriteableBlock) error {
-	records := c.Records()
-	indexBytes, err := encoding.MarshalRecords(records)
-	if err != nil {
-		return err
-	}
-
-	bloomBuffers, err := c.BloomFilter().WriteTo()
-	if err != nil {
-		return err
-	}
-
-	meta := c.BlockMeta()
-	err = rw.w.WriteBlockMeta(ctx, tracker, meta, bloomBuffers, indexBytes)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return c.Write(ctx, rw.w)
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {

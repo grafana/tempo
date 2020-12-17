@@ -64,7 +64,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 
 		ids = append(ids, id)
 
-		err = cb.Write(id, object)
+		err = cb.AddObject(id, object)
 		assert.NoError(t, err)
 
 		if len(minID) == 0 || bytes.Compare(id, minID) == -1 {
@@ -89,13 +89,12 @@ func TestCompactorBlockWrite(t *testing.T) {
 	assert.Equal(t, numObjects, meta.TotalObjects)
 
 	// bloom
-	bloom := cb.BloomFilter()
 	for _, id := range ids {
-		has := bloom.Test(id)
+		has := cb.bloom.Test(id)
 		assert.True(t, has)
 	}
 
-	records := cb.Records()
+	records := cb.appender.Records()
 	assert.Equal(t, math.Ceil(float64(numObjects)/float64(indexDownsample)), float64(len(records)))
 
 	assert.Equal(t, numObjects, cb.CurrentBufferedObjects())

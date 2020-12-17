@@ -190,7 +190,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 		// writing to the current block will cause the id to escape the iterator so we need to make a copy of it
 		writeID := append([]byte(nil), lowestID...)
-		err = currentBlock.Write(writeID, lowestObject)
+		err = currentBlock.AddObject(writeID, lowestObject)
 		if err != nil {
 			return err
 		}
@@ -255,13 +255,9 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encodin
 	}
 	block.Complete()
 
-	err = rw.WriteBlockMeta(context.TODO(), tracker, block) // todo:  add timeout
+	err = block.Write(context.TODO(), tracker, rw.w) // todo:  add timeout
 	if err != nil {
 		return err
-	}
-	err = block.Clear()
-	if err != nil {
-		level.Error(rw.logger).Log("msg", "error cleaning up currentBlock in compaction", "err", err)
 	}
 
 	return nil

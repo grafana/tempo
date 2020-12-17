@@ -97,7 +97,7 @@ func TestCompleteBlock(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))
-		assert.True(t, block.BloomFilter().Test(id))
+		assert.True(t, block.bloom.Test(id))
 	}
 
 	// confirm order

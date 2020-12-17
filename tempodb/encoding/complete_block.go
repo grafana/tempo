@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -81,31 +82,36 @@ func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator Iterator, blo
 	return c, nil
 }
 
-// Records implements WriteableBlock
-func (c *CompleteBlock) Records() []*Record {
-	return c.records
-}
-
-// ObjectFilePath implements WriteableBlock
-func (c *CompleteBlock) ObjectFilePath() string {
-	return c.fullFilename()
-}
-
-// Flushed implements WriteableBlock.  Note that it also cleans up the wal file that this is
-//  built off of
-func (c *CompleteBlock) Flushed() error {
-	c.flushedTime.Store(time.Now().Unix())
-	return os.Remove(c.walFilename) // now that we are flushed, remove our wal file
-}
-
-// BlockMeta implements WriteableBlock
+// BlockMeta returns a pointer to this blocks meta
 func (c *CompleteBlock) BlockMeta() *backend.BlockMeta {
 	return c.meta
 }
 
-// BloomFilter implements WriteableBlock
-func (c *CompleteBlock) BloomFilter() *bloom.ShardedBloomFilter {
-	return c.bloom
+// Write implements WriteableBlock
+func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
+	records := c.records
+	indexBytes, err := MarshalRecords(records)
+	if err != nil {
+		return err
+	}
+
+	bloomBuffers, err := c.bloom.WriteTo()
+	if err != nil {
+		return err
+	}
+
+	err = w.Write(ctx, c.meta, bloomBuffers, indexBytes, c.fullFilename())
+	if err != nil {
+		return err
+	}
+
+	c.flushedTime.Store(time.Now().Unix())
+	err = os.Remove(c.walFilename) // now that we are flushed, remove our wal file
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Find searches the for the provided trace id.  A CompleteBlock should never

@@ -183,7 +183,6 @@ func TestAppendBlockComplete(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))
-		assert.True(t, complete.BloomFilter().Test(id))
 	}
 }
 

@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -41,7 +42,7 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	return c, nil
 }
 
-func (c *CompactorBlock) Write(id ID, object []byte) error {
+func (c *CompactorBlock) AddObject(id ID, object []byte) error {
 	err := c.appender.Append(id, object)
 	if err != nil {
 		return err
@@ -77,11 +78,27 @@ func (c *CompactorBlock) Complete() {
 	c.appender.Complete()
 }
 
-func (c *CompactorBlock) Clear() error {
+func (c *CompactorBlock) Write(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) error {
+	records := c.appender.Records()
+	indexBytes, err := MarshalRecords(records)
+	if err != nil {
+		return err
+	}
+
+	bloomBuffers, err := c.bloom.WriteTo()
+	if err != nil {
+		return err
+	}
+
+	meta := c.BlockMeta()
+	err = w.WriteBlockMeta(ctx, tracker, meta, bloomBuffers, indexBytes)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-// implements WriteableBlock
 func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
 	meta := c.compactedMeta
 
@@ -99,25 +116,4 @@ func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
 	}
 
 	return meta
-}
-
-// implements WriteableBlock
-func (c *CompactorBlock) BloomFilter() *bloom.ShardedBloomFilter {
-	return c.bloom
-}
-
-// implements WriteableBlock
-func (c *CompactorBlock) Flushed() error {
-	// no-op
-	return nil
-}
-
-// implements WriteableBlock
-func (c *CompactorBlock) Records() []*Record {
-	return c.appender.Records()
-}
-
-// implements WriteableBlock
-func (c *CompactorBlock) ObjectFilePath() string {
-	return ""
 }
