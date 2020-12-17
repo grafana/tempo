@@ -20,6 +20,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/encoding"
 	tempodb_encoding "github.com/grafana/tempo/tempodb/encoding"
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
@@ -54,7 +55,7 @@ type instance struct {
 	blocksMtx       sync.RWMutex
 	headBlock       *tempodb_wal.AppendBlock
 	completingBlock *tempodb_wal.AppendBlock
-	completeBlocks  []*tempodb_wal.CompleteBlock
+	completeBlocks  []*encoding.CompleteBlock
 
 	lastBlockCut time.Time
 
@@ -179,7 +180,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	return nil
 }
 
-func (i *instance) GetBlockToBeFlushed() *tempodb_wal.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed() *encoding.CompleteBlock {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 

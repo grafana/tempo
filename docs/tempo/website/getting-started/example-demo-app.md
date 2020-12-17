@@ -4,7 +4,7 @@ title: Examples with demo app
 
 # Examples with demo app
 
-If you don't have an application to instrument at the moment, fret not! A number of [examples](https://github.com/grafana/tempo/tree/master/example) have been provided which show off various deployment and [configuration](../configuration) options.
+If you don't have an application to instrument at the moment, fret not! A number of [examples](https://github.com/grafana/tempo/tree/master/example) have been provided which show off various deployment and [configuration]({{< relref "../configuration" >}}) options.
 
 Some highlights:
 - [Configuration](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-s3-minio.yaml)

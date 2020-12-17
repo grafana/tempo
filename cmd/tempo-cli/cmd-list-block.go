@@ -47,14 +47,14 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 		return nil
 	}
 
-	objects, lvl, window, start, end := blockStats(meta, compactedMeta, windowRange)
+	unifiedMeta := getMeta(meta, compactedMeta, windowRange)
 
-	fmt.Println("ID            : ", id)
-	fmt.Println("Total Objects : ", objects)
-	fmt.Println("Level         : ", lvl)
-	fmt.Println("Window        : ", window)
-	fmt.Println("Start         : ", start)
-	fmt.Println("End           : ", end)
+	fmt.Println("ID            : ", unifiedMeta.id)
+	fmt.Println("Total Objects : ", unifiedMeta.objects)
+	fmt.Println("Level         : ", unifiedMeta.compactionLevel)
+	fmt.Println("Window        : ", unifiedMeta.window)
+	fmt.Println("Start         : ", unifiedMeta.start)
+	fmt.Println("End           : ", unifiedMeta.end)
 
 	if checkDupes {
 		fmt.Println("Searching for dupes ...")
