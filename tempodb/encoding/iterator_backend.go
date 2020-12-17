@@ -6,25 +6,21 @@ import (
 	"math"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/pkg/errors"
 )
-
-type Reader interface {
-	Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error)
-	Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error
-}
 
 type backendIterator struct {
 	tenantID string
 	blockID  uuid.UUID
-	r        Reader
+	r        backend.Reader
 
 	indexBuffer         []byte
 	objectsBuffer       []byte
 	activeObjectsBuffer []byte
 }
 
-func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader Reader) (Iterator, error) {
+func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader backend.Reader) (Iterator, error) {
 	index, err := reader.Index(context.TODO(), blockID, tenantID)
 	if err != nil {
 		return nil, err
