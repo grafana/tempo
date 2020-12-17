@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting
-weight: 550
+weight: 470
 ---
 
 # Troubleshooting missing traces
@@ -16,8 +16,8 @@ This topic helps with day zero operational issues that may come up when getting 
 ### Diagnosing and fixing ingestion issues
 
 Check whether the application spans are actually reaching Tempo. The following metrics help determine this
-- `tempo_distributor_spans_received_total` 
-- `tempodb_blocklist_length`
+- `tempo_distributor_spans_received_total`
+- `tempo_ingester_traces_created_total`
 
 The value of both metrics should be greater than `0` within a few minutes of the application spinning up.
 You can check both metrics using -
@@ -30,6 +30,8 @@ If the value of `tempo_distributor_spans_received_total` is 0, possible reasons 
 - Use of incorrect protocol/port combination while initializing the tracer in the application.
 - Tracing records not getting picked up to send to Tempo by the internal sampler.
 - Application is running inside docker and sending traces to an incorrect endpoint.
+
+Receiver specific traffic information can also be obtained using `tempo_receiver_accepted_spans` which has a label for the receiver (protocol used for ingestion. Ex: `jaeger-thrift`).
 
 #### Solutions
 
@@ -46,16 +48,17 @@ If the value of `tempo_distributor_spans_received_total` is 0, possible reasons 
 ##### Fixing incorrect endpoint issue
 - If the application is also running inside docker, make sure the application is sending traces to the correct endpoint (`tempo:<receiver-port>`).
 
-### Issue 2 - `tempodb_blocklist_length` is 0
+### Issue 2 - `tempo_ingester_traces_created_total` is 0
 
-If the value of `tempodb_blocklist_length` is 0, the possible reason is -
-- Insufficient permissions to write to the back-end.
+If the value of `tempo_ingester_traces_created_total` is 0, the possible reason is -
+- Network issues between distributors and ingesters.
+
+This can also be confirmed by checking the metric `tempo_request_duration_seconds_count{route='/tempopb.Pusher/Push'}` exposed from the ingester which indicates that it is receiving ingestion requests from the distributor.
 
 #### Solution
 
-- Log in to GCS/S3 to check if the blocks are present in the bucket. If you are using the local backend, look inside `/tmp/local/traces` to see if the blocks are present.
-- If blocks are missing, then it might indicate permission problems. Tempo Ingester requires LIST, GET and PUT permissions on the bucket. Ensure the container running the ingester has these permissions provided.
-- If you still see nothing, please [file an issue](https://github.com/grafana/tempo/issues/new/choose) on the Tempo repository with a description and the configuration used.
+- Check logs of distributors for a message like `msg="pusher failed to consume trace data" err="DoBatch: IngesterCount <= 0"`.
+  This is likely because no ingester is joining the gossip ring, make sure the same gossip ring address is supplied to the distributors and ingesters.
 
 ### Diagnosing and fixing issues with querying traces
 If you have determined that data has been ingested correctly into Tempo, then it is time to investigate possible issues with querying the data.
@@ -106,11 +109,12 @@ Possible reasons why the compactor may not be running are:
 - Check metric `tempodb_compaction_bytes_written`
 If this is greater than zero (0), it means the compactor is running and writing to the backend.
 - Check metric `tempodb_compaction_errors_total`
-If this metric is greater than zero (0), it likely means there are permission related issues.
+If this metric is greater than zero (0), check the logs of the compactor for an error message.
 
 #### Solutions
-- Verify that the Compactor has the LIST, GET, PUT, and DELETE permissions on the bucket.
+- Verify that the Compactor has the LIST, GET, PUT, and DELETE permissions on the bucket objects.
   - If these permissions are missing, assign them to the compactor container.
+  - For detailed information, check - https://grafana.com/docs/tempo/latest/configuration/s3/#permissions
 - If there’s a compactor sitting idle while others are running, port-forward to the compactor’s http endpoint. Then go to `/compactor/ring` and click **Forget** on the inactive compactor.
 - Check the following configuration parameters to ensure that there are correct settings:
   - `traces_per_block` to determine when the ingester cuts blocks.
