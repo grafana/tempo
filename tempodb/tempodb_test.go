@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	testTenantID = "fake"
+	testTenantID  = "fake"
+	testTenantID2 = "fake2"
 )
 
 func TestDB(t *testing.T) {

@@ -129,9 +129,10 @@ type readerWriter struct {
 	blockLists    map[string][]*encoding.BlockMeta
 	blockListsMtx sync.Mutex
 
-	compactorCfg        *CompactorConfig
-	compactedBlockLists map[string][]*encoding.CompactedBlockMeta
-	compactorSharder    CompactorSharder
+	compactorCfg          *CompactorConfig
+	compactedBlockLists   map[string][]*encoding.CompactedBlockMeta
+	compactorSharder      CompactorSharder
+	compactorTenantOffset uint
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {

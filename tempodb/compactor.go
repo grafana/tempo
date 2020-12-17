@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand"
+	"sort"
 	"strconv"
 	"time"
 
@@ -68,16 +68,19 @@ func (rw *readerWriter) doCompaction() {
 		return
 	}
 
-	// pick a random tenant and find some blocks to compact
-	rand.Seed(time.Now().Unix())
-	tenantID := tenants[rand.Intn(len(tenants))].(string)
+	// Iterate through tenants each cycle
+	// Sort tenants for stability (since original map does not guarantee order)
+	sort.Slice(tenants, func(i, j int) bool { return tenants[i].(string) < tenants[j].(string) })
+	rw.compactorTenantOffset = (rw.compactorTenantOffset + 1) % uint(len(tenants))
+
+	tenantID := tenants[rw.compactorTenantOffset].(string)
 	blocklist := rw.blocklist(tenantID)
 
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects, defaultMinInputBlocks, defaultMaxInputBlocks)
 
 	start := time.Now()
 
-	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID)
+	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID, "offset", rw.compactorTenantOffset)
 	for {
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
 		if len(toBeCompacted) == 0 {
