@@ -202,9 +202,8 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 		}
 		if ret.ServiceCode() == "BlobNotFound" {
 			return nil, backend.ErrMetaDoesNotExist
-		} else {
-			return nil, errors.Wrapf(err, "reading Azure blob container: %s", name)
 		}
+		return nil, errors.Wrapf(err, "reading Azure blob container: %s", name)
 	}
 
 	out := &encoding.BlockMeta{}
