@@ -66,7 +66,7 @@ curl http://localhost:3100/api/traces/0123456789abcdef
 {"batches":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"shell script"}}]},"instrumentationLibrarySpans":[{"spans":[{"traceId":"AAAAAAAAAAABI0VniavN7w==","spanId":"AAAAAAAAEjQ=","name":"span from bash!","startTimeUnixNano":"1608239395286533000","endTimeUnixNano":"1608239395386533000","attributes":[{"key":"http.path","value":{"stringValue":"/api"}},{"key":"http.method","value":{"stringValue":"GET"}}]}]}]}]}
 ```
 
-However, staring at a json blob in bash is not very fun.  Let's start up Tempo query so we can visualize our trace:
+However, staring at a json blob in bash is not very fun.  Let's start up Tempo query so we can visualize our trace.  Tempo query is [Jaeger Query](https://hub.docker.com/r/jaegertracing/jaeger-query/) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo.
 
 ```bash
 docker run --env BACKEND=localhost:3100 --net host tempo-query
