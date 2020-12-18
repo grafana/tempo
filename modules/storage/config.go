@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -22,13 +23,21 @@ var DefaultBlocklistPoll = 5 * time.Minute
 
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, gcs, local)")
+	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, azure, gcs, local)")
 	f.DurationVar(&cfg.Trace.BlocklistPoll, util.PrefixConfig(prefix, "trace.maintenance-cycle"), DefaultBlocklistPoll, "Period at which to run the maintenance cycle.")
 
 	cfg.Trace.WAL = &wal.Config{}
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")
 	f.Float64Var(&cfg.Trace.WAL.BloomFP, util.PrefixConfig(prefix, "trace.wal.bloom-filter-false-positive"), .05, "Bloom False Positive.")
 	f.IntVar(&cfg.Trace.WAL.IndexDownsample, util.PrefixConfig(prefix, "trace.wal.index-downsample"), 100, "Number of traces per index record.")
+
+	cfg.Trace.Azure = &azure.Config{}
+	f.StringVar(&cfg.Trace.Azure.StorageAccountName, util.PrefixConfig(prefix, "trace.azure.storage-account-name"), "", "Azure storage account name.")
+	f.StringVar(&cfg.Trace.Azure.StorageAccountKey, util.PrefixConfig(prefix, "trace.azure.storage-account-key"), "", "Azure storage access key.")
+	f.StringVar(&cfg.Trace.Azure.ContainerName, util.PrefixConfig(prefix, "trace.azure.container-name"), "", "Azure container name to store blocks in.")
+	f.StringVar(&cfg.Trace.Azure.Endpoint, util.PrefixConfig(prefix, "trace.azure.endpoint"), "blob.core.windows.net", "Azure endpoint to push blocks to.")
+	f.IntVar(&cfg.Trace.Azure.MaxBuffers, util.PrefixConfig(prefix, "trace.azure.max-buffers"), 4, "Number of simultaneous uploads.")
+	cfg.Trace.Azure.BufferSize = 3 * 1024 * 1024
 
 	cfg.Trace.S3 = &s3.Config{}
 	f.StringVar(&cfg.Trace.S3.Bucket, util.PrefixConfig(prefix, "trace.s3.bucket"), "", "s3 bucket to store blocks in.")

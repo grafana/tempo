@@ -5,6 +5,7 @@ go 1.15
 require (
 	cloud.google.com/go/storage v1.12.0
 	contrib.go.opencensus.io/exporter/prometheus v0.2.0
+	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/alecthomas/kong v0.2.11
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
