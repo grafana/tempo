@@ -4,17 +4,14 @@ weight: 470
 ---
 
 # Troubleshooting missing traces
-
 This topic helps with day zero operational issues that may come up when getting started with Tempo. It walks through debugging each part of the ingestion and query pipeline to drill down and diagnose issues. 
 
-## 1. Problem - I am unable to see any of my traces in Tempo
-
+## Problem 1. I am unable to see any of my traces in Tempo
 >** Potential causes**
 - There could be issues in ingestion of the data into Tempo, that is, spans are either not being sent correctly to Tempo or they are not getting sampled.
 - There could be issues querying for traces that have been received by Tempo.
 
 ### Diagnosing and fixing ingestion issues
-
 Check whether the application spans are actually reaching Tempo. The following metrics help determine this
 - `tempo_distributor_spans_received_total`
 - `tempo_ingester_traces_created_total`
@@ -25,7 +22,6 @@ You can check both metrics using -
 - In Prometheus, if it is being used to scrape metrics
  
 ### Issue 1 - `tempo_distributor_spans_received_total` is 0
-
 If the value of `tempo_distributor_spans_received_total` is 0, possible reasons are:
 - Use of incorrect protocol/port combination while initializing the tracer in the application.
 - Tracing records not getting picked up to send to Tempo by the internal sampler.
@@ -49,14 +45,12 @@ Receiver specific traffic information can also be obtained using `tempo_receiver
 - If the application is also running inside docker, make sure the application is sending traces to the correct endpoint (`tempo:<receiver-port>`).
 
 ### Issue 2 - `tempo_ingester_traces_created_total` is 0
-
 If the value of `tempo_ingester_traces_created_total` is 0, the possible reason is -
 - Network issues between distributors and ingesters.
 
 This can also be confirmed by checking the metric `tempo_request_duration_seconds_count{route='/tempopb.Pusher/Push'}` exposed from the ingester which indicates that it is receiving ingestion requests from the distributor.
 
 #### Solution
-
 - Check logs of distributors for a message like `msg="pusher failed to consume trace data" err="DoBatch: IngesterCount <= 0"`.
   This is likely because no ingester is joining the gossip ring, make sure the same gossip ring address is supplied to the distributors and ingesters.
 
@@ -73,22 +67,18 @@ Possible reasons for the above errors are:
 - Not connected to Tempo Querier correctly
 - Insufficient permissions
 
-
 #### Solution
-
 - Fixing connection issues
   - In case the application is not connected to Tempo Querier correctly, update the `backend.yaml` configuration file so that it is attempting to connect to the right port of the querier.
 - Fixing insufficient permissions issue
   - Verify that the Querier has the LIST and GET permissions on the bucket.
 
 
-## 2. Problem - Some of my traces are missing in Tempo
-
+## Problem 2. Some of my traces are missing in Tempo
 This could happen because of a number of reasons and some have been detailed in this blog post -
 [Where did all my spans go? A guide to diagnosing dropped spans in Jaeger distributed tracing](https://grafana.com/blog/2020/07/09/where-did-all-my-spans-go-a-guide-to-diagnosing-dropped-spans-in-jaeger-distributed-tracing/).
 
 ### Diagnosing the issue 
-
 If the pipeline is not reporting any dropped spans, check whether application spans are being dropped by Tempo. The following metrics help determine this -
 - `tempo_receiver_refused_spans`. The value of `tempo_receiver_refused_spans` should be 0.
 If the value of `tempo_receiver_refused_spans` is greater than 0, then the possible reason is the application spans are being dropped due to rate limiting.
@@ -97,14 +87,13 @@ If the value of `tempo_receiver_refused_spans` is greater than 0, then the possi
 - The rate limiting may be appropriate and does not need to be fixed. The metric simply explained the cause of the missing spans, and there is nothing more to be done.
 - If more ingestion volume is needed, increase the configuration for the rate limiting, by adding this CLI flag to Tempo at startup - https://github.com/grafana/tempo/blob/78f3554ca30bd5a4dec01629b8b7b2b0b2b489be/modules/overrides/limits.go#L42
 
-## 3. Problem: Getting error message ‘Too many jobs in the queue’
+## Problem 3. Getting error message ‘Too many jobs in the queue’
 You may see this error if the compactor isn’t running and the blocklist size has exploded. 
 Possible reasons why the compactor may not be running are:
 
 - Insufficient permissions.
 - Compactor sitting idle because no block is hashing to it.
 - Incorrect configuration settings.
-
 ### Diagnosing the issue
 - Check metric `tempodb_compaction_bytes_written`
 If this is greater than zero (0), it means the compactor is running and writing to the backend.
