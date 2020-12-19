@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -92,16 +93,19 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 
 	// TODO: add custom transport with instrumentation.
 	//client.SetCustomTransport(minio.DefaultTransport(!cfg.Insecure))
+	exists, err := core.BucketExists(context.Background(), cfg.Bucket)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("unexpected error from BucketExists on %s: %w", cfg.Bucket, err)
+	}
 
-	exists, errBucketExists := core.BucketExists(context.Background(), cfg.Bucket)
-	if errBucketExists == nil && !exists {
-		return nil, nil, nil, errors.Wrap(err, "cannot access s3 bucket, doesn't exist")
-	} else if errBucketExists != nil {
-		// try listing objects
-		_, err := core.ListObjects(cfg.Bucket, "", "", "/", 0)
-		if err != nil {
-			return nil, nil, nil, errors.Wrapf(err, "cannot list objects in s3 bucket, invalid permissions")
-		}
+	if !exists {
+		return nil, nil, nil, fmt.Errorf("s3 Bucket %s does not exist", cfg.Bucket)
+	}
+
+	// try listing objects
+	_, err = core.ListObjects(cfg.Bucket, "", "", "/", 0)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
 	}
 
 	rw := &readerWriter{
