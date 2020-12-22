@@ -16,8 +16,8 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -225,7 +225,7 @@ func TestSameIDCompaction(t *testing.T) {
 	// poll
 	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
 
-	var blocks []*encoding.BlockMeta
+	var blocks []*backend.BlockMeta
 	blocklist := rw.blocklist(testTenantID)
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, defaultMinInputBlocks, 2)
 	blocks, _ = blockSelector.BlocksToCompact()

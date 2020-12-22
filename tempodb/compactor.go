@@ -111,7 +111,7 @@ func (rw *readerWriter) doCompaction() {
 
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
-func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID string) error {
+func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	if len(blockMetas) == 0 {
@@ -148,7 +148,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	}
 
 	recordsPerBlock := (totalRecords / outputBlocks)
-	var newCompactedBlocks []*encoding.BlockMeta
+	var newCompactedBlocks []*backend.BlockMeta
 	var currentBlock *encoding.CompactorBlock
 	var tracker backend.AppendTracker
 
@@ -193,7 +193,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 
 		// writing to the current block will cause the id to escape the iterator so we need to make a copy of it
 		writeID := append([]byte(nil), lowestID...)
-		err = currentBlock.Write(writeID, lowestObject)
+		err = currentBlock.AddObject(writeID, lowestObject)
 		if err != nil {
 			return err
 		}
@@ -258,13 +258,9 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encodin
 	}
 	block.Complete()
 
-	err = rw.WriteBlockMeta(context.TODO(), tracker, block) // todo:  add timeout
+	err = block.Write(context.TODO(), tracker, rw.w) // todo:  add timeout
 	if err != nil {
 		return err
-	}
-	err = block.Clear()
-	if err != nil {
-		level.Error(rw.logger).Log("msg", "error cleaning up currentBlock in compaction", "err", err)
 	}
 
 	return nil
@@ -279,7 +275,7 @@ func allDone(bookmarks []*bookmark) bool {
 	return true
 }
 
-func compactionLevelForBlocks(blockMetas []*encoding.BlockMeta) uint8 {
+func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
 	level := uint8(0)
 
 	for _, m := range blockMetas {
@@ -291,7 +287,7 @@ func compactionLevelForBlocks(blockMetas []*encoding.BlockMeta) uint8 {
 	return level
 }
 
-func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*encoding.BlockMeta, newBlocks []*encoding.BlockMeta) {
+func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) {
 	for _, meta := range oldBlocks {
 		// Mark in the backend
 		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
@@ -301,9 +297,9 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*encoding.Bloc
 	}
 
 	// Converted outgoing blocks into compacted entries.
-	newCompactions := make([]*encoding.CompactedBlockMeta, 0, len(oldBlocks))
+	newCompactions := make([]*backend.CompactedBlockMeta, 0, len(oldBlocks))
 	for _, newBlock := range oldBlocks {
-		newCompactions = append(newCompactions, &encoding.CompactedBlockMeta{
+		newCompactions = append(newCompactions, &backend.CompactedBlockMeta{
 			BlockMeta:     *newBlock,
 			CompactedTime: time.Now(),
 		})

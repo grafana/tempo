@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/util"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/pkg/errors"
@@ -113,7 +112,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
+func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
 	if err := util.FileExists(objectFilePath); err != nil {
 		return err
 	}
@@ -141,7 +140,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 }
 
 // WriteBlockMeta implements backend.Writer
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	if tracker != nil {
 		a := tracker.(AppenderTracker)
 		completeParts := make([]minio.CompletePart, 0)
@@ -228,7 +227,7 @@ type AppenderTracker struct {
 }
 
 // AppendObject implements backend.Writer
-func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
+func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
 	var a AppenderTracker
 	options := minio.PutObjectOptions{
 		PartSize: rw.cfg.PartSize,
@@ -308,13 +307,13 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 }
 
 // BlockMeta implements backend.Reader
-func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	blockMetaFileName := util.MetaFileName(blockID, tenantID)
 	body, err := rw.readAll(ctx, blockMetaFileName)
 	if err != nil && err.Error() == s3KeyDoesNotExist {
 		return nil, backend.ErrMetaDoesNotExist
 	}
-	out := &encoding.BlockMeta{}
+	out := &backend.BlockMeta{}
 	err = json.Unmarshal(body, out)
 	if err != nil {
 		return nil, err

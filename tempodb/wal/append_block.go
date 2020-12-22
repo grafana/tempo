@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
@@ -19,7 +20,7 @@ type AppendBlock struct {
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
 	h := &AppendBlock{
 		block: block{
-			meta:     encoding.NewBlockMeta(tenantID, id),
+			meta:     backend.NewBlockMeta(tenantID, id),
 			filepath: filepath,
 		},
 	}

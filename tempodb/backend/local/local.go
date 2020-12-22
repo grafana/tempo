@@ -12,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 type readerWriter struct {
@@ -32,7 +31,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, tracesFilePath string) error {
+func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, tracesFilePath string) error {
 	err := rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
 	if err != nil {
 		return err
@@ -70,7 +69,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 	return err
 }
 
-func (rw *readerWriter) WriteBlockMeta(_ context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
+func (rw *readerWriter) WriteBlockMeta(_ context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
@@ -116,7 +115,7 @@ func (rw *readerWriter) WriteBlockMeta(_ context.Context, tracker backend.Append
 	return nil
 }
 
-func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
+func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
@@ -186,7 +185,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 	return blocks, warning
 }
 
-func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	filename := rw.metaFileName(blockID, tenantID)
 	bytes, err := ioutil.ReadFile(filename)
 	if os.IsNotExist(err) {
@@ -196,7 +195,7 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 		return nil, err
 	}
 
-	out := &encoding.BlockMeta{}
+	out := &backend.BlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err

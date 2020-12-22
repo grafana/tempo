@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,7 +68,7 @@ func TestCompleteBlock(t *testing.T) {
 	err = writer.Flush()
 	assert.NoError(t, err, "unexpected error flushing writer")
 
-	originatingMeta := NewBlockMeta(testTenantID, uuid.New())
+	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New())
 	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
 
@@ -96,7 +97,7 @@ func TestCompleteBlock(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))
-		assert.True(t, block.BloomFilter().Test(id))
+		assert.True(t, block.bloom.Test(id))
 	}
 
 	// confirm order

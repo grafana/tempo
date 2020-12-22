@@ -2,15 +2,17 @@ package encoding
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 type CompactorBlock struct {
-	compactedMeta *BlockMeta
-	inMetas       []*BlockMeta
+	compactedMeta *backend.BlockMeta
+	inMetas       []*backend.BlockMeta
 
 	bloom *bloom.ShardedBloomFilter
 
@@ -19,7 +21,7 @@ type CompactorBlock struct {
 	appender        Appender
 }
 
-func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
+func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
 	if len(metas) == 0 {
 		return nil, fmt.Errorf("empty block meta list")
 	}
@@ -29,7 +31,7 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	}
 
 	c := &CompactorBlock{
-		compactedMeta: NewBlockMeta(tenantID, id),
+		compactedMeta: backend.NewBlockMeta(tenantID, id),
 		bloom:         bloom.NewWithEstimates(uint(estimatedObjects), bloomFP),
 		inMetas:       metas,
 	}
@@ -40,7 +42,7 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	return c, nil
 }
 
-func (c *CompactorBlock) Write(id ID, object []byte) error {
+func (c *CompactorBlock) AddObject(id ID, object []byte) error {
 	err := c.appender.Append(id, object)
 	if err != nil {
 		return err
@@ -76,12 +78,28 @@ func (c *CompactorBlock) Complete() {
 	c.appender.Complete()
 }
 
-func (c *CompactorBlock) Clear() error {
+func (c *CompactorBlock) Write(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) error {
+	records := c.appender.Records()
+	indexBytes, err := MarshalRecords(records)
+	if err != nil {
+		return err
+	}
+
+	bloomBuffers, err := c.bloom.WriteTo()
+	if err != nil {
+		return err
+	}
+
+	meta := c.BlockMeta()
+	err = w.WriteBlockMeta(ctx, tracker, meta, bloomBuffers, indexBytes)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-// implements WriteableBlock
-func (c *CompactorBlock) BlockMeta() *BlockMeta {
+func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
 	meta := c.compactedMeta
 
 	meta.StartTime = c.inMetas[0].StartTime
@@ -98,25 +116,4 @@ func (c *CompactorBlock) BlockMeta() *BlockMeta {
 	}
 
 	return meta
-}
-
-// implements WriteableBlock
-func (c *CompactorBlock) BloomFilter() *bloom.ShardedBloomFilter {
-	return c.bloom
-}
-
-// implements WriteableBlock
-func (c *CompactorBlock) Flushed() error {
-	// no-op
-	return nil
-}
-
-// implements WriteableBlock
-func (c *CompactorBlock) Records() []*Record {
-	return c.appender.Records()
-}
-
-// implements WriteableBlock
-func (c *CompactorBlock) ObjectFilePath() string {
-	return ""
 }

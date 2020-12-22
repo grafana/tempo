@@ -5,12 +5,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction
 type CompactionBlockSelector interface {
-	BlocksToCompact() ([]*encoding.BlockMeta, string)
+	BlocksToCompact() ([]*backend.BlockMeta, string)
 }
 
 const (
@@ -23,13 +23,13 @@ const (
 
 type simpleBlockSelector struct {
 	cursor             int
-	blocklist          []*encoding.BlockMeta
+	blocklist          []*backend.BlockMeta
 	MaxCompactionRange time.Duration
 }
 
 var _ (CompactionBlockSelector) = (*simpleBlockSelector)(nil)
 
-func (sbs *simpleBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, string) {
+func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
 	// should never happen
 	if inputBlocks > len(sbs.blocklist) {
 		return nil, ""
@@ -58,7 +58,7 @@ func (sbs *simpleBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, string
 // It needs to be reinitialized with updated blocklist.
 
 type timeWindowBlockSelector struct {
-	blocklist            []*encoding.BlockMeta
+	blocklist            []*backend.BlockMeta
 	MinInputBlocks       int
 	MaxInputBlocks       int
 	MaxCompactionRange   time.Duration // Size of the time window - say 6 hours
@@ -67,9 +67,9 @@ type timeWindowBlockSelector struct {
 
 var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 
-func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, minInputBlocks int, maxInputBlocks int) CompactionBlockSelector {
+func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, minInputBlocks int, maxInputBlocks int) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
-		blocklist:            append([]*encoding.BlockMeta(nil), blocklist...),
+		blocklist:            append([]*backend.BlockMeta(nil), blocklist...),
 		MinInputBlocks:       minInputBlocks,
 		MaxInputBlocks:       maxInputBlocks,
 		MaxCompactionRange:   maxCompactionRange,
@@ -82,7 +82,7 @@ func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRa
 	// blocks in this window will not be compacted in order to avoid
 	// ownership conflicts where two compactors process the same block
 	// at the same time as it transitions from last active window to first inactive window.
-	var newBlocks []*encoding.BlockMeta
+	var newBlocks []*backend.BlockMeta
 	for _, b := range twbs.blocklist {
 		if twbs.windowForBlock(b) != activeWindow {
 			newBlocks = append(newBlocks, b)
@@ -126,13 +126,13 @@ func newTimeWindowBlockSelector(blocklist []*encoding.BlockMeta, maxCompactionRa
 	return twbs
 }
 
-func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, string) {
+func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
 	for len(twbs.blocklist) > 0 {
 		// find everything from cursor forward that belongs to this block
 		cursor := 0
 		currentWindow := twbs.windowForBlock(twbs.blocklist[cursor])
 
-		windowBlocks := make([]*encoding.BlockMeta, 0)
+		windowBlocks := make([]*backend.BlockMeta, 0)
 		for cursor < len(twbs.blocklist) {
 			currentBlock := twbs.blocklist[cursor]
 
@@ -146,7 +146,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 
 		// did we find enough blocks?
 		if len(windowBlocks) >= twbs.MinInputBlocks {
-			var compactBlocks []*encoding.BlockMeta
+			var compactBlocks []*backend.BlockMeta
 
 			// blocks in the currently active window
 			// dangerous to use time.Now()
@@ -212,7 +212,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*encoding.BlockMeta, s
 	return nil, ""
 }
 
-func totalObjects(blocks []*encoding.BlockMeta) int {
+func totalObjects(blocks []*backend.BlockMeta) int {
 	totalObjects := 0
 	for _, b := range blocks {
 		totalObjects += b.TotalObjects
@@ -220,7 +220,7 @@ func totalObjects(blocks []*encoding.BlockMeta) int {
 	return totalObjects
 }
 
-func (twbs *timeWindowBlockSelector) windowForBlock(meta *encoding.BlockMeta) int64 {
+func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
 	return twbs.windowForTime(meta.EndTime)
 }
 

@@ -15,8 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 )
@@ -258,26 +258,26 @@ func TestCleanMissingTenants(t *testing.T) {
 	tests := []struct {
 		name      string
 		tenants   []string
-		blocklist map[string][]*encoding.BlockMeta
-		expected  map[string][]*encoding.BlockMeta
+		blocklist map[string][]*backend.BlockMeta
+		expected  map[string][]*backend.BlockMeta
 	}{
 		{
 			name:      "one missing tenant",
 			tenants:   []string{"foo"},
-			blocklist: map[string][]*encoding.BlockMeta{"foo": {{}}, "bar": {{}}},
-			expected:  map[string][]*encoding.BlockMeta{"foo": {{}}},
+			blocklist: map[string][]*backend.BlockMeta{"foo": {{}}, "bar": {{}}},
+			expected:  map[string][]*backend.BlockMeta{"foo": {{}}},
 		},
 		{
 			name:      "no missing tenants",
 			tenants:   []string{"foo", "bar"},
-			blocklist: map[string][]*encoding.BlockMeta{"foo": {{}}, "bar": {{}}},
-			expected:  map[string][]*encoding.BlockMeta{"foo": {{}}, "bar": {{}}},
+			blocklist: map[string][]*backend.BlockMeta{"foo": {{}}, "bar": {{}}},
+			expected:  map[string][]*backend.BlockMeta{"foo": {{}}, "bar": {{}}},
 		},
 		{
 			name:      "all missing tenants",
 			tenants:   []string{},
-			blocklist: map[string][]*encoding.BlockMeta{"foo": {{}}, "bar": {{}}},
-			expected:  map[string][]*encoding.BlockMeta{},
+			blocklist: map[string][]*backend.BlockMeta{"foo": {{}}, "bar": {{}}},
+			expected:  map[string][]*backend.BlockMeta{},
 		},
 	}
 	for _, tt := range tests {
@@ -357,10 +357,10 @@ func TestUpdateBlocklist(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		existing []*encoding.BlockMeta
-		add      []*encoding.BlockMeta
-		remove   []*encoding.BlockMeta
-		expected []*encoding.BlockMeta
+		existing []*backend.BlockMeta
+		add      []*backend.BlockMeta
+		remove   []*backend.BlockMeta
+		expected []*backend.BlockMeta
 	}{
 		{
 			name:     "all nil",
@@ -372,13 +372,13 @@ func TestUpdateBlocklist(t *testing.T) {
 		{
 			name:     "add to nil",
 			existing: nil,
-			add: []*encoding.BlockMeta{
+			add: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
 			},
 			remove: nil,
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
@@ -386,18 +386,18 @@ func TestUpdateBlocklist(t *testing.T) {
 		},
 		{
 			name: "add to existing",
-			existing: []*encoding.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
 			},
-			add: []*encoding.BlockMeta{
+			add: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 				},
 			},
 			remove: nil,
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
@@ -410,7 +410,7 @@ func TestUpdateBlocklist(t *testing.T) {
 			name:     "remove from nil",
 			existing: nil,
 			add:      nil,
-			remove: []*encoding.BlockMeta{
+			remove: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 				},
@@ -419,14 +419,14 @@ func TestUpdateBlocklist(t *testing.T) {
 		},
 		{
 			name: "remove nil",
-			existing: []*encoding.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 				},
 			},
 			add:    nil,
 			remove: nil,
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 				},
@@ -434,7 +434,7 @@ func TestUpdateBlocklist(t *testing.T) {
 		},
 		{
 			name: "remove existing",
-			existing: []*encoding.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
@@ -443,12 +443,12 @@ func TestUpdateBlocklist(t *testing.T) {
 				},
 			},
 			add: nil,
-			remove: []*encoding.BlockMeta{
+			remove: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 				},
@@ -456,18 +456,18 @@ func TestUpdateBlocklist(t *testing.T) {
 		},
 		{
 			name: "remove no match",
-			existing: []*encoding.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
 			},
 			add: nil,
-			remove: []*encoding.BlockMeta{
+			remove: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
@@ -475,7 +475,7 @@ func TestUpdateBlocklist(t *testing.T) {
 		},
 		{
 			name: "add and remove",
-			existing: []*encoding.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
@@ -483,17 +483,17 @@ func TestUpdateBlocklist(t *testing.T) {
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 				},
 			},
-			add: []*encoding.BlockMeta{
+			add: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 				},
 			},
-			remove: []*encoding.BlockMeta{
+			remove: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
@@ -541,9 +541,9 @@ func TestUpdateBlocklistCompacted(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		existing []*encoding.CompactedBlockMeta
-		add      []*encoding.CompactedBlockMeta
-		expected []*encoding.CompactedBlockMeta
+		existing []*backend.CompactedBlockMeta
+		add      []*backend.CompactedBlockMeta
+		expected []*backend.CompactedBlockMeta
 	}{
 		{
 			name:     "all nil",
@@ -554,16 +554,16 @@ func TestUpdateBlocklistCompacted(t *testing.T) {
 		{
 			name:     "add to nil",
 			existing: nil,
-			add: []*encoding.CompactedBlockMeta{
+			add: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: encoding.BlockMeta{
+					BlockMeta: backend.BlockMeta{
 						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					},
 				},
 			},
-			expected: []*encoding.CompactedBlockMeta{
+			expected: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: encoding.BlockMeta{
+					BlockMeta: backend.BlockMeta{
 						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					},
 				},
@@ -571,28 +571,28 @@ func TestUpdateBlocklistCompacted(t *testing.T) {
 		},
 		{
 			name: "add to existing",
-			existing: []*encoding.CompactedBlockMeta{
+			existing: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: encoding.BlockMeta{
+					BlockMeta: backend.BlockMeta{
 						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					},
 				},
 			},
-			add: []*encoding.CompactedBlockMeta{
+			add: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: encoding.BlockMeta{
+					BlockMeta: backend.BlockMeta{
 						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					},
 				},
 			},
-			expected: []*encoding.CompactedBlockMeta{
+			expected: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: encoding.BlockMeta{
+					BlockMeta: backend.BlockMeta{
 						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					},
 				},
 				{
-					BlockMeta: encoding.BlockMeta{
+					BlockMeta: backend.BlockMeta{
 						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					},
 				},
