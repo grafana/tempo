@@ -221,39 +221,57 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
-	// change push request to take a batch of batches
-	err = ring.DoBatch(ctx, d.ingestersRing, keys, func(ingester ring.IngesterDesc, indexes []int) error {
-		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
-		defer cancel()
-		localCtx = user.InjectOrgID(localCtx, userID)
-
-		var err error
-		for _, idx := range indexes {
-			pushRequest := traces[idx]
-			err = d.send(localCtx, ingester.Addr, pushRequest)
-			if err != nil {
-				break
-			}
-		}
-
-		return err
-	}, func() {})
+	err = d.sendToIngestersViaBytes(ctx, userID, traces, keys)
 
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) send(ctx context.Context, ingesterAddr string, req *tempopb.PushRequest) error {
-	c, err := d.pool.GetClientFor(ingesterAddr)
-	if err != nil {
-		return err
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.PushRequest, keys []uint32) error {
+
+	// Marshal to bytes once
+	rawRequests := make([][]byte, len(traces))
+	for i, t := range traces {
+		b, err := t.Marshal()
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal PushRequest")
+		}
+		rawRequests[i] = b
 	}
 
-	_, err = c.(tempopb.PusherClient).Push(ctx, req)
-	metricIngesterAppends.WithLabelValues(ingesterAddr).Inc()
-	if err != nil {
-		metricIngesterAppendFailures.WithLabelValues(ingesterAddr).Inc()
-	}
+	// change push request to take a batch of batches
+	err := ring.DoBatch(ctx, d.ingestersRing, keys, func(ingester ring.IngesterDesc, indexes []int) error {
+
+		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
+		defer cancel()
+		localCtx = user.InjectOrgID(localCtx, userID)
+
+		req := tempopb.PushBytesRequest{
+			Requests: make([][]byte, len(indexes)),
+		}
+
+		for i, j := range indexes {
+			req.Requests[i] = rawRequests[j][0:]
+		}
+
+		c, err := d.pool.GetClientFor(ingester.Addr)
+		if err != nil {
+			return err
+		}
+
+		_, err = c.(tempopb.PusherClient).PushBytes(ctx, &req)
+		metricIngesterAppends.WithLabelValues(ingester.Addr).Inc()
+		if err != nil {
+			metricIngesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
+		}
+		return err
+	}, func() {})
+
 	return err
+}
+
+// Not used by the distributor
+func (d *Distributor) PushBytes(context.Context, *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+	return nil, nil
 }
 
 // Check implements the grpc healthcheck

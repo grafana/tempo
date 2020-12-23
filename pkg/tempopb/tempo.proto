@@ -8,6 +8,7 @@ import "opentelemetry/proto/trace/v1/trace.proto";
 
 service Pusher {
   rpc Push(PushRequest) returns (PushResponse) {};
+  rpc PushBytes(PushBytesRequest) returns (PushResponse) {};
 }
 
 service Querier {
@@ -34,4 +35,9 @@ message PushRequest {
 }
 
 message PushResponse {
+}
+
+message PushBytesRequest {
+  // pre-serialized PushRequests
+  repeated bytes requests = 1;
 }
