@@ -57,7 +57,7 @@ func (h *AppendBlock) Length() int {
 // Complete should be called when you are done with the block.  This method will write and return a new CompleteBlock which
 // includes an on disk file containing all objects in order.
 // Note that calling this method leaves the original file on disk.  This file is still considered to be part of the WAL
-// until Flush() is successfully called on the CompleteBlock.
+// until Write() is successfully called on the CompleteBlock.
 func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*encoding.CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
