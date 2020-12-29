@@ -12,7 +12,6 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/util"
-	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 type BlobAttributes struct {
@@ -92,7 +91,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return warning
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*encoding.CompactedBlockMeta, error) {
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	if len(tenantID) == 0 {
 		return nil, backend.ErrEmptyTenantID
 	}
@@ -106,7 +105,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 		return nil, err
 	}
 
-	out := &encoding.CompactedBlockMeta{}
+	out := &backend.CompactedBlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
