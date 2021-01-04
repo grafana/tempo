@@ -238,7 +238,6 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		rawRequests[i] = b
 	}
 
-	// change push request to take a batch of batches
 	err := ring.DoBatch(ctx, d.ingestersRing, keys, func(ingester ring.IngesterDesc, indexes []int) error {
 
 		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
@@ -258,7 +257,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 			return err
 		}
 
-		_, err = c.(tempopb.PusherClient).PushBytes(ctx, &req)
+		_, err = c.(tempopb.PusherClient).PushBytes(localCtx, &req)
 		metricIngesterAppends.WithLabelValues(ingester.Addr).Inc()
 		if err != nil {
 			metricIngesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
@@ -269,7 +268,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	return err
 }
 
-// Not used by the distributor
+// PushBytes Not used by the distributor
 func (d *Distributor) PushBytes(context.Context, *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
 	return nil, nil
 }
