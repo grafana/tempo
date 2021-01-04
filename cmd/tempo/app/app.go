@@ -142,11 +142,29 @@ func New(cfg Config) (*App, error) {
 
 func (t *App) setupAuthMiddleware() {
 	if t.cfg.AuthEnabled {
+
+		// don't check auth for these gRPC methods, since single call is used for multiple users
+		noGRPCAuthOn := []string{
+			"/frontend.Frontend/Process",
+		}
+		ignoredMethods := map[string]bool{}
+		for _, m := range noGRPCAuthOn {
+			ignoredMethods[m] = true
+		}
+
 		t.cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
-			middleware.ServerUserHeaderInterceptor,
+			func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+				if ignoredMethods[info.FullMethod] {
+					return handler(ctx, req)
+				}
+				return middleware.ServerUserHeaderInterceptor(ctx, req, info, handler)
+			},
 		}
 		t.cfg.Server.GRPCStreamMiddleware = []grpc.StreamServerInterceptor{
 			func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+				if ignoredMethods[info.FullMethod] {
+					return handler(srv, ss)
+				}
 				return middleware.StreamServerUserHeaderInterceptor(srv, ss, info, handler)
 			},
 		}
