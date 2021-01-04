@@ -85,6 +85,22 @@ func NewTempoIngester(replica int) *cortex_e2e.HTTPService {
 	return s
 }
 
+func NewTempoQueryFrontend() *cortex_e2e.HTTPService {
+	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=query-frontend"}
+
+	s := cortex_e2e.NewHTTPService(
+		"query-frontend",
+		image,
+		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 299),
+		3100,
+	)
+
+	s.SetBackoff(tempoBackoff())
+
+	return s
+}
+
 func NewTempoQuerier() *cortex_e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=querier"}
 
