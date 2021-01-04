@@ -6,12 +6,14 @@ import (
 	"os"
 
 	"github.com/cortexproject/cortex/pkg/cortex"
+	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
+	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/middleware"
@@ -19,6 +21,7 @@ import (
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
+	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
@@ -29,16 +32,17 @@ import (
 
 // The various modules that make up tempo.
 const (
-	Ring         string = "ring"
-	Overrides    string = "overrides"
-	Server       string = "server"
-	Distributor  string = "distributor"
-	Ingester     string = "ingester"
-	Querier      string = "querier"
-	Compactor    string = "compactor"
-	Store        string = "store"
-	MemberlistKV string = "memberlist-kv"
-	All          string = "all"
+	Ring          string = "ring"
+	Overrides     string = "overrides"
+	Server        string = "server"
+	Distributor   string = "distributor"
+	Ingester      string = "ingester"
+	Querier       string = "querier"
+	QueryFrontend string = "query-frontend"
+	Compactor     string = "compactor"
+	Store         string = "store"
+	MemberlistKV  string = "memberlist-kv"
+	All           string = "all"
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -123,6 +127,18 @@ func (t *App) initIngester() (services.Service, error) {
 }
 
 func (t *App) initQuerier() (services.Service, error) {
+	// validate worker config
+	// if we're not in single binary mode and worker address is not specified - bail
+	if t.cfg.Target != All && t.cfg.Querier.Worker.Address == "" {
+		return nil, fmt.Errorf("frontend worker address not specified")
+	} else if t.cfg.Target == All {
+		// if we're in single binary mode with no worker address specified, register default endpoint
+		if t.cfg.Querier.Worker.Address == "" {
+			t.cfg.Querier.Worker.Address = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
+			level.Warn(util.Logger).Log("msg", "Worker address is empty in single binary mode.  Attempting automatic worker configuration.  If queries are unresponsive consider configuring the worker explicitly.", "address", t.cfg.Querier.Worker.Address)
+		}
+	}
+
 	// todo: make ingester client a module instead of passing config everywhere
 	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides)
 	if err != nil {
@@ -134,9 +150,36 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 
+	t.server.HTTP.Handle("/querier/api/traces/{traceID}", tracesHandler)
+	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTP)
+}
+
+func (t *App) initQueryFrontend() (services.Service, error) {
+	var err error
+	t.frontend, err = cortex_frontend.New(t.cfg.Frontend.Config, util.Logger, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, err
+	}
+
+	// custom tripperware that splits requests
+	tripperware, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, err
+	}
+	// tripperware will be called before f.roundTripper (which calls roundtripgrpc)
+	t.frontend.Wrap(tripperware)
+
+	tracesHandler := middleware.Merge(
+		t.httpAuthMiddleware,
+	).Wrap(t.frontend.Handler())
+
+	cortex_frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
 	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
-	return t.querier, nil
+	return services.NewIdleService(nil, func(_ error) error {
+		t.frontend.Close()
+		return nil
+	}), nil
 }
 
 func (t *App) initCompactor() (services.Service, error) {
@@ -197,6 +240,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Distributor, t.initDistributor)
 	mm.RegisterModule(Ingester, t.initIngester)
 	mm.RegisterModule(Querier, t.initQuerier)
+	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
 	mm.RegisterModule(All, nil)
@@ -206,12 +250,13 @@ func (t *App) setupModuleManager() error {
 		// Overrides:    nil,
 		// Store:        nil,
 		// MemberlistKV: nil,
-		Ring:        {Server, MemberlistKV},
-		Distributor: {Ring, Server, Overrides},
-		Ingester:    {Store, Server, Overrides, MemberlistKV},
-		Querier:     {Store, Ring},
-		Compactor:   {Store, Server, MemberlistKV},
-		All:         {Compactor, Querier, Ingester, Distributor},
+		QueryFrontend: {Server},
+		Ring:          {Server, MemberlistKV},
+		Distributor:   {Ring, Server, Overrides},
+		Ingester:      {Store, Server, Overrides, MemberlistKV},
+		Querier:       {Store, Ring},
+		Compactor:     {Store, Server, MemberlistKV},
+		All:           {Compactor, QueryFrontend, Querier, Ingester, Distributor},
 	}
 
 	for mod, targets := range deps {

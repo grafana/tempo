@@ -3,6 +3,7 @@ package querier
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
@@ -12,10 +13,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
 
+	cortex_querier "github.com/cortexproject/cortex/pkg/querier"
+	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
+	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -55,6 +59,7 @@ type Querier struct {
 	store  storage.Store
 	limits *overrides.Overrides
 
+	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 }
 
@@ -82,34 +87,64 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 		limits: limits,
 	}
 
-	q.subservicesWatcher = services.NewFailureWatcher()
-	q.subservicesWatcher.WatchService(q.pool)
-
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
 	return q, nil
 }
 
-func (q *Querier) starting(ctx context.Context) error {
-	err := services.StartAndAwaitRunning(ctx, q.pool)
+func (q *Querier) CreateAndRegisterWorker(tracesHandler http.Handler) error {
+	worker, err := cortex_frontend.NewWorker(
+		q.cfg.Worker,
+		cortex_querier.Config{
+			MaxConcurrent: q.cfg.MaxConcurrentQueries,
+		},
+		httpgrpc_server.NewServer(tracesHandler),
+		util.Logger,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to start pool %w", err)
+		return fmt.Errorf("failed to create frontend worker: %w", err)
 	}
 
+	return q.RegisterSubservices(worker, q.pool)
+}
+
+func (q *Querier) RegisterSubservices(s ...services.Service) error {
+	var err error
+	q.subservices, err = services.NewManager(s...)
+	q.subservicesWatcher = services.NewFailureWatcher()
+	q.subservicesWatcher.WatchManager(q.subservices)
+	return err
+}
+
+func (q *Querier) starting(ctx context.Context) error {
+	if q.subservices != nil {
+		err := services.StartManagerAndAwaitHealthy(ctx, q.subservices)
+		if err != nil {
+			return fmt.Errorf("failed to start subservices %w", err)
+		}
+	}
 	return nil
 }
 
 func (q *Querier) running(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return nil
-	case err := <-q.subservicesWatcher.Chan():
-		return fmt.Errorf("querier subservices failed %w", err)
+	if q.subservices != nil {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-q.subservicesWatcher.Chan():
+			return fmt.Errorf("subservices failed %w", err)
+		}
+	} else {
+		<-ctx.Done()
 	}
+	return nil
 }
 
 // Called after distributor is asked to stop via StopAsync.
 func (q *Querier) stopping(_ error) error {
-	return services.StopAndAwaitTerminated(context.Background(), q.pool)
+	if q.subservices != nil {
+		return services.StopManagerAndAwaitStopped(context.Background(), q.subservices)
+	}
+	return nil
 }
 
 // FindTraceByID implements tempopb.Querier.

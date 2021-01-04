@@ -43,3 +43,7 @@ memberlist:
   - tempo_e2e-ingester-1:7946
   - tempo_e2e-ingester-2:7946
   - tempo_e2e-querier:7946
+
+querier:
+  frontend_worker:
+    frontend_address: tempo_e2e-query-frontend:9095
