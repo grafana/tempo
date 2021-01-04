@@ -371,10 +371,15 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distrib
 
 type mockIngester struct {
 	grpc_health_v1.HealthClient
-	tempopb.PusherClient
 }
 
+var _ tempopb.PusherClient = (*mockIngester)(nil)
+
 func (i *mockIngester) Push(ctx context.Context, in *tempopb.PushRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
+	return nil, nil
+}
+
+func (i *mockIngester) PushBytes(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
 	return nil, nil
 }
 

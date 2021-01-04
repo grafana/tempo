@@ -1,0 +1,235 @@
+{
+  "topology": {
+    "services": [
+      {
+        "serviceName": "loadtest",
+        "tagSets": [
+          {
+            "maxLatency": 100
+          }
+        ],
+        "routes": [
+          {
+            "route": "/2",
+            "downstreamCalls": {
+              "spans1": "/1"
+            }
+          },
+          {
+            "route": "/4",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2"
+            }
+          },
+          {
+            "route": "/8",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2",
+              "spans4": "/4"
+            }
+          },
+          {
+            "route": "/16",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2",
+              "spans4": "/4",
+              "spans8": "/8"
+            }
+          },
+          {
+            "route": "/32",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2",
+              "spans4": "/4",
+              "spans8": "/8",
+              "spans16": "/16"
+            }
+          },          
+          {
+            "route": "/64",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2",
+              "spans4": "/4",
+              "spans8": "/8",
+              "spans16": "/16",
+              "spans32": "/32"
+            }
+          },          
+          {
+            "route": "/128",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2",
+              "spans4": "/4",
+              "spans8": "/8",
+              "spans16": "/16",
+              "spans32": "/32",
+              "spans64": "/64"
+            }
+          }
+        ],
+        "instances": [
+          "1"
+        ]
+      },
+      {
+        "serviceName": "spans1",
+        "routes": [
+          {
+            "route": "/1",
+            "tagSets": [
+              {
+                "maxLatency": 100
+              }
+            ]
+          }
+        ],
+        "instances": [
+          "1"
+        ]
+      },
+      {
+        "serviceName": "spans2",
+        "routes": [
+          {
+            "route": "/2",
+            "downstreamCalls": {
+              "spans1": "/1"
+            },
+            "tagSets": [
+              {
+                "maxLatency": 200
+              }
+            ]
+          }
+        ],
+        "instances": [
+          "1"
+        ]
+      },
+      {
+        "serviceName": "spans4",
+        "routes": [
+          {
+            "route": "/4",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2"
+            },
+            "tagSets": [
+              {
+                "maxLatency": 200
+              }
+            ]
+          }
+        ],
+        "instances": [
+          "1"
+        ]
+      },
+      {
+        "serviceName": "spans8",
+        "routes": [
+          {
+            "route": "/8",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2",
+              "spans4": "/4"
+            },
+            "tagSets": [
+              {
+                "maxLatency": 200
+              }
+            ]
+          }
+        ],
+        "instances": [
+          "1"
+        ]
+      },
+      {
+        "serviceName": "spans16",
+        "routes": [
+          {
+            "route": "/16",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2",
+              "spans4": "/4",
+              "spans8": "/8"
+            },
+            "tagSets": [
+              {
+                "maxLatency": 200
+              }
+            ]
+          }
+        ],
+        "instances": [
+          "1"
+        ]
+      },
+      {
+        "serviceName": "spans32",
+        "routes": [
+          {
+            "route": "/32",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2",
+              "spans4": "/4",
+              "spans8": "/8",
+              "spans16": "/16"
+            },
+            "tagSets": [
+              {
+                "maxLatency": 200
+              }
+            ]
+          }
+        ],
+        "instances": [
+          "1"
+        ]
+      },
+      {
+        "serviceName": "spans64",
+        "routes": [
+          {
+            "route": "/64",
+            "downstreamCalls": {
+              "spans1": "/1",
+              "spans2": "/2",
+              "spans4": "/4",
+              "spans8": "/8",
+              "spans16": "/16",
+              "spans32": "/32"
+            },
+            "tagSets": [
+              {
+                "maxLatency": 200
+              }
+            ]
+          }
+        ],
+        "instances": [
+          "1"
+        ]
+      }
+    ]
+  },
+  "rootRoutes": [
+    {
+      "##comment": "This performs 1000 spans/s",
+      "service": "loadtest",
+      "route": "/16",
+      "tracesPerHour": 225000
+    }
+  ]
+}

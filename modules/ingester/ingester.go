@@ -142,7 +142,7 @@ func (i *Ingester) stopping(_ error) error {
 	return nil
 }
 
-// Push implements tempopb.Pusher.
+// Push implements tempopb.Pusher.Push
 func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -158,6 +158,25 @@ func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb
 
 	err = instance.Push(ctx, req)
 	return &tempopb.PushResponse{}, err
+}
+
+// PushBytes implements tempopb.Pusher.PushBytes
+func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+
+	// Unmarshal and push each request
+	for _, v := range req.Requests {
+		r := tempopb.PushRequest{}
+		err := r.Unmarshal(v)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = i.Push(ctx, &r)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &tempopb.PushResponse{}, nil
 }
 
 // FindTraceByID implements tempopb.Querier.f
