@@ -1,0 +1,21 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+    - targets:
+      - localhost:9090
+
+  - job_name: cadvisor
+    static_configs:
+    - targets:
+      - cadvisor:8080
+
+  - job_name: tempo
+    static_configs:
+    - targets:
+      - distributor:3100
+      - ingester-0:3100
+      - ingester-1:3100

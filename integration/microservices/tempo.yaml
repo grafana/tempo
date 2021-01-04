@@ -1,0 +1,43 @@
+auth_enabled: false
+compactor: null
+distributor:
+    receivers:
+        zipkin:
+        jaeger:
+            protocols:
+                thrift_http: null
+        opencensus: null
+ingester:
+    trace_idle_period: 1s
+    lifecycler:
+        ring:
+            replication_factor: 2
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+  - ingester-0:7946
+  - ingester-1:7946
+
+overrides:
+  ingestion_max_batch_size: 100000
+  max_traces_per_user: 1000000
+
+server:
+    http_listen_port: 3100
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: minio:9000
+      access_key: tempo
+      secret_key: supersecret
+      insecure: true
+
+    pool:
+        queue_depth: 2000
+    wal:
+        path: /var/tempo/wal  
