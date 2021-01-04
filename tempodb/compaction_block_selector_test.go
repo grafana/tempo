@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,12 +17,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		blocklist      []*encoding.BlockMeta
+		blocklist      []*backend.BlockMeta
 		minInputBlocks int // optional, defaults to global const
 		maxInputBlocks int // optional, defaults to global const
-		expected       []*encoding.BlockMeta
+		expected       []*backend.BlockMeta
 		expectedHash   string
-		expectedSecond []*encoding.BlockMeta
+		expectedSecond []*backend.BlockMeta
 		expectedHash2  string
 	}{
 		{
@@ -32,12 +32,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name:      "empty - nil",
-			blocklist: []*encoding.BlockMeta{},
+			blocklist: []*backend.BlockMeta{},
 			expected:  nil,
 		},
 		{
 			name: "only two",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
@@ -47,7 +47,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
@@ -61,7 +61,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "choose smallest two",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
@@ -79,7 +79,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 			maxInputBlocks: 2,
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
@@ -95,7 +95,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "different windows",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
@@ -113,7 +113,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now.Add(-timeWindow),
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
@@ -124,7 +124,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
-			expectedSecond: []*encoding.BlockMeta{
+			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now.Add(-timeWindow),
@@ -138,7 +138,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "different sizes",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:      now,
@@ -161,7 +161,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 			maxInputBlocks: 2,
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:      now,
@@ -174,7 +174,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
-			expectedSecond: []*encoding.BlockMeta{
+			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:      now,
@@ -190,7 +190,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "different compaction lvls",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:         now,
@@ -210,7 +210,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
@@ -221,7 +221,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
-			expectedSecond: []*encoding.BlockMeta{
+			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:         now,
@@ -237,7 +237,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "active time window vs not",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
@@ -262,7 +262,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					CompactionLevel: 0,
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
@@ -273,7 +273,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
-			expectedSecond: []*encoding.BlockMeta{
+			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:         now.Add(-activeWindowDuration - time.Minute),
@@ -289,7 +289,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "choose lowest compaction level",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
@@ -317,7 +317,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now.Add(-timeWindow),
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
@@ -328,7 +328,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
-			expectedSecond: []*encoding.BlockMeta{
+			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now.Add(-timeWindow),
@@ -342,7 +342,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "doesn't choose across time windows",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
@@ -359,7 +359,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "doesn't exceed max compaction objects",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 99,
@@ -378,7 +378,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "Returns as many blocks as possible without exceeding max compaction objects",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 50,
@@ -394,7 +394,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					TotalObjects: 50,
 					EndTime:      now,
 				}},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 50,
@@ -414,7 +414,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			// First compaction gets 3 blocks, second compaction gets 2 more
 			name:           "choose more than 2 blocks",
 			maxInputBlocks: 3,
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:      now,
@@ -441,7 +441,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					TotalObjects: 5,
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:      now,
@@ -459,7 +459,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
-			expectedSecond: []*encoding.BlockMeta{
+			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:      now,
@@ -475,7 +475,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "honors minimum block count",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
@@ -494,7 +494,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "can choose blocks not at the lowest compaction level",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:         now,
@@ -518,7 +518,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			},
 			minInputBlocks: 3,
 			maxInputBlocks: 3,
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:         now,
@@ -541,7 +541,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		},
 		{
 			name: "doesn't select blocks in last active window",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:         now.Add(-activeWindowDuration),
@@ -588,8 +588,8 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		blocklist []*encoding.BlockMeta
-		expected  []*encoding.BlockMeta
+		blocklist []*backend.BlockMeta
+		expected  []*backend.BlockMeta
 	}{
 		{
 			name:      "nil - nil",
@@ -598,12 +598,12 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 		},
 		{
 			name:      "empty - nil",
-			blocklist: []*encoding.BlockMeta{},
+			blocklist: []*backend.BlockMeta{},
 			expected:  nil,
 		},
 		{
 			name: "different time windows",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now.Add(-2 * timeWindow),
@@ -617,7 +617,7 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
@@ -634,7 +634,7 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 		},
 		{
 			name: "different compaction lvls",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					CompactionLevel: 1,
@@ -651,7 +651,7 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 					EndTime:         now,
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					CompactionLevel: 0,
@@ -671,7 +671,7 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 		},
 		{
 			name: "different sizes",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime:      now,
@@ -688,7 +688,7 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 					TotalObjects: 0,
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:      now,
@@ -708,7 +708,7 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 		},
 		{
 			name: "all things",
-			blocklist: []*encoding.BlockMeta{
+			blocklist: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					CompactionLevel: 1,
@@ -731,7 +731,7 @@ func TestTimeWindowBlockSelectorSort(t *testing.T) {
 					EndTime:         now,
 				},
 			},
-			expected: []*encoding.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					CompactionLevel: 0,

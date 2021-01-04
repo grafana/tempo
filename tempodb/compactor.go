@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand"
+	"sort"
 	"strconv"
 	"time"
 
@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -69,16 +68,19 @@ func (rw *readerWriter) doCompaction() {
 		return
 	}
 
-	// pick a random tenant and find some blocks to compact
-	rand.Seed(time.Now().Unix())
-	tenantID := tenants[rand.Intn(len(tenants))].(string)
+	// Iterate through tenants each cycle
+	// Sort tenants for stability (since original map does not guarantee order)
+	sort.Slice(tenants, func(i, j int) bool { return tenants[i].(string) < tenants[j].(string) })
+	rw.compactorTenantOffset = (rw.compactorTenantOffset + 1) % uint(len(tenants))
+
+	tenantID := tenants[rw.compactorTenantOffset].(string)
 	blocklist := rw.blocklist(tenantID)
 
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects, defaultMinInputBlocks, defaultMaxInputBlocks)
 
 	start := time.Now()
 
-	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID)
+	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID, "offset", rw.compactorTenantOffset)
 	for {
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
 		if len(toBeCompacted) == 0 {
@@ -109,7 +111,7 @@ func (rw *readerWriter) doCompaction() {
 
 // todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
 //   in these cases it's possible that the compact method actually will start making more blocks.
-func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID string) error {
+func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	if len(blockMetas) == 0 {
@@ -146,8 +148,8 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	}
 
 	recordsPerBlock := (totalRecords / outputBlocks)
-	var newCompactedBlocks []*encoding.BlockMeta
-	var currentBlock *wal.CompactorBlock
+	var newCompactedBlocks []*backend.BlockMeta
+	var currentBlock *encoding.CompactorBlock
 	var tracker backend.AppendTracker
 
 	for !allDone(bookmarks) {
@@ -181,7 +183,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 
 		// make a new block if necessary
 		if currentBlock == nil {
-			currentBlock, err = rw.wal.NewCompactorBlock(uuid.New(), tenantID, blockMetas, recordsPerBlock)
+			currentBlock, err = encoding.NewCompactorBlock(uuid.New(), tenantID, rw.cfg.WAL.BloomFP, rw.cfg.WAL.IndexDownsample, blockMetas, recordsPerBlock)
 			if err != nil {
 				return errors.Wrap(err, "error making new compacted block")
 			}
@@ -191,7 +193,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 
 		// writing to the current block will cause the id to escape the iterator so we need to make a copy of it
 		writeID := append([]byte(nil), lowestID...)
-		err = currentBlock.Write(writeID, lowestObject)
+		err = currentBlock.AddObject(writeID, lowestObject)
 		if err != nil {
 			return err
 		}
@@ -232,7 +234,7 @@ func (rw *readerWriter) compact(blockMetas []*encoding.BlockMeta, tenantID strin
 	return nil
 }
 
-func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.CompactorBlock) (backend.AppendTracker, error) {
+func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.CompactorBlock) (backend.AppendTracker, error) {
 	tracker, err := rw.w.AppendObject(context.TODO(), tracker, block.BlockMeta(), block.CurrentBuffer())
 	if err != nil {
 		return nil, err
@@ -247,7 +249,7 @@ func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 	return tracker, nil
 }
 
-func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.CompactorBlock) error {
+func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.CompactorBlock) error {
 	level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", block.BlockMeta()))
 
 	tracker, err := appendBlock(rw, tracker, block)
@@ -256,13 +258,9 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *wal.Com
 	}
 	block.Complete()
 
-	err = rw.WriteBlockMeta(context.TODO(), tracker, block) // todo:  add timeout
+	err = block.Write(context.TODO(), tracker, rw.w) // todo:  add timeout
 	if err != nil {
 		return err
-	}
-	err = block.Clear()
-	if err != nil {
-		level.Error(rw.logger).Log("msg", "error cleaning up currentBlock in compaction", "err", err)
 	}
 
 	return nil
@@ -277,7 +275,7 @@ func allDone(bookmarks []*bookmark) bool {
 	return true
 }
 
-func compactionLevelForBlocks(blockMetas []*encoding.BlockMeta) uint8 {
+func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
 	level := uint8(0)
 
 	for _, m := range blockMetas {
@@ -289,7 +287,7 @@ func compactionLevelForBlocks(blockMetas []*encoding.BlockMeta) uint8 {
 	return level
 }
 
-func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*encoding.BlockMeta, newBlocks []*encoding.BlockMeta) {
+func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) {
 	for _, meta := range oldBlocks {
 		// Mark in the backend
 		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
@@ -299,9 +297,9 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*encoding.Bloc
 	}
 
 	// Converted outgoing blocks into compacted entries.
-	newCompactions := make([]*encoding.CompactedBlockMeta, 0, len(oldBlocks))
+	newCompactions := make([]*backend.CompactedBlockMeta, 0, len(oldBlocks))
 	for _, newBlock := range oldBlocks {
-		newCompactions = append(newCompactions, &encoding.CompactedBlockMeta{
+		newCompactions = append(newCompactions, &backend.CompactedBlockMeta{
 			BlockMeta:     *newBlock,
 			CompactedTime: time.Now(),
 		})

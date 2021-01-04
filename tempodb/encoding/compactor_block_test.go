@@ -1,4 +1,4 @@
-package wal
+package encoding
 
 import (
 	"bytes"
@@ -10,13 +10,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/backend"
 
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testTenantID = "fake"
+)
+
 func TestCompactorBlockError(t *testing.T) {
-	_, err := newCompactorBlock(uuid.New(), "", 0, 0, nil, "", 0)
+	_, err := NewCompactorBlock(uuid.New(), "", 0, 0, nil, 0)
 	assert.Error(t, err)
 }
 
@@ -25,15 +29,12 @@ func TestCompactorBlockWrite(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	walCfg := &Config{
-		Filepath:        tempDir,
-		IndexDownsample: 3,
-		BloomFP:         .01,
-	}
-	wal, err := New(walCfg)
 	assert.NoError(t, err)
 
-	metas := []*encoding.BlockMeta{
+	indexDownsample := 3
+	bloomFP := .01
+
+	metas := []*backend.BlockMeta{
 		{
 			StartTime: time.Unix(10000, 0),
 			EndTime:   time.Unix(20000, 0),
@@ -45,11 +46,11 @@ func TestCompactorBlockWrite(t *testing.T) {
 	}
 
 	numObjects := (rand.Int() % 20) + 1
-	cb, err := wal.NewCompactorBlock(uuid.New(), testTenantID, metas, numObjects)
+	cb, err := NewCompactorBlock(uuid.New(), testTenantID, bloomFP, indexDownsample, metas, numObjects)
 	assert.NoError(t, err)
 
-	var minID encoding.ID
-	var maxID encoding.ID
+	var minID ID
+	var maxID ID
 
 	ids := make([][]byte, 0)
 	for i := 0; i < numObjects; i++ {
@@ -63,7 +64,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 
 		ids = append(ids, id)
 
-		err = cb.Write(id, object)
+		err = cb.AddObject(id, object)
 		assert.NoError(t, err)
 
 		if len(minID) == 0 || bytes.Compare(id, minID) == -1 {
@@ -82,20 +83,19 @@ func TestCompactorBlockWrite(t *testing.T) {
 
 	assert.Equal(t, time.Unix(10000, 0), meta.StartTime)
 	assert.Equal(t, time.Unix(25000, 0), meta.EndTime)
-	assert.Equal(t, minID, meta.MinID)
-	assert.Equal(t, maxID, meta.MaxID)
+	assert.Equal(t, minID, ID(meta.MinID))
+	assert.Equal(t, maxID, ID(meta.MaxID))
 	assert.Equal(t, testTenantID, meta.TenantID)
 	assert.Equal(t, numObjects, meta.TotalObjects)
 
 	// bloom
-	bloom := cb.BloomFilter()
 	for _, id := range ids {
-		has := bloom.Test(id)
+		has := cb.bloom.Test(id)
 		assert.True(t, has)
 	}
 
-	records := cb.Records()
-	assert.Equal(t, math.Ceil(float64(numObjects)/float64(walCfg.IndexDownsample)), float64(len(records)))
+	records := cb.appender.Records()
+	assert.Equal(t, math.Ceil(float64(numObjects)/float64(indexDownsample)), float64(len(records)))
 
 	assert.Equal(t, numObjects, cb.CurrentBufferedObjects())
 }

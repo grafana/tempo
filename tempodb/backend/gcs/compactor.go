@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/util"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"google.golang.org/api/iterator"
 )
 
@@ -64,7 +63,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return nil
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*encoding.CompactedBlockMeta, error) {
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	name := util.CompactedMetaFileName(blockID, tenantID)
 
 	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
@@ -75,7 +74,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 		return nil, err
 	}
 
-	out := &encoding.CompactedBlockMeta{}
+	out := &backend.CompactedBlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err

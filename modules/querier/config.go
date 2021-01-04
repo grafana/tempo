@@ -22,7 +22,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 5
 	cfg.Worker = cortex_frontend.WorkerConfig{
-		Parallelism: 2,
+		MatchMaxConcurrency: true,
+		Parallelism:         2,
 		GRPCClientConfig: grpcclient.ConfigWithTLS{
 			GRPC: grpcclient.Config{
 				MaxRecvMsgSize:     100 << 20,
@@ -32,4 +33,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 			},
 		},
 	}
+
+	f.StringVar(&cfg.Worker.Address, prefix+".frontend-address", "", "Address of query frontend service, in host:port format.")
 }

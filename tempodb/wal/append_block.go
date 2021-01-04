@@ -4,8 +4,8 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
@@ -20,7 +20,7 @@ type AppendBlock struct {
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
 	h := &AppendBlock{
 		block: block{
-			meta:     encoding.NewBlockMeta(tenantID, id),
+			meta:     backend.NewBlockMeta(tenantID, id),
 			filepath: filepath,
 		},
 	}
@@ -58,7 +58,7 @@ func (h *AppendBlock) Length() int {
 // includes an on disk file containing all objects in order.
 // Note that calling this method leaves the original file on disk.  This file is still considered to be part of the WAL
 // until Flush() is successfully called on the CompleteBlock.
-func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*CompleteBlock, error) {
+func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*encoding.CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -66,75 +66,22 @@ func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*Compl
 		}
 	}
 
-	walConfig := w.config()
-
-	// 1) create a new block in work dir
-	// 2) append all objects from this block in order
-	// 3) move from completeddir -> realdir
-	// 4) remove old
 	records := h.appender.Records()
-	orderedBlock := NewCompleteBlock()
-	orderedBlock.block = block{
-		meta:     encoding.NewBlockMeta(h.meta.TenantID, uuid.New()),
-		filepath: walConfig.CompletedFilepath,
-	}
-	orderedBlock.bloom = bloom.NewWithEstimates(uint(len(records)), walConfig.BloomFP)
-	orderedBlock.meta.StartTime = h.meta.StartTime
-	orderedBlock.meta.EndTime = h.meta.EndTime
-	orderedBlock.meta.MinID = h.meta.MinID
-	orderedBlock.meta.MaxID = h.meta.MaxID
-	orderedBlock.meta.TotalObjects = h.meta.TotalObjects
-
-	_, err := os.Create(orderedBlock.fullFilename())
-	if err != nil {
-		return nil, err
-	}
-
-	// records are already sorted
-	appendFile, err := os.OpenFile(orderedBlock.fullFilename(), os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
 	readFile, err := h.file()
 	if err != nil {
-		_ = appendFile.Close()
-		_ = os.Remove(orderedBlock.fullFilename())
 		return nil, err
 	}
 
 	iterator := encoding.NewRecordIterator(records, readFile)
 	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
-		_ = appendFile.Close()
-		_ = os.Remove(orderedBlock.fullFilename())
 		return nil, err
 	}
-	appender := encoding.NewBufferedAppender(appendFile, walConfig.IndexDownsample, len(records))
-	for {
-		bytesID, bytesObject, err := iterator.Next()
-		if bytesID == nil {
-			break
-		}
-		if err != nil {
-			_ = appendFile.Close()
-			_ = os.Remove(orderedBlock.fullFilename())
-			return nil, err
-		}
 
-		orderedBlock.bloom.Add(bytesID)
-		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
-		writeID := append([]byte(nil), bytesID...)
-		err = appender.Append(writeID, bytesObject)
-		if err != nil {
-			_ = appendFile.Close()
-			_ = os.Remove(orderedBlock.fullFilename())
-			return nil, err
-		}
+	orderedBlock, err := encoding.NewCompleteBlock(h.meta, iterator, w.c.BloomFP, len(records), w.c.IndexDownsample, w.c.CompletedFilepath, h.fullFilename())
+	if err != nil {
+		return nil, err
 	}
-	appender.Complete()
-	appendFile.Close()
-	orderedBlock.records = appender.Records()
-	orderedBlock.walFilename = h.fullFilename() // pass the filename to the complete block for cleanup when it's flusehd
 
 	return orderedBlock, nil
 }

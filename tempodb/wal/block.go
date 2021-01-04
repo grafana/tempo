@@ -5,21 +5,11 @@ import (
 	"os"
 	"sync"
 
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
-type WriteableBlock interface {
-	BlockMeta() *encoding.BlockMeta
-	BloomFilter() *bloom.ShardedBloomFilter
-	Records() []*encoding.Record
-	ObjectFilePath() string
-
-	Flushed() error
-}
-
 type block struct {
-	meta     *encoding.BlockMeta
+	meta     *backend.BlockMeta
 	filepath string
 	readFile *os.File
 

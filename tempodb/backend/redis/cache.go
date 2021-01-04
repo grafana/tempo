@@ -8,7 +8,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/go-kit/kit/log"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 
 	"github.com/google/uuid"
 )
@@ -60,7 +59,7 @@ func (r *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID
 	return r.nextReader.Blocks(ctx, tenantID)
 }
 
-func (r *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (r *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	return r.nextReader.BlockMeta(ctx, blockID, tenantID)
 }
 
@@ -104,7 +103,7 @@ func (r *readerWriter) Shutdown() {
 }
 
 // Writer
-func (r *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
+func (r *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
 	for i, b := range bBloom {
 		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, i), b)
 	}
@@ -113,7 +112,7 @@ func (r *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBlo
 	return r.nextWriter.Write(ctx, meta, bBloom, bIndex, objectFilePath)
 }
 
-func (r *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
+func (r *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	for i, b := range bBloom {
 		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, i), b)
 	}
@@ -122,7 +121,7 @@ func (r *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appen
 	return r.nextWriter.WriteBlockMeta(ctx, tracker, meta, bBloom, bIndex)
 }
 
-func (r *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
+func (r *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
 	return r.nextWriter.AppendObject(ctx, tracker, meta, bObject)
 }
 

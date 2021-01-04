@@ -19,7 +19,6 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/opentracing/opentracing-go"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -80,7 +79,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
+func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
@@ -115,7 +114,7 @@ func (rw *readerWriter) Write(ctx context.Context, meta *encoding.BlockMeta, bBl
 	return nil
 }
 
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bBloom [][]byte, bIndex []byte) error {
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
 	if tracker != nil {
 		w := tracker.(*storage.Writer)
 		_ = w.Close()
@@ -150,7 +149,7 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	return nil
 }
 
-func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *encoding.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
+func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
 	var w *storage.Writer
 	if tracker == nil {
 		blockID := meta.BlockID
@@ -224,7 +223,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 	return blocks, warning
 }
 
-func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*encoding.BlockMeta, error) {
+func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	name := util.MetaFileName(blockID, tenantID)
 
 	bytes, err := rw.readAll(ctx, name)
@@ -235,7 +234,7 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 		return nil, errors.Wrap(err, "read block meta from gcs")
 	}
 
-	out := &encoding.BlockMeta{}
+	out := &backend.BlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err

@@ -22,6 +22,7 @@ import (
 	ot_log "github.com/opentracing/opentracing-go/log"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/diskcache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -80,7 +81,7 @@ var (
 )
 
 type Writer interface {
-	WriteBlock(ctx context.Context, block wal.WriteableBlock) error
+	WriteBlock(ctx context.Context, block WriteableBlock) error
 	WAL() *wal.WAL
 }
 
@@ -96,6 +97,10 @@ type Compactor interface {
 type CompactorSharder interface {
 	Combine(objA []byte, objB []byte) []byte
 	Owns(hash string) bool
+}
+
+type WriteableBlock interface {
+	Write(ctx context.Context, w backend.Writer) error
 }
 
 type FindMetrics struct {
@@ -117,12 +122,13 @@ type readerWriter struct {
 
 	logger        log.Logger
 	cfg           *Config
-	blockLists    map[string][]*encoding.BlockMeta
+	blockLists    map[string][]*backend.BlockMeta
 	blockListsMtx sync.Mutex
 
-	compactorCfg        *CompactorConfig
-	compactedBlockLists map[string][]*encoding.CompactedBlockMeta
-	compactorSharder    CompactorSharder
+	compactorCfg          *CompactorConfig
+	compactedBlockLists   map[string][]*backend.CompactedBlockMeta
+	compactorSharder      CompactorSharder
+	compactorTenantOffset uint
 }
 
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
@@ -138,6 +144,8 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		r, w, c, err = gcs.New(cfg.GCS)
 	case "s3":
 		r, w, c, err = s3.New(cfg.S3)
+	case "azure":
+		r, w, c, err = azure.New(cfg.Azure)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.Backend)
 	}
@@ -172,13 +180,13 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 
 	rw := &readerWriter{
 		c:                   c,
-		compactedBlockLists: make(map[string][]*encoding.CompactedBlockMeta),
+		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
 		r:                   r,
 		w:                   w,
 		cfg:                 cfg,
 		logger:              logger,
 		pool:                pool.NewPool(cfg.Pool),
-		blockLists:          make(map[string][]*encoding.BlockMeta),
+		blockLists:          make(map[string][]*backend.BlockMeta),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -191,51 +199,8 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) WriteBlock(ctx context.Context, c wal.WriteableBlock) error {
-	records := c.Records()
-	indexBytes, err := encoding.MarshalRecords(records)
-	if err != nil {
-		return err
-	}
-
-	bloomBuffers, err := c.BloomFilter().WriteTo()
-	if err != nil {
-		return err
-	}
-
-	meta := c.BlockMeta()
-	err = rw.w.Write(ctx, meta, bloomBuffers, indexBytes, c.ObjectFilePath())
-	if err != nil {
-		return err
-	}
-
-	err = c.Flushed()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, c wal.WriteableBlock) error {
-	records := c.Records()
-	indexBytes, err := encoding.MarshalRecords(records)
-	if err != nil {
-		return err
-	}
-
-	bloomBuffers, err := c.BloomFilter().WriteTo()
-	if err != nil {
-		return err
-	}
-
-	meta := c.BlockMeta()
-	err = rw.w.WriteBlockMeta(ctx, tracker, meta, bloomBuffers, indexBytes)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error {
+	return c.Write(ctx, rw.w)
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {
@@ -297,7 +262,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 	}
 
 	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
-		meta := payload.(*encoding.BlockMeta)
+		meta := payload.(*backend.BlockMeta)
 		shardKey := bloom.ShardKeyForTraceID(id)
 
 		bloomBytes, err := rw.r.Bloom(ctx, meta.BlockID, tenantID, shardKey)
@@ -430,12 +395,12 @@ func (rw *readerWriter) pollBlocklist() {
 		}
 
 		listMutex := sync.Mutex{}
-		blocklist := make([]*encoding.BlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(blockIDs))
+		blocklist := make([]*backend.BlockMeta, 0, len(blockIDs))
+		compactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
 		_, err = rw.pool.RunJobs(ctx, interfaceSlice, func(ctx context.Context, payload interface{}) ([]byte, error) {
 			blockID := payload.(uuid.UUID)
 
-			var compactedBlockMeta *encoding.CompactedBlockMeta
+			var compactedBlockMeta *backend.CompactedBlockMeta
 			blockMeta, err := rw.r.BlockMeta(ctx, blockID, tenantID)
 			// if the normal meta doesn't exist maybe it's compacted.
 			if err == backend.ErrMetaDoesNotExist {
@@ -497,7 +462,7 @@ func (rw *readerWriter) blocklistTenants() []interface{} {
 	return tenants
 }
 
-func (rw *readerWriter) blocklist(tenantID string) []*encoding.BlockMeta {
+func (rw *readerWriter) blocklist(tenantID string) []*backend.BlockMeta {
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 
@@ -505,13 +470,13 @@ func (rw *readerWriter) blocklist(tenantID string) []*encoding.BlockMeta {
 		return nil
 	}
 
-	copiedBlocklist := make([]*encoding.BlockMeta, 0, len(rw.blockLists[tenantID]))
+	copiedBlocklist := make([]*backend.BlockMeta, 0, len(rw.blockLists[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, rw.blockLists[tenantID]...)
 	return copiedBlocklist
 }
 
 // todo:  make separate compacted list mutex?
-func (rw *readerWriter) compactedBlocklist(tenantID string) []*encoding.CompactedBlockMeta {
+func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.CompactedBlockMeta {
 	rw.blockListsMtx.Lock()
 	defer rw.blockListsMtx.Unlock()
 
@@ -519,7 +484,7 @@ func (rw *readerWriter) compactedBlocklist(tenantID string) []*encoding.Compacte
 		return nil
 	}
 
-	copiedBlocklist := make([]*encoding.CompactedBlockMeta, 0, len(rw.compactedBlockLists[tenantID]))
+	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(rw.compactedBlockLists[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, rw.compactedBlockLists[tenantID]...)
 
 	return copiedBlocklist
@@ -552,7 +517,7 @@ func (rw *readerWriter) cleanMissingTenants(tenants []string) {
 
 // updateBlocklist Add and remove regular or compacted blocks from the in-memory blocklist.
 // Changes are temporary and will be overwritten on the next poll.
-func (rw *readerWriter) updateBlocklist(tenantID string, add []*encoding.BlockMeta, remove []*encoding.BlockMeta, compactedAdd []*encoding.CompactedBlockMeta) {
+func (rw *readerWriter) updateBlocklist(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta) {
 	if tenantID == "" {
 		return
 	}
@@ -572,7 +537,7 @@ func (rw *readerWriter) updateBlocklist(tenantID string, add []*encoding.BlockMe
 		}
 	}
 
-	newblocklist := make([]*encoding.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
+	newblocklist := make([]*backend.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
 	for _, b := range blocklist {
 		if _, ok := matchedRemovals[b.BlockID]; !ok {
 			newblocklist = append(newblocklist, b)

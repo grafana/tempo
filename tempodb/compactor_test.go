@@ -16,8 +16,8 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -225,7 +225,7 @@ func TestSameIDCompaction(t *testing.T) {
 	// poll
 	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
 
-	var blocks []*encoding.BlockMeta
+	var blocks []*backend.BlockMeta
 	blocklist := rw.blocklist(testTenantID)
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, defaultMinInputBlocks, 2)
 	blocks, _ = blockSelector.BlocksToCompact()
@@ -281,7 +281,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	// Cut x blocks with y records each
 	blockCount := 5
 	recordCount := 1
-	cutTestBlocks(t, w, blockCount, recordCount)
+	cutTestBlocks(t, w, testTenantID, blockCount, recordCount)
 
 	rw := r.(*readerWriter)
 	rw.pollBlocklist()
@@ -343,7 +343,7 @@ func TestCompactionMetrics(t *testing.T) {
 	// Cut x blocks with y records each
 	blockCount := 5
 	recordCount := 1
-	cutTestBlocks(t, w, blockCount, recordCount)
+	cutTestBlocks(t, w, testTenantID, blockCount, recordCount)
 
 	rw := r.(*readerWriter)
 	rw.pollBlocklist()
@@ -381,10 +381,63 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.Equal(t, float64(blockCount*recordCount*bytesPerRecord), bytesEnd-bytesStart)
 }
 
-func cutTestBlocks(t *testing.T, w Writer, blockCount int, recordCount int) {
+func TestCompactionIteratesThroughTenants(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	r, w, c, err := New(&Config{
+		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		WAL: &wal.Config{
+			Filepath:        path.Join(tempDir, "wal"),
+			IndexDownsample: rand.Int()%20 + 1,
+			BloomFP:         .01,
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      24 * time.Hour,
+		MaxCompactionObjects:    1000,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{})
+
+	// Cut blocks for multiple tenants
+	cutTestBlocks(t, w, testTenantID, 2, 2)
+	cutTestBlocks(t, w, testTenantID2, 2, 2)
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist()
+
+	assert.Equal(t, 2, len(rw.blockLists[testTenantID]))
+	assert.Equal(t, 2, len(rw.blockLists[testTenantID2]))
+
+	// Verify that tenant 2 compacted, tenant 1 is not
+	// Compaction starts at index 1 for simplicity
+	rw.doCompaction()
+	assert.Equal(t, 2, len(rw.blockLists[testTenantID]))
+	assert.Equal(t, 1, len(rw.blockLists[testTenantID2]))
+
+	// Verify both tenants compacted after second run
+	rw.doCompaction()
+	assert.Equal(t, 1, len(rw.blockLists[testTenantID]))
+	assert.Equal(t, 1, len(rw.blockLists[testTenantID2]))
+}
+
+func cutTestBlocks(t *testing.T, w Writer, tenantID string, blockCount int, recordCount int) {
 	wal := w.WAL()
 	for i := 0; i < blockCount; i++ {
-		head, err := wal.NewBlock(uuid.New(), testTenantID)
+		head, err := wal.NewBlock(uuid.New(), tenantID)
 		assert.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {

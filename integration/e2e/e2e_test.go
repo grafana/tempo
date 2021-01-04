@@ -3,12 +3,16 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/backend/azure"
+	"gopkg.in/yaml.v2"
 
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
@@ -25,6 +29,8 @@ import (
 const (
 	configAllInOne      = "config-all-in-one.yaml"
 	configMicroservices = "config-microservices.yaml"
+
+	configAllInOneAzurite = "config-all-in-one-azurite.yaml"
 )
 
 func TestAllInOne(t *testing.T) {
@@ -75,6 +81,64 @@ func TestAllInOne(t *testing.T) {
 	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 }
 
+func TestAzuriteAllInOne(t *testing.T) {
+	s, err := cortex_e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	azurite := util.NewAzurite()
+	require.NoError(t, s.StartAndWaitReady(azurite))
+	ctx := context.TODO()
+
+	//Create the azurite container for tempo
+	cfg := app.Config{}
+	buff, err := ioutil.ReadFile(configAllInOneAzurite)
+	require.NoError(t, err)
+	err = yaml.UnmarshalStrict(buff, &cfg)
+	require.NoError(t, err)
+	cfg.StorageConfig.Trace.Azure.Endpoint = azurite.Endpoint(10000)
+	_, err = azure.CreateContainer(ctx, cfg.StorageConfig.Trace.Azure)
+	require.NoError(t, err)
+
+	//Start tempo
+	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneAzurite, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	// Get port for the otlp receiver endpoint
+	c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	batch := makeThriftBatch()
+	require.NoError(t, c.EmitBatch(context.Background(), batch))
+
+	// test metrics
+	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_distributor_spans_received_total"))
+
+	hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+
+	// ensure trace is created in ingester (trace_idle_time has passed)
+	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
+
+	// query an in-memory trace
+	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
+
+	// flush trace to backend
+	res, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/flush")
+	require.NoError(t, err)
+	require.Equal(t, 204, res.StatusCode)
+
+	// sleep for one maintenance cycle
+	time.Sleep(5 * time.Second)
+
+	// test metrics
+	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
+
+	// query trace - should fetch from backend
+	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
+
+}
 func TestMicroservices(t *testing.T) {
 	s, err := cortex_e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)

@@ -45,11 +45,11 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 
 	// only need to initialise boundaries once
 	if len(s.blockBoundaries) == 0 {
-		s.blockBoundaries = createBlockShards(s.queryShards)
+		s.blockBoundaries = createBlockBoundaries(s.queryShards)
 	}
 
 	reqs := make([]*http.Request, s.queryShards)
-	for i := 0; i < s.queryShards; i++ {
+	for i := 0; i < len(s.blockBoundaries)-1; i++ {
 		reqs[i] = r.Clone(r.Context())
 		q := reqs[i].URL.Query()
 		q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i]))
@@ -62,7 +62,10 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 		}
 
 		reqs[i].Header.Set(user.OrgIDHeaderName, userID)
-		// adding to RequestURI ONLY because weaveworks/common uses the RequestURI field to translate from
+
+		// adding to RequestURI only because weaveworks/common uses the RequestURI field to
+		// translate from http.Request to httpgrpc.Request
+		// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
 		reqs[i].RequestURI = querierPrefix + reqs[i].URL.RequestURI() + queryDelimiter + q.Encode()
 	}
 
@@ -88,8 +91,8 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 	return nil, fmt.Errorf("%s", errBody)
 }
 
-// createBlockShards splits the blockrange into queryshard parts
-func createBlockShards(queryShards int) [][]byte {
+// createBlockBoundaries splits the range of blockIDs into queryShards parts
+func createBlockBoundaries(queryShards int) [][]byte {
 	if queryShards == 0 {
 		return nil
 	}
