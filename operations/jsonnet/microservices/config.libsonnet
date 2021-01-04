@@ -12,8 +12,11 @@
     compactor: {
       replicas: 1,
     },
-    querier: {
+    query_frontend: {
       replicas: 1,
+    },
+    querier: {
+      replicas: 2,
     },
     ingester: {
       pvc_size: error 'Must specify an ingester pvc size',
@@ -60,6 +63,10 @@
   tempo_ingester_container+::
     $.util.resourcesRequests('3', '3Gi') +
     $.util.resourcesLimits('5', '5Gi'),
+
+  tempo_query_frontend_container+::
+    $.util.resourcesRequests('500m', '1Gi') +
+    $.util.resourcesLimits('1', '2Gi'),
 
   tempo_querier_container+::
     $.util.resourcesRequests('500m', '1Gi') +

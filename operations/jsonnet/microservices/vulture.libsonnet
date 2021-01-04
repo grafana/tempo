@@ -17,7 +17,7 @@
       '-loki-user=' + $._config.vulture.loki_user,
       '-loki-pass=' + $._config.vulture.loki_pass,
       '-prometheus-listen-address=:' + port,
-      '-tempo-base-url=http://querier:3100',
+      '-tempo-base-url=http://query-frontend:3100',
       '-logtostderr=true',
       '-tempo-org-id=1',
     ]) +
