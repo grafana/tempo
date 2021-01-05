@@ -31,6 +31,17 @@ dashboard_utils {
         )
       )
       .addRow(
+        g.row('Query Frontend')
+        .addPanel(
+          $.panel('QPS') +
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="api_traces_traceid"}' % $.jobMatcher($._config.jobs.query_frontend))
+        )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="api_traces_traceid"}' % $.jobMatcher($._config.jobs.query_frontend))
+        )
+      )
+      .addRow(
         g.row('Querier')
         .addPanel(
           $.panel('QPS') +
@@ -205,6 +216,18 @@ dashboard_utils {
         )
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.ingester)),
+        )
+      )
+      .addRow(
+        g.row('Query Frontend')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $._config.jobs.query_frontend),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.query_frontend),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.query_frontend)),
         )
       )
       .addRow(
