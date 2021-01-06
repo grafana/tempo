@@ -1,12 +1,12 @@
 package local
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
-	"path"
 	"testing"
 
 	"github.com/google/uuid"
@@ -14,6 +14,9 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"github.com/stretchr/testify/assert"
 )
+
+const objectName = "test"
+const objectReaderName = "test-reader"
 
 func TestReadWrite(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
@@ -40,48 +43,34 @@ func TestReadWrite(t *testing.T) {
 		BlockID: blockID,
 	}
 
-	shardNum := bloom.GetShardNum()
-	fakeBloom := make([][]byte, shardNum)
-	fakeIndex := make([]byte, 20)
-	fakeTraces := make([]byte, 200)
+	fakeObject := make([]byte, 20)
 
-	for i := range fakeBloom {
-		fakeBloom[i] = make([]byte, 20)
-		_, err := rand.Read(fakeBloom[i])
-		assert.NoError(t, err, "unexpected error creating fakeBloom")
-	}
-	_, err = rand.Read(fakeIndex)
-	assert.NoError(t, err, "unexpected error creating fakeIndex")
-	_, err = rand.Read(fakeTraces)
-	assert.NoError(t, err, "unexpected error creating fakeTraces")
-	_, err = fakeTracesFile.Write(fakeTraces)
-	assert.NoError(t, err, "unexpected error writing fakeTraces")
+	_, err = rand.Read(fakeObject)
+	assert.NoError(t, err, "unexpected error creating fakeObject")
 
 	ctx := context.Background()
 	for _, id := range tenantIDs {
 		fakeMeta.TenantID = id
-		err = w.Write(ctx, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		err = w.WriteBlockMeta(ctx, fakeMeta)
+		assert.NoError(t, err, "unexpected error writing meta")
+		err = w.Write(ctx, objectName, fakeMeta.BlockID, id, fakeObject)
 		assert.NoError(t, err, "unexpected error writing")
+		err = w.WriteReader(ctx, objectReaderName, fakeMeta.BlockID, id, bytes.NewBuffer(fakeObject), int64(len(fakeObject)))
+		assert.NoError(t, err, "unexpected error writing reader")
 	}
 
 	actualMeta, err := r.BlockMeta(ctx, blockID, fakeMeta.TenantID)
-	assert.NoError(t, err, "unexpected error reading indexes")
+	assert.NoError(t, err, "unexpected error reading meta")
 	assert.Equal(t, fakeMeta, actualMeta)
 
-	actualIndex, err := r.Index(ctx, blockID, tenantIDs[0])
-	assert.NoError(t, err, "unexpected error reading indexes")
-	assert.Equal(t, fakeIndex, actualIndex)
+	actualObject, err := r.Read(ctx, objectName, blockID, tenantIDs[0])
+	assert.NoError(t, err, "unexpected error reading")
+	assert.Equal(t, fakeObject, actualObject)
 
-	actualTrace := make([]byte, 20)
-	err = r.Object(ctx, blockID, tenantIDs[0], 100, actualTrace)
-	assert.NoError(t, err, "unexpected error reading traces")
-	assert.Equal(t, fakeTraces[100:120], actualTrace)
-
-	for i := 0; i < 10; i++ {
-		actualBloom, err := r.Bloom(ctx, blockID, tenantIDs[0], i)
-		assert.NoError(t, err, "unexpected error reading bloom")
-		assert.Equal(t, fakeBloom[i], actualBloom)
-	}
+	actualReadRange := make([]byte, 5)
+	err = r.ReadRange(ctx, objectReaderName, blockID, tenantIDs[0], 5, actualReadRange)
+	assert.NoError(t, err, "unexpected error range")
+	assert.Equal(t, fakeObject[5:10], actualReadRange)
 
 	list, err := r.Blocks(ctx, tenantIDs[0])
 	assert.NoError(t, err, "unexpected error reading blocklist")
@@ -91,30 +80,6 @@ func TestReadWrite(t *testing.T) {
 	tenants, err := r.Tenants(ctx)
 	assert.NoError(t, err, "unexpected error reading tenants")
 	assert.Len(t, tenants, len(tenantIDs))
-}
-
-func TestWriteFail(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	_, w, _, err := New(&Config{
-		Path: tempDir,
-	})
-	assert.NoError(t, err, "unexpected error creating local backend")
-
-	blockID := uuid.New()
-	tenantID := "fake"
-	fakeMeta := &backend.BlockMeta{
-		BlockID:  blockID,
-		TenantID: tenantID,
-	}
-
-	err = w.Write(context.Background(), fakeMeta, nil, nil, "file-that-doesnt-exist")
-	assert.Error(t, err)
-
-	_, err = os.Stat(path.Join(tempDir, tenantID, blockID.String()))
-	assert.True(t, os.IsNotExist(err))
 }
 
 func TestCompaction(t *testing.T) {
@@ -163,7 +128,7 @@ func TestCompaction(t *testing.T) {
 	for _, id := range tenantIDs {
 		fakeMeta.TenantID = id
 
-		err = w.Write(ctx, fakeMeta, fakeBloom, fakeIndex, fakeTracesFile.Name())
+		err = w.WriteBlockMeta(ctx, fakeMeta)
 		assert.NoError(t, err, "unexpected error writing")
 
 		compactedMeta, err := c.CompactedBlockMeta(blockID, id)
