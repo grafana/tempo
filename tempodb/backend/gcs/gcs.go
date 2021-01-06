@@ -87,12 +87,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUI
 		return err
 	}
 
-	err = w.Close()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return w.Close()
 }
 
 // WriteBlockMeta implements backend.Writer

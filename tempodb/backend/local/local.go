@@ -3,11 +3,11 @@ package local
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -31,52 +31,32 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, tracesFilePath string) error {
-	err := rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
-	if err != nil {
-		return err
-	}
-
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
+// Write implements backend.Writer
+func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
 	blockFolder := rw.rootPath(blockID, tenantID)
-
-	if !fileExists(tracesFilePath) {
-		os.RemoveAll(blockFolder)
-		return fmt.Errorf("traces file not found %s", tracesFilePath)
-	}
-
-	// copy traces file.
-	src, err := os.Open(tracesFilePath)
+	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
-		os.RemoveAll(blockFolder)
 		return err
 	}
-	defer src.Close()
 
 	tracesFileName := rw.tracesFileName(blockID, tenantID)
 	dst, err := os.Create(tracesFileName)
 	if err != nil {
-		os.RemoveAll(blockFolder)
 		return err
 	}
 	defer dst.Close()
 
-	_, err = io.Copy(dst, src)
+	_, err = io.Copy(dst, data)
 	if err != nil {
-		os.RemoveAll(blockFolder)
+		return err
 	}
 	return err
 }
 
-func (rw *readerWriter) WriteBlockMeta(_ context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
+// WriteBlockMeta implements backend.Writer
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
-
-	if tracker != nil {
-		var dst *os.File = tracker.(*os.File)
-		_ = dst.Close()
-	}
 
 	blockFolder := rw.rootPath(blockID, tenantID)
 	err := os.MkdirAll(blockFolder, os.ModePerm)
@@ -92,33 +72,14 @@ func (rw *readerWriter) WriteBlockMeta(_ context.Context, tracker backend.Append
 	metaFileName := rw.metaFileName(blockID, tenantID)
 	err = ioutil.WriteFile(metaFileName, bMeta, 0644)
 	if err != nil {
-		os.RemoveAll(blockFolder)
-		return err
-	}
-
-	for i, b := range bBloom {
-		bloomFileName := rw.bloomFileName(blockID, tenantID, i)
-		err = ioutil.WriteFile(bloomFileName, b, 0644)
-		if err != nil {
-			os.RemoveAll(blockFolder)
-			return err
-		}
-	}
-
-	indexFileName := rw.indexFileName(blockID, tenantID)
-	err = ioutil.WriteFile(indexFileName, bIndex, 0644)
-	if err != nil {
-		os.RemoveAll(blockFolder)
 		return err
 	}
 
 	return nil
 }
 
-func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
-
+// Append implements backend.Writer
+func (rw *readerWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	var dst *os.File
 	if tracker == nil {
 		blockFolder := rw.rootPath(blockID, tenantID)
@@ -136,12 +97,18 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 		dst = tracker.(*os.File)
 	}
 
-	_, err := dst.Write(bObject)
+	_, err := dst.Write(buffer)
 	if err != nil {
 		return nil, err
 	}
 
 	return dst, nil
+}
+
+// CloseAppend implements backend.Writer
+func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	var dst *os.File = tracker.(*os.File)
+	return dst.Close()
 }
 
 func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
@@ -236,26 +203,21 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) metaFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "meta.json")
+	return filepath.Join(rw.rootPath(blockID, tenantID), "meta.json")
 }
 
 func (rw *readerWriter) bloomFileName(blockID uuid.UUID, tenantID string, bloomShard int) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "bloom-"+strconv.Itoa(bloomShard))
+	return filepath.Join(rw.rootPath(blockID, tenantID), "bloom-"+strconv.Itoa(bloomShard))
 }
 
 func (rw *readerWriter) indexFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "index")
+	return filepath.Join(rw.rootPath(blockID, tenantID), "index")
 }
 
 func (rw *readerWriter) tracesFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "traces")
+	return filepath.Join(rw.rootPath(blockID, tenantID), "traces")
 }
 
 func (rw *readerWriter) rootPath(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.cfg.Path, tenantID, blockID.String())
-}
-
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return !os.IsNotExist(err)
+	return filepath.Join(rw.cfg.Path, tenantID, blockID.String())
 }
