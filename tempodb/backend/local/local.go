@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -45,7 +44,7 @@ func (rw *readerWriter) WriteReader(ctx context.Context, name string, blockID uu
 		return err
 	}
 
-	tracesFileName := rw.tracesFileName(blockID, tenantID)
+	tracesFileName := rw.objectFileName(blockID, tenantID, name)
 	dst, err := os.Create(tracesFileName)
 	if err != nil {
 		return err
@@ -94,7 +93,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, blockID uuid.UU
 			return nil, err
 		}
 
-		tracesFileName := rw.tracesFileName(blockID, tenantID)
+		tracesFileName := rw.objectFileName(blockID, tenantID, name)
 		dst, err = os.Create(tracesFileName)
 		if err != nil {
 			return nil, err
@@ -117,6 +116,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	return dst.Close()
 }
 
+// Tenants implements backend.Reader
 func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	folders, err := ioutil.ReadDir(rw.cfg.Path)
 	if err != nil {
@@ -134,6 +134,7 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	return tenants, nil
 }
 
+// Blocks implements backend.Reader
 func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 	var warning error
 	path := path.Join(rw.cfg.Path, tenantID)
@@ -158,6 +159,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 	return blocks, warning
 }
 
+// BlockMeta implements backend.Reader
 func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	filename := rw.metaFileName(blockID, tenantID)
 	bytes, err := ioutil.ReadFile(filename)
@@ -177,18 +179,15 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 	return out, nil
 }
 
-func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
-	filename := rw.bloomFileName(blockID, tenantID, bloomShard)
+// Read implements backend.Reader
+func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	filename := rw.objectFileName(blockID, tenantID, name)
 	return ioutil.ReadFile(filename)
 }
 
-func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	filename := rw.indexFileName(blockID, tenantID)
-	return ioutil.ReadFile(filename)
-}
-
-func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
-	filename := rw.tracesFileName(blockID, tenantID)
+// ReadRange implements backend.Reader
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+	filename := rw.objectFileName(blockID, tenantID, name)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
@@ -196,7 +195,7 @@ func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID 
 	}
 	defer f.Close()
 
-	_, err = f.ReadAt(buffer, int64(start))
+	_, err = f.ReadAt(buffer, int64(offset))
 	if err != nil {
 		return err
 	}
@@ -204,24 +203,17 @@ func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID 
 	return nil
 }
 
+// Shutdown implements backend.Reader
 func (rw *readerWriter) Shutdown() {
 
 }
 
+func (rw *readerWriter) objectFileName(blockID uuid.UUID, tenantID string, name string) string {
+	return filepath.Join(rw.rootPath(blockID, tenantID), name)
+}
+
 func (rw *readerWriter) metaFileName(blockID uuid.UUID, tenantID string) string {
 	return filepath.Join(rw.rootPath(blockID, tenantID), "meta.json")
-}
-
-func (rw *readerWriter) bloomFileName(blockID uuid.UUID, tenantID string, bloomShard int) string {
-	return filepath.Join(rw.rootPath(blockID, tenantID), "bloom-"+strconv.Itoa(bloomShard))
-}
-
-func (rw *readerWriter) indexFileName(blockID uuid.UUID, tenantID string) string {
-	return filepath.Join(rw.rootPath(blockID, tenantID), "index")
-}
-
-func (rw *readerWriter) tracesFileName(blockID uuid.UUID, tenantID string) string {
-	return filepath.Join(rw.rootPath(blockID, tenantID), "traces")
 }
 
 func (rw *readerWriter) rootPath(blockID uuid.UUID, tenantID string) string {

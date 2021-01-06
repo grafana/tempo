@@ -105,6 +105,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	return nil
 }
 
+// Tenants implements backend.Reader
 func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	marker := blob.Marker{}
 
@@ -131,6 +132,7 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	return tenants, nil
 }
 
+// Blocks implements backend.Reader
 func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 	blocks := make([]uuid.UUID, 0)
 	marker := blob.Marker{}
@@ -162,6 +164,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 	return blocks, nil
 }
 
+// BlockMeta implements backend.Reader
 func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	name := util.MetaFileName(blockID, tenantID)
 
@@ -186,34 +189,24 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 	return out, nil
 }
 
-func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Bloom")
+// Read implements backend.Reader
+func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Read")
 	defer span.Finish()
 
-	name := util.BloomFileName(blockID, tenantID, shardNum)
-	return rw.readAll(derivedCtx, name)
+	return rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
 }
 
-func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Index")
+// ReadRange implements backend.Reader
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "ReadRange")
 	defer span.Finish()
 
-	name := util.IndexFileName(blockID, tenantID)
-	return rw.readAll(derivedCtx, name)
+	return rw.readRange(derivedCtx, util.ObjectFileName(blockID, tenantID, name), int64(offset), buffer)
 }
 
-func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Object")
-	defer span.Finish()
-
-	name := util.ObjectFileName(blockID, tenantID, "data")
-	err := rw.readRange(derivedCtx, name, int64(start), buffer)
-
-	return err
-}
-
+// Shutdown implements backend.Reader
 func (rw *readerWriter) Shutdown() {
-
 }
 
 func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {

@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 )
 
@@ -301,22 +302,20 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 	return out, nil
 }
 
-// Bloom implements backend.Reader
-func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
-	bloomFileName := util.BloomFileName(blockID, tenantID, bloomShard)
-	return rw.readAll(ctx, bloomFileName)
+// Read implements backend.Reader
+func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Read")
+	defer span.Finish()
+
+	return rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
 }
 
-// Index implements backend.Reader
-func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	indexFileName := util.IndexFileName(blockID, tenantID)
-	return rw.readAll(ctx, indexFileName)
-}
+// ReadRange implements backend.Reader
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "ReadRange")
+	defer span.Finish()
 
-// Object implements backend.Reader
-func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
-	objFileName := util.ObjectFileName(blockID, tenantID)
-	return rw.readRange(ctx, objFileName, int64(start), buffer)
+	return rw.readRange(derivedCtx, util.ObjectFileName(blockID, tenantID, name), int64(offset), buffer)
 }
 
 // Shutdown implements backend.Reader

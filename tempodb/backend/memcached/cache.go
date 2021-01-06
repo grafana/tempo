@@ -59,27 +59,30 @@ func New(nextReader backend.Reader, nextWriter backend.Writer, cfg *Config, logg
 	return rw, rw, nil
 }
 
-// Reader
+// Tenants implements backend.Reader
 func (r *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	return r.nextReader.Tenants(ctx)
 }
 
+// Blocks implements backend.Reader
 func (r *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 	return r.nextReader.Blocks(ctx, tenantID)
 }
 
+// BlockMeta implements backend.Reader
 func (r *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	return r.nextReader.BlockMeta(ctx, blockID, tenantID)
 }
 
-func (r *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
-	key := bloomKey(blockID, tenantID, typeBloom, shardNum)
+// Read implements backend.Reader
+func (r *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	key := key(blockID, tenantID, name)
 	val := r.get(ctx, key)
 	if val != nil {
 		return val, nil
 	}
 
-	val, err := r.nextReader.Bloom(ctx, blockID, tenantID, shardNum)
+	val, err := r.nextReader.Read(ctx, name, blockID, tenantID)
 	if err == nil {
 		r.set(ctx, key, val)
 	}
@@ -87,25 +90,12 @@ func (r *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID st
 	return val, err
 }
 
-func (r *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	key := key(blockID, tenantID, typeIndex)
-	val := r.get(ctx, key)
-	if val != nil {
-		return val, nil
-	}
-
-	val, err := r.nextReader.Index(ctx, blockID, tenantID)
-	if err == nil {
-		r.set(ctx, key, val)
-	}
-
-	return val, err
+// ReadRange implements backend.Reader
+func (r *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+	return r.nextReader.ReadRange(ctx, name, blockID, tenantID, offset, buffer)
 }
 
-func (r *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
-	return r.nextReader.Object(ctx, blockID, tenantID, start, buffer)
-}
-
+// Shutdown implements backend.Reader
 func (r *readerWriter) Shutdown() {
 	r.nextReader.Shutdown()
 	r.client.Stop()
