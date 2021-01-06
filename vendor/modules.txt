@@ -704,7 +704,6 @@ github.com/jsternberg/zap-logfmt
 github.com/julienschmidt/httprouter
 # github.com/karrick/godirwalk v1.16.1
 ## explicit
-github.com/karrick/godirwalk
 # github.com/kisielk/gotool v1.0.0
 github.com/kisielk/gotool
 github.com/kisielk/gotool/internal/load
