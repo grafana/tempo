@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend/util"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"github.com/pkg/errors"
 
 	"cloud.google.com/go/storage"
@@ -79,23 +78,10 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
-
-	// copy traces file.
-	if !fileExists(objectFilePath) {
-		return fmt.Errorf("object file not found %s", objectFilePath)
-	}
-
-	src, err := os.Open(objectFilePath)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-
-	w := rw.writer(ctx, util.ObjectFileName(blockID, tenantID))
-	_, err = io.Copy(w, src)
+// Write implements backend.Writer
+func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, _ int64) error {
+	w := rw.writer(ctx, util.ObjectFileName(blockID, tenantID, name))
+	_, err := io.Copy(w, data)
 	if err != nil {
 		w.Close()
 		return err
@@ -106,41 +92,19 @@ func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBlo
 		return err
 	}
 
-	err = rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
-	if tracker != nil {
-		w := tracker.(*storage.Writer)
-		_ = w.Close()
-	}
-
+// WriteBlockMeta implements backend.Writer
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
-
-	for i := 0; i < bloom.GetShardNum(); i++ {
-		err := rw.writeAll(ctx, util.BloomFileName(blockID, tenantID, i), bBloom[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	err := rw.writeAll(ctx, util.IndexFileName(blockID, tenantID), bIndex)
-	if err != nil {
-		return err
-	}
 
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
 		return err
 	}
 
-	// write meta last.  this will prevent blocklist from returning a partial block
 	err = rw.writeAll(ctx, util.MetaFileName(blockID, tenantID), bMeta)
 	if err != nil {
 		return err
@@ -149,23 +113,27 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	return nil
 }
 
-func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
+// Append implements backend.Writer
+func (rw *readerWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	var w *storage.Writer
 	if tracker == nil {
-		blockID := meta.BlockID
-		tenantID := meta.TenantID
-
-		w = rw.writer(ctx, util.ObjectFileName(blockID, tenantID))
+		w = rw.writer(ctx, util.ObjectFileName(blockID, tenantID, name))
 	} else {
 		w = tracker.(*storage.Writer)
 	}
 
-	_, err := w.Write(bObject)
+	_, err := w.Write(buffer)
 	if err != nil {
 		return nil, err
 	}
 
 	return w, nil
+}
+
+// CloseAppend implements backend.Writer
+func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTracker) error {
+	w := tracker.(*storage.Writer)
+	return w.Close()
 }
 
 func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {

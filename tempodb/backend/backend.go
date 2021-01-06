@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/google/uuid"
 )
@@ -16,10 +17,11 @@ var (
 type AppendTracker interface{}
 
 type Writer interface {
-	Write(ctx context.Context, meta *BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error
+	Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error
+	WriteBlockMeta(ctx context.Context, meta *BlockMeta) error
 
-	WriteBlockMeta(ctx context.Context, tracker AppendTracker, meta *BlockMeta, bBloom [][]byte, bIndex []byte) error
-	AppendObject(ctx context.Context, tracker AppendTracker, meta *BlockMeta, bObject []byte) (AppendTracker, error)
+	Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error)
+	CloseAppend(ctx context.Context, tracker AppendTracker) error
 }
 
 type Reader interface {

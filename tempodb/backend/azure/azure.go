@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"os"
 	"strings"
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
@@ -30,6 +29,10 @@ type readerWriter struct {
 	containerURL blob.ContainerURL
 }
 
+type appendTracker struct {
+	Name string
+}
+
 // New gets the Azure blob container
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	ctx := context.Background()
@@ -47,47 +50,15 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
-
-	if err := util.FileExists(objectFilePath); err != nil {
-		return err
-	}
-
-	src, err := os.Open(objectFilePath)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-
-	err = rw.writer(ctx, bufio.NewReader(src), util.ObjectFileName(blockID, tenantID))
-	if err != nil {
-		return err
-	}
-	err = rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
-	if err != nil {
-		return err
-	}
-	return nil
+// Write implements backend.Writer
+func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, _ int64) error {
+	return rw.writer(ctx, bufio.NewReader(data), util.ObjectFileName(blockID, tenantID, name))
 }
 
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
-
+// WriteBlockMeta implements backend.Writer
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
-
-	for i, b := range bBloom {
-		err := rw.writeAll(ctx, util.BloomFileName(blockID, tenantID, i), b)
-		if err != nil {
-			return err
-		}
-	}
-
-	err := rw.writeAll(ctx, util.IndexFileName(blockID, tenantID), bIndex)
-	if err != nil {
-		return err
-	}
 
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
@@ -102,26 +73,20 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	return nil
 }
 
-type AppenderTracker struct {
-	Name string
-}
-
-func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
-	var a AppenderTracker
+// Append implements backend.Writer
+func (rw *readerWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	var a appendTracker
 	if tracker == nil {
-		blockID := meta.BlockID
-		tenantID := meta.TenantID
+		a.Name = util.ObjectFileName(blockID, tenantID, name)
 
-		a.Name = util.ObjectFileName(blockID, tenantID)
-
-		err := rw.writeAll(ctx, util.ObjectFileName(blockID, tenantID), bObject)
+		err := rw.writeAll(ctx, a.Name, buffer)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		a = tracker.(AppenderTracker)
+		a = tracker.(appendTracker)
 
-		_, err := rw.append(ctx, bObject, a.Name)
+		_, err := rw.append(ctx, buffer, a.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -130,8 +95,12 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 	return a, nil
 }
 
-func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
+// CloseAppend implements backend.Writer
+func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	return nil
+}
 
+func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	marker := blob.Marker{}
 
 	tenants := make([]string, 0)
@@ -156,10 +125,9 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	}
 	return tenants, nil
 }
+
 func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
-
 	blocks := make([]uuid.UUID, 0)
-
 	marker := blob.Marker{}
 
 	for {
@@ -190,7 +158,6 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 }
 
 func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
-
 	name := util.MetaFileName(blockID, tenantID)
 
 	bytes, err := rw.readAll(ctx, name)
@@ -234,7 +201,7 @@ func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID 
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Object")
 	defer span.Finish()
 
-	name := util.ObjectFileName(blockID, tenantID)
+	name := util.ObjectFileName(blockID, tenantID, "data")
 	err := rw.readRange(derivedCtx, name, int64(start), buffer)
 
 	return err

@@ -20,8 +20,8 @@ func IndexFileName(blockID uuid.UUID, tenantID string) string {
 	return path.Join(RootPath(blockID, tenantID), "index")
 }
 
-func ObjectFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(RootPath(blockID, tenantID), "data")
+func ObjectFileName(blockID uuid.UUID, tenantID string, name string) string {
+	return path.Join(RootPath(blockID, tenantID), name)
 }
 
 func CompactedMetaFileName(blockID uuid.UUID, tenantID string) string {
