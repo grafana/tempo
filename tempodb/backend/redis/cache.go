@@ -1,10 +1,8 @@
 package redis
 
 import (
-	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/chunk/cache"
@@ -105,21 +103,15 @@ func (r *readerWriter) Shutdown() {
 }
 
 // Write implements backend.Writer
-func (r *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
-	if size > 0 && size < backend.MaxCacheSizeBytes {
-		var bytesBuffer bytes.Buffer
-		tee := io.TeeReader(data, &bytesBuffer)
+func (r *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
+	r.set(ctx, key(blockID, tenantID, name), buffer)
 
-		object, err := ioutil.ReadAll(tee)
-		if err != nil {
-			return err
-		}
+	return r.nextWriter.Write(ctx, name, blockID, tenantID, buffer)
+}
 
-		r.set(ctx, key(blockID, tenantID, name), object)
-		data = &bytesBuffer
-	}
-
-	return r.nextWriter.Write(ctx, name, blockID, tenantID, data, size)
+// Write implements backend.Writer
+func (r *readerWriter) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+	return r.nextWriter.WriteReader(ctx, name, blockID, tenantID, data, size)
 }
 
 // WriteBlockMeta implements backend.Writer

@@ -19,7 +19,9 @@ var (
 type AppendTracker interface{}
 
 type Writer interface {
-	Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error
+	// jpe : add comment about write and writereader (as well as matching reader methods)
+	Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error
+	WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error
 	WriteBlockMeta(ctx context.Context, meta *BlockMeta) error
 
 	Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error)

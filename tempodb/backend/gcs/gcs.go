@@ -1,6 +1,7 @@
 package gcs
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -79,7 +80,12 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, _ int64) error {
+func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
+	return rw.WriteReader(ctx, name, blockID, tenantID, bytes.NewBuffer(buffer), int64(len(buffer)))
+}
+
+// WriteReader implements backend.Writer
+func (rw *readerWriter) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, _ int64) error {
 	w := rw.writer(ctx, util.ObjectFileName(blockID, tenantID, name))
 	_, err := io.Copy(w, data)
 	if err != nil {
