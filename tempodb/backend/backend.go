@@ -12,6 +12,8 @@ var (
 	ErrMetaDoesNotExist = fmt.Errorf("meta does not exist")
 	ErrEmptyTenantID    = fmt.Errorf("empty tenant id")
 	ErrEmptyBlockID     = fmt.Errorf("empty block id")
+
+	MaxCacheSizeBytes = int64(1024 * 1024)
 )
 
 type AppendTracker interface{}

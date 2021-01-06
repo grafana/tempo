@@ -1,8 +1,10 @@
 package redis
 
 import (
+	"bytes"
 	"context"
-	"strconv"
+	"io"
+	"io/ioutil"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/chunk/cache"
@@ -102,27 +104,37 @@ func (r *readerWriter) Shutdown() {
 	r.client.Stop()
 }
 
-// Writer
-func (r *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
-	for i, b := range bBloom {
-		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, i), b)
-	}
-	r.set(ctx, key(meta.BlockID, meta.TenantID), bIndex)
+// Write implements backend.Writer
+func (r *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+	if size > 0 && size < backend.MaxCacheSizeBytes {
+		var bytesBuffer bytes.Buffer
+		tee := io.TeeReader(data, &bytesBuffer)
 
-	return r.nextWriter.Write(ctx, meta, bBloom, bIndex, objectFilePath)
+		object, err := ioutil.ReadAll(tee)
+		if err != nil {
+			return err
+		}
+
+		r.set(ctx, key(blockID, tenantID, name), object)
+		data = &bytesBuffer
+	}
+
+	return r.nextWriter.Write(ctx, name, blockID, tenantID, data, size)
 }
 
-func (r *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
-	for i, b := range bBloom {
-		r.set(ctx, bloomKey(meta.BlockID, meta.TenantID, i), b)
-	}
-	r.set(ctx, key(meta.BlockID, meta.TenantID), bIndex)
-
-	return r.nextWriter.WriteBlockMeta(ctx, tracker, meta, bBloom, bIndex)
+// WriteBlockMeta implements backend.Writer
+func (r *readerWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
+	return r.nextWriter.WriteBlockMeta(ctx, meta)
 }
 
-func (r *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
-	return r.nextWriter.AppendObject(ctx, tracker, meta, bObject)
+// Append implements backend.Writer
+func (r *readerWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	return r.nextWriter.Append(ctx, name, blockID, tenantID, tracker, buffer)
+}
+
+// CloseAppend implements backend.Writer
+func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	return r.nextWriter.CloseAppend(ctx, tracker)
 }
 
 func (r *readerWriter) get(ctx context.Context, key string) []byte {
@@ -137,10 +149,6 @@ func (r *readerWriter) set(ctx context.Context, key string, val []byte) {
 	r.client.Store(ctx, []string{key}, [][]byte{val})
 }
 
-func key(blockID uuid.UUID, tenantID string) string {
-	return blockID.String() + ":" + tenantID + ":" + typeIndex
-}
-
-func bloomKey(blockID uuid.UUID, tenantID string, shardNum int) string {
-	return blockID.String() + ":" + tenantID + ":" + typeBloom + strconv.Itoa(shardNum)
+func key(blockID uuid.UUID, tenantID string, name string) string {
+	return blockID.String() + ":" + tenantID + ":" + name
 }
