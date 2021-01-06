@@ -26,7 +26,7 @@
           {
             alert: 'TempoRequestLatency',
             expr: |||
-              namespace_job_route:tempo_request_duration_seconds:99quantile{} > 3
+              namespace_job_route:tempo_request_duration_seconds:99quantile{route!~"metrics|/frontend.Frontend/Process"} > 3
             |||,
             'for': '15m',
             labels: {
