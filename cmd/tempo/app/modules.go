@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/cortexproject/cortex/pkg/cortex"
-	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
+	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
@@ -21,7 +21,6 @@ import (
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
-	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
@@ -129,13 +128,13 @@ func (t *App) initIngester() (services.Service, error) {
 func (t *App) initQuerier() (services.Service, error) {
 	// validate worker config
 	// if we're not in single binary mode and worker address is not specified - bail
-	if t.cfg.Target != All && t.cfg.Querier.Worker.Address == "" {
+	if t.cfg.Target != All && t.cfg.Querier.Worker.FrontendAddress == "" {
 		return nil, fmt.Errorf("frontend worker address not specified")
 	} else if t.cfg.Target == All {
 		// if we're in single binary mode with no worker address specified, register default endpoint
-		if t.cfg.Querier.Worker.Address == "" {
-			t.cfg.Querier.Worker.Address = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
-			level.Warn(util.Logger).Log("msg", "Worker address is empty in single binary mode.  Attempting automatic worker configuration.  If queries are unresponsive consider configuring the worker explicitly.", "address", t.cfg.Querier.Worker.Address)
+		if t.cfg.Querier.Worker.FrontendAddress == "" {
+			t.cfg.Querier.Worker.FrontendAddress = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
+			level.Warn(util.Logger).Log("msg", "Worker address is empty in single binary mode.  Attempting automatic worker configuration.  If queries are unresponsive consider configuring the worker explicitly.", "address", t.cfg.Querier.Worker.FrontendAddress)
 		}
 	}
 
@@ -154,27 +153,32 @@ func (t *App) initQuerier() (services.Service, error) {
 	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTP)
 }
 
+type cortexLimits struct{}
+
+func (cortexLimits) MaxQueriersPerUser(user string) int { return 0 }
+
 func (t *App) initQueryFrontend() (services.Service, error) {
 	var err error
-	t.frontend, err = cortex_frontend.New(t.cfg.Frontend.Config, util.Logger, prometheus.DefaultRegisterer)
+	t.frontend, err = cortex_frontend.New(t.cfg.Frontend.Config.FrontendV1, cortexLimits{}, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
 
 	// custom tripperware that splits requests
-	tripperware, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
+	/*tripperware, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
 	// tripperware will be called before f.roundTripper (which calls roundtripgrpc)
+	x := transport.AdaptGrpcRoundTripperToHTTPRoundTripper(t.frontend)
 	t.frontend.Wrap(tripperware)
 
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
 	).Wrap(t.frontend.Handler())
 
-	cortex_frontend.RegisterFrontendServer(t.server.GRPC, t.frontend)
-	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
+	frontendv1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
+	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)*/
 
 	return services.NewIdleService(nil, func(_ error) error {
 		t.frontend.Close()

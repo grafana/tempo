@@ -9,7 +9,7 @@ require (
 	github.com/alecthomas/kong v0.2.11
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
-	github.com/cortexproject/cortex v1.4.0
+	github.com/cortexproject/cortex v1.6.0
 	github.com/go-kit/kit v0.10.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/gogo/status v1.0.3
@@ -29,25 +29,25 @@ require (
 	github.com/open-telemetry/opentelemetry-proto v0.4.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_golang v1.8.0
 	github.com/prometheus/client_model v0.2.0
-	github.com/prometheus/common v0.11.1
-	github.com/prometheus/prometheus v1.8.2-0.20200819132913-cb830b0a9c78
+	github.com/prometheus/common v0.15.0
+	github.com/prometheus/prometheus v1.8.2-0.20201119181812-c8f810083d3f
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
-	github.com/weaveworks/common v0.0.0-20201029142910-313edde7a455
+	github.com/weaveworks/common v0.0.0-20201119133501-0619918236ec
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.22.4
 	go.opentelemetry.io/collector v0.6.1
-	go.uber.org/atomic v1.6.0
+	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.15.0
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e
-	google.golang.org/api v0.32.0
+	google.golang.org/api v0.35.0
 	google.golang.org/genproto v0.0.0-20201028140639-c77dae4b0522 // indirect
 	google.golang.org/grpc v1.33.1
 	gopkg.in/yaml.v2 v2.3.0
@@ -71,3 +71,9 @@ replace (
 	github.com/satori/go.uuid => github.com/satori/go.uuid v1.2.0
 	k8s.io/client-go => k8s.io/client-go v0.19.2
 )
+
+// Pin github.com/go-openapi versions to match Prometheus alertmanager to avoid
+// breaking changing affecting the alertmanager.
+replace github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
+
+replace github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8

@@ -87,6 +87,14 @@ func (cfg *StorageConfig) RegisterFlags(f *flag.FlagSet) {
 	cfg.S3Config.RegisterFlags(f)
 }
 
+// Validate config and returns error on failure
+func (cfg *StorageConfig) Validate() error {
+	if err := cfg.S3Config.Validate(); err != nil {
+		return errors.Wrap(err, "invalid S3 Storage config")
+	}
+	return nil
+}
+
 type dynamoDBStorageClient struct {
 	cfg       DynamoDBConfig
 	schemaCfg chunk.SchemaConfig
@@ -204,7 +212,7 @@ func (a dynamoDBStorageClient) BatchWrite(ctx context.Context, input chunk.Write
 				continue
 			} else if ok && awsErr.Code() == validationException {
 				// this write will never work, so the only option is to drop the offending items and continue.
-				level.Warn(util.Logger).Log("msg", "Data lost while flushing to Dynamo", "err", awsErr)
+				level.Warn(util.Logger).Log("msg", "Data lost while flushing to DynamoDB", "err", awsErr)
 				level.Debug(util.Logger).Log("msg", "Dropped request details", "requests", requests)
 				util.Event().Log("msg", "ValidationException", "requests", requests)
 				// recording the drop counter separately from recordDynamoError(), as the error code alone may not provide enough context
@@ -231,7 +239,7 @@ func (a dynamoDBStorageClient) BatchWrite(ctx context.Context, input chunk.Write
 	}
 
 	if valuesLeft := outstanding.Len() + unprocessed.Len(); valuesLeft > 0 {
-		return fmt.Errorf("failed to write chunk, %d values remaining: %s", valuesLeft, backoff.Err())
+		return fmt.Errorf("failed to write items to DynamoDB, %d values remaining: %s", valuesLeft, backoff.Err())
 	}
 	return backoff.Err()
 }
