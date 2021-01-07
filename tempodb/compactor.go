@@ -235,7 +235,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 }
 
 func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.CompactorBlock) (backend.AppendTracker, error) {
-	tracker, err := rw.w.AppendObject(context.TODO(), tracker, block.BlockMeta(), block.CurrentBuffer())
+	tracker, err := block.FlushBuffer(context.TODO(), tracker, rw.w)
 	if err != nil {
 		return nil, err
 	}
@@ -243,8 +243,6 @@ func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *encodin
 	compactionLevelLabel := strconv.Itoa(int(block.BlockMeta().CompactionLevel - 1))
 	metricCompactionObjectsWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferedObjects()))
 	metricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferLength()))
-
-	block.ResetBuffer()
 
 	return tracker, nil
 }
@@ -257,13 +255,7 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encodin
 		return err
 	}
 
-	ctx := context.TODO()
-	err = block.Complete(ctx, tracker, rw.w)
-	if err != nil {
-		return err
-	}
-
-	err = block.Write(ctx, rw.w) // todo:  add timeout
+	err = block.Complete(context.TODO(), tracker, rw.w)
 	if err != nil {
 		return err
 	}
