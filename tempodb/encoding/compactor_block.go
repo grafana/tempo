@@ -53,10 +53,6 @@ func (c *CompactorBlock) AddObject(id ID, object []byte) error {
 	return nil
 }
 
-func (c *CompactorBlock) CurrentBuffer() []byte {
-	return c.appendBuffer.Bytes()
-}
-
 func (c *CompactorBlock) CurrentBufferLength() int {
 	return c.appendBuffer.Len()
 }
@@ -72,7 +68,7 @@ func (c *CompactorBlock) Length() int {
 // FlushBuffer flushes any existing objects to the backend
 func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (backend.AppendTracker, error) {
 	meta := c.BlockMeta()
-	tracker, err := w.Append(ctx, nameObjects, meta.BlockID, meta.TenantID, tracker, block.CurrentBuffer())
+	tracker, err := w.Append(ctx, nameObjects, meta.BlockID, meta.TenantID, tracker, c.appendBuffer.Bytes())
 	if err != nil {
 		return nil, err
 	}

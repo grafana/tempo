@@ -47,7 +47,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		return backend.ErrEmptyBlockID
 	}
 
-	path = util.RootPath(blockID, tenantID) + "/"
+	path := util.RootPath(blockID, tenantID) + "/"
 	level.Debug(rw.logger).Log("msg", "deleting block", "block path", path)
 
 	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
@@ -57,7 +57,6 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	}
 
 	level.Debug(rw.logger).Log("msg", "listing objects", "found", len(res.Contents))
-	var tenants []string
 	for _, obj := range res.Contents {
 		err = rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, obj.Key, minio.RemoveObjectOptions{})
 		if err != nil {
