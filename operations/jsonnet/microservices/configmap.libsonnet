@@ -109,10 +109,18 @@
       'tempo.yaml': $.util.manifestYaml($.tempo_compactor_config),
     }),
 
+  tempo_query_frontend_config:: $.tempo_config{},
+
   tempo_querier_configmap:
     configMap.new('tempo-querier') +
     configMap.withData({
       'tempo.yaml': $.util.manifestYaml($.tempo_querier_config),
+    }),
+
+  tempo_query_frontend_configmap:
+    configMap.new('tempo-query-frontend') +
+    configMap.withData({
+      'tempo.yaml': $.util.manifestYaml($.tempo_query_frontend_config),
     }),
 
   tempo_query_configmap:
