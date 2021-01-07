@@ -235,14 +235,14 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 }
 
 func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.CompactorBlock) (backend.AppendTracker, error) {
+	compactionLevelLabel := strconv.Itoa(int(block.BlockMeta().CompactionLevel - 1))
+	metricCompactionObjectsWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferedObjects()))
+	metricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferLength()))
+
 	tracker, err := block.FlushBuffer(context.TODO(), tracker, rw.w)
 	if err != nil {
 		return nil, err
 	}
-
-	compactionLevelLabel := strconv.Itoa(int(block.BlockMeta().CompactionLevel - 1))
-	metricCompactionObjectsWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferedObjects()))
-	metricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferLength()))
 
 	return tracker, nil
 }
