@@ -256,9 +256,14 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encodin
 	if err != nil {
 		return err
 	}
-	block.Complete()
 
-	err = block.Write(context.TODO(), tracker, rw.w) // todo:  add timeout
+	ctx := context.TODO()
+	err = block.Complete(ctx, tracker, rw.w)
+	if err != nil {
+		return err
+	}
+
+	err = block.Write(ctx, rw.w) // todo:  add timeout
 	if err != nil {
 		return err
 	}

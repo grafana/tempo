@@ -74,29 +74,28 @@ func (c *CompactorBlock) Length() int {
 	return c.appender.Length()
 }
 
-func (c *CompactorBlock) Complete() {
+func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) error {
 	c.appender.Complete()
+
+	return w.CloseAppend(ctx, tracker)
 }
 
-func (c *CompactorBlock) Write(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) error {
+func (c *CompactorBlock) Write(ctx context.Context, w backend.Writer) error {
+	// index
 	records := c.appender.Records()
 	indexBytes, err := MarshalRecords(records)
 	if err != nil {
 		return err
 	}
 
+	// bloom
 	bloomBuffers, err := c.bloom.WriteTo()
 	if err != nil {
 		return err
 	}
 
 	meta := c.BlockMeta()
-	err = w.WriteBlockMeta(ctx, tracker, meta, bloomBuffers, indexBytes)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return writeBlock(ctx, w, meta, indexBytes, bloomBuffers)
 }
 
 func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
