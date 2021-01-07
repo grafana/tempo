@@ -83,7 +83,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, encoding.FindMetrics, error)
 	Shutdown()
 }
 
@@ -187,7 +187,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, FindMetrics, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, encoding.FindMetrics, error) {
 	metrics := encoding.FindMetrics{
 		BloomFilterReads:     atomic.NewInt32(0),
 		BloomFilterBytesRead: atomic.NewInt32(0),

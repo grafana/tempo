@@ -60,7 +60,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	for _, obj := range res.Contents {
 		err = rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, obj.Key, minio.RemoveObjectOptions{})
 		if err != nil {
-			return errors.Wrapf(err, "error deleting obj from s3: %s", obj)
+			return errors.Wrapf(err, "error deleting obj from s3: %s", obj.Key)
 		}
 	}
 
