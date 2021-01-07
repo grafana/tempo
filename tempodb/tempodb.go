@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	willf_bloom "github.com/willf/bloom"
 	"go.uber.org/atomic"
 
 	"github.com/cortexproject/cortex/pkg/util"
@@ -29,7 +28,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/redis"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -100,15 +98,6 @@ type CompactorSharder interface {
 
 type WriteableBlock interface {
 	Write(ctx context.Context, w backend.Writer) error
-}
-
-type FindMetrics struct {
-	BloomFilterReads     *atomic.Int32
-	BloomFilterBytesRead *atomic.Int32
-	IndexReads           *atomic.Int32
-	IndexBytesRead       *atomic.Int32
-	BlockReads           *atomic.Int32
-	BlockBytesRead       *atomic.Int32
 }
 
 type readerWriter struct {
@@ -199,7 +188,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 }
 
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, FindMetrics, error) {
-	metrics := FindMetrics{
+	metrics := encoding.FindMetrics{
 		BloomFilterReads:     atomic.NewInt32(0),
 		BloomFilterBytesRead: atomic.NewInt32(0),
 		IndexReads:           atomic.NewInt32(0),
@@ -254,70 +243,20 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 
 	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*backend.BlockMeta)
-		shardKey := bloom.ShardKeyForTraceID(id)
+		block := encoding.NewBackendBlock(meta)
 
-		bloomBytes, err := rw.r.Bloom(ctx, meta.BlockID, tenantID, shardKey)
+		foundObject, err := block.Find(derivedCtx, rw.r, id, &metrics)
 		if err != nil {
-			return nil, fmt.Errorf("error retrieving bloom %v", err)
+			return nil, err
 		}
 
-		filter := &willf_bloom.BloomFilter{}
-		_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
-		if err != nil {
-			return nil, fmt.Errorf("error parsing bloom %v", err)
-		}
-
-		metrics.BloomFilterReads.Inc()
-		metrics.BloomFilterBytesRead.Add(int32(len(bloomBytes)))
-		if !filter.Test(id) {
-			return nil, nil
-		}
-
-		indexBytes, err := rw.r.Index(ctx, meta.BlockID, tenantID)
-		metrics.IndexReads.Inc()
-		metrics.IndexBytesRead.Add(int32(len(indexBytes)))
-		if err != nil {
-			return nil, fmt.Errorf("error reading index %v", err)
-		}
-
-		record, err := encoding.FindRecord(id, indexBytes) // todo: replace with backend.Finder
-		if err != nil {
-			return nil, fmt.Errorf("error finding record %v", err)
-		}
-
-		if record == nil {
-			return nil, nil
-		}
-
-		objectBytes := make([]byte, record.Length)
-		err = rw.r.Object(ctx, meta.BlockID, tenantID, record.Start, objectBytes)
-		metrics.BlockReads.Inc()
-		metrics.BlockBytesRead.Add(int32(len(objectBytes)))
-		if err != nil {
-			return nil, fmt.Errorf("error reading object %v", err)
-		}
-
-		iter := encoding.NewIterator(bytes.NewReader(objectBytes))
-		var foundObject []byte
-		for {
-			iterID, iterObject, err := iter.Next()
-			if iterID == nil {
-				break
-			}
-			if err != nil {
-				return nil, err
-			}
-			if bytes.Equal(iterID, id) {
-				foundObject = iterObject
-				break
-			}
-		}
 		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
 		span.LogFields(
 			ot_log.String("msg", "searching for trace in block"),
 			ot_log.String("blockID", meta.BlockID.String()),
 			ot_log.Bool("found", foundObject != nil),
 			ot_log.Int("bytes", len(foundObject)))
+
 		return foundObject, nil
 	})
 
