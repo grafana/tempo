@@ -12,11 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	typeBloom = "bloom"
-	typeIndex = "index"
-)
-
 type Config struct {
 	ClientConfig cache.RedisConfig `yaml:",inline"`
 

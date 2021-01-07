@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -300,9 +299,4 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 		}
 		totalBytes += byteCount
 	}
-}
-
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return !os.IsNotExist(err)
 }

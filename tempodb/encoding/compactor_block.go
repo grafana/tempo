@@ -97,7 +97,7 @@ func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	}
 
 	meta := c.BlockMeta()
-	writeBlock(ctx, w, meta, indexBytes, bloomBuffers)
+	err = writeBlock(ctx, w, meta, indexBytes, bloomBuffers)
 	if err != nil {
 		return err
 	}

@@ -13,11 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	typeBloom = "bloom"
-	typeIndex = "index"
-)
-
 type Config struct {
 	ClientConfig cache.MemcachedClientConfig `yaml:",inline"`
 
