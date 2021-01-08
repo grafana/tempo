@@ -149,9 +149,9 @@ func (o *Overrides) IngestionRateSpans(userID string) float64 {
 	return float64(o.getOverridesForUser(userID).IngestionRateSpans)
 }
 
-// IngestionMaxBatchSize is the burst size in spans allowed for this tenant
-func (o *Overrides) IngestionMaxBatchSize(userID string) int {
-	return o.getOverridesForUser(userID).IngestionMaxBatchSize
+// IngestionBurstSize is the burst size in spans allowed for this tenant
+func (o *Overrides) IngestionBurstSize(userID string) int {
+	return o.getOverridesForUser(userID).IngestionBurstSize
 }
 
 func (o *Overrides) getOverridesForUser(userID string) *Limits {
