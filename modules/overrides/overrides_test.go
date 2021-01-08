@@ -32,7 +32,7 @@ func TestOverrides(t *testing.T) {
 				MaxGlobalTracesPerUser: 1,
 				MaxLocalTracesPerUser:  2,
 				MaxSpansPerTrace:       3,
-				IngestionMaxBatchSize:  4,
+				IngestionBurstSize:     4,
 				IngestionRateSpans:     5,
 			},
 			expectedMaxGlobalTraces:     map[string]int{"user1": 1, "user2": 1},
@@ -47,7 +47,7 @@ func TestOverrides(t *testing.T) {
 				MaxGlobalTracesPerUser: 1,
 				MaxLocalTracesPerUser:  2,
 				MaxSpansPerTrace:       3,
-				IngestionMaxBatchSize:  4,
+				IngestionBurstSize:     4,
 				IngestionRateSpans:     5,
 			},
 			overrides: &perTenantOverrides{
@@ -56,7 +56,7 @@ func TestOverrides(t *testing.T) {
 						MaxGlobalTracesPerUser: 6,
 						MaxLocalTracesPerUser:  7,
 						MaxSpansPerTrace:       8,
-						IngestionMaxBatchSize:  9,
+						IngestionBurstSize:     9,
 						IngestionRateSpans:     10,
 					},
 				},
@@ -98,7 +98,7 @@ func TestOverrides(t *testing.T) {
 			}
 
 			for user, expectedVal := range tt.expectedIngestionBurstSpans {
-				assert.Equal(t, expectedVal, overrides.IngestionMaxBatchSize(user))
+				assert.Equal(t, expectedVal, overrides.IngestionBurstSize(user))
 			}
 
 			for user, expectedVal := range tt.expectedIngestionRateSpans {
