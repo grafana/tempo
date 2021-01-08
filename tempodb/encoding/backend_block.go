@@ -22,6 +22,17 @@ type FindMetrics struct {
 	BlockBytesRead       *atomic.Int32
 }
 
+func NewFindMetrics() FindMetrics {
+	return FindMetrics{
+		BloomFilterReads:     atomic.NewInt32(0),
+		BloomFilterBytesRead: atomic.NewInt32(0),
+		IndexReads:           atomic.NewInt32(0),
+		IndexBytesRead:       atomic.NewInt32(0),
+		BlockReads:           atomic.NewInt32(0),
+		BlockBytesRead:       atomic.NewInt32(0),
+	}
+}
+
 // BackendBlock defines an object that can find traces
 type BackendBlock interface {
 	Find(ctx context.Context, r backend.Reader, id ID, metrics *FindMetrics) ([]byte, error)
@@ -46,13 +57,13 @@ func (b *backendBlock) Find(ctx context.Context, r backend.Reader, id ID, metric
 
 	bloomBytes, err := r.Read(ctx, bloomName(shardKey), blockID, tenantID)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving bloom %v", err)
+		return nil, fmt.Errorf("error retrieving bloom %w", err)
 	}
 
 	filter := &willf_bloom.BloomFilter{}
 	_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
 	if err != nil {
-		return nil, fmt.Errorf("error parsing bloom %v", err)
+		return nil, fmt.Errorf("error parsing bloom %w", err)
 	}
 
 	metrics.BloomFilterReads.Inc()
@@ -65,12 +76,12 @@ func (b *backendBlock) Find(ctx context.Context, r backend.Reader, id ID, metric
 	metrics.IndexReads.Inc()
 	metrics.IndexBytesRead.Add(int32(len(indexBytes)))
 	if err != nil {
-		return nil, fmt.Errorf("error reading index %v", err)
+		return nil, fmt.Errorf("error reading index %w", err)
 	}
 
 	record, err := FindRecord(id, indexBytes) // todo: replace with backend.Finder
 	if err != nil {
-		return nil, fmt.Errorf("error finding record %v", err)
+		return nil, fmt.Errorf("error finding record %w", err)
 	}
 
 	if record == nil {
@@ -82,7 +93,7 @@ func (b *backendBlock) Find(ctx context.Context, r backend.Reader, id ID, metric
 	metrics.BlockReads.Inc()
 	metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 	if err != nil {
-		return nil, fmt.Errorf("error reading object %v", err)
+		return nil, fmt.Errorf("error reading object %w", err)
 	}
 
 	iter := NewIterator(bytes.NewReader(objectBytes))

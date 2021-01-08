@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/atomic"
 
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/opentracing/opentracing-go"
@@ -188,14 +187,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 }
 
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, encoding.FindMetrics, error) {
-	metrics := encoding.FindMetrics{
-		BloomFilterReads:     atomic.NewInt32(0),
-		BloomFilterBytesRead: atomic.NewInt32(0),
-		IndexReads:           atomic.NewInt32(0),
-		IndexBytesRead:       atomic.NewInt32(0),
-		BlockReads:           atomic.NewInt32(0),
-		BlockBytesRead:       atomic.NewInt32(0),
-	}
+	metrics := encoding.NewFindMetrics()
 
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)
