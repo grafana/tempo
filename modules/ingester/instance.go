@@ -1,6 +1,7 @@
 package ingester
 
 import (
+	"container/list"
 	"context"
 	"fmt"
 	"hash"
@@ -113,26 +114,32 @@ func (i *instance) PushBytes(ctx context.Context, id tempodb_encoding.ID, object
 
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
+	now := time.Now()
+	tracesToCut := list.New()
+
 	i.tracesMtx.Lock()
-	defer i.tracesMtx.Unlock()
+	for key, trace := range i.traces {
+		if now.Add(cutoff).After(trace.lastAppend) || immediate {
+			tracesToCut.PushBack(trace)
+			delete(i.traces, key)
+		}
+	}
+	i.tracesMtx.Unlock()
 
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	now := time.Now()
-	for key, trace := range i.traces {
-		if now.Add(cutoff).After(trace.lastAppend) || immediate {
-			out, err := proto.Marshal(trace.trace)
-			if err != nil {
-				return err
-			}
-			err = i.headBlock.Write(trace.traceID, out)
-			if err != nil {
-				return err
-			}
-			i.bytesWrittenTotal.Add(float64(len(out)))
-			delete(i.traces, key)
+	for e := tracesToCut.Front(); e != nil; e = e.Next() {
+		trace := e.Value.(*trace)
+		out, err := proto.Marshal(trace.trace)
+		if err != nil {
+			return err
 		}
+		err = i.headBlock.Write(trace.traceID, out)
+		if err != nil {
+			return err
+		}
+		i.bytesWrittenTotal.Add(float64(len(out)))
 	}
 
 	return nil
