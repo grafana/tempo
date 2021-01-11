@@ -8,7 +8,7 @@ This document details release procedures for Tempo.  Currently it's pretty dang 
 - This will initiate the build process in Github Actions and Drone.  The tagged docker image should
   be available here shortly: https://hub.docker.com/r/grafana/tempo/tags?page=1&ordering=last_updated
 - A Github Release Draft should also be available here:  https://github.com/grafana/tempo/releases
-  - Link the Changelog
+  - Copy over the CHANGELOG entries for the release
   - Call out contributors for their work
   - Cull unnecessary changes that don't impact the Tempo binary or deployment
   - Call out breaking changes!
