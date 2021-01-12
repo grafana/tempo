@@ -1,7 +1,6 @@
 package ingester
 
 import (
-	"container/list"
 	"context"
 	"fmt"
 	"hash"
@@ -119,13 +118,12 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	for e := tracesToCut.Front(); e != nil; e = e.Next() {
-		trace := e.Value.(*trace)
-		out, err := proto.Marshal(trace.trace)
+	for _, t := range tracesToCut {
+		out, err := proto.Marshal(t.trace)
 		if err != nil {
 			return err
 		}
-		err = i.headBlock.Write(trace.traceID, out)
+		err = i.headBlock.Write(t.traceID, out)
 		if err != nil {
 			return err
 		}
@@ -274,6 +272,8 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	return nil, nil
 }
 
+// getOrCreateTrace will return a new trace object for the given request
+//  It must be called under the i.tracesMtx lock
 func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	traceID, err := pushRequestTraceID(req)
 	if err != nil {
@@ -314,18 +314,16 @@ func (i *instance) resetHeadBlock() error {
 	return err
 }
 
-// retrieves active traces that are ready to be cut and returns them.  these
-// traces are then removed from the map
-func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) *list.List {
-	now := time.Now()
-	tracesToCut := list.New()
-
+func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
+	now := time.Now()
+	tracesToCut := make([]*trace, 0, len(i.traces))
+
 	for key, trace := range i.traces {
 		if now.Add(cutoff).After(trace.lastAppend) || immediate {
-			tracesToCut.PushBack(trace)
+			tracesToCut = append(tracesToCut, trace)
 			delete(i.traces, key)
 		}
 	}
