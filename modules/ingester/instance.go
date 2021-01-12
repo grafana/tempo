@@ -114,17 +114,7 @@ func (i *instance) PushBytes(ctx context.Context, id tempodb_encoding.ID, object
 
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
-	now := time.Now()
-	tracesToCut := list.New()
-
-	i.tracesMtx.Lock()
-	for key, trace := range i.traces {
-		if now.Add(cutoff).After(trace.lastAppend) || immediate {
-			tracesToCut.PushBack(trace)
-			delete(i.traces, key)
-		}
-	}
-	i.tracesMtx.Unlock()
+	tracesToCut := i.tracesToCut(cutoff, immediate)
 
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
@@ -322,6 +312,25 @@ func (i *instance) resetHeadBlock() error {
 	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
 	i.lastBlockCut = time.Now()
 	return err
+}
+
+// retrieves active traces that are ready to be cut and returns them.  these
+// traces are then removed from the map
+func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) *list.List {
+	now := time.Now()
+	tracesToCut := list.New()
+
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
+
+	for key, trace := range i.traces {
+		if now.Add(cutoff).After(trace.lastAppend) || immediate {
+			tracesToCut.PushBack(trace)
+			delete(i.traces, key)
+		}
+	}
+
+	return tracesToCut
 }
 
 func (i *instance) Combine(objA []byte, objB []byte) []byte {
