@@ -6,7 +6,9 @@ import (
 	"os"
 
 	"github.com/cortexproject/cortex/pkg/cortex"
-	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
+	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend"
+	cortex_transport "github.com/cortexproject/cortex/pkg/frontend/transport"
+	cortex_frontend_v1pb "github.com/cortexproject/cortex/pkg/frontend/v1/frontendv1pb"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
@@ -21,6 +23,7 @@ import (
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
+	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
@@ -159,26 +162,28 @@ func (cortexLimits) MaxQueriersPerUser(user string) int { return 0 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
 	var err error
-	t.frontend, err = cortex_frontend.New(t.cfg.Frontend.Config.FrontendV1, cortexLimits{}, util.Logger, prometheus.DefaultRegisterer)
+
+	originalTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, cortexLimits{}, 0, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
+	t.frontend = v1
 
 	// custom tripperware that splits requests
-	/*tripperware, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
+	shardingTripper, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
-	// tripperware will be called before f.roundTripper (which calls roundtripgrpc)
-	x := transport.AdaptGrpcRoundTripperToHTTPRoundTripper(t.frontend)
-	t.frontend.Wrap(tripperware)
+	finalTripper := shardingTripper(originalTripper)
+
+	handler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, finalTripper, util.Logger, prometheus.DefaultRegisterer)
 
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
-	).Wrap(t.frontend.Handler())
+	).Wrap(handler)
 
-	frontendv1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
-	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)*/
+	cortex_frontend_v1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
+	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
 	return services.NewIdleService(nil, func(_ error) error {
 		t.frontend.Close()
