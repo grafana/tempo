@@ -57,7 +57,7 @@ var (
 		Namespace: "tempo",
 		Name:      "distributor_traces_per_batch",
 		Help:      "The number of traces in each batch",
-		Buckets:   prometheus.LinearBuckets(0, 3, 10),
+		Buckets:   prometheus.ExponentialBuckets(2, 2, 10),
 	})
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
