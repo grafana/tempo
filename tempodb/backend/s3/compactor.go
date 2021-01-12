@@ -53,7 +53,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
 	res, err := rw.core.ListObjects(rw.cfg.Bucket, path, "", "/", 0)
 	if err != nil {
-		return errors.Wrapf(err, "error listing tenants in bucket %s", rw.cfg.Bucket)
+		return errors.Wrapf(err, "error listing objects in bucket %s", rw.cfg.Bucket)
 	}
 
 	level.Debug(rw.logger).Log("msg", "listing objects", "found", len(res.Contents))
