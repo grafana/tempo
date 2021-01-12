@@ -2,10 +2,8 @@ package encoding
 
 import (
 	"bytes"
-	"io/ioutil"
 	"math"
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 
@@ -24,13 +22,7 @@ func TestCompactorBlockError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestCompactorBlockWrite(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	assert.NoError(t, err)
-
+func TestCompactorBlockAddObject(t *testing.T) {
 	indexDownsample := 3
 	bloomFP := .01
 
@@ -74,7 +66,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 			maxID = id
 		}
 	}
-	cb.Complete()
+	cb.appender.Complete()
 
 	assert.Equal(t, numObjects, cb.Length())
 

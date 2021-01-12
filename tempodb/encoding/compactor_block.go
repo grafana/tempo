@@ -53,10 +53,6 @@ func (c *CompactorBlock) AddObject(id ID, object []byte) error {
 	return nil
 }
 
-func (c *CompactorBlock) CurrentBuffer() []byte {
-	return c.appendBuffer.Bytes()
-}
-
 func (c *CompactorBlock) CurrentBufferLength() int {
 	return c.appendBuffer.Len()
 }
@@ -65,38 +61,48 @@ func (c *CompactorBlock) CurrentBufferedObjects() int {
 	return c.bufferedObjects
 }
 
-func (c *CompactorBlock) ResetBuffer() {
-	c.appendBuffer.Reset()
-	c.bufferedObjects = 0
-}
-
 func (c *CompactorBlock) Length() int {
 	return c.appender.Length()
 }
 
-func (c *CompactorBlock) Complete() {
-	c.appender.Complete()
+// FlushBuffer flushes any existing objects to the backend
+func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (backend.AppendTracker, error) {
+	meta := c.BlockMeta()
+	tracker, err := w.Append(ctx, nameObjects, meta.BlockID, meta.TenantID, tracker, c.appendBuffer.Bytes())
+	if err != nil {
+		return nil, err
+	}
+
+	c.appendBuffer.Reset()
+	c.bufferedObjects = 0
+
+	return tracker, nil
 }
 
-func (c *CompactorBlock) Write(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) error {
+// Complete finishes writes the compactor metadata and closes all buffers and appenders
+func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) error {
+	c.appender.Complete()
+
+	// index
 	records := c.appender.Records()
 	indexBytes, err := MarshalRecords(records)
 	if err != nil {
 		return err
 	}
 
+	// bloom
 	bloomBuffers, err := c.bloom.WriteTo()
 	if err != nil {
 		return err
 	}
 
 	meta := c.BlockMeta()
-	err = w.WriteBlockMeta(ctx, tracker, meta, bloomBuffers, indexBytes)
+	err = writeBlock(ctx, w, meta, indexBytes, bloomBuffers)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	return w.CloseAppend(ctx, tracker)
 }
 
 func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {

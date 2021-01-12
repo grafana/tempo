@@ -9,71 +9,24 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/stretchr/testify/assert"
 )
-
-type mockReader struct {
-	tenants []string
-	blocks  []uuid.UUID
-	meta    *backend.BlockMeta
-	bloom   []byte
-	index   []byte
-	object  []byte
-}
-
-func (m *mockReader) Tenants(ctx context.Context) ([]string, error) {
-	return m.tenants, nil
-}
-func (m *mockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
-	return m.blocks, nil
-}
-func (m *mockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
-	return m.meta, nil
-}
-func (m *mockReader) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
-	return m.bloom, nil
-}
-func (m *mockReader) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	return m.index, nil
-}
-func (m *mockReader) Object(ctx context.Context, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
-	copy(buffer, m.object)
-	return nil
-}
-func (m *mockReader) Shutdown() {}
-
-type mockWriter struct {
-}
-
-func (m *mockWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
-	return nil
-}
-func (m *mockWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
-	return nil
-}
-func (m *mockWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
-	return nil, nil
-}
 
 func TestCache(t *testing.T) {
 	tenantID := "test"
 	blockID := uuid.New()
-	shardNum := 0
 
 	tests := []struct {
 		name            string
 		readerTenants   []string
 		readerBlocks    []uuid.UUID
 		readerMeta      *backend.BlockMeta
-		readerBloom     []byte
-		readerIndex     []byte
-		readerObject    []byte
+		readerRead      []byte
 		expectedTenants []string
 		expectedBlocks  []uuid.UUID
 		expectedMeta    *backend.BlockMeta
-		expectedBloom   []byte
-		expectedIndex   []byte
-		expectedObject  []byte
+		expectedRead    []byte
 	}{
 		{
 			name:            "tenants passthrough",
@@ -86,38 +39,26 @@ func TestCache(t *testing.T) {
 			readerBlocks:   []uuid.UUID{blockID},
 		},
 		{
-			name:          "index",
-			expectedIndex: []byte{0x01},
-			readerIndex:   []byte{0x01},
-		},
-		{
-			name:          "bloom",
-			expectedBloom: []byte{0x02},
-			readerBloom:   []byte{0x02},
-		},
-		{
-			name:           "object",
-			expectedObject: []byte{0x03},
-			readerObject:   []byte{0x03},
+			name:         "read",
+			expectedRead: []byte{0x02},
+			readerRead:   []byte{0x02},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockR := &mockReader{
-				tenants: tt.readerTenants,
-				blocks:  tt.readerBlocks,
-				meta:    tt.readerMeta,
-				bloom:   tt.readerBloom,
-				index:   tt.readerIndex,
-				object:  tt.readerObject,
-			}
-			mockW := &mockWriter{}
 			mr, _ := miniredis.Run()
-
+			mockR := &util.MockReader{
+				T: tt.readerTenants,
+				B: tt.readerBlocks,
+				M: tt.readerMeta,
+				R: tt.readerRead,
+			}
+			mockW := &util.MockWriter{}
 			mockC := cache.NewRedisClient(&cache.RedisConfig{
 				Endpoint: mr.Addr(),
 			})
+
 			logger := log.NewNopLogger()
 			rw := &readerWriter{
 				client:     cache.NewRedisCache("tempo", mockC, logger),
@@ -133,28 +74,16 @@ func TestCache(t *testing.T) {
 			assert.Equal(t, tt.expectedBlocks, blocks)
 			meta, _ := rw.BlockMeta(ctx, blockID, tenantID)
 			assert.Equal(t, tt.expectedMeta, meta)
-			bloom, _ := rw.Bloom(ctx, blockID, tenantID, shardNum)
-			assert.Equal(t, tt.expectedBloom, bloom)
-			index, _ := rw.Index(ctx, blockID, tenantID)
-			assert.Equal(t, tt.expectedIndex, index)
-
-			if tt.expectedObject != nil {
-				object := make([]byte, 1)
-				_ = rw.Object(ctx, blockID, tenantID, 0, object)
-				assert.Equal(t, tt.expectedObject, object)
-			}
+			read, _ := rw.Read(ctx, "test", blockID, tenantID)
+			assert.Equal(t, tt.expectedRead, read)
 
 			// clear reader and re-request.  things should be cached!
-			mockR.bloom = nil
-			mockR.index = nil
-			mockR.tenants = nil
-			mockR.blocks = nil
-			mockR.meta = nil
+			mockR.T = nil
+			mockR.B = nil
+			mockR.M = nil
 
-			bloom, _ = rw.Bloom(ctx, blockID, tenantID, shardNum)
-			assert.Equal(t, tt.expectedBloom, bloom)
-			index, _ = rw.Index(ctx, blockID, tenantID)
-			assert.Equal(t, tt.expectedIndex, index)
+			read, _ = rw.Read(ctx, "test", blockID, tenantID)
+			assert.Equal(t, tt.expectedRead, read)
 
 			// others should be nil
 			tenants, _ = rw.Tenants(ctx)

@@ -21,7 +21,7 @@ type backendIterator struct {
 }
 
 func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader backend.Reader) (Iterator, error) {
-	index, err := reader.Index(context.TODO(), blockID, tenantID)
+	index, err := reader.Read(context.TODO(), nameIndex, blockID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (i *backendIterator) Next() (ID, []byte, error) {
 		i.objectsBuffer = make([]byte, length)
 	}
 	i.activeObjectsBuffer = i.objectsBuffer[:length]
-	err = i.r.Object(context.TODO(), i.blockID, i.tenantID, start, i.activeObjectsBuffer)
+	err = i.r.ReadRange(context.TODO(), nameObjects, i.blockID, i.tenantID, start, i.activeObjectsBuffer)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}
