@@ -156,14 +156,10 @@ func (t *App) initQuerier() (services.Service, error) {
 	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTP)
 }
 
-type cortexLimits struct{}
-
-func (cortexLimits) MaxQueriersPerUser(user string) int { return 0 }
-
 func (t *App) initQueryFrontend() (services.Service, error) {
 	var err error
 
-	originalTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, cortexLimits{}, 0, util.Logger, prometheus.DefaultRegisterer)
+	originalTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}

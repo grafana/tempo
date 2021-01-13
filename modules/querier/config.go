@@ -22,8 +22,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 5
 	cfg.Worker = cortex_worker.Config{
-		MatchMaxConcurrency: true,
-		Parallelism:         2,
+		MatchMaxConcurrency:   true,
+		MaxConcurrentRequests: cfg.MaxConcurrentQueries,
+		Parallelism:           2,
 		GRPCClientConfig: grpcclient.ConfigWithTLS{
 			GRPC: grpcclient.Config{
 				MaxRecvMsgSize:     100 << 20,

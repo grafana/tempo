@@ -4,6 +4,7 @@ import (
 	"flag"
 
 	"github.com/cortexproject/cortex/pkg/frontend"
+	v1 "github.com/cortexproject/cortex/pkg/frontend/v1"
 )
 
 type Config struct {
@@ -18,3 +19,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Config.FrontendV1.MaxOutstandingPerTenant = 100
 	cfg.QueryShards = 4
 }
+
+type CortexNoQuerierLimits struct{}
+
+var _ v1.Limits = (*CortexNoQuerierLimits)(nil)
+
+func (CortexNoQuerierLimits) MaxQueriersPerUser(user string) int { return 0 }

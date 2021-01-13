@@ -91,11 +91,9 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 }
 
 func (q *Querier) CreateAndRegisterWorker(tracesHandler http.Handler) error {
+	q.cfg.Worker.MaxConcurrentRequests = q.cfg.MaxConcurrentQueries
 	worker, err := cortex_worker.NewQuerierWorker(
 		q.cfg.Worker,
-		/*cortex_worker.Config{
-			MaxConcurrent: q.cfg.MaxConcurrentQueries,
-		},*/
 		httpgrpc_server.NewServer(tracesHandler),
 		util.Logger,
 		nil,
