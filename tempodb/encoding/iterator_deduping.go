@@ -16,6 +16,8 @@ type dedupingIterator struct {
 	currentObject []byte
 }
 
+// NewDedupingIterator returns a dedupingIterator.  This iterator is used to wrap another
+//  iterator.  It will dedupe consecutive objects with the same id using the ObjectCombiner.
 func NewDedupingIterator(iter Iterator, combiner ObjectCombiner) (Iterator, error) {
 	i := &dedupingIterator{
 		iter:     iter,

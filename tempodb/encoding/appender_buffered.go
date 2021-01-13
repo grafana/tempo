@@ -14,6 +14,8 @@ type bufferedAppender struct {
 	indexDownsample int
 }
 
+// NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
+//  the provided writer and also builds a downsampled records slice.
 func NewBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEstimate int) Appender {
 	return &bufferedAppender{
 		writer:          writer,

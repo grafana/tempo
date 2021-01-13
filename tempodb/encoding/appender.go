@@ -19,6 +19,8 @@ type appender struct {
 	currentOffset int
 }
 
+// NewAppender returns an appender.  This appender simply appends new objects
+//  to the provided io.Writer.
 func NewAppender(writer io.Writer) Appender {
 	return &appender{
 		writer: writer,

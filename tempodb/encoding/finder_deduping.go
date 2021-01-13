@@ -12,6 +12,9 @@ type dedupingFinder struct {
 	combiner      ObjectCombiner
 }
 
+// NewDedupingFinder returns a dedupingFinder. This finder is used for searching
+//  a set of records and returning an object. If a set of consecutive records has
+//  matching ids they will be combined using the ObjectCombiner.
 func NewDedupingFinder(sortedRecords []*Record, ra io.ReaderAt, combiner ObjectCombiner) Finder {
 	return &dedupingFinder{
 		ra:            ra,

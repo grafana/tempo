@@ -20,6 +20,8 @@ type backendIterator struct {
 	activeObjectsBuffer []byte
 }
 
+// NewBackendIterator returns a backendIterator.  This iterator is used to iterate
+//  through objects stored in object storage.
 func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader backend.Reader) (Iterator, error) {
 	index, err := reader.Read(context.TODO(), nameIndex, blockID, tenantID)
 	if err != nil {

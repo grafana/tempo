@@ -12,6 +12,8 @@ type recordIterator struct {
 	currentIterator Iterator
 }
 
+// NewRecordIterator returns a recordIterator.  This iterator is used for iterating through
+//  a series of objects by reading them one at a time from Records.
 func NewRecordIterator(r []*Record, ra io.ReaderAt) Iterator {
 	return &recordIterator{
 		records: r,
