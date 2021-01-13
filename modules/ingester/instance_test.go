@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type ringCountMock struct {
@@ -324,7 +325,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 			}
 
 			err := instance.CutCompleteTraces(tc.cutoff, tc.immediate)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.Equal(t, len(tc.expectedExist), len(instance.traces))
 			for _, expectedExist := range tc.expectedExist {
