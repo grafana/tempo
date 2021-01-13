@@ -60,7 +60,7 @@
               max by (cluster, namespace) (cortex_ring_members{state="Unhealthy", name="distributor"}) > 0
             |||,
             labels: {
-              severity: 'critical',
+              severity: 'warning',
             },
             annotations: {
               message: 'There are {{ printf "%f" $value }} unhealthy distributor(s).',

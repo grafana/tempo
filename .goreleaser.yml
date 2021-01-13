@@ -17,6 +17,7 @@ builds:
       - -X main.date={{ .CommitDate }}
     mod_timestamp: '{{ .CommitTimestamp }}'
 changelog:
+  skip: true
   sort: asc
   filters:
     exclude:

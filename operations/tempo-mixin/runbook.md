@@ -23,9 +23,10 @@ Note that this more of an art than a science: https://github.com/grafana/tempo/i
 ## TempoDistributorUnhealthy
 
 Tempo by default uses [Memberlist](https://github.com/hashicorp/memberlist) to persist the ring state between components.
-Occasionally this results in old components staying in the ring which impacts distributors only if you are using the 
-global rate limiting strategy.  If this occurs port-forward to 3100 on a distributor and bring up `/distributor/ring`.  Use the
-"Forget" button to drop any unhealthy distributors.
+Occasionally this results in old components staying in the ring which does not impact distributors directly, but at some point 
+your components will be passing around a lot of unnecessary information. It may also indicate that a component shut down
+unexpectedly and may be worth investigating. If this occurs port-forward to 3100 on a distributor and bring up `/distributor/ring`. 
+Use the "Forget" button to drop any unhealthy distributors.
 
 Note that this more of an art than a science: https://github.com/grafana/tempo/issues/142
 

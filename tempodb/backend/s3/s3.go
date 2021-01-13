@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 )
 
@@ -30,6 +31,14 @@ type readerWriter struct {
 	logger log.Logger
 	cfg    *Config
 	core   *minio.Core
+}
+
+// appendTracker is a struct used to track multipart uploads
+type appendTracker struct {
+	uploadID   string
+	partNum    int
+	parts      []minio.ObjectPart
+	objectName string
 }
 
 type overrideSignatureVersion struct {
@@ -116,99 +125,44 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
-	if err := util.FileExists(objectFilePath); err != nil {
-		return err
-	}
+func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
+	return rw.WriteReader(ctx, name, blockID, tenantID, bytes.NewBuffer(buffer), int64(len(buffer)))
+}
 
-	objName := util.ObjectFileName(meta.BlockID, meta.TenantID)
-	info, err := rw.core.FPutObject(
+// WriteReader implements backend.Writer
+func (rw *readerWriter) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+	objName := util.ObjectFileName(blockID, tenantID, name)
+
+	info, err := rw.core.Client.PutObject(
 		ctx,
 		rw.cfg.Bucket,
 		objName,
-		objectFilePath,
+		data,
+		size,
 		minio.PutObjectOptions{PartSize: rw.cfg.PartSize},
 	)
 	if err != nil {
 		return errors.Wrapf(err, "error writing object to s3 backend, object %s", objName)
 	}
-
 	level.Debug(rw.logger).Log("msg", "object uploaded to s3", "objectName", objName, "size", info.Size)
-
-	err = rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
 
 // WriteBlockMeta implements backend.Writer
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
-	if tracker != nil {
-		a := tracker.(AppenderTracker)
-		completeParts := make([]minio.CompletePart, 0)
-		for _, p := range a.parts {
-			completeParts = append(completeParts, minio.CompletePart{
-				PartNumber: p.PartNumber,
-				ETag:       p.ETag,
-			})
-		}
-		level.Debug(rw.logger).Log("msg", "marking compacted block complete", "parts", len(completeParts))
-		objName := util.ObjectFileName(meta.BlockID, meta.TenantID)
-		etag, err := rw.core.CompleteMultipartUpload(
-			ctx,
-			rw.cfg.Bucket,
-			objName,
-			a.uploadID,
-			completeParts,
-		)
-		if err != nil {
-			return errors.Wrapf(err, "error completing multipart upload, object: %s, obj etag: %s", objName, etag)
-		}
-	}
-
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 	options := minio.PutObjectOptions{
 		PartSize: rw.cfg.PartSize,
 	}
 
-	for i, b := range bBloom {
-		info, err := rw.core.Client.PutObject(
-			ctx,
-			rw.cfg.Bucket,
-			util.BloomFileName(blockID, tenantID, i),
-			bytes.NewReader(b),
-			int64(len(b)),
-			options,
-		)
-		if err != nil {
-			return errors.Wrap(err, "error uploading bloom filter to s3")
-		}
-		level.Debug(rw.logger).Log("msg", "block bloom uploaded to s3", "shard", i, "size", info.Size)
-	}
-
-	info, err := rw.core.Client.PutObject(
-		ctx,
-		rw.cfg.Bucket,
-		util.IndexFileName(blockID, tenantID),
-		bytes.NewReader(bIndex),
-		int64(len(bIndex)),
-		options,
-	)
-	if err != nil {
-		return errors.Wrap(err, "error uploading index to s3")
-	}
-	level.Debug(rw.logger).Log("msg", "block index uploaded to s3", "size", info.Size)
-
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
 		return errors.Wrap(err, "error unmarshalling block meta json")
 	}
 
-	// write meta last.  this will prevent blocklist from returning a partial block
-	info, err = rw.core.Client.PutObject(
+	info, err := rw.core.Client.PutObject(
 		ctx,
 		rw.cfg.Bucket,
 		util.MetaFileName(blockID, tenantID),
@@ -224,44 +178,41 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	return nil
 }
 
-type AppenderTracker struct {
-	uploadID string
-	partNum  int
-	parts    []minio.ObjectPart
-}
-
 // AppendObject implements backend.Writer
-func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
-	var a AppenderTracker
+func (rw *readerWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	var a appendTracker
+	objectName := util.ObjectFileName(blockID, tenantID, name)
+
 	options := minio.PutObjectOptions{
 		PartSize: rw.cfg.PartSize,
 	}
 	if tracker != nil {
-		a = tracker.(AppenderTracker)
+		a = tracker.(appendTracker)
 	} else {
 		id, err := rw.core.NewMultipartUpload(
 			ctx,
 			rw.cfg.Bucket,
-			util.ObjectFileName(meta.BlockID, meta.TenantID),
+			objectName,
 			options,
 		)
 		if err != nil {
 			return nil, err
 		}
 		a.uploadID = id
+		a.objectName = objectName
 	}
 
-	level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", util.ObjectFileName(meta.BlockID, meta.TenantID))
+	level.Debug(rw.logger).Log("msg", "appending object to s3", "objectName", objectName)
 
 	a.partNum++
 	objPart, err := rw.core.PutObjectPart(
 		ctx,
 		rw.cfg.Bucket,
-		util.ObjectFileName(meta.BlockID, meta.TenantID),
+		objectName,
 		a.uploadID,
 		a.partNum,
-		bytes.NewReader(bObject),
-		int64(len(bObject)),
+		bytes.NewReader(buffer),
+		int64(len(buffer)),
 		"",
 		"",
 		nil,
@@ -272,6 +223,31 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 	a.parts = append(a.parts, objPart)
 
 	return a, nil
+}
+
+// CloseAppend implements backend.Writer
+func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	a := tracker.(appendTracker)
+	completeParts := make([]minio.CompletePart, 0)
+	for _, p := range a.parts {
+		completeParts = append(completeParts, minio.CompletePart{
+			PartNumber: p.PartNumber,
+			ETag:       p.ETag,
+		})
+	}
+
+	etag, err := rw.core.CompleteMultipartUpload(
+		ctx,
+		rw.cfg.Bucket,
+		a.objectName,
+		a.uploadID,
+		completeParts,
+	)
+	if err != nil {
+		return errors.Wrapf(err, "error completing multipart upload, object: %s, obj etag: %s", a.objectName, etag)
+	}
+
+	return nil
 }
 
 // Tenants implements backend.Reader
@@ -326,22 +302,20 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 	return out, nil
 }
 
-// Bloom implements backend.Reader
-func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, bloomShard int) ([]byte, error) {
-	bloomFileName := util.BloomFileName(blockID, tenantID, bloomShard)
-	return rw.readAll(ctx, bloomFileName)
+// Read implements backend.Reader
+func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Read")
+	defer span.Finish()
+
+	return rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
 }
 
-// Index implements backend.Reader
-func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	indexFileName := util.IndexFileName(blockID, tenantID)
-	return rw.readAll(ctx, indexFileName)
-}
+// ReadRange implements backend.Reader
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "ReadRange")
+	defer span.Finish()
 
-// Object implements backend.Reader
-func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
-	objFileName := util.ObjectFileName(blockID, tenantID)
-	return rw.readRange(ctx, objFileName, int64(start), buffer)
+	return rw.readRange(derivedCtx, util.ObjectFileName(blockID, tenantID, name), int64(offset), buffer)
 }
 
 // Shutdown implements backend.Reader
