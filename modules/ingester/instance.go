@@ -318,11 +318,11 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
-	now := time.Now()
+	cutoffTime := time.Now().Add(cutoff)
 	tracesToCut := make([]*trace, 0, len(i.traces))
 
 	for key, trace := range i.traces {
-		if now.Add(cutoff).After(trace.lastAppend) || immediate {
+		if cutoffTime.After(trace.lastAppend) || immediate {
 			tracesToCut = append(tracesToCut, trace)
 			delete(i.traces, key)
 		}
