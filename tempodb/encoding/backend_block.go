@@ -33,9 +33,12 @@ func NewFindMetrics() FindMetrics {
 	}
 }
 
-// BackendBlock defines an object that can find traces
+// BackendBlock defines an object that can be used to interact with a block in object storage
 type BackendBlock interface {
+	// Find searches for a given ID and returns the object if exists
 	Find(ctx context.Context, r backend.Reader, id ID, metrics *FindMetrics) ([]byte, error)
+	// Iterator returns an iterator that can be used to examine every object in the block
+	Iterator(chunkSizeBytes uint32, r backend.Reader) (Iterator, error)
 }
 
 type backendBlock struct {
@@ -112,4 +115,9 @@ func (b *backendBlock) Find(ctx context.Context, r backend.Reader, id ID, metric
 		}
 	}
 	return foundObject, nil
+}
+
+// Iterator searches a block for the ID and returns an object if found.
+func (b *backendBlock) Iterator(chunkSizeBytes uint32, r backend.Reader) (Iterator, error) {
+	return NewBackendIterator(b.meta.TenantID, b.meta.BlockID, chunkSizeBytes, r)
 }

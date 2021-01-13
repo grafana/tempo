@@ -59,7 +59,11 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	if checkDupes {
 		fmt.Println("Searching for dupes ...")
 
-		iter, err := encoding.NewBackendIterator(tenantID, id, 10*1024*1024, r)
+		block := encoding.NewBackendBlock(&tempodb_backend.BlockMeta{
+			TenantID: tenantID,
+			BlockID:  id,
+		})
+		iter, err := block.Iterator(10*1024*1024, r)
 		if err != nil {
 			return err
 		}

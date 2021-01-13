@@ -134,7 +134,8 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
 		totalRecords += blockMeta.TotalObjects
 
-		iter, err := encoding.NewBackendIterator(tenantID, blockMeta.BlockID, rw.compactorCfg.ChunkSizeBytes, rw.r)
+		block := encoding.NewBackendBlock(blockMeta)
+		iter, err := block.Iterator(rw.compactorCfg.ChunkSizeBytes, rw.r)
 		if err != nil {
 			return err
 		}

@@ -14,6 +14,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -73,7 +74,11 @@ func TestCurrentClear(t *testing.T) {
 	blockID = complete.BlockMeta().BlockID
 	rw := r.(*readerWriter)
 
-	iter, err := encoding.NewBackendIterator(testTenantID, blockID, 10, rw.r)
+	block := encoding.NewBackendBlock(&backend.BlockMeta{
+		TenantID: testTenantID,
+		BlockID:  blockID,
+	})
+	iter, err := block.Iterator(10, rw.r)
 	assert.NoError(t, err)
 	bm := newBookmark(iter)
 
