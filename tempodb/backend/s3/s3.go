@@ -68,8 +68,8 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 		wrapCredentialsProvider(&credentials.EnvAWS{}),
 		wrapCredentialsProvider(&credentials.Static{
 			Value: credentials.Value{
-				AccessKeyID:     cfg.AccessKey,
-				SecretAccessKey: cfg.SecretKey,
+				AccessKeyID:     cfg.AccessKey.String(),
+				SecretAccessKey: cfg.SecretKey.String(),
 			},
 		}),
 		wrapCredentialsProvider(&credentials.EnvMinio{}),
