@@ -34,6 +34,8 @@ ifeq ($(UNAME), Darwin)
     SED_OPTS := ''
 endif
 
+FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./opentelemetry-proto \) -prune -o -name '*.go' -not -name "*.pb.go" -print)
+
 ### Build
 
 .PHONY: tempo
@@ -78,6 +80,11 @@ test-all: docker-tempo test-with-cover
 .PHONY: test-bench
 test-bench: docker-tempo
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
+
+.PHONY: fmt
+fmt:
+	@gofmt -s -w $(FILES_TO_FMT)
+	@goimports -w $(FILES_TO_FMT)
 
 .PHONY: lint
 lint:
