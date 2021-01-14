@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -11,13 +10,11 @@ import (
 
 	"github.com/google/uuid"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/olekukonko/tablewriter"
 )
 
 type listBlocksCmd struct {
 	TenantID         string `arg:"" help:"tenant-id within the bucket"`
-	LoadIndex        bool   `help:"load block indexes and display additional information"`
 	IncludeCompacted bool   `help:"include compacted blocks"`
 
 	backendOptions
@@ -31,23 +28,20 @@ func (l *listBlocksCmd) Run(ctx *globalOptions) error {
 
 	windowDuration := time.Hour
 
-	results, err := loadBucket(r, c, l.TenantID, windowDuration, l.LoadIndex, l.IncludeCompacted)
+	results, err := loadBucket(r, c, l.TenantID, windowDuration, l.IncludeCompacted)
 	if err != nil {
 		return err
 	}
 
-	displayResults(results, windowDuration, l.LoadIndex, l.IncludeCompacted)
+	displayResults(results, windowDuration, l.IncludeCompacted)
 	return nil
 }
 
 type blockStats struct {
 	unifiedBlockMeta
-
-	totalIDs     int
-	duplicateIDs int
 }
 
-func loadBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, loadIndex bool, includeCompacted bool) ([]blockStats, error) {
+func loadBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, includeCompacted bool) ([]blockStats, error) {
 	blockIDs, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
@@ -65,7 +59,7 @@ func loadBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID 
 		go func(id2 uuid.UUID) {
 			defer wg.Done()
 
-			b, err := loadBlock(r, c, tenantID, id2, windowRange, loadIndex, includeCompacted)
+			b, err := loadBlock(r, c, tenantID, id2, windowRange, includeCompacted)
 			if err != nil {
 				fmt.Println("Error loading block:", id2, err)
 				return
@@ -92,7 +86,7 @@ func loadBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID 
 	return results, nil
 }
 
-func loadBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, id uuid.UUID, windowRange time.Duration, loadIndex bool, includeCompacted bool) (*blockStats, error) {
+func loadBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, id uuid.UUID, windowRange time.Duration, includeCompacted bool) (*blockStats, error) {
 	fmt.Print(".")
 
 	meta, err := r.BlockMeta(context.Background(), id, tenantID)
@@ -107,40 +101,14 @@ func loadBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 		return nil, err
 	}
 
-	totalIDs := -1
-	duplicateIDs := -1
-
-	if loadIndex {
-		indexBytes, err := r.Index(context.Background(), id, tenantID)
-		if err == nil {
-			records, err := encoding.UnmarshalRecords(indexBytes)
-			if err != nil {
-				return nil, err
-			}
-			duplicateIDs = 0
-			totalIDs = len(records)
-			for i := 1; i < len(records); i++ {
-				if bytes.Equal(records[i-1].ID, records[i].ID) {
-					duplicateIDs++
-				}
-			}
-		}
-	}
-
 	return &blockStats{
 		unifiedBlockMeta: getMeta(meta, compactedMeta, windowRange),
-
-		totalIDs:     totalIDs,
-		duplicateIDs: duplicateIDs,
 	}, nil
 }
 
-func displayResults(results []blockStats, windowDuration time.Duration, includeIndexInfo bool, includeCompacted bool) {
+func displayResults(results []blockStats, windowDuration time.Duration, includeCompacted bool) {
 
 	columns := []string{"id", "lvl", "count", "window", "start", "end", "duration", "age"}
-	if includeIndexInfo {
-		columns = append(columns, "idx", "dupe")
-	}
 	if includeCompacted {
 		columns = append(columns, "cmp")
 	}
@@ -173,12 +141,6 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeI
 				s = fmt.Sprint(r.end.Sub(r.start).Round(time.Second))
 			case "age":
 				s = fmt.Sprint(time.Since(r.end).Round(time.Second))
-			case "idx":
-				// Number of entries in the index (may not be the same as the block when index downsampling enabled)
-				s = strconv.Itoa(r.totalIDs)
-			case "dupe":
-				// Number of duplicate IDs found in the index
-				s = strconv.Itoa(r.duplicateIDs)
 			case "cmp":
 				// Compacted?
 				if r.compacted {

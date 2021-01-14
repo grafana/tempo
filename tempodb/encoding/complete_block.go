@@ -100,11 +100,29 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 		return err
 	}
 
-	err = w.Write(ctx, c.meta, bloomBuffers, indexBytes, c.fullFilename())
+	err = writeBlock(ctx, w, c.meta, indexBytes, bloomBuffers)
 	if err != nil {
 		return err
 	}
 
+	// write object file
+	src, err := os.Open(c.fullFilename())
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	fileStat, err := src.Stat()
+	if err != nil {
+		return err
+	}
+
+	err = w.WriteReader(ctx, nameObjects, c.meta.BlockID, c.meta.TenantID, src, fileStat.Size())
+	if err != nil {
+		return err
+	}
+
+	// book keeping
 	c.flushedTime.Store(time.Now().Unix())
 	err = os.Remove(c.walFilename) // now that we are flushed, remove our wal file
 	if err != nil {

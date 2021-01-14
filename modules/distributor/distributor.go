@@ -53,11 +53,16 @@ var (
 		Name:      "distributor_spans_received_total",
 		Help:      "The total number of spans received per tenant",
 	}, []string{"tenant"})
+	metricBytesIngested = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_bytes_received_total",
+		Help:      "The total number of proto bytes received per tenant",
+	}, []string{"tenant"})
 	metricTracesPerBatch = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempo",
 		Name:      "distributor_traces_per_batch",
 		Help:      "The number of traces in each batch",
-		Buckets:   prometheus.LinearBuckets(0, 3, 10),
+		Buckets:   prometheus.ExponentialBuckets(2, 2, 10),
 	})
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -194,7 +199,11 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
-	// Track metrics.
+	// calculate and metric size...
+	size := req.Size()
+	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
+
+	// ... and spans
 	if req.Batch == nil {
 		return &tempopb.PushResponse{}, nil
 	}
@@ -207,6 +216,7 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	}
 	metricSpansIngested.WithLabelValues(userID).Add(float64(spanCount))
 
+	// check limits
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, spanCount) {
 		// Return a 4xx here to have the client discard the data and not retry. If a client
