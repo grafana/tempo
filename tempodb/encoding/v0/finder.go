@@ -1,28 +1,26 @@
-package encoding
+package v0
 
 import (
 	"bytes"
 	"io"
 	"sort"
-)
 
-type Finder interface {
-	Find(id ID) ([]byte, error)
-}
+	"github.com/grafana/tempo/tempodb/encoding"
+)
 
 type finder struct {
 	ra            io.ReaderAt
-	sortedRecords []*Record
+	sortedRecords []*encoding.Record
 }
 
-func NewFinder(sortedRecords []*Record, ra io.ReaderAt) Finder {
+func NewFinder(sortedRecords []*encoding.Record, ra io.ReaderAt) encoding.Finder {
 	return &finder{
 		ra:            ra,
 		sortedRecords: sortedRecords,
 	}
 }
 
-func (f *finder) Find(id ID) ([]byte, error) {
+func (f *finder) Find(id encoding.ID) ([]byte, error) {
 	i := sort.Search(len(f.sortedRecords), func(idx int) bool {
 		return bytes.Compare(f.sortedRecords[idx].ID, id) >= 0
 	})

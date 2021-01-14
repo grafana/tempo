@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/versioned"
 )
 
 type CompactorBlock struct {
@@ -37,7 +38,7 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender = NewBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
+	c.appender = versioned.NewBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
 
 	return c, nil
 }
@@ -83,21 +84,10 @@ func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.Append
 func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) error {
 	c.appender.Complete()
 
-	// index
 	records := c.appender.Records()
-	indexBytes, err := MarshalRecords(records)
-	if err != nil {
-		return err
-	}
-
-	// bloom
-	bloomBuffers, err := c.bloom.WriteTo()
-	if err != nil {
-		return err
-	}
-
 	meta := c.BlockMeta()
-	err = writeBlock(ctx, w, meta, indexBytes, bloomBuffers)
+
+	err := versioned.WriteBlockMeta(ctx, w, meta, records, c.bloom)
 	if err != nil {
 		return err
 	}

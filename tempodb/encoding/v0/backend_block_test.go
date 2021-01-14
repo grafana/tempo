@@ -1,4 +1,4 @@
-package encoding
+package v0
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/util"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/willf/bloom"
@@ -33,7 +34,7 @@ func TestBackendBlock(t *testing.T) {
 	record := newRecord()
 	record.ID = id
 	record.Length = uint32(objectBuffer.Len())
-	index, err := MarshalRecords([]*Record{record})
+	index, err := MarshalRecords([]*encoding.Record{record})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -111,7 +112,7 @@ func TestBackendBlock(t *testing.T) {
 				Range:  tt.readerRange,
 			}
 
-			findMetrics := NewFindMetrics()
+			findMetrics := encoding.NewFindMetrics()
 			block := NewBackendBlock(&backend.BlockMeta{})
 			actual, err := block.Find(context.Background(), mockR, tt.id, &findMetrics)
 

@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/versioned"
 )
 
 // CompleteBlock represent a block that has been "cut", is ready to be flushed and is not appendable.
@@ -89,18 +90,7 @@ func (c *CompleteBlock) BlockMeta() *backend.BlockMeta {
 
 // Write implements WriteableBlock
 func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
-	records := c.records
-	indexBytes, err := MarshalRecords(records)
-	if err != nil {
-		return err
-	}
-
-	bloomBuffers, err := c.bloom.WriteTo()
-	if err != nil {
-		return err
-	}
-
-	err = writeBlock(ctx, w, c.meta, indexBytes, bloomBuffers)
+	err := versioned.WriteBlockMeta(ctx, w, c.meta, c.records, c.bloom)
 	if err != nil {
 		return err
 	}
@@ -117,7 +107,7 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 		return err
 	}
 
-	err = w.WriteReader(ctx, nameObjects, c.meta.BlockID, c.meta.TenantID, src, fileStat.Size())
+	err = versioned.WriteBlockData(ctx, w, c.meta, src, fileStat.Size())
 	if err != nil {
 		return err
 	}
