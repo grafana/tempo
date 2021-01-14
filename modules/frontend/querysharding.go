@@ -1,16 +1,20 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"io"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/go-kit/kit/log"
+	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/querier"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -68,29 +72,12 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 		reqs[i].RequestURI = querierPrefix + reqs[i].URL.RequestURI() + queryDelimiter + q.Encode()
 	}
 
-	rrs, err := DoRequests(r.Context(), s.next, reqs)
+	rrs, err := doRequests(r.Context(), s.next, reqs)
 	if err != nil {
 		return nil, err
 	}
 
-	// todo: add merging logic here if there are more than one results
-	var errCode int
-	var errBody io.ReadCloser
-	for _, rr := range rrs {
-		if rr.Response.StatusCode == http.StatusOK {
-			return rr.Response, nil
-		}
-		if rr.Response.StatusCode > errCode {
-			errCode = rr.Response.StatusCode
-			errBody = rr.Response.Body
-		}
-	}
-
-	return &http.Response{
-		StatusCode: errCode,
-		Body:       errBody,
-		Header:     http.Header{},
-	}, nil
+	return mergeResponses(rrs)
 }
 
 // createBlockBoundaries splits the range of blockIDs into queryShards parts
@@ -122,8 +109,8 @@ type RequestResponse struct {
 	Response *http.Response
 }
 
-// DoRequests executes a list of requests in parallel.
-func DoRequests(ctx context.Context, downstream Handler, reqs []*http.Request) ([]RequestResponse, error) {
+// doRequests executes a list of requests in parallel.
+func doRequests(_ context.Context, downstream Handler, reqs []*http.Request) ([]RequestResponse, error) {
 	// Feed all requests to a bounded intermediate channel to limit parallelism.
 	intermediate := make(chan *http.Request)
 	go func() {
@@ -166,4 +153,42 @@ func DoRequests(ctx context.Context, downstream Handler, reqs []*http.Request) (
 	}
 
 	return resps, firstErr
+}
+
+func mergeResponses(rrs []RequestResponse) (*http.Response, error) {
+	var errCode = http.StatusOK
+	var errBody io.ReadCloser
+	var combinedTrace []byte
+	for _, rr := range rrs {
+		if rr.Response.StatusCode == http.StatusOK {
+			body, err := ioutil.ReadAll(rr.Response.Body)
+			if err != nil {
+				return nil, errors.Wrap(err, "error ready response body at query frontend")
+			}
+
+			if len(combinedTrace) == 0 {
+				combinedTrace = body
+			} else {
+				combinedTrace = util.CombineTraces(combinedTrace, body)
+			}
+		}
+		if rr.Response.StatusCode > errCode {
+			errCode = rr.Response.StatusCode
+			errBody = rr.Response.Body
+		}
+	}
+
+	if len(combinedTrace) == 0 {
+		return &http.Response{
+			StatusCode: errCode,
+			Body:       errBody,
+			Header:     http.Header{},
+		}, nil
+	}
+
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
+		Header:     http.Header{},
+	}, nil
 }
