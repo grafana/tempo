@@ -13,7 +13,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/encoding/v0"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 const (

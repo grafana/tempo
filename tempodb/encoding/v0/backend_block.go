@@ -52,7 +52,7 @@ func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id index.ID, 
 		return nil, fmt.Errorf("error reading index %w", err)
 	}
 
-	record, err := FindRecord(id, indexBytes) // todo: replace with backend.Finder
+	record, err := findRecord(id, indexBytes) // todo: replace with backend.Finder
 	if err != nil {
 		return nil, fmt.Errorf("error finding record %w", err)
 	}

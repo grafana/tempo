@@ -7,7 +7,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/index"
-	"github.com/grafana/tempo/tempodb/encoding/v0"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile

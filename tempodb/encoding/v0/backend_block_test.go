@@ -34,7 +34,7 @@ func TestBackendBlock(t *testing.T) {
 	record := newRecord()
 	record.ID = id
 	record.Length = uint32(objectBuffer.Len())
-	indexBytes, err := MarshalRecords([]*index.Record{record})
+	indexBytes, err := marshalRecords([]*index.Record{record})
 	require.NoError(t, err)
 
 	tests := []struct {

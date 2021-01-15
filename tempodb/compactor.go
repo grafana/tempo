@@ -138,7 +138,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		if err != nil {
 			return err
 		}
-		
+
 		iter, err := block.Iterator(rw.compactorCfg.ChunkSizeBytes, rw.r)
 		if err != nil {
 			return err

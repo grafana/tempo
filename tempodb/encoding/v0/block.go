@@ -22,7 +22,7 @@ func bloomName(shard int) string {
 
 // WriteBlockMeta writes the bloom filter, meta and index to the passed in backend.Writer
 func WriteBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*index.Record, b *index.ShardedBloomFilter) error {
-	index, err := MarshalRecords(records)
+	index, err := marshalRecords(records)
 	if err != nil {
 		return err
 	}

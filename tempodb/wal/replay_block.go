@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/grafana/tempo/tempodb/encoding/index"
-	"github.com/grafana/tempo/tempodb/encoding/v0"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type ReplayBlock struct {

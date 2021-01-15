@@ -37,8 +37,7 @@ func (t *recordSorter) Swap(i, j int) {
 	t.records[i], t.records[j] = t.records[j], t.records[i]
 }
 
-// todo: move encoding/decoding to a separate util area?  is the index too large?  need an io.Reader?
-func MarshalRecords(records []*index.Record) ([]byte, error) {
+func marshalRecords(records []*index.Record) ([]byte, error) {
 	recordBytes := make([]byte, len(records)*recordLength)
 
 	for i, r := range records {
@@ -54,13 +53,13 @@ func MarshalRecords(records []*index.Record) ([]byte, error) {
 	return recordBytes, nil
 }
 
-func UnmarshalRecords(recordBytes []byte) ([]*index.Record, error) {
+func unmarshalRecords(recordBytes []byte) ([]*index.Record, error) {
 	mod := len(recordBytes) % recordLength
 	if mod != 0 {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
 	}
 
-	numRecords := RecordCount(recordBytes)
+	numRecords := recordCount(recordBytes)
 	records := make([]*index.Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
@@ -75,13 +74,13 @@ func UnmarshalRecords(recordBytes []byte) ([]*index.Record, error) {
 }
 
 // binary search the bytes.  records are not compressed and ordered
-func FindRecord(id index.ID, recordBytes []byte) (*index.Record, error) {
+func findRecord(id index.ID, recordBytes []byte) (*index.Record, error) {
 	mod := len(recordBytes) % recordLength
 	if mod != 0 {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
 	}
 
-	numRecords := RecordCount(recordBytes)
+	numRecords := recordCount(recordBytes)
 	var record *index.Record
 
 	i := sort.Search(numRecords, func(i int) bool {
@@ -101,7 +100,7 @@ func FindRecord(id index.ID, recordBytes []byte) (*index.Record, error) {
 	return nil, nil
 }
 
-func RecordCount(b []byte) int {
+func recordCount(b []byte) int {
 	return len(b) / recordLength
 }
 

@@ -75,7 +75,7 @@ func TestCurrentClear(t *testing.T) {
 	rw := r.(*readerWriter)
 
 	block, err := encoding.NewBackendBlock(&backend.BlockMeta{
-		Version: "v0", // jpe - blerg?
+		Version:  "v0", // jpe - blerg?
 		TenantID: testTenantID,
 		BlockID:  blockID,
 	})

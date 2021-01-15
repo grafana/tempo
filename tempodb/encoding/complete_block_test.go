@@ -14,8 +14,8 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/v0"
 	"github.com/grafana/tempo/tempodb/encoding/index"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	"github.com/stretchr/testify/assert"
 )
 

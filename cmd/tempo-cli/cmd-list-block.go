@@ -66,7 +66,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 		if err != nil {
 			return err
 		}
-		
+
 		iter, err := block.Iterator(10*1024*1024, r)
 		if err != nil {
 			return err
