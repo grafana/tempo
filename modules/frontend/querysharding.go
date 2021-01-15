@@ -162,8 +162,9 @@ func mergeResponses(rrs []RequestResponse) (*http.Response, error) {
 	for _, rr := range rrs {
 		if rr.Response.StatusCode == http.StatusOK {
 			body, err := ioutil.ReadAll(rr.Response.Body)
+			rr.Response.Body.Close()
 			if err != nil {
-				return nil, errors.Wrap(err, "error ready response body at query frontend")
+				return nil, errors.Wrap(err, "error reading response body at query frontend")
 			}
 
 			if len(combinedTrace) == 0 {
