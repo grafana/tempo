@@ -115,15 +115,13 @@ func (i *instance) PushBytes(ctx context.Context, id tempodb_encoding.ID, object
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
 	for _, t := range tracesToCut {
 		out, err := proto.Marshal(t.trace)
 		if err != nil {
 			return err
 		}
-		err = i.headBlock.Write(t.traceID, out)
+
+		err = i.writeTraceToHeadBlock(t.traceID, out)
 		if err != nil {
 			return err
 		}
@@ -329,6 +327,13 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	}
 
 	return tracesToCut
+}
+
+func (i *instance) writeTraceToHeadBlock(id encoding.ID, b []byte) error {
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
+	return i.headBlock.Write(id, b)
 }
 
 func (i *instance) Combine(objA []byte, objB []byte) []byte {
