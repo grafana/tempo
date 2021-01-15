@@ -27,7 +27,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/redis"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/index"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -83,7 +83,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id index.ID, blockStart string, blockEnd string) ([]byte, index.FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]byte, common.FindMetrics, error)
 	Shutdown()
 }
 
@@ -187,8 +187,8 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id index.ID, blockStart string, blockEnd string) ([]byte, index.FindMetrics, error) {
-	metrics := index.NewFindMetrics()
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]byte, common.FindMetrics, error) {
+	metrics := common.NewFindMetrics()
 
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)

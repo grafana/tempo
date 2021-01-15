@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/index"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // CompleteBlock represent a block that has been "cut", is ready to be flushed and is not appendable.
@@ -19,8 +19,8 @@ import (
 // cleaning this block up once it has been flushed to the backend.
 type CompleteBlock struct {
 	meta    *backend.BlockMeta
-	bloom   *index.ShardedBloomFilter
-	records []*index.Record
+	bloom   *common.ShardedBloomFilter
+	records []*common.Record
 
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
 	walFilename string
@@ -31,11 +31,11 @@ type CompleteBlock struct {
 }
 
 // NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
-func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator index.Iterator, bloomFP float64, estimatedObjects int, indexDownsample int, filepath string, walFilename string) (*CompleteBlock, error) {
+func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator common.Iterator, bloomFP float64, estimatedObjects int, indexDownsample int, filepath string, walFilename string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
 		meta:        backend.NewBlockMeta(originatingMeta.TenantID, uuid.New()),
-		bloom:       index.NewWithEstimates(uint(estimatedObjects), bloomFP),
-		records:     make([]*index.Record, 0),
+		bloom:       common.NewWithEstimates(uint(estimatedObjects), bloomFP),
+		records:     make([]*common.Record, 0),
 		filepath:    filepath,
 		walFilename: walFilename,
 	}
@@ -123,7 +123,7 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 
 // Find searches the for the provided trace id.  A CompleteBlock should never
 //  have multiples of a single id so not sure why this uses a DedupingFinder.
-func (c *CompleteBlock) Find(id index.ID, combiner index.ObjectCombiner) ([]byte, error) {
+func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
 	if !c.bloom.Test(id) {
 		return nil, nil
 	}

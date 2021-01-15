@@ -6,7 +6,7 @@ import (
 	"io"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/index"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
@@ -16,9 +16,9 @@ const Current = "v0"
 // BackendBlock defines an object that can be used to interact with a block in object storage
 type BackendBlock interface {
 	// Find searches for a given ID and returns the object if exists
-	Find(ctx context.Context, r backend.Reader, id index.ID, metrics *index.FindMetrics) ([]byte, error)
+	Find(ctx context.Context, r backend.Reader, id common.ID, metrics *common.FindMetrics) ([]byte, error)
 	// Iterator returns an iterator that can be used to examine every object in the block
-	Iterator(chunkSizeBytes uint32, r backend.Reader) (index.Iterator, error)
+	Iterator(chunkSizeBytes uint32, r backend.Reader) (common.Iterator, error)
 }
 
 // newBackendBlock returns a BackendBlock for the given backend.BlockMeta
@@ -32,17 +32,17 @@ func NewBackendBlock(meta *backend.BlockMeta) (BackendBlock, error) {
 }
 
 // newBufferedAppender returns the most recent Appender
-func newBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEstimate int) index.Appender {
+func newBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEstimate int) common.Appender {
 	return v0.NewBufferedAppender(writer, indexDownsample, totalObjectsEstimate)
 }
 
 // newDedupingFinder returns the most recent Finder
-func newDedupingFinder(sortedRecords []*index.Record, ra io.ReaderAt, combiner index.ObjectCombiner) index.Finder {
+func newDedupingFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder {
 	return v0.NewDedupingFinder(sortedRecords, ra, combiner)
 }
 
 // writeBlockMeta calls the most recent WriteBlockMeta
-func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*index.Record, b *index.ShardedBloomFilter) error {
+func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*common.Record, b *common.ShardedBloomFilter) error {
 	return v0.WriteBlockMeta(ctx, w, meta, records, b)
 }
 

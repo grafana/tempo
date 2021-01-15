@@ -4,19 +4,19 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/grafana/tempo/tempodb/encoding/index"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type dedupingIterator struct {
-	iter          index.Iterator
-	combiner      index.ObjectCombiner
+	iter          common.Iterator
+	combiner      common.ObjectCombiner
 	currentID     []byte
 	currentObject []byte
 }
 
 // NewDedupingIterator returns a dedupingIterator.  This iterator is used to wrap another
 //  iterator.  It will dedupe consecutive objects with the same id using the ObjectCombiner.
-func NewDedupingIterator(iter index.Iterator, combiner index.ObjectCombiner) (index.Iterator, error) {
+func NewDedupingIterator(iter common.Iterator, combiner common.ObjectCombiner) (common.Iterator, error) {
 	i := &dedupingIterator{
 		iter:     iter,
 		combiner: combiner,
@@ -31,7 +31,7 @@ func NewDedupingIterator(iter index.Iterator, combiner index.ObjectCombiner) (in
 	return i, nil
 }
 
-func (i *dedupingIterator) Next() (index.ID, []byte, error) {
+func (i *dedupingIterator) Next() (common.ID, []byte, error) {
 	if i.currentID == nil {
 		return nil, nil, io.EOF
 	}

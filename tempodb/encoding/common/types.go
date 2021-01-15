@@ -1,4 +1,4 @@
-package index
+package common
 
 import "go.uber.org/atomic"
 

@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/encoding/index"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,7 +23,7 @@ func TestEncodeDecodeRecord(t *testing.T) {
 
 func TestMarshalUnmarshalRecords(t *testing.T) {
 	numRecords := 10
-	expected := make([]*index.Record, 0, numRecords)
+	expected := make([]*common.Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
 		r, err := makeRecord(t)
@@ -45,7 +45,7 @@ func TestMarshalUnmarshalRecords(t *testing.T) {
 
 func TestFindRecord(t *testing.T) {
 	numRecords := 10
-	expected := make([]*index.Record, 0, numRecords)
+	expected := make([]*common.Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
 		r, err := makeRecord(t)
@@ -70,7 +70,7 @@ func TestFindRecord(t *testing.T) {
 
 func TestSortRecord(t *testing.T) {
 	numRecords := 10
-	expected := make([]*index.Record, 0, numRecords)
+	expected := make([]*common.Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
 		r, err := makeRecord(t)
@@ -95,7 +95,7 @@ func TestSortRecord(t *testing.T) {
 }
 
 // todo: belongs in util/test?
-func makeRecord(t *testing.T) (*index.Record, error) {
+func makeRecord(t *testing.T) (*common.Record, error) {
 	t.Helper()
 
 	r := newRecord()

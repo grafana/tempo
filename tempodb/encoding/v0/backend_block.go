@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/index"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 
 	willf_bloom "github.com/willf/bloom"
 )
@@ -23,8 +23,8 @@ func NewBackendBlock(meta *backend.BlockMeta) *BackendBlock {
 }
 
 // Find searches a block for the ID and returns an object if found.
-func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id index.ID, metrics *index.FindMetrics) ([]byte, error) {
-	shardKey := index.ShardKeyForTraceID(id)
+func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id common.ID, metrics *common.FindMetrics) ([]byte, error) {
+	shardKey := common.ShardKeyForTraceID(id)
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
 
@@ -88,6 +88,6 @@ func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id index.ID, 
 }
 
 // Iterator searches a block for the ID and returns an object if found.
-func (b *BackendBlock) Iterator(chunkSizeBytes uint32, r backend.Reader) (index.Iterator, error) {
+func (b *BackendBlock) Iterator(chunkSizeBytes uint32, r backend.Reader) (common.Iterator, error) {
 	return NewBackendIterator(b.meta.TenantID, b.meta.BlockID, chunkSizeBytes, r)
 }

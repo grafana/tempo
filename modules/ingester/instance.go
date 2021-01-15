@@ -21,7 +21,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/index"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -104,7 +103,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 }
 
 // PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushBytes(ctx context.Context, id index.ID, object []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id []byte, object []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 

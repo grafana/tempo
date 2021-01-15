@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/index"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
@@ -16,7 +16,7 @@ type AppendBlock struct {
 	block
 
 	appendFile *os.File
-	appender   index.Appender
+	appender   common.Appender
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
@@ -43,7 +43,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 	return h, nil
 }
 
-func (h *AppendBlock) Write(id index.ID, b []byte) error {
+func (h *AppendBlock) Write(id common.ID, b []byte) error {
 	err := h.appender.Append(id, b)
 	if err != nil {
 		return err
@@ -60,7 +60,7 @@ func (h *AppendBlock) Length() int {
 // includes an on disk file containing all objects in order.
 // Note that calling this method leaves the original file on disk.  This file is still considered to be part of the WAL
 // until Write() is successfully called on the CompleteBlock.
-func (h *AppendBlock) Complete(w *WAL, combiner index.ObjectCombiner) (*encoding.CompleteBlock, error) {
+func (h *AppendBlock) Complete(w *WAL, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -88,7 +88,7 @@ func (h *AppendBlock) Complete(w *WAL, combiner index.ObjectCombiner) (*encoding
 	return orderedBlock, nil
 }
 
-func (h *AppendBlock) Find(id index.ID, combiner index.ObjectCombiner) ([]byte, error) {
+func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
 	records := h.appender.Records()
 	file, err := h.file()
 	if err != nil {

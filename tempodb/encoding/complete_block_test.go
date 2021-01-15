@@ -14,7 +14,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/index"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	"github.com/stretchr/testify/assert"
 )
@@ -103,7 +103,7 @@ func TestCompleteBlock(t *testing.T) {
 	}
 
 	// confirm order
-	var prev *index.Record
+	var prev *common.Record
 	for _, r := range block.records {
 		if prev != nil {
 			assert.Greater(t, r.Start, prev.Start)

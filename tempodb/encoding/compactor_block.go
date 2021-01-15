@@ -7,18 +7,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/index"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type CompactorBlock struct {
 	compactedMeta *backend.BlockMeta
 	inMetas       []*backend.BlockMeta
 
-	bloom *index.ShardedBloomFilter
+	bloom *common.ShardedBloomFilter
 
 	bufferedObjects int
 	appendBuffer    *bytes.Buffer
-	appender        index.Appender
+	appender        common.Appender
 }
 
 func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
@@ -32,7 +32,7 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 
 	c := &CompactorBlock{
 		compactedMeta: backend.NewBlockMeta(tenantID, id),
-		bloom:         index.NewWithEstimates(uint(estimatedObjects), bloomFP),
+		bloom:         common.NewWithEstimates(uint(estimatedObjects), bloomFP),
 		inMetas:       metas,
 	}
 
@@ -42,7 +42,7 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	return c, nil
 }
 
-func (c *CompactorBlock) AddObject(id index.ID, object []byte) error {
+func (c *CompactorBlock) AddObject(id common.ID, object []byte) error {
 	err := c.appender.Append(id, object)
 	if err != nil {
 		return err

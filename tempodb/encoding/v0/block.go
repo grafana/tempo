@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/index"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const (
@@ -21,7 +21,7 @@ func bloomName(shard int) string {
 }
 
 // WriteBlockMeta writes the bloom filter, meta and index to the passed in backend.Writer
-func WriteBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*index.Record, b *index.ShardedBloomFilter) error {
+func WriteBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*common.Record, b *common.ShardedBloomFilter) error {
 	index, err := marshalRecords(records)
 	if err != nil {
 		return err
