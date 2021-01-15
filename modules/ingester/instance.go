@@ -113,26 +113,21 @@ func (i *instance) PushBytes(ctx context.Context, id index.ID, object []byte) er
 
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
-	i.tracesMtx.Lock()
-	defer i.tracesMtx.Unlock()
+	tracesToCut := i.tracesToCut(cutoff, immediate)
 
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	now := time.Now()
-	for key, trace := range i.traces {
-		if now.Add(cutoff).After(trace.lastAppend) || immediate {
-			out, err := proto.Marshal(trace.trace)
-			if err != nil {
-				return err
-			}
-			err = i.headBlock.Write(trace.traceID, out)
-			if err != nil {
-				return err
-			}
-			i.bytesWrittenTotal.Add(float64(len(out)))
-			delete(i.traces, key)
+	for _, t := range tracesToCut {
+		out, err := proto.Marshal(t.trace)
+		if err != nil {
+			return err
 		}
+		err = i.headBlock.Write(t.traceID, out)
+		if err != nil {
+			return err
+		}
+		i.bytesWrittenTotal.Add(float64(len(out)))
 	}
 
 	return nil
@@ -277,6 +272,8 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	return nil, nil
 }
 
+// getOrCreateTrace will return a new trace object for the given request
+//  It must be called under the i.tracesMtx lock
 func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	traceID, err := pushRequestTraceID(req)
 	if err != nil {
@@ -315,6 +312,23 @@ func (i *instance) resetHeadBlock() error {
 	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
 	i.lastBlockCut = time.Now()
 	return err
+}
+
+func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
+
+	cutoffTime := time.Now().Add(cutoff)
+	tracesToCut := make([]*trace, 0, len(i.traces))
+
+	for key, trace := range i.traces {
+		if cutoffTime.After(trace.lastAppend) || immediate {
+			tracesToCut = append(tracesToCut, trace)
+			delete(i.traces, key)
+		}
+	}
+
+	return tracesToCut
 }
 
 func (i *instance) Combine(objA []byte, objB []byte) []byte {

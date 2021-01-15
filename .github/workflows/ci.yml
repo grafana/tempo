@@ -37,6 +37,3 @@ jobs:
 
     - name: Build Tempo-Query
       run: make tempo-query
-
-    - name: Check docs
-      run: make docs-test
