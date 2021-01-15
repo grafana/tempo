@@ -530,7 +530,6 @@ github.com/grpc-ecosystem/go-grpc-middleware/util/metautils
 github.com/grpc-ecosystem/go-grpc-prometheus
 github.com/grpc-ecosystem/go-grpc-prometheus/packages/grpcstatus
 # github.com/grpc-ecosystem/grpc-gateway v1.16.0
-## explicit
 github.com/grpc-ecosystem/grpc-gateway/internal
 github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options
 github.com/grpc-ecosystem/grpc-gateway/runtime
@@ -900,6 +899,8 @@ github.com/prometheus/prometheus/util/strutil
 github.com/prometheus/prometheus/util/teststorage
 github.com/prometheus/prometheus/util/testutil
 github.com/prometheus/prometheus/web/api/v1
+# github.com/prometheus/prometheus/discovery/config v0.0.0-00010101000000-000000000000 => ./vendor-fix/github.com/prometheus/prometheus/discovery/config
+## explicit
 # github.com/prometheus/statsd_exporter v0.15.0
 github.com/prometheus/statsd_exporter/pkg/mapper
 github.com/prometheus/statsd_exporter/pkg/mapper/fsm
@@ -1615,5 +1616,6 @@ sourcegraph.com/sqs/pbtypes
 # github.com/opentracing-contrib/go-grpc => github.com/pracucci/go-grpc v0.0.0-20201022134131-ef559b8db645
 # github.com/satori/go.uuid => github.com/satori/go.uuid v1.2.0
 # k8s.io/client-go => k8s.io/client-go v0.19.2
+# github.com/prometheus/prometheus/discovery/config => ./vendor-fix/github.com/prometheus/prometheus/discovery/config
 # github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
 # github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8

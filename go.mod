@@ -18,7 +18,6 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/grafana/loki v1.3.0
-	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/jaegertracing/jaeger v1.18.2-0.20200707061226-97d2319ff2be
@@ -33,6 +32,7 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.15.0
 	github.com/prometheus/prometheus v1.8.2-0.20201119181812-c8f810083d3f
+	github.com/prometheus/prometheus/discovery/config v0.0.0-00010101000000-000000000000 // indirect
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
@@ -72,8 +72,13 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.19.2
 )
 
+// opentelemtry collector requires older prometheus discovery config
+// copied locally because having issues referencing a subpackage any other way
+replace github.com/prometheus/prometheus/discovery/config => ./vendor-fix/github.com/prometheus/prometheus/discovery/config
+
 // Pin github.com/go-openapi versions to match Prometheus alertmanager to avoid
 // breaking changing affecting the alertmanager.
-replace github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
-
-replace github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
+replace (
+	github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
+	github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
+)
