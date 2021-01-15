@@ -8,9 +8,6 @@ spec:
   - name: querier-prom-metrics
     port: 3100
     targetPort: 3100
-  - name: tempo-query-jaeger-ui
-    port: 16686
-    targetPort: 16686
   selector:
     app: querier
     name: querier
