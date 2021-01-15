@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/index"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -107,7 +107,7 @@ func TestCompaction(t *testing.T) {
 		BlockID: blockID,
 	}
 
-	shardNum := bloom.GetShardNum()
+	shardNum := index.GetShardNum()
 	fakeBloom := make([][]byte, shardNum)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)

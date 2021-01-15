@@ -27,6 +27,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/redis"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/index"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -82,7 +83,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, encoding.FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id index.ID, blockStart string, blockEnd string) ([]byte, index.FindMetrics, error)
 	Shutdown()
 }
 
@@ -186,8 +187,8 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.ID, blockStart string, blockEnd string) ([]byte, encoding.FindMetrics, error) {
-	metrics := encoding.NewFindMetrics()
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id index.ID, blockStart string, blockEnd string) ([]byte, index.FindMetrics, error) {
+	metrics := index.NewFindMetrics()
 
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)
@@ -235,7 +236,10 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id encoding.I
 
 	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*backend.BlockMeta)
-		block := encoding.NewBackendBlock(meta)
+		block, err := encoding.NewBackendBlock(meta)
+		if err != nil {
+			return nil, err
+		}
 
 		foundObject, err := block.Find(derivedCtx, rw.r, id, &metrics)
 		if err != nil {

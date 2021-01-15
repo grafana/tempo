@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/util"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/index"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/willf/bloom"
@@ -34,7 +34,7 @@ func TestBackendBlock(t *testing.T) {
 	record := newRecord()
 	record.ID = id
 	record.Length = uint32(objectBuffer.Len())
-	index, err := MarshalRecords([]*encoding.Record{record})
+	indexBytes, err := MarshalRecords([]*index.Record{record})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -69,11 +69,11 @@ func TestBackendBlock(t *testing.T) {
 			name:               "index passes",
 			id:                 id,
 			readerBloom:        bloomBuffer.Bytes(),
-			readerIndex:        index,
+			readerIndex:        indexBytes,
 			expectedBloomReads: 1,
 			expectedBloomBytes: int32(bloomBuffer.Len()),
 			expectedIndexReads: 1,
-			expectedIndexBytes: int32(len(index)),
+			expectedIndexBytes: int32(len(indexBytes)),
 			expectedBlockReads: 1,
 			expectedBlockBytes: int32(objectBuffer.Len()),
 		},
@@ -81,13 +81,13 @@ func TestBackendBlock(t *testing.T) {
 			name:               "obj found",
 			id:                 id,
 			readerBloom:        bloomBuffer.Bytes(),
-			readerIndex:        index,
+			readerIndex:        indexBytes,
 			readerRange:        objectBuffer.Bytes(),
 			expected:           object,
 			expectedBloomReads: 1,
 			expectedBloomBytes: int32(bloomBuffer.Len()),
 			expectedIndexReads: 1,
-			expectedIndexBytes: int32(len(index)),
+			expectedIndexBytes: int32(len(indexBytes)),
 			expectedBlockReads: 1,
 			expectedBlockBytes: int32(objectBuffer.Len()),
 		},
@@ -112,7 +112,7 @@ func TestBackendBlock(t *testing.T) {
 				Range:  tt.readerRange,
 			}
 
-			findMetrics := encoding.NewFindMetrics()
+			findMetrics := index.NewFindMetrics()
 			block := NewBackendBlock(&backend.BlockMeta{})
 			actual, err := block.Find(context.Background(), mockR, tt.id, &findMetrics)
 

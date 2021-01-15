@@ -4,26 +4,26 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/index"
 )
 
 type recordIterator struct {
-	records []*encoding.Record
+	records []*index.Record
 	ra      io.ReaderAt
 
-	currentIterator encoding.Iterator
+	currentIterator index.Iterator
 }
 
 // NewRecordIterator returns a recordIterator.  This iterator is used for iterating through
 //  a series of objects by reading them one at a time from Records.
-func NewRecordIterator(r []*encoding.Record, ra io.ReaderAt) encoding.Iterator {
+func NewRecordIterator(r []*index.Record, ra io.ReaderAt) index.Iterator {
 	return &recordIterator{
 		records: r,
 		ra:      ra,
 	}
 }
 
-func (i *recordIterator) Next() (encoding.ID, []byte, error) {
+func (i *recordIterator) Next() (index.ID, []byte, error) {
 	if i.currentIterator != nil {
 		id, object, err := i.currentIterator.Next()
 		if err != nil {

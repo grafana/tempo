@@ -74,10 +74,12 @@ func TestCurrentClear(t *testing.T) {
 	blockID = complete.BlockMeta().BlockID
 	rw := r.(*readerWriter)
 
-	block := encoding.NewBackendBlock(&backend.BlockMeta{
+	block, err := encoding.NewBackendBlock(&backend.BlockMeta{
+		Version: "v0", // jpe - blerg?
 		TenantID: testTenantID,
 		BlockID:  blockID,
 	})
+	assert.NoError(t, err)
 	iter, err := block.Iterator(10, rw.r)
 	assert.NoError(t, err)
 	bm := newBookmark(iter)

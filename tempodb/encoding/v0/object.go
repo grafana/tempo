@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/index"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 	| total length | id length | id | object bytes |
 */
 
-func marshalObjectToWriter(id encoding.ID, b []byte, w io.Writer) (int, error) {
+func marshalObjectToWriter(id index.ID, b []byte, w io.Writer) (int, error) {
 	idLength := len(id)
 	totalLength := len(b) + idLength + uint32Size*2
 
@@ -42,7 +42,7 @@ func marshalObjectToWriter(id encoding.ID, b []byte, w io.Writer) (int, error) {
 	return totalLength, err
 }
 
-func unmarshalObjectFromReader(r io.Reader) (encoding.ID, []byte, error) {
+func unmarshalObjectFromReader(r io.Reader) (index.ID, []byte, error) {
 	var totalLength uint32
 	err := binary.Read(r, binary.LittleEndian, &totalLength)
 	if err == io.EOF {
@@ -73,7 +73,7 @@ func unmarshalObjectFromReader(r io.Reader) (encoding.ID, []byte, error) {
 	return bytesID, bytesObject, nil
 }
 
-func unmarshalAndAdvanceBuffer(buffer []byte) ([]byte, encoding.ID, []byte, error) {
+func unmarshalAndAdvanceBuffer(buffer []byte) ([]byte, index.ID, []byte, error) {
 	var totalLength uint32
 
 	if len(buffer) == 0 {

@@ -5,22 +5,22 @@ import (
 	"io"
 	"sort"
 
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/index"
 )
 
 type finder struct {
 	ra            io.ReaderAt
-	sortedRecords []*encoding.Record
+	sortedRecords []*index.Record
 }
 
-func NewFinder(sortedRecords []*encoding.Record, ra io.ReaderAt) encoding.Finder {
+func NewFinder(sortedRecords []*index.Record, ra io.ReaderAt) index.Finder {
 	return &finder{
 		ra:            ra,
 		sortedRecords: sortedRecords,
 	}
 }
 
-func (f *finder) Find(id encoding.ID) ([]byte, error) {
+func (f *finder) Find(id index.ID) ([]byte, error) {
 	i := sort.Search(len(f.sortedRecords), func(idx int) bool {
 		return bytes.Compare(f.sortedRecords[idx].ID, id) >= 0
 	})

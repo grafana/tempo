@@ -7,8 +7,7 @@ import (
 	"strconv"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/index"
 )
 
 const (
@@ -22,7 +21,7 @@ func bloomName(shard int) string {
 }
 
 // WriteBlockMeta writes the bloom filter, meta and index to the passed in backend.Writer
-func WriteBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*encoding.Record, b bloom.ShardedBloomFilter) error {
+func WriteBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*index.Record, b *index.ShardedBloomFilter) error {
 	index, err := MarshalRecords(records)
 	if err != nil {
 		return err
@@ -59,4 +58,9 @@ func WriteBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 // WriteBlockData writes the data object from an io.Reader to the backend.Writer
 func WriteBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, r io.Reader, size int64) error {
 	return w.WriteReader(ctx, nameObjects, meta.BlockID, meta.TenantID, r, size)
+}
+
+// AppendBlockData appends the bytes passed to the block data
+func AppendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	return w.Append(ctx, nameObjects, meta.BlockID, meta.TenantID, tracker, buffer)
 }

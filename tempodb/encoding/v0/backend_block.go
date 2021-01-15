@@ -6,26 +6,25 @@ import (
 	"fmt"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/index"
 
 	willf_bloom "github.com/willf/bloom"
 )
 
-type backendBlock struct {
+type BackendBlock struct {
 	meta *backend.BlockMeta
 }
 
 // NewBackendBlock returns a block used for finding traces in the backend
-func NewBackendBlock(meta *backend.BlockMeta) encoding.BackendBlock {
-	return &backendBlock{
+func NewBackendBlock(meta *backend.BlockMeta) *BackendBlock {
+	return &BackendBlock{
 		meta: meta,
 	}
 }
 
 // Find searches a block for the ID and returns an object if found.
-func (b *backendBlock) Find(ctx context.Context, r backend.Reader, id encoding.ID, metrics *encoding.FindMetrics) ([]byte, error) {
-	shardKey := bloom.ShardKeyForTraceID(id)
+func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id index.ID, metrics *index.FindMetrics) ([]byte, error) {
+	shardKey := index.ShardKeyForTraceID(id)
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
 
@@ -89,6 +88,6 @@ func (b *backendBlock) Find(ctx context.Context, r backend.Reader, id encoding.I
 }
 
 // Iterator searches a block for the ID and returns an object if found.
-func (b *backendBlock) Iterator(chunkSizeBytes uint32, r backend.Reader) (encoding.Iterator, error) {
+func (b *BackendBlock) Iterator(chunkSizeBytes uint32, r backend.Reader) (index.Iterator, error) {
 	return NewBackendIterator(b.meta.TenantID, b.meta.BlockID, chunkSizeBytes, r)
 }
