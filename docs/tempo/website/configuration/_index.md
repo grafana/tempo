@@ -10,6 +10,8 @@ This section explains the configuration options for Tempo as well as the details
   - [Authentication/Server](#authenticationserver)
   - [Distributor](#distributor)
   - [Ingester](#ingester)
+  - [Query Frontend](#queryfrontend)
+  - [Querier](#querier)
   - [Compactor](#compactor)
   - [Storage](#storage)
   - [Memberlist](#memberlist)
@@ -23,7 +25,9 @@ server:
   http_listen_port: 3100
 ```
 
-## [Distributor](https://github.com/grafana/tempo/blob/master/modules/distributor/config.go)
+## Distributor
+See [here](https://github.com/grafana/tempo/blob/master/modules/distributor/config.go) for all configuration options.
+
 Distributors are responsible for receiving spans and forwarding them to the appropriate ingesters.  The below configuration
 exposes the otlp receiver on port 0.0.0.0:5680.  [This configuration](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-s3-minio.yaml) shows how to
 configure all available receiver options.
@@ -37,7 +41,9 @@ distributor:
                     endpoint: 0.0.0.0:55680
 ```
 
-## [Ingester](https://github.com/grafana/tempo/blob/master/modules/ingester/config.go)
+## Ingester
+See [here](https://github.com/grafana/tempo/blob/master/modules/ingester/config.go) for all configuration options.
+
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
 
 ```
@@ -49,7 +55,30 @@ ingester:
     traces_per_block: 100000        # maximum number of traces in a block before cutting it
 ```
 
-## [Compactor](https://github.com/grafana/tempo/blob/master/modules/compactor/config.go)
+## Query Frontend
+See [here](https://github.com/grafana/tempo/blob/master/modules/frontend/config.go) for all configuration options.
+
+The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
+
+```
+query_frontend:
+    query_shards: 10    # number of shards to split the query into
+```
+
+## Querier
+See [here](https://github.com/grafana/tempo/blob/master/modules/querier/config.go) for all configuration options.
+
+The Querier is responsible for querying the backends/cache for the traceID.
+
+```
+querier:
+    frontend_worker:
+        frontend_address: query-frontend-discovery.default.svc.cluster.local:9095   # the address of the query frontend to connect to, and process queries
+```
+
+## [Compactor]
+See [here](https://github.com/grafana/tempo/blob/master/modules/compactor/config.go) for all configuration options.
+
 Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
 
 ```
@@ -67,7 +96,9 @@ compactor:
                                     # this tells the compactors to use a ring stored in memberlist to coordinate.
 ```
 
-## [Storage](https://github.com/grafana/tempo/blob/master/tempodb/config.go)
+## [Storage]
+See [here](https://github.com/grafana/tempo/blob/master/tempodb/config.go) for all configuration options.
+
 The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.  
 
 The following example shows common options.  For platform-specific options refer to the following:
