@@ -5,11 +5,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
-
+	"github.com/opentracing/opentracing-go"
 	willf_bloom "github.com/willf/bloom"
 	"go.uber.org/atomic"
+
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/bloom"
 )
 
 // FindMetrics is a threadsafe struct for tracking metrics related to a parallelized query
@@ -51,6 +52,11 @@ func NewBackendBlock(meta *backend.BlockMeta) BackendBlock {
 
 // Find searches a block for the ID and returns an object if found.
 func (b *backendBlock) Find(ctx context.Context, r backend.Reader, id ID, metrics *FindMetrics) ([]byte, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Find")
+	defer span.Finish()
+
+	span.SetTag("block", b.meta.BlockID.String())
+
 	shardKey := bloom.ShardKeyForTraceID(id)
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
