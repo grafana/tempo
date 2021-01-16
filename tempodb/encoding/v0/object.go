@@ -73,6 +73,48 @@ func unmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
 	return bytesID, bytesObject, nil
 }
 
+// unmarshalObjectRecordFromReader reads contiguous objects from a reader, but
+//  intead of returning ids and objects it just returns a Record representing the
+//  object.  The offset uint64 pointer is used to track the current offset and
+//  is updated by this method.
+func unmarshalObjectRecordFromReader(r io.Reader, offset *uint64) (*common.Record, error) {
+	var totalLength uint32
+	err := binary.Read(r, binary.LittleEndian, &totalLength)
+	if err == io.EOF {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	var idLength uint32
+	err = binary.Read(r, binary.LittleEndian, &idLength)
+	if err != nil {
+		return nil, err
+	}
+
+	protoLength := totalLength - uint32Size*2
+	b := make([]byte, protoLength)
+	readLength, err := r.Read(b)
+	if err != nil {
+		return nil, err
+	}
+	if uint32(readLength) != protoLength {
+		return nil, fmt.Errorf("read %d but expected %d", readLength, protoLength)
+	}
+
+	bytesID := b[:idLength]
+	record := &common.Record{
+		ID:     bytesID,
+		Start:  *offset,
+		Length: totalLength,
+	}
+
+	// new offset
+	*offset = *offset + uint64(totalLength)
+
+	return record, nil
+}
+
 func unmarshalAndAdvanceBuffer(buffer []byte) ([]byte, common.ID, []byte, error) {
 	var totalLength uint32
 
