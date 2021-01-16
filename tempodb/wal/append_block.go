@@ -43,6 +43,56 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 	return h, nil
 }
 
+// NewAppendBlockFromWal is a method of creating an append block from a wal file.  It
+//  is intended to be used on startup by the ingester to rapidly "replay" the wal.
+func NewAppendBlockFromWal(walfile string) (*AppendBlock, error) {
+	blockID, tenantID, err := parseFilename(walfile)
+	if err != nil {
+		return nil, err
+	}
+
+	// load the walfile and rebuild the index
+	readFile, err := os.OpenFile(walfile, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	iterator := encoding.NewIterator(readFile)
+
+	for {
+		id, obj, err := iterator.Next()
+		if id == nil {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
+		writeID := append([]byte(nil), id...)
+		// jpe - write to an appender?
+		// err = instance.PushBytes(context.Background(), writeID, obj)
+		if err != nil {
+			return nil, err
+		}
+	}
+	readFile.Close()
+
+	// actually build the block
+	b := &AppendBlock{
+		block: block{
+			meta:     backend.NewBlockMeta(tenantID, blockID),
+			filepath: walfile,
+		},
+	}
+	appendFile, err := os.OpenFile(walfile, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	b.appendFile = appendFile
+	b.appender = encoding.NewAppender(appendFile)
+}
+
+// Write adds an id and object to this AppendBlock
 func (h *AppendBlock) Write(id common.ID, b []byte) error {
 	err := h.appender.Append(id, b)
 	if err != nil {
@@ -52,6 +102,7 @@ func (h *AppendBlock) Write(id common.ID, b []byte) error {
 	return nil
 }
 
+// Length() indicates how many objects are currently stored by the block
 func (h *AppendBlock) Length() int {
 	return h.appender.Length()
 }
@@ -88,7 +139,8 @@ func (h *AppendBlock) Complete(w *WAL, combiner common.ObjectCombiner) (*encodin
 	return orderedBlock, nil
 }
 
-func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
+// Find searches for a given id in this AppendBlock
+func (h *AppendBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]byte, error) {
 	records := h.appender.Records()
 	file, err := h.file()
 	if err != nil {
@@ -100,6 +152,7 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 	return finder.Find(id)
 }
 
+// Clear removes the backing wal file for this AppendBlock
 func (h *AppendBlock) Clear() error {
 	if h.readFile != nil {
 		_ = h.readFile.Close()
