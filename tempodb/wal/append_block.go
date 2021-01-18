@@ -63,7 +63,7 @@ func NewAppendBlockFromWal(walfile string) (*AppendBlock, error) {
 		return nil, err
 	}
 
-	appender, err := encoding.NewPrefilledAppender(readFile, appendFile)
+	appender, err := v0.NewPrefilledAppender(readFile, appendFile)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (h *AppendBlock) Complete(w *WAL, combiner common.ObjectCombiner) (*encodin
 }
 
 // Find searches for a given id in this AppendBlock
-func (h *AppendBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]byte, error) {
+func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
 	records := h.appender.Records()
 	file, err := h.file()
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -88,7 +89,7 @@ func TestMarshalUnmarshalRecordFromBuffer(t *testing.T) {
 	bCopy := make([]byte, buffer.Len())
 	copy(bCopy, buffer.Bytes())
 
-	records := []*Record{}
+	records := []*common.Record{}
 	var offset uint64
 	for i := 0; i < 10; i++ {
 		record, err := unmarshalObjectRecordFromReader(buffer, &offset)

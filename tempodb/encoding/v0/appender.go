@@ -25,7 +25,7 @@ func NewAppender(writer io.Writer) common.Appender {
 // NewPrefilledAppender builds its internal index based on the contents of reader
 //  and writes future appends to writer.  This method is meant to be used when an
 //  already existing block of records exist.  Perhaps when replaying a WAL.
-func NewPrefilledAppender(reader io.Reader, writer io.Writer) (Appender, error) {
+func NewPrefilledAppender(reader io.Reader, writer io.Writer) (common.Appender, error) {
 	a := &appender{
 		writer: writer,
 	}
