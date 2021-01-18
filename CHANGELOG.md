@@ -1,4 +1,5 @@
 ## master / unreleased
+* [CHANGE] Fixed ingester latency spikes on read [#461](https://github.com/grafana/tempo/pull/461)
 
 ## v0.5.0
 
