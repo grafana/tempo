@@ -56,40 +56,27 @@ func NewAppendBlockFromWal(walfile string) (*AppendBlock, error) {
 	if err != nil {
 		return nil, err
 	}
-	iterator := encoding.NewIterator(readFile)
+	defer readFile.Close()
 
-	for {
-		id, obj, err := iterator.Next()
-		if id == nil {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
-		writeID := append([]byte(nil), id...)
-		// jpe - write to an appender?
-		// err = instance.PushBytes(context.Background(), writeID, obj)
-		if err != nil {
-			return nil, err
-		}
-	}
-	readFile.Close()
-
-	// actually build the block
-	b := &AppendBlock{
-		block: block{
-			meta:     backend.NewBlockMeta(tenantID, blockID),
-			filepath: walfile,
-		},
-	}
 	appendFile, err := os.OpenFile(walfile, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
-	b.appendFile = appendFile
-	b.appender = encoding.NewAppender(appendFile)
+
+	appender, err := encoding.NewPrefilledAppender(readFile, appendFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// actually build the block
+	return &AppendBlock{
+		block: block{
+			meta:     backend.NewBlockMeta(tenantID, blockID),
+			filepath: walfile,
+		},
+		appendFile: appendFile,
+		appender:   appender,
+	}, nil
 }
 
 // Write adds an id and object to this AppendBlock
