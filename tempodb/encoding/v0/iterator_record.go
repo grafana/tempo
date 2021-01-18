@@ -1,25 +1,29 @@
-package encoding
+package v0
 
 import (
 	"bytes"
 	"io"
+
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type recordIterator struct {
-	records []*Record
+	records []*common.Record
 	ra      io.ReaderAt
 
-	currentIterator Iterator
+	currentIterator common.Iterator
 }
 
-func NewRecordIterator(r []*Record, ra io.ReaderAt) Iterator {
+// NewRecordIterator returns a recordIterator.  This iterator is used for iterating through
+//  a series of objects by reading them one at a time from Records.
+func NewRecordIterator(r []*common.Record, ra io.ReaderAt) common.Iterator {
 	return &recordIterator{
 		records: r,
 		ra:      ra,
 	}
 }
 
-func (i *recordIterator) Next() (ID, []byte, error) {
+func (i *recordIterator) Next() (common.ID, []byte, error) {
 	if i.currentIterator != nil {
 		id, object, err := i.currentIterator.Next()
 		if err != nil {

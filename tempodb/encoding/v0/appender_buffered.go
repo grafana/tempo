@@ -1,37 +1,41 @@
-package encoding
+package v0
 
 import (
 	"io"
+
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type bufferedAppender struct {
 	writer  io.Writer
-	records []*Record
+	records []*common.Record
 
 	totalObjects    int
 	currentOffset   uint64
-	currentRecord   *Record
+	currentRecord   *common.Record
 	indexDownsample int
 }
 
-func NewBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEstimate int) Appender {
+// NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
+//  the provided writer and also builds a downsampled records slice.
+func NewBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEstimate int) common.Appender {
 	return &bufferedAppender{
 		writer:          writer,
-		records:         make([]*Record, 0, totalObjectsEstimate/indexDownsample+1),
+		records:         make([]*common.Record, 0, totalObjectsEstimate/indexDownsample+1),
 		indexDownsample: indexDownsample,
 	}
 }
 
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 //   Copies should be made and passed in if this is a problem
-func (a *bufferedAppender) Append(id ID, b []byte) error {
+func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 	length, err := marshalObjectToWriter(id, b, a.writer)
 	if err != nil {
 		return err
 	}
 
 	if a.currentRecord == nil {
-		a.currentRecord = &Record{
+		a.currentRecord = &common.Record{
 			Start: a.currentOffset,
 		}
 	}
@@ -49,7 +53,7 @@ func (a *bufferedAppender) Append(id ID, b []byte) error {
 	return nil
 }
 
-func (a *bufferedAppender) Records() []*Record {
+func (a *bufferedAppender) Records() []*common.Record {
 	return a.records
 }
 

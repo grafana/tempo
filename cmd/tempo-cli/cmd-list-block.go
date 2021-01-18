@@ -50,6 +50,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	unifiedMeta := getMeta(meta, compactedMeta, windowRange)
 
 	fmt.Println("ID            : ", unifiedMeta.id)
+	fmt.Println("Version       : ", unifiedMeta.version)
 	fmt.Println("Total Objects : ", unifiedMeta.objects)
 	fmt.Println("Level         : ", unifiedMeta.compactionLevel)
 	fmt.Println("Window        : ", unifiedMeta.window)
@@ -59,7 +60,16 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	if checkDupes {
 		fmt.Println("Searching for dupes ...")
 
-		iter, err := encoding.NewBackendIterator(tenantID, id, 10*1024*1024, r)
+		block, err := encoding.NewBackendBlock(&tempodb_backend.BlockMeta{
+			Version:  unifiedMeta.version,
+			TenantID: tenantID,
+			BlockID:  id,
+		})
+		if err != nil {
+			return err
+		}
+
+		iter, err := block.Iterator(10*1024*1024, r)
 		if err != nil {
 			return err
 		}

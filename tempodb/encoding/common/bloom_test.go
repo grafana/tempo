@@ -1,4 +1,4 @@
-package bloom
+package common
 
 import (
 	"bytes"

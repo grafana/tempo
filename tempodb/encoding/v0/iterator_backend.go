@@ -1,4 +1,4 @@
-package encoding
+package v0
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/pkg/errors"
 )
 
@@ -20,7 +21,9 @@ type backendIterator struct {
 	activeObjectsBuffer []byte
 }
 
-func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader backend.Reader) (Iterator, error) {
+// NewBackendIterator returns a backendIterator.  This iterator is used to iterate
+//  through objects stored in object storage.
+func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint32, reader backend.Reader) (common.Iterator, error) {
 	index, err := reader.Read(context.TODO(), nameIndex, blockID, tenantID)
 	if err != nil {
 		return nil, err
@@ -38,9 +41,9 @@ func NewBackendIterator(tenantID string, blockID uuid.UUID, chunkSizeBytes uint3
 // For performance reasons the ID and object slices returned from this method are owned by
 // the iterator.  If you have need to keep these values for longer than a single iteration
 // you need to make a copy of them.
-func (i *backendIterator) Next() (ID, []byte, error) {
+func (i *backendIterator) Next() (common.ID, []byte, error) {
 	var err error
-	var id ID
+	var id common.ID
 	var object []byte
 
 	i.activeObjectsBuffer, id, object, err = unmarshalAndAdvanceBuffer(i.activeObjectsBuffer)

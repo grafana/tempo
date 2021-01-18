@@ -14,6 +14,8 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,7 +41,7 @@ func TestCompleteBlock(t *testing.T) {
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
 	assert.NoError(t, err, "unexpected error creating block")
-	appender := NewAppender(writer)
+	appender := v0.NewAppender(writer)
 
 	numMsgs := 1000
 	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
@@ -72,7 +74,7 @@ func TestCompleteBlock(t *testing.T) {
 	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
 
-	iterator := NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
+	iterator := v0.NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
 	block, err := NewCompleteBlock(originatingMeta, iterator, .01, numMsgs, indexDownsample, tempDir, "")
 	assert.NoError(t, err, "unexpected error completing block")
 
@@ -101,7 +103,7 @@ func TestCompleteBlock(t *testing.T) {
 	}
 
 	// confirm order
-	var prev *Record
+	var prev *common.Record
 	for _, r := range block.records {
 		if prev != nil {
 			assert.Greater(t, r.Start, prev.Start)
