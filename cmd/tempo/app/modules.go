@@ -159,24 +159,24 @@ func (t *App) initQuerier() (services.Service, error) {
 func (t *App) initQueryFrontend() (services.Service, error) {
 	var err error
 
-	originalTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, util.Logger, prometheus.DefaultRegisterer)
+	cortexTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
 	t.frontend = v1
 
 	// custom tripperware that splits requests
-	shardingTripper, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
+	shardingTripperWare, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
-	finalTripper := shardingTripper(originalTripper)
+	shardingTripper := shardingTripperWare(cortexTripper)
 
-	handler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, finalTripper, util.Logger, prometheus.DefaultRegisterer)
+	cortexHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, shardingTripper, util.Logger, prometheus.DefaultRegisterer)
 
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
-	).Wrap(handler)
+	).Wrap(cortexHandler)
 
 	cortex_frontend_v1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
 	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
