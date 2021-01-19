@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/diskcache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/memcached"
@@ -23,7 +22,6 @@ type Config struct {
 	Pool    *pool.Config  `yaml:"pool,omitempty"`
 	WAL     *wal.Config   `yaml:"wal"`
 
-	Diskcache *diskcache.Config `yaml:"disk_cache"`
 	Memcached *memcached.Config `yaml:"memcached"`
 	Redis     *redis.Config     `yaml:"redis"`
 

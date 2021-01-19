@@ -153,7 +153,7 @@ func (t *App) initQuerier() (services.Service, error) {
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 
 	t.server.HTTP.Handle("/querier/api/traces/{traceID}", tracesHandler)
-	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTP)
+	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTPServer.Handler)
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {

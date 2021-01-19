@@ -22,7 +22,6 @@ require (
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/jaegertracing/jaeger v1.18.2-0.20200707061226-97d2319ff2be
 	github.com/jsternberg/zap-logfmt v1.0.0
-	github.com/karrick/godirwalk v1.16.1
 	github.com/minio/minio-go/v7 v7.0.5
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/open-telemetry/opentelemetry-proto v0.4.0

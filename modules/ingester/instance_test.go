@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type ringCountMock struct {
@@ -250,6 +252,90 @@ func TestInstanceLimits(t *testing.T) {
 				err := i.Push(context.Background(), push.req)
 
 				assert.Equalf(t, push.expectsError, err != nil, "push %d failed", j)
+			}
+		})
+	}
+}
+
+func TestInstanceCutCompleteTraces(t *testing.T) {
+	tempDir, _ := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+
+	id := make([]byte, 16)
+	rand.Read(id)
+	tracepb := test.MakeTrace(10, id)
+	pastTrace := &trace{
+		traceID:    id,
+		trace:      tracepb,
+		lastAppend: time.Now().Add(-time.Hour),
+	}
+
+	id = make([]byte, 16)
+	rand.Read(id)
+	nowTrace := &trace{
+		traceID:    id,
+		trace:      tracepb,
+		lastAppend: time.Now().Add(time.Hour),
+	}
+
+	tt := []struct {
+		name             string
+		cutoff           time.Duration
+		immediate        bool
+		input            []*trace
+		expectedExist    []*trace
+		expectedNotExist []*trace
+	}{
+		{
+			name:      "empty",
+			cutoff:    0,
+			immediate: false,
+		},
+		{
+			name:             "cut immediate",
+			cutoff:           0,
+			immediate:        true,
+			input:            []*trace{pastTrace, nowTrace},
+			expectedNotExist: []*trace{pastTrace, nowTrace},
+		},
+		{
+			name:             "cut recent",
+			cutoff:           0,
+			immediate:        false,
+			input:            []*trace{pastTrace, nowTrace},
+			expectedExist:    []*trace{nowTrace},
+			expectedNotExist: []*trace{pastTrace},
+		},
+		{
+			name:             "cut all time",
+			cutoff:           2 * time.Hour,
+			immediate:        false,
+			input:            []*trace{pastTrace, nowTrace},
+			expectedNotExist: []*trace{pastTrace, nowTrace},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			instance := defaultInstance(t, tempDir)
+
+			for _, trace := range tc.input {
+				fp := instance.tokenForTraceID(trace.traceID)
+				instance.traces[fp] = trace
+			}
+
+			err := instance.CutCompleteTraces(tc.cutoff, tc.immediate)
+			require.NoError(t, err)
+
+			assert.Equal(t, len(tc.expectedExist), len(instance.traces))
+			for _, expectedExist := range tc.expectedExist {
+				_, ok := instance.traces[instance.tokenForTraceID(expectedExist.traceID)]
+				assert.True(t, ok)
+			}
+
+			for _, expectedNotExist := range tc.expectedNotExist {
+				_, ok := instance.traces[instance.tokenForTraceID(expectedNotExist.traceID)]
+				assert.False(t, ok)
 			}
 		})
 	}

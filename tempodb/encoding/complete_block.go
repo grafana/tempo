@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // CompleteBlock represent a block that has been "cut", is ready to be flushed and is not appendable.
@@ -19,8 +19,8 @@ import (
 // cleaning this block up once it has been flushed to the backend.
 type CompleteBlock struct {
 	meta    *backend.BlockMeta
-	bloom   *bloom.ShardedBloomFilter
-	records []*Record
+	bloom   *common.ShardedBloomFilter
+	records []*common.Record
 
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
 	walFilename string
@@ -31,11 +31,11 @@ type CompleteBlock struct {
 }
 
 // NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
-func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator Iterator, bloomFP float64, estimatedObjects int, indexDownsample int, filepath string, walFilename string) (*CompleteBlock, error) {
+func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator common.Iterator, bloomFP float64, estimatedObjects int, indexDownsample int, filepath string, walFilename string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
 		meta:        backend.NewBlockMeta(originatingMeta.TenantID, uuid.New()),
-		bloom:       bloom.NewWithEstimates(uint(estimatedObjects), bloomFP),
-		records:     make([]*Record, 0),
+		bloom:       common.NewWithEstimates(uint(estimatedObjects), bloomFP),
+		records:     make([]*common.Record, 0),
 		filepath:    filepath,
 		walFilename: walFilename,
 	}
@@ -50,7 +50,7 @@ func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator Iterator, blo
 		return nil, err
 	}
 
-	appender := NewBufferedAppender(appendFile, indexDownsample, estimatedObjects)
+	appender := newBufferedAppender(appendFile, indexDownsample, estimatedObjects)
 	for {
 		bytesID, bytesObject, err := iterator.Next()
 		if bytesID == nil {
@@ -89,22 +89,29 @@ func (c *CompleteBlock) BlockMeta() *backend.BlockMeta {
 
 // Write implements WriteableBlock
 func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
-	records := c.records
-	indexBytes, err := MarshalRecords(records)
+	err := writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
 	if err != nil {
 		return err
 	}
 
-	bloomBuffers, err := c.bloom.WriteTo()
+	// write object file
+	src, err := os.Open(c.fullFilename())
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	fileStat, err := src.Stat()
 	if err != nil {
 		return err
 	}
 
-	err = w.Write(ctx, c.meta, bloomBuffers, indexBytes, c.fullFilename())
+	err = writeBlockData(ctx, w, c.meta, src, fileStat.Size())
 	if err != nil {
 		return err
 	}
 
+	// book keeping
 	c.flushedTime.Store(time.Now().Unix())
 	err = os.Remove(c.walFilename) // now that we are flushed, remove our wal file
 	if err != nil {
@@ -116,7 +123,7 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 
 // Find searches the for the provided trace id.  A CompleteBlock should never
 //  have multiples of a single id so not sure why this uses a DedupingFinder.
-func (c *CompleteBlock) Find(id ID, combiner ObjectCombiner) ([]byte, error) {
+func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
 	if !c.bloom.Test(id) {
 		return nil, nil
 	}
@@ -126,7 +133,7 @@ func (c *CompleteBlock) Find(id ID, combiner ObjectCombiner) ([]byte, error) {
 		return nil, err
 	}
 
-	finder := NewDedupingFinder(c.records, file, combiner)
+	finder := newDedupingFinder(c.records, file, combiner)
 
 	return finder.Find(id)
 }

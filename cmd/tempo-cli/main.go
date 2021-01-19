@@ -121,6 +121,7 @@ type unifiedBlockMeta struct {
 	start           time.Time
 	end             time.Time
 	compacted       bool
+	version         string
 }
 
 func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta, windowRange time.Duration) unifiedBlockMeta {
@@ -133,6 +134,7 @@ func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta,
 			start:           meta.StartTime,
 			end:             meta.EndTime,
 			compacted:       false,
+			version:         meta.Version,
 		}
 	}
 	if compactedMeta != nil {
@@ -144,6 +146,7 @@ func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta,
 			start:           compactedMeta.StartTime,
 			end:             compactedMeta.EndTime,
 			compacted:       true,
+			version:         compactedMeta.Version,
 		}
 	}
 	return unifiedBlockMeta{

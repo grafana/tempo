@@ -2,15 +2,14 @@ package encoding
 
 import (
 	"bytes"
-	"io/ioutil"
 	"math"
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -24,13 +23,7 @@ func TestCompactorBlockError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestCompactorBlockWrite(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	assert.NoError(t, err)
-
+func TestCompactorBlockAddObject(t *testing.T) {
 	indexDownsample := 3
 	bloomFP := .01
 
@@ -49,8 +42,8 @@ func TestCompactorBlockWrite(t *testing.T) {
 	cb, err := NewCompactorBlock(uuid.New(), testTenantID, bloomFP, indexDownsample, metas, numObjects)
 	assert.NoError(t, err)
 
-	var minID ID
-	var maxID ID
+	var minID common.ID
+	var maxID common.ID
 
 	ids := make([][]byte, 0)
 	for i := 0; i < numObjects; i++ {
@@ -74,7 +67,7 @@ func TestCompactorBlockWrite(t *testing.T) {
 			maxID = id
 		}
 	}
-	cb.Complete()
+	cb.appender.Complete()
 
 	assert.Equal(t, numObjects, cb.Length())
 
@@ -83,8 +76,8 @@ func TestCompactorBlockWrite(t *testing.T) {
 
 	assert.Equal(t, time.Unix(10000, 0), meta.StartTime)
 	assert.Equal(t, time.Unix(25000, 0), meta.EndTime)
-	assert.Equal(t, minID, ID(meta.MinID))
-	assert.Equal(t, maxID, ID(meta.MaxID))
+	assert.Equal(t, minID, common.ID(meta.MinID))
+	assert.Equal(t, maxID, common.ID(meta.MaxID))
 	assert.Equal(t, testTenantID, meta.TenantID)
 	assert.Equal(t, numObjects, meta.TotalObjects)
 

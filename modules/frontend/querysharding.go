@@ -4,8 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/go-kit/kit/log"
@@ -76,19 +75,22 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 
 	// todo: add merging logic here if there are more than one results
 	var errCode int
-	var errBody []byte
+	var errBody io.ReadCloser
 	for _, rr := range rrs {
 		if rr.Response.StatusCode == http.StatusOK {
 			return rr.Response, nil
 		}
 		if rr.Response.StatusCode > errCode {
 			errCode = rr.Response.StatusCode
-			errBody, _ = ioutil.ReadAll(rr.Response.Body)
-			rr.Response.Body.Close()
+			errBody = rr.Response.Body
 		}
 	}
 
-	return nil, fmt.Errorf("%s", errBody)
+	return &http.Response{
+		StatusCode: errCode,
+		Body:       errBody,
+		Header:     http.Header{},
+	}, nil
 }
 
 // createBlockBoundaries splits the range of blockIDs into queryShards parts

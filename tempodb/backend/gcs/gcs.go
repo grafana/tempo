@@ -1,6 +1,7 @@
 package gcs
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -8,12 +9,10 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend/util"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"github.com/pkg/errors"
 
 	"cloud.google.com/go/storage"
@@ -79,68 +78,33 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	return rw, rw, rw, nil
 }
 
-func (rw *readerWriter) Write(ctx context.Context, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte, objectFilePath string) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
+// Write implements backend.Writer
+func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
+	return rw.WriteReader(ctx, name, blockID, tenantID, bytes.NewBuffer(buffer), int64(len(buffer)))
+}
 
-	// copy traces file.
-	if !fileExists(objectFilePath) {
-		return fmt.Errorf("object file not found %s", objectFilePath)
-	}
-
-	src, err := os.Open(objectFilePath)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-
-	w := rw.writer(ctx, util.ObjectFileName(blockID, tenantID))
-	_, err = io.Copy(w, src)
+// WriteReader implements backend.Writer
+func (rw *readerWriter) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, _ int64) error {
+	w := rw.writer(ctx, util.ObjectFileName(blockID, tenantID, name))
+	_, err := io.Copy(w, data)
 	if err != nil {
 		w.Close()
 		return err
 	}
 
-	err = w.Close()
-	if err != nil {
-		return err
-	}
-
-	err = rw.WriteBlockMeta(ctx, nil, meta, bBloom, bIndex)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return w.Close()
 }
 
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bBloom [][]byte, bIndex []byte) error {
-	if tracker != nil {
-		w := tracker.(*storage.Writer)
-		_ = w.Close()
-	}
-
+// WriteBlockMeta implements backend.Writer
+func (rw *readerWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
-
-	for i := 0; i < bloom.GetShardNum(); i++ {
-		err := rw.writeAll(ctx, util.BloomFileName(blockID, tenantID, i), bBloom[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	err := rw.writeAll(ctx, util.IndexFileName(blockID, tenantID), bIndex)
-	if err != nil {
-		return err
-	}
 
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
 		return err
 	}
 
-	// write meta last.  this will prevent blocklist from returning a partial block
 	err = rw.writeAll(ctx, util.MetaFileName(blockID, tenantID), bMeta)
 	if err != nil {
 		return err
@@ -149,18 +113,16 @@ func (rw *readerWriter) WriteBlockMeta(ctx context.Context, tracker backend.Appe
 	return nil
 }
 
-func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.AppendTracker, meta *backend.BlockMeta, bObject []byte) (backend.AppendTracker, error) {
+// Append implements backend.Writer
+func (rw *readerWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	var w *storage.Writer
 	if tracker == nil {
-		blockID := meta.BlockID
-		tenantID := meta.TenantID
-
-		w = rw.writer(ctx, util.ObjectFileName(blockID, tenantID))
+		w = rw.writer(ctx, util.ObjectFileName(blockID, tenantID, name))
 	} else {
 		w = tracker.(*storage.Writer)
 	}
 
-	_, err := w.Write(bObject)
+	_, err := w.Write(buffer)
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +130,13 @@ func (rw *readerWriter) AppendObject(ctx context.Context, tracker backend.Append
 	return w, nil
 }
 
+// CloseAppend implements backend.Writer
+func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTracker) error {
+	w := tracker.(*storage.Writer)
+	return w.Close()
+}
+
+// Tenants implements backend.Reader
 func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Delimiter: "/",
@@ -191,6 +160,7 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 	return tenants, nil
 }
 
+// Tenants implements backend.Reader
 func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 	var warning error
 
@@ -223,6 +193,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 	return blocks, warning
 }
 
+// Tenants implements backend.Reader
 func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	name := util.MetaFileName(blockID, tenantID)
 
@@ -243,32 +214,26 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 	return out, nil
 }
 
-func (rw *readerWriter) Bloom(ctx context.Context, blockID uuid.UUID, tenantID string, shardNum int) ([]byte, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Bloom")
+// Read implements backend.Reader
+func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Read")
 	defer span.Finish()
 
-	name := util.BloomFileName(blockID, tenantID, shardNum)
-	return rw.readAll(derivedCtx, name)
+	span.SetTag("object", name)
+
+	return rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
 }
 
-func (rw *readerWriter) Index(ctx context.Context, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Index")
+// ReadRange implements backend.Reader
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.ReadRange")
 	defer span.Finish()
 
-	name := util.IndexFileName(blockID, tenantID)
-	return rw.readAll(derivedCtx, name)
+	return rw.readRange(derivedCtx, util.ObjectFileName(blockID, tenantID, name), int64(offset), buffer)
 }
 
-func (rw *readerWriter) Object(ctx context.Context, blockID uuid.UUID, tenantID string, start uint64, buffer []byte) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Object")
-	defer span.Finish()
-
-	name := util.ObjectFileName(blockID, tenantID)
-	return rw.readRange(derivedCtx, name, int64(start), buffer)
-}
-
+// Shutdown implements backend.Reader
 func (rw *readerWriter) Shutdown() {
-
 }
 
 func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {
@@ -336,9 +301,4 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 		}
 		totalBytes += byteCount
 	}
-}
-
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return !os.IsNotExist(err)
 }

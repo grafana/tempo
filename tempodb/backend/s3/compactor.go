@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
 	"github.com/minio/minio-go/v7"
 
 	"github.com/go-kit/kit/log/level"
@@ -48,20 +47,20 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		return backend.ErrEmptyBlockID
 	}
 
-	level.Debug(rw.logger).Log("msg", "deleting block", "block path", util.BlockFileName(blockID, tenantID))
+	path := util.RootPath(blockID, tenantID) + "/"
+	level.Debug(rw.logger).Log("msg", "deleting block", "block path", path)
 
-	// list of objects that need to be deleted
-	var delObjects []string
-	delObjects = append(delObjects, util.CompactedMetaFileName(blockID, tenantID))
-	for i := 0; i < bloom.GetShardNum(); i++ {
-		delObjects = append(delObjects, util.BloomFileName(blockID, tenantID, i))
+	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
+	res, err := rw.core.ListObjects(rw.cfg.Bucket, path, "", "/", 0)
+	if err != nil {
+		return errors.Wrapf(err, "error listing objects in bucket %s", rw.cfg.Bucket)
 	}
-	delObjects = append(delObjects, util.IndexFileName(blockID, tenantID))
-	delObjects = append(delObjects, util.ObjectFileName(blockID, tenantID))
-	for _, obj := range delObjects {
-		err := rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, obj, minio.RemoveObjectOptions{})
+
+	level.Debug(rw.logger).Log("msg", "listing objects", "found", len(res.Contents))
+	for _, obj := range res.Contents {
+		err = rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, obj.Key, minio.RemoveObjectOptions{})
 		if err != nil {
-			return errors.Wrapf(err, "error deleting obj from s3: %s", obj)
+			return errors.Wrapf(err, "error deleting obj from s3: %s", obj.Key)
 		}
 	}
 

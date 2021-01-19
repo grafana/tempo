@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
@@ -14,7 +16,7 @@ type AppendBlock struct {
 	block
 
 	appendFile *os.File
-	appender   encoding.Appender
+	appender   common.Appender
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
@@ -36,12 +38,12 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 		return nil, err
 	}
 	h.appendFile = f
-	h.appender = encoding.NewAppender(f)
+	h.appender = v0.NewAppender(f)
 
 	return h, nil
 }
 
-func (h *AppendBlock) Write(id encoding.ID, b []byte) error {
+func (h *AppendBlock) Write(id common.ID, b []byte) error {
 	err := h.appender.Append(id, b)
 	if err != nil {
 		return err
@@ -58,7 +60,7 @@ func (h *AppendBlock) Length() int {
 // includes an on disk file containing all objects in order.
 // Note that calling this method leaves the original file on disk.  This file is still considered to be part of the WAL
 // until Write() is successfully called on the CompleteBlock.
-func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*encoding.CompleteBlock, error) {
+func (h *AppendBlock) Complete(w *WAL, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -72,8 +74,8 @@ func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*encod
 		return nil, err
 	}
 
-	iterator := encoding.NewRecordIterator(records, readFile)
-	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
+	iterator := v0.NewRecordIterator(records, readFile)
+	iterator, err = v0.NewDedupingIterator(iterator, combiner)
 	if err != nil {
 		return nil, err
 	}
@@ -86,14 +88,14 @@ func (h *AppendBlock) Complete(w *WAL, combiner encoding.ObjectCombiner) (*encod
 	return orderedBlock, nil
 }
 
-func (h *AppendBlock) Find(id encoding.ID, combiner encoding.ObjectCombiner) ([]byte, error) {
+func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
 	records := h.appender.Records()
 	file, err := h.file()
 	if err != nil {
 		return nil, err
 	}
 
-	finder := encoding.NewDedupingFinder(records, file, combiner)
+	finder := v0.NewDedupingFinder(records, file, combiner)
 
 	return finder.Find(id)
 }

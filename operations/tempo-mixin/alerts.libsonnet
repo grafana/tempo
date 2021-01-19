@@ -26,7 +26,7 @@
           {
             alert: 'TempoRequestLatency',
             expr: |||
-              namespace_job_route:tempo_request_duration_seconds:99quantile{} > 3
+              namespace_job_route:tempo_request_duration_seconds:99quantile{route!~"metrics|/frontend.Frontend/Process"} > 3
             |||,
             'for': '15m',
             labels: {
@@ -60,7 +60,7 @@
               max by (cluster, namespace) (cortex_ring_members{state="Unhealthy", name="distributor"}) > 0
             |||,
             labels: {
-              severity: 'critical',
+              severity: 'warning',
             },
             annotations: {
               message: 'There are {{ printf "%f" $value }} unhealthy distributor(s).',

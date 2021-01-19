@@ -20,7 +20,7 @@
         {{ $labels.job }} {{ $labels.route }} is experiencing {{ printf "%.2f" $value }}s 99th percentile latency.
       "runbook_url": "https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoRequestLatency"
     "expr": |
-      namespace_job_route:tempo_request_duration_seconds:99quantile{} > 3
+      namespace_job_route:tempo_request_duration_seconds:99quantile{route!~"metrics|/frontend.Frontend/Process"} > 3
     "for": "15m"
     "labels":
       "severity": "critical"
@@ -41,7 +41,7 @@
       max by (cluster, namespace) (cortex_ring_members{state="Unhealthy", name="distributor"}) > 0
     "for": "15m"
     "labels":
-      "severity": "critical"
+      "severity": "warning"
   - "alert": "TempoCompactionsFailing"
     "annotations":
       "message": "Greater than 2 compactions have failed in the past hour."

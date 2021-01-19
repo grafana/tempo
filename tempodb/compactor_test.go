@@ -51,10 +51,6 @@ func TestCompaction(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		/*GCS: &gcs.Config{
-			BucketName:      "temp-jelliott",
-			ChunkBufferSize: 10 * 1024 * 1024,
-		},*/
 		WAL: &wal.Config{
 			Filepath:        path.Join(tempDir, "wal"),
 			IndexDownsample: 11,
