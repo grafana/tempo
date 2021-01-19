@@ -8,15 +8,22 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
 	completedDir = "completed"
 )
 
+// WAL allows for interaction with the WAL
 type WAL struct {
 	c *Config
+}
+
+// File represents a walfile entry
+type File struct {
+	Filepath string
+	TenantID string
+	BlockID  uuid.UUID
 }
 
 type Config struct {
@@ -64,13 +71,14 @@ func New(c *Config) (*WAL, error) {
 	}, nil
 }
 
-func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
+// AllWALFiles returns a File entry for every WAL file.  Used for replay.
+func (w *WAL) AllWALFiles() ([]*File, error) {
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]*ReplayBlock, 0, len(files))
+	walfiles := make([]*File, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -79,22 +87,27 @@ func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
 		name := f.Name()
 		blockID, tenantID, err := parseFilename(name)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse %s: %w", name, err)
 		}
 
-		blocks = append(blocks, &ReplayBlock{
-			block: block{
-				meta:     backend.NewBlockMeta(tenantID, blockID),
-				filepath: w.c.Filepath,
-			},
+		walfiles = append(walfiles, &File{
+			BlockID:  blockID,
+			TenantID: tenantID,
+			Filepath: w.c.Filepath,
 		})
 	}
 
-	return blocks, nil
+	return walfiles, nil
 }
 
+// NewBlock creates and returns a new AppendBlock configured correctly to write to the WAL
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
 	return newAppendBlock(id, tenantID, w.c.Filepath)
+}
+
+// NewBlockWithWalFile creates an AppendBlock preloaded with contents of a WalFile
+func (w *WAL) NewBlockWithWalFile(f *File) (*AppendBlock, error) {
+	return newAppendBlockFromWal(f)
 }
 
 func parseFilename(name string) (uuid.UUID, string, error) {

@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -48,11 +49,11 @@ func TestCreateBlock(t *testing.T) {
 	block, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
-	blocks, err := wal.AllBlocks()
+	files, err := wal.AllWALFiles()
 	assert.NoError(t, err, "unexpected error getting blocks")
-	assert.Len(t, blocks, 1)
+	assert.Len(t, files, 1)
 
-	assert.Equal(t, block.fullFilename(), blocks[0].fullFilename())
+	assert.Equal(t, block.fullFilename(), filepath.Join(files[0].Filepath, blockID.String()+":"+testTenantID))
 }
 
 func TestReadWrite(t *testing.T) {

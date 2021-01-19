@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+// jpe : get rid of this
 type block struct {
 	meta     *backend.BlockMeta
 	filepath string
@@ -16,6 +17,7 @@ type block struct {
 	once sync.Once
 }
 
+// jpe - filepath.join
 func (b *block) fullFilename() string {
 	return fmt.Sprintf("%s/%v:%v", b.filepath, b.meta.BlockID, b.meta.TenantID)
 }

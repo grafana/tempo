@@ -22,7 +22,6 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
-	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 // ErrReadOnly is returned when the ingester is shutting down and a push was
@@ -269,57 +268,29 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 }
 
 func (i *Ingester) replayWal() error {
-	blocks, err := i.store.WAL().AllBlocks()
-	// todo: should this fail startup?
+	walFiles, err := i.store.WAL().AllWALFiles() // jpe - just return append blocks?
 	if err != nil {
 		return nil
 	}
 
-	level.Info(util.Logger).Log("msg", "beginning wal replay", "numBlocks", len(blocks))
-
-	for _, b := range blocks {
-		tenantID := b.TenantID()
+	level.Info(util.Logger).Log("msg", "beginning wal replay", "numBlocks", len(walFiles))
+	for _, f := range walFiles {
+		tenantID := f.TenantID
 		level.Info(util.Logger).Log("msg", "beginning block replay", "tenantID", tenantID)
 
-		instance, err := i.getOrCreateInstance(tenantID)
-		if err != nil {
-			return err
+		// jpe - lock?
+		_, ok := i.instances[tenantID]
+		if ok {
+			return fmt.Errorf("instance already exists while replaying wal. this means there are two wal files for one instance. please remove one. %s", tenantID)
 		}
 
-		err = i.replayBlock(b, instance)
+		instance, err := newInstanceWithWalFile(tenantID, i.limiter, i.store.WAL(), f)
 		if err != nil {
-			// there was an error, log and keep on keeping on
-			level.Error(util.Logger).Log("msg", "error replaying block.  removing", "error", err)
+			return fmt.Errorf("failed to load walfile %v: %w", f, err)
 		}
-		err = b.Clear()
-		if err != nil {
-			return err
-		}
-	}
+		level.Info(util.Logger).Log("msg", "complete block replay", "tenantID", tenantID)
 
-	return nil
-}
-
-func (i *Ingester) replayBlock(b *tempodb_wal.ReplayBlock, instance *instance) error {
-	iterator, err := b.Iterator()
-	if err != nil {
-		return err
-	}
-	for {
-		id, obj, err := iterator.Next()
-		if id == nil {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
-		writeID := append([]byte(nil), id...)
-		err = instance.PushBytes(context.Background(), writeID, obj)
-		if err != nil {
-			return err
-		}
+		i.instances[tenantID] = instance
 	}
 
 	return nil

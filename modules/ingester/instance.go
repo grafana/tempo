@@ -87,6 +87,21 @@ func newInstance(instanceID string, limiter *Limiter, wal *wal.WAL) (*instance, 
 	return i, nil
 }
 
+func newInstanceWithWalFile(instanceID string, limiter *Limiter, wal *wal.WAL, f *wal.File) (*instance, error) {
+	i, err := newInstance(instanceID, limiter, wal)
+	if err != nil {
+		return nil, err
+	}
+
+	// jpe - lock?
+	i.headBlock, err = wal.NewBlockWithWalFile(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return i, nil
+}
+
 func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()

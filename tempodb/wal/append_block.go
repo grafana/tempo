@@ -43,22 +43,27 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 	return h, nil
 }
 
-// NewAppendBlockFromWal is a method of creating an append block from a wal file.  It
+// newAppendBlockFromWal is a method of creating an append block from a wal file.  It
 //  is intended to be used on startup by the ingester to rapidly "replay" the wal.
-func NewAppendBlockFromWal(walfile string) (*AppendBlock, error) {
-	blockID, tenantID, err := parseFilename(walfile)
-	if err != nil {
-		return nil, err
+func newAppendBlockFromWal(f *File) (*AppendBlock, error) {
+	h := &AppendBlock{
+		block: block{
+			meta:     backend.NewBlockMeta(f.TenantID, f.BlockID),
+			filepath: f.Filepath,
+		},
 	}
 
-	// load the walfile and rebuild the index
-	readFile, err := os.OpenFile(walfile, os.O_RDONLY, 0644)
+	filename := h.fullFilename()
+
+	// open as readfile to rebuild the index
+	readFile, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
 	defer readFile.Close()
 
-	appendFile, err := os.OpenFile(walfile, os.O_APPEND|os.O_WRONLY, 0644)
+	// open as appendfile for future appends
+	appendFile, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -68,15 +73,11 @@ func NewAppendBlockFromWal(walfile string) (*AppendBlock, error) {
 		return nil, err
 	}
 
+	h.appendFile = appendFile
+	h.appender = appender
+
 	// actually build the block
-	return &AppendBlock{
-		block: block{
-			meta:     backend.NewBlockMeta(tenantID, blockID),
-			filepath: walfile,
-		},
-		appendFile: appendFile,
-		appender:   appender,
-	}, nil
+	return h, nil
 }
 
 // Write adds an id and object to this AppendBlock
