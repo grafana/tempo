@@ -179,7 +179,8 @@ func mergeResponses(rrs []RequestResponse) (*http.Response, error) {
 		}
 	}
 
-	if len(combinedTrace) == 0 {
+	// Always give precedence to 5xx errors and propagate them to the user so they can retry the query
+	if len(combinedTrace) == 0 || errCode > 499 {
 		return &http.Response{
 			StatusCode: errCode,
 			Body:       errBody,

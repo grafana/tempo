@@ -93,7 +93,29 @@ func TestMergeResponses(t *testing.T) {
 			},
 		},
 		{
-			name: "report 5xx",
+			name: "report 5xx with hit",
+			requestResponse: []RequestResponse{
+				{
+					Response: &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       ioutil.NopCloser(bytes.NewReader(b1)),
+					},
+				},
+				{
+					Response: &http.Response{
+						StatusCode: http.StatusInternalServerError,
+						Body:       ioutil.NopCloser(bytes.NewReader([]byte("bar"))),
+					},
+				},
+			},
+			expected: &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte("bar"))),
+				Header:     http.Header{},
+			},
+		},
+		{
+			name: "report 5xx with no hit",
 			requestResponse: []RequestResponse{
 				{
 					Response: &http.Response{
