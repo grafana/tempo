@@ -1,22 +1,22 @@
-package encoding
+package v0
 
 import (
 	"bytes"
 	"io"
+
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type ObjectCombiner interface {
-	Combine(objA []byte, objB []byte) []byte
-}
-
 type dedupingIterator struct {
-	iter          Iterator
-	combiner      ObjectCombiner
+	iter          common.Iterator
+	combiner      common.ObjectCombiner
 	currentID     []byte
 	currentObject []byte
 }
 
-func NewDedupingIterator(iter Iterator, combiner ObjectCombiner) (Iterator, error) {
+// NewDedupingIterator returns a dedupingIterator.  This iterator is used to wrap another
+//  iterator.  It will dedupe consecutive objects with the same id using the ObjectCombiner.
+func NewDedupingIterator(iter common.Iterator, combiner common.ObjectCombiner) (common.Iterator, error) {
 	i := &dedupingIterator{
 		iter:     iter,
 		combiner: combiner,
@@ -31,7 +31,7 @@ func NewDedupingIterator(iter Iterator, combiner ObjectCombiner) (Iterator, erro
 	return i, nil
 }
 
-func (i *dedupingIterator) Next() (ID, []byte, error) {
+func (i *dedupingIterator) Next() (common.ID, []byte, error) {
 	if i.currentID == nil {
 		return nil, nil, io.EOF
 	}

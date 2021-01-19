@@ -1,18 +1,23 @@
-package encoding
+package v0
 
 import (
 	"bytes"
 	"io"
 	"sort"
+
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type dedupingFinder struct {
 	ra            io.ReaderAt
-	sortedRecords []*Record
-	combiner      ObjectCombiner
+	sortedRecords []*common.Record
+	combiner      common.ObjectCombiner
 }
 
-func NewDedupingFinder(sortedRecords []*Record, ra io.ReaderAt, combiner ObjectCombiner) Finder {
+// NewDedupingFinder returns a dedupingFinder. This finder is used for searching
+//  a set of records and returning an object. If a set of consecutive records has
+//  matching ids they will be combined using the ObjectCombiner.
+func NewDedupingFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder {
 	return &dedupingFinder{
 		ra:            ra,
 		sortedRecords: sortedRecords,
@@ -20,7 +25,7 @@ func NewDedupingFinder(sortedRecords []*Record, ra io.ReaderAt, combiner ObjectC
 	}
 }
 
-func (f *dedupingFinder) Find(id ID) ([]byte, error) {
+func (f *dedupingFinder) Find(id common.ID) ([]byte, error) {
 	i := sort.Search(len(f.sortedRecords), func(idx int) bool {
 		return bytes.Compare(f.sortedRecords[idx].ID, id) >= 0
 	})
@@ -55,7 +60,7 @@ func (f *dedupingFinder) Find(id ID) ([]byte, error) {
 	return bytesFound, nil
 }
 
-func (f *dedupingFinder) findOne(id ID, record *Record) ([]byte, error) {
+func (f *dedupingFinder) findOne(id common.ID, record *common.Record) ([]byte, error) {
 	buff := make([]byte, record.Length)
 	_, err := f.ra.ReadAt(buff, int64(record.Start))
 	if err != nil {

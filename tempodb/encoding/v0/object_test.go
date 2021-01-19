@@ -1,4 +1,4 @@
-package encoding
+package v0
 
 import (
 	"bytes"

@@ -7,18 +7,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type CompactorBlock struct {
 	compactedMeta *backend.BlockMeta
 	inMetas       []*backend.BlockMeta
 
-	bloom *bloom.ShardedBloomFilter
+	bloom *common.ShardedBloomFilter
 
 	bufferedObjects int
 	appendBuffer    *bytes.Buffer
-	appender        Appender
+	appender        common.Appender
 }
 
 func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
@@ -32,17 +32,17 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 
 	c := &CompactorBlock{
 		compactedMeta: backend.NewBlockMeta(tenantID, id),
-		bloom:         bloom.NewWithEstimates(uint(estimatedObjects), bloomFP),
+		bloom:         common.NewWithEstimates(uint(estimatedObjects), bloomFP),
 		inMetas:       metas,
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender = NewBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
+	c.appender = newBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
 
 	return c, nil
 }
 
-func (c *CompactorBlock) AddObject(id ID, object []byte) error {
+func (c *CompactorBlock) AddObject(id common.ID, object []byte) error {
 	err := c.appender.Append(id, object)
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func (c *CompactorBlock) Length() int {
 // FlushBuffer flushes any existing objects to the backend
 func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (backend.AppendTracker, error) {
 	meta := c.BlockMeta()
-	tracker, err := w.Append(ctx, nameObjects, meta.BlockID, meta.TenantID, tracker, c.appendBuffer.Bytes())
+	tracker, err := appendBlockData(ctx, w, meta, tracker, c.appendBuffer.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -83,21 +83,10 @@ func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.Append
 func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) error {
 	c.appender.Complete()
 
-	// index
 	records := c.appender.Records()
-	indexBytes, err := MarshalRecords(records)
-	if err != nil {
-		return err
-	}
-
-	// bloom
-	bloomBuffers, err := c.bloom.WriteTo()
-	if err != nil {
-		return err
-	}
-
 	meta := c.BlockMeta()
-	err = writeBlock(ctx, w, meta, indexBytes, bloomBuffers)
+
+	err := writeBlockMeta(ctx, w, meta, records, c.bloom)
 	if err != nil {
 		return err
 	}

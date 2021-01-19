@@ -216,15 +216,17 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Read")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Read")
 	defer span.Finish()
+
+	span.SetTag("object", name)
 
 	return rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
 }
 
 // ReadRange implements backend.Reader
 func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "ReadRange")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.ReadRange")
 	defer span.Finish()
 
 	return rw.readRange(derivedCtx, util.ObjectFileName(blockID, tenantID, name), int64(offset), buffer)

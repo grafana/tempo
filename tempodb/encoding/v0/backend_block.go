@@ -1,4 +1,4 @@
-package encoding
+package v0
 
 import (
 	"bytes"
@@ -6,52 +6,25 @@ import (
 	"fmt"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/bloom"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 
 	willf_bloom "github.com/willf/bloom"
-	"go.uber.org/atomic"
 )
 
-// FindMetrics is a threadsafe struct for tracking metrics related to a parallelized query
-type FindMetrics struct {
-	BloomFilterReads     *atomic.Int32
-	BloomFilterBytesRead *atomic.Int32
-	IndexReads           *atomic.Int32
-	IndexBytesRead       *atomic.Int32
-	BlockReads           *atomic.Int32
-	BlockBytesRead       *atomic.Int32
-}
-
-func NewFindMetrics() FindMetrics {
-	return FindMetrics{
-		BloomFilterReads:     atomic.NewInt32(0),
-		BloomFilterBytesRead: atomic.NewInt32(0),
-		IndexReads:           atomic.NewInt32(0),
-		IndexBytesRead:       atomic.NewInt32(0),
-		BlockReads:           atomic.NewInt32(0),
-		BlockBytesRead:       atomic.NewInt32(0),
-	}
-}
-
-// BackendBlock defines an object that can find traces
-type BackendBlock interface {
-	Find(ctx context.Context, r backend.Reader, id ID, metrics *FindMetrics) ([]byte, error)
-}
-
-type backendBlock struct {
+type BackendBlock struct {
 	meta *backend.BlockMeta
 }
 
 // NewBackendBlock returns a block used for finding traces in the backend
-func NewBackendBlock(meta *backend.BlockMeta) BackendBlock {
-	return &backendBlock{
+func NewBackendBlock(meta *backend.BlockMeta) *BackendBlock {
+	return &BackendBlock{
 		meta: meta,
 	}
 }
 
 // Find searches a block for the ID and returns an object if found.
-func (b *backendBlock) Find(ctx context.Context, r backend.Reader, id ID, metrics *FindMetrics) ([]byte, error) {
-	shardKey := bloom.ShardKeyForTraceID(id)
+func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id common.ID, metrics *common.FindMetrics) ([]byte, error) {
+	shardKey := common.ShardKeyForTraceID(id)
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
 
@@ -79,7 +52,7 @@ func (b *backendBlock) Find(ctx context.Context, r backend.Reader, id ID, metric
 		return nil, fmt.Errorf("error reading index %w", err)
 	}
 
-	record, err := FindRecord(id, indexBytes) // todo: replace with backend.Finder
+	record, err := findRecord(id, indexBytes) // todo: replace with backend.Finder
 	if err != nil {
 		return nil, fmt.Errorf("error finding record %w", err)
 	}
@@ -112,4 +85,9 @@ func (b *backendBlock) Find(ctx context.Context, r backend.Reader, id ID, metric
 		}
 	}
 	return foundObject, nil
+}
+
+// Iterator searches a block for the ID and returns an object if found.
+func (b *BackendBlock) Iterator(chunkSizeBytes uint32, r backend.Reader) (common.Iterator, error) {
+	return NewBackendIterator(b.meta.TenantID, b.meta.BlockID, chunkSizeBytes, r)
 }

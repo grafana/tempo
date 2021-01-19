@@ -17,9 +17,13 @@ To learn more about Tempo, consult the following documents & talks:
 
 - October 2020 Launch blog post: "[Announcing Grafana Tempo, a massively scalable distributed tracing system][tempo-launch-post]"
 - October 2020 Motivations and tradeoffs blog post: "[Tempo: A game of trade-offs][tempo-tradeoffs-post]"
+- October 2020 Grafana ObservabilityCON Keynote Tempo announcement: "[Keynote: What is observability?][tempo-o11ycon-keynote]"
+- October 2020 Grafana ObservabilityCON Tempo Deep Dive: "[Tracing made simple with Grafana][tempo-o11ycon-deep-dive]"
 
 [tempo-launch-post]: https://grafana.com/blog/2020/10/27/announcing-grafana-tempo-a-massively-scalable-distributed-tracing-system/
 [tempo-tradeoffs-post]: https://gouthamve.dev/tempo-a-game-of-trade-offs/
+[tempo-o11ycon-keynote]: https://grafana.com/go/observabilitycon/keynote-what-is-observability/
+[tempo-o11ycon-deep-dive]: https://grafana.com/go/observabilitycon/tracing-made-simple-with-grafana/
 
 ## Getting Help
 

@@ -21,8 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding"
-	tempodb_encoding "github.com/grafana/tempo/tempodb/encoding"
-	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 // Errors returned on Query.
@@ -53,8 +52,8 @@ type instance struct {
 	traces    map[uint32]*trace
 
 	blocksMtx       sync.RWMutex
-	headBlock       *tempodb_wal.AppendBlock
-	completingBlock *tempodb_wal.AppendBlock
+	headBlock       *wal.AppendBlock
+	completingBlock *wal.AppendBlock
 	completeBlocks  []*encoding.CompleteBlock
 
 	lastBlockCut time.Time
@@ -63,12 +62,12 @@ type instance struct {
 	tracesCreatedTotal prometheus.Counter
 	bytesWrittenTotal  prometheus.Counter
 	limiter            *Limiter
-	wal                *tempodb_wal.WAL
+	wal                *wal.WAL
 
 	hash hash.Hash32
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal *tempodb_wal.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, wal *wal.WAL) (*instance, error) {
 	i := &instance{
 		traces: map[uint32]*trace{},
 
@@ -104,7 +103,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 }
 
 // PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushBytes(ctx context.Context, id tempodb_encoding.ID, object []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id []byte, object []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -113,26 +112,19 @@ func (i *instance) PushBytes(ctx context.Context, id tempodb_encoding.ID, object
 
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
-	i.tracesMtx.Lock()
-	defer i.tracesMtx.Unlock()
+	tracesToCut := i.tracesToCut(cutoff, immediate)
 
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
-	now := time.Now()
-	for key, trace := range i.traces {
-		if now.Add(cutoff).After(trace.lastAppend) || immediate {
-			out, err := proto.Marshal(trace.trace)
-			if err != nil {
-				return err
-			}
-			err = i.headBlock.Write(trace.traceID, out)
-			if err != nil {
-				return err
-			}
-			i.bytesWrittenTotal.Add(float64(len(out)))
-			delete(i.traces, key)
+	for _, t := range tracesToCut {
+		out, err := proto.Marshal(t.trace)
+		if err != nil {
+			return err
 		}
+
+		err = i.writeTraceToHeadBlock(t.traceID, out)
+		if err != nil {
+			return err
+		}
+		i.bytesWrittenTotal.Add(float64(len(out)))
 	}
 
 	return nil
@@ -277,6 +269,8 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	return nil, nil
 }
 
+// getOrCreateTrace will return a new trace object for the given request
+//  It must be called under the i.tracesMtx lock
 func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	traceID, err := pushRequestTraceID(req)
 	if err != nil {
@@ -315,6 +309,30 @@ func (i *instance) resetHeadBlock() error {
 	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
 	i.lastBlockCut = time.Now()
 	return err
+}
+
+func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
+
+	cutoffTime := time.Now().Add(cutoff)
+	tracesToCut := make([]*trace, 0, len(i.traces))
+
+	for key, trace := range i.traces {
+		if cutoffTime.After(trace.lastAppend) || immediate {
+			tracesToCut = append(tracesToCut, trace)
+			delete(i.traces, key)
+		}
+	}
+
+	return tracesToCut
+}
+
+func (i *instance) writeTraceToHeadBlock(id encoding.ID, b []byte) error {
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
+	return i.headBlock.Write(id, b)
 }
 
 func (i *instance) Combine(objA []byte, objB []byte) []byte {

@@ -28,7 +28,7 @@ type BlockMeta struct {
 func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
 	now := time.Now()
 	b := &BlockMeta{
-		Version:   "v0",
+		Version:   "v0", // jpe - think about this
 		BlockID:   blockID,
 		MinID:     []byte{},
 		MaxID:     []byte{},

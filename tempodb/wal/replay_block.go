@@ -3,21 +3,22 @@ package wal
 import (
 	"os"
 
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type ReplayBlock struct {
 	block
 }
 
-func (r *ReplayBlock) Iterator() (encoding.Iterator, error) {
+func (r *ReplayBlock) Iterator() (common.Iterator, error) {
 	name := r.fullFilename()
 	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
 
-	return encoding.NewIterator(f), nil
+	return v0.NewIterator(f), nil
 }
 
 func (r *ReplayBlock) TenantID() string {
