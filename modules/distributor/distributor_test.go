@@ -396,6 +396,8 @@ type mockRing struct {
 	replicationFactor uint32
 }
 
+var _ ring.ReadRing = (*mockRing)(nil)
+
 func (r mockRing) Get(key uint32, op ring.Operation, buf []ring.IngesterDesc) (ring.ReplicationSet, error) {
 	result := ring.ReplicationSet{
 		MaxErrors: 1,
@@ -408,15 +410,27 @@ func (r mockRing) Get(key uint32, op ring.Operation, buf []ring.IngesterDesc) (r
 	return result, nil
 }
 
-func (r mockRing) GetAll(ring.Operation) (ring.ReplicationSet, error) {
+func (r mockRing) GetAllHealthy(op ring.Operation) (ring.ReplicationSet, error) {
 	return ring.ReplicationSet{
 		Ingesters: r.ingesters,
 		MaxErrors: 1,
 	}, nil
 }
 
+func (r mockRing) GetReplicationSetForOperation(op ring.Operation) (ring.ReplicationSet, error) {
+	return r.GetAllHealthy(op)
+}
+
 func (r mockRing) ReplicationFactor() int {
 	return int(r.replicationFactor)
+}
+
+func (r mockRing) ShuffleShard(identifier string, size int) ring.ReadRing {
+	return r
+}
+
+func (r mockRing) ShuffleShardWithLookback(string, int, time.Duration, time.Time) ring.ReadRing {
+	return r
 }
 
 func (r mockRing) IngesterCount() int {
@@ -425,8 +439,4 @@ func (r mockRing) IngesterCount() int {
 
 func (r mockRing) HasInstance(instanceID string) bool {
 	return true
-}
-
-func (r mockRing) Subring(key uint32, n int) ring.ReadRing {
-	return r
 }

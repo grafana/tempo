@@ -17,13 +17,14 @@ import (
 	"github.com/prometheus/prometheus/pkg/labels"
 	tsdb_record "github.com/prometheus/prometheus/tsdb/record"
 	"github.com/weaveworks/common/httpgrpc"
-	"github.com/weaveworks/common/user"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc/codes"
 
 	cortex_chunk "github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/ingester/client"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/storage/tsdb"
+	"github.com/cortexproject/cortex/pkg/tenant"
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/cortexproject/cortex/pkg/util/spanlogger"
@@ -71,13 +72,18 @@ type Config struct {
 
 	RateUpdatePeriod time.Duration `yaml:"rate_update_period"`
 
+	ActiveSeriesMetricsEnabled      bool          `yaml:"active_series_metrics_enabled"`
+	ActiveSeriesMetricsUpdatePeriod time.Duration `yaml:"active_series_metrics_update_period"`
+	ActiveSeriesMetricsIdleTimeout  time.Duration `yaml:"active_series_metrics_idle_timeout"`
+
 	// Use blocks storage.
 	BlocksStorageEnabled bool                     `yaml:"-"`
 	BlocksStorageConfig  tsdb.BlocksStorageConfig `yaml:"-"`
 
 	// Injected at runtime and read from the distributor config, required
 	// to accurately apply global limits.
-	ShardByAllLabels bool `yaml:"-"`
+	DistributorShardingStrategy string `yaml:"-"`
+	DistributorShardByAllLabels bool   `yaml:"-"`
 
 	// For testing, you can override the address and ID of this ingester.
 	ingesterClientFactory func(addr string, cfg client.Config) (client.HealthAndIngesterClient, error)
@@ -103,6 +109,9 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.DurationVar(&cfg.MetadataRetainPeriod, "ingester.metadata-retain-period", 10*time.Minute, "Period at which metadata we have not seen will remain in memory before being deleted.")
 
 	f.DurationVar(&cfg.RateUpdatePeriod, "ingester.rate-update-period", 15*time.Second, "Period with which to update the per-user ingestion rates.")
+	f.BoolVar(&cfg.ActiveSeriesMetricsEnabled, "ingester.active-series-metrics-enabled", false, "Enable tracking of active series and export them as metrics.")
+	f.DurationVar(&cfg.ActiveSeriesMetricsUpdatePeriod, "ingester.active-series-metrics-update-period", 1*time.Minute, "How often to update active series metrics.")
+	f.DurationVar(&cfg.ActiveSeriesMetricsIdleTimeout, "ingester.active-series-metrics-idle-timeout", 10*time.Minute, "After what time a series is considered to be inactive.")
 }
 
 // Ingester deals with "in flight" chunks.  Based on Prometheus 1.x
@@ -133,6 +142,9 @@ type Ingester struct {
 	// pick a queue.
 	flushQueues     []*util.PriorityQueue
 	flushQueuesDone sync.WaitGroup
+
+	// Spread out calls to the chunk store over the flush period
+	flushRateLimiter *rate.Limiter
 
 	// This should never be nil.
 	wal WAL
@@ -187,13 +199,14 @@ func New(cfg Config, clientConfig client.Config, limits *validation.Overrides, c
 	i := &Ingester{
 		cfg:          cfg,
 		clientConfig: clientConfig,
-		metrics:      newIngesterMetrics(registerer, true),
+		metrics:      newIngesterMetrics(registerer, true, cfg.ActiveSeriesMetricsEnabled),
 
-		limits:        limits,
-		chunkStore:    chunkStore,
-		flushQueues:   make([]*util.PriorityQueue, cfg.ConcurrentFlushes),
-		usersMetadata: map[string]*userMetricsMetadata{},
-		registerer:    registerer,
+		limits:           limits,
+		chunkStore:       chunkStore,
+		flushQueues:      make([]*util.PriorityQueue, cfg.ConcurrentFlushes),
+		flushRateLimiter: rate.NewLimiter(rate.Inf, 1),
+		usersMetadata:    map[string]*userMetricsMetadata{},
+		registerer:       registerer,
 	}
 
 	var err error
@@ -204,7 +217,15 @@ func New(cfg Config, clientConfig client.Config, limits *validation.Overrides, c
 	if err != nil {
 		return nil, err
 	}
-	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor, cfg.ShardByAllLabels)
+
+	i.limiter = NewLimiter(
+		limits,
+		i.lifecycler,
+		cfg.DistributorShardingStrategy,
+		cfg.DistributorShardByAllLabels,
+		cfg.LifecyclerConfig.RingConfig.ReplicationFactor,
+		cfg.LifecyclerConfig.RingConfig.ZoneAwarenessEnabled)
+
 	i.subservicesWatcher = services.NewFailureWatcher()
 	i.subservicesWatcher.WatchService(i.lifecycler)
 
@@ -268,12 +289,13 @@ func NewForFlusher(cfg Config, chunkStore ChunkStore, limits *validation.Overrid
 	}
 
 	i := &Ingester{
-		cfg:         cfg,
-		metrics:     newIngesterMetrics(registerer, true),
-		chunkStore:  chunkStore,
-		flushQueues: make([]*util.PriorityQueue, cfg.ConcurrentFlushes),
-		wal:         &noopWAL{},
-		limits:      limits,
+		cfg:              cfg,
+		metrics:          newIngesterMetrics(registerer, true, false),
+		chunkStore:       chunkStore,
+		flushQueues:      make([]*util.PriorityQueue, cfg.ConcurrentFlushes),
+		flushRateLimiter: rate.NewLimiter(rate.Inf, 1),
+		wal:              &noopWAL{},
+		limits:           limits,
 	}
 
 	i.BasicService = services.NewBasicService(i.startingForFlusher, i.loopForFlusher, i.stopping)
@@ -320,6 +342,13 @@ func (i *Ingester) loop(ctx context.Context) error {
 	metadataPurgeTicker := time.NewTicker(metadataPurgePeriod)
 	defer metadataPurgeTicker.Stop()
 
+	var activeSeriesTickerChan <-chan time.Time
+	if i.cfg.ActiveSeriesMetricsEnabled {
+		t := time.NewTicker(i.cfg.ActiveSeriesMetricsUpdatePeriod)
+		activeSeriesTickerChan = t.C
+		defer t.Stop()
+	}
+
 	for {
 		select {
 		case <-metadataPurgeTicker.C:
@@ -330,6 +359,9 @@ func (i *Ingester) loop(ctx context.Context) error {
 
 		case <-rateUpdateTicker.C:
 			i.userStates.updateRates()
+
+		case <-activeSeriesTickerChan:
+			i.userStates.purgeAndUpdateActiveSeries(time.Now().Add(-i.cfg.ActiveSeriesMetricsIdleTimeout))
 
 		case <-ctx.Done():
 			return nil
@@ -360,11 +392,19 @@ func (i *Ingester) stopping(_ error) error {
 //     * Change the state of ring to stop accepting writes.
 //     * Flush all the chunks.
 func (i *Ingester) ShutdownHandler(w http.ResponseWriter, r *http.Request) {
-	originalState := i.lifecycler.FlushOnShutdown()
+	originalFlush := i.lifecycler.FlushOnShutdown()
 	// We want to flush the chunks if transfer fails irrespective of original flag.
 	i.lifecycler.SetFlushOnShutdown(true)
+
+	// In the case of an HTTP shutdown, we want to unregister no matter what.
+	originalUnregister := i.lifecycler.ShouldUnregisterOnShutdown()
+	i.lifecycler.SetUnregisterOnShutdown(true)
+
 	_ = services.StopAndAwaitTerminated(context.Background(), i)
-	i.lifecycler.SetFlushOnShutdown(originalState)
+	// Set state back to original.
+	i.lifecycler.SetFlushOnShutdown(originalFlush)
+	i.lifecycler.SetUnregisterOnShutdown(originalUnregister)
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -400,7 +440,7 @@ func (i *Ingester) Push(ctx context.Context, req *client.WriteRequest) (*client.
 	// retain anything from `req` past the call to ReuseSlice
 	defer client.ReuseSlice(req.Timeseries)
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := tenant.TenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("no user id")
 	}
@@ -425,10 +465,12 @@ func (i *Ingester) Push(ctx context.Context, req *client.WriteRequest) (*client.
 	}
 
 	for _, ts := range req.Timeseries {
+		seriesSamplesIngested := 0
 		for _, s := range ts.Samples {
 			// append() copies the memory in `ts.Labels` except on the error path
 			err := i.append(ctx, userID, ts.Labels, model.Time(s.TimestampMs), model.SampleValue(s.Value), req.Source, record)
 			if err == nil {
+				seriesSamplesIngested++
 				continue
 			}
 
@@ -442,6 +484,11 @@ func (i *Ingester) Push(ctx context.Context, req *client.WriteRequest) (*client.
 
 			// non-validation error: abandon this request
 			return nil, grpcForwardableError(userID, http.StatusInternalServerError, err)
+		}
+
+		if i.cfg.ActiveSeriesMetricsEnabled && seriesSamplesIngested > 0 {
+			// updateActiveSeries will copy labels if necessary.
+			i.updateActiveSeries(userID, time.Now(), ts.Labels)
 		}
 	}
 
@@ -573,7 +620,7 @@ func (i *Ingester) appendMetadata(userID string, m *client.MetricMetadata) error
 
 	userMetadata := i.getOrCreateUserMetadata(userID)
 
-	return userMetadata.add(m.GetMetricName(), m)
+	return userMetadata.add(m.GetMetricFamilyName(), m)
 }
 
 func (i *Ingester) getOrCreateUserMetadata(userID string) *userMetricsMetadata {
@@ -636,7 +683,7 @@ func (i *Ingester) Query(ctx context.Context, req *client.QueryRequest) (*client
 		return i.v2Query(ctx, req)
 	}
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := tenant.TenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -883,7 +930,7 @@ func (i *Ingester) MetricsMetadata(ctx context.Context, req *client.MetricsMetad
 	}
 	i.userStatesMtx.RUnlock()
 
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := tenant.TenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("no user id")
 	}
@@ -966,4 +1013,12 @@ func (i *Ingester) CheckReady(ctx context.Context) error {
 		return fmt.Errorf("ingester not ready: %v", err)
 	}
 	return i.lifecycler.CheckReady(ctx)
+}
+
+// labels will be copied if needed.
+func (i *Ingester) updateActiveSeries(userID string, now time.Time, labels []client.LabelAdapter) {
+	i.userStatesMtx.RLock()
+	defer i.userStatesMtx.RUnlock()
+
+	i.userStates.updateActiveSeriesForUser(userID, now, client.FromLabelAdaptersToLabels(labels))
 }

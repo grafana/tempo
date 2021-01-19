@@ -8,7 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
-	"sort"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -44,10 +44,28 @@ type ReadRing interface {
 	// buf is a slice to be overwritten for the return value
 	// to avoid memory allocation; can be nil.
 	Get(key uint32, op Operation, buf []IngesterDesc) (ReplicationSet, error)
-	GetAll(op Operation) (ReplicationSet, error)
+
+	// GetAllHealthy returns all healthy instances in the ring, for the given operation.
+	// This function doesn't check if the quorum is honored, so doesn't fail if the number
+	// of unhealthy ingesters is greater than the tolerated max unavailable.
+	GetAllHealthy(op Operation) (ReplicationSet, error)
+
+	// GetReplicationSetForOperation returns all instances where the input operation should be executed.
+	// The resulting ReplicationSet doesn't necessarily contains all healthy instances
+	// in the ring, but could contain the minimum set of instances required to execute
+	// the input operation.
+	GetReplicationSetForOperation(op Operation) (ReplicationSet, error)
+
 	ReplicationFactor() int
 	IngesterCount() int
-	Subring(key uint32, n int) ReadRing
+
+	// ShuffleShard returns a subring for the provided identifier (eg. a tenant ID)
+	// and size (number of instances).
+	ShuffleShard(identifier string, size int) ReadRing
+
+	// ShuffleShardWithLookback is like ShuffleShard() but the returned subring includes
+	// all instances that have been part of the identifier's shard since "now - lookbackPeriod".
+	ShuffleShardWithLookback(identifier string, size int, lookbackPeriod time.Duration, now time.Time) ReadRing
 
 	// HasInstance returns whether the ring contains an instance matching the provided instanceID.
 	HasInstance(instanceID string) bool
@@ -67,6 +85,12 @@ const (
 
 	// BlocksRead is the operation run by the querier to query blocks via the store-gateway.
 	BlocksRead
+
+	// Ruler is the operation used for distributing rule groups between rulers.
+	Ruler
+
+	// Compactor is the operation used for distributing tenants/blocks across compactors.
+	Compactor
 )
 
 var (
@@ -76,13 +100,19 @@ var (
 	// ErrInstanceNotFound is the error returned when trying to get information for an instance
 	// not registered within the ring.
 	ErrInstanceNotFound = errors.New("instance not found in the ring")
+
+	// ErrTooManyFailedIngesters is the error returned when there are too many failed ingesters for a
+	// specific operation.
+	ErrTooManyFailedIngesters = errors.New("too many failed ingesters")
 )
 
 // Config for a Ring
 type Config struct {
-	KVStore           kv.Config     `yaml:"kvstore"`
-	HeartbeatTimeout  time.Duration `yaml:"heartbeat_timeout"`
-	ReplicationFactor int           `yaml:"replication_factor"`
+	KVStore              kv.Config     `yaml:"kvstore"`
+	HeartbeatTimeout     time.Duration `yaml:"heartbeat_timeout"`
+	ReplicationFactor    int           `yaml:"replication_factor"`
+	ZoneAwarenessEnabled bool          `yaml:"zone_awareness_enabled"`
+	ExtendWrites         bool          `yaml:"extend_writes"`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet with a specified prefix
@@ -96,6 +126,8 @@ func (cfg *Config) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
 
 	f.DurationVar(&cfg.HeartbeatTimeout, prefix+"ring.heartbeat-timeout", time.Minute, "The heartbeat timeout after which ingesters are skipped for reads/writes.")
 	f.IntVar(&cfg.ReplicationFactor, prefix+"distributor.replication-factor", 3, "The number of ingesters to write to and read from.")
+	f.BoolVar(&cfg.ZoneAwarenessEnabled, prefix+"distributor.zone-awareness-enabled", false, "True to enable the zone-awareness and replicate ingested samples across different availability zones.")
+	f.BoolVar(&cfg.ExtendWrites, prefix+"distributor.extend-writes", true, "Try writing to an additional ingester in the presence of an ingester not in the ACTIVE state. It is useful to disable this along with -ingester.unregister-on-shutdown=false in order to not spread samples to extra ingesters during rolling restarts with consistent naming.")
 }
 
 // Ring holds the information about the members of the consistent hash ring.
@@ -107,15 +139,32 @@ type Ring struct {
 	KVClient kv.Client
 	strategy ReplicationStrategy
 
-	mtx        sync.RWMutex
-	ringDesc   *Desc
-	ringTokens []TokenDesc
+	mtx              sync.RWMutex
+	ringDesc         *Desc
+	ringTokens       []TokenDesc
+	ringTokensByZone map[string][]TokenDesc
+
+	// When did a set of instances change the last time (instance changing state or heartbeat is ignored for this timestamp).
+	lastTopologyChange time.Time
+
+	// List of zones for which there's at least 1 instance in the ring. This list is guaranteed
+	// to be sorted alphabetically.
+	ringZones []string
+
+	// Cache of shuffle-sharded subrings per identifier. Invalidated when topology changes.
+	// If set to nil, no caching is done (used by tests, and subrings).
+	shuffledSubringCache map[subringCacheKey]*Ring
 
 	memberOwnershipDesc *prometheus.Desc
 	numMembersDesc      *prometheus.Desc
 	totalTokensDesc     *prometheus.Desc
 	numTokensDesc       *prometheus.Desc
 	oldestTimestampDesc *prometheus.Desc
+}
+
+type subringCacheKey struct {
+	identifier string
+	shardSize  int
 }
 
 // New creates a new Ring. Being a service, Ring needs to be started to do anything.
@@ -131,7 +180,7 @@ func New(cfg Config, name, key string, reg prometheus.Registerer) (*Ring, error)
 		return nil, err
 	}
 
-	return NewWithStoreClientAndStrategy(cfg, name, key, store, &DefaultReplicationStrategy{})
+	return NewWithStoreClientAndStrategy(cfg, name, key, store, NewDefaultReplicationStrategy(cfg.ExtendWrites))
 }
 
 func NewWithStoreClientAndStrategy(cfg Config, name, key string, store kv.Client, strategy ReplicationStrategy) (*Ring, error) {
@@ -140,11 +189,12 @@ func NewWithStoreClientAndStrategy(cfg Config, name, key string, store kv.Client
 	}
 
 	r := &Ring{
-		key:      key,
-		cfg:      cfg,
-		KVClient: store,
-		strategy: strategy,
-		ringDesc: &Desc{},
+		key:                  key,
+		cfg:                  cfg,
+		KVClient:             store,
+		strategy:             strategy,
+		ringDesc:             &Desc{},
+		shuffledSubringCache: map[subringCacheKey]*Ring{},
 		memberOwnershipDesc: prometheus.NewDesc(
 			"cortex_ring_member_ownership_percent",
 			"The percent ownership of the ring by member",
@@ -184,17 +234,43 @@ func NewWithStoreClientAndStrategy(cfg Config, name, key string, store kv.Client
 func (r *Ring) loop(ctx context.Context) error {
 	r.KVClient.WatchKey(ctx, r.key, func(value interface{}) bool {
 		if value == nil {
-			level.Info(util.Logger).Log("msg", "ring doesn't exist in consul yet")
+			level.Info(util.Logger).Log("msg", "ring doesn't exist in KV store yet")
 			return true
 		}
 
 		ringDesc := value.(*Desc)
+
+		r.mtx.RLock()
+		prevRing := r.ringDesc
+		r.mtx.RUnlock()
+
+		rc := prevRing.RingCompare(ringDesc)
+		if rc == Equal || rc == EqualButStatesAndTimestamps {
+			// No need to update tokens or zones. Only states and timestamps
+			// have changed. (If Equal, nothing has changed, but that doesn't happen
+			// when watching the ring for updates).
+			r.mtx.Lock()
+			r.ringDesc = ringDesc
+			r.mtx.Unlock()
+			return true
+		}
+
+		now := time.Now()
 		ringTokens := ringDesc.getTokens()
+		ringTokensByZone := ringDesc.getTokensByZone()
+		ringZones := getZones(ringTokensByZone)
 
 		r.mtx.Lock()
 		defer r.mtx.Unlock()
 		r.ringDesc = ringDesc
 		r.ringTokens = ringTokens
+		r.ringTokensByZone = ringTokensByZone
+		r.ringZones = ringZones
+		r.lastTopologyChange = now
+		if r.shuffledSubringCache != nil {
+			// Invalidate all cached subrings.
+			r.shuffledSubringCache = make(map[subringCacheKey]*Ring)
+		}
 		return true
 	})
 	return nil
@@ -213,7 +289,7 @@ func (r *Ring) Get(key uint32, op Operation, buf []IngesterDesc) (ReplicationSet
 		ingesters     = buf[:0]
 		distinctHosts = map[string]struct{}{}
 		distinctZones = map[string]struct{}{}
-		start         = r.search(key)
+		start         = searchToken(r.ringTokens, key)
 		iterations    = 0
 	)
 	for i := start; len(distinctHosts) < n && iterations < len(r.ringTokens); i++ {
@@ -226,12 +302,15 @@ func (r *Ring) Get(key uint32, op Operation, buf []IngesterDesc) (ReplicationSet
 		if _, ok := distinctHosts[token.Ingester]; ok {
 			continue
 		}
-		if token.Zone != "" { // Ignore if the ingesters don't have a zone set.
+
+		// Ignore if the ingesters don't have a zone set.
+		if r.cfg.ZoneAwarenessEnabled && token.Zone != "" {
 			if _, ok := distinctZones[token.Zone]; ok {
 				continue
 			}
 			distinctZones[token.Zone] = struct{}{}
 		}
+
 		distinctHosts[token.Ingester] = struct{}{}
 		ingester := r.ringDesc.Ingesters[token.Ingester]
 
@@ -244,7 +323,7 @@ func (r *Ring) Get(key uint32, op Operation, buf []IngesterDesc) (ReplicationSet
 		ingesters = append(ingesters, ingester)
 	}
 
-	liveIngesters, maxFailure, err := r.strategy.Filter(ingesters, op, r.cfg.ReplicationFactor, r.cfg.HeartbeatTimeout)
+	liveIngesters, maxFailure, err := r.strategy.Filter(ingesters, op, r.cfg.ReplicationFactor, r.cfg.HeartbeatTimeout, r.cfg.ZoneAwarenessEnabled)
 	if err != nil {
 		return ReplicationSet{}, err
 	}
@@ -255,23 +334,14 @@ func (r *Ring) Get(key uint32, op Operation, buf []IngesterDesc) (ReplicationSet
 	}, nil
 }
 
-// GetAll returns all available ingesters in the ring.
-func (r *Ring) GetAll(op Operation) (ReplicationSet, error) {
+// GetAllHealthy implements ReadRing.
+func (r *Ring) GetAllHealthy(op Operation) (ReplicationSet, error) {
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
 
-	if r.ringDesc == nil || len(r.ringTokens) == 0 {
+	if r.ringDesc == nil || len(r.ringDesc.Ingesters) == 0 {
 		return ReplicationSet{}, ErrEmptyRing
 	}
-
-	// Calculate the number of required ingesters;
-	// ensure we always require at least RF-1 when RF=3.
-	numRequired := len(r.ringDesc.Ingesters)
-	if numRequired < r.cfg.ReplicationFactor {
-		numRequired = r.cfg.ReplicationFactor
-	}
-	maxUnavailable := r.cfg.ReplicationFactor / 2
-	numRequired -= maxUnavailable
 
 	ingesters := make([]IngesterDesc, 0, len(r.ringDesc.Ingesters))
 	for _, ingester := range r.ringDesc.Ingesters {
@@ -280,24 +350,90 @@ func (r *Ring) GetAll(op Operation) (ReplicationSet, error) {
 		}
 	}
 
-	if len(ingesters) < numRequired {
-		return ReplicationSet{}, fmt.Errorf("too many failed ingesters")
-	}
-
 	return ReplicationSet{
 		Ingesters: ingesters,
-		MaxErrors: len(ingesters) - numRequired,
+		MaxErrors: 0,
 	}, nil
 }
 
-func (r *Ring) search(key uint32) int {
-	i := sort.Search(len(r.ringTokens), func(x int) bool {
-		return r.ringTokens[x].Token > key
-	})
-	if i >= len(r.ringTokens) {
-		i = 0
+// GetReplicationSetForOperation implements ReadRing.
+func (r *Ring) GetReplicationSetForOperation(op Operation) (ReplicationSet, error) {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+
+	if r.ringDesc == nil || len(r.ringTokens) == 0 {
+		return ReplicationSet{}, ErrEmptyRing
 	}
-	return i
+
+	// Build the initial replication set, excluding unhealthy instances.
+	healthyInstances := make([]IngesterDesc, 0, len(r.ringDesc.Ingesters))
+	zoneFailures := make(map[string]struct{})
+	for _, ingester := range r.ringDesc.Ingesters {
+		if r.IsHealthy(&ingester, op) {
+			healthyInstances = append(healthyInstances, ingester)
+		} else {
+			zoneFailures[ingester.Zone] = struct{}{}
+		}
+	}
+
+	// Max errors and max unavailable zones are mutually exclusive. We initialise both
+	// to 0 and then we update them whether zone-awareness is enabled or not.
+	maxErrors := 0
+	maxUnavailableZones := 0
+
+	if r.cfg.ZoneAwarenessEnabled {
+		// Given data is replicated to RF different zones, we can tolerate a number of
+		// RF/2 failing zones. However, we need to protect from the case the ring currently
+		// contains instances in a number of zones < RF.
+		numReplicatedZones := util.Min(len(r.ringZones), r.cfg.ReplicationFactor)
+		minSuccessZones := (numReplicatedZones / 2) + 1
+		maxUnavailableZones = minSuccessZones - 1
+
+		if len(zoneFailures) > maxUnavailableZones {
+			return ReplicationSet{}, ErrTooManyFailedIngesters
+		}
+
+		if len(zoneFailures) > 0 {
+			// We remove all instances (even healthy ones) from zones with at least
+			// 1 failing ingester. Due to how replication works when zone-awareness is
+			// enabled (data is replicated to RF different zones), there's no benefit in
+			// querying healthy instances from "failing zones". A zone is considered
+			// failed if there is single error.
+			filteredInstances := make([]IngesterDesc, 0, len(r.ringDesc.Ingesters))
+			for _, ingester := range healthyInstances {
+				if _, ok := zoneFailures[ingester.Zone]; !ok {
+					filteredInstances = append(filteredInstances, ingester)
+				}
+			}
+
+			healthyInstances = filteredInstances
+		}
+
+		// Since we removed all instances from zones containing at least 1 failing
+		// instance, we have to decrease the max unavailable zones accordingly.
+		maxUnavailableZones -= len(zoneFailures)
+	} else {
+		// Calculate the number of required ingesters;
+		// ensure we always require at least RF-1 when RF=3.
+		numRequired := len(r.ringDesc.Ingesters)
+		if numRequired < r.cfg.ReplicationFactor {
+			numRequired = r.cfg.ReplicationFactor
+		}
+		// We can tolerate this many failures
+		numRequired -= r.cfg.ReplicationFactor / 2
+
+		if len(healthyInstances) < numRequired {
+			return ReplicationSet{}, ErrTooManyFailedIngesters
+		}
+
+		maxErrors = len(healthyInstances) - numRequired
+	}
+
+	return ReplicationSet{
+		Ingesters:           healthyInstances,
+		MaxErrors:           maxErrors,
+		MaxUnavailableZones: maxUnavailableZones,
+	}, nil
 }
 
 // Describe implements prometheus.Collector.
@@ -398,70 +534,151 @@ func (r *Ring) Collect(ch chan<- prometheus.Metric) {
 	)
 }
 
-// Subring returns a ring of n ingesters from the given ring. If the subring can't be built
-// (ie. because there are not enough instances) then it returns the full ring.
-func (r *Ring) Subring(key uint32, n int) ReadRing {
+// ShuffleShard returns a subring for the provided identifier (eg. a tenant ID)
+// and size (number of instances). The size is expected to be a multiple of the
+// number of zones and the returned subring will contain the same number of
+// instances per zone as far as there are enough registered instances in the ring.
+//
+// The algorithm used to build the subring is a shuffle sharder based on probabilistic
+// hashing. We treat each zone as a separate ring and pick N unique replicas from each
+// zone, walking the ring starting from random but predictable numbers. The random
+// generator is initialised with a seed based on the provided identifier.
+//
+// This implementation guarantees:
+//
+// - Stability: given the same ring, two invocations returns the same result.
+//
+// - Consistency: adding/removing 1 instance from the ring generates a resulting
+// subring with no more then 1 difference.
+//
+// - Shuffling: probabilistically, for a large enough cluster each identifier gets a different
+// set of instances, with a reduced number of overlapping instances between two identifiers.
+func (r *Ring) ShuffleShard(identifier string, size int) ReadRing {
+	// Nothing to do if the shard size is not smaller then the actual ring.
+	if size <= 0 || r.IngesterCount() <= size {
+		return r
+	}
+
+	if cached := r.getCachedShuffledSubring(identifier, size); cached != nil {
+		return cached
+	}
+
+	result := r.shuffleShard(identifier, size, 0, time.Now())
+
+	r.setCachedShuffledSubring(identifier, size, result)
+	return result
+}
+
+// ShuffleShardWithLookback is like ShuffleShard() but the returned subring includes all instances
+// that have been part of the identifier's shard since "now - lookbackPeriod".
+//
+// The returned subring may be unbalanced with regard to zones and should never be used for write
+// operations (read only).
+//
+// This function doesn't support caching.
+func (r *Ring) ShuffleShardWithLookback(identifier string, size int, lookbackPeriod time.Duration, now time.Time) ReadRing {
+	// Nothing to do if the shard size is not smaller then the actual ring.
+	if size <= 0 || r.IngesterCount() <= size {
+		return r
+	}
+
+	return r.shuffleShard(identifier, size, lookbackPeriod, now)
+}
+
+func (r *Ring) shuffleShard(identifier string, size int, lookbackPeriod time.Duration, now time.Time) *Ring {
+	lookbackUntil := now.Add(-lookbackPeriod).Unix()
+
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
 
-	if r.ringDesc == nil || len(r.ringTokens) == 0 || n <= 0 {
-		return r
+	var numInstancesPerZone int
+	var actualZones []string
+
+	if r.cfg.ZoneAwarenessEnabled {
+		numInstancesPerZone = util.ShuffleShardExpectedInstancesPerZone(size, len(r.ringZones))
+		actualZones = r.ringZones
+	} else {
+		numInstancesPerZone = size
+		actualZones = []string{""}
 	}
 
-	var (
-		ingesters     = make(map[string]IngesterDesc, n)
-		distinctHosts = map[string]struct{}{}
-		start         = r.search(key)
-		iterations    = 0
-	)
+	shard := make(map[string]IngesterDesc, size)
 
-	// Subring exceeds number of ingesters, set to total ring size
-	if n > len(r.ringDesc.Ingesters) {
-		n = len(r.ringDesc.Ingesters)
-	}
+	// We need to iterate zones always in the same order to guarantee stability.
+	for _, zone := range actualZones {
+		var tokens []TokenDesc
 
-	for i := start; len(distinctHosts) < n && iterations < len(r.ringTokens); i++ {
-		iterations++
-		// Wrap i around in the ring.
-		i %= len(r.ringTokens)
-
-		// We want n *distinct* ingesters.
-		token := r.ringTokens[i]
-		if _, ok := distinctHosts[token.Ingester]; ok {
-			continue
+		if r.cfg.ZoneAwarenessEnabled {
+			tokens = r.ringTokensByZone[zone]
+		} else {
+			// When zone-awareness is disabled, we just iterate over 1 single fake zone
+			// and use all tokens in the ring.
+			tokens = r.ringTokens
 		}
-		distinctHosts[token.Ingester] = struct{}{}
-		ingester := r.ringDesc.Ingesters[token.Ingester]
 
-		ingesters[token.Ingester] = ingester
-	}
+		// Initialise the random generator used to select instances in the ring.
+		// Since we consider each zone like an independent ring, we have to use dedicated
+		// pseudo-random generator for each zone, in order to guarantee the "consistency"
+		// property when the shard size changes or a new zone is added.
+		random := rand.New(rand.NewSource(util.ShuffleShardSeed(identifier, zone)))
 
-	if n > len(ingesters) {
-		return r
-	}
+		// To select one more instance while guaranteeing the "consistency" property,
+		// we do pick a random value from the generator and resolve uniqueness collisions
+		// (if any) continuing walking the ring.
+		for i := 0; i < numInstancesPerZone; i++ {
+			start := searchToken(tokens, random.Uint32())
+			iterations := 0
+			found := false
 
-	numTokens := 0
-	for _, ing := range ingesters {
-		numTokens += len(ing.Tokens)
-	}
+			for p := start; iterations < len(tokens); p++ {
+				iterations++
 
-	sub := &Ring{
-		cfg:      r.cfg,
-		strategy: r.strategy,
-		ringDesc: &Desc{
-			Ingesters: ingesters,
-		},
-		ringTokens: make([]TokenDesc, 0, numTokens),
-	}
+				// Wrap p around in the ring.
+				p %= len(tokens)
 
-	// add tokens for the ingesters in the subring, they should already be sorted, so no need to re-sort
-	for _, t := range r.ringTokens {
-		if _, ok := ingesters[t.Ingester]; ok {
-			sub.ringTokens = append(sub.ringTokens, t)
+				// Ensure we select an unique instance.
+				if _, ok := shard[tokens[p].Ingester]; ok {
+					continue
+				}
+
+				instance := r.ringDesc.Ingesters[tokens[p].Ingester]
+
+				// If the lookback is enabled and this instance has been registered within the lookback period
+				// then we should include it in the subring but continuing selecting instances.
+				if lookbackPeriod > 0 && instance.RegisteredTimestamp >= lookbackUntil {
+					shard[tokens[p].Ingester] = instance
+					continue
+				}
+
+				shard[tokens[p].Ingester] = instance
+				found = true
+				break
+			}
+
+			// If one more instance has not been found, we can stop looking for
+			// more instances in this zone, because it means the zone has no more
+			// instances which haven't been already selected.
+			if !found {
+				break
+			}
 		}
 	}
 
-	return sub
+	// Build a read-only ring for the shard.
+	shardDesc := &Desc{Ingesters: shard}
+	shardTokensByZone := shardDesc.getTokensByZone()
+
+	return &Ring{
+		cfg:              r.cfg,
+		strategy:         r.strategy,
+		ringDesc:         shardDesc,
+		ringTokens:       shardDesc.getTokens(),
+		ringTokensByZone: shardTokensByZone,
+		ringZones:        getZones(shardTokensByZone),
+
+		// For caching to work, remember these values.
+		lastTopologyChange: r.lastTopologyChange,
+	}
 }
 
 // GetInstanceState returns the current state of an instance or an error if the
@@ -487,4 +704,44 @@ func (r *Ring) HasInstance(instanceID string) bool {
 	instances := r.ringDesc.GetIngesters()
 	_, ok := instances[instanceID]
 	return ok
+}
+
+func (r *Ring) getCachedShuffledSubring(identifier string, size int) *Ring {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+
+	// if shuffledSubringCache map is nil, reading it returns default value (nil pointer).
+	cached := r.shuffledSubringCache[subringCacheKey{identifier: identifier, shardSize: size}]
+	if cached == nil {
+		return nil
+	}
+
+	cached.mtx.Lock()
+	defer cached.mtx.Unlock()
+
+	// Update instance states and timestamps. We know that the topology is the same,
+	// so zones and tokens are equal.
+	for name, cachedIng := range cached.ringDesc.Ingesters {
+		ing := r.ringDesc.Ingesters[name]
+		cachedIng.State = ing.State
+		cachedIng.Timestamp = ing.Timestamp
+		cached.ringDesc.Ingesters[name] = cachedIng
+	}
+	return cached
+}
+
+func (r *Ring) setCachedShuffledSubring(identifier string, size int, subring *Ring) {
+	if subring == nil {
+		return
+	}
+
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	// Only cache if *this* ring hasn't changed since computing result
+	// (which can happen between releasing the read lock and getting read-write lock).
+	// Note that shuffledSubringCache can be only nil when set by test.
+	if r.shuffledSubringCache != nil && r.lastTopologyChange.Equal(subring.lastTopologyChange) {
+		r.shuffledSubringCache[subringCacheKey{identifier: identifier, shardSize: size}] = subring
+	}
 }

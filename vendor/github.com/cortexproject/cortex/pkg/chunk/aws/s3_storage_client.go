@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"hash/fnv"
 	"io"
 	"net"
@@ -14,16 +15,30 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
+	"github.com/minio/minio-go/v7/pkg/signer"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	awscommon "github.com/weaveworks/common/aws"
 	"github.com/weaveworks/common/instrument"
 
 	"github.com/cortexproject/cortex/pkg/chunk"
+	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
+)
+
+const (
+	SignatureVersionV4 = "v4"
+	SignatureVersionV2 = "v2"
+)
+
+var (
+	supportedSignatureVersions     = []string{SignatureVersionV4, SignatureVersionV2}
+	errUnsupportedSignatureVersion = errors.New("unsupported signature version")
 )
 
 var (
@@ -48,14 +63,15 @@ type S3Config struct {
 	S3               flagext.URLValue
 	S3ForcePathStyle bool
 
-	BucketNames     string
-	Endpoint        string     `yaml:"endpoint"`
-	Region          string     `yaml:"region"`
-	AccessKeyID     string     `yaml:"access_key_id"`
-	SecretAccessKey string     `yaml:"secret_access_key"`
-	Insecure        bool       `yaml:"insecure"`
-	SSEEncryption   bool       `yaml:"sse_encryption"`
-	HTTPConfig      HTTPConfig `yaml:"http_config"`
+	BucketNames      string
+	Endpoint         string     `yaml:"endpoint"`
+	Region           string     `yaml:"region"`
+	AccessKeyID      string     `yaml:"access_key_id"`
+	SecretAccessKey  string     `yaml:"secret_access_key"`
+	Insecure         bool       `yaml:"insecure"`
+	SSEEncryption    bool       `yaml:"sse_encryption"`
+	HTTPConfig       HTTPConfig `yaml:"http_config"`
+	SignatureVersion string     `yaml:"signature_version"`
 
 	Inject InjectRequestMiddleware `yaml:"-"`
 }
@@ -89,17 +105,25 @@ func (cfg *S3Config) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.HTTPConfig.IdleConnTimeout, prefix+"s3.http.idle-conn-timeout", 90*time.Second, "The maximum amount of time an idle connection will be held open.")
 	f.DurationVar(&cfg.HTTPConfig.ResponseHeaderTimeout, prefix+"s3.http.response-header-timeout", 0, "If non-zero, specifies the amount of time to wait for a server's response headers after fully writing the request.")
 	f.BoolVar(&cfg.HTTPConfig.InsecureSkipVerify, prefix+"s3.http.insecure-skip-verify", false, "Set to false to skip verifying the certificate chain and hostname.")
+	f.StringVar(&cfg.SignatureVersion, prefix+"s3.signature-version", SignatureVersionV4, fmt.Sprintf("The signature version to use for authenticating against S3. Supported values are: %s.", strings.Join(supportedSignatureVersions, ", ")))
+}
+
+// Validate config and returns error on failure
+func (cfg *S3Config) Validate() error {
+	if !util.StringsContain(supportedSignatureVersions, cfg.SignatureVersion) {
+		return errUnsupportedSignatureVersion
+	}
+	return nil
 }
 
 type S3ObjectClient struct {
 	bucketNames   []string
 	S3            s3iface.S3API
-	delimiter     string
 	sseEncryption *string
 }
 
 // NewS3ObjectClient makes a new S3-backed ObjectClient.
-func NewS3ObjectClient(cfg S3Config, delimiter string) (*S3ObjectClient, error) {
+func NewS3ObjectClient(cfg S3Config) (*S3ObjectClient, error) {
 	s3Config, bucketNames, err := buildS3Config(cfg)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build s3 config")
@@ -112,6 +136,10 @@ func NewS3ObjectClient(cfg S3Config, delimiter string) (*S3ObjectClient, error) 
 
 	s3Client := s3.New(sess)
 
+	if cfg.SignatureVersion == SignatureVersionV2 {
+		s3Client.Handlers.Sign.Swap(v4.SignRequestHandler.Name, v2SignRequestHandler(cfg))
+	}
+
 	var sseEncryption *string
 	if cfg.SSEEncryption {
 		sseEncryption = aws.String("AES256")
@@ -120,10 +148,31 @@ func NewS3ObjectClient(cfg S3Config, delimiter string) (*S3ObjectClient, error) 
 	client := S3ObjectClient{
 		S3:            s3Client,
 		bucketNames:   bucketNames,
-		delimiter:     delimiter,
 		sseEncryption: sseEncryption,
 	}
 	return &client, nil
+}
+
+func v2SignRequestHandler(cfg S3Config) request.NamedHandler {
+	return request.NamedHandler{
+		Name: "v2.SignRequestHandler",
+		Fn: func(req *request.Request) {
+			credentials, err := req.Config.Credentials.GetWithContext(req.Context())
+			if err != nil {
+				if err != nil {
+					req.Error = err
+					return
+				}
+			}
+
+			req.HTTPRequest = signer.SignV2(
+				*req.HTTPRequest,
+				credentials.AccessKeyID,
+				credentials.SecretAccessKey,
+				!cfg.S3ForcePathStyle,
+			)
+		},
+	}
 }
 
 func buildS3Config(cfg S3Config) (*aws.Config, []string, error) {
@@ -139,7 +188,6 @@ func buildS3Config(cfg S3Config) (*aws.Config, []string, error) {
 	} else {
 		s3Config = &aws.Config{}
 		s3Config = s3Config.WithRegion("dummy")
-		s3Config = s3Config.WithCredentials(credentials.AnonymousCredentials)
 	}
 
 	s3Config = s3Config.WithMaxRetries(0)                          // We do our own retries, so we can monitor them
@@ -289,8 +337,8 @@ func (a *S3ObjectClient) PutObject(ctx context.Context, objectKey string, object
 	})
 }
 
-// List objects and common-prefixes i.e synthetic directories from the store non-recursively
-func (a *S3ObjectClient) List(ctx context.Context, prefix string) ([]chunk.StorageObject, []chunk.StorageCommonPrefix, error) {
+// List implements chunk.ObjectClient.
+func (a *S3ObjectClient) List(ctx context.Context, prefix, delimiter string) ([]chunk.StorageObject, []chunk.StorageCommonPrefix, error) {
 	var storageObjects []chunk.StorageObject
 	var commonPrefixes []chunk.StorageCommonPrefix
 
@@ -299,7 +347,7 @@ func (a *S3ObjectClient) List(ctx context.Context, prefix string) ([]chunk.Stora
 			input := s3.ListObjectsV2Input{
 				Bucket:    aws.String(a.bucketNames[i]),
 				Prefix:    aws.String(prefix),
-				Delimiter: aws.String(a.delimiter),
+				Delimiter: aws.String(delimiter),
 			}
 
 			for {
@@ -316,14 +364,17 @@ func (a *S3ObjectClient) List(ctx context.Context, prefix string) ([]chunk.Stora
 				}
 
 				for _, commonPrefix := range output.CommonPrefixes {
-					commonPrefixes = append(commonPrefixes, chunk.StorageCommonPrefix(commonPrefix.String()))
+					commonPrefixes = append(commonPrefixes, chunk.StorageCommonPrefix(aws.StringValue(commonPrefix.Prefix)))
 				}
 
-				if !*output.IsTruncated {
+				if output.IsTruncated == nil || !*output.IsTruncated {
 					// No more results to fetch
 					break
 				}
-
+				if output.NextContinuationToken == nil {
+					// No way to continue
+					break
+				}
 				input.SetContinuationToken(*output.NextContinuationToken)
 			}
 
@@ -336,8 +387,4 @@ func (a *S3ObjectClient) List(ctx context.Context, prefix string) ([]chunk.Stora
 	}
 
 	return storageObjects, commonPrefixes, nil
-}
-
-func (a *S3ObjectClient) PathSeparator() string {
-	return a.delimiter
 }

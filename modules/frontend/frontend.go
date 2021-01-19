@@ -3,18 +3,17 @@ package frontend
 import (
 	"net/http"
 
+	"github.com/cortexproject/cortex/pkg/querier/queryrange"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
-
-	"github.com/cortexproject/cortex/pkg/querier/frontend"
 )
 
 // NewTripperware returns a Tripperware configured with a middleware to split requests
-func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) (frontend.Tripperware, error) {
+func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) (queryrange.Tripperware, error) {
 	level.Info(logger).Log("msg", "creating tripperware in query frontend to shard queries")
 	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -25,7 +24,7 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 	return func(next http.RoundTripper) http.RoundTripper {
 		// Get the http request, add custom parameters to it, split it, and call downstream roundtripper
 		rt := NewRoundTripper(next, ShardingWare(cfg.QueryShards, logger))
-		return frontend.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
 			queriesPerTenant.WithLabelValues(orgID).Inc()
 
