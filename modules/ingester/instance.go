@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -328,7 +329,7 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	return tracesToCut
 }
 
-func (i *instance) writeTraceToHeadBlock(id encoding.ID, b []byte) error {
+func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
