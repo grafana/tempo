@@ -2,6 +2,8 @@ package wal
 
 import (
 	"os"
+	"path/filepath"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -13,7 +15,11 @@ import (
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
 // in the order it was received and an in memory sorted index.
 type AppendBlock struct {
-	block
+	meta     *backend.BlockMeta
+	filepath string
+	readFile *os.File
+
+	once sync.Once
 
 	appendFile *os.File
 	appender   common.Appender
@@ -21,10 +27,8 @@ type AppendBlock struct {
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
 	h := &AppendBlock{
-		block: block{
-			meta:     backend.NewBlockMeta(tenantID, id),
-			filepath: filepath,
-		},
+		meta:     backend.NewBlockMeta(tenantID, id),
+		filepath: filepath,
 	}
 
 	name := h.fullFilename()
@@ -47,10 +51,8 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 //  is intended to be used on startup by the ingester to rapidly "replay" the wal.
 func newAppendBlockFromWal(f *File) (*AppendBlock, error) {
 	h := &AppendBlock{
-		block: block{
-			meta:     backend.NewBlockMeta(f.TenantID, f.BlockID),
-			filepath: f.Filepath,
-		},
+		meta:     backend.NewBlockMeta(f.TenantID, f.BlockID),
+		filepath: f.Filepath,
 	}
 
 	filename := h.fullFilename()
@@ -152,4 +154,21 @@ func (h *AppendBlock) Clear() error {
 
 	name := h.fullFilename()
 	return os.Remove(name)
+}
+
+func (h *AppendBlock) fullFilename() string {
+	return filepath.Join(h.filepath, h.meta.BlockID.String()+":"+h.meta.TenantID)
+}
+
+func (h *AppendBlock) file() (*os.File, error) {
+	var err error
+	h.once.Do(func() {
+		if h.readFile == nil {
+			name := h.fullFilename()
+
+			h.readFile, err = os.OpenFile(name, os.O_RDONLY, 0644)
+		}
+	})
+
+	return h.readFile, err
 }
