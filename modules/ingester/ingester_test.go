@@ -129,7 +129,7 @@ func TestWal(t *testing.T) {
 	}
 
 	// create new ingester.  this should replay wal!
-	ingester, _, _ = defaultIngester(t, tmpDir)
+	ingester, tracesRestart, traceIDsRestart := defaultIngester(t, tmpDir)
 
 	// should be able to find old traces that were replayed
 	for i, traceID := range traceIDs {
@@ -138,6 +138,16 @@ func TestWal(t *testing.T) {
 		})
 		assert.NoError(t, err, "unexpected error querying")
 		equal := proto.Equal(traces[i], foundTrace.Trace)
+		assert.True(t, equal)
+	}
+
+	// and let's confirm we can find the new traces as well
+	for i, traceID := range traceIDsRestart {
+		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+			TraceID: traceID,
+		})
+		assert.NoError(t, err, "unexpected error querying")
+		equal := proto.Equal(tracesRestart[i], foundTrace.Trace)
 		assert.True(t, equal)
 	}
 }
