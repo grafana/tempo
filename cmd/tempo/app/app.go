@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
+	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util"

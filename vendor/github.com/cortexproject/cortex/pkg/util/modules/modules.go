@@ -64,21 +64,37 @@ func (m *Manager) AddDependency(name string, dependsOn ...string) error {
 	return nil
 }
 
-// InitModuleServices initialises the target module by initialising all its dependencies
+// InitModuleServices initialises given modules by initialising all their dependencies
 // in the right order. Modules are wrapped in such a way that they start after their
 // dependencies have been started and stop before their dependencies are stopped.
-func (m *Manager) InitModuleServices(target string) (map[string]services.Service, error) {
-	if _, ok := m.modules[target]; !ok {
-		return nil, fmt.Errorf("unrecognised module name: %s", target)
+func (m *Manager) InitModuleServices(modules ...string) (map[string]services.Service, error) {
+	servicesMap := map[string]services.Service{}
+	initMap := map[string]bool{}
+
+	for _, module := range modules {
+		if err := m.initModule(module, initMap, servicesMap); err != nil {
+			return nil, err
+		}
 	}
 
-	servicesMap := map[string]services.Service{}
+	return servicesMap, nil
+}
+
+func (m *Manager) initModule(name string, initMap map[string]bool, servicesMap map[string]services.Service) error {
+	if _, ok := m.modules[name]; !ok {
+		return fmt.Errorf("unrecognised module name: %s", name)
+	}
 
 	// initialize all of our dependencies first
-	deps := m.orderedDeps(target)
-	deps = append(deps, target) // lastly, initialize the requested module
+	deps := m.orderedDeps(name)
+	deps = append(deps, name) // lastly, initialize the requested module
 
 	for ix, n := range deps {
+		// Skip already initialized modules
+		if initMap[n] {
+			continue
+		}
+
 		mod := m.modules[n]
 
 		var serv services.Service
@@ -86,22 +102,24 @@ func (m *Manager) InitModuleServices(target string) (map[string]services.Service
 		if mod.initFn != nil {
 			s, err := mod.initFn()
 			if err != nil {
-				return nil, errors.Wrap(err, fmt.Sprintf("error initialising module: %s", n))
+				return errors.Wrap(err, fmt.Sprintf("error initialising module: %s", n))
 			}
 
 			if s != nil {
 				// We pass servicesMap, which isn't yet complete. By the time service starts,
 				// it will be fully built, so there is no need for extra synchronization.
-				serv = newModuleServiceWrapper(servicesMap, n, s, mod.deps, m.findInverseDependencies(n, deps[ix+1:]))
+				serv = newModuleServiceWrapper(servicesMap, n, s, m.DependenciesForModule(n), m.findInverseDependencies(n, deps[ix+1:]))
 			}
 		}
 
 		if serv != nil {
 			servicesMap[n] = serv
 		}
+
+		initMap[n] = true
 	}
 
-	return servicesMap, nil
+	return nil
 }
 
 // UserVisibleModuleNames gets list of module names that are

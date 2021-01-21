@@ -41,6 +41,13 @@ resources:
     requests:
       cpu:      500m
       memory:   2Gi
+queryFrontend:
+  replicas: 1
+  image: grafana/tempo:latest
+  resources:
+    requests:
+      cpu:      250m
+      memory:   500Mi
 querier:
   replicas: 1
   image: grafana/tempo:latest
@@ -57,3 +64,4 @@ tempoQuery:
 memcached:
   image: memcached:1.5.17-alpine
   replicas: 0
+

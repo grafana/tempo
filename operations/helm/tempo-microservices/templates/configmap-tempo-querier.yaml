@@ -5,6 +5,9 @@ metadata:
 data:
   tempo.yaml: |
     auth_enabled: false
+    querier:
+        frontend_worker:
+            frontend_address: query-frontend-discovery.default.svc.cluster.local:9095
     memberlist:
         abort_if_cluster_join_fails: false
         bind_port: 7946
