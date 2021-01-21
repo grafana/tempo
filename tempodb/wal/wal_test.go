@@ -11,6 +11,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -178,6 +179,59 @@ func TestAppendBlockComplete(t *testing.T) {
 	for i, id := range ids {
 		out := &tempopb.PushRequest{}
 		foundBytes, err := complete.Find(id, &mockCombiner{})
+		assert.NoError(t, err)
+
+		err = proto.Unmarshal(foundBytes, out)
+		assert.NoError(t, err)
+
+		assert.True(t, proto.Equal(out, reqs[i]))
+	}
+}
+
+func TestAppendBlockReloadWAL(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	indexDownsample := 13
+	wal, err := New(&Config{
+		Filepath:        tempDir,
+		IndexDownsample: indexDownsample,
+		BloomFP:         .01,
+	})
+	assert.NoError(t, err, "unexpected error creating temp wal")
+
+	blockID := uuid.New()
+
+	block, err := wal.NewBlock(blockID, testTenantID)
+	assert.NoError(t, err, "unexpected error creating block")
+
+	numMsgs := 100
+	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
+	ids := make([][]byte, 0, numMsgs)
+	for i := 0; i < numMsgs; i++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+		req := test.MakeRequest(rand.Int()%1000, id)
+		reqs = append(reqs, req)
+		ids = append(ids, id)
+		bReq, err := proto.Marshal(req)
+		assert.NoError(t, err)
+		err = block.Write(id, bReq)
+		assert.NoError(t, err, "unexpected error writing req")
+	}
+
+	files, err := wal.AllWALFiles()
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+
+	// reload file into a new append block
+	newBlock, err := wal.NewBlockWithWalFile(files[0])
+	require.NoError(t, err)
+
+	for i, id := range ids {
+		out := &tempopb.PushRequest{}
+		foundBytes, err := newBlock.Find(id, &mockCombiner{})
 		assert.NoError(t, err)
 
 		err = proto.Unmarshal(foundBytes, out)

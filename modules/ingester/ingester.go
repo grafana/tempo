@@ -272,7 +272,7 @@ func (i *Ingester) replayWal() error {
 	if err != nil {
 		return nil
 	}
-
+	// jpe - just wipe a file if we can't load it
 	level.Info(util.Logger).Log("msg", "beginning wal replay", "numBlocks", len(walFiles))
 	for _, f := range walFiles {
 		tenantID := f.TenantID
