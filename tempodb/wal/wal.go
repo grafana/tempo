@@ -77,16 +77,12 @@ func (w *WAL) AllWALFiles() ([]*File, error) {
 		}
 
 		name := f.Name()
-		blockID, tenantID, err := parseFilename(name)
+		file, err := newFile(name, w.c.Filepath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse %s: %w", name, err)
 		}
 
-		walfiles = append(walfiles, &File{
-			BlockID:  blockID,
-			TenantID: tenantID,
-			Filepath: w.c.Filepath,
-		})
+		walfiles = append(walfiles, file)
 	}
 
 	return walfiles, nil

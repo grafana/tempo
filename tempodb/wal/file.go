@@ -16,7 +16,6 @@ type File struct {
 	BlockID  uuid.UUID
 }
 
-// jpe test
 func newFile(filename string, filepath string) (*File, error) {
 	block, tenant, err := parseFilename(filename)
 	if err != nil {
