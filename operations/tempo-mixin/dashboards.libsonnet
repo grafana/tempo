@@ -128,11 +128,11 @@ dashboard_utils {
         g.row('Ingester')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="/tempopb.Pusher/Push"}' % $.jobMatcher($._config.jobs.ingester))
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"/tempopb.Pusher/Push.*"}' % $.jobMatcher($._config.jobs.ingester))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="/tempopb.Pusher/Push"}' % $.jobMatcher($._config.jobs.ingester))
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"/tempopb.Pusher/Push.*"}' % $.jobMatcher($._config.jobs.ingester))
         )
       )
       .addRow(
