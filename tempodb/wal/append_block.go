@@ -2,7 +2,6 @@ package wal
 
 import (
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/google/uuid"
@@ -157,7 +156,11 @@ func (h *AppendBlock) Clear() error {
 }
 
 func (h *AppendBlock) fullFilename() string {
-	return filepath.Join(h.filepath, h.meta.BlockID.String()+":"+h.meta.TenantID)
+	return fullFilename(&File{
+		Filepath: h.filepath,
+		BlockID:  h.meta.BlockID,
+		TenantID: h.meta.TenantID,
+	})
 }
 
 func (h *AppendBlock) file() (*os.File, error) {

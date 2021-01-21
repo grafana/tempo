@@ -267,12 +267,12 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 	return ring.ErrTransferDisabled
 }
 
-func (i *Ingester) replayWal() error {
-	walFiles, err := i.store.WAL().AllWALFiles() // jpe - just return append blocks?
+func (i *Ingester) replayWal() error { // jpe test failure
+	walFiles, err := i.store.WAL().AllWALFiles()
 	if err != nil {
 		return nil
 	}
-	// jpe - just wipe a file if we can't load it
+
 	level.Info(util.Logger).Log("msg", "beginning wal replay", "numBlocks", len(walFiles))
 	for _, f := range walFiles {
 		tenantID := f.TenantID
@@ -281,12 +281,14 @@ func (i *Ingester) replayWal() error {
 		// jpe - lock?
 		_, ok := i.instances[tenantID]
 		if ok {
-			return fmt.Errorf("instance already exists while replaying wal. this means there are two wal files for one instance. please remove one. %s", tenantID)
+			level.Error(util.Logger).Log("msg", "instance already exists while replaying wal.  clearing wal file w/o replaying!", "tenant", f.TenantID, "block", f.BlockID)
+			continue
 		}
 
 		instance, err := newInstanceWithWalFile(tenantID, i.limiter, i.store.WAL(), f)
 		if err != nil {
-			return fmt.Errorf("failed to load walfile %v: %w", f, err)
+			level.Error(util.Logger).Log("msg", "failed to load wal file.  clearing wal file w/o replaying!", "err", err, "tenant", f.TenantID, "block", f.BlockID)
+			continue
 		}
 		level.Info(util.Logger).Log("msg", "complete block replay", "tenantID", tenantID)
 
