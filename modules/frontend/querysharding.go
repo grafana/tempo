@@ -160,6 +160,7 @@ func mergeResponses(rrs []RequestResponse) (*http.Response, error) {
 	var errCode = http.StatusOK
 	var errBody io.ReadCloser
 	var combinedTrace []byte
+	var shardMissCount = 0
 	for _, rr := range rrs {
 		if rr.Response.StatusCode == http.StatusOK {
 			body, err := ioutil.ReadAll(rr.Response.Body)
@@ -176,20 +177,23 @@ func mergeResponses(rrs []RequestResponse) (*http.Response, error) {
 		} else if rr.Response.StatusCode != http.StatusNotFound {
 			errCode = rr.Response.StatusCode
 			errBody = rr.Response.Body
+		} else {
+			shardMissCount++
 		}
 	}
 
-	if errCode == http.StatusOK {
-		if len(combinedTrace) > 0 {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
-				Header:     http.Header{},
-			}, nil
-		}
+	if shardMissCount == len(rrs) {
 		return &http.Response{
 			StatusCode: http.StatusNotFound,
 			Body:       ioutil.NopCloser(strings.NewReader("trace not found in Tempo")),
+			Header:     http.Header{},
+		}, nil
+	}
+
+	if errCode == http.StatusOK {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
 			Header:     http.Header{},
 		}, nil
 	}
