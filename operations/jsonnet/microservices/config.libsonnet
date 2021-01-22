@@ -27,6 +27,9 @@
       receivers: error 'Must specify receivers',
       replicas: 1,
     },
+    memcached: {
+      replicas: 3,
+    },
     jaeger_ui: {
       base_path: '/',
     },
