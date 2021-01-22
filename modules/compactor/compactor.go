@@ -156,7 +156,7 @@ func (c *Compactor) waitRingActive(ctx context.Context) error {
 	for {
 		// Check if the ingester is ACTIVE in the ring and our ring client
 		// has detected it.
-		if rs, err := c.Ring.GetAll(ring.Reporting); err == nil {
+		if rs, err := c.Ring.GetAllHealthy(ring.Reporting); err == nil {
 			for _, i := range rs.Ingesters {
 				if i.GetAddr() == c.ringLifecycler.Addr && i.GetState() == ring.ACTIVE {
 					return nil

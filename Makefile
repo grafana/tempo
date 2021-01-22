@@ -12,7 +12,7 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
-								-not -path './vendor/*' \
+								-not -path './vendor*/*' \
 								-not -path './integration/*' \
                                 -type f | sort)
 

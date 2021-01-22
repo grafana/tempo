@@ -14,14 +14,15 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/opentracing/opentracing-go"
 	otlog "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/uber/jaeger-client-go"
 	"github.com/weaveworks/common/httpgrpc"
-	"github.com/weaveworks/common/user"
 
 	"github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/cortexproject/cortex/pkg/ingester/client"
+	"github.com/cortexproject/cortex/pkg/tenant"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/cortexproject/cortex/pkg/util/spanlogger"
 )
@@ -41,13 +42,26 @@ type CacheGenNumberLoader interface {
 // ResultsCacheConfig is the config for the results cache.
 type ResultsCacheConfig struct {
 	CacheConfig cache.Config `yaml:"cache"`
+	Compression string       `yaml:"compression"`
 }
 
 // RegisterFlags registers flags.
 func (cfg *ResultsCacheConfig) RegisterFlags(f *flag.FlagSet) {
 	cfg.CacheConfig.RegisterFlagsWithPrefix("frontend.", "", f)
 
+	f.StringVar(&cfg.Compression, "frontend.compression", "", "Use compression in results cache. Supported values are: 'snappy' and '' (disable compression).")
 	flagext.DeprecatedFlag(f, "frontend.cache-split-interval", "Deprecated: The maximum interval expected for each request, results will be cached per single interval. This behavior is now determined by querier.split-queries-by-interval.")
+}
+
+func (cfg *ResultsCacheConfig) Validate() error {
+	switch cfg.Compression {
+	case "snappy", "":
+		// valid
+	default:
+		return errors.Errorf("unsupported compression type: %s", cfg.Compression)
+	}
+
+	return cfg.CacheConfig.Validate()
 }
 
 // Extractor is used by the cache to extract a subset of a response from a cache entry.
@@ -140,6 +154,9 @@ func NewResultsCacheMiddleware(
 	if err != nil {
 		return nil, nil, err
 	}
+	if cfg.Compression == "snappy" {
+		c = cache.NewSnappy(c, logger)
+	}
 
 	if cacheGenNumberLoader != nil {
 		c = cache.NewCacheGenNumMiddleware(c)
@@ -162,7 +179,7 @@ func NewResultsCacheMiddleware(
 }
 
 func (s resultsCache) Do(ctx context.Context, r Request) (Response, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := tenant.TenantID(ctx)
 	if err != nil {
 		return nil, httpgrpc.Errorf(http.StatusBadRequest, err.Error())
 	}
@@ -238,14 +255,12 @@ func (s resultsCache) shouldCacheResponse(ctx context.Context, r Response) bool 
 }
 
 func getHeaderValuesWithName(r Response, headerName string) (headerValues []string) {
-	if promResp, ok := r.(*PrometheusResponse); ok {
-		for _, hv := range promResp.Headers {
-			if hv.GetName() != headerName {
-				continue
-			}
-
-			headerValues = append(headerValues, hv.GetValues()...)
+	for _, hv := range r.GetHeaders() {
+		if hv.GetName() != headerName {
+			continue
 		}
+
+		headerValues = append(headerValues, hv.GetValues()...)
 	}
 
 	return

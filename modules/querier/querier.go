@@ -13,8 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
 
-	cortex_querier "github.com/cortexproject/cortex/pkg/querier"
-	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
+	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util"
@@ -92,13 +91,12 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 }
 
 func (q *Querier) CreateAndRegisterWorker(tracesHandler http.Handler) error {
-	worker, err := cortex_frontend.NewWorker(
+	q.cfg.Worker.MaxConcurrentRequests = q.cfg.MaxConcurrentQueries
+	worker, err := cortex_worker.NewQuerierWorker(
 		q.cfg.Worker,
-		cortex_querier.Config{
-			MaxConcurrent: q.cfg.MaxConcurrentQueries,
-		},
 		httpgrpc_server.NewServer(tracesHandler),
 		util.Logger,
+		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create frontend worker: %w", err)
@@ -224,7 +222,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 // forGivenIngesters runs f, in parallel, for given ingesters
 func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (*tempopb.TraceByIDResponse, error)) ([]responseFromIngesters, error) {
-	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ingester *ring.IngesterDesc) (interface{}, error) {
+	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.IngesterDesc) (interface{}, error) {
 		client, err := q.pool.GetClientFor(ingester.Addr)
 		if err != nil {
 			return nil, err

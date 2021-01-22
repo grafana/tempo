@@ -1,8 +1,6 @@
 package storegateway
 
 import (
-	"sync"
-
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/cortexproject/cortex/pkg/util"
@@ -11,9 +9,7 @@ import (
 // BucketStoreMetrics aggregates metrics exported by Thanos Bucket Store
 // and re-exports those aggregates as Cortex metrics.
 type BucketStoreMetrics struct {
-	// Maps userID -> registry
-	regsMu sync.Mutex
-	regs   map[string]*prometheus.Registry
+	regs *util.UserRegistries
 
 	// exported metrics, gathered from Thanos BucketStore
 	blockLoads            *prometheus.Desc
@@ -37,11 +33,20 @@ type BucketStoreMetrics struct {
 	cachedPostingsCompressionTimeSeconds *prometheus.Desc
 	cachedPostingsOriginalSizeBytes      *prometheus.Desc
 	cachedPostingsCompressedSizeBytes    *prometheus.Desc
+
+	seriesFetchDuration   *prometheus.Desc
+	postingsFetchDuration *prometheus.Desc
+
+	indexHeaderLazyLoadCount         *prometheus.Desc
+	indexHeaderLazyLoadFailedCount   *prometheus.Desc
+	indexHeaderLazyUnloadCount       *prometheus.Desc
+	indexHeaderLazyUnloadFailedCount *prometheus.Desc
+	indexHeaderLazyLoadDuration      *prometheus.Desc
 }
 
 func NewBucketStoreMetrics() *BucketStoreMetrics {
 	return &BucketStoreMetrics{
-		regs: map[string]*prometheus.Registry{},
+		regs: util.NewUserRegistries(),
 
 		blockLoads: prometheus.NewDesc(
 			"cortex_bucket_store_block_loads_total",
@@ -125,25 +130,41 @@ func NewBucketStoreMetrics() *BucketStoreMetrics {
 			"cortex_bucket_store_cached_postings_compressed_size_bytes_total",
 			"Compressed size of postings stored into cache.",
 			nil, nil),
+
+		seriesFetchDuration: prometheus.NewDesc(
+			"cortex_bucket_store_cached_series_fetch_duration_seconds",
+			"Time it takes to fetch series to respond a request sent to store-gateway. It includes both the time to fetch it from cache and from storage in case of cache misses.",
+			nil, nil),
+		postingsFetchDuration: prometheus.NewDesc(
+			"cortex_bucket_store_cached_postings_fetch_duration_seconds",
+			"Time it takes to fetch postings to respond a request sent to store-gateway. It includes both the time to fetch it from cache and from storage in case of cache misses.",
+			nil, nil),
+
+		indexHeaderLazyLoadCount: prometheus.NewDesc(
+			"cortex_bucket_store_indexheader_lazy_load_total",
+			"Total number of index-header lazy load operations.",
+			nil, nil),
+		indexHeaderLazyLoadFailedCount: prometheus.NewDesc(
+			"cortex_bucket_store_indexheader_lazy_load_failed_total",
+			"Total number of failed index-header lazy load operations.",
+			nil, nil),
+		indexHeaderLazyUnloadCount: prometheus.NewDesc(
+			"cortex_bucket_store_indexheader_lazy_unload_total",
+			"Total number of index-header lazy unload operations.",
+			nil, nil),
+		indexHeaderLazyUnloadFailedCount: prometheus.NewDesc(
+			"cortex_bucket_store_indexheader_lazy_unload_failed_total",
+			"Total number of failed index-header lazy unload operations.",
+			nil, nil),
+		indexHeaderLazyLoadDuration: prometheus.NewDesc(
+			"cortex_bucket_store_indexheader_lazy_load_duration_seconds",
+			"Duration of the index-header lazy loading in seconds.",
+			nil, nil),
 	}
 }
 
 func (m *BucketStoreMetrics) AddUserRegistry(user string, reg *prometheus.Registry) {
-	m.regsMu.Lock()
-	m.regs[user] = reg
-	m.regsMu.Unlock()
-}
-
-func (m *BucketStoreMetrics) registries() map[string]*prometheus.Registry {
-	regs := map[string]*prometheus.Registry{}
-
-	m.regsMu.Lock()
-	defer m.regsMu.Unlock()
-	for uid, r := range m.regs {
-		regs[uid] = r
-	}
-
-	return regs
+	m.regs.AddUserRegistry(user, reg)
 }
 
 func (m *BucketStoreMetrics) Describe(out chan<- *prometheus.Desc) {
@@ -168,10 +189,19 @@ func (m *BucketStoreMetrics) Describe(out chan<- *prometheus.Desc) {
 	out <- m.cachedPostingsCompressionTimeSeconds
 	out <- m.cachedPostingsOriginalSizeBytes
 	out <- m.cachedPostingsCompressedSizeBytes
+
+	out <- m.seriesFetchDuration
+	out <- m.postingsFetchDuration
+
+	out <- m.indexHeaderLazyLoadCount
+	out <- m.indexHeaderLazyLoadFailedCount
+	out <- m.indexHeaderLazyUnloadCount
+	out <- m.indexHeaderLazyUnloadFailedCount
+	out <- m.indexHeaderLazyLoadDuration
 }
 
 func (m *BucketStoreMetrics) Collect(out chan<- prometheus.Metric) {
-	data := util.BuildMetricFamiliesPerUserFromUserRegistries(m.registries())
+	data := m.regs.BuildMetricFamiliesPerUser()
 
 	data.SendSumOfCounters(out, m.blockLoads, "thanos_bucket_store_block_loads_total")
 	data.SendSumOfCounters(out, m.blockLoadFailures, "thanos_bucket_store_block_load_failures_total")
@@ -197,4 +227,13 @@ func (m *BucketStoreMetrics) Collect(out chan<- prometheus.Metric) {
 	data.SendSumOfCountersWithLabels(out, m.cachedPostingsCompressionTimeSeconds, "thanos_bucket_store_cached_postings_compression_time_seconds_total", "op")
 	data.SendSumOfCountersWithLabels(out, m.cachedPostingsOriginalSizeBytes, "thanos_bucket_store_cached_postings_original_size_bytes_total")
 	data.SendSumOfCountersWithLabels(out, m.cachedPostingsCompressedSizeBytes, "thanos_bucket_store_cached_postings_compressed_size_bytes_total")
+
+	data.SendSumOfHistograms(out, m.seriesFetchDuration, "thanos_bucket_store_cached_series_fetch_duration_seconds")
+	data.SendSumOfHistograms(out, m.postingsFetchDuration, "thanos_bucket_store_cached_postings_fetch_duration_seconds")
+
+	data.SendSumOfCounters(out, m.indexHeaderLazyLoadCount, "thanos_bucket_store_indexheader_lazy_load_total")
+	data.SendSumOfCounters(out, m.indexHeaderLazyLoadFailedCount, "thanos_bucket_store_indexheader_lazy_load_failed_total")
+	data.SendSumOfCounters(out, m.indexHeaderLazyUnloadCount, "thanos_bucket_store_indexheader_lazy_unload_total")
+	data.SendSumOfCounters(out, m.indexHeaderLazyUnloadFailedCount, "thanos_bucket_store_indexheader_lazy_unload_failed_total")
+	data.SendSumOfHistograms(out, m.indexHeaderLazyLoadDuration, "thanos_bucket_store_indexheader_lazy_load_duration_seconds")
 }

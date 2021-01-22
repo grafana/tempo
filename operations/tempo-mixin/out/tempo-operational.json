@@ -3780,19 +3780,19 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/ingester\", route=\"/tempopb.Pusher/Push\"}[$__rate_interval])) by (le))",
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
      "interval": "",
      "legendFormat": ".99",
      "refId": "A"
     },
     {
-     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/ingester\", route=\"/tempopb.Pusher/Push\"}[$__rate_interval])) by (le))",
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
      "interval": "",
      "legendFormat": ".9",
      "refId": "B"
     },
     {
-     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/ingester\", route=\"/tempopb.Pusher/Push\"}[$__rate_interval])) by (le))",
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
      "interval": "",
      "legendFormat": ".5",
      "refId": "C"
@@ -4858,7 +4858,7 @@
        },
        {
         "color": "red",
-        "value": 0.050000000000000003
+        "value": 0.05
        }
       ]
      },
@@ -4997,7 +4997,7 @@
        },
        {
         "color": "red",
-        "value": 0.050000000000000003
+        "value": 0.05
        }
       ]
      },

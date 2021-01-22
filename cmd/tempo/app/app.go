@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	cortex_frontend "github.com/cortexproject/cortex/pkg/querier/frontend"
+	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util"
@@ -16,6 +16,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
+	"gopkg.in/yaml.v3"
 
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
@@ -203,6 +204,7 @@ func (t *App) Run() error {
 	}
 
 	// before starting servers, register /ready handler and gRPC health check service.
+	t.server.HTTP.Path("/config").Handler(t.configHandler())
 	t.server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
 	grpc_health_v1.RegisterHealthServer(t.server.GRPC, healthcheck.New(sm))
 
@@ -244,6 +246,23 @@ func (t *App) Run() error {
 	}
 
 	return sm.AwaitStopped(context.Background())
+}
+
+func (t *App) configHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		out, err := yaml.Marshal(t.cfg)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/yaml")
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write(out); err != nil {
+			level.Error(util.Logger).Log("msg", "error writing response", "err", err)
+		}
+	}
+
 }
 
 func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {

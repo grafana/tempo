@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
@@ -13,10 +14,10 @@ import (
 	tsdb_record "github.com/prometheus/prometheus/tsdb/record"
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/weaveworks/common/httpgrpc"
-	"github.com/weaveworks/common/user"
 
 	"github.com/cortexproject/cortex/pkg/ingester/client"
 	"github.com/cortexproject/cortex/pkg/ingester/index"
+	"github.com/cortexproject/cortex/pkg/tenant"
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/extract"
 	"github.com/cortexproject/cortex/pkg/util/spanlogger"
@@ -41,6 +42,7 @@ type userState struct {
 	index               *index.InvertedIndex
 	ingestedAPISamples  *ewmaRate
 	ingestedRuleSamples *ewmaRate
+	activeSeries        *ActiveSeries
 
 	seriesInMetric *metricCounter
 
@@ -50,6 +52,7 @@ type userState struct {
 	memSeriesRemovedTotal prometheus.Counter
 	discardedSamples      *prometheus.CounterVec
 	createdChunks         prometheus.Counter
+	activeSeriesGauge     prometheus.Gauge
 }
 
 // DiscardedSamples metric labels
@@ -81,6 +84,8 @@ func (us *userStates) gc() {
 		state := value.(*userState)
 		if state.fpToSeries.length() == 0 {
 			us.states.Delete(key)
+			state.activeSeries.clear()
+			state.activeSeriesGauge.Set(0)
 		}
 		return true
 	})
@@ -91,6 +96,22 @@ func (us *userStates) updateRates() {
 		state := value.(*userState)
 		state.ingestedAPISamples.tick()
 		state.ingestedRuleSamples.tick()
+		return true
+	})
+}
+
+// Labels will be copied if they are kept.
+func (us *userStates) updateActiveSeriesForUser(userID string, now time.Time, lbls []labels.Label) {
+	if s, ok := us.get(userID); ok {
+		s.activeSeries.UpdateSeries(lbls, now, func(l labels.Labels) labels.Labels { return client.CopyLabels(l) })
+	}
+}
+
+func (us *userStates) purgeAndUpdateActiveSeries(purgeTime time.Time) {
+	us.states.Range(func(key, value interface{}) bool {
+		state := value.(*userState)
+		state.activeSeries.Purge(purgeTime)
+		state.activeSeriesGauge.Set(float64(state.activeSeries.Active()))
 		return true
 	})
 }
@@ -125,6 +146,9 @@ func (us *userStates) getOrCreate(userID string) *userState {
 			memSeriesRemovedTotal: us.metrics.memSeriesRemovedTotal.WithLabelValues(userID),
 			discardedSamples:      validation.DiscardedSamples.MustCurryWith(prometheus.Labels{"user": userID}),
 			createdChunks:         us.metrics.createdChunks,
+
+			activeSeries:      NewActiveSeries(),
+			activeSeriesGauge: us.metrics.activeSeriesPerUser.WithLabelValues(userID),
 		}
 		state.mapper = newFPMapper(state.fpToSeries)
 		stored, ok := us.states.LoadOrStore(userID, state)
@@ -142,12 +166,13 @@ func (us *userStates) teardown() {
 	for _, u := range us.cp() {
 		u.memSeriesRemovedTotal.Add(float64(u.fpToSeries.length()))
 		u.memSeries.Sub(float64(u.fpToSeries.length()))
+		u.activeSeriesGauge.Set(0)
 		us.metrics.memUsers.Dec()
 	}
 }
 
 func (us *userStates) getViaContext(ctx context.Context) (*userState, bool, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := tenant.TenantID(ctx)
 	if err != nil {
 		return nil, false, fmt.Errorf("no user id")
 	}
