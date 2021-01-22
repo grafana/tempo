@@ -38,6 +38,7 @@
       loki_user: '',
       loki_pass: '',
       loki_base_url: '',
+      loki_query: '',
     },
     ballast_size_mbs: '1024',
     port: 3100,
