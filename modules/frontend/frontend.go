@@ -1,15 +1,20 @@
 package frontend
 
 import (
+	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/cortexproject/cortex/pkg/querier/queryrange"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/opentracing/opentracing-go"
+	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 // NewTripperware returns a Tripperware configured with a middleware to split requests
@@ -25,12 +30,24 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 		// Get the http request, add custom parameters to it, split it, and call downstream roundtripper
 		rt := NewRoundTripper(next, ShardingWare(cfg.QueryShards, logger))
 		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
-			orgID, _ := user.ExtractOrgID(r.Context())
-			queriesPerTenant.WithLabelValues(orgID).Inc()
-
 			// tracing instrumentation
 			span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.RoundTrip")
 			defer span.Finish()
+
+			orgID, _ := user.ExtractOrgID(r.Context())
+			queriesPerTenant.WithLabelValues(orgID).Inc()
+			span.SetTag("orgID", orgID)
+
+			// validate traceID
+			_, err := util.ParseTraceID(r)
+			if err != nil {
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Body:       ioutil.NopCloser(strings.NewReader(err.Error())),
+					Header:     http.Header{},
+				}, nil
+			}
+			span.LogFields(ot_log.String("msg", "validated traceID"))
 
 			r = r.WithContext(ctx)
 			return rt.RoundTrip(r)
