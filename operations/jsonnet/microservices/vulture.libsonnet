@@ -13,7 +13,7 @@
     ]) +
     container.withArgs([
       '-loki-base-url=' + $._config.vulture.loki_base_url,
-      '-loki-query={cluster="ops-tools1", job="cortex-ops/query-frontend"} |= "query_range"',
+      '-loki-query=' + $._config.vulture.loki_query,
       '-loki-user=' + $._config.vulture.loki_user,
       '-loki-pass=' + $._config.vulture.loki_pass,
       '-prometheus-listen-address=:' + port,
