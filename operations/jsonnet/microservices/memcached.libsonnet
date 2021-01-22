@@ -9,7 +9,7 @@ memcached {
     local statefulSet = $.apps.v1.statefulSet,
 
     statefulSet:
-      statefulSet.new(self.name, 3, [
+      statefulSet.new(self.name, $._config.memcached.replicas, [
         self.memcached_container,
         self.memcached_exporter,
       ], []) +
