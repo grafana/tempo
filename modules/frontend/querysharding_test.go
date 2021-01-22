@@ -136,6 +136,28 @@ func TestMergeResponses(t *testing.T) {
 				Header:     http.Header{},
 			},
 		},
+		{
+			name: "translate 4xx other than 404 to 500",
+			requestResponse: []RequestResponse{
+				{
+					Response: &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       ioutil.NopCloser(bytes.NewReader(b1)),
+					},
+				},
+				{
+					Response: &http.Response{
+						StatusCode: http.StatusForbidden,
+						Body:       ioutil.NopCloser(bytes.NewReader([]byte("foo"))),
+					},
+				},
+			},
+			expected: &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte("foo"))),
+				Header:     http.Header{},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

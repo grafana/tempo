@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
@@ -172,25 +173,31 @@ func mergeResponses(rrs []RequestResponse) (*http.Response, error) {
 			} else {
 				combinedTrace = util.CombineTraces(combinedTrace, body)
 			}
-		}
-		if rr.Response.StatusCode > errCode {
+		} else if rr.Response.StatusCode != http.StatusNotFound {
 			errCode = rr.Response.StatusCode
 			errBody = rr.Response.Body
 		}
 	}
 
-	// Always give precedence to 5xx errors and propagate them to the user so they can retry the query
-	if len(combinedTrace) == 0 || errCode > 499 {
+	if errCode == http.StatusOK {
+		if len(combinedTrace) > 0 {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
+				Header:     http.Header{},
+			}, nil
+		}
 		return &http.Response{
-			StatusCode: errCode,
-			Body:       errBody,
+			StatusCode: http.StatusNotFound,
+			Body:       ioutil.NopCloser(strings.NewReader("trace not found in Tempo")),
 			Header:     http.Header{},
 		}, nil
 	}
 
+	// Propagate any other errors as 5xx to the user so they can retry the query
 	return &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
+		StatusCode: http.StatusInternalServerError,
+		Body:       errBody,
 		Header:     http.Header{},
 	}, nil
 }

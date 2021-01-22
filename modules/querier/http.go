@@ -2,6 +2,7 @@ package querier
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"time"
@@ -9,7 +10,6 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -34,14 +34,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandler")
 	defer span.Finish()
 
-	vars := mux.Vars(r)
-	traceID, ok := vars[TraceIDVar]
-	if !ok {
-		http.Error(w, "please provide a traceID", http.StatusBadRequest)
-		return
-	}
-
-	byteID, err := util.HexStringToTraceID(traceID)
+	byteID, err := util.ParseTraceID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -71,7 +64,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if resp.Trace == nil || len(resp.Trace.Batches) == 0 {
-		http.Error(w, fmt.Sprintf("Unable to find %s", traceID), http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("Unable to find %s", hex.EncodeToString(byteID)), http.StatusNotFound)
 		return
 	}
 
