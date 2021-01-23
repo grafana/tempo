@@ -8,14 +8,68 @@ import (
 	"time"
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
+	adal "github.com/Azure/go-autorest/autorest/adal"
+	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/pkg/errors"
 )
 
 const maxRetries = 3
 
-func GetContainerURL(ctx context.Context, conf *Config) (blob.ContainerURL, error) {
-	c, err := blob.NewSharedKeyCredential(conf.StorageAccountName.String(), conf.StorageAccountKey.String())
+// getAccessToken retrieves Azure API access token.
+func getAccessToken(conf *Config) (*adal.ServicePrincipalToken, error) {
+
+	environment, err := azure.EnvironmentFromName(conf.AzureEnvironment)
 	if err != nil {
-		return blob.ContainerURL{}, err
+		return nil, errors.Wrap(err, "invalid cloud value")
+	}
+	// Try to retrieve token with service principal credentials.
+	if len(conf.ClientID.String()) > 0 &&
+		len(conf.ClientSecret.String()) > 0 {
+		oauthConfig, err := adal.NewOAuthConfig(environment.ActiveDirectoryEndpoint, conf.TenantID.String())
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to retrieve OAuth config")
+		}
+		token, err := adal.NewServicePrincipalToken(*oauthConfig, conf.ClientID.String(), conf.ClientSecret.String(), environment.ResourceIdentifiers.Storage)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create service principal token")
+		}
+		return token, nil
+	}
+
+	// Try to retrieve token with MSI.
+	msiEndpoint, err := adal.GetMSIVMEndpoint()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get the managed service identity endpoint")
+	}
+	token, err := adal.NewServicePrincipalTokenFromMSI(msiEndpoint, environment.ServiceManagementEndpoint)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create the managed service identity token")
+	}
+	return token, nil
+}
+func GetContainerURL(ctx context.Context, conf *Config) (blob.ContainerURL, error) {
+
+	var spt blob.Credential
+	if conf.UseManagedIdentity {
+		token, err := getAccessToken(conf)
+		if err != nil {
+			return blob.ContainerURL{}, err
+		}
+		err = token.Refresh()
+		if err != nil {
+			return blob.ContainerURL{}, err
+		}
+		spt = blob.NewTokenCredential(token.Token().AccessToken, func(tc blob.TokenCredential) time.Duration {
+			_ = token.Refresh()
+			return time.Until(token.Token().Expires())
+		})
+
+	} else {
+		var err error
+		spt, err = blob.NewSharedKeyCredential(conf.StorageAccountName.String(), conf.StorageAccountKey.String())
+		if err != nil {
+			return blob.ContainerURL{}, err
+		}
 	}
 
 	retryOptions := blob.RetryOptions{
@@ -26,7 +80,7 @@ func GetContainerURL(ctx context.Context, conf *Config) (blob.ContainerURL, erro
 		retryOptions.TryTimeout = time.Until(deadline)
 	}
 
-	p := blob.NewPipeline(c, blob.PipelineOptions{
+	p := blob.NewPipeline(spt, blob.PipelineOptions{
 		Retry:     retryOptions,
 		Telemetry: blob.TelemetryOptions{Value: "Tempo"},
 	})
