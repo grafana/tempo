@@ -39,7 +39,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.Trace.Azure.ClientID.Value, util.PrefixConfig(prefix, "trace.azure.client-id"), "", "Azure Ad client id.")
 	f.StringVar(&cfg.Trace.Azure.ClientSecret.Value, util.PrefixConfig(prefix, "trace.azure.client-secret"), "", "Azure ad client secret.")
 	f.StringVar(&cfg.Trace.Azure.TenantID.Value, util.PrefixConfig(prefix, "trace.azure.tenant-id"), "", "Azure tenant id.")
-	f.StringVar(&cfg.Trace.Azure.AzureEnvironment, util.PrefixConfig(prefix, "trace.azure.azure-environment"), "AZUREPUBLICCLOUD", "Azure Enviroment.")
+	f.StringVar(&cfg.Trace.Azure.AzureEnvironment, util.PrefixConfig(prefix, "trace.azure.azure-environment"), "AZUREPUBLICCLOUD", "Azure environment.")
 	f.IntVar(&cfg.Trace.Azure.MaxBuffers, util.PrefixConfig(prefix, "trace.azure.max-buffers"), 4, "Number of simultaneous uploads.")
 	cfg.Trace.Azure.BufferSize = 3 * 1024 * 1024
 
