@@ -2,7 +2,6 @@ package frontend
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"io"
@@ -73,7 +72,7 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 		reqs[i].RequestURI = querierPrefix + reqs[i].URL.RequestURI() + queryDelimiter + q.Encode()
 	}
 
-	rrs, err := doRequests(r.Context(), s.next, reqs)
+	rrs, err := doRequests(reqs, s.next)
 	if err != nil {
 		return nil, err
 	}
@@ -111,33 +110,17 @@ type RequestResponse struct {
 }
 
 // doRequests executes a list of requests in parallel.
-func doRequests(_ context.Context, downstream Handler, reqs []*http.Request) ([]RequestResponse, error) {
-	// Feed all requests to a bounded intermediate channel to limit parallelism.
-	intermediate := make(chan *http.Request)
-	go func() {
-		for _, req := range reqs {
-			intermediate <- req
-		}
-		close(intermediate)
-	}()
-
+func doRequests(reqs []*http.Request, downstream Handler) ([]RequestResponse, error) {
 	respChan, errChan := make(chan RequestResponse), make(chan error)
-	// todo: make this configurable using limits
-	parallelism := 10
-	if parallelism > len(reqs) {
-		parallelism = len(reqs)
-	}
-	for i := 0; i < parallelism; i++ {
-		go func() {
-			for req := range intermediate {
-				resp, err := downstream.Do(req)
-				if err != nil {
-					errChan <- err
-				} else {
-					respChan <- RequestResponse{req, resp}
-				}
+	for _, req := range reqs {
+		go func(req *http.Request) {
+			resp, err := downstream.Do(req)
+			if err != nil {
+				errChan <- err
+			} else {
+				respChan <- RequestResponse{req, resp}
 			}
-		}()
+		}(req)
 	}
 
 	resps := make([]RequestResponse, 0, len(reqs))

@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/cortexproject/cortex/pkg/querier/queryrange"
 	"github.com/go-kit/kit/log"
@@ -30,8 +31,9 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 		// Get the http request, add custom parameters to it, split it, and call downstream roundtripper
 		rt := NewRoundTripper(next, ShardingWare(cfg.QueryShards, logger))
 		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
+			start := time.Now()
 			// tracing instrumentation
-			span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.RoundTrip")
+			span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.ShardingTripper")
 			defer span.Finish()
 
 			orgID, _ := user.ExtractOrgID(r.Context())
@@ -50,7 +52,11 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 			span.LogFields(ot_log.String("msg", "validated traceID"))
 
 			r = r.WithContext(ctx)
-			return rt.RoundTrip(r)
+			resp, err := rt.RoundTrip(r)
+
+			level.Info(logger).Log("method", r.Method, "url", r.URL.RequestURI(), "duration", time.Since(start).String(), "error", err == nil)
+
+			return resp, err
 		})
 	}, nil
 }

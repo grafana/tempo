@@ -5,10 +5,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/opentracing/opentracing-go"
+	willf_bloom "github.com/willf/bloom"
+
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-
-	willf_bloom "github.com/willf/bloom"
 )
 
 type BackendBlock struct {
@@ -24,6 +25,11 @@ func NewBackendBlock(meta *backend.BlockMeta) *BackendBlock {
 
 // Find searches a block for the ID and returns an object if found.
 func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id common.ID, metrics *common.FindMetrics) ([]byte, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Find")
+	defer span.Finish()
+
+	span.SetTag("block", b.meta.BlockID.String())
+
 	shardKey := common.ShardKeyForTraceID(id)
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
