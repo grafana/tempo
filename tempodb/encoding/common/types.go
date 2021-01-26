@@ -31,6 +31,7 @@ type Appender interface {
 	Complete()
 	Records() []*Record
 	Length() int
+	DataLength() uint64
 }
 
 // ObjectCombiner is used to combine two objects in the backend

@@ -56,6 +56,10 @@ func (h *AppendBlock) Length() int {
 	return h.appender.Length()
 }
 
+func (h *AppendBlock) DataLength() uint64 {
+	return h.appender.DataLength()
+}
+
 // Complete should be called when you are done with the block.  This method will write and return a new CompleteBlock which
 // includes an on disk file containing all objects in order.
 // Note that calling this method leaves the original file on disk.  This file is still considered to be part of the WAL

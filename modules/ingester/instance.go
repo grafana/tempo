@@ -131,7 +131,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration, immediate bool) error {
+func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
@@ -140,7 +140,7 @@ func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.
 	}
 
 	now := time.Now()
-	if i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now) || immediate {
+	if i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now) || i.headBlock.DataLength() >= maxBlockBytes || immediate {
 		if i.completingBlock != nil {
 			return fmt.Errorf("unable to complete head block for %s b/c there is already a completing block.  Will try again next cycle", i.instanceID)
 		}

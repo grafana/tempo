@@ -19,6 +19,7 @@ type Config struct {
 	MaxTraceIdle         time.Duration `yaml:"trace_idle_period"`
 	MaxTracesPerBlock    int           `yaml:"traces_per_block"`
 	MaxBlockDuration     time.Duration `yaml:"max_block_duration"`
+	MaxBlockBytes        uint64        `yaml:"max_block_bytes"`
 	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
 	OverrideRingKey      string        `yaml:"override_ring_key"`
 }
@@ -38,6 +39,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.MaxTraceIdle, "ingester.trace-idle-period", 30*time.Second, "Duration after which to consider a trace complete if no spans have been received")
 	f.IntVar(&cfg.MaxTracesPerBlock, "ingester.traces-per-block", 50000, "Maximum number of traces allowed in the head block before cutting it")
 	f.DurationVar(&cfg.MaxBlockDuration, "ingester.max-block-duration", time.Hour, "Maximum duration which the head block can be appended to before cutting it.")
+	f.Uint64Var(&cfg.MaxBlockBytes, "ingester.max-block-bytes", 1024*1024*1024, "Maximum size of the head block before cutting it.")
 	f.DurationVar(&cfg.CompleteBlockTimeout, "ingester.complete-block-timeout", time.Minute+storage.DefaultBlocklistPoll, "Duration to keep head blocks in the ingester after they have been cut.")
 	cfg.OverrideRingKey = ring.IngesterRingKey
 }
