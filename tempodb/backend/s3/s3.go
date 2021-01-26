@@ -101,14 +101,6 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 
 	// TODO: add custom transport with instrumentation.
 	//client.SetCustomTransport(minio.DefaultTransport(!cfg.Insecure))
-	exists, err := core.BucketExists(context.Background(), cfg.Bucket)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("unexpected error from BucketExists on %s: %w", cfg.Bucket, err)
-	}
-
-	if !exists {
-		return nil, nil, nil, fmt.Errorf("s3 Bucket %s does not exist", cfg.Bucket)
-	}
 
 	// try listing objects
 	_, err = core.ListObjects(cfg.Bucket, "", "", "/", 0)
