@@ -52,7 +52,7 @@ ingester:
         ring:
             replication_factor: 2   # number of replicas of each span to make while pushing to the backend
     trace_idle_period: 20s          # amount of time before considering a trace complete and flushing it to a block
-    max_block_bytes: 1_000_000_000  # maximum block size before cutting it
+    max_block_bytes: 1_000_000_000  # maximum size of a block before cutting it
     max_block_duration: 1h          # maximum length of time before cutting a block
 ```
 
