@@ -28,10 +28,11 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 	}
 
 	name := h.fullFilename()
-	_, err := os.Create(name)
+	unused, err := os.Create(name)
 	if err != nil {
 		return nil, err
 	}
+	unused.Close()
 
 	f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
