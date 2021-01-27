@@ -135,7 +135,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	if i.headBlock == nil || i.headBlock.Length() == 0 {
+	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
 		return nil
 	}
 

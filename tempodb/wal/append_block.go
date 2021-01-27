@@ -53,10 +53,6 @@ func (h *AppendBlock) Write(id common.ID, b []byte) error {
 	return nil
 }
 
-func (h *AppendBlock) Length() int {
-	return h.appender.Length()
-}
-
 func (h *AppendBlock) DataLength() uint64 {
 	return h.appender.DataLength()
 }
