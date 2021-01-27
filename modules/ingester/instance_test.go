@@ -48,7 +48,7 @@ func TestInstance(t *testing.T) {
 	err = i.CutCompleteTraces(0, true)
 	assert.NoError(t, err)
 
-	err = i.CutBlockIfReady(0, 0, 0, false)
+	err = i.CutBlockIfReady(0, 0, false)
 	assert.NoError(t, err, "unexpected error cutting block")
 
 	// try a few times while the block gets completed
@@ -110,7 +110,7 @@ func TestInstanceFind(t *testing.T) {
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
 
-	err = i.CutBlockIfReady(0, 0, 0, false)
+	err = i.CutBlockIfReady(0, 0, false)
 	assert.NoError(t, err)
 
 	trace, err = i.FindTraceByID(traceID)
@@ -155,7 +155,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_ = i.CutBlockIfReady(0, 0, 0, false)
+		_ = i.CutBlockIfReady(0, 0, false)
 	})
 
 	go concurrent(func() {
@@ -347,7 +347,6 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 
 	tt := []struct {
 		name               string
-		maxTracesPerBlock  int
 		maxBlockLifetime   time.Duration
 		maxBlockBytes      uint64
 		immediate          bool
@@ -367,12 +366,6 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			name:               "cut immediate",
 			immediate:          true,
 			pushCount:          1,
-			expectedToCutBlock: true,
-		},
-		{
-			name:               "cut based on trace count",
-			maxTracesPerBlock:  1,
-			pushCount:          2,
 			expectedToCutBlock: true,
 		},
 		{
@@ -406,9 +399,6 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			if tc.maxBlockLifetime == 0 {
 				tc.maxBlockLifetime = time.Hour
 			}
-			if tc.maxTracesPerBlock == 0 {
-				tc.maxTracesPerBlock = 1000
-			}
 
 			lastCutTime := instance.lastBlockCut
 
@@ -416,7 +406,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			err := instance.CutCompleteTraces(0, true)
 			require.NoError(t, err)
 
-			err = instance.CutBlockIfReady(tc.maxTracesPerBlock, tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
+			err = instance.CutBlockIfReady(tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
 			require.NoError(t, err)
 
 			// Wait for goroutine to finish flushing to avoid test flakiness
