@@ -234,7 +234,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, metrics, nil
 	}
 
-	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
+	partialTraces, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*backend.BlockMeta)
 		block, err := encoding.NewBackendBlock(meta)
 		if err != nil {
@@ -256,7 +256,23 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return foundObject, nil
 	})
 
-	return foundBytes, metrics, err
+	//if len(partialTraces) == 0 {
+	//	return nil, metrics, err
+	//}
+	//
+	//// merge all partial trace bytes into partialTraces[0]
+	//for i := range partialTraces {
+	//	if i == 0 {
+	//		continue
+	//	}
+	//	partialTraces[0], err = tempo_util.CombineTraces(partialTraces[0], partialTraces[i])
+	//	// todo: we may want to ignore the error here
+	//	if err != nil {
+	//		return nil, metrics, err
+	//	}
+	//}
+
+	return partialTraces[0], metrics, err
 }
 
 func (rw *readerWriter) Shutdown() {

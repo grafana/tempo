@@ -75,7 +75,7 @@ func NewPool(cfg *Config) *Pool {
 	return p
 }
 
-func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([]byte, error) {
+func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([][]byte, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -86,7 +86,7 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 		return nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
-	resultsCh := make(chan []byte, 1) // way for jobs to send back results
+	resultsCh := make(chan []byte, totalJobs) // way for jobs to send back results
 	err := atomic.NewError(nil)       // way for jobs to send back an error
 	stop := atomic.NewBool(false)     // way to signal to the jobs to quit
 	wg := &sync.WaitGroup{}           // way to wait for all jobs to complete
@@ -118,16 +118,16 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	// wait for all jobs to finish
 	wg.Wait()
 
-	// see if anything ended up in the results channel
-	var msg []byte
-	select {
-	case msg = <-resultsCh:
-	default:
+	// read all from results channel
+	var msg [][]byte
+	// fixme: this loop seems to be running infinitely :/
+	for res := range resultsCh {
+		msg = append(msg, res)
 	}
 
 	// ignore err if msg != nil.  otherwise errors like "context cancelled"
 	//  will take precedence over the err
-	if msg != nil {
+	if len(msg) > 0 {
 		return msg, nil
 	}
 
@@ -172,13 +172,13 @@ func (p *Pool) reportQueueLength() {
 func runJob(job *job) {
 	defer job.wg.Done()
 
+	// bail in case not all jobs could be enqueued
 	if job.stop.Load() {
 		return
 	}
 
 	msg, err := job.fn(job.ctx, job.payload)
 	if msg != nil {
-		job.stop.Store(true) // one job was successful.  stop all others
 		// Commenting out job cancellations for now because of a resource leak suspected in the GCS golang client.
 		// Issue logged here: https://github.com/googleapis/google-cloud-go/issues/3018
 		// job.cancel()
@@ -189,13 +189,5 @@ func runJob(job *job) {
 	}
 	if err != nil {
 		job.err.Store(err)
-	}
-}
-
-// default is concurrency disabled
-func defaultConfig() *Config {
-	return &Config{
-		MaxWorkers: 30,
-		QueueDepth: 10000,
 	}
 }
