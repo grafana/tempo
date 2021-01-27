@@ -337,7 +337,8 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte) error {
 }
 
 func (i *instance) Combine(objA []byte, objB []byte) []byte {
-	return util.CombineTraces(objA, objB)
+	combinedTrace, _ := util.CombineTraces(objA, objB)
+	return combinedTrace
 }
 
 // pushRequestTraceID gets the TraceID of the first span in the batch and assumes its the trace ID throughout

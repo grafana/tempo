@@ -71,7 +71,8 @@ func TestCombine(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		actual := CombineTraces(tt.trace1, tt.trace2)
+		actual, err := CombineTraces(tt.trace1, tt.trace2)
+		assert.NoError(t, err)
 
 		if !bytes.Equal(tt.expected, actual) {
 			actualTrace := &tempopb.Trace{}

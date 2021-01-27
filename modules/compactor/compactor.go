@@ -149,7 +149,8 @@ func (c *Compactor) Owns(hash string) bool {
 }
 
 func (c *Compactor) Combine(objA []byte, objB []byte) []byte {
-	return tempo_util.CombineTraces(objA, objB)
+	combinedTrace, _ := tempo_util.CombineTraces(objA, objB)
+	return combinedTrace
 }
 
 func (c *Compactor) waitRingActive(ctx context.Context) error {
