@@ -40,4 +40,7 @@
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_compactor_configmap.metadata.name),
     ]),
+
+  tempo_compactor_service:
+    $.util.serviceFor($.tempo_compactor_deployment),
 }
