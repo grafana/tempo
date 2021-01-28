@@ -89,11 +89,6 @@ func (c *CompleteBlock) BlockMeta() *backend.BlockMeta {
 
 // Write implements WriteableBlock
 func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
-	err := writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
-	if err != nil {
-		return err
-	}
-
 	// write object file
 	src, err := os.Open(c.fullFilename())
 	if err != nil {
@@ -107,6 +102,11 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 	}
 
 	err = writeBlockData(ctx, w, c.meta, src, fileStat.Size())
+	if err != nil {
+		return err
+	}
+
+	err = writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
 	if err != nil {
 		return err
 	}
