@@ -56,10 +56,8 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 			resp, err := rt.RoundTrip(r)
 
 			traceID, _ := middleware.ExtractTraceID(ctx)
-			var statusCode int
-			if resp == nil {
-				statusCode = 500
-			} else {
+			statusCode := 500
+			if resp != nil {
 				statusCode = resp.StatusCode
 			}
 			level.Info(logger).Log("method", r.Method, "traceID", traceID, "url", r.URL.RequestURI(), "duration", time.Since(start).String(), "status", statusCode)

@@ -155,7 +155,7 @@ func doRequests(reqs []*http.Request, downstream Handler) ([]RequestResponse, er
 
 func mergeResponses(ctx context.Context, marshallingFormat string, rrs []RequestResponse) (*http.Response, error) {
 	// tracing instrumentation
-	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.mergeResponses")
+	span, _ := opentracing.StartSpanFromContext(ctx, "frontend.mergeResponses")
 	defer span.Finish()
 
 	var errCode = http.StatusOK
@@ -196,31 +196,27 @@ func mergeResponses(ctx context.Context, marshallingFormat string, rrs []Request
 	}
 
 	if errCode == http.StatusOK {
-		if marshallingFormat == util.ProtobufTypeHeaderValue {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
-				Header:     http.Header{},
-			}, nil
+		if marshallingFormat == util.JSONTypeHeaderValue {
+			// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
+			traceObject := &tempopb.Trace{}
+			err := proto.Unmarshal(combinedTrace, traceObject)
+			if err != nil {
+				return nil, err
+			}
+
+			var jsonTrace bytes.Buffer
+			marshaller := &jsonpb.Marshaler{}
+			err = marshaller.Marshal(&jsonTrace, traceObject)
+			if err != nil {
+				return nil, err
+			}
+			combinedTrace = jsonTrace.Bytes()
 		}
 
-		// if request is for application/json, unmarshal into proto object and marshal into json object
-		traceObject := &tempopb.Trace{}
-		err := proto.Unmarshal(combinedTrace, traceObject)
-		if err != nil {
-			return &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Body:       ioutil.NopCloser(strings.NewReader(err.Error())),
-				Header:     http.Header{},
-			}, nil
-		}
-
-		var jsonTrace bytes.Buffer
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(&jsonTrace, traceObject)
+		span.SetTag("response marshalling format", marshallingFormat)
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       ioutil.NopCloser(bytes.NewReader(jsonTrace.Bytes())),
+			Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
 			Header:     http.Header{},
 		}, nil
 	}
