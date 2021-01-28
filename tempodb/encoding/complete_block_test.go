@@ -13,7 +13,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -43,14 +43,10 @@ func TestCompleteBlock(t *testing.T) {
 
 	// test Find
 	for i, id := range ids {
-		out := &tempopb.PushRequest{}
 		foundBytes, err := block.Find(id, &mockCombiner{})
 		assert.NoError(t, err)
 
-		err = proto.Unmarshal(foundBytes, out)
-		assert.NoError(t, err)
-
-		assert.True(t, proto.Equal(out, reqs[i]))
+		assert.Equal(t, reqs[i], foundBytes)
 		assert.True(t, block.bloom.Test(id))
 	}
 
@@ -98,37 +94,38 @@ func TestCompleteBlockToBackendBlock(t *testing.T) {
 	m := common.NewFindMetrics()
 	// test Find
 	for i, id := range ids {
-		out := &tempopb.PushRequest{}
 		foundBytes, err := backendBlock.Find(context.Background(), r, id, &m)
 		assert.NoError(t, err)
 
-		err = proto.Unmarshal(foundBytes, out)
-		assert.NoError(t, err)
-
-		assert.True(t, proto.Equal(out, reqs[i]))
+		assert.Equal(t, reqs[i], foundBytes)
 		assert.True(t, block.bloom.Test(id))
 	}
 
 	// test Iterator
+	idsToObjs := map[uint32][]byte{}
+	for i, id := range ids {
+		idsToObjs[util.TokenForTraceID(id)] = reqs[i]
+	}
 	sort.Slice(ids, func(i int, j int) bool { return bytes.Compare(ids[i], ids[j]) == -1 })
 
 	iterator, err := backendBlock.Iterator(10, r)
 	require.NoError(t, err, "error getting iterator")
 	i := 0
 	for {
-		id, _, err := iterator.Next()
+		id, obj, err := iterator.Next()
 		if id == nil {
 			break
 		}
 
 		assert.NoError(t, err)
 		assert.Equal(t, ids[i], []byte(id))
+		assert.Equal(t, idsToObjs[util.TokenForTraceID(id)], obj)
 		i++
 	}
 	assert.Equal(t, len(ids), i)
 }
 
-func completeBlock(t *testing.T, tempDir string) (*CompleteBlock, [][]byte, []*tempopb.PushRequest) {
+func completeBlock(t *testing.T, tempDir string) (*CompleteBlock, [][]byte, [][]byte) {
 	rand.Seed(time.Now().Unix())
 
 	indexDownsample := 13
@@ -137,20 +134,20 @@ func completeBlock(t *testing.T, tempDir string) (*CompleteBlock, [][]byte, []*t
 	appender := v0.NewAppender(writer)
 
 	numMsgs := 1000
-	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
+	reqs := make([][]byte, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	var maxID, minID []byte
 	for i := 0; i < numMsgs; i++ {
 		id := make([]byte, 16)
 		rand.Read(id)
 		req := test.MakeRequest(rand.Int()%10, id)
-		reqs = append(reqs, req)
 		ids = append(ids, id)
 		bReq, err := proto.Marshal(req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		reqs = append(reqs, bReq)
 
 		err = appender.Append(id, bReq)
-		assert.NoError(t, err, "unexpected error writing req")
+		require.NoError(t, err, "unexpected error writing req")
 
 		if len(maxID) == 0 || bytes.Compare(id, maxID) == 1 {
 			maxID = id
