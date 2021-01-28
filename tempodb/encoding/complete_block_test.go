@@ -98,7 +98,6 @@ func TestCompleteBlockToBackendBlock(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.Equal(t, reqs[i], foundBytes)
-		assert.True(t, block.bloom.Test(id))
 	}
 
 	// test Iterator
