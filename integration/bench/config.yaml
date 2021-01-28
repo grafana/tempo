@@ -19,7 +19,6 @@ ingester:
       replication_factor: 1
     final_sleep: 0s
   trace_idle_period: 1s
-  traces_per_block: 10000
   max_block_duration: 10m
 
 storage:

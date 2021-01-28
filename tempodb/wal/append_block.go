@@ -28,10 +28,11 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 	}
 
 	name := h.fullFilename()
-	_, err := os.Create(name)
+	unused, err := os.Create(name)
 	if err != nil {
 		return nil, err
 	}
+	unused.Close()
 
 	f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -52,8 +53,8 @@ func (h *AppendBlock) Write(id common.ID, b []byte) error {
 	return nil
 }
 
-func (h *AppendBlock) Length() int {
-	return h.appender.Length()
+func (h *AppendBlock) DataLength() uint64 {
+	return h.appender.DataLength()
 }
 
 // Complete should be called when you are done with the block.  This method will write and return a new CompleteBlock which
