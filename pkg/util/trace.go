@@ -24,14 +24,7 @@ func CombineTraces(objA []byte, objB []byte) ([]byte, error) {
 	traceB := &tempopb.Trace{}
 
 	errA := proto.Unmarshal(objA, traceA)
-	if errA != nil {
-		level.Error(util.Logger).Log("msg", "error unsmarshaling objA", "err", errA)
-	}
-
 	errB := proto.Unmarshal(objB, traceB)
-	if errB != nil {
-		level.Error(util.Logger).Log("msg", "error unsmarshaling objB", "err", errB)
-	}
 
 	// if we had problems unmarshaling one or the other, return the one that marshalled successfully
 	if errA != nil && errB == nil {
@@ -41,10 +34,7 @@ func CombineTraces(objA []byte, objB []byte) ([]byte, error) {
 	} else if errA != nil && errB != nil {
 		// if both failed let's send back an empty trace
 		level.Error(util.Logger).Log("msg", "both A and B failed to unmarshal.  returning an empty trace")
-		bytes, err := proto.Marshal(&tempopb.Trace{})
-		if err != nil {
-			level.Error(util.Logger).Log("msg", "somehow marshalling an empty trace threw an error", "err", err)
-		}
+		bytes, _ := proto.Marshal(&tempopb.Trace{})
 		return bytes, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
 	}
 
@@ -52,7 +42,6 @@ func CombineTraces(objA []byte, objB []byte) ([]byte, error) {
 
 	bytes, err := proto.Marshal(traceComplete)
 	if err != nil {
-		level.Error(util.Logger).Log("msg", "marshalling the combine trace threw an error", "err", err)
 		return objA, errors.Wrap(err, "marshalling the combine trace threw an error")
 	}
 	return bytes, nil
