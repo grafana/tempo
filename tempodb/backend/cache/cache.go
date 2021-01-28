@@ -1,54 +1,30 @@
-package memcached
+package cache
 
 import (
 	"context"
 	"io"
-	"time"
-
-	"github.com/cortexproject/cortex/pkg/chunk/cache"
-	"github.com/go-kit/kit/log"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 )
-
-type Config struct {
-	ClientConfig cache.MemcachedClientConfig `yaml:",inline"`
-
-	TTL time.Duration `yaml:"ttl"`
-}
 
 type readerWriter struct {
 	nextReader backend.Reader
 	nextWriter backend.Writer
-	client     *cache.Memcached
-	logger     log.Logger
+	cache      Client
 }
 
-func New(nextReader backend.Reader, nextWriter backend.Writer, cfg *Config, logger log.Logger) (backend.Reader, backend.Writer, error) {
-	if cfg.ClientConfig.MaxIdleConns == 0 {
-		cfg.ClientConfig.MaxIdleConns = 16
-	}
-	if cfg.ClientConfig.Timeout == 0 {
-		cfg.ClientConfig.Timeout = 100 * time.Millisecond
-	}
-	if cfg.ClientConfig.UpdateInterval == 0 {
-		cfg.ClientConfig.UpdateInterval = time.Minute
-	}
+type Client interface {
+	Fetch(ctx context.Context, key string) []byte
+	Store(ctx context.Context, key string, val []byte)
+	Shutdown()
+}
 
-	client := cache.NewMemcachedClient(cfg.ClientConfig, "tempo", prometheus.DefaultRegisterer, logger)
-	memcachedCfg := cache.MemcachedConfig{
-		Expiration:  cfg.TTL,
-		BatchSize:   0, // we are currently only requesting one key at a time, which is bad.  we could restructure Find() to batch request all blooms at once
-		Parallelism: 0,
-	}
-
+func NewCache(nextReader backend.Reader, nextWriter backend.Writer, cache Client) (backend.Reader, backend.Writer, error) {
 	rw := &readerWriter{
-		client:     cache.NewMemcached(memcachedCfg, client, "tempo", prometheus.DefaultRegisterer, logger),
+		cache:      cache,
 		nextReader: nextReader,
 		nextWriter: nextWriter,
-		logger:     logger,
 	}
 
 	return rw, rw, nil
@@ -72,14 +48,14 @@ func (r *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantI
 // Read implements backend.Reader
 func (r *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	key := key(blockID, tenantID, name)
-	val := r.get(ctx, key)
+	val := r.cache.Fetch(ctx, key)
 	if val != nil {
 		return val, nil
 	}
 
 	val, err := r.nextReader.Read(ctx, name, blockID, tenantID)
 	if err == nil {
-		r.set(ctx, key, val)
+		r.cache.Store(ctx, key, val)
 	}
 
 	return val, err
@@ -93,12 +69,12 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.
 // Shutdown implements backend.Reader
 func (r *readerWriter) Shutdown() {
 	r.nextReader.Shutdown()
-	r.client.Stop()
+	r.cache.Shutdown()
 }
 
 // Write implements backend.Writer
 func (r *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
-	r.set(ctx, key(blockID, tenantID, name), buffer)
+	r.cache.Store(ctx, key(blockID, tenantID, name), buffer)
 
 	return r.nextWriter.Write(ctx, name, blockID, tenantID, buffer)
 }
@@ -121,18 +97,6 @@ func (r *readerWriter) Append(ctx context.Context, name string, blockID uuid.UUI
 // CloseAppend implements backend.Writer
 func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
 	return r.nextWriter.CloseAppend(ctx, tracker)
-}
-
-func (r *readerWriter) get(ctx context.Context, key string) []byte {
-	found, vals, _ := r.client.Fetch(ctx, []string{key})
-	if len(found) > 0 {
-		return vals[0]
-	}
-	return nil
-}
-
-func (r *readerWriter) set(ctx context.Context, key string, val []byte) {
-	r.client.Store(ctx, []string{key}, [][]byte{val})
 }
 
 func key(blockID uuid.UUID, tenantID string, name string) string {

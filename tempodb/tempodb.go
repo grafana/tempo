@@ -22,10 +22,11 @@ import (
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
+	"github.com/grafana/tempo/tempodb/backend/cache"
+	"github.com/grafana/tempo/tempodb/backend/cache/memcached"
+	"github.com/grafana/tempo/tempodb/backend/cache/redis"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/backend/memcached"
-	"github.com/grafana/tempo/tempodb/backend/redis"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -143,17 +144,20 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		return nil, nil, nil, err
 	}
 
-	if cfg.Memcached != nil {
-		r, w, err = memcached.New(r, w, cfg.Memcached, logger)
+	var cacheBackend cache.Client
+	var defaultCache = false
 
-		if err != nil {
-			return nil, nil, nil, err
-		}
+	switch cfg.Cache {
+	case "redis":
+		cacheBackend = redis.NewCache(cfg.Redis, logger)
+	case "memcached":
+		cacheBackend = memcached.NewCache(cfg.Memcached, logger)
+	default:
+		defaultCache = true
 	}
 
-	if cfg.Redis != nil {
-		r, w, err = redis.New(r, w, cfg.Redis, logger)
-
+	if !defaultCache {
+		r, w, err = cache.NewCache(r, w, cacheBackend)
 		if err != nil {
 			return nil, nil, nil, err
 		}
