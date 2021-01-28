@@ -11,6 +11,7 @@ const (
 	TraceIDVar              = "traceID"
 	AcceptHeaderKey         = "Accept"
 	ProtobufTypeHeaderValue = "application/protobuf"
+	JSONTypeHeaderValue     = "application/json"
 )
 
 func ParseTraceID(r *http.Request) ([]byte, error) {

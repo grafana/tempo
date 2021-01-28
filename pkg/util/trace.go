@@ -5,16 +5,18 @@ import (
 	"hash"
 	"hash/fnv"
 
+	"github.com/pkg/errors"
+
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func CombineTraces(objA []byte, objB []byte) []byte {
+func CombineTraces(objA []byte, objB []byte) ([]byte, error) {
 	// if the byte arrays are the same, we can return quickly
 	if bytes.Equal(objA, objB) {
-		return objA
+		return objA, nil
 	}
 
 	// hashes differ.  unmarshal and combine traces
@@ -22,38 +24,27 @@ func CombineTraces(objA []byte, objB []byte) []byte {
 	traceB := &tempopb.Trace{}
 
 	errA := proto.Unmarshal(objA, traceA)
-	if errA != nil {
-		level.Error(util.Logger).Log("msg", "error unsmarshaling objA", "err", errA)
-	}
-
 	errB := proto.Unmarshal(objB, traceB)
-	if errB != nil {
-		level.Error(util.Logger).Log("msg", "error unsmarshaling objB", "err", errB)
-	}
 
 	// if we had problems unmarshaling one or the other, return the one that marshalled successfully
 	if errA != nil && errB == nil {
-		return objB
+		return objB, errors.Wrap(errA, "error unsmarshaling objA")
 	} else if errB != nil && errA == nil {
-		return objA
+		return objA, errors.Wrap(errB, "error unsmarshaling objB")
 	} else if errA != nil && errB != nil {
 		// if both failed let's send back an empty trace
 		level.Error(util.Logger).Log("msg", "both A and B failed to unmarshal.  returning an empty trace")
-		bytes, err := proto.Marshal(&tempopb.Trace{})
-		if err != nil {
-			level.Error(util.Logger).Log("msg", "somehow marshalling an empty trace threw an error.", "err", err)
-		}
-		return bytes
+		bytes, _ := proto.Marshal(&tempopb.Trace{})
+		return bytes, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
 	}
 
 	traceComplete, _, _, _ := CombineTraceProtos(traceA, traceB)
 
 	bytes, err := proto.Marshal(traceComplete)
 	if err != nil {
-		level.Error(util.Logger).Log("msg", "marshalling the combine trace threw an error.", "err", err)
-		return objA
+		return objA, errors.Wrap(err, "marshalling the combine trace threw an error")
 	}
-	return bytes
+	return bytes, nil
 }
 
 // CombineTraceProtos combines two trace protos into one.  Note that it is destructive.

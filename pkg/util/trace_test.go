@@ -39,9 +39,10 @@ func TestCombine(t *testing.T) {
 	assert.NoError(t, err)
 
 	tests := []struct {
-		trace1   []byte
-		trace2   []byte
-		expected []byte
+		trace1    []byte
+		trace2    []byte
+		expected  []byte
+		errString string
 	}{
 		{
 			trace1:   b1,
@@ -49,14 +50,16 @@ func TestCombine(t *testing.T) {
 			expected: b1,
 		},
 		{
-			trace1:   b1,
-			trace2:   []byte{0x01},
-			expected: b1,
+			trace1:    b1,
+			trace2:    []byte{0x01},
+			expected:  b1,
+			errString: "error unsmarshaling objB: proto: Trace: illegal tag 0 (wire type 1)",
 		},
 		{
-			trace1:   []byte{0x01},
-			trace2:   b2,
-			expected: b2,
+			trace1:    []byte{0x01},
+			trace2:    b2,
+			expected:  b2,
+			errString: "error unsmarshaling objA: proto: Trace: illegal tag 0 (wire type 1)",
 		},
 		{
 			trace1:   []byte{0x01, 0x02, 0x03},
@@ -68,10 +71,21 @@ func TestCombine(t *testing.T) {
 			trace2:   b2b,
 			expected: b2,
 		},
+		{
+			trace1:    []byte{0x01},
+			trace2:    []byte{0x02},
+			expected:  nil,
+			errString: "both A and B failed to unmarshal.  returning an empty trace: proto: Trace: illegal tag 0 (wire type 1)",
+		},
 	}
 
 	for _, tt := range tests {
-		actual := CombineTraces(tt.trace1, tt.trace2)
+		actual, err := CombineTraces(tt.trace1, tt.trace2)
+		if len(tt.errString) > 0 {
+			assert.EqualError(t, err, tt.errString)
+		} else {
+			assert.NoError(t, err)
+		}
 
 		if !bytes.Equal(tt.expected, actual) {
 			actualTrace := &tempopb.Trace{}
@@ -169,6 +183,7 @@ func BenchmarkCombineTraces(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		// nolint:errcheck
 		CombineTraces(b1, b2)
 	}
 }
@@ -184,6 +199,7 @@ func BenchmarkCombineTracesIdentical(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		// nolint:errcheck
 		CombineTraces(b1, b2)
 	}
 }

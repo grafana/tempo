@@ -337,7 +337,11 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte) error {
 }
 
 func (i *instance) Combine(objA []byte, objB []byte) []byte {
-	return util.CombineTraces(objA, objB)
+	combinedTrace, err := util.CombineTraces(objA, objB)
+	if err != nil {
+		level.Error(cortex_util.Logger).Log("msg", "error combining trace protos", "err", err.Error())
+	}
+	return combinedTrace
 }
 
 // pushRequestTraceID gets the TraceID of the first span in the batch and assumes its the trace ID throughout
