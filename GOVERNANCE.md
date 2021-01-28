@@ -48,6 +48,7 @@ The current team members are:
 
 - Annanay Agarwal - [annanay25](https://github.com/annanay25) ([Grafana Labs](https://grafana.com/))
 - Joe Elliott - [joe-elliott](https://github.com/joe-elliott) ([Grafana Labs](https://grafana.com/))
+- Marty Disibio - [mdisibio](https://github.com/mdisibio) ([Grafana Labs](https://grafana.com/))
 
 ### Maintainers
 
