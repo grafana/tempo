@@ -334,6 +334,12 @@ func (rw *readerWriter) pollBlocklist() {
 				compactedBlockMeta, err = rw.c.CompactedBlockMeta(blockID, tenantID)
 			}
 
+			// blocks in intermediate states may not have a compacted or normal block meta.
+			//   this is not necessarily an error, just bail out
+			if err == backend.ErrMetaDoesNotExist {
+				return nil, nil
+			}
+
 			if err != nil {
 				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 				level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)

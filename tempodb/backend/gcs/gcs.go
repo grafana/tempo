@@ -193,7 +193,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 	return blocks, warning
 }
 
-// Tenants implements backend.Reader
+// BlockMeta implements backend.Reader
 func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	name := util.MetaFileName(blockID, tenantID)
 

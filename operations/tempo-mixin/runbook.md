@@ -46,3 +46,12 @@ remove them.
 In the case of failed flushes your local WAL disk is now filling up.  Tempo will continue to retry sending the blocks
 until it succeeds, but at some point your WAL files will start failing to write due to out of disk issues.  If the problem 
 persists consider killing the block that's failing to upload in `/var/tempo/wal` and restarting the ingester.
+
+## TempoPollsFailing
+
+If polls are failing check the component that is raising this metric and look for any obvious logs that may indicate a quick fix.
+If you see logs about the number of blocks being too long for the job queue then raise the `storage.traces.pool.max_workers` value
+to compensate.
+
+Generally, failure to poll just means that the component is not aware of the current state of the backend but will continue working 
+otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale.
