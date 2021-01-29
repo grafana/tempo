@@ -16,12 +16,14 @@ import (
 type WriterPool interface {
 	GetWriter(io.Writer) io.WriteCloser
 	PutWriter(io.WriteCloser)
+	Encoding() Encoding
 }
 
 // ReaderPool similar to WriterPool but for reading chunks.
 type ReaderPool interface {
 	GetReader(io.Reader) io.Reader
 	PutReader(io.Reader)
+	Encoding() Encoding
 }
 
 var (
@@ -82,6 +84,11 @@ type GzipPool struct {
 	level   int
 }
 
+// Encoding implements WriterPool and ReaderPool
+func (pool *GzipPool) Encoding() Encoding {
+	return EncGZIP
+}
+
 // GetReader gets or creates a new CompressionReader and reset it to read from src
 func (pool *GzipPool) GetReader(src io.Reader) io.Reader {
 	if r := pool.readers.Get(); r != nil {
@@ -135,6 +142,22 @@ type LZ4Pool struct {
 	bufferSize uint32 // available values: 1<<16 (64k), 1<<18 (256k), 1<<20 (1M), 1<<22 (4M). Defaults to 4MB, if not set.
 }
 
+// Encoding implements WriterPool and ReaderPool
+func (pool *LZ4Pool) Encoding() Encoding {
+	switch pool.bufferSize {
+	case 1 << 16:
+		return EncLZ4_64k
+	case 1 << 18:
+		return EncLZ4_256k
+	case 1 << 20:
+		return EncLZ4_1M
+	case 1 << 22:
+		return EncLZ4_4M
+	}
+
+	return EncNone
+}
+
 // GetReader gets or creates a new CompressionReader and reset it to read from src
 func (pool *LZ4Pool) GetReader(src io.Reader) io.Reader {
 	var r *lz4.Reader
@@ -183,6 +206,11 @@ type SnappyPool struct {
 	writers sync.Pool
 }
 
+// Encoding implements WriterPool and ReaderPool
+func (pool *SnappyPool) Encoding() Encoding {
+	return EncSnappy
+}
+
 // GetReader gets or creates a new CompressionReader and reset it to read from src
 func (pool *SnappyPool) GetReader(src io.Reader) io.Reader {
 	if r := pool.readers.Get(); r != nil {
@@ -215,6 +243,11 @@ func (pool *SnappyPool) PutWriter(writer io.WriteCloser) {
 
 // NoopPool is for people who think compression is for the weak
 type NoopPool struct{}
+
+// Encoding implements WriterPool and ReaderPool
+func (pool *NoopPool) Encoding() Encoding {
+	return EncNone
+}
 
 // GetReader gets or creates a new CompressionReader and reset it to read from src
 func (pool *NoopPool) GetReader(src io.Reader) io.Reader {

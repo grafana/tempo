@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,13 +9,17 @@ import (
 
 func TestGetPool(t *testing.T) {
 	for _, enc := range supportedEncoding {
-		rPool, err := getReaderPool(enc)
-		assert.NotNil(t, rPool)
-		assert.NoError(t, err)
+		t.Run(fmt.Sprintf("testing %s", enc), func(t *testing.T) {
+			rPool, err := getReaderPool(enc)
+			assert.NotNil(t, rPool)
+			assert.NoError(t, err)
+			assert.Equal(t, enc, rPool.Encoding())
 
-		wPool, err := getWriterPool(enc)
-		assert.NotNil(t, wPool)
-		assert.NoError(t, err)
+			wPool, err := getWriterPool(enc)
+			assert.NotNil(t, wPool)
+			assert.NoError(t, err)
+			assert.Equal(t, enc, wPool.Encoding())
+		})
 	}
 
 	rPool, err := getReaderPool(maxEncoding + 1)
