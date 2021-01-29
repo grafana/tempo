@@ -104,6 +104,10 @@ func (c *Config) CheckConfig() {
 		level.Warn(util.Logger).Log("msg", "c.Compactor.Compactor.FlushSizeBytes < 5242880",
 			"explan", "Compaction flush size should be 5MB or higher for S3 backend")
 	}
+
+	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
+		level.Warn(util.Logger).Log("msg", "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.")
+	}
 }
 
 // App is the root datastructure.

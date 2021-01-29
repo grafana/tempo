@@ -13,6 +13,8 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
+const DefaultBlocklistPollConcurrency = uint(50)
+
 type Config struct {
 	Backend string        `yaml:"backend"`
 	Local   *local.Config `yaml:"local"`
@@ -25,7 +27,8 @@ type Config struct {
 	Memcached *memcached.Config `yaml:"memcached"`
 	Redis     *redis.Config     `yaml:"redis"`
 
-	BlocklistPoll time.Duration `yaml:"blocklist_poll"`
+	BlocklistPoll            time.Duration `yaml:"blocklist_poll"`
+	BlocklistPollConcurrency uint          `yaml:"blocklist_poll_concurrency"`
 }
 
 type CompactorConfig struct {

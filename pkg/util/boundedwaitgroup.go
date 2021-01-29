@@ -9,7 +9,7 @@ type BoundedWaitGroup struct {
 }
 
 // NewBoundedWaitGroup creates a BoundedWaitGroup with the given concurrency.
-func NewBoundedWaitGroup(cap int) BoundedWaitGroup {
+func NewBoundedWaitGroup(cap uint) BoundedWaitGroup {
 	return BoundedWaitGroup{ch: make(chan struct{}, cap)}
 }
 

@@ -159,6 +159,10 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		}
 	}
 
+	if cfg.BlocklistPollConcurrency == 0 {
+		cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
+	}
+
 	rw := &readerWriter{
 		c:                   c,
 		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
@@ -336,9 +340,10 @@ func (rw *readerWriter) pollTenant(ctx context.Context, tenantID string) ([]*bac
 		return nil, nil, err
 	}
 
-	bg := tempoUtil.NewBoundedWaitGroup(1)
-	chMeta := make(chan backend.BlockMeta, len(blockIDs))
-	chCompactedMeta := make(chan backend.CompactedBlockMeta, len(blockIDs))
+	bg := tempoUtil.NewBoundedWaitGroup(rw.cfg.BlocklistPollConcurrency)
+	chErr := make(chan error, len(blockIDs))
+	chMeta := make(chan *backend.BlockMeta, len(blockIDs))
+	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(blockIDs))
 
 	for _, blockID := range blockIDs {
 		bg.Add(1)
@@ -346,27 +351,27 @@ func (rw *readerWriter) pollTenant(ctx context.Context, tenantID string) ([]*bac
 			defer bg.Done()
 			m, cm, e := rw.pollBlock(ctx, tenantID, b)
 			if e != nil {
-				err = e
+				chErr <- e
 			} else if m != nil {
-				chMeta <- *m
+				chMeta <- m
 			} else if cm != nil {
-				chCompactedMeta <- *cm
+				chCompactedMeta <- cm
 			}
 		}(blockID)
 	}
 
 	bg.Wait()
+	close(chErr)
 	close(chMeta)
 	close(chCompactedMeta)
 
-	if err != nil {
+	for err := range chErr {
 		return nil, nil, err
 	}
 
 	newBlockList := make([]*backend.BlockMeta, 0, len(blockIDs))
 	for m := range chMeta {
-		pm := m // unique pointer
-		newBlockList = append(newBlockList, &pm)
+		newBlockList = append(newBlockList, m)
 	}
 	sort.Slice(newBlockList, func(i, j int) bool {
 		return newBlockList[i].StartTime.Before(newBlockList[j].StartTime)
@@ -374,8 +379,7 @@ func (rw *readerWriter) pollTenant(ctx context.Context, tenantID string) ([]*bac
 
 	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
 	for cm := range chCompactedMeta {
-		pcm := cm
-		newCompactedBlocklist = append(newCompactedBlocklist, &pcm)
+		newCompactedBlocklist = append(newCompactedBlocklist, cm)
 	}
 	sort.Slice(newCompactedBlocklist, func(i, j int) bool {
 		return newCompactedBlocklist[i].StartTime.Before(newCompactedBlocklist[j].StartTime)
