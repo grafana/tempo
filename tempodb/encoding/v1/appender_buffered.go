@@ -48,6 +48,7 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 	}
 
 	// each "index downsample" number of records is a "block page" and is independently compressed
+	// | -- encoding 1 byte -- | -- compressed data -- |
 	if a.v0Appender.Length()%a.indexDownsample == 0 {
 		// write compression encoding value
 		len, err := a.outputWriter.Write([]byte{byte(a.pool.Encoding())})

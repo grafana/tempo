@@ -77,7 +77,7 @@ func SupportedEncoding() string {
 }
 
 // BlockPage represents a page in a block.  This is a collection of contiguous traces in the v0 format
-// proceeded by an encoding byte
+// proceeded by an encoding byte.  Note that block pages are written in the buffered appender.
 type BlockPage struct {
 	encoding     Encoding
 	encodedBytes []byte
