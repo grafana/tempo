@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
@@ -34,7 +35,8 @@ func TestResults(t *testing.T) {
 
 	msg, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.NoError(t, err)
-	assert.Equal(t, ret, msg)
+	require.Len(t, msg, 1)
+	assert.Equal(t, ret, msg[0])
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
@@ -80,7 +82,10 @@ func TestMultipleHits(t *testing.T) {
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
 	msg, err := p.RunJobs(context.Background(), payloads, fn)
-	assert.Equal(t, ret, msg)
+	require.Len(t, msg, 5)
+	for i, _ := range payloads {
+		assert.Equal(t, ret, msg[i])
+	}
 	assert.Nil(t, err)
 	goleak.VerifyNone(t, opts)
 
@@ -186,7 +191,8 @@ func TestOneWorker(t *testing.T) {
 
 	msg, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.NoError(t, err)
-	assert.Equal(t, ret, msg)
+	require.Len(t, msg, 1)
+	assert.Equal(t, ret, msg[0])
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
@@ -221,7 +227,8 @@ func TestGoingHam(t *testing.T) {
 
 			msg, err := p.RunJobs(context.Background(), payloads, fn)
 			assert.NoError(t, err)
-			assert.Equal(t, ret, msg)
+			require.Len(t, msg, 1)
+			assert.Equal(t, ret, msg[0])
 			wg.Done()
 		}()
 	}

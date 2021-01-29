@@ -118,9 +118,11 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	// wait for all jobs to finish
 	wg.Wait()
 
+	// close resultsCh
+	close(resultsCh)
+
 	// read all from results channel
 	var msg [][]byte
-	// fixme: this loop seems to be running infinitely :/
 	for res := range resultsCh {
 		msg = append(msg, res)
 	}

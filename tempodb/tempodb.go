@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/pkg/errors"
 	"sort"
 	"sync"
 	"time"
@@ -256,21 +258,20 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return foundObject, nil
 	})
 
-	//if len(partialTraces) == 0 {
-	//	return nil, metrics, err
-	//}
-	//
-	//// merge all partial trace bytes into partialTraces[0]
-	//for i := range partialTraces {
-	//	if i == 0 {
-	//		continue
-	//	}
-	//	partialTraces[0], err = tempo_util.CombineTraces(partialTraces[0], partialTraces[i])
-	//	// todo: we may want to ignore the error here
-	//	if err != nil {
-	//		return nil, metrics, err
-	//	}
-	//}
+	if len(partialTraces) == 0 {
+		return nil, metrics, err
+	}
+
+	// merge all partial trace bytes into partialTraces[0]
+	for i := range partialTraces {
+		if i == 0 {
+			continue
+		}
+		partialTraces[0], err = tempo_util.CombineTraces(partialTraces[0], partialTraces[i])
+		if err != nil {
+			return nil, metrics, errors.Wrap(err, "error combining traces in store.Find")
+		}
+	}
 
 	return partialTraces[0], metrics, err
 }

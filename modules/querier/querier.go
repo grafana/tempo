@@ -184,36 +184,43 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			if trace != nil {
 				var spanCountA, spanCountB, spanCountTotal int
 				completeTrace, spanCountA, spanCountB, spanCountTotal = tempo_util.CombineTraceProtos(completeTrace, trace)
-				span.LogFields(ot_log.String("msg", "combined trace protos"),
+				span.LogFields(ot_log.String("msg", "combined trace protos from ingesters"),
 					ot_log.Int("spansCountA", spanCountA),
 					ot_log.Int("spansCountB", spanCountB),
 					ot_log.Int("spansCountTotal", spanCountTotal))
 			}
 		}
+
+		span.LogFields(ot_log.String("msg", "done searching ingesters"), ot_log.Bool("found", completeTrace != nil))
 	}
 
-	// if the ingester didn't have it check the store.
-	if completeTrace == nil {
-		foundBytes, metrics, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
-		if err != nil {
-			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
-		}
-
-		out := &tempopb.Trace{}
-		err = proto.Unmarshal(foundBytes, out)
-		if err != nil {
-			return nil, err
-		}
-
-		span.LogFields(ot_log.String("msg", "found backend trace"), ot_log.Int("len", len(foundBytes)))
-		completeTrace = out
-		metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads.Load()))
-		metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead.Load()))
-		metricQueryReads.WithLabelValues("index").Observe(float64(metrics.IndexReads.Load()))
-		metricQueryBytesRead.WithLabelValues("index").Observe(float64(metrics.IndexBytesRead.Load()))
-		metricQueryReads.WithLabelValues("block").Observe(float64(metrics.BlockReads.Load()))
-		metricQueryBytesRead.WithLabelValues("block").Observe(float64(metrics.BlockBytesRead.Load()))
+	span.LogFields(ot_log.String("msg", "searching store"))
+	foundBytes, metrics, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 	}
+
+	storeTrace := &tempopb.Trace{}
+	err = proto.Unmarshal(foundBytes, storeTrace)
+	if err != nil {
+		return nil, err
+	}
+
+	span.LogFields(ot_log.String("msg", "found backend trace"), ot_log.Int("len", len(foundBytes)))
+	metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads.Load()))
+	metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead.Load()))
+	metricQueryReads.WithLabelValues("index").Observe(float64(metrics.IndexReads.Load()))
+	metricQueryBytesRead.WithLabelValues("index").Observe(float64(metrics.IndexBytesRead.Load()))
+	metricQueryReads.WithLabelValues("block").Observe(float64(metrics.BlockReads.Load()))
+	metricQueryBytesRead.WithLabelValues("block").Observe(float64(metrics.BlockBytesRead.Load()))
+
+	// combine out with completeTrace
+	var spanCountA, spanCountB, spanCountTotal int
+	completeTrace, spanCountA, spanCountB, spanCountTotal = tempo_util.CombineTraceProtos(completeTrace, storeTrace)
+	span.LogFields(ot_log.String("msg", "combined trace protos from ingesters and store"),
+		ot_log.Int("spansCountA", spanCountA),
+		ot_log.Int("spansCountB", spanCountB),
+		ot_log.Int("spansCountTotal", spanCountTotal))
 
 	return &tempopb.TraceByIDResponse{
 		Trace: completeTrace,
