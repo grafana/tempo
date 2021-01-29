@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetPool(t *testing.T) {
-	for _, enc := range supportedEncoding {
+	for _, enc := range backend.SupportedEncoding {
 		t.Run(fmt.Sprintf("testing %s", enc), func(t *testing.T) {
 			rPool, err := getReaderPool(enc)
 			assert.NotNil(t, rPool)

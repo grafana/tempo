@@ -6,24 +6,27 @@ import (
 	"sync"
 
 	"github.com/golang/snappy"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/klauspost/compress/gzip"
 	"github.com/pierrec/lz4/v4"
 	"github.com/prometheus/prometheus/pkg/pool"
 )
+
+const maxEncoding = backend.EncSnappy
 
 // WriterPool is a pool of io.Writer
 // This is used by every chunk to avoid unnecessary allocations.
 type WriterPool interface {
 	GetWriter(io.Writer) io.WriteCloser
 	PutWriter(io.WriteCloser)
-	Encoding() Encoding
+	Encoding() backend.Encoding
 }
 
 // ReaderPool similar to WriterPool but for reading chunks.
 type ReaderPool interface {
 	GetReader(io.Reader) io.Reader
 	PutReader(io.Reader)
-	Encoding() Encoding
+	Encoding() backend.Encoding
 }
 
 var (
@@ -47,7 +50,7 @@ var (
 	BytesBufferPool = pool.New(1<<9, 1<<13, 2, func(size int) interface{} { return make([]byte, 0, size) })
 )
 
-func getWriterPool(enc Encoding) (WriterPool, error) {
+func getWriterPool(enc backend.Encoding) (WriterPool, error) {
 	r, err := getReaderPool(enc)
 	if err != nil {
 		return nil, err
@@ -56,21 +59,21 @@ func getWriterPool(enc Encoding) (WriterPool, error) {
 	return r.(WriterPool), nil
 }
 
-func getReaderPool(enc Encoding) (ReaderPool, error) {
+func getReaderPool(enc backend.Encoding) (ReaderPool, error) {
 	switch enc {
-	case EncNone:
+	case backend.EncNone:
 		return &Noop, nil
-	case EncGZIP:
+	case backend.EncGZIP:
 		return &Gzip, nil
-	case EncLZ4_64k:
+	case backend.EncLZ4_64k:
 		return &Lz4_64k, nil
-	case EncLZ4_256k:
+	case backend.EncLZ4_256k:
 		return &Lz4_256k, nil
-	case EncLZ4_1M:
+	case backend.EncLZ4_1M:
 		return &Lz4_1M, nil
-	case EncLZ4_4M:
+	case backend.EncLZ4_4M:
 		return &Lz4_4M, nil
-	case EncSnappy:
+	case backend.EncSnappy:
 		return &Snappy, nil
 	default:
 		return nil, fmt.Errorf("Unknown pool encoding %d", enc)
@@ -85,8 +88,8 @@ type GzipPool struct {
 }
 
 // Encoding implements WriterPool and ReaderPool
-func (pool *GzipPool) Encoding() Encoding {
-	return EncGZIP
+func (pool *GzipPool) Encoding() backend.Encoding {
+	return backend.EncGZIP
 }
 
 // GetReader gets or creates a new CompressionReader and reset it to read from src
@@ -143,19 +146,19 @@ type LZ4Pool struct {
 }
 
 // Encoding implements WriterPool and ReaderPool
-func (pool *LZ4Pool) Encoding() Encoding {
+func (pool *LZ4Pool) Encoding() backend.Encoding {
 	switch pool.bufferSize {
 	case 1 << 16:
-		return EncLZ4_64k
+		return backend.EncLZ4_64k
 	case 1 << 18:
-		return EncLZ4_256k
+		return backend.EncLZ4_256k
 	case 1 << 20:
-		return EncLZ4_1M
+		return backend.EncLZ4_1M
 	case 1 << 22:
-		return EncLZ4_4M
+		return backend.EncLZ4_4M
 	}
 
-	return EncNone
+	return backend.EncNone
 }
 
 // GetReader gets or creates a new CompressionReader and reset it to read from src
@@ -207,8 +210,8 @@ type SnappyPool struct {
 }
 
 // Encoding implements WriterPool and ReaderPool
-func (pool *SnappyPool) Encoding() Encoding {
-	return EncSnappy
+func (pool *SnappyPool) Encoding() backend.Encoding {
+	return backend.EncSnappy
 }
 
 // GetReader gets or creates a new CompressionReader and reset it to read from src
@@ -245,8 +248,8 @@ func (pool *SnappyPool) PutWriter(writer io.WriteCloser) {
 type NoopPool struct{}
 
 // Encoding implements WriterPool and ReaderPool
-func (pool *NoopPool) Encoding() Encoding {
-	return EncNone
+func (pool *NoopPool) Encoding() backend.Encoding {
+	return backend.EncNone
 }
 
 // GetReader gets or creates a new CompressionReader and reset it to read from src
