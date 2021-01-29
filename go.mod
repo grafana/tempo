@@ -15,6 +15,7 @@ require (
 	github.com/gogo/status v1.0.3
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/protobuf v1.4.3
+	github.com/golang/snappy v0.0.2
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/grafana/loki v1.3.0
@@ -22,10 +23,12 @@ require (
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/jaegertracing/jaeger v1.18.2-0.20200707061226-97d2319ff2be
 	github.com/jsternberg/zap-logfmt v1.0.0
+	github.com/klauspost/compress v1.10.5
 	github.com/minio/minio-go/v7 v7.0.5
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/open-telemetry/opentelemetry-proto v0.4.0
 	github.com/opentracing/opentracing-go v1.2.0
+	github.com/pierrec/lz4/v4 v4.1.3
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.8.0
 	github.com/prometheus/client_model v0.2.0
