@@ -10,6 +10,9 @@ type BoundedWaitGroup struct {
 
 // NewBoundedWaitGroup creates a BoundedWaitGroup with the given concurrency.
 func NewBoundedWaitGroup(cap uint) BoundedWaitGroup {
+	if cap == 0 {
+		panic("BoundedWaitGroup capacity must be greater than zero or else it will block forever.")
+	}
 	return BoundedWaitGroup{ch: make(chan struct{}, cap)}
 }
 
