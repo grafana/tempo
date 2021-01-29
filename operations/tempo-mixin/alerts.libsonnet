@@ -93,6 +93,19 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoFlushesFailing'
             },
           },
+          {
+            alert: 'TempoPollsFailing',
+            expr: |||
+              sum by (cluster, namespace) (increase(tempodb_blocklist_poll_errors_total{}[1h])) > %s
+            ||| % $._config.alerts.polls_per_hour_failed,
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Greater than %s polls have failed in the past hour.' % $._config.alerts.polls_per_hour_failed,
+              runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoPollsFailing'
+            },
+          },
         ],
       },
     ],

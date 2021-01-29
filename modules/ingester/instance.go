@@ -131,16 +131,16 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-func (i *instance) CutBlockIfReady(maxTracesPerBlock int, maxBlockLifetime time.Duration, immediate bool) error {
+func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	if i.headBlock == nil || i.headBlock.Length() == 0 {
+	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
 		return nil
 	}
 
 	now := time.Now()
-	if i.headBlock.Length() >= maxTracesPerBlock || i.lastBlockCut.Add(maxBlockLifetime).Before(now) || immediate {
+	if i.lastBlockCut.Add(maxBlockLifetime).Before(now) || i.headBlock.DataLength() >= maxBlockBytes || immediate {
 		if i.completingBlock != nil {
 			return fmt.Errorf("unable to complete head block for %s b/c there is already a completing block.  Will try again next cycle", i.instanceID)
 		}
@@ -337,7 +337,11 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte) error {
 }
 
 func (i *instance) Combine(objA []byte, objB []byte) []byte {
-	return util.CombineTraces(objA, objB)
+	combinedTrace, err := util.CombineTraces(objA, objB)
+	if err != nil {
+		level.Error(cortex_util.Logger).Log("msg", "error combining trace protos", "err", err.Error())
+	}
+	return combinedTrace
 }
 
 // pushRequestTraceID gets the TraceID of the first span in the batch and assumes its the trace ID throughout

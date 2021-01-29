@@ -193,7 +193,7 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 	return blocks, warning
 }
 
-// Tenants implements backend.Reader
+// BlockMeta implements backend.Reader
 func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	name := util.MetaFileName(blockID, tenantID)
 
@@ -221,7 +221,11 @@ func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID
 
 	span.SetTag("object", name)
 
-	return rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
+	bytes, err := rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
+	if err != nil {
+		span.SetTag("error", true)
+	}
+	return bytes, err
 }
 
 // ReadRange implements backend.Reader
@@ -229,7 +233,11 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.ReadRange")
 	defer span.Finish()
 
-	return rw.readRange(derivedCtx, util.ObjectFileName(blockID, tenantID, name), int64(offset), buffer)
+	err := rw.readRange(derivedCtx, util.ObjectFileName(blockID, tenantID, name), int64(offset), buffer)
+	if err != nil {
+		span.SetTag("error", true)
+	}
+	return err
 }
 
 // Shutdown implements backend.Reader

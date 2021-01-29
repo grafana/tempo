@@ -106,6 +106,6 @@ If this metric is greater than zero (0), check the logs of the compactor for an 
   - For detailed information, check - https://grafana.com/docs/tempo/latest/configuration/s3/#permissions
 - If there’s a compactor sitting idle while others are running, port-forward to the compactor’s http endpoint. Then go to `/compactor/ring` and click **Forget** on the inactive compactor.
 - Check the following configuration parameters to ensure that there are correct settings:
-  - `traces_per_block` to determine when the ingester cuts blocks.
-  - `max_compaction_objects` to determine the max number of objects in a compacted block (this should be higher than `tracer_per_block` for the compactor to actually combine multiple blocks together). This can run up to `100,000`
+  - `max_block_bytes` to determine when the ingester cuts blocks. A good number is anywhere from 100MB to 2GB depending on the workload.
+  - `max_compaction_objects` to determine the max number of objects in a compacted block. This should relatively high, generally in the millions.
   - `retention_duration` for how long traces should be retained in the backend.

@@ -147,11 +147,13 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	}
 	go concurrent(func() {
 		request := test.MakeRequest(10, []byte{})
-		_ = i.Push(context.Background(), request)
+		err := i.Push(context.Background(), request)
+		assert.NoError(t, err, "error pushing traces")
 	})
 
 	go concurrent(func() {
-		_ = i.CutCompleteTraces(0, true)
+		err := i.CutCompleteTraces(0, true)
+		assert.NoError(t, err, "error cutting complete traces")
 	})
 
 	go concurrent(func() {
@@ -161,20 +163,26 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	go concurrent(func() {
 		block := i.GetBlockToBeFlushed()
 		if block != nil {
-			_ = ingester.store.WriteBlock(context.Background(), block)
+			err := ingester.store.WriteBlock(context.Background(), block)
+			assert.NoError(t, err, "error writing block")
 		}
 	})
 
 	go concurrent(func() {
-		_ = i.ClearFlushedBlocks(0)
+		err := i.ClearFlushedBlocks(0)
+		assert.NoError(t, err, "error clearing flushed blocks")
 	})
 
 	go concurrent(func() {
-		_, _ = i.FindTraceByID([]byte{0x01})
+		_, err := i.FindTraceByID([]byte{0x01})
+		assert.NoError(t, err, "error finding trace by id")
 	})
 
 	time.Sleep(100 * time.Millisecond)
 	close(end)
+	// Wait for go funcs to quit before
+	// exiting and cleaning up
+	time.Sleep(100 * time.Millisecond)
 }
 
 func TestInstanceLimits(t *testing.T) {
@@ -337,6 +345,84 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 				_, ok := instance.traces[instance.tokenForTraceID(expectedNotExist.traceID)]
 				assert.False(t, ok)
 			}
+		})
+	}
+}
+
+func TestInstanceCutBlockIfReady(t *testing.T) {
+	tempDir, _ := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+
+	tt := []struct {
+		name               string
+		maxBlockLifetime   time.Duration
+		maxBlockBytes      uint64
+		immediate          bool
+		pushCount          int
+		expectedToCutBlock bool
+	}{
+		{
+			name:               "empty",
+			expectedToCutBlock: false,
+		},
+		{
+			name:               "doesnt cut anything",
+			pushCount:          1,
+			expectedToCutBlock: false,
+		},
+		{
+			name:               "cut immediate",
+			immediate:          true,
+			pushCount:          1,
+			expectedToCutBlock: true,
+		},
+		{
+			name:               "cut based on block lifetime",
+			maxBlockLifetime:   time.Microsecond,
+			pushCount:          1,
+			expectedToCutBlock: true,
+		},
+		{
+			name:               "cut based on block size",
+			maxBlockBytes:      10,
+			pushCount:          10,
+			expectedToCutBlock: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			instance := defaultInstance(t, tempDir)
+
+			for i := 0; i < tc.pushCount; i++ {
+				request := test.MakeRequest(10, []byte{})
+				err := instance.Push(context.Background(), request)
+				require.NoError(t, err)
+			}
+
+			// Defaults
+			if tc.maxBlockBytes == 0 {
+				tc.maxBlockBytes = 1000
+			}
+			if tc.maxBlockLifetime == 0 {
+				tc.maxBlockLifetime = time.Hour
+			}
+
+			lastCutTime := instance.lastBlockCut
+
+			// Cut all traces to headblock for testing
+			err := instance.CutCompleteTraces(0, true)
+			require.NoError(t, err)
+
+			err = instance.CutBlockIfReady(tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
+			require.NoError(t, err)
+
+			// Wait for goroutine to finish flushing to avoid test flakiness
+			if tc.expectedToCutBlock {
+				time.Sleep(time.Millisecond * 250)
+			}
+
+			assert.Equal(t, tc.expectedToCutBlock, instance.lastBlockCut.After(lastCutTime))
 		})
 	}
 }

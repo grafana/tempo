@@ -149,7 +149,11 @@ func (c *Compactor) Owns(hash string) bool {
 }
 
 func (c *Compactor) Combine(objA []byte, objB []byte) []byte {
-	return tempo_util.CombineTraces(objA, objB)
+	combinedTrace, err := tempo_util.CombineTraces(objA, objB)
+	if err != nil {
+		level.Error(util.Logger).Log("msg", "error combining trace protos", "err", err.Error())
+	}
+	return combinedTrace
 }
 
 func (c *Compactor) waitRingActive(ctx context.Context) error {

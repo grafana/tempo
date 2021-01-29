@@ -13,6 +13,7 @@ import (
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/pkg/util"
@@ -54,7 +55,12 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 			r = r.WithContext(ctx)
 			resp, err := rt.RoundTrip(r)
 
-			level.Info(logger).Log("method", r.Method, "url", r.URL.RequestURI(), "duration", time.Since(start).String(), "error", err == nil)
+			traceID, _ := middleware.ExtractTraceID(ctx)
+			statusCode := 500
+			if resp != nil {
+				statusCode = resp.StatusCode
+			}
+			level.Info(logger).Log("method", r.Method, "traceID", traceID, "url", r.URL.RequestURI(), "duration", time.Since(start).String(), "status", statusCode)
 
 			return resp, err
 		})

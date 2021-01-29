@@ -25,8 +25,14 @@ func NewBackendBlock(meta *backend.BlockMeta) *BackendBlock {
 
 // Find searches a block for the ID and returns an object if found.
 func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id common.ID, metrics *common.FindMetrics) ([]byte, error) {
+	var err error
 	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Find")
-	defer span.Finish()
+	defer func() {
+		if err != nil {
+			span.SetTag("error", true)
+		}
+		span.Finish()
+	}()
 
 	span.SetTag("block", b.meta.BlockID.String())
 

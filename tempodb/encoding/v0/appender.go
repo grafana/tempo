@@ -11,7 +11,7 @@ import (
 type appender struct {
 	writer        io.Writer
 	records       []*common.Record
-	currentOffset int
+	currentOffset uint64
 }
 
 // NewAppender returns an appender.  This appender simply appends new objects
@@ -37,11 +37,11 @@ func (a *appender) Append(id common.ID, b []byte) error {
 	copy(a.records[i+1:], a.records[i:])
 	a.records[i] = &common.Record{
 		ID:     id,
-		Start:  uint64(a.currentOffset),
+		Start:  a.currentOffset,
 		Length: uint32(length),
 	}
 
-	a.currentOffset += length
+	a.currentOffset += uint64(length)
 	return nil
 }
 
@@ -51,6 +51,10 @@ func (a *appender) Records() []*common.Record {
 
 func (a *appender) Length() int {
 	return len(a.records)
+}
+
+func (a *appender) DataLength() uint64 {
+	return a.currentOffset
 }
 
 func (a *appender) Complete() {

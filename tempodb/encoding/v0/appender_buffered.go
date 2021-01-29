@@ -61,6 +61,10 @@ func (a *bufferedAppender) Length() int {
 	return a.totalObjects
 }
 
+func (a *bufferedAppender) DataLength() uint64 {
+	return a.currentOffset
+}
+
 func (a *bufferedAppender) Complete() {
 	if a.currentRecord == nil {
 		return
