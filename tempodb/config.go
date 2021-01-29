@@ -14,6 +14,7 @@ import (
 )
 
 const DefaultBlocklistPollConcurrency = uint(50)
+const DefaultRetentionConcurrency = uint(10)
 
 type Config struct {
 	Backend string        `yaml:"backend"`
@@ -38,4 +39,5 @@ type CompactorConfig struct {
 	MaxCompactionObjects    int           `yaml:"max_compaction_objects"`
 	BlockRetention          time.Duration `yaml:"block_retention"`
 	CompactedBlockRetention time.Duration `yaml:"compacted_block_retention"`
+	RetentionConcurrency    uint          `yaml:"retention_concurrency"`
 }

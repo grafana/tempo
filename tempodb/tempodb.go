@@ -271,6 +271,11 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder) {
+	// Set default if needed. This is mainly for tests.
+	if cfg.RetentionConcurrency == 0 {
+		cfg.RetentionConcurrency = DefaultRetentionConcurrency
+	}
+
 	rw.compactorCfg = cfg
 	rw.compactorSharder = c
 
