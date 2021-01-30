@@ -107,7 +107,8 @@ The following example shows common options.  For platform-specific options refer
 * [Azure](azure/)
 * [GCS](gcs/)
 * [S3](s3/)
-* [Redis](redis/)
+* [Memcached](memcached/)
+* [Redis](redis/) (experimental)
 
 ```
 storage:
