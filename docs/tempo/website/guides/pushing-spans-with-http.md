@@ -69,10 +69,10 @@ curl http://localhost:3100/api/traces/0123456789abcdef
 However, staring at a json blob in bash is not very fun.  Let's start up Tempo query so we can visualize our trace.  Tempo query is [Jaeger Query](https://hub.docker.com/r/jaegertracing/jaeger-query/) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo.
 
 ```bash
-docker run --env BACKEND=localhost:3100 --net host tempo-query
+docker run --env BACKEND=localhost:3100 --net host grafana/tempo-query:latest
 ```
 
-And open `http://localhost:16686` in the browser of your choice to see:
+And open `http://localhost:16686/trace/0123456789abcdef` in the browser of your choice to see:
 
 <p align="center"><img src="pushing-spans-with-http.png" alt="Tempo Logo"></p>
 
