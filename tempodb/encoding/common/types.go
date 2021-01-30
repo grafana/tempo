@@ -60,3 +60,10 @@ func NewFindMetrics() FindMetrics {
 		BlockBytesRead:       atomic.NewInt32(0),
 	}
 }
+
+// PageReader returns a slice of pages in the encoding/v0 format referenced by
+// the slice of *Records passed in.  The length of the returned slice is guaranteed
+// to be equal to the length of the provided records unless error is non nil.
+type PageReader interface {
+	Read([]*Record) ([][]byte, error)
+}

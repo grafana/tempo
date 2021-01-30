@@ -99,7 +99,14 @@ func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id common.ID,
 	return foundObject, nil
 }
 
-// Iterator searches a block for the ID and returns an object if found.
+// Iterator returns an Iterator that iterates over the objects in the block from the backend
 func (b *BackendBlock) Iterator(chunkSizeBytes uint32, r backend.Reader) (common.Iterator, error) {
-	return NewBackendIterator(b.meta.TenantID, b.meta.BlockID, chunkSizeBytes, r)
+	// read index
+	indexBytes, err := r.Read(context.TODO(), nameIndex, b.meta.BlockID, b.meta.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	readerAt := backend.NewBackendReaderAt(b.meta, nameObjects, r)
+	return NewPagedIterator(chunkSizeBytes, indexBytes, NewPageReader(readerAt)), nil
 }
