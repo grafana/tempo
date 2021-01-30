@@ -58,9 +58,7 @@ func TestCache(t *testing.T) {
 			mockW := &util.MockWriter{}
 			logger := log.NewNopLogger()
 
-			var cacheBackend cache.Client
-
-			cacheBackend = NewCache(&Config{
+			cacheBackend := NewCache(&Config{
 				ClientConfig: cortex_cache.RedisConfig{
 					Endpoint: mr.Addr(),
 				},
