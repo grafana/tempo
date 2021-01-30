@@ -2,30 +2,30 @@ package v0
 
 import (
 	"bytes"
-	"io"
+	"errors"
 	"sort"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type dedupingFinder struct {
-	ra            io.ReaderAt
+type pagedFinder struct {
+	r             common.PageReader
 	sortedRecords []*common.Record
 	combiner      common.ObjectCombiner
 }
 
-// NewDedupingFinder returns a dedupingFinder. This finder is used for searching
+// NewPagedFinder returns a paged. This finder is used for searching
 //  a set of records and returning an object. If a set of consecutive records has
 //  matching ids they will be combined using the ObjectCombiner.
-func NewDedupingFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder {
-	return &dedupingFinder{
-		ra:            ra,
+func NewPagedFinder(sortedRecords []*common.Record, r common.PageReader, combiner common.ObjectCombiner) common.Finder {
+	return &pagedFinder{
+		r:             r,
 		sortedRecords: sortedRecords,
 		combiner:      combiner,
 	}
 }
 
-func (f *dedupingFinder) Find(id common.ID) ([]byte, error) {
+func (f *pagedFinder) Find(id common.ID) ([]byte, error) {
 	i := sort.Search(len(f.sortedRecords), func(idx int) bool {
 		return bytes.Compare(f.sortedRecords[idx].ID, id) >= 0
 	})
@@ -60,14 +60,16 @@ func (f *dedupingFinder) Find(id common.ID) ([]byte, error) {
 	return bytesFound, nil
 }
 
-func (f *dedupingFinder) findOne(id common.ID, record *common.Record) ([]byte, error) {
-	buff := make([]byte, record.Length)
-	_, err := f.ra.ReadAt(buff, int64(record.Start))
+func (f *pagedFinder) findOne(id common.ID, record *common.Record) ([]byte, error) {
+	pages, err := f.r.Read([]*common.Record{record})
 	if err != nil {
 		return nil, err
 	}
+	if len(pages) == 0 {
+		return nil, errors.New("unexpected 0 length pages in findOne")
+	}
 
-	iter := NewIterator(bytes.NewReader(buff))
+	iter := NewIterator(bytes.NewReader(pages[0]))
 	iter, err = NewDedupingIterator(iter, f.combiner)
 	if err != nil {
 		return nil, err

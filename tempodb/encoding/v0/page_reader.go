@@ -13,6 +13,8 @@ type pageReader struct {
 // NewPageReader returns a new v0 pageReader.  A v0 pageReader
 // is basically a no-op.  It retrieves the requested byte
 // ranges and returns them as is.
+// A pages "format" is a contiguous collection of objects
+// | -- object -- | -- object -- | ...
 func NewPageReader(r io.ReaderAt) common.PageReader {
 	return &pageReader{
 		r: r,

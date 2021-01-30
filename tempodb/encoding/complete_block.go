@@ -133,7 +133,7 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 		return nil, err
 	}
 
-	finder := newDedupingFinder(c.records, file, combiner)
+	finder := newPagedFinder(c.records, file, combiner)
 
 	return finder.Find(id)
 }

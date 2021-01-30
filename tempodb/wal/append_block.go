@@ -96,7 +96,7 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 
-	finder := v0.NewDedupingFinder(records, file, combiner)
+	finder := v0.NewPagedFinder(records, v0.NewPageReader(file), combiner)
 
 	return finder.Find(id)
 }

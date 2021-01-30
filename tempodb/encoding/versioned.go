@@ -36,9 +36,9 @@ func newBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEsti
 	return v0.NewBufferedAppender(writer, indexDownsample, totalObjectsEstimate)
 }
 
-// newDedupingFinder returns the most recent Finder
-func newDedupingFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder {
-	return v0.NewDedupingFinder(sortedRecords, ra, combiner)
+// newPagedFinder returns the most recent Finder
+func newPagedFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder {
+	return v0.NewPagedFinder(sortedRecords, v0.NewPageReader(ra), combiner)
 }
 
 // writeBlockMeta calls the most recent WriteBlockMeta

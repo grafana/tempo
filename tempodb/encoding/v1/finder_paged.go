@@ -10,16 +10,16 @@ import (
 //  jpe - we should also transition to using it in the BackendBlock Find?
 //  will basically work like v0 except will need to decompress before iterating through the data
 
-type dedupingFinder struct {
+type pagedFinder struct {
 }
 
-// NewDedupingFinder returns a dedupingFinder. This finder is used for searching
+// NewPagedFinder returns a pagedFinder. This finder is used for searching
 //  a set of records and returning an object. If a set of consecutive records has
 //  matching ids they will be combined using the ObjectCombiner.
-func NewDedupingFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder {
-	return &dedupingFinder{}
+func NewPagedFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder {
+	return &pagedFinder{}
 }
 
-func (f *dedupingFinder) Find(id common.ID) ([]byte, error) {
+func (f *pagedFinder) Find(id common.ID) ([]byte, error) {
 	return nil, nil
 }

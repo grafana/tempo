@@ -74,7 +74,7 @@ func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id common.ID,
 	}
 
 	objectBytes := make([]byte, record.Length)
-	err = r.ReadRange(ctx, nameObjects, blockID, tenantID, record.Start, objectBytes)
+	err = r.ReadRange(ctx, nameObjects, blockID, tenantID, record.Start, objectBytes) // jpe - replace with paged finder, then all backend block needs is a versioned page reader
 	metrics.BlockReads.Inc()
 	metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 	if err != nil {
