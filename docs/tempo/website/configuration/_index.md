@@ -117,7 +117,8 @@ storage:
             bucket_name: ops-tools-tracing-ops   # store traces in this bucket
 
         blocklist_poll: 5m                       # how often to repoll the backend for new blocks
-        blocklist_poll_concurrency: 50           # Optional. Number of blocks to process in parallel during polling. Default is 50.
+        blocklist_poll_concurrency: 50           # optional. Number of blocks to process in parallel during polling. Default is 50.
+        cache: memcached                         # optional cache configuration
         memcached:                               # optional memcached configuration
             consistent_hash: true
             host: memcached
