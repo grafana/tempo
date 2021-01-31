@@ -3,56 +3,56 @@ package v0
 import (
 	"bytes"
 	"errors"
-	"sort"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type pagedFinder struct {
-	r             common.PageReader
-	sortedRecords []*common.Record
-	combiner      common.ObjectCombiner
+	r        common.PageReader
+	index    common.IndexReader
+	combiner common.ObjectCombiner
 }
 
 // NewPagedFinder returns a paged. This finder is used for searching
 //  a set of records and returning an object. If a set of consecutive records has
 //  matching ids they will be combined using the ObjectCombiner.
-func NewPagedFinder(sortedRecords []*common.Record, r common.PageReader, combiner common.ObjectCombiner) common.Finder {
+func NewPagedFinder(index common.IndexReader, r common.PageReader, combiner common.ObjectCombiner) common.Finder {
 	return &pagedFinder{
-		r:             r,
-		sortedRecords: sortedRecords,
-		combiner:      combiner,
+		r:        r,
+		index:    index,
+		combiner: combiner,
 	}
 }
 
 func (f *pagedFinder) Find(id common.ID) ([]byte, error) {
-	i := sort.Search(len(f.sortedRecords), func(idx int) bool {
-		return bytes.Compare(f.sortedRecords[idx].ID, id) >= 0
-	})
+	var bytesFound []byte
+	record, i := f.index.Find(id)
 
-	if i < 0 || i >= len(f.sortedRecords) {
+	if record == nil {
 		return nil, nil
 	}
 
-	var bytesFound []byte
-
 	for {
-		record := f.sortedRecords[i]
-
 		bytesOne, err := f.findOne(id, record)
 		if err != nil {
 			return nil, err
+		}
+
+		// jpe - remove?
+		if f.combiner == nil {
+			bytesFound = bytesOne
+			break
 		}
 
 		bytesFound = f.combiner.Combine(bytesFound, bytesOne)
 
 		// we need to check the next record to see if it also matches our id
 		i++
-		if i >= len(f.sortedRecords) {
+		record = f.index.At(i)
+		if record == nil {
 			break
 		}
-
-		if !bytes.Equal(f.sortedRecords[i].ID, id) {
+		if !bytes.Equal(record.ID, id) {
 			break
 		}
 	}
@@ -70,7 +70,9 @@ func (f *pagedFinder) findOne(id common.ID, record *common.Record) ([]byte, erro
 	}
 
 	iter := NewIterator(bytes.NewReader(pages[0]))
-	iter, err = NewDedupingIterator(iter, f.combiner)
+	if f.combiner != nil { // jpe - remove combiner and just return a slice of slices?
+		iter, err = NewDedupingIterator(iter, f.combiner)
+	}
 	if err != nil {
 		return nil, err
 	}

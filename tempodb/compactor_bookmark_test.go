@@ -71,9 +71,9 @@ func TestCurrentClear(t *testing.T) {
 	assert.NoError(t, err)
 
 	rw := r.(*readerWriter)
-	block, err := encoding.NewBackendBlock(complete.BlockMeta())
+	block, err := encoding.NewBackendBlock(complete.BlockMeta(), rw.r)
 	assert.NoError(t, err)
-	iter, err := block.Iterator(10, rw.r)
+	iter, err := block.Iterator(10)
 	assert.NoError(t, err)
 	bm := newBookmark(iter)
 

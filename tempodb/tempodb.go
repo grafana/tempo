@@ -236,12 +236,12 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*backend.BlockMeta)
-		block, err := encoding.NewBackendBlock(meta)
+		block, err := encoding.NewBackendBlock(meta, rw.r)
 		if err != nil {
 			return nil, err
 		}
 
-		foundObject, err := block.Find(derivedCtx, rw.r, id, &metrics)
+		foundObject, err := block.Find(derivedCtx, id, &metrics)
 		if err != nil {
 			return nil, err
 		}

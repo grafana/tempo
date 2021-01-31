@@ -88,13 +88,13 @@ func TestCompleteBlockToBackendBlock(t *testing.T) {
 	meta, err := r.BlockMeta(context.Background(), uuids[0], testTenantID)
 	require.NoError(t, err, "error getting meta")
 
-	backendBlock, err := NewBackendBlock(meta)
+	backendBlock, err := NewBackendBlock(meta, r)
 	require.NoError(t, err, "error creating block")
 
 	m := common.NewFindMetrics()
 	// test Find
 	for i, id := range ids {
-		foundBytes, err := backendBlock.Find(context.Background(), r, id, &m)
+		foundBytes, err := backendBlock.Find(context.Background(), id, &m)
 		assert.NoError(t, err)
 
 		assert.Equal(t, reqs[i], foundBytes)
@@ -107,7 +107,7 @@ func TestCompleteBlockToBackendBlock(t *testing.T) {
 	}
 	sort.Slice(ids, func(i int, j int) bool { return bytes.Compare(ids[i], ids[j]) == -1 })
 
-	iterator, err := backendBlock.Iterator(10, r)
+	iterator, err := backendBlock.Iterator(10)
 	require.NoError(t, err, "error getting iterator")
 	i := 0
 	for {

@@ -13,18 +13,25 @@ import (
 )
 
 type BackendBlock struct {
-	meta *backend.BlockMeta
+	meta       *backend.BlockMeta
+	pageReader common.PageReader
+	reader     backend.Reader
 }
 
 // NewBackendBlock returns a block used for finding traces in the backend
-func NewBackendBlock(meta *backend.BlockMeta) *BackendBlock {
+func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) *BackendBlock {
+	readerAt := backend.NewBackendReaderAt(meta, nameObjects, r)
+	pageReader := NewPageReader(readerAt) // jpe - remove readerat shim?
+
 	return &BackendBlock{
-		meta: meta,
+		meta:       meta,
+		reader:     r,
+		pageReader: pageReader,
 	}
 }
 
 // Find searches a block for the ID and returns an object if found.
-func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id common.ID, metrics *common.FindMetrics) ([]byte, error) {
+func (b *BackendBlock) Find(ctx context.Context, id common.ID, metrics *common.FindMetrics) ([]byte, error) { // jpe drop find metrics?  pagedfinder kind of ruins them
 	var err error
 	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Find")
 	defer func() {
@@ -40,7 +47,7 @@ func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id common.ID,
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
 
-	bloomBytes, err := r.Read(ctx, bloomName(shardKey), blockID, tenantID)
+	bloomBytes, err := b.reader.Read(ctx, bloomName(shardKey), blockID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving bloom %w", err)
 	}
@@ -57,56 +64,35 @@ func (b *BackendBlock) Find(ctx context.Context, r backend.Reader, id common.ID,
 		return nil, nil
 	}
 
-	indexBytes, err := r.Read(ctx, nameIndex, blockID, tenantID)
+	indexBytes, err := b.reader.Read(ctx, nameIndex, blockID, tenantID)
 	metrics.IndexReads.Inc()
 	metrics.IndexBytesRead.Add(int32(len(indexBytes)))
 	if err != nil {
 		return nil, fmt.Errorf("error reading index %w", err)
 	}
 
-	record, err := findRecord(id, indexBytes) // todo: replace with backend.Finder
+	indexReader, err := NewIndexReaderBytes(indexBytes)
 	if err != nil {
-		return nil, fmt.Errorf("error finding record %w", err)
+		return nil, fmt.Errorf("error building index reader %w", err)
 	}
 
-	if record == nil {
-		return nil, nil
-	}
+	finder := NewPagedFinder(indexReader, b.pageReader, nil) // jpe : nil ok?  take combiner? return slice of slices and let something else combine?
+	objectBytes, err := finder.Find(id)
 
-	objectBytes := make([]byte, record.Length)
-	err = r.ReadRange(ctx, nameObjects, blockID, tenantID, record.Start, objectBytes) // jpe - replace with paged finder, then all backend block needs is a versioned page reader
-	metrics.BlockReads.Inc()
-	metrics.BlockBytesRead.Add(int32(len(objectBytes)))
 	if err != nil {
-		return nil, fmt.Errorf("error reading object %w", err)
+		return nil, fmt.Errorf("error finding using pagedFinder %w", err)
 	}
 
-	iter := NewIterator(bytes.NewReader(objectBytes))
-	var foundObject []byte
-	for {
-		iterID, iterObject, err := iter.Next()
-		if iterID == nil {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		if bytes.Equal(iterID, id) {
-			foundObject = iterObject
-			break
-		}
-	}
-	return foundObject, nil
+	return objectBytes, nil
 }
 
 // Iterator returns an Iterator that iterates over the objects in the block from the backend
-func (b *BackendBlock) Iterator(chunkSizeBytes uint32, r backend.Reader) (common.Iterator, error) {
+func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (common.Iterator, error) {
 	// read index
-	indexBytes, err := r.Read(context.TODO(), nameIndex, b.meta.BlockID, b.meta.TenantID)
+	indexBytes, err := b.reader.Read(context.TODO(), nameIndex, b.meta.BlockID, b.meta.TenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	readerAt := backend.NewBackendReaderAt(b.meta, nameObjects, r)
-	return NewPagedIterator(chunkSizeBytes, indexBytes, NewPageReader(readerAt)), nil
+	return NewPagedIterator(chunkSizeBytes, indexBytes, b.pageReader), nil
 }

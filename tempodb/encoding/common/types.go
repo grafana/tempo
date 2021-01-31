@@ -67,3 +67,11 @@ func NewFindMetrics() FindMetrics {
 type PageReader interface {
 	Read([]*Record) ([][]byte, error)
 }
+
+// IndexReader is used to abstract away the details of an index.  Currently
+// only used in the paged finder, it could eventually provide a way to
+// support multiple index formats.
+type IndexReader interface {
+	At(i int) *Record
+	Find(id ID) (*Record, int)
+}

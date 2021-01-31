@@ -64,12 +64,12 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 			Version:  unifiedMeta.version,
 			TenantID: tenantID,
 			BlockID:  id,
-		})
+		}, r)
 		if err != nil {
 			return err
 		}
 
-		iter, err := block.Iterator(10*1024*1024, r)
+		iter, err := block.Iterator(10 * 1024 * 1024)
 		if err != nil {
 			return err
 		}

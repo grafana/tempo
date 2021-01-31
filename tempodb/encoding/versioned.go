@@ -16,16 +16,16 @@ const Current = "v0"
 // BackendBlock defines an object that can be used to interact with a block in object storage
 type BackendBlock interface {
 	// Find searches for a given ID and returns the object if exists
-	Find(ctx context.Context, r backend.Reader, id common.ID, metrics *common.FindMetrics) ([]byte, error)
+	Find(ctx context.Context, id common.ID, metrics *common.FindMetrics) ([]byte, error) // jpe - interface goes, move BackendBlock up to this level
 	// Iterator returns an iterator that can be used to examine every object in the block
-	Iterator(chunkSizeBytes uint32, r backend.Reader) (common.Iterator, error)
+	Iterator(chunkSizeBytes uint32) (common.Iterator, error)
 }
 
-// newBackendBlock returns a BackendBlock for the given backend.BlockMeta
+// NewBackendBlock returns a BackendBlock for the given backend.BlockMeta
 //  It is version aware.
-func NewBackendBlock(meta *backend.BlockMeta) (BackendBlock, error) {
+func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (BackendBlock, error) {
 	if meta.Version == "v0" {
-		return v0.NewBackendBlock(meta), nil
+		return v0.NewBackendBlock(meta, r), nil
 	}
 
 	return nil, fmt.Errorf("%s is not a valid block version", meta.Version)
@@ -38,7 +38,7 @@ func newBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEsti
 
 // newPagedFinder returns the most recent Finder
 func newPagedFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder {
-	return v0.NewPagedFinder(sortedRecords, v0.NewPageReader(ra), combiner)
+	return v0.NewPagedFinder(v0.NewIndexReaderRecords(sortedRecords), v0.NewPageReader(ra), combiner)
 }
 
 // writeBlockMeta calls the most recent WriteBlockMeta
