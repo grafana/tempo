@@ -19,7 +19,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -345,7 +345,7 @@ func (rw *readerWriter) pollTenant(ctx context.Context, tenantID string) ([]*bac
 		return nil, nil, err
 	}
 
-	bg := tempoUtil.NewBoundedWaitGroup(rw.cfg.BlocklistPollConcurrency)
+	bg := boundedwaitgroup.NewBoundedWaitGroup(rw.cfg.BlocklistPollConcurrency)
 	chErr := make(chan error, len(blockIDs))
 	chMeta := make(chan *backend.BlockMeta, len(blockIDs))
 	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(blockIDs))

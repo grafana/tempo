@@ -1,4 +1,4 @@
-package util
+package boundedwaitgroup
 
 import (
 	"sync"
