@@ -64,6 +64,8 @@ func NewFindMetrics() FindMetrics {
 // PageReader returns a slice of pages in the encoding/v0 format referenced by
 // the slice of *Records passed in.  The length of the returned slice is guaranteed
 // to be equal to the length of the provided records unless error is non nil.
+// PageReader is the primary abstraction point for supporting multiple data
+// formats.
 type PageReader interface {
 	Read([]*Record) ([][]byte, error)
 }
@@ -71,6 +73,8 @@ type PageReader interface {
 // IndexReader is used to abstract away the details of an index.  Currently
 // only used in the paged finder, it could eventually provide a way to
 // support multiple index formats.
+// IndexReader is the primary abstraction point for supporting multiple index
+// formats.
 type IndexReader interface {
 	At(i int) *Record
 	Find(id ID) (*Record, int)
