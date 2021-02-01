@@ -91,8 +91,13 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (common.Iterator, error) 
 	// read index
 	indexBytes, err := b.reader.Read(context.TODO(), nameIndex, b.meta.BlockID, b.meta.TenantID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read index while building iterator: %w", err)
 	}
 
-	return NewPagedIterator(chunkSizeBytes, indexBytes, b.pageReader), nil
+	indexReader, err := NewIndexReaderBytes(indexBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create index reader building iterator: %w", err)
+	}
+
+	return NewPagedIterator(chunkSizeBytes, indexReader, b.pageReader), nil
 }

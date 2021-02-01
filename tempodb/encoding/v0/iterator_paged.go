@@ -8,20 +8,21 @@ import (
 )
 
 type pagedIterator struct {
-	r common.PageReader
+	pageReader   common.PageReader
+	indexReader  common.IndexReader
+	currentIndex int
 
 	chunkSizeBytes uint32
-	indexBuffer    []byte
 	pages          [][]byte
 	activePage     []byte
 }
 
 // NewPagedIterator returns a backendIterator.  This iterator is used to iterate
 //  through objects stored in object storage.
-func NewPagedIterator(chunkSizeBytes uint32, index []byte, pageReader common.PageReader) common.Iterator {
+func NewPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, pageReader common.PageReader) common.Iterator {
 	return &pagedIterator{
-		r:              pageReader,
-		indexBuffer:    index,
+		pageReader:     pageReader,
+		indexReader:    indexReader,
 		chunkSizeBytes: chunkSizeBytes,
 	}
 }
@@ -49,27 +50,31 @@ func (i *pagedIterator) Next() (common.ID, []byte, error) {
 
 	// objects reader was empty, check the index
 	// if no index left, EOF
-	if len(i.indexBuffer) == 0 {
+	currentRecord := i.indexReader.At(i.currentIndex)
+	if currentRecord == nil {
 		return nil, nil, io.EOF
 	}
 
 	// pull next n bytes into objects
 	var length uint32
 	records := make([]*common.Record, 0, 5) // 5?  why not?
-	for len(i.indexBuffer) > 0 {
-		record := unmarshalRecord(i.indexBuffer[:recordLength])
-
+	for currentRecord != nil {
+		//record := unmarshalRecord(i.indexBuffer[:recordLength])
 		// see if we can fit this record in.  we have to get at least one record in
-		if length+record.Length > i.chunkSizeBytes && len(records) != 0 {
+		if length+currentRecord.Length > i.chunkSizeBytes && len(records) != 0 {
 			break
 		}
-		// advance index buffer
-		i.indexBuffer = i.indexBuffer[recordLength:]
-		records = append(records, record)
-		length += record.Length
+
+		// add currentRecord to the batch
+		records = append(records, currentRecord)
+		length += currentRecord.Length
+
+		// get next
+		i.currentIndex++
+		currentRecord = i.indexReader.At(i.currentIndex)
 	}
 
-	i.pages, err = i.r.Read(records)
+	i.pages, err = i.pageReader.Read(records)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}
