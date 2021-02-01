@@ -55,35 +55,3 @@ func (r *readerBytes) Find(id common.ID) (*common.Record, int) {
 
 	return nil, -1
 }
-
-type readerRecords struct {
-	records []*common.Record
-}
-
-// NewIndexReaderRecords returns an index reader for an ordered slice
-// of records
-func NewIndexReaderRecords(records []*common.Record) common.IndexReader { // jpe move to common
-	return &readerRecords{
-		records: records,
-	}
-}
-
-func (r *readerRecords) At(i int) *common.Record {
-	if i < 0 || i >= len(r.records) {
-		return nil
-	}
-
-	return r.records[i]
-}
-
-func (r *readerRecords) Find(id common.ID) (*common.Record, int) {
-	i := sort.Search(len(r.records), func(idx int) bool {
-		return bytes.Compare(r.records[idx].ID, id) >= 0
-	})
-
-	if i < 0 || i >= len(r.records) {
-		return nil, -1
-	}
-
-	return r.records[i], i
-}

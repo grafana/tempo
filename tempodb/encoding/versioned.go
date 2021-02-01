@@ -22,7 +22,6 @@ type versionedEncoding interface {
 	appendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error)
 
 	newIndexReaderBytes(indexBytes []byte) (common.IndexReader, error)
-	newIndexReaderRecords(records []*common.Record) common.IndexReader
 
 	nameIndex() string
 	nameObjects() string
@@ -53,9 +52,6 @@ func (v v0Encoding) newPagedFinder(indexReader common.IndexReader, ra io.ReaderA
 }
 func (v v0Encoding) newIndexReaderBytes(indexBytes []byte) (common.IndexReader, error) {
 	return v0.NewIndexReaderBytes(indexBytes)
-}
-func (v v0Encoding) newIndexReaderRecords(records []*common.Record) common.IndexReader {
-	return v0.NewIndexReaderRecords(records)
 }
 func (v v0Encoding) writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*common.Record, b *common.ShardedBloomFilter) error {
 	return v0.WriteBlockMeta(ctx, w, meta, records, b)
