@@ -11,12 +11,15 @@ import (
 )
 
 const (
-	nameObjects     = "data"
-	nameIndex       = "index"
+	// NameObjects names the backend data object
+	NameObjects = "data"
+	// NameIndex names the backend index object
+	NameIndex       = "index"
 	nameBloomPrefix = "bloom-"
 )
 
-func bloomName(shard int) string {
+// BloomName returns the backend bloom name for the given shard
+func BloomName(shard int) string {
 	return nameBloomPrefix + strconv.Itoa(shard)
 }
 
@@ -33,14 +36,14 @@ func WriteBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	}
 
 	// index
-	err = w.Write(ctx, nameIndex, meta.BlockID, meta.TenantID, index)
+	err = w.Write(ctx, NameIndex, meta.BlockID, meta.TenantID, index)
 	if err != nil {
 		return fmt.Errorf("unexpected error writing index %w", err)
 	}
 
 	// bloom
 	for i, bloom := range blooms {
-		err := w.Write(ctx, bloomName(i), meta.BlockID, meta.TenantID, bloom)
+		err := w.Write(ctx, BloomName(i), meta.BlockID, meta.TenantID, bloom)
 		if err != nil {
 			return fmt.Errorf("unexpected error writing bloom-%d %w", i, err)
 		}
@@ -57,10 +60,10 @@ func WriteBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 
 // WriteBlockData writes the data object from an io.Reader to the backend.Writer
 func WriteBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, r io.Reader, size int64) error {
-	return w.WriteReader(ctx, nameObjects, meta.BlockID, meta.TenantID, r, size)
+	return w.WriteReader(ctx, NameObjects, meta.BlockID, meta.TenantID, r, size)
 }
 
 // AppendBlockData appends the bytes passed to the block data
 func AppendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
-	return w.Append(ctx, nameObjects, meta.BlockID, meta.TenantID, tracker, buffer)
+	return w.Append(ctx, NameObjects, meta.BlockID, meta.TenantID, tracker, buffer)
 }

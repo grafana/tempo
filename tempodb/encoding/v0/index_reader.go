@@ -62,7 +62,7 @@ type readerRecords struct {
 
 // NewIndexReaderRecords returns an index reader for an ordered slice
 // of records
-func NewIndexReaderRecords(records []*common.Record) common.IndexReader {
+func NewIndexReaderRecords(records []*common.Record) common.IndexReader { // jpe move to common
 	return &readerRecords{
 		records: records,
 	}

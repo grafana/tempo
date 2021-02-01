@@ -136,8 +136,7 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 		return nil, err
 	}
 
-	finder := c.encoding.newPagedFinder(c.records, file, combiner)
-
+	finder := c.encoding.newPagedFinder(c.encoding.newIndexReaderRecords(c.records), file, combiner)
 	return finder.Find(id)
 }
 
