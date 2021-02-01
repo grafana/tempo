@@ -1,40 +1,40 @@
-package memcached
+package cache
 
 import (
 	"context"
 	"testing"
 
-	"github.com/bradfitz/gomemcache/memcache"
-	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
-	"github.com/go-kit/kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/cache"
 	"github.com/grafana/tempo/tempodb/backend/util"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
 
 type mockCache struct {
-	stuff map[string]*memcache.Item
+	client map[string][]byte
 }
 
-func (m *mockCache) GetMulti(keys []string) (map[string]*memcache.Item, error) {
-	retStuff := make(map[string]*memcache.Item)
-	for k, v := range m.stuff {
-		if k == keys[0] { // we only ever request one key at a time :(
-			retStuff[k] = v
-			break
-		}
+func (m *mockCache) Store(_ context.Context, key string, val []byte) {
+	m.client[key] = val
+}
+
+func (m *mockCache) Fetch(_ context.Context, key string) (val []byte) {
+	val, ok := m.client[key]
+	if ok {
+		return val
 	}
-
-	return m.stuff, nil
-}
-func (m *mockCache) Set(item *memcache.Item) error {
-	m.stuff[item.Key] = item
 	return nil
 }
 
+func (m *mockCache) Shutdown() {
+}
+
+// NewMockCache makes a new MockCache.
+func NewMockCache() Client {
+	return &mockCache{
+		client: map[string][]byte{},
+	}
+}
 func TestCache(t *testing.T) {
 	tenantID := "test"
 	blockID := uuid.New()
@@ -76,15 +76,8 @@ func TestCache(t *testing.T) {
 				R: tt.readerRead,
 			}
 			mockW := &util.MockWriter{}
-			mockC := &mockCache{
-				stuff: make(map[string]*memcache.Item),
-			}
 
-			logger := log.NewNopLogger()
-
-			rw, _, _ := cache.NewCache(mockR, mockW, &Client{
-				client: cortex_cache.NewMemcached(cortex_cache.MemcachedConfig{}, mockC, "tempo", prometheus.NewRegistry(), logger),
-			})
+			rw, _, _ := NewCache(mockR, mockW, NewMockCache())
 
 			ctx := context.Background()
 			tenants, _ := rw.Tenants(ctx)
