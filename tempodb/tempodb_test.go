@@ -87,7 +87,7 @@ func TestDB(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, _, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		bFound, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
@@ -157,7 +157,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case1: hit
 	blockStart := uuid.MustParse(BlockIDMin).String()
 	blockEnd := uuid.MustParse(BlockIDMax).String()
-	bFound, _, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
+	bFound, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
 	assert.Greater(t, len(bFound), 0)
 
@@ -169,7 +169,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case2: miss
 	blockStart = uuid.MustParse(BlockIDMin).String()
 	blockEnd = uuid.MustParse(BlockIDMin).String()
-	bFound, _, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
+	bFound, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
 	assert.Len(t, bFound, 0)
 }
@@ -193,7 +193,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
+	buff, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
 }

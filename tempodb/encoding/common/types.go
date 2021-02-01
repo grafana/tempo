@@ -1,7 +1,5 @@
 package common
 
-import "go.uber.org/atomic"
-
 // This file contains types that need to be referenced by both the ./encoding and ./encoding/vX packages.
 // It primarily exists here to break dependency loops.
 
@@ -37,28 +35,6 @@ type Appender interface {
 // ObjectCombiner is used to combine two objects in the backend
 type ObjectCombiner interface {
 	Combine(objA []byte, objB []byte) []byte
-}
-
-// FindMetrics is a threadsafe struct for tracking metrics related to a parallelized query
-type FindMetrics struct {
-	BloomFilterReads     *atomic.Int32
-	BloomFilterBytesRead *atomic.Int32
-	IndexReads           *atomic.Int32
-	IndexBytesRead       *atomic.Int32
-	BlockReads           *atomic.Int32
-	BlockBytesRead       *atomic.Int32
-}
-
-// NewFindMetrics constructs a FindMetrics
-func NewFindMetrics() FindMetrics {
-	return FindMetrics{
-		BloomFilterReads:     atomic.NewInt32(0),
-		BloomFilterBytesRead: atomic.NewInt32(0),
-		IndexReads:           atomic.NewInt32(0),
-		IndexBytesRead:       atomic.NewInt32(0),
-		BlockReads:           atomic.NewInt32(0),
-		BlockBytesRead:       atomic.NewInt32(0),
-	}
 }
 
 // PageReader returns a slice of pages in the encoding/v0 format referenced by

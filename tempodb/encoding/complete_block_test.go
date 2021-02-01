@@ -91,10 +91,9 @@ func TestCompleteBlockToBackendBlock(t *testing.T) {
 	backendBlock, err := NewBackendBlock(meta, r)
 	require.NoError(t, err, "error creating block")
 
-	m := common.NewFindMetrics()
 	// test Find
 	for i, id := range ids {
-		foundBytes, err := backendBlock.Find(context.Background(), id, &m)
+		foundBytes, err := backendBlock.Find(context.Background(), id)
 		assert.NoError(t, err)
 
 		assert.Equal(t, reqs[i], foundBytes)

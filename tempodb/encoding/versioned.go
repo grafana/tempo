@@ -16,7 +16,7 @@ const Current = "v0"
 // BackendBlock defines an object that can be used to interact with a block in object storage
 type BackendBlock interface {
 	// Find searches for a given ID and returns the object if exists
-	Find(ctx context.Context, id common.ID, metrics *common.FindMetrics) ([]byte, error) // jpe - interface goes, move BackendBlock up to this level
+	Find(ctx context.Context, id common.ID) ([]byte, error) // jpe - interface goes, move BackendBlock up to this level
 	// Iterator returns an iterator that can be used to examine every object in the block
 	Iterator(chunkSizeBytes uint32) (common.Iterator, error)
 }

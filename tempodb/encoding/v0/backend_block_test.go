@@ -114,9 +114,8 @@ func TestBackendBlock(t *testing.T) {
 				Range:  tt.readerRange,
 			}
 
-			findMetrics := common.NewFindMetrics()
 			block := NewBackendBlock(&backend.BlockMeta{}, mockR)
-			actual, err := block.Find(context.Background(), tt.id, &findMetrics)
+			actual, err := block.Find(context.Background(), tt.id)
 
 			if !errors.Is(err, tt.readerError) {
 				fmt.Println(err)
@@ -125,12 +124,6 @@ func TestBackendBlock(t *testing.T) {
 
 			assert.True(t, errors.Is(err, tt.readerError))
 			assert.Equal(t, tt.expected, actual)
-			assert.Equal(t, tt.expectedBloomReads, findMetrics.BloomFilterReads.Load())
-			assert.Equal(t, tt.expectedBloomBytes, findMetrics.BloomFilterBytesRead.Load())
-			assert.Equal(t, tt.expectedIndexReads, findMetrics.IndexReads.Load())
-			assert.Equal(t, tt.expectedIndexBytes, findMetrics.IndexBytesRead.Load())
-			// assert.Equal(t, tt.expectedBlockReads, findMetrics.BlockReads.Load()) jpe - figure out what to do about FindMetrics?
-			// assert.Equal(t, tt.expectedBlockBytes, findMetrics.BlockBytesRead.Load())
 		})
 	}
 
@@ -173,9 +166,8 @@ func TestV0Block(t *testing.T) {
 	}
 
 	// test Find
-	m := common.NewFindMetrics()
 	for i, id := range ids {
-		foundBytes, err := backendBlock.Find(context.Background(), id, &m)
+		foundBytes, err := backendBlock.Find(context.Background(), id)
 		assert.NoError(t, err)
 
 		assert.Equal(t, reqs[i], foundBytes)

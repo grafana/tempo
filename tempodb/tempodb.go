@@ -83,7 +83,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]byte, common.FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]byte, error)
 	Shutdown()
 }
 
@@ -187,9 +187,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]byte, common.FindMetrics, error) {
-	metrics := common.NewFindMetrics()
-
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]byte, error) {
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "store.Find")
@@ -197,19 +195,19 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 	blockStartUUID, err := uuid.Parse(blockStart)
 	if err != nil {
-		return nil, metrics, err
+		return nil, err
 	}
 	blockStartBytes, err := blockStartUUID.MarshalBinary()
 	if err != nil {
-		return nil, metrics, err
+		return nil, err
 	}
 	blockEndUUID, err := uuid.Parse(blockEnd)
 	if err != nil {
-		return nil, metrics, err
+		return nil, err
 	}
 	blockEndBytes, err := blockEndUUID.MarshalBinary()
 	if err != nil {
-		return nil, metrics, err
+		return nil, err
 	}
 
 	rw.blockListsMtx.Lock()
@@ -231,7 +229,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 	// deliberately placed outside the blocklist mtx unlock
 	if !found {
-		return nil, metrics, nil
+		return nil, nil
 	}
 
 	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
@@ -241,7 +239,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 			return nil, err
 		}
 
-		foundObject, err := block.Find(derivedCtx, id, &metrics)
+		foundObject, err := block.Find(derivedCtx, id)
 		if err != nil {
 			return nil, err
 		}
@@ -256,7 +254,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return foundObject, nil
 	})
 
-	return foundBytes, metrics, err
+	return foundBytes, err
 }
 
 func (rw *readerWriter) Shutdown() {

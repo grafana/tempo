@@ -31,7 +31,7 @@ func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) *BackendBlock {
 }
 
 // Find searches a block for the ID and returns an object if found.
-func (b *BackendBlock) Find(ctx context.Context, id common.ID, metrics *common.FindMetrics) ([]byte, error) { // jpe drop find metrics?  pagedfinder kind of ruins them
+func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) { // jpe drop find metrics?  pagedfinder kind of ruins them
 	var err error
 	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Find")
 	defer func() {
@@ -58,15 +58,11 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID, metrics *common.F
 		return nil, fmt.Errorf("error parsing bloom %w", err)
 	}
 
-	metrics.BloomFilterReads.Inc()
-	metrics.BloomFilterBytesRead.Add(int32(len(bloomBytes)))
 	if !filter.Test(id) {
 		return nil, nil
 	}
 
 	indexBytes, err := b.reader.Read(ctx, nameIndex, blockID, tenantID)
-	metrics.IndexReads.Inc()
-	metrics.IndexBytesRead.Add(int32(len(indexBytes)))
 	if err != nil {
 		return nil, fmt.Errorf("error reading index %w", err)
 	}
