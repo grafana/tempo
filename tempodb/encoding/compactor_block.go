@@ -11,6 +11,8 @@ import (
 )
 
 type CompactorBlock struct {
+	encoding versionedEncoding
+
 	compactedMeta *backend.BlockMeta
 	inMetas       []*backend.BlockMeta
 
@@ -31,13 +33,14 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 	}
 
 	c := &CompactorBlock{
+		encoding:      latestEncoding(),
 		compactedMeta: backend.NewBlockMeta(tenantID, id),
 		bloom:         common.NewWithEstimates(uint(estimatedObjects), bloomFP),
 		inMetas:       metas,
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender = newBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
+	c.appender = c.encoding.newBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
 
 	return c, nil
 }
@@ -68,7 +71,7 @@ func (c *CompactorBlock) Length() int {
 // FlushBuffer flushes any existing objects to the backend
 func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (backend.AppendTracker, error) {
 	meta := c.BlockMeta()
-	tracker, err := appendBlockData(ctx, w, meta, tracker, c.appendBuffer.Bytes())
+	tracker, err := c.encoding.appendBlockData(ctx, w, meta, tracker, c.appendBuffer.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +89,7 @@ func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	records := c.appender.Records()
 	meta := c.BlockMeta()
 
-	err := writeBlockMeta(ctx, w, meta, records, c.bloom)
+	err := c.encoding.writeBlockMeta(ctx, w, meta, records, c.bloom)
 	if err != nil {
 		return err
 	}

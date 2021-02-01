@@ -31,27 +31,38 @@ func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (BackendBlock, e
 	return nil, fmt.Errorf("%s is not a valid block version", meta.Version)
 }
 
-// newBufferedAppender returns the most recent Appender
-func newBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEstimate int) common.Appender {
+// versionedEncoding has a whole bunch of versioned functionality.  This is
+//  currently quite sloppy and could easily be tightened up to just a few methods
+//  but it is what it is for now!
+type versionedEncoding interface {
+	newBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEstimate int) common.Appender
+	newPagedFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder
+
+	writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*common.Record, b *common.ShardedBloomFilter) error
+	writeBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, r io.Reader, size int64) error
+	appendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error)
+}
+
+// latestEncoding is used by Compactor and Complete block
+func latestEncoding() versionedEncoding {
+	return v0Encoding{}
+}
+
+// v0Encoding
+type v0Encoding struct{}
+
+func (v v0Encoding) newBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEstimate int) common.Appender {
 	return v0.NewBufferedAppender(writer, indexDownsample, totalObjectsEstimate)
 }
-
-// newPagedFinder returns the most recent Finder
-func newPagedFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder {
+func (v v0Encoding) newPagedFinder(sortedRecords []*common.Record, ra io.ReaderAt, combiner common.ObjectCombiner) common.Finder {
 	return v0.NewPagedFinder(v0.NewIndexReaderRecords(sortedRecords), v0.NewPageReader(ra), combiner)
 }
-
-// writeBlockMeta calls the most recent WriteBlockMeta
-func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*common.Record, b *common.ShardedBloomFilter) error {
+func (v v0Encoding) writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*common.Record, b *common.ShardedBloomFilter) error {
 	return v0.WriteBlockMeta(ctx, w, meta, records, b)
 }
-
-// writeBlockData calls the most recent WriteBlockData
-func writeBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, r io.Reader, size int64) error {
+func (v v0Encoding) writeBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, r io.Reader, size int64) error {
 	return v0.WriteBlockData(ctx, w, meta, r, size)
 }
-
-// appendBlockData calls the most recent AppendBlockData
-func appendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+func (v v0Encoding) appendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	return v0.AppendBlockData(ctx, w, meta, tracker, buffer)
 }
