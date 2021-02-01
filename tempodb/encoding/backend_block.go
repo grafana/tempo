@@ -27,7 +27,6 @@ func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, 
 
 	if meta.Version == "v0" {
 		encoding = v0Encoding{}
-		//return v0.NewBackendBlock(meta, r), nil
 	} else {
 		return nil, fmt.Errorf("%s is not a valid block version", meta.Version)
 	}
@@ -40,7 +39,7 @@ func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, 
 }
 
 // Find searches a block for the ID and returns an object if found.
-func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) { // jpe drop find metrics?  pagedfinder kind of ruins them
+func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	var err error
 	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Find")
 	defer func() {

@@ -7,6 +7,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// CurrentVersion is the version of blocks that tempodb will cut by default
+const CurrentVersion = "v0"
+
 type CompactedBlockMeta struct {
 	BlockMeta
 
@@ -29,7 +32,7 @@ type BlockMeta struct {
 func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
 	now := time.Now()
 	b := &BlockMeta{
-		Version:   "v0", // jpe - think about this
+		Version:   CurrentVersion,
 		BlockID:   blockID,
 		MinID:     []byte{},
 		MaxID:     []byte{},
