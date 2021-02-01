@@ -339,7 +339,7 @@ func (rw *readerWriter) pollTenant(ctx context.Context, tenantID string) ([]*bac
 		return []*backend.BlockMeta{}, []*backend.CompactedBlockMeta{}
 	}
 
-	bg := boundedwaitgroup.NewBoundedWaitGroup(rw.cfg.BlocklistPollConcurrency)
+	bg := boundedwaitgroup.New(rw.cfg.BlocklistPollConcurrency)
 	chMeta := make(chan *backend.BlockMeta, len(blockIDs))
 	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(blockIDs))
 

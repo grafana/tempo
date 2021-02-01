@@ -13,7 +13,7 @@ func TestBoundedWaitGroupExecutesCorrectNumberOfTimes(t *testing.T) {
 
 	run := func(capacity uint, runs int) (executed int32) {
 		executed = 0
-		bg := NewBoundedWaitGroup(capacity)
+		bg := New(capacity)
 		for i := 0; i < runs; i++ {
 			bg.Add(1)
 			go func() {
@@ -37,7 +37,7 @@ func TestBoundedWaitGroupDoesntExceedCapacity(t *testing.T) {
 
 	capacity := uint(10)
 
-	bg := NewBoundedWaitGroup(capacity)
+	bg := New(capacity)
 
 	for i := 0; i < 100; i++ {
 		bg.Add(1)
@@ -64,10 +64,7 @@ func TestBoundedWaitGroupDoesntExceedCapacity(t *testing.T) {
 }
 
 func TestBoundedWaitGroupPanics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("NewBoundedWaitGroup did not panic as expected")
-		}
-	}()
-	NewBoundedWaitGroup(0)
+	assert.Panics(t, func() {
+		New(0)
+	})
 }

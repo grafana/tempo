@@ -20,7 +20,7 @@ func (rw *readerWriter) retentionLoop() {
 func (rw *readerWriter) doRetention() {
 	tenants := rw.blocklistTenants()
 
-	bg := boundedwaitgroup.NewBoundedWaitGroup(rw.compactorCfg.RetentionConcurrency)
+	bg := boundedwaitgroup.New(rw.compactorCfg.RetentionConcurrency)
 
 	for _, tenantID := range tenants {
 		bg.Add(1)
