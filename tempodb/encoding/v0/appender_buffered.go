@@ -29,7 +29,7 @@ func NewBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEsti
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 //   Copies should be made and passed in if this is a problem
 func (a *bufferedAppender) Append(id common.ID, b []byte) error {
-	length, err := marshalObjectToWriter(id, b, a.writer)
+	length, err := MarshalObjectToWriter(id, b, a.writer)
 	if err != nil {
 		return err
 	}

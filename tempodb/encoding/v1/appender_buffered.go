@@ -9,51 +9,69 @@ import (
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
+// meteredWriter exists jpe
+type meteredWriter struct {
+	wrappedWriter io.Writer
+	bytesWritten  int
+}
+
+func (m *meteredWriter) Write(p []byte) (n int, err error) {
+	m.bytesWritten += len(p)
+	return m.wrappedWriter.Write(p)
+}
+
 // buffer up in memory and then write a big ol' compressed block o shit at once
 //  used by CompleteBlock/CompactorBlock
 // may need additional code?  i.e. a signal that it's "about to flush" triggering a compression
-
 type bufferedAppender struct {
-	v0Appender      common.Appender
-	v0Buffer        *bytes.Buffer
-	indexDownsample int
+	v0Buffer     *bytes.Buffer
+	outputWriter *meteredWriter
+	pool         WriterPool
+	records      []*common.Record
 
-	compressedWriter  io.WriteCloser
-	compressedDataLen uint64
-	outputWriter      io.Writer
-	pool              WriterPool
+	totalObjects    int
+	currentOffset   uint64
+	currentRecord   *common.Record
+	indexDownsample int
 }
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
 //  the provided writer and also builds a downsampled records slice.
 func NewBufferedAppender(writer io.Writer, encoding backend.Encoding, indexDownsample int, totalObjectsEstimate int) (common.Appender, error) {
-	v0Buffer := &bytes.Buffer{}
 	pool, err := getWriterPool(encoding)
 	if err != nil {
 		return nil, err
 	}
 
 	return &bufferedAppender{
-		v0Appender:      v0.NewBufferedAppender(v0Buffer, indexDownsample, totalObjectsEstimate),
-		v0Buffer:        v0Buffer,
+		v0Buffer:        &bytes.Buffer{},
 		indexDownsample: indexDownsample,
+		records:         make([]*common.Record, 0, totalObjectsEstimate/indexDownsample+1),
 
-		compressedWriter: pool.GetWriter(writer),
-		outputWriter:     writer,
-		pool:             pool,
+		outputWriter: &meteredWriter{
+			wrappedWriter: writer,
+		},
+		pool: pool,
 	}, nil
 }
 
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 //   Copies should be made and passed in if this is a problem
 func (a *bufferedAppender) Append(id common.ID, b []byte) error {
-	err := a.v0Appender.Append(id, b)
+	_, err := v0.MarshalObjectToWriter(id, b, a.v0Buffer)
 	if err != nil {
 		return err
 	}
 
-	// each "index downsample" number of records is a "block page" and is independently compressed
-	if a.v0Appender.Length()%a.indexDownsample == 0 {
+	if a.currentRecord == nil {
+		a.currentRecord = &common.Record{
+			Start: a.currentOffset,
+		}
+	}
+	a.totalObjects++
+	a.currentRecord.ID = id
+
+	if a.totalObjects%a.indexDownsample == 0 {
 		err := a.flush()
 		if err != nil {
 			return err
@@ -64,15 +82,15 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 }
 
 func (a *bufferedAppender) Records() []*common.Record {
-	return a.v0Appender.Records()
+	return a.records
 }
 
 func (a *bufferedAppender) Length() int {
-	return a.v0Appender.Length()
+	return a.totalObjects
 }
 
 func (a *bufferedAppender) DataLength() uint64 {
-	return a.compressedDataLen
+	return a.currentOffset
 }
 
 // compress everything left and flush?
@@ -82,26 +100,33 @@ func (a *bufferedAppender) Complete() error {
 		return err
 	}
 
-	err = a.v0Appender.Complete()
-	if err != nil {
-		return err
-	}
-
-	a.pool.PutWriter(a.compressedWriter)
-
 	return nil
 }
 
 func (a *bufferedAppender) flush() error {
+	compressedWriter := a.pool.GetWriter(a.outputWriter)
+
 	// write compressed data
-	len, err := a.compressedWriter.Write(a.v0Buffer.Bytes())
+	buffer := a.v0Buffer.Bytes()
+	_, err := compressedWriter.Write(buffer)
 	if err != nil {
 		return err
 	}
-	a.compressedDataLen += uint64(len)
 
 	// now clear our v0 buffer so we can start the new block page
+	compressedWriter.Close()
 	a.v0Buffer.Reset()
+	a.pool.PutWriter(compressedWriter)
+
+	a.currentOffset += uint64(a.outputWriter.bytesWritten)
+	a.currentRecord.Length += uint32(a.outputWriter.bytesWritten)
+	a.outputWriter.bytesWritten = 0
+
+	// update index
+	a.records = append(a.records, a.currentRecord)
+	a.currentRecord = &common.Record{
+		Start: a.currentOffset,
+	}
 
 	return nil
 }

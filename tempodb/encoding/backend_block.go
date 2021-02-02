@@ -25,9 +25,12 @@ type BackendBlock struct {
 func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, error) {
 	var encoding versionedEncoding
 
-	if meta.Version == "v0" {
+	switch meta.Version { // jpe need a way to test this
+	case "v0":
 		encoding = v0Encoding{}
-	} else {
+	case "v1":
+		encoding = v1Encoding{}
+	default:
 		return nil, fmt.Errorf("%s is not a valid block version", meta.Version)
 	}
 
@@ -81,7 +84,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	}
 
 	ra := backend.NewBackendReaderAt(b.meta, b.encoding.nameObjects(), b.reader)
-	pageReader, err := b.encoding.newPageReader(ra, backend.EncNone) // jpe - pipe in encoding
+	pageReader, err := b.encoding.newPageReader(ra, backend.EncSnappy) // jpe - pipe in encoding
 	if err != nil {
 		return nil, fmt.Errorf("error building page reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
@@ -105,7 +108,7 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (common.Iterator, error) 
 	}
 
 	ra := backend.NewBackendReaderAt(b.meta, b.encoding.nameObjects(), b.reader)
-	pageReader, err := b.encoding.newPageReader(ra, backend.EncNone) // jpe pipe in encoding
+	pageReader, err := b.encoding.newPageReader(ra, backend.EncSnappy) // jpe pipe in encoding
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pageReader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}

@@ -8,7 +8,7 @@ import (
 )
 
 // CurrentVersion is the version of blocks that tempodb will cut by default
-const CurrentVersion = "v0"
+const CurrentVersion = "v1" // jpe what do?
 
 type CompactedBlockMeta struct {
 	BlockMeta
@@ -39,6 +39,7 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
 		TenantID:  tenantID,
 		StartTime: now,
 		EndTime:   now,
+		Encoding:  EncSnappy, // jpe - noooooooooo
 	}
 
 	return b

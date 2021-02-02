@@ -126,12 +126,12 @@ func TestCompleteBlockToBackendBlock(t *testing.T) {
 func completeBlock(t *testing.T, tempDir string) (*CompleteBlock, [][]byte, [][]byte) {
 	rand.Seed(time.Now().Unix())
 
-	indexDownsample := 1000
+	indexDownsample := 13
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
 	appender := v0.NewAppender(writer)
 
-	numMsgs := 14
+	numMsgs := 1000
 	reqs := make([][]byte, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	var maxID, minID []byte
