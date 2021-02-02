@@ -1,0 +1,53 @@
+version: "3.4"
+services:
+  # Generate fake traces...
+  synthetic-load-generator:
+    image: omnition/synthetic-load-generator:1.0.25
+    volumes:
+      - ./etc/load-generator.json:/etc/load-generator.json
+    environment:
+      - TOPOLOGY_FILE=/etc/load-generator.json
+      - JAEGER_COLLECTOR_URL=http://tempo:14268
+
+  # And put them in an OTEL collector pipeline...
+  otel-collector:
+    image: otel/opentelemetry-collector:0.16.0
+    volumes:
+      - ./etc/otel-collector.yaml:/etc/otel-collector.yaml
+    command:
+      - --config=/etc/otel-collector.yaml
+
+  # To eventually offload to Tempo...
+  tempo:
+    image: grafana/tempo:0.5.0
+    command: ["--target=all", "--storage.trace.backend=local", "--storage.trace.local.path=/var/tempo", "--auth.enabled=false"]
+    ports:
+    - 8081:80
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
+
+  tempo-query:
+    image: grafana/tempo-query:0.5.0
+    environment:
+    - BACKEND=tempo:80
+    volumes:
+    - ./etc/tempo-query.yaml:/etc/tempo-query.yaml
+    ports:
+    - "16686:16686"  # jaeger-ui
+    depends_on:
+    - tempo
+
+  grafana:
+    image: grafana/grafana:7.3.0-beta1
+    volumes:
+      - ./example-data/datasources:/etc/grafana/provisioning/datasources
+      - ./example-data/dashboards-provisioning:/etc/grafana/provisioning/dashboards
+      - ../../operations/tempo-mixin/out:/var/lib/grafana/dashboards
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+      - "3000:3000"

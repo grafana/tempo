@@ -1,0 +1,13 @@
+receivers:    
+  jaeger:     
+    protocols:
+      thrift_http:
+exporters:
+  otlp:
+    endpoint: tempo:55680
+    insecure: true
+service:
+  pipelines:
+    traces:
+      receivers: [jaeger]
+      exporters: [otlp]
