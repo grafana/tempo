@@ -39,8 +39,12 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 		inMetas:       metas,
 	}
 
+	var err error
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender = c.encoding.newBufferedAppender(c.appendBuffer, indexDownsample, estimatedObjects)
+	c.appender, err = c.encoding.newBufferedAppender(c.appendBuffer, backend.EncNone, indexDownsample, estimatedObjects) // jpe - pipe encoding in
+	if err != nil {
+		return nil, fmt.Errorf("failed to created appender: %w", err)
+	}
 
 	return c, nil
 }

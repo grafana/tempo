@@ -81,7 +81,12 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	}
 
 	ra := backend.NewBackendReaderAt(b.meta, b.encoding.nameObjects(), b.reader)
-	finder := b.encoding.newPagedFinder(indexReader, ra, nil) // jpe : nil ok?  take combiner? return slice of slices and let something else combine?
+	pageReader, err := b.encoding.newPageReader(ra, backend.EncNone) // jpe - pipe in encoding
+	if err != nil {
+		return nil, fmt.Errorf("error building page reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+	}
+
+	finder := b.encoding.newPagedFinder(indexReader, pageReader, nil) // jpe : nil ok?  take combiner? return slice of slices and let something else combine?
 	objectBytes, err := finder.Find(id)
 
 	if err != nil {
@@ -100,7 +105,12 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (common.Iterator, error) 
 	}
 
 	ra := backend.NewBackendReaderAt(b.meta, b.encoding.nameObjects(), b.reader)
-	iterator, err := b.encoding.newPagedIterator(chunkSizeBytes, indexBytes, ra)
+	pageReader, err := b.encoding.newPageReader(ra, backend.EncNone) // jpe pipe in encoding
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pageReader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+	}
+
+	iterator, err := b.encoding.newPagedIterator(chunkSizeBytes, indexBytes, pageReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create iterator (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}

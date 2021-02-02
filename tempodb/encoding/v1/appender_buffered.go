@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
@@ -25,8 +26,12 @@ type bufferedAppender struct {
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
 //  the provided writer and also builds a downsampled records slice.
-func NewBufferedAppender(writer io.Writer, pool WriterPool, indexDownsample int, totalObjectsEstimate int) (common.Appender, error) {
+func NewBufferedAppender(writer io.Writer, encoding backend.Encoding, indexDownsample int, totalObjectsEstimate int) (common.Appender, error) {
 	v0Buffer := &bytes.Buffer{}
+	pool, err := getWriterPool(encoding)
+	if err != nil {
+		return nil, err
+	}
 
 	return &bufferedAppender{
 		v0Appender:      v0.NewBufferedAppender(v0Buffer, indexDownsample, totalObjectsEstimate),

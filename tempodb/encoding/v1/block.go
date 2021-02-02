@@ -12,6 +12,21 @@ import (
 // These methods control the layout of the block in the backend.  Nothing has changed between v0 and v1 here
 // so we will just passthrough
 
+// NameObjects returns v0 name
+func NameObjects() string {
+	return v0.NameObjects
+}
+
+// NameIndex returns v0 name
+func NameIndex() string {
+	return v0.NameIndex
+}
+
+// BloomName returns v0 name
+func BloomName(shard int) string {
+	return v0.BloomName(shard)
+}
+
 // WriteBlockMeta writes the bloom filter, meta and index to the passed in backend.Writer
 func WriteBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*common.Record, b *common.ShardedBloomFilter) error {
 	return v0.WriteBlockMeta(ctx, w, meta, records, b)

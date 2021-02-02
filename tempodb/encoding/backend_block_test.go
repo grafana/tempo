@@ -13,7 +13,7 @@ import (
 
 func TestV0Block(t *testing.T) {
 	r, _, _, err := local.New(&local.Config{
-		Path: "./v0_test",
+		Path: "./v0test",
 	})
 	require.NoError(t, err, "error creating backend")
 

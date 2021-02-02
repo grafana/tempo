@@ -53,7 +53,10 @@ func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator common.Iterat
 		return nil, err
 	}
 
-	appender := c.encoding.newBufferedAppender(appendFile, indexDownsample, estimatedObjects)
+	appender, err := c.encoding.newBufferedAppender(appendFile, backend.EncNone, indexDownsample, estimatedObjects) // jpe - pipe encoding in
+	if err != nil {
+
+	}
 	for {
 		bytesID, bytesObject, err := iterator.Next()
 		if bytesID == nil {
@@ -136,7 +139,12 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 		return nil, err
 	}
 
-	finder := c.encoding.newPagedFinder(common.Records(c.records), file, combiner)
+	pageReader, err := c.encoding.newPageReader(file, backend.EncNone) // jpe - pipe in encoding
+	if err != nil {
+		return nil, err
+	}
+
+	finder := c.encoding.newPagedFinder(common.Records(c.records), pageReader, combiner)
 	return finder.Find(id)
 }
 
