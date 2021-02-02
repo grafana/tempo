@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/olekukonko/tablewriter"
 )
@@ -50,7 +51,7 @@ func loadBucket(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID 
 	fmt.Println("total blocks: ", len(blockIDs))
 
 	// Load in parallel
-	wg := newBoundedWaitGroup(10)
+	wg := boundedwaitgroup.New(10)
 	resultsCh := make(chan blockStats, len(blockIDs))
 
 	for _, id := range blockIDs {

@@ -19,6 +19,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -158,6 +159,10 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		}
 	}
 
+	if cfg.BlocklistPollConcurrency == 0 {
+		cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
+	}
+
 	rw := &readerWriter{
 		c:                   c,
 		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
@@ -266,6 +271,11 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder) {
+	// Set default if needed. This is mainly for tests.
+	if cfg.RetentionConcurrency == 0 {
+		cfg.RetentionConcurrency = DefaultRetentionConcurrency
+	}
+
 	rw.compactorCfg = cfg
 	rw.compactorSharder = c
 
@@ -309,77 +319,88 @@ func (rw *readerWriter) pollBlocklist() {
 	rw.cleanMissingTenants(tenants)
 
 	for _, tenantID := range tenants {
-		blockIDs, err := rw.r.Blocks(ctx, tenantID)
-		if err != nil {
-			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-			level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
-		}
 
-		interfaceSlice := make([]interface{}, 0, len(blockIDs))
-		for _, id := range blockIDs {
-			interfaceSlice = append(interfaceSlice, id)
-		}
+		newBlockList, newCompactedBlockList := rw.pollTenant(ctx, tenantID)
 
-		listMutex := sync.Mutex{}
-		blocklist := make([]*backend.BlockMeta, 0, len(blockIDs))
-		compactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
-		_, err = rw.pool.RunJobs(ctx, interfaceSlice, func(ctx context.Context, payload interface{}) ([]byte, error) {
-			blockID := payload.(uuid.UUID)
-
-			var compactedBlockMeta *backend.CompactedBlockMeta
-			blockMeta, err := rw.r.BlockMeta(ctx, blockID, tenantID)
-			// if the normal meta doesn't exist maybe it's compacted.
-			if err == backend.ErrMetaDoesNotExist {
-				blockMeta = nil
-				compactedBlockMeta, err = rw.c.CompactedBlockMeta(blockID, tenantID)
-			}
-
-			// blocks in intermediate states may not have a compacted or normal block meta.
-			//   this is not necessarily an error, just bail out
-			if err == backend.ErrMetaDoesNotExist {
-				return nil, nil
-			}
-
-			if err != nil {
-				metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-				level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)
-				return nil, nil
-			}
-
-			// todo:  make this not terrible. this mutex is dumb we should be returning results with a channel. shoehorning this into the worker pool is silly.
-			//        make the worker pool more generic? and reusable in this case
-			listMutex.Lock()
-			if blockMeta != nil {
-				blocklist = append(blocklist, blockMeta)
-
-			} else if compactedBlockMeta != nil {
-				compactedBlocklist = append(compactedBlocklist, compactedBlockMeta)
-			}
-			listMutex.Unlock()
-
-			return nil, nil
-		})
-
-		if err != nil {
-			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-			level.Error(rw.logger).Log("msg", "run blocklist jobs", "tenantID", tenantID, "err", err)
-			continue
-		}
-
-		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist)))
-
-		sort.Slice(blocklist, func(i, j int) bool {
-			return blocklist[i].StartTime.Before(blocklist[j].StartTime)
-		})
-		sort.Slice(compactedBlocklist, func(i, j int) bool {
-			return compactedBlocklist[i].StartTime.Before(compactedBlocklist[j].StartTime)
-		})
+		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
 
 		rw.blockListsMtx.Lock()
-		rw.blockLists[tenantID] = blocklist
-		rw.compactedBlockLists[tenantID] = compactedBlocklist
+		rw.blockLists[tenantID] = newBlockList
+		rw.compactedBlockLists[tenantID] = newCompactedBlockList
 		rw.blockListsMtx.Unlock()
 	}
+}
+
+func (rw *readerWriter) pollTenant(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta) {
+	blockIDs, err := rw.r.Blocks(ctx, tenantID)
+	if err != nil {
+		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+		level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
+		return []*backend.BlockMeta{}, []*backend.CompactedBlockMeta{}
+	}
+
+	bg := boundedwaitgroup.New(rw.cfg.BlocklistPollConcurrency)
+	chMeta := make(chan *backend.BlockMeta, len(blockIDs))
+	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(blockIDs))
+
+	for _, blockID := range blockIDs {
+		bg.Add(1)
+		go func(b uuid.UUID) {
+			defer bg.Done()
+			m, cm := rw.pollBlock(ctx, tenantID, b)
+			if m != nil {
+				chMeta <- m
+			} else if cm != nil {
+				chCompactedMeta <- cm
+			}
+		}(blockID)
+	}
+
+	bg.Wait()
+	close(chMeta)
+	close(chCompactedMeta)
+
+	newBlockList := make([]*backend.BlockMeta, 0, len(blockIDs))
+	for m := range chMeta {
+		newBlockList = append(newBlockList, m)
+	}
+	sort.Slice(newBlockList, func(i, j int) bool {
+		return newBlockList[i].StartTime.Before(newBlockList[j].StartTime)
+	})
+
+	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
+	for cm := range chCompactedMeta {
+		newCompactedBlocklist = append(newCompactedBlocklist, cm)
+	}
+	sort.Slice(newCompactedBlocklist, func(i, j int) bool {
+		return newCompactedBlocklist[i].StartTime.Before(newCompactedBlocklist[j].StartTime)
+	})
+
+	return newBlockList, newCompactedBlocklist
+}
+
+func (rw *readerWriter) pollBlock(ctx context.Context, tenantID string, blockID uuid.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta) {
+	var compactedBlockMeta *backend.CompactedBlockMeta
+	blockMeta, err := rw.r.BlockMeta(ctx, blockID, tenantID)
+	// if the normal meta doesn't exist maybe it's compacted.
+	if err == backend.ErrMetaDoesNotExist {
+		blockMeta = nil
+		compactedBlockMeta, err = rw.c.CompactedBlockMeta(blockID, tenantID)
+	}
+
+	// blocks in intermediate states may not have a compacted or normal block meta.
+	//   this is not necessarily an error, just bail out
+	if err == backend.ErrMetaDoesNotExist {
+		return nil, nil
+	}
+
+	if err != nil {
+		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+		level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)
+		return nil, nil
+	}
+
+	return blockMeta, compactedBlockMeta
 }
 
 func (rw *readerWriter) blocklistTenants() []interface{} {

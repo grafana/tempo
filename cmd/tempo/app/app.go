@@ -33,6 +33,7 @@ import (
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
 	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb"
 )
 
 const metricsNamespace = "tempo"
@@ -100,9 +101,17 @@ func (c *Config) CheckConfig() {
 			"explan", "Queriers and Compactors may attempt to read a block that no longer exists")
 	}
 
+	if c.Compactor.Compactor.RetentionConcurrency == 0 {
+		level.Warn(util.Logger).Log("msg", "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultRetentionConcurrency)
+	}
+
 	if c.StorageConfig.Trace.Backend == "s3" && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
 		level.Warn(util.Logger).Log("msg", "c.Compactor.Compactor.FlushSizeBytes < 5242880",
 			"explan", "Compaction flush size should be 5MB or higher for S3 backend")
+	}
+
+	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
+		level.Warn(util.Logger).Log("msg", "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultBlocklistPollConcurrency)
 	}
 }
 

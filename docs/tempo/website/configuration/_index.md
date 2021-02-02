@@ -91,6 +91,7 @@ compactor:
         chunk_size_bytes: 10485760          # amount of data to buffer from input blocks
         flush_size_bytes: 31457280          # flush data to backend when buffer is this large
         max_compaction_objects: 1000000     # maximum traces in a compacted block
+        retention_concurrency: 10           # Optional. Number of tenants to process in parallel during retention. Default is 10.
     ring:
         kvstore:
             store: memberlist       # in a high volume environment multiple compactors need to work together to keep up with incoming blocks.
@@ -116,6 +117,7 @@ storage:
             bucket_name: ops-tools-tracing-ops   # store traces in this bucket
 
         blocklist_poll: 5m                       # how often to repoll the backend for new blocks
+        blocklist_poll_concurrency: 50           # Optional. Number of blocks to process in parallel during polling. Default is 50.
         memcached:                               # optional memcached configuration
             consistent_hash: true
             host: memcached
