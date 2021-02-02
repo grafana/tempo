@@ -20,9 +20,9 @@ type Client interface {
 	Shutdown()
 }
 
-func NewCache(nextReader backend.Reader, nextWriter backend.Writer, cache Client) (backend.Reader, backend.Writer, error) {
+func NewCache(nextReader backend.Reader, nextWriter backend.Writer, client Client) (backend.Reader, backend.Writer, error) {
 	rw := &readerWriter{
-		client:     cache,
+		client:     client,
 		nextReader: nextReader,
 		nextWriter: nextWriter,
 	}
