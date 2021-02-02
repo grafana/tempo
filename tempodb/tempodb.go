@@ -145,18 +145,15 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	}
 
 	var cacheBackend cache.Client
-	var defaultCache = false
 
 	switch cfg.Cache {
 	case "redis":
 		cacheBackend = redis.NewClient(cfg.Redis, logger)
 	case "memcached":
 		cacheBackend = memcached.NewClient(cfg.Memcached, logger)
-	default:
-		defaultCache = true
 	}
 
-	if !defaultCache {
+	if cacheBackend != nil {
 		r, w, err = cache.NewCache(r, w, cacheBackend)
 		if err != nil {
 			return nil, nil, nil, err
