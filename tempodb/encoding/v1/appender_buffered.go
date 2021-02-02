@@ -104,6 +104,10 @@ func (a *bufferedAppender) Complete() error {
 }
 
 func (a *bufferedAppender) flush() error {
+	if a.currentRecord == nil {
+		return nil
+	}
+
 	compressedWriter := a.pool.GetWriter(a.outputWriter)
 
 	// write compressed data
@@ -124,9 +128,7 @@ func (a *bufferedAppender) flush() error {
 
 	// update index
 	a.records = append(a.records, a.currentRecord)
-	a.currentRecord = &common.Record{
-		Start: a.currentOffset,
-	}
+	a.currentRecord = nil
 
 	return nil
 }
