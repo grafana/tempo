@@ -6,6 +6,8 @@ exporters:
   otlp:
     endpoint: tempo:55680
     insecure: true
+    headers:
+      x-scope-orgid: authed-tenant
 service:
   pipelines:
     traces:

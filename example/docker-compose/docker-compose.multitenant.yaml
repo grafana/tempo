@@ -7,7 +7,7 @@ services:
       - ./etc/load-generator.json:/etc/load-generator.json
     environment:
       - TOPOLOGY_FILE=/etc/load-generator.json
-      - JAEGER_COLLECTOR_URL=http://tempo:14268
+      - JAEGER_COLLECTOR_URL=http://otel-collector:14268
 
   # And put them in an OTEL collector pipeline...
   otel-collector:
@@ -20,7 +20,7 @@ services:
   # To eventually offload to Tempo...
   tempo:
     image: grafana/tempo:0.5.0
-    command: ["--target=all", "--storage.trace.backend=local", "--storage.trace.local.path=/var/tempo", "--auth.enabled=false"]
+    command: ["--target=all", "--storage.trace.backend=local", "--storage.trace.local.path=/var/tempo"]
     ports:
     - 8081:80
     logging:
@@ -30,6 +30,8 @@ services:
 
   tempo-query:
     image: grafana/tempo-query:0.5.0
+    command:
+    - --query.bearer-token-propagation=true  # required to pass auth to the grpc plugin
     environment:
     - BACKEND=tempo:80
     volumes:
