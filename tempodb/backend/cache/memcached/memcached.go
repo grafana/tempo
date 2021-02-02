@@ -21,7 +21,7 @@ type Client struct {
 	client *cortex_cache.Memcached
 }
 
-func NewCache(cfg *Config, logger log.Logger) cache.Client {
+func NewClient(cfg *Config, logger log.Logger) cache.Client {
 	if cfg.ClientConfig.MaxIdleConns == 0 {
 		cfg.ClientConfig.MaxIdleConns = 16
 	}

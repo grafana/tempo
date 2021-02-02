@@ -10,15 +10,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mockCache struct {
+type mockClient struct {
 	client map[string][]byte
 }
 
-func (m *mockCache) Store(_ context.Context, key string, val []byte) {
+func (m *mockClient) Store(_ context.Context, key string, val []byte) {
 	m.client[key] = val
 }
 
-func (m *mockCache) Fetch(_ context.Context, key string) (val []byte) {
+func (m *mockClient) Fetch(_ context.Context, key string) (val []byte) {
 	val, ok := m.client[key]
 	if ok {
 		return val
@@ -26,12 +26,12 @@ func (m *mockCache) Fetch(_ context.Context, key string) (val []byte) {
 	return nil
 }
 
-func (m *mockCache) Shutdown() {
+func (m *mockClient) Shutdown() {
 }
 
-// NewMockCache makes a new MockCache.
-func NewMockCache() Client {
-	return &mockCache{
+// NewMockClient makes a new mockClient.
+func NewMockClient() Client {
+	return &mockClient{
 		client: map[string][]byte{},
 	}
 }
@@ -77,7 +77,7 @@ func TestCache(t *testing.T) {
 			}
 			mockW := &util.MockWriter{}
 
-			rw, _, _ := NewCache(mockR, mockW, NewMockCache())
+			rw, _, _ := NewCache(mockR, mockW, NewMockClient())
 
 			ctx := context.Background()
 			tenants, _ := rw.Tenants(ctx)

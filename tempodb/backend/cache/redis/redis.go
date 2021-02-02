@@ -20,7 +20,7 @@ type Client struct {
 	client *cortex_cache.RedisCache
 }
 
-func NewCache(cfg *Config, logger log.Logger) cache.Client {
+func NewClient(cfg *Config, logger log.Logger) cache.Client {
 	if cfg.ClientConfig.Timeout == 0 {
 		cfg.ClientConfig.Timeout = 100 * time.Millisecond
 	}
