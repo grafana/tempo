@@ -11,7 +11,7 @@ import (
 type readerWriter struct {
 	nextReader backend.Reader
 	nextWriter backend.Writer
-	cache      Client
+	client     Client
 }
 
 type Client interface {
@@ -22,7 +22,7 @@ type Client interface {
 
 func NewCache(nextReader backend.Reader, nextWriter backend.Writer, cache Client) (backend.Reader, backend.Writer, error) {
 	rw := &readerWriter{
-		cache:      cache,
+		client:     cache,
 		nextReader: nextReader,
 		nextWriter: nextWriter,
 	}
@@ -48,14 +48,14 @@ func (r *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantI
 // Read implements backend.Reader
 func (r *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	key := key(blockID, tenantID, name)
-	val := r.cache.Fetch(ctx, key)
+	val := r.client.Fetch(ctx, key)
 	if val != nil {
 		return val, nil
 	}
 
 	val, err := r.nextReader.Read(ctx, name, blockID, tenantID)
 	if err == nil {
-		r.cache.Store(ctx, key, val)
+		r.client.Store(ctx, key, val)
 	}
 
 	return val, err
@@ -69,12 +69,12 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.
 // Shutdown implements backend.Reader
 func (r *readerWriter) Shutdown() {
 	r.nextReader.Shutdown()
-	r.cache.Shutdown()
+	r.client.Shutdown()
 }
 
 // Write implements backend.Writer
 func (r *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
-	r.cache.Store(ctx, key(blockID, tenantID, name), buffer)
+	r.client.Store(ctx, key(blockID, tenantID, name), buffer)
 
 	return r.nextWriter.Write(ctx, name, blockID, tenantID, buffer)
 }
