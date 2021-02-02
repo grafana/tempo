@@ -32,7 +32,7 @@ type versionedEncoding interface {
 
 // latestEncoding is used by Compactor and Complete block
 func latestEncoding() versionedEncoding {
-	return v0Encoding{}
+	return v1Encoding{}
 }
 
 // v0Encoding

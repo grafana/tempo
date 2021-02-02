@@ -54,15 +54,10 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 
 	// each "index downsample" number of records is a "block page" and is independently compressed
 	if a.v0Appender.Length()%a.indexDownsample == 0 {
-		// write compressed data
-		len, err := a.compressedWriter.Write(a.v0Buffer.Bytes())
+		err := a.flush()
 		if err != nil {
 			return err
 		}
-		a.compressedDataLen += uint64(len)
-
-		// now clear our v0 buffer so we can start the new block page
-		a.v0Buffer.Reset()
 	}
 
 	return nil
@@ -81,8 +76,32 @@ func (a *bufferedAppender) DataLength() uint64 {
 }
 
 // compress everything left and flush?
-func (a *bufferedAppender) Complete() {
-	a.v0Appender.Complete()
+func (a *bufferedAppender) Complete() error {
+	err := a.flush()
+	if err != nil {
+		return err
+	}
+
+	err = a.v0Appender.Complete()
+	if err != nil {
+		return err
+	}
 
 	a.pool.PutWriter(a.compressedWriter)
+
+	return nil
+}
+
+func (a *bufferedAppender) flush() error {
+	// write compressed data
+	len, err := a.compressedWriter.Write(a.v0Buffer.Bytes())
+	if err != nil {
+		return err
+	}
+	a.compressedDataLen += uint64(len)
+
+	// now clear our v0 buffer so we can start the new block page
+	a.v0Buffer.Reset()
+
+	return nil
 }

@@ -65,10 +65,12 @@ func (a *bufferedAppender) DataLength() uint64 {
 	return a.currentOffset
 }
 
-func (a *bufferedAppender) Complete() {
+func (a *bufferedAppender) Complete() error {
 	if a.currentRecord == nil {
-		return
+		return nil
 	}
 	a.records = append(a.records, a.currentRecord)
 	a.currentRecord = nil
+
+	return nil
 }

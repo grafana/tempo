@@ -57,6 +57,6 @@ func (a *appender) DataLength() uint64 {
 	return a.currentOffset
 }
 
-func (a *appender) Complete() {
-
+func (a *appender) Complete() error {
+	return nil
 }

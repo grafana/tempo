@@ -26,7 +26,7 @@ type Finder interface {
 // Appender is capable of tracking objects and ids that are added to it
 type Appender interface {
 	Append(ID, []byte) error
-	Complete()
+	Complete() error
 	Records() []*Record
 	Length() int
 	DataLength() uint64

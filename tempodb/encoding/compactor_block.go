@@ -74,6 +74,10 @@ func (c *CompactorBlock) Length() int {
 
 // FlushBuffer flushes any existing objects to the backend
 func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (backend.AppendTracker, error) {
+	if c.appender.Length() == 0 {
+		return tracker, nil
+	}
+
 	meta := c.BlockMeta()
 	tracker, err := c.encoding.appendBlockData(ctx, w, meta, tracker, c.appendBuffer.Bytes())
 	if err != nil {
@@ -88,12 +92,21 @@ func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.Append
 
 // Complete finishes writes the compactor metadata and closes all buffers and appenders
 func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) error {
-	c.appender.Complete()
+	err := c.appender.Complete()
+	if err != nil {
+		return err
+	}
+
+	// one final flush
+	_, err = c.FlushBuffer(ctx, tracker, w)
+	if err != nil {
+		return err
+	}
 
 	records := c.appender.Records()
 	meta := c.BlockMeta()
 
-	err := c.encoding.writeBlockMeta(ctx, w, meta, records, c.bloom)
+	err = c.encoding.writeBlockMeta(ctx, w, meta, records, c.bloom)
 	if err != nil {
 		return err
 	}

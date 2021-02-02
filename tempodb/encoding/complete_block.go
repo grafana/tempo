@@ -79,7 +79,10 @@ func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator common.Iterat
 			return nil, err
 		}
 	}
-	appender.Complete()
+	err = appender.Complete()
+	if err != nil {
+		return nil, err
+	}
 	appendFile.Close()
 	c.records = appender.Records()
 	c.meta.StartTime = originatingMeta.StartTime
