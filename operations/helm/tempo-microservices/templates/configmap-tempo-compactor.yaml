@@ -22,6 +22,7 @@ data:
         trace:
             {{- toYaml .Values.backend | nindent 12 }}
             blocklist_poll: 10m
+            cache: memcached
             memcached:
                 consistent_hash: true
                 host: memcached

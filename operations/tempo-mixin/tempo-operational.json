@@ -281,7 +281,7 @@
       "targets": [
         {
           "expr": "go_goroutines{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
-          "legendFormat": "{{job}}",
+          "legendFormat": "{{pod}}",
           "refId": "A"
         }
       ],
@@ -470,7 +470,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\"}",
+          "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}",
           "interval": "",
           "legendFormat": "{{pod}}",
           "refId": "A"

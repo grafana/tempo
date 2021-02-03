@@ -7,8 +7,6 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.2.0
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/alecthomas/kong v0.2.11
-	github.com/alicebob/miniredis v2.5.0+incompatible
-	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/cortexproject/cortex v1.6.0
 	github.com/go-kit/kit v0.10.0
 	github.com/gogo/protobuf v1.3.1
