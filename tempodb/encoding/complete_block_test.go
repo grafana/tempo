@@ -39,7 +39,11 @@ func TestCompleteBlock(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	require.NoError(t, err, "unexpected error creating temp dir")
 
-	block, ids, reqs := completeBlock(t, tempDir)
+	block, ids, reqs := completeBlock(t, &BlockConfig{
+		IndexDownsample: 13,
+		BloomFP:         .01,
+		Encoding:        backend.EncGZIP,
+	}, tempDir)
 
 	// test Find
 	for i, id := range ids {
@@ -61,12 +65,24 @@ func TestCompleteBlock(t *testing.T) {
 	}
 }
 
-func TestCompleteBlockToBackendBlock(t *testing.T) {
+func TestCompleteBlockAll(t *testing.T) {
+	for _, enc := range backend.SupportedEncoding {
+		testCompleteBlockToBackendBlock(t,
+			&BlockConfig{
+				IndexDownsample: 13,
+				BloomFP:         .01,
+				Encoding:        enc,
+			},
+		)
+	}
+}
+
+func testCompleteBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	require.NoError(t, err, "unexpected error creating temp dir")
 
-	block, ids, reqs := completeBlock(t, tempDir)
+	block, ids, reqs := completeBlock(t, cfg, tempDir)
 
 	backendTmpDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(backendTmpDir)
@@ -123,10 +139,9 @@ func TestCompleteBlockToBackendBlock(t *testing.T) {
 	assert.Equal(t, len(ids), i)
 }
 
-func completeBlock(t *testing.T, tempDir string) (*CompleteBlock, [][]byte, [][]byte) {
+func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlock, [][]byte, [][]byte) {
 	rand.Seed(time.Now().Unix())
 
-	indexDownsample := 13
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
 	appender := v0.NewAppender(writer)
@@ -163,15 +178,11 @@ func completeBlock(t *testing.T, tempDir string) (*CompleteBlock, [][]byte, [][]
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
 
 	iterator := v0.NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
-	block, err := NewCompleteBlock(&BlockConfig{
-		BloomFP:         .01,
-		IndexDownsample: indexDownsample,
-		Encoding:        backend.EncLZ4_1M,
-	}, originatingMeta, iterator, numMsgs, tempDir, "")
+	block, err := NewCompleteBlock(cfg, originatingMeta, iterator, numMsgs, tempDir, "")
 	require.NoError(t, err, "unexpected error completing block")
 
 	// test downsample config
-	require.Equal(t, numMsgs/indexDownsample+1, len(block.records))
+	require.Equal(t, numMsgs/cfg.IndexDownsample+1, len(block.records))
 	require.True(t, block.FlushedTime().IsZero())
 
 	require.True(t, bytes.Equal(block.meta.MinID, minID))
