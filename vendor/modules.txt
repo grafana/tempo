@@ -51,12 +51,6 @@ github.com/alecthomas/template
 github.com/alecthomas/template/parse
 # github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d
 github.com/alecthomas/units
-# github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a
-github.com/alicebob/gopher-json
-# github.com/alicebob/miniredis v2.5.0+incompatible
-## explicit
-github.com/alicebob/miniredis
-github.com/alicebob/miniredis/server
 # github.com/apache/thrift v0.13.0
 github.com/apache/thrift/lib/go/thrift
 # github.com/armon/go-metrics v0.3.3
@@ -121,7 +115,6 @@ github.com/blang/semver
 # github.com/bombsimon/wsl/v3 v3.1.0
 github.com/bombsimon/wsl/v3
 # github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
-## explicit
 github.com/bradfitz/gomemcache/memcache
 # github.com/cenkalti/backoff/v4 v4.0.2
 github.com/cenkalti/backoff/v4
@@ -467,9 +460,6 @@ github.com/golangci/prealloc
 github.com/golangci/revgrep
 # github.com/golangci/unconvert v0.0.0-20180507085042-28b1c447d1f4
 github.com/golangci/unconvert
-# github.com/gomodule/redigo v2.0.0+incompatible
-github.com/gomodule/redigo/internal
-github.com/gomodule/redigo/redis
 # github.com/google/addlicense v0.0.0-20200622132530-df58acafd6d5
 github.com/google/addlicense
 # github.com/google/btree v1.0.0
@@ -1092,11 +1082,6 @@ github.com/willf/bitset
 github.com/willf/bloom
 # github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2
 github.com/xiang90/probing
-# github.com/yuin/gopher-lua v0.0.0-20200816102855-ee81675732da
-github.com/yuin/gopher-lua
-github.com/yuin/gopher-lua/ast
-github.com/yuin/gopher-lua/parse
-github.com/yuin/gopher-lua/pm
 # go.etcd.io/bbolt v1.3.5-0.20200615073812-232d8fc87f50
 go.etcd.io/bbolt
 # go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f

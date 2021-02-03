@@ -1,18 +1,40 @@
-package redis
+package cache
 
 import (
 	"context"
 	"testing"
 
-	"github.com/alicebob/miniredis"
-	"github.com/cortexproject/cortex/pkg/chunk/cache"
-	"github.com/go-kit/kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/stretchr/testify/assert"
 )
 
+type mockClient struct {
+	client map[string][]byte
+}
+
+func (m *mockClient) Store(_ context.Context, key string, val []byte) {
+	m.client[key] = val
+}
+
+func (m *mockClient) Fetch(_ context.Context, key string) (val []byte) {
+	val, ok := m.client[key]
+	if ok {
+		return val
+	}
+	return nil
+}
+
+func (m *mockClient) Shutdown() {
+}
+
+// NewMockClient makes a new mockClient.
+func NewMockClient() Client {
+	return &mockClient{
+		client: map[string][]byte{},
+	}
+}
 func TestCache(t *testing.T) {
 	tenantID := "test"
 	blockID := uuid.New()
@@ -47,7 +69,6 @@ func TestCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mr, _ := miniredis.Run()
 			mockR := &util.MockReader{
 				T: tt.readerTenants,
 				B: tt.readerBlocks,
@@ -55,17 +76,8 @@ func TestCache(t *testing.T) {
 				R: tt.readerRead,
 			}
 			mockW := &util.MockWriter{}
-			mockC := cache.NewRedisClient(&cache.RedisConfig{
-				Endpoint: mr.Addr(),
-			})
 
-			logger := log.NewNopLogger()
-			rw := &readerWriter{
-				client:     cache.NewRedisCache("tempo", mockC, logger),
-				nextReader: mockR,
-				nextWriter: mockW,
-				logger:     logger,
-			}
+			rw, _, _ := NewCache(mockR, mockW, NewMockClient())
 
 			ctx := context.Background()
 			tenants, _ := rw.Tenants(ctx)
