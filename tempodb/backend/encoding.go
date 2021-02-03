@@ -1,6 +1,8 @@
 package backend
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -50,6 +52,45 @@ func (e Encoding) String() string {
 	default:
 		return "unsupported"
 	}
+}
+
+// jpe : test next 3
+// UnmarshalYAML implements the Unmarshaler interface of the yaml pkg.
+func (e *Encoding) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var encString string
+	err := unmarshal(&encString)
+	if err != nil {
+		return err
+	}
+
+	*e, err = ParseEncoding(encString)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalJSON implements the Unmarshaler interface of the json pkg.
+func (e *Encoding) UnmarshalJSON(b []byte) error {
+	var encString string
+	err := json.Unmarshal(b, &encString)
+	if err != nil {
+		return err
+	}
+
+	*e, err = ParseEncoding(encString)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// MarshalJSON implements the marshaler interface of the json pkg.
+func (e *Encoding) MarshalJSON() ([]byte, error) {
+	buffer := bytes.NewBufferString("\"" + e.String() + "\"")
+	return buffer.Bytes(), nil
 }
 
 // ParseEncoding parses an chunk encoding (compression algorithm) by its name.
