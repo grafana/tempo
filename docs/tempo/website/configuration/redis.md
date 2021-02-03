@@ -11,6 +11,7 @@ Redis caching is configured in the storage block.
 ```
 storage:
     trace:
+        cache: redis
         redis:
             endpoint: redis                     # redis endpoint to use when caching.
             timeout: 500ms                      # optional. maximum time to wait before giving up on redis requests. (default 100ms)

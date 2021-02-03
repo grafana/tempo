@@ -19,10 +19,13 @@ type Config struct {
 	Trace tempodb.Config `yaml:"trace"`
 }
 
-var DefaultBlocklistPoll = 5 * time.Minute
+const DefaultBlocklistPoll = 5 * time.Minute
 
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+
+	cfg.Trace.BlocklistPollConcurrency = tempodb.DefaultBlocklistPollConcurrency
+
 	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, azure, gcs, local)")
 	f.DurationVar(&cfg.Trace.BlocklistPoll, util.PrefixConfig(prefix, "trace.maintenance-cycle"), DefaultBlocklistPoll, "Period at which to run the maintenance cycle.")
 

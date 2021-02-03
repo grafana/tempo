@@ -23,6 +23,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		ChunkSizeBytes:          10 * 1024 * 1024, // 10 MiB
 		FlushSizeBytes:          30 * 1024 * 1024, // 30 MiB
 		CompactedBlockRetention: time.Hour,
+		RetentionConcurrency:    tempodb.DefaultRetentionConcurrency,
 	}
 
 	flagext.DefaultValues(&cfg.ShardingRing)
