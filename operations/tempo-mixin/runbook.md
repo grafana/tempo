@@ -29,7 +29,6 @@ Querier deployment. More Queriers -> faster processing of shards in parallel -> 
   querier:
     frontend_worker:
         parallelism: 5
-        match_max_concurrent: 2  # ensures that the parallelism is split evenly between the Query Frontends available.
   ```
 
 Parallelism defines the number of shards each Querier processes at a given time. Be careful to factor in the size of the blocklist
