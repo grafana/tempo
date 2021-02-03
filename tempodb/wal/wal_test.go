@@ -13,6 +13,8 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
@@ -37,9 +39,7 @@ func TestCreateBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
 	wal, err := New(&Config{
-		Filepath:        tempDir,
-		IndexDownsample: 2,
-		BloomFP:         0.1,
+		Filepath: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -61,9 +61,7 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
 	wal, err := New(&Config{
-		Filepath:        tempDir,
-		IndexDownsample: 2,
-		BloomFP:         0.1,
+		Filepath: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -93,9 +91,7 @@ func TestAppend(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
 	wal, err := New(&Config{
-		Filepath:        tempDir,
-		IndexDownsample: 2,
-		BloomFP:         0.1,
+		Filepath: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -143,11 +139,8 @@ func TestAppendBlockComplete(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	indexDownsample := 13
 	wal, err := New(&Config{
-		Filepath:        tempDir,
-		IndexDownsample: indexDownsample,
-		BloomFP:         .01,
+		Filepath: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -171,7 +164,11 @@ func TestAppendBlockComplete(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	complete, err := block.Complete(wal, &mockCombiner{})
+	complete, err := block.Complete(&encoding.BlockConfig{
+		IndexDownsample: 13,
+		BloomFP:         .01,
+		Encoding:        backend.EncGZIP,
+	}, wal, &mockCombiner{})
 	assert.NoError(t, err, "unexpected error completing block")
 
 	for i, id := range ids {
@@ -198,9 +195,7 @@ func TestWorkDir(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating testfile")
 
 	_, err = New(&Config{
-		Filepath:        tempDir,
-		IndexDownsample: 2,
-		BloomFP:         0.1,
+		Filepath: tempDir,
 	})
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
@@ -218,9 +213,7 @@ func BenchmarkWriteRead(b *testing.B) {
 	defer os.RemoveAll(tempDir)
 
 	wal, _ := New(&Config{
-		Filepath:        tempDir,
-		IndexDownsample: 2,
-		BloomFP:         0.1,
+		Filepath: tempDir,
 	})
 
 	blockID := uuid.New()

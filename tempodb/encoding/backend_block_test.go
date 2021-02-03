@@ -17,8 +17,7 @@ func TestV0Block(t *testing.T) {
 	})
 	require.NoError(t, err, "error creating backend")
 
-	meta := backend.NewBlockMeta("fake", uuid.MustParse("00f5a116-639e-4880-bbe7-be9b0c828033"))
-	meta.Version = "v0"
+	meta := backend.NewBlockMeta("fake", uuid.MustParse("00f5a116-639e-4880-bbe7-be9b0c828033"), "v0", backend.EncNone)
 	backendBlock, err := NewBackendBlock(meta, r)
 	require.NoError(t, err, "error creating backendblock")
 

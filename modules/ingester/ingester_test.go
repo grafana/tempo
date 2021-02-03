@@ -14,6 +14,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -21,7 +22,9 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -179,7 +182,7 @@ func TestFlush(t *testing.T) {
 func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
 	ingesterConfig := defaultIngesterTestConfig()
 	limits, err := overrides.NewOverrides(defaultLimitsTestConfig())
-	assert.NoError(t, err, "unexpected error creating overrides")
+	require.NoError(t, err, "unexpected error creating overrides")
 
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
@@ -187,20 +190,23 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 			Local: &local.Config{
 				Path: tmpDir,
 			},
-			WAL: &wal.Config{
-				Filepath:        tmpDir,
+			Block: &encoding.BlockConfig{
 				IndexDownsample: 2,
 				BloomFP:         .01,
+				Encoding:        backend.EncLZ4_1M,
+			},
+			WAL: &wal.Config{
+				Filepath: tmpDir,
 			},
 		},
 	}, log.NewNopLogger())
-	assert.NoError(t, err, "unexpected error store")
+	require.NoError(t, err, "unexpected error store")
 
 	ingester, err := New(ingesterConfig, s, limits)
-	assert.NoError(t, err, "unexpected error creating ingester")
+	require.NoError(t, err, "unexpected error creating ingester")
 
 	err = ingester.starting(context.Background())
-	assert.NoError(t, err, "unexpected error starting ingester")
+	require.NoError(t, err, "unexpected error starting ingester")
 
 	// make some fake traceIDs/requests
 	traces := make([]*tempopb.Trace, 0)
@@ -209,7 +215,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 	for i := 0; i < 10; i++ {
 		id := make([]byte, 16)
 		_, err = rand.Read(id)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		traces = append(traces, test.MakeTrace(10, id))
 		traceIDs = append(traceIDs, id)
@@ -222,7 +228,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 				&tempopb.PushRequest{
 					Batch: batch,
 				})
-			assert.NoError(t, err, "unexpected error pushing")
+			require.NoError(t, err, "unexpected error pushing")
 		}
 	}
 

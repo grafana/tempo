@@ -23,7 +23,8 @@ type CompactorBlock struct {
 	appender        common.Appender
 }
 
-func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDownsample int, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
+// NewCompactorBlock creates a ... new compactor block!
+func NewCompactorBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
 	if len(metas) == 0 {
 		return nil, fmt.Errorf("empty block meta list")
 	}
@@ -34,14 +35,14 @@ func NewCompactorBlock(id uuid.UUID, tenantID string, bloomFP float64, indexDown
 
 	c := &CompactorBlock{
 		encoding:      latestEncoding(),
-		compactedMeta: backend.NewBlockMeta(tenantID, id),
-		bloom:         common.NewWithEstimates(uint(estimatedObjects), bloomFP),
+		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding),
+		bloom:         common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
 		inMetas:       metas,
 	}
 
 	var err error
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender, err = c.encoding.newBufferedAppender(c.appendBuffer, backend.EncSnappy, indexDownsample, estimatedObjects) // jpe - pipe encoding in
+	c.appender, err = c.encoding.newBufferedAppender(c.appendBuffer, cfg.Encoding, cfg.IndexDownsample, estimatedObjects)
 	if err != nil {
 		return nil, fmt.Errorf("failed to created appender: %w", err)
 	}

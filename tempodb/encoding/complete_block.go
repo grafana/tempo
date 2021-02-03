@@ -33,11 +33,11 @@ type CompleteBlock struct {
 }
 
 // NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
-func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator common.Iterator, bloomFP float64, estimatedObjects int, indexDownsample int, filepath string, walFilename string) (*CompleteBlock, error) {
+func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iterator common.Iterator, estimatedObjects int, filepath string, walFilename string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
 		encoding:    latestEncoding(), // jpe - wut
-		meta:        backend.NewBlockMeta(originatingMeta.TenantID, uuid.New()),
-		bloom:       common.NewWithEstimates(uint(estimatedObjects), bloomFP),
+		meta:        backend.NewBlockMeta(originatingMeta.TenantID, uuid.New(), currentVersion, cfg.Encoding),
+		bloom:       common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
 		records:     make([]*common.Record, 0),
 		filepath:    filepath,
 		walFilename: walFilename,
@@ -53,7 +53,7 @@ func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator common.Iterat
 		return nil, err
 	}
 
-	appender, err := c.encoding.newBufferedAppender(appendFile, backend.EncSnappy, indexDownsample, estimatedObjects) // jpe - pipe encoding in
+	appender, err := c.encoding.newBufferedAppender(appendFile, cfg.Encoding, cfg.IndexDownsample, estimatedObjects)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 		return nil, err
 	}
 
-	pageReader, err := c.encoding.newPageReader(file, backend.EncSnappy) // jpe - pipe in encoding
+	pageReader, err := c.encoding.newPageReader(file, c.meta.Encoding) // jpe - pipe in encoding
 	if err != nil {
 		return nil, err
 	}

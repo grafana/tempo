@@ -158,12 +158,16 @@ func completeBlock(t *testing.T, tempDir string) (*CompleteBlock, [][]byte, [][]
 	err := writer.Flush()
 	require.NoError(t, err, "unexpected error flushing writer")
 
-	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New())
+	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP)
 	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
 
 	iterator := v0.NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
-	block, err := NewCompleteBlock(originatingMeta, iterator, .01, numMsgs, indexDownsample, tempDir, "")
+	block, err := NewCompleteBlock(&BlockConfig{
+		BloomFP:         .01,
+		IndexDownsample: indexDownsample,
+		Encoding:        backend.EncLZ4_1M,
+	}, originatingMeta, iterator, numMsgs, tempDir, "")
 	require.NoError(t, err, "unexpected error completing block")
 
 	// test downsample config

@@ -10,6 +10,8 @@ import (
 	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
 )
 
+const currentVersion = "v1"
+
 // versionedEncoding has a whole bunch of versioned functionality.  This is
 //  currently quite sloppy and could easily be tightened up to just a few methods
 //  but it is what it is for now!

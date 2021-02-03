@@ -7,9 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// CurrentVersion is the version of blocks that tempodb will cut by default
-const CurrentVersion = "v1" // jpe what do?
-
 type CompactedBlockMeta struct {
 	BlockMeta
 
@@ -29,17 +26,17 @@ type BlockMeta struct {
 	Encoding        Encoding  `json:"encoding"`
 }
 
-func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
+func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding) *BlockMeta {
 	now := time.Now()
 	b := &BlockMeta{
-		Version:   CurrentVersion,
+		Version:   version,
 		BlockID:   blockID,
 		MinID:     []byte{},
 		MaxID:     []byte{},
 		TenantID:  tenantID,
 		StartTime: now,
 		EndTime:   now,
-		Encoding:  EncSnappy, // jpe - noooooooooo
+		Encoding:  encoding,
 	}
 
 	return b

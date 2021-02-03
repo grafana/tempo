@@ -20,6 +20,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -63,12 +64,12 @@ type instance struct {
 	tracesCreatedTotal prometheus.Counter
 	bytesWrittenTotal  prometheus.Counter
 	limiter            *Limiter
-	wal                *wal.WAL
+	writer             tempodb.Writer
 
 	hash hash.Hash32
 }
 
-func newInstance(instanceID string, limiter *Limiter, wal *wal.WAL) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer) (*instance, error) {
 	i := &instance{
 		traces: map[uint32]*trace{},
 
@@ -76,7 +77,7 @@ func newInstance(instanceID string, limiter *Limiter, wal *wal.WAL) (*instance, 
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
 		bytesWrittenTotal:  metricBytesWrittenTotal.WithLabelValues(instanceID),
 		limiter:            limiter,
-		wal:                wal,
+		writer:             writer,
 
 		hash: fnv.New32(),
 	}
@@ -153,7 +154,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 
 		// todo : this should be a queue of blocks to complete with workers
 		go func() {
-			completeBlock, err := i.completingBlock.Complete(i.wal, i)
+			completeBlock, err := i.writer.CompleteBlock(i.completingBlock, i)
 			i.blocksMtx.Lock()
 			defer i.blocksMtx.Unlock()
 
@@ -307,7 +308,7 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 // resetHeadBlock() should be called under lock
 func (i *instance) resetHeadBlock() error {
 	var err error
-	i.headBlock, err = i.wal.NewBlock(uuid.New(), i.instanceID)
+	i.headBlock, err = i.writer.WAL().NewBlock(uuid.New(), i.instanceID)
 	i.lastBlockCut = time.Now()
 	return err
 }

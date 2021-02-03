@@ -9,9 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 
 	"github.com/stretchr/testify/assert"
@@ -36,11 +42,9 @@ func TestInstance(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	wal := ingester.store.WAL()
-
 	request := test.MakeRequest(10, []byte{})
 
-	i, err := newInstance("fake", limiter, wal)
+	i, err := newInstance("fake", limiter, ingester.store)
 	assert.NoError(t, err, "unexpected error creating new instance")
 	err = i.Push(context.Background(), request)
 	assert.NoError(t, err)
@@ -89,12 +93,10 @@ func TestInstanceFind(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	wal := ingester.store.WAL()
-
 	request := test.MakeRequest(10, []byte{})
 	traceID := test.MustTraceID(request)
 
-	i, err := newInstance("fake", limiter, wal)
+	i, err := newInstance("fake", limiter, ingester.store)
 	assert.NoError(t, err, "unexpected error creating new instance")
 	err = i.Push(context.Background(), request)
 	assert.NoError(t, err)
@@ -128,9 +130,8 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	wal := ingester.store.WAL()
 
-	i, err := newInstance("fake", limiter, wal)
+	i, err := newInstance("fake", limiter, ingester.store)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	end := make(chan struct{})
@@ -197,9 +198,8 @@ func TestInstanceLimits(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	wal := ingester.store.WAL()
 
-	i, err := newInstance("fake", limiter, wal)
+	i, err := newInstance("fake", limiter, ingester.store)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	type push struct {
@@ -427,19 +427,30 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 	}
 }
 
-func defaultInstance(t assert.TestingT, tempDir string) *instance {
+func defaultInstance(t assert.TestingT, tmpDir string) *instance {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	wal, err := wal.New(&wal.Config{
-		Filepath:        tempDir,
-		IndexDownsample: 2,
-		BloomFP:         .01,
-	})
-	assert.NoError(t, err, "unexpected error creating wal")
+	s, err := storage.NewStore(storage.Config{
+		Trace: tempodb.Config{
+			Backend: "local",
+			Local: &local.Config{
+				Path: tmpDir,
+			},
+			Block: &encoding.BlockConfig{
+				IndexDownsample: 2,
+				BloomFP:         .01,
+				Encoding:        backend.EncLZ4_1M,
+			},
+			WAL: &wal.Config{
+				Filepath: tmpDir,
+			},
+		},
+	}, log.NewNopLogger())
+	assert.NoError(t, err, "unexpected error creating store")
 
-	instance, err := newInstance("fake", limiter, wal)
+	instance, err := newInstance("fake", limiter, s)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	return instance

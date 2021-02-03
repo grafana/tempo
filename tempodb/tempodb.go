@@ -81,6 +81,7 @@ var (
 
 type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
+	CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error)
 	WAL() *wal.WAL
 }
 
@@ -121,11 +122,16 @@ type readerWriter struct {
 	compactorTenantOffset uint
 }
 
+// New creates a new tempodb
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
-	var err error
 	var r backend.Reader
 	var w backend.Writer
 	var c backend.Compactor
+
+	err := validateConfig(cfg)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("invalid config while creating tempodb: %w", err)
+	}
 
 	switch cfg.Backend {
 	case "local":
@@ -187,6 +193,10 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error {
 	return c.Write(ctx, rw.w)
+}
+
+func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error) {
+	return block.Complete(rw.cfg.Block, rw.wal, combiner)
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {

@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -31,8 +32,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Trace.WAL = &wal.Config{}
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")
-	f.Float64Var(&cfg.Trace.WAL.BloomFP, util.PrefixConfig(prefix, "trace.wal.bloom-filter-false-positive"), .05, "Bloom False Positive.")
-	f.IntVar(&cfg.Trace.WAL.IndexDownsample, util.PrefixConfig(prefix, "trace.wal.index-downsample"), 100, "Number of traces per index record.")
+
+	cfg.Trace.Block = &encoding.BlockConfig{}
+	f.Float64Var(&cfg.Trace.Block.BloomFP, util.PrefixConfig(prefix, "trace.block.bloom-filter-false-positive"), .05, "Bloom False Positive.")
+	f.IntVar(&cfg.Trace.Block.IndexDownsample, util.PrefixConfig(prefix, "trace.block.index-downsample"), 100, "Number of traces per index record.")
 
 	cfg.Trace.Azure = &azure.Config{}
 	f.StringVar(&cfg.Trace.Azure.StorageAccountName.Value, util.PrefixConfig(prefix, "trace.azure.storage-account-name"), "", "Azure storage account name.")

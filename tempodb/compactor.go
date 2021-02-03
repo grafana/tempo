@@ -188,7 +188,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 		// make a new block if necessary
 		if currentBlock == nil {
-			currentBlock, err = encoding.NewCompactorBlock(uuid.New(), tenantID, rw.cfg.WAL.BloomFP, rw.cfg.WAL.IndexDownsample, blockMetas, recordsPerBlock)
+			currentBlock, err = encoding.NewCompactorBlock(rw.cfg.Block, uuid.New(), tenantID, blockMetas, recordsPerBlock)
 			if err != nil {
 				return errors.Wrap(err, "error making new compacted block")
 			}

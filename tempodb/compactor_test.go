@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -51,10 +52,13 @@ func TestCompaction(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
+		Block: &encoding.BlockConfig{
 			IndexDownsample: 11,
 			BloomFP:         .01,
+			Encoding:        backend.EncLZ4_4M,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -99,7 +103,7 @@ func TestCompaction(t *testing.T) {
 		allReqs = append(allReqs, reqs...)
 		allIds = append(allIds, ids...)
 
-		complete, err := head.Complete(wal, &mockSharder{})
+		complete, err := w.CompleteBlock(head, &mockSharder{})
 		assert.NoError(t, err)
 
 		err = w.WriteBlock(context.Background(), complete)
@@ -174,10 +178,13 @@ func TestSameIDCompaction(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
-			IndexDownsample: rand.Int()%20 + 1,
+		Block: &encoding.BlockConfig{
+			IndexDownsample: 11,
 			BloomFP:         .01,
+			Encoding:        backend.EncSnappy,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -206,7 +213,7 @@ func TestSameIDCompaction(t *testing.T) {
 		err = head.Write(id, rec)
 		assert.NoError(t, err, "unexpected error writing req")
 
-		complete, err := head.Complete(wal, &mockSharder{})
+		complete, err := w.CompleteBlock(head, &mockSharder{})
 		assert.NoError(t, err)
 
 		err = w.WriteBlock(context.Background(), complete)
@@ -258,10 +265,13 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
-			IndexDownsample: rand.Int()%20 + 1,
+		Block: &encoding.BlockConfig{
+			IndexDownsample: 11,
 			BloomFP:         .01,
+			Encoding:        backend.EncNone,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -320,10 +330,13 @@ func TestCompactionMetrics(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
-			IndexDownsample: rand.Int()%20 + 1,
+		Block: &encoding.BlockConfig{
+			IndexDownsample: 11,
 			BloomFP:         .01,
+			Encoding:        backend.EncLZ4_4M,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -391,10 +404,13 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
-			IndexDownsample: rand.Int()%20 + 1,
+		Block: &encoding.BlockConfig{
+			IndexDownsample: 11,
 			BloomFP:         .01,
+			Encoding:        backend.EncLZ4_64k,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -444,7 +460,7 @@ func cutTestBlocks(t *testing.T, w Writer, tenantID string, blockCount int, reco
 			assert.NoError(t, err, "unexpected error writing rec")
 		}
 
-		complete, err := head.Complete(wal, &mockSharder{})
+		complete, err := w.CompleteBlock(head, &mockSharder{})
 		assert.NoError(t, err)
 
 		err = w.WriteBlock(context.Background(), complete)
