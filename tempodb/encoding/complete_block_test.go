@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
+	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -195,8 +197,36 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 	return block, ids, reqs
 }
 
+const benchDownsample = 200
+
+func BenchmarkWriteGzip(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncGZIP, benchDownsample, false)
+}
+func BenchmarkWriteSnappy(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncSnappy, benchDownsample, false)
+}
+func BenchmarkWriteLZ4(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncLZ4_256k, benchDownsample, false)
+}
+func BenchmarkWriteNone(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, false)
+}
+
+func BenchmarkReadGzip(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncGZIP, benchDownsample, true)
+}
+func BenchmarkReadSnappy(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncSnappy, benchDownsample, true)
+}
+func BenchmarkReadLZ4(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncLZ4_256k, benchDownsample, true)
+}
+func BenchmarkReadNone(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, true)
+}
+
 // Download a block from your backend and place in ./backend_block/fake/<guid>
-func BenchmarkCompressBlock(b *testing.B) {
+func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsample int, benchRead bool) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	require.NoError(b, err, "unexpected error creating temp dir")
@@ -212,16 +242,39 @@ func BenchmarkCompressBlock(b *testing.B) {
 	iterator, err := backendBlock.Iterator(10 * 1024 * 1024)
 	require.NoError(b, err, "error creating iterator")
 
-	b.ResetTimer()
+	if !benchRead {
+		b.ResetTimer()
+	}
 
 	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP)
 	cb, err := NewCompleteBlock(&BlockConfig{
-		IndexDownsample: 100,
+		IndexDownsample: indexDownsample,
 		BloomFP:         .05,
-		Encoding:        backend.EncSnappy,
+		Encoding:        encoding,
 	}, originatingMeta, iterator, 10000, tempDir, "")
 	require.NoError(b, err, "error creating block")
 
 	lastRecord := cb.records[len(cb.records)-1]
 	fmt.Println("size: ", lastRecord.Start+uint64(lastRecord.Length))
+
+	if !benchRead {
+		return
+	}
+
+	b.ResetTimer()
+	file, err := os.Open(cb.fullFilename())
+	require.NoError(b, err)
+	pr, err := v1.NewPageReader(file, encoding)
+	require.NoError(b, err)
+	iterator = v1.NewPagedIterator(10*1024*1024, common.Records(cb.records), pr)
+
+	for {
+		id, _, err := iterator.Next()
+		if err != io.EOF {
+			require.NoError(b, err)
+		}
+		if id == nil {
+			break
+		}
+	}
 }
