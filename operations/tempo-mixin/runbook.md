@@ -11,6 +11,30 @@ Ingester component can cause 404s on traces until they are flushed to the backen
 scale one per hour.  However, if Ingesters are falling over, it's better to scale fast, ingest successfully and throw 404s 
 on query than to have an unstable ingest path.  Make the call!
 
+The Query path is instrumented with tracing (!) and this can be used to diagnose issues with higher latency. View the logs of
+the Query Frontend, where you can find an info level message for every request. Filter for requests with high latency and view traces.
+
+The Query Frontend allows for scaling the query path by sharding queries. There are a few knobs that can be tuned for optimum
+parllelism -
+- Number of shards each query is split into, configured via
+    ```
+    query_frontend:
+        query_shards: 10
+    ```
+- Number of Queriers (each of these process the sharded queries in parallel). This can be changed by modifying the size of the
+Querier deployment. More Queriers -> faster processing of shards in parallel -> lower request latency.
+
+- Querier parallelism, configured via
+    ```
+  querier:
+    frontend_worker:
+        parallelism: 5
+        match_max_concurrent: 2  # ensures that the parallelism is split evenly between the Query Frontends available.
+  ```
+
+Parallelism defines the number of shards each Querier processes at a given time. Be careful to factor in the size of the blocklist
+and the size of the worker pool when increasing this number!
+
 ## TempoCompactorUnhealthy
 
 Tempo by default uses [Memberlist](https://github.com/hashicorp/memberlist) to persist the ring state between components.
