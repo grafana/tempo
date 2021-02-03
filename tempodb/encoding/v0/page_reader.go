@@ -1,6 +1,7 @@
 package v0
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -43,10 +44,14 @@ func (r *pageReader) Read(records []*common.Record) ([][]byte, error) {
 	}
 
 	slicePages := make([][]byte, 0, len(records))
-	start = 0
+	cursor := 0
 	for _, record := range records {
-		slicePages = append(slicePages, contiguousPages[start:int(record.Length)])
-		start += uint64(record.Length)
+		if cursor+int(record.Length) > len(contiguousPages) {
+			return nil, fmt.Errorf("record out of bounds while reading pages: %d, %d, %d", cursor, record.Length, len(contiguousPages))
+		}
+
+		slicePages = append(slicePages, contiguousPages[cursor:cursor+int(record.Length)])
+		cursor += int(record.Length)
 	}
 
 	return slicePages, nil
