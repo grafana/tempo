@@ -83,7 +83,7 @@ func TestMultipleHits(t *testing.T) {
 
 	msg, err := p.RunJobs(context.Background(), payloads, fn)
 	require.Len(t, msg, 5)
-	for i, _ := range payloads {
+	for i := range payloads {
 		assert.Equal(t, ret, msg[i])
 	}
 	assert.Nil(t, err)

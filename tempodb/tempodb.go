@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	tempo_util "github.com/grafana/tempo/pkg/util"
-	"github.com/pkg/errors"
 	"sort"
 	"sync"
 	"time"
@@ -85,7 +83,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]byte, common.FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, common.FindMetrics, error)
 	Shutdown()
 }
 
@@ -189,12 +187,12 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]byte, common.FindMetrics, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, common.FindMetrics, error) {
 	metrics := common.NewFindMetrics()
 
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "store.Find")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 
 	blockStartUUID, err := uuid.Parse(blockStart)
@@ -236,14 +234,14 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, metrics, nil
 	}
 
-	partialTraces, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
+	partialTraces, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*backend.BlockMeta)
 		block, err := encoding.NewBackendBlock(meta)
 		if err != nil {
 			return nil, err
 		}
 
-		foundObject, err := block.Find(derivedCtx, rw.r, id, &metrics)
+		foundObject, err := block.Find(ctx, rw.r, id, &metrics)
 		if err != nil {
 			return nil, err
 		}
@@ -258,22 +256,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return foundObject, nil
 	})
 
-	if len(partialTraces) == 0 {
-		return nil, metrics, err
-	}
-
-	// merge all partial trace bytes into partialTraces[0]
-	for i := range partialTraces {
-		if i == 0 {
-			continue
-		}
-		partialTraces[0], err = tempo_util.CombineTraces(partialTraces[0], partialTraces[i])
-		if err != nil {
-			return nil, metrics, errors.Wrap(err, "error combining traces in store.Find")
-		}
-	}
-
-	return partialTraces[0], metrics, err
+	return partialTraces, metrics, err
 }
 
 func (rw *readerWriter) Shutdown() {

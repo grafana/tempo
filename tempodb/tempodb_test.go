@@ -91,7 +91,7 @@ func TestDB(t *testing.T) {
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
-		err = proto.Unmarshal(bFound, out)
+		err = proto.Unmarshal(bFound[0], out)
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))
@@ -162,7 +162,7 @@ func TestBlockSharding(t *testing.T) {
 	assert.Greater(t, len(bFound), 0)
 
 	out := &tempopb.PushRequest{}
-	err = proto.Unmarshal(bFound, out)
+	err = proto.Unmarshal(bFound[0], out)
 	assert.NoError(t, err)
 	assert.True(t, proto.Equal(out, req))
 

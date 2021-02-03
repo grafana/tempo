@@ -195,18 +195,12 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	span.LogFields(ot_log.String("msg", "searching store"))
-	foundBytes, metrics, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+	partialTraces, metrics, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 	}
 
-	storeTrace := &tempopb.Trace{}
-	err = proto.Unmarshal(foundBytes, storeTrace)
-	if err != nil {
-		return nil, err
-	}
-
-	span.LogFields(ot_log.String("msg", "found backend trace"), ot_log.Int("len", len(foundBytes)))
+	span.LogFields(ot_log.String("msg", "done searching store"))
 	metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads.Load()))
 	metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead.Load()))
 	metricQueryReads.WithLabelValues("index").Observe(float64(metrics.IndexReads.Load()))
@@ -214,9 +208,16 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	metricQueryReads.WithLabelValues("block").Observe(float64(metrics.BlockReads.Load()))
 	metricQueryBytesRead.WithLabelValues("block").Observe(float64(metrics.BlockBytesRead.Load()))
 
-	// combine out with completeTrace
+	// combine partialTraces with completeTrace
 	var spanCountA, spanCountB, spanCountTotal int
-	completeTrace, spanCountA, spanCountB, spanCountTotal = tempo_util.CombineTraceProtos(completeTrace, storeTrace)
+	for _, partialTrace := range partialTraces {
+		storeTrace := &tempopb.Trace{}
+		err = proto.Unmarshal(partialTrace, storeTrace)
+		if err != nil {
+			return nil, err
+		}
+		completeTrace, spanCountA, spanCountB, spanCountTotal = tempo_util.CombineTraceProtos(completeTrace, storeTrace)
+	}
 	span.LogFields(ot_log.String("msg", "combined trace protos from ingesters and store"),
 		ot_log.Int("spansCountA", spanCountA),
 		ot_log.Int("spansCountB", spanCountB),

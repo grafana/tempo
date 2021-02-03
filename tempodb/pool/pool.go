@@ -87,9 +87,9 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	}
 
 	resultsCh := make(chan []byte, totalJobs) // way for jobs to send back results
-	err := atomic.NewError(nil)       // way for jobs to send back an error
-	stop := atomic.NewBool(false)     // way to signal to the jobs to quit
-	wg := &sync.WaitGroup{}           // way to wait for all jobs to complete
+	err := atomic.NewError(nil)               // way for jobs to send back an error
+	stop := atomic.NewBool(false)             // way to signal to the jobs to quit
+	wg := &sync.WaitGroup{}                   // way to wait for all jobs to complete
 
 	// add each job one at a time.  even though we checked length above these might still fail
 	for _, payload := range payloads {
@@ -127,13 +127,11 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 		msg = append(msg, res)
 	}
 
-	// ignore err if msg != nil.  otherwise errors like "context cancelled"
-	//  will take precedence over the err
-	if len(msg) > 0 {
-		return msg, nil
+	if err := err.Load(); err != nil {
+		return nil, err
 	}
 
-	return nil, err.Load()
+	return msg, nil
 }
 
 func (p *Pool) Shutdown() {
