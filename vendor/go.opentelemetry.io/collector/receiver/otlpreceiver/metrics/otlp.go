@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,9 +19,8 @@ import (
 
 	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/consumer/pdatautil"
-	"go.opentelemetry.io/collector/internal/data"
-	collectormetrics "github.com/open-telemetry/opentelemetry-proto/gen/go/collector/metrics/v1"
+	"go.opentelemetry.io/collector/consumer/pdata"
+	collectormetrics "go.opentelemetry.io/collector/internal/data/protogen/collector/metrics/v1"
 	"go.opentelemetry.io/collector/obsreport"
 )
 
@@ -50,9 +49,9 @@ const (
 )
 
 func (r *Receiver) Export(ctx context.Context, req *collectormetrics.ExportMetricsServiceRequest) (*collectormetrics.ExportMetricsServiceResponse, error) {
-	receiverCtx := obsreport.ReceiverContext(ctx, r.instanceName, receiverTransport, receiverTagValue)
+	receiverCtx := obsreport.ReceiverContext(ctx, r.instanceName, receiverTransport)
 
-	md := data.MetricDataFromOtlp(req.ResourceMetrics)
+	md := pdata.MetricsFromOtlp(req.ResourceMetrics)
 
 	err := r.sendToNextConsumer(receiverCtx, md)
 	if err != nil {
@@ -62,7 +61,7 @@ func (r *Receiver) Export(ctx context.Context, req *collectormetrics.ExportMetri
 	return &collectormetrics.ExportMetricsServiceResponse{}, nil
 }
 
-func (r *Receiver) sendToNextConsumer(ctx context.Context, md data.MetricData) error {
+func (r *Receiver) sendToNextConsumer(ctx context.Context, md pdata.Metrics) error {
 	metricCount, dataPointCount := md.MetricAndDataPointCount()
 	if metricCount == 0 {
 		return nil
@@ -73,8 +72,8 @@ func (r *Receiver) sendToNextConsumer(ctx context.Context, md data.MetricData) e
 	}
 
 	ctx = obsreport.StartMetricsReceiveOp(ctx, r.instanceName, receiverTransport)
-	err := r.nextConsumer.ConsumeMetrics(ctx, pdatautil.MetricsFromInternalMetrics(md))
-	obsreport.EndMetricsReceiveOp(ctx, dataFormatProtobuf, dataPointCount, metricCount, err)
+	err := r.nextConsumer.ConsumeMetrics(ctx, md)
+	obsreport.EndMetricsReceiveOp(ctx, dataFormatProtobuf, dataPointCount, err)
 
 	return err
 }

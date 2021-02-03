@@ -5,12 +5,14 @@ import (
 	"io"
 	"strings"
 
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
+
 	"github.com/spf13/viper"
 
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 	"github.com/hashicorp/go-hclog"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	jaeger_config "github.com/uber/jaeger-client-go/config"
 )
@@ -51,7 +53,7 @@ func main() {
 	cfg.InitFromViper(v)
 
 	backend := tempo.New(cfg)
-	grpc.Serve(&plugin{backend: backend})
+	grpc.Serve(&shared.PluginServices{Store: &plugin{backend: backend}})
 }
 
 type plugin struct {

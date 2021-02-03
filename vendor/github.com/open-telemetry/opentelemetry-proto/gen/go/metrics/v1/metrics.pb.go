@@ -2217,10 +2217,7 @@ func (m *ResourceMetrics) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {
@@ -2340,10 +2337,7 @@ func (m *InstrumentationLibraryMetrics) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {
@@ -2565,10 +2559,7 @@ func (m *Metric) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {
@@ -2752,10 +2743,7 @@ func (m *MetricDescriptor) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {
@@ -2878,10 +2866,7 @@ func (m *Int64DataPoint) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {
@@ -2996,10 +2981,7 @@ func (m *DoubleDataPoint) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {
@@ -3221,10 +3203,7 @@ func (m *HistogramDataPoint) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {
@@ -3329,10 +3308,7 @@ func (m *HistogramDataPoint_Bucket) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {
@@ -3437,10 +3413,7 @@ func (m *HistogramDataPoint_Bucket_Exemplar) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {
@@ -3608,10 +3581,7 @@ func (m *SummaryDataPoint) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {
@@ -3683,10 +3653,7 @@ func (m *SummaryDataPoint_ValueAtPercentile) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthMetrics
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthMetrics
 			}
 			if (iNdEx + skippy) > l {

@@ -6,6 +6,9 @@ import (
 	"os"
 	"time"
 
+	v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+
 	"contrib.go.opencensus.io/exporter/prometheus"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
@@ -21,7 +24,6 @@ import (
 	"go.opentelemetry.io/collector/component/componenterror"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configmodels"
-	"go.opentelemetry.io/collector/consumer/converter"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/obsreport"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
@@ -74,15 +76,15 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 	// load config
 	receiverFactories, err := component.MakeReceiverFactoryMap(
 		jaegerreceiver.NewFactory(),
-		&zipkinreceiver.Factory{},
-		&opencensusreceiver.Factory{},
+		zipkinreceiver.NewFactory(),
+		opencensusreceiver.NewFactory(),
 		otlpreceiver.NewFactory(),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	cfgs, err := config.Load(v, config.Factories{
+	cfgs, err := config.Load(v, component.Factories{
 		Receivers: receiverFactories,
 	})
 	if err != nil {
@@ -100,7 +102,7 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 		}
 
 		if factory, ok := factoryBase.(component.ReceiverFactory); ok {
-			receiver, err := factory.CreateTraceReceiver(ctx, params, cfg, shim)
+			receiver, err := factory.CreateTracesReceiver(ctx, params, cfg, shim)
 			if err != nil {
 				return nil, err
 			}
@@ -108,13 +110,6 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 			shim.receivers = append(shim.receivers, receiver)
 			continue
 		}
-
-		factory := factoryBase.(component.ReceiverFactoryOld)
-		receiver, err := factory.CreateTraceReceiver(ctx, zapLogger, cfg, converter.NewOCToInternalTraceConverter(shim))
-		if err != nil {
-			return nil, err
-		}
-		shim.receivers = append(shim.receivers, receiver)
 	}
 
 	shim.Service = services.NewIdleService(shim.starting, shim.stopping)
@@ -169,8 +164,19 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 
 	var err error
 	for _, resourceSpan := range pdata.TracesToOtlp(td) {
+		srcByte, err := resourceSpan.Marshal()
+		if err != nil {
+			r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
+			break
+		}
+		dstSpans := v1.ResourceSpans{}
+		err = dstSpans.Unmarshal(srcByte)
+		if err != nil {
+			r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
+			break
+		}
 		_, err = r.pusher.Push(ctx, &tempopb.PushRequest{
-			Batch: resourceSpan,
+			Batch: &dstSpans,
 		})
 		if err != nil {
 			r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
@@ -237,7 +243,7 @@ func newLogger(level logging.Level) *zap.Logger {
 }
 
 func newMetricViews() ([]*view.View, error) {
-	views := obsreport.Configure(false, true)
+	views := obsreport.Configure(configtelemetry.LevelNormal)
 	err := view.Register(views...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register views: %w", err)

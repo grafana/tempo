@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,15 +19,18 @@ import (
 
 	occommon "github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1"
 	octrace "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
+	"go.opencensus.io/trace"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"go.opentelemetry.io/collector/consumer/consumerdata"
 	"go.opentelemetry.io/collector/consumer/pdata"
-	"go.opentelemetry.io/collector/internal"
 	"go.opentelemetry.io/collector/translator/conventions"
 	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 )
 
 // OCToTraceData converts OC data format to Traces.
+// Deprecated: use pdata.Traces instead. OCToTraceData may be used only by OpenCensus
+// receiver and exporter implementations.
 func OCToTraceData(td consumerdata.TraceData) pdata.Traces {
 	traceData := pdata.NewTraces()
 	if td.Node == nil && td.Resource == nil && len(td.Spans) == 0 {
@@ -136,41 +139,64 @@ func ocSpanToInternal(src *octrace.Span, dest pdata.Span) {
 	// span kind).
 	dest.SetKind(ocSpanKindToInternal(src.Kind, src.Attributes))
 
-	dest.SetTraceID(pdata.NewTraceID(src.TraceId))
-	dest.SetSpanID(pdata.NewSpanID(src.SpanId))
+	dest.SetTraceID(traceIDToInternal(src.TraceId))
+	dest.SetSpanID(spanIDToInternal(src.SpanId))
 	dest.SetTraceState(ocTraceStateToInternal(src.Tracestate))
-
-	// Empty parentSpanId can be set as a nil value, an zero len slice or an all-zeros slice
-	if hasBytesValue(src.ParentSpanId) {
-		dest.SetParentSpanID(pdata.NewSpanID(src.ParentSpanId))
-	}
+	dest.SetParentSpanID(spanIDToInternal(src.ParentSpanId))
 
 	dest.SetName(src.Name.GetValue())
-	dest.SetStartTime(internal.TimestampToUnixNano(src.StartTime))
-	dest.SetEndTime(internal.TimestampToUnixNano(src.EndTime))
+	dest.SetStartTime(pdata.TimestampToUnixNano(src.StartTime))
+	dest.SetEndTime(pdata.TimestampToUnixNano(src.EndTime))
+
+	ocStatusToInternal(src.Status, src.Attributes, dest.Status())
 
 	initAttributeMapFromOC(src.Attributes, dest.Attributes())
 	dest.SetDroppedAttributesCount(ocAttrsToDroppedAttributes(src.Attributes))
 	ocEventsToInternal(src.TimeEvents, dest)
 	ocLinksToInternal(src.Links, dest)
-	ocStatusToInternal(src.Status, dest.Status())
+	ocSameProcessAsParentSpanToInternal(src.SameProcessAsParentSpan, dest)
 }
 
-func hasBytesValue(s []byte) bool {
-	for _, b := range s {
-		if b != 0 {
-			return true
-		}
-	}
-	return false
+// Transforms the byte slice trace ID into a [16]byte internal pdata.TraceID.
+// If larger input then it is truncated to 16 bytes.
+func traceIDToInternal(traceID []byte) pdata.TraceID {
+	tid := [16]byte{}
+	copy(tid[:], traceID)
+	return pdata.NewTraceID(tid)
 }
 
-func ocStatusToInternal(ocStatus *octrace.Status, dest pdata.SpanStatus) {
+// Transforms the byte slice span ID into a [8]byte internal pdata.SpanID.
+// If larger input then it is truncated to 8 bytes.
+func spanIDToInternal(spanID []byte) pdata.SpanID {
+	sid := [8]byte{}
+	copy(sid[:], spanID)
+	return pdata.NewSpanID(sid)
+}
+
+func ocStatusToInternal(ocStatus *octrace.Status, ocAttrs *octrace.Span_Attributes, dest pdata.SpanStatus) {
 	if ocStatus == nil {
 		return
 	}
-	dest.InitEmpty()
-	dest.SetCode(pdata.StatusCode(ocStatus.Code))
+
+	var code pdata.StatusCode
+	switch ocStatus.Code {
+	case trace.StatusCodeOK:
+		code = pdata.StatusCodeUnset
+	default:
+		// all other OC status codes are errors.
+		code = pdata.StatusCodeError
+	}
+
+	if ocAttrs != nil {
+		// tracetranslator.TagStatusCode is set it must override the status code value.
+		// See the reverse translation in traces_to_oc.go:statusToOC().
+		if attr, ok := ocAttrs.AttributeMap[tracetranslator.TagStatusCode]; ok {
+			code = pdata.StatusCode(attr.GetIntValue())
+			delete(ocAttrs.AttributeMap, tracetranslator.TagStatusCode)
+		}
+	}
+
+	dest.SetCode(code)
 	dest.SetMessage(ocStatus.Message)
 }
 
@@ -292,7 +318,7 @@ func ocEventsToInternal(ocEvents *octrace.Span_TimeEvents, dest pdata.Span) {
 		event := events.At(i)
 		i++
 
-		event.SetTimestamp(internal.TimestampToUnixNano(ocEvent.Time))
+		event.SetTimestamp(pdata.TimestampToUnixNano(ocEvent.Time))
 
 		switch teValue := ocEvent.Value.(type) {
 		case *octrace.Span_TimeEvent_Annotation_:
@@ -339,8 +365,8 @@ func ocLinksToInternal(ocLinks *octrace.Span_Links, dest pdata.Span) {
 		link := links.At(i)
 		i++
 
-		link.SetTraceID(pdata.NewTraceID(ocLink.TraceId))
-		link.SetSpanID(pdata.NewSpanID(ocLink.SpanId))
+		link.SetTraceID(traceIDToInternal(ocLink.TraceId))
+		link.SetSpanID(spanIDToInternal(ocLink.SpanId))
 		link.SetTraceState(ocTraceStateToInternal(ocLink.Tracestate))
 		initAttributeMapFromOC(ocLink.Attributes, link.Attributes())
 		link.SetDroppedAttributesCount(ocAttrsToDroppedAttributes(ocLink.Attributes))
@@ -359,4 +385,11 @@ func ocMessageEventToInternalAttrs(msgEvent *octrace.Span_TimeEvent_MessageEvent
 	dest.UpsertInt(conventions.OCTimeEventMessageEventID, int64(msgEvent.Id))
 	dest.UpsertInt(conventions.OCTimeEventMessageEventUSize, int64(msgEvent.UncompressedSize))
 	dest.UpsertInt(conventions.OCTimeEventMessageEventCSize, int64(msgEvent.CompressedSize))
+}
+
+func ocSameProcessAsParentSpanToInternal(spaps *wrapperspb.BoolValue, dest pdata.Span) {
+	if spaps == nil {
+		return
+	}
+	dest.Attributes().UpsertBool(conventions.OCAttributeSameProcessAsParentSpan, spaps.Value)
 }

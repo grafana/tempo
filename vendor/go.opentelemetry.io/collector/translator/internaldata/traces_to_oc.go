@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,10 +19,11 @@ import (
 	"strings"
 
 	octrace "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
+	"go.opencensus.io/trace"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"go.opentelemetry.io/collector/consumer/consumerdata"
 	"go.opentelemetry.io/collector/consumer/pdata"
-	"go.opentelemetry.io/collector/internal"
 	"go.opentelemetry.io/collector/translator/conventions"
 	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 )
@@ -33,6 +34,8 @@ var (
 	defaultProcessID = 0
 )
 
+// TraceDataToOC may be used only by OpenCensus receiver and exporter implementations.
+// TODO: move this function to OpenCensus package.
 func TraceDataToOC(td pdata.Traces) []consumerdata.TraceData {
 	resourceSpans := td.ResourceSpans()
 
@@ -43,17 +46,13 @@ func TraceDataToOC(td pdata.Traces) []consumerdata.TraceData {
 	ocResourceSpansList := make([]consumerdata.TraceData, 0, resourceSpans.Len())
 
 	for i := 0; i < resourceSpans.Len(); i++ {
-		rs := resourceSpans.At(i)
-		if rs.IsNil() {
-			continue
-		}
-		ocResourceSpansList = append(ocResourceSpansList, ResourceSpansToOC(rs))
+		ocResourceSpansList = append(ocResourceSpansList, resourceSpansToOC(resourceSpans.At(i)))
 	}
 
 	return ocResourceSpansList
 }
 
-func ResourceSpansToOC(rs pdata.ResourceSpans) consumerdata.TraceData {
+func resourceSpansToOC(rs pdata.ResourceSpans) consumerdata.TraceData {
 	ocTraceData := consumerdata.TraceData{
 		SourceFormat: sourceFormat,
 	}
@@ -67,17 +66,10 @@ func ResourceSpansToOC(rs pdata.ResourceSpans) consumerdata.TraceData {
 	ocSpans := make([]*octrace.Span, 0, ilss.At(0).Spans().Len())
 	for i := 0; i < ilss.Len(); i++ {
 		ils := ilss.At(i)
-		if ils.IsNil() {
-			continue
-		}
 		// TODO: Handle instrumentation library name and version.
 		spans := ils.Spans()
 		for j := 0; j < spans.Len(); j++ {
-			span := spans.At(j)
-			if span.IsNil() {
-				continue
-			}
-			ocSpans = append(ocSpans, spanToOC(span))
+			ocSpans = append(ocSpans, spanToOC(spans.At(j)))
 		}
 	}
 	ocTraceData.Spans = ocSpans
@@ -85,6 +77,7 @@ func ResourceSpansToOC(rs pdata.ResourceSpans) consumerdata.TraceData {
 }
 
 func spanToOC(span pdata.Span) *octrace.Span {
+	spaps := attributesMapToOCSameProcessAsParentSpan(span.Attributes())
 	attributes := attributesMapToOCSpanAttributes(span.Attributes(), span.DroppedAttributesCount())
 	if kindAttr := spanKindToOCAttribute(span.Kind()); kindAttr != nil {
 		if attributes == nil {
@@ -96,22 +89,32 @@ func spanToOC(span pdata.Span) *octrace.Span {
 		attributes.AttributeMap[tracetranslator.TagSpanKind] = kindAttr
 	}
 
+	ocStatus, statusAttr := statusToOC(span.Status())
+	if statusAttr != nil {
+		if attributes == nil {
+			attributes = &octrace.Span_Attributes{
+				AttributeMap:           make(map[string]*octrace.AttributeValue, 1),
+				DroppedAttributesCount: 0,
+			}
+		}
+		attributes.AttributeMap[tracetranslator.TagStatusCode] = statusAttr
+	}
+
 	return &octrace.Span{
-		TraceId:      span.TraceID().Bytes(),
-		SpanId:       span.SpanID().Bytes(),
-		Tracestate:   traceStateToOC(span.TraceState()),
-		ParentSpanId: span.ParentSpanID().Bytes(),
-		Name: &octrace.TruncatableString{
-			Value: span.Name(),
-		},
-		Kind:           spanKindToOC(span.Kind()),
-		StartTime:      internal.UnixNanoToTimestamp(span.StartTime()),
-		EndTime:        internal.UnixNanoToTimestamp(span.EndTime()),
-		Attributes:     attributes,
-		TimeEvents:     eventsToOC(span.Events(), span.DroppedEventsCount()),
-		Links:          linksToOC(span.Links(), span.DroppedLinksCount()),
-		Status:         statusToOC(span.Status()),
-		ChildSpanCount: nil, // TODO(dmitryax): Handle once OTLP supports it
+		TraceId:                 traceIDToOC(span.TraceID()),
+		SpanId:                  spanIDToOC(span.SpanID()),
+		Tracestate:              traceStateToOC(span.TraceState()),
+		ParentSpanId:            spanIDToOC(span.ParentSpanID()),
+		Name:                    stringToTruncatableString(span.Name()),
+		Kind:                    spanKindToOC(span.Kind()),
+		StartTime:               pdata.UnixNanoToTimestamp(span.StartTime()),
+		EndTime:                 pdata.UnixNanoToTimestamp(span.EndTime()),
+		Attributes:              attributes,
+		TimeEvents:              eventsToOC(span.Events(), span.DroppedEventsCount()),
+		Links:                   linksToOC(span.Links(), span.DroppedLinksCount()),
+		Status:                  ocStatus,
+		ChildSpanCount:          nil, // TODO(dmitryax): Handle once OTLP supports it
+		SameProcessAsParentSpan: spaps,
 	}
 }
 
@@ -144,9 +147,7 @@ func attributeValueToOC(attr pdata.AttributeValue) *octrace.AttributeValue {
 	switch attr.Type() {
 	case pdata.AttributeValueSTRING:
 		a.Value = &octrace.AttributeValue_StringValue{
-			StringValue: &octrace.TruncatableString{
-				Value: attr.StringVal(),
-			},
+			StringValue: stringToTruncatableString(attr.StringVal()),
 		}
 	case pdata.AttributeValueBOOL:
 		a.Value = &octrace.AttributeValue_BoolValue{
@@ -160,11 +161,17 @@ func attributeValueToOC(attr pdata.AttributeValue) *octrace.AttributeValue {
 		a.Value = &octrace.AttributeValue_IntValue{
 			IntValue: attr.IntVal(),
 		}
+	case pdata.AttributeValueMAP:
+		a.Value = &octrace.AttributeValue_StringValue{
+			StringValue: stringToTruncatableString(tracetranslator.AttributeValueToString(attr, false)),
+		}
+	case pdata.AttributeValueARRAY:
+		a.Value = &octrace.AttributeValue_StringValue{
+			StringValue: stringToTruncatableString(tracetranslator.AttributeValueToString(attr, false)),
+		}
 	default:
 		a.Value = &octrace.AttributeValue_StringValue{
-			StringValue: &octrace.TruncatableString{
-				Value: fmt.Sprintf("<Unknown OpenTelemetry attribute value type %q>", attr.Type()),
-			},
+			StringValue: stringToTruncatableString(fmt.Sprintf("<Unknown OpenTelemetry attribute value type %q>", attr.Type())),
 		}
 	}
 
@@ -198,11 +205,17 @@ func spanKindToOCAttribute(kind pdata.SpanKind) *octrace.AttributeValue {
 func stringAttributeValue(val string) *octrace.AttributeValue {
 	return &octrace.AttributeValue{
 		Value: &octrace.AttributeValue_StringValue{
-			StringValue: &octrace.TruncatableString{
-				Value: val,
-			},
+			StringValue: stringToTruncatableString(val),
 		},
 	}
+}
+
+func attributesMapToOCSameProcessAsParentSpan(attr pdata.AttributeMap) *wrapperspb.BoolValue {
+	val, ok := attr.Get(conventions.OCAttributeSameProcessAsParentSpan)
+	if !ok || val.Type() != pdata.AttributeValueBOOL {
+		return nil
+	}
+	return wrapperspb.Bool(val.BoolVal())
 }
 
 // OTLP follows the W3C format, e.g. "vendorname1=opaqueValue1,vendorname2=opaqueValue2"
@@ -302,7 +315,7 @@ func eventToOC(event pdata.SpanEvent) *octrace.Span_TimeEvent {
 			ocMessageEventType := ocMessageEventAttrValues[conventions.OCTimeEventMessageEventType]
 			ocMessageEventTypeVal := octrace.Span_TimeEvent_MessageEvent_Type_value[ocMessageEventType.StringVal()]
 			return &octrace.Span_TimeEvent{
-				Time: internal.UnixNanoToTimestamp(event.Timestamp()),
+				Time: pdata.UnixNanoToTimestamp(event.Timestamp()),
 				Value: &octrace.Span_TimeEvent_MessageEvent_{
 					MessageEvent: &octrace.Span_TimeEvent_MessageEvent{
 						Type:             octrace.Span_TimeEvent_MessageEvent_Type(ocMessageEventTypeVal),
@@ -317,13 +330,11 @@ func eventToOC(event pdata.SpanEvent) *octrace.Span_TimeEvent {
 
 	ocAttributes := attributesMapToOCSpanAttributes(attrs, event.DroppedAttributesCount())
 	return &octrace.Span_TimeEvent{
-		Time: internal.UnixNanoToTimestamp(event.Timestamp()),
+		Time: pdata.UnixNanoToTimestamp(event.Timestamp()),
 		Value: &octrace.Span_TimeEvent_Annotation_{
 			Annotation: &octrace.Span_TimeEvent_Annotation{
-				Description: &octrace.TruncatableString{
-					Value: event.Name(),
-				},
-				Attributes: ocAttributes,
+				Description: stringToTruncatableString(event.Name()),
+				Attributes:  ocAttributes,
 			},
 		},
 	}
@@ -344,8 +355,8 @@ func linksToOC(links pdata.SpanLinkSlice, droppedCount uint32) *octrace.Span_Lin
 	for i := 0; i < links.Len(); i++ {
 		link := links.At(i)
 		ocLink := &octrace.Span_Link{
-			TraceId:    link.TraceID().Bytes(),
-			SpanId:     link.SpanID().Bytes(),
+			TraceId:    traceIDToOC(link.TraceID()),
+			SpanId:     spanIDToOC(link.SpanID()),
 			Tracestate: traceStateToOC(link.TraceState()),
 			Attributes: attributesMapToOCSpanAttributes(link.Attributes(), link.DroppedAttributesCount()),
 		}
@@ -358,12 +369,46 @@ func linksToOC(links pdata.SpanLinkSlice, droppedCount uint32) *octrace.Span_Lin
 	}
 }
 
-func statusToOC(status pdata.SpanStatus) *octrace.Status {
-	if status.IsNil() {
+func traceIDToOC(tid pdata.TraceID) []byte {
+	if tid.IsEmpty() {
 		return nil
 	}
-	return &octrace.Status{
-		Code:    int32(status.Code()),
-		Message: status.Message(),
+	tidBytes := tid.Bytes()
+	return tidBytes[:]
+}
+
+func spanIDToOC(sid pdata.SpanID) []byte {
+	if sid.IsEmpty() {
+		return nil
+	}
+	sidBytes := sid.Bytes()
+	return sidBytes[:]
+}
+
+func statusToOC(status pdata.SpanStatus) (*octrace.Status, *octrace.AttributeValue) {
+	var attr *octrace.AttributeValue
+	var oc int32
+	switch status.Code() {
+	case pdata.StatusCodeUnset:
+		// Unset in OTLP corresponds to OK in OpenCensus.
+		oc = trace.StatusCodeOK
+	case pdata.StatusCodeOk:
+		// OK in OpenCensus is the closest to OK in OTLP.
+		oc = trace.StatusCodeOK
+		// We will also add an attribute to indicate that it is OTLP OK, different from OTLP Unset.
+		attr = &octrace.AttributeValue{Value: &octrace.AttributeValue_IntValue{IntValue: int64(status.Code())}}
+	case pdata.StatusCodeError:
+		oc = trace.StatusCodeUnknown
+	}
+
+	return &octrace.Status{Code: oc, Message: status.Message()}, attr
+}
+
+func stringToTruncatableString(str string) *octrace.TruncatableString {
+	if str == "" {
+		return nil
+	}
+	return &octrace.TruncatableString{
+		Value: str,
 	}
 }

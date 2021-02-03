@@ -10,6 +10,8 @@ GOARCH ?= $(shell go env GOARCH)
 GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
+DOCKER_IMAGE := golang:1.15
+
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './vendor*/*' \
@@ -121,7 +123,7 @@ endif
 ### Dependencies
 
 # Copied from OpenTelemetry Collector Makefile
-DOCKER_PROTOBUF ?= otel/build-protobuf:0.1.0
+DOCKER_PROTOBUF ?= otel/build-protobuf:0.2.1
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD}/$(PROTO_INTERMEDIATE_DIR) ${DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := -I./opentelemetry-proto/ -Ipkg/tempopb/ -I./
 
@@ -158,6 +160,11 @@ clear-protos:
 	rm -rf opentelemetry-proto
 
 ### Check vendored files
+.PHONY: docker-vendor-check
+docker vendor-check: clear-protos
+	docker run --rm -v $(PWD):/usr/src/tempo -w /usr/src/tempo $(DOCKER_IMAGE) go mod vendor && go mod tidy
+	$(MAKE) gen-proto
+
 .PHONY: vendor-check
 vendor-check: clear-protos vendor-dependencies
 	git diff --exit-code
