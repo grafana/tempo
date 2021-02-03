@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -122,7 +123,7 @@ func testCompleteBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 	}
 	sort.Slice(ids, func(i int, j int) bool { return bytes.Compare(ids[i], ids[j]) == -1 })
 
-	iterator, err := backendBlock.Iterator(10)
+	iterator, err := backendBlock.Iterator(10 * 1024 * 1024)
 	require.NoError(t, err, "error getting iterator")
 	i := 0
 	for {
@@ -192,4 +193,35 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 	require.Equal(t, originatingMeta.TenantID, block.meta.TenantID)
 
 	return block, ids, reqs
+}
+
+// Download a block from your backend and place in ./backend_block/fake/<guid>
+func BenchmarkCompressBlock(b *testing.B) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	require.NoError(b, err, "unexpected error creating temp dir")
+
+	r, _, _, err := local.New(&local.Config{
+		Path: "./backend_block",
+	})
+	require.NoError(b, err, "error creating backend")
+
+	backendBlock, err := NewBackendBlock(backend.NewBlockMeta("fake", uuid.MustParse("9f15417a-1242-40e4-9de3-a057d3b176c1"), "v0", backend.EncNone), r)
+	require.NoError(b, err, "error creating backend block")
+
+	iterator, err := backendBlock.Iterator(10 * 1024 * 1024)
+	require.NoError(b, err, "error creating iterator")
+
+	b.ResetTimer()
+
+	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP)
+	cb, err := NewCompleteBlock(&BlockConfig{
+		IndexDownsample: 100,
+		BloomFP:         .05,
+		Encoding:        backend.EncSnappy,
+	}, originatingMeta, iterator, 10000, tempDir, "")
+	require.NoError(b, err, "error creating block")
+
+	lastRecord := cb.records[len(cb.records)-1]
+	fmt.Println("size: ", lastRecord.Start+uint64(lastRecord.Length))
 }
