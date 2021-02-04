@@ -226,7 +226,7 @@ func BenchmarkReadNone(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, true)
 }
 
-// Download a block from your backend and place in ./backend_block/fake/<guid>
+// Download a block from your backend and place in ./benchmark_block/fake/<guid>
 //nolint:unparam
 func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsample int, benchRead bool) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
