@@ -21,7 +21,8 @@ func TestUnmarshalMarshalYaml(t *testing.T) {
 
 		buff, err := yaml.Marshal(expected)
 		assert.NoError(t, err)
-		yaml.Unmarshal(buff, &actual)
+		err = yaml.Unmarshal(buff, &actual)
+		assert.NoError(t, err)
 
 		assert.Equal(t, expected, actual)
 	}
@@ -36,7 +37,8 @@ func TestUnmarshalMarshalJson(t *testing.T) {
 
 		buff, err := json.Marshal(expected)
 		assert.NoError(t, err)
-		json.Unmarshal(buff, &actual)
+		err = json.Unmarshal(buff, &actual)
+		assert.NoError(t, err)
 
 		assert.Equal(t, expected, actual)
 	}
