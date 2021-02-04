@@ -100,7 +100,7 @@ func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	}
 
 	// one final flush
-	_, bytesFlushed, err := c.FlushBuffer(ctx, tracker, w)
+	tracker, bytesFlushed, err := c.FlushBuffer(ctx, tracker, w)
 	if err != nil {
 		return 0, err
 	}
