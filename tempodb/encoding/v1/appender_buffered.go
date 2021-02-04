@@ -9,7 +9,10 @@ import (
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
-// meteredWriter exists jpe
+// meteredWriter is a struct that is used to count the number of bytes
+// written to a block after compression.  Unfortunately the compression io.Reader
+// returns bytes before compression so this is necessary to know the actual number of
+// byte written.
 type meteredWriter struct {
 	wrappedWriter io.Writer
 	bytesWritten  int

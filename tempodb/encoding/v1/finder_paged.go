@@ -5,10 +5,8 @@ import (
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
-// jpe comment
-// NewPagedFinder returns a pagedFinder. This finder is used for searching
-//  a set of records and returning an object. If a set of consecutive records has
-//  matching ids they will be combined using the ObjectCombiner.
+// NewPagedFinder returns a v0.pagedFinder.  There are no changes
+// to logic from the v0 finder and all compression changes are handled in the pageReader
 func NewPagedFinder(index common.IndexReader, r common.PageReader, combiner common.ObjectCombiner) common.Finder {
 	return v0.NewPagedFinder(index, r, combiner)
 }

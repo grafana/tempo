@@ -25,7 +25,7 @@ type BackendBlock struct {
 func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, error) {
 	var encoding versionedEncoding
 
-	switch meta.Version { // jpe need a way to test this
+	switch meta.Version {
 	case "v0":
 		encoding = v0Encoding{}
 	case "v1":

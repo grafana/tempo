@@ -35,7 +35,7 @@ type CompleteBlock struct {
 // NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
 func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iterator common.Iterator, estimatedObjects int, filepath string, walFilename string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
-		encoding:    latestEncoding(), // jpe - wut
+		encoding:    latestEncoding(),
 		meta:        backend.NewBlockMeta(originatingMeta.TenantID, uuid.New(), currentVersion, cfg.Encoding),
 		bloom:       common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
 		records:     make([]*common.Record, 0),

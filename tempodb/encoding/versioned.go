@@ -25,7 +25,7 @@ type versionedEncoding interface {
 	appendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error)
 
 	newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error)
-	newIndexReader(indexBytes []byte) (common.IndexReader, error) // jpe make this newindexreader
+	newIndexReader(indexBytes []byte) (common.IndexReader, error)
 
 	nameIndex() string
 	nameObjects() string
