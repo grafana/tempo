@@ -172,8 +172,9 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 			minID = id
 		}
 	}
-	appender.Complete()
-	err := writer.Flush()
+	err := appender.Complete()
+	require.NoError(t, err)
+	err = writer.Flush()
 	require.NoError(t, err, "unexpected error flushing writer")
 
 	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP)
@@ -226,6 +227,7 @@ func BenchmarkReadNone(b *testing.B) {
 }
 
 // Download a block from your backend and place in ./backend_block/fake/<guid>
+//nolint:unparam
 func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsample int, benchRead bool) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)

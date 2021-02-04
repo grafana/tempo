@@ -70,8 +70,8 @@ func TestCompactorBlockAddObject(t *testing.T) {
 			maxID = id
 		}
 	}
-	cb.appender.Complete()
-
+	err = cb.appender.Complete()
+	assert.NoError(t, err)
 	assert.Equal(t, numObjects, cb.Length())
 
 	// test meta
