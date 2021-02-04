@@ -333,7 +333,7 @@ func TestCompactionMetrics(t *testing.T) {
 		Block: &encoding.BlockConfig{
 			IndexDownsample: 11,
 			BloomFP:         .01,
-			Encoding:        backend.EncLZ4_4M,
+			Encoding:        backend.EncNone,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -364,8 +364,8 @@ func TestCompactionMetrics(t *testing.T) {
 	blocksStart, err := test.GetCounterVecValue(metricCompactionBlocks, "0")
 	assert.NoError(t, err)
 
-	// bytesStart, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
-	// assert.NoError(t, err)
+	bytesStart, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
+	assert.NoError(t, err)
 
 	// compact everything
 	err = rw.compact(rw.blocklist(testTenantID), testTenantID)
@@ -380,14 +380,14 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, float64(blockCount), blocksEnd-blocksStart)
 
-	// bytesEnd, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0") - jpe restore?
-	// assert.NoError(t, err)
-	// bytesPerRecord :=
-	// 	4 /* total length */ +
-	// 		4 /* id length */ +
-	// 		16 /* id */ +
-	// 		3 /* test record length */
-	// assert.Equal(t, float64(blockCount*recordCount*bytesPerRecord), bytesEnd-bytesStart)
+	bytesEnd, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
+	assert.NoError(t, err)
+	bytesPerRecord :=
+		4 /* total length */ +
+			4 /* id length */ +
+			16 /* id */ +
+			3 /* test record length */
+	assert.Equal(t, float64(blockCount*recordCount*bytesPerRecord), bytesEnd-bytesStart)
 }
 
 func TestCompactionIteratesThroughTenants(t *testing.T) {

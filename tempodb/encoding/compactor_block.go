@@ -74,34 +74,35 @@ func (c *CompactorBlock) Length() int {
 }
 
 // FlushBuffer flushes any existing objects to the backend
-func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (backend.AppendTracker, error) {
+func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (backend.AppendTracker, int, error) {
 	if c.appender.Length() == 0 {
-		return tracker, nil
+		return tracker, 0, nil
 	}
 
 	meta := c.BlockMeta()
 	tracker, err := c.encoding.appendBlockData(ctx, w, meta, tracker, c.appendBuffer.Bytes())
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
+	bytesFlushed := c.appendBuffer.Len()
 	c.appendBuffer.Reset()
 	c.bufferedObjects = 0
 
-	return tracker, nil
+	return tracker, bytesFlushed, nil
 }
 
 // Complete finishes writes the compactor metadata and closes all buffers and appenders
-func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) error {
+func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (int, error) {
 	err := c.appender.Complete()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// one final flush
-	_, err = c.FlushBuffer(ctx, tracker, w)
+	_, bytesFlushed, err := c.FlushBuffer(ctx, tracker, w)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	records := c.appender.Records()
@@ -109,10 +110,10 @@ func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTra
 
 	err = c.encoding.writeBlockMeta(ctx, w, meta, records, c.bloom)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return w.CloseAppend(ctx, tracker)
+	return bytesFlushed, w.CloseAppend(ctx, tracker)
 }
 
 func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
