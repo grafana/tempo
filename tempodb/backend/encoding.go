@@ -54,7 +54,6 @@ func (e Encoding) String() string {
 	}
 }
 
-// jpe : test next 3
 // UnmarshalYAML implements the Unmarshaler interface of the yaml pkg.
 func (e *Encoding) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var encString string
@@ -69,6 +68,11 @@ func (e *Encoding) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return nil
+}
+
+// MarshalYAML implements the Marshaler interface of the yaml pkg
+func (e Encoding) MarshalYAML() (interface{}, error) {
+	return e.String(), nil
 }
 
 // UnmarshalJSON implements the Unmarshaler interface of the json pkg.
@@ -88,7 +92,7 @@ func (e *Encoding) UnmarshalJSON(b []byte) error {
 }
 
 // MarshalJSON implements the marshaler interface of the json pkg.
-func (e *Encoding) MarshalJSON() ([]byte, error) {
+func (e Encoding) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("\"" + e.String() + "\"")
 	return buffer.Bytes(), nil
 }
