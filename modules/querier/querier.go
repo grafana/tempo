@@ -160,6 +160,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	defer span.Finish()
 
 	var completeTrace *tempopb.Trace
+	var spanCount, spanCountTotal int
 	if req.QueryIngesters {
 		key := tempo_util.TokenFor(userID, req.TraceID)
 
@@ -182,12 +183,11 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		for _, r := range responses {
 			trace := r.response.Trace
 			if trace != nil {
-				var spanCountA, spanCountB, spanCountTotal int
-				completeTrace, spanCountA, spanCountB, spanCountTotal = tempo_util.CombineTraceProtos(completeTrace, trace)
-				span.LogFields(ot_log.String("msg", "combined trace protos from ingesters"),
-					ot_log.Int("spansCountA", spanCountA),
-					ot_log.Int("spansCountB", spanCountB),
-					ot_log.Int("spansCountTotal", spanCountTotal))
+				completeTrace, _, _, spanCount = tempo_util.CombineTraceProtos(completeTrace, trace)
+				if spanCount > 0 {
+					spanCountTotal = spanCount
+				}
+				span.LogFields(ot_log.String("msg", "combined trace protos from ingesters"))
 			}
 		}
 
@@ -209,19 +209,19 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	metricQueryBytesRead.WithLabelValues("block").Observe(float64(metrics.BlockBytesRead.Load()))
 
 	// combine partialTraces with completeTrace
-	var spanCountA, spanCountB, spanCountTotal int
 	for _, partialTrace := range partialTraces {
 		storeTrace := &tempopb.Trace{}
 		err = proto.Unmarshal(partialTrace, storeTrace)
 		if err != nil {
 			return nil, err
 		}
-		completeTrace, spanCountA, spanCountB, spanCountTotal = tempo_util.CombineTraceProtos(completeTrace, storeTrace)
+		completeTrace, _, _, spanCount = tempo_util.CombineTraceProtos(completeTrace, storeTrace)
+		if spanCount > 0 {
+			spanCountTotal = spanCount
+		}
 	}
 	span.LogFields(ot_log.String("msg", "combined trace protos from ingesters and store"),
-		ot_log.Int("spansCountA", spanCountA),
-		ot_log.Int("spansCountB", spanCountB),
-		ot_log.Int("spansCountTotal", spanCountTotal))
+		ot_log.Int("spanCountTotal", spanCountTotal))
 
 	return &tempopb.TraceByIDResponse{
 		Trace: completeTrace,
