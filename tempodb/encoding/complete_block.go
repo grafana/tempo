@@ -142,7 +142,7 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 		return nil, err
 	}
 
-	pageReader, err := c.encoding.newPageReader(file, c.meta.Encoding) // jpe - pipe in encoding
+	pageReader, err := c.encoding.newPageReader(file, c.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}

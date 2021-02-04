@@ -5,9 +5,9 @@ import (
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
-// NewIndexReaderBytes returns an index reader for a byte slice of marshalled
+// NewIndexReader returns an index reader for a byte slice of marshalled
 // ordered records.
 // The index has not changed between v0 and v1.
-func NewIndexReaderBytes(index []byte) (common.IndexReader, error) {
-	return v0.NewIndexReaderBytes(index)
+func NewIndexReader(index []byte) (common.IndexReader, error) {
+	return v0.NewIndexReader(index)
 }

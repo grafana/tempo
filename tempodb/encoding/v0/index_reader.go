@@ -13,9 +13,9 @@ type readerBytes struct {
 	index []byte
 }
 
-// NewIndexReaderBytes returns an index reader for a byte slice of marshalled
+// NewIndexReader returns an index reader for a byte slice of marshalled
 // ordered records.
-func NewIndexReaderBytes(index []byte) (common.IndexReader, error) {
+func NewIndexReader(index []byte) (common.IndexReader, error) {
 	mod := len(index) % recordLength
 	if mod != 0 {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", len(index))

@@ -25,7 +25,7 @@ type versionedEncoding interface {
 	appendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error)
 
 	newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error)
-	newIndexReaderBytes(indexBytes []byte) (common.IndexReader, error) // jpe make this newindexreader
+	newIndexReader(indexBytes []byte) (common.IndexReader, error) // jpe make this newindexreader
 
 	nameIndex() string
 	nameObjects() string
@@ -44,7 +44,7 @@ func (v v0Encoding) newBufferedAppender(writer io.Writer, _ backend.Encoding, in
 	return v0.NewBufferedAppender(writer, indexDownsample, totalObjectsEstimate), nil
 }
 func (v v0Encoding) newPagedIterator(chunkSizeBytes uint32, indexBytes []byte, pageReader common.PageReader) (common.Iterator, error) {
-	reader, err := v0.NewIndexReaderBytes(indexBytes)
+	reader, err := v0.NewIndexReader(indexBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -54,8 +54,8 @@ func (v v0Encoding) newPagedIterator(chunkSizeBytes uint32, indexBytes []byte, p
 func (v v0Encoding) newPagedFinder(indexReader common.IndexReader, pageReader common.PageReader, combiner common.ObjectCombiner) common.Finder {
 	return v0.NewPagedFinder(indexReader, pageReader, combiner)
 }
-func (v v0Encoding) newIndexReaderBytes(indexBytes []byte) (common.IndexReader, error) {
-	return v0.NewIndexReaderBytes(indexBytes)
+func (v v0Encoding) newIndexReader(indexBytes []byte) (common.IndexReader, error) {
+	return v0.NewIndexReader(indexBytes)
 }
 func (v v0Encoding) newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error) {
 	return v0.NewPageReader(ra), nil
@@ -86,7 +86,7 @@ func (v v1Encoding) newBufferedAppender(writer io.Writer, encoding backend.Encod
 	return v1.NewBufferedAppender(writer, encoding, indexDownsample, totalObjectsEstimate)
 }
 func (v v1Encoding) newPagedIterator(chunkSizeBytes uint32, indexBytes []byte, pageReader common.PageReader) (common.Iterator, error) {
-	reader, err := v1.NewIndexReaderBytes(indexBytes)
+	reader, err := v1.NewIndexReader(indexBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +99,8 @@ func (v v1Encoding) newPagedFinder(indexReader common.IndexReader, pageReader co
 func (v v1Encoding) newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error) {
 	return v1.NewPageReader(ra, encoding)
 }
-func (v v1Encoding) newIndexReaderBytes(indexBytes []byte) (common.IndexReader, error) {
-	return v1.NewIndexReaderBytes(indexBytes)
+func (v v1Encoding) newIndexReader(indexBytes []byte) (common.IndexReader, error) {
+	return v1.NewIndexReader(indexBytes)
 }
 func (v v1Encoding) writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*common.Record, b *common.ShardedBloomFilter) error {
 	return v1.WriteBlockMeta(ctx, w, meta, records, b)

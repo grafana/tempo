@@ -78,7 +78,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 		return nil, fmt.Errorf("error reading index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
-	indexReader, err := b.encoding.newIndexReaderBytes(indexBytes)
+	indexReader, err := b.encoding.newIndexReader(indexBytes)
 	if err != nil {
 		return nil, fmt.Errorf("error building index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
