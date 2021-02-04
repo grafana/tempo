@@ -27,7 +27,8 @@
  "editable": true,
  "gnetId": null,
  "graphTooltip": 1,
- "iteration": 1609831418010,
+ "id": 115,
+ "iteration": 1612469301683,
  "links": [
 
  ],
@@ -92,7 +93,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -201,7 +202,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -310,7 +311,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -323,7 +324,7 @@
    "targets": [
     {
      "expr": "go_goroutines{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
-     "legendFormat": "{{job}}",
+     "legendFormat": "{{pod}}",
      "refId": "A"
     }
    ],
@@ -418,7 +419,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -528,7 +529,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -540,7 +541,7 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\"}",
+     "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}",
      "interval": "",
      "legendFormat": "{{pod}}",
      "refId": "A"
@@ -637,7 +638,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -754,7 +755,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -862,7 +863,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -987,7 +988,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -1096,7 +1097,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -1214,7 +1215,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": true,
    "renderer": "flot",
@@ -1334,7 +1335,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -1444,7 +1445,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": true,
    "renderer": "flot",
@@ -1565,7 +1566,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -1680,7 +1681,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -1806,7 +1807,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -1916,7 +1917,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -2037,7 +2038,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -2158,7 +2159,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -2257,127 +2258,6 @@
    "fillGradient": 0,
    "gridPos": {
     "h": 5,
-    "w": 3,
-    "x": 20,
-    "y": 13
-   },
-   "hiddenSeries": false,
-   "id": 13,
-   "legend": {
-    "avg": false,
-    "current": false,
-    "max": false,
-    "min": false,
-    "show": false,
-    "total": false,
-    "values": false
-   },
-   "lines": true,
-   "linewidth": 1,
-   "nullPointMode": "null",
-   "options": {
-    "alertThreshold": true
-   },
-   "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
-   "pointradius": 2,
-   "points": false,
-   "renderer": "flot",
-   "seriesOverrides": [
-
-   ],
-   "spaceLength": 10,
-   "stack": false,
-   "steppedLine": false,
-   "targets": [
-    {
-     "expr": "histogram_quantile(.99, sum(rate(tempo_query_bytes_read_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
-     "interval": "",
-     "legendFormat": ".99",
-     "refId": "A"
-    },
-    {
-     "expr": "histogram_quantile(.9, sum(rate(tempo_query_bytes_read_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
-     "interval": "",
-     "legendFormat": ".9",
-     "refId": "B"
-    },
-    {
-     "expr": "histogram_quantile(.5, sum(rate(tempo_query_bytes_read_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
-     "interval": "",
-     "legendFormat": ".5",
-     "refId": "C"
-    }
-   ],
-   "thresholds": [
-
-   ],
-   "timeFrom": null,
-   "timeRegions": [
-
-   ],
-   "timeShift": null,
-   "title": "Query  Bytes Read",
-   "tooltip": {
-    "shared": true,
-    "sort": 0,
-    "value_type": "individual"
-   },
-   "type": "graph",
-   "xaxis": {
-    "buckets": null,
-    "mode": "time",
-    "name": null,
-    "show": true,
-    "values": [
-
-    ]
-   },
-   "yaxes": [
-    {
-     "format": "decbytes",
-     "label": null,
-     "logBase": 1,
-     "max": null,
-     "min": null,
-     "show": true
-    },
-    {
-     "format": "short",
-     "label": null,
-     "logBase": 1,
-     "max": null,
-     "min": null,
-     "show": true
-    }
-   ],
-   "yaxis": {
-    "align": false,
-    "alignLevel": null
-   }
-  },
-  {
-   "aliasColors": {
-
-   },
-   "bars": false,
-   "dashLength": 10,
-   "dashes": false,
-   "datasource": "$ds",
-   "fieldConfig": {
-    "defaults": {
-     "custom": {
-
-     }
-    },
-    "overrides": [
-
-    ]
-   },
-   "fill": 1,
-   "fillGradient": 0,
-   "gridPos": {
-    "h": 5,
     "w": 4,
     "x": 12,
     "y": 18
@@ -2400,7 +2280,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -2457,226 +2337,6 @@
    "yaxes": [
     {
      "format": "s",
-     "label": null,
-     "logBase": 1,
-     "max": null,
-     "min": null,
-     "show": true
-    },
-    {
-     "format": "short",
-     "label": null,
-     "logBase": 1,
-     "max": null,
-     "min": null,
-     "show": true
-    }
-   ],
-   "yaxis": {
-    "align": false,
-    "alignLevel": null
-   }
-  },
-  {
-   "aliasColors": {
-
-   },
-   "bars": false,
-   "dashLength": 10,
-   "dashes": false,
-   "datasource": "$ds",
-   "fieldConfig": {
-    "defaults": {
-     "custom": {
-
-     }
-    },
-    "overrides": [
-
-    ]
-   },
-   "fill": 1,
-   "fillGradient": 0,
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 16,
-    "y": 18
-   },
-   "hiddenSeries": false,
-   "id": 15,
-   "legend": {
-    "avg": false,
-    "current": false,
-    "max": false,
-    "min": false,
-    "show": false,
-    "total": false,
-    "values": false
-   },
-   "lines": true,
-   "linewidth": 1,
-   "nullPointMode": "null",
-   "options": {
-    "alertThreshold": true
-   },
-   "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
-   "pointradius": 2,
-   "points": false,
-   "renderer": "flot",
-   "seriesOverrides": [
-
-   ],
-   "spaceLength": 10,
-   "stack": false,
-   "steppedLine": false,
-   "targets": [
-    {
-     "expr": "histogram_quantile(.5, sum(rate(tempo_query_reads_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (layer, le))",
-     "hide": false,
-     "interval": "",
-     "legendFormat": "{{layer}}",
-     "refId": "A"
-    }
-   ],
-   "thresholds": [
-
-   ],
-   "timeFrom": null,
-   "timeRegions": [
-
-   ],
-   "timeShift": null,
-   "title": "p50 Reads",
-   "tooltip": {
-    "shared": true,
-    "sort": 0,
-    "value_type": "individual"
-   },
-   "type": "graph",
-   "xaxis": {
-    "buckets": null,
-    "mode": "time",
-    "name": null,
-    "show": true,
-    "values": [
-
-    ]
-   },
-   "yaxes": [
-    {
-     "format": "short",
-     "label": null,
-     "logBase": 1,
-     "max": null,
-     "min": null,
-     "show": true
-    },
-    {
-     "format": "short",
-     "label": null,
-     "logBase": 1,
-     "max": null,
-     "min": null,
-     "show": true
-    }
-   ],
-   "yaxis": {
-    "align": false,
-    "alignLevel": null
-   }
-  },
-  {
-   "aliasColors": {
-
-   },
-   "bars": false,
-   "dashLength": 10,
-   "dashes": false,
-   "datasource": "$ds",
-   "fieldConfig": {
-    "defaults": {
-     "custom": {
-
-     }
-    },
-    "overrides": [
-
-    ]
-   },
-   "fill": 1,
-   "fillGradient": 0,
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 19,
-    "y": 18
-   },
-   "hiddenSeries": false,
-   "id": 14,
-   "legend": {
-    "avg": false,
-    "current": false,
-    "max": false,
-    "min": false,
-    "show": false,
-    "total": false,
-    "values": false
-   },
-   "lines": true,
-   "linewidth": 1,
-   "nullPointMode": "null",
-   "options": {
-    "alertThreshold": true
-   },
-   "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
-   "pointradius": 2,
-   "points": false,
-   "renderer": "flot",
-   "seriesOverrides": [
-
-   ],
-   "spaceLength": 10,
-   "stack": false,
-   "steppedLine": false,
-   "targets": [
-    {
-     "expr": "histogram_quantile(.99, sum(rate(tempo_query_reads_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (layer, le))",
-     "hide": false,
-     "interval": "",
-     "legendFormat": "{{layer}}",
-     "refId": "A"
-    }
-   ],
-   "thresholds": [
-
-   ],
-   "timeFrom": null,
-   "timeRegions": [
-
-   ],
-   "timeShift": null,
-   "title": "p99 Reads",
-   "tooltip": {
-    "shared": true,
-    "sort": 0,
-    "value_type": "individual"
-   },
-   "type": "graph",
-   "xaxis": {
-    "buckets": null,
-    "mode": "time",
-    "name": null,
-    "show": true,
-    "values": [
-
-    ]
-   },
-   "yaxes": [
-    {
-     "format": "short",
      "label": null,
      "logBase": 1,
      "max": null,
@@ -2757,7 +2417,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -2866,7 +2526,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -2975,7 +2635,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -3084,7 +2744,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -3193,7 +2853,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -3302,7 +2962,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": true,
    "renderer": "flot",
@@ -3423,7 +3083,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -3532,7 +3192,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -3647,7 +3307,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -3768,7 +3428,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -3908,7 +3568,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -4020,7 +3680,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -4858,7 +4518,7 @@
        },
        {
         "color": "red",
-        "value": 0.05
+        "value": 0.050000000000000003
        }
       ]
      },
@@ -4961,7 +4621,7 @@
 
     }
    },
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "targets": [
     {
      "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\", error=\"notfound\"}[1h])) by (secondsago) / sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])) by (secondsago)",
@@ -4997,7 +4657,7 @@
        },
        {
         "color": "red",
-        "value": 0.05
+        "value": 0.050000000000000003
        }
       ]
      },
@@ -5100,7 +4760,7 @@
 
     }
    },
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "targets": [
     {
      "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\", error=\"missingspans\"}[1h])) by (secondsago) / sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])) by (secondsago)",
@@ -5174,7 +4834,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -5286,7 +4946,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -5395,7 +5055,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
@@ -5504,7 +5164,7 @@
     "alertThreshold": true
    },
    "percentage": false,
-   "pluginVersion": "7.4.0-9155pre",
+   "pluginVersion": "7.5.0-11433pre",
    "pointradius": 2,
    "points": false,
    "renderer": "flot",
