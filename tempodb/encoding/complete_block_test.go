@@ -206,8 +206,11 @@ func BenchmarkWriteGzip(b *testing.B) {
 func BenchmarkWriteSnappy(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncSnappy, benchDownsample, false)
 }
-func BenchmarkWriteLZ4(b *testing.B) {
+func BenchmarkWriteLZ4256(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncLZ4_256k, benchDownsample, false)
+}
+func BenchmarkWriteLZ41M(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncLZ4_1M, benchDownsample, false)
 }
 func BenchmarkWriteNone(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, false)
@@ -219,8 +222,11 @@ func BenchmarkReadGzip(b *testing.B) {
 func BenchmarkReadSnappy(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncSnappy, benchDownsample, true)
 }
-func BenchmarkReadLZ4(b *testing.B) {
+func BenchmarkReadLZ4256(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncLZ4_256k, benchDownsample, true)
+}
+func BenchmarkReadLZ41M(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncLZ4_1M, benchDownsample, true)
 }
 func BenchmarkReadNone(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, true)
@@ -234,7 +240,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	require.NoError(b, err, "unexpected error creating temp dir")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: "./backend_block",
+		Path: "./benchmark_block",
 	})
 	require.NoError(b, err, "error creating backend")
 
