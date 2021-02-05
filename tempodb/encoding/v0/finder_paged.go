@@ -38,7 +38,6 @@ func (f *pagedFinder) Find(id common.ID) ([]byte, error) {
 			return nil, err
 		}
 
-		// jpe - remove?
 		if f.combiner == nil {
 			bytesFound = bytesOne
 			break
@@ -70,7 +69,7 @@ func (f *pagedFinder) findOne(id common.ID, record *common.Record) ([]byte, erro
 	}
 
 	iter := NewIterator(bytes.NewReader(pages[0]))
-	if f.combiner != nil { // jpe - remove combiner and just return a slice of slices?
+	if f.combiner != nil {
 		iter, err = NewDedupingIterator(iter, f.combiner)
 	}
 	if err != nil {

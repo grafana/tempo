@@ -22,7 +22,6 @@ func NewPageReader(r io.ReaderAt) common.PageReader {
 	}
 }
 
-// jpe : tests
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
@@ -44,14 +43,21 @@ func (r *pageReader) Read(records []*common.Record) ([][]byte, error) {
 	}
 
 	slicePages := make([][]byte, 0, len(records))
-	cursor := 0
+	cursor := uint32(0)
+	previousEnd := uint64(0)
 	for _, record := range records {
-		if cursor+int(record.Length) > len(contiguousPages) {
-			return nil, fmt.Errorf("record out of bounds while reading pages: %d, %d, %d", cursor, record.Length, len(contiguousPages))
+		end := cursor + record.Length
+		if end > uint32(len(contiguousPages)) {
+			return nil, fmt.Errorf("record out of bounds while reading pages: %d, %d, %d, %d", cursor, record.Length, end, len(contiguousPages))
 		}
 
-		slicePages = append(slicePages, contiguousPages[cursor:cursor+int(record.Length)])
-		cursor += int(record.Length)
+		if previousEnd != record.Start && previousEnd != 0 {
+			return nil, fmt.Errorf("non-contiguous pages requested from pageReader: %d, %+v", previousEnd, record)
+		}
+
+		slicePages = append(slicePages, contiguousPages[cursor:end])
+		cursor += record.Length
+		previousEnd = record.Start + uint64(record.Length)
 	}
 
 	return slicePages, nil
