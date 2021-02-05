@@ -24,15 +24,29 @@ parllelism -
 - Number of Queriers (each of these process the sharded queries in parallel). This can be changed by modifying the size of the
 Querier deployment. More Queriers -> faster processing of shards in parallel -> lower request latency.
 
-- Querier parallelism, configured via
-    ```
-  querier:
-    frontend_worker:
-        parallelism: 5
-  ```
+- Querier parallelism, which is a combination of a few settings:
 
-Parallelism defines the number of shards each Querier processes at a given time. Be careful to factor in the size of the blocklist
-and the size of the worker pool when increasing this number!
+    ```
+    querier:
+      max_concurrent_queries: 10
+      frontend_worker:
+          match_max_concurrent: true  // true by default
+          parallelism: 5              // parallelism per query-frontend. ignored if match_max_concurrent is set to true
+
+    storage:
+      trace:
+        pool:
+          max_workers: 100
+    ```
+
+MaxConcurrentQueries defines the total number of shards each Querier processes at a given time. By default, this number will
+be split between the query frontends, so if there are N query frontends, the Querier will process (Max Concurrent Queries/ N)
+queries per query frontend.
+
+Another way to increase parallelism is by increasing the size of the worker pool that queries the cache & backend blocks.
+
+A theoretically ideal value for this config to avoid _any_ queueing would be (Size of blocklist / Max Concurrent Queries).
+But also factor in the resources provided to the querier.
 
 ## TempoCompactorUnhealthy
 
