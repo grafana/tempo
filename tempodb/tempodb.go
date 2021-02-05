@@ -81,11 +81,12 @@ var (
 
 type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
+	CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error)
 	WAL() *wal.WAL
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, common.FindMetrics, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, error)
 	Shutdown()
 }
 
@@ -121,11 +122,16 @@ type readerWriter struct {
 	compactorTenantOffset uint
 }
 
+// New creates a new tempodb
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
-	var err error
 	var r backend.Reader
 	var w backend.Writer
 	var c backend.Compactor
+
+	err := validateConfig(cfg)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("invalid config while creating tempodb: %w", err)
+	}
 
 	switch cfg.Backend {
 	case "local":
@@ -189,13 +195,15 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error 
 	return c.Write(ctx, rw.w)
 }
 
+func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error) {
+	return block.Complete(rw.cfg.Block, rw.wal, combiner)
+}
+
 func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, common.FindMetrics, error) {
-	metrics := common.NewFindMetrics()
-
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, error) {
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
@@ -203,19 +211,19 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 	blockStartUUID, err := uuid.Parse(blockStart)
 	if err != nil {
-		return nil, metrics, err
+		return nil, err
 	}
 	blockStartBytes, err := blockStartUUID.MarshalBinary()
 	if err != nil {
-		return nil, metrics, err
+		return nil, err
 	}
 	blockEndUUID, err := uuid.Parse(blockEnd)
 	if err != nil {
-		return nil, metrics, err
+		return nil, err
 	}
 	blockEndBytes, err := blockEndUUID.MarshalBinary()
 	if err != nil {
-		return nil, metrics, err
+		return nil, err
 	}
 
 	rw.blockListsMtx.Lock()
@@ -237,17 +245,17 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 	// deliberately placed outside the blocklist mtx unlock
 	if !found {
-		return nil, metrics, nil
+		return nil, nil
 	}
 
 	partialTraces, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*backend.BlockMeta)
-		block, err := encoding.NewBackendBlock(meta)
+		block, err := encoding.NewBackendBlock(meta, rw.r)
 		if err != nil {
 			return nil, err
 		}
 
-		foundObject, err := block.Find(ctx, rw.r, id, &metrics)
+		foundObject, err := block.Find(ctx, id)
 		if err != nil {
 			return nil, err
 		}
@@ -262,7 +270,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return foundObject, nil
 	})
 
-	return partialTraces, metrics, err
+	return partialTraces, err
 }
 
 func (rw *readerWriter) Shutdown() {

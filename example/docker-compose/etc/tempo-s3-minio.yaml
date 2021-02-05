@@ -34,10 +34,12 @@ compactor:
 storage:
   trace:
     backend: s3                        # backend configuration to use
-    wal:
-      path: /tmp/tempo/wal             # where to store the the wal locally
+    block:
       bloom_filter_false_positive: .05 # bloom filter false positive rate.  lower values create larger filters but fewer false positives
       index_downsample: 10             # number of traces per index record
+      encoding: lz4-64k                # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd
+    wal:
+      path: /tmp/tempo/wal             # where to store the the wal locally
     s3:
       bucket: tempo                    # how to store data in s3
       endpoint: minio:9000

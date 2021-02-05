@@ -226,6 +226,10 @@ func (rw *readerWriter) Append(ctx context.Context, name string, blockID uuid.UU
 
 // CloseAppend implements backend.Writer
 func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	if tracker == nil {
+		return nil
+	}
+
 	a := tracker.(appendTracker)
 	completeParts := make([]minio.CompletePart, 0)
 	for _, p := range a.parts {

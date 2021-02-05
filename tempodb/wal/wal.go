@@ -22,21 +22,11 @@ type WAL struct {
 type Config struct {
 	Filepath          string `yaml:"path"`
 	CompletedFilepath string
-	IndexDownsample   int     `yaml:"index_downsample"`
-	BloomFP           float64 `yaml:"bloom_filter_false_positive"`
 }
 
 func New(c *Config) (*WAL, error) {
 	if c.Filepath == "" {
 		return nil, fmt.Errorf("please provide a path for the WAL")
-	}
-
-	if c.IndexDownsample == 0 {
-		return nil, fmt.Errorf("Non-zero index downsample required")
-	}
-
-	if c.BloomFP <= 0.0 {
-		return nil, fmt.Errorf("invalid bloom filter fp rate %v", c.BloomFP)
 	}
 
 	// make folder
@@ -84,7 +74,7 @@ func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
 
 		blocks = append(blocks, &ReplayBlock{
 			block: block{
-				meta:     backend.NewBlockMeta(tenantID, blockID),
+				meta:     backend.NewBlockMeta(tenantID, blockID, appendBlockVersion, appendBlockEncoding),
 				filepath: w.c.Filepath,
 			},
 		})

@@ -10,6 +10,12 @@ import (
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
+// these values should never be used.  these dummy values can help detect
+// if they leak elsewhere.  append blocks are not versioned and do not
+// support different encodings
+const appendBlockVersion = "append"
+const appendBlockEncoding = backend.EncNone
+
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
 // in the order it was received and an in memory sorted index.
 type AppendBlock struct {
@@ -22,7 +28,7 @@ type AppendBlock struct {
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
 	h := &AppendBlock{
 		block: block{
-			meta:     backend.NewBlockMeta(tenantID, id),
+			meta:     backend.NewBlockMeta(tenantID, id, appendBlockVersion, appendBlockEncoding),
 			filepath: filepath,
 		},
 	}
@@ -61,7 +67,7 @@ func (h *AppendBlock) DataLength() uint64 {
 // includes an on disk file containing all objects in order.
 // Note that calling this method leaves the original file on disk.  This file is still considered to be part of the WAL
 // until Write() is successfully called on the CompleteBlock.
-func (h *AppendBlock) Complete(w *WAL, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error) {
+func (h *AppendBlock) Complete(cfg *encoding.BlockConfig, w *WAL, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error) {
 	if h.appendFile != nil {
 		err := h.appendFile.Close()
 		if err != nil {
@@ -81,7 +87,7 @@ func (h *AppendBlock) Complete(w *WAL, combiner common.ObjectCombiner) (*encodin
 		return nil, err
 	}
 
-	orderedBlock, err := encoding.NewCompleteBlock(h.meta, iterator, w.c.BloomFP, len(records), w.c.IndexDownsample, w.c.CompletedFilepath, h.fullFilename())
+	orderedBlock, err := encoding.NewCompleteBlock(cfg, h.meta, iterator, len(records), w.c.CompletedFilepath, h.fullFilename())
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +102,7 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 
-	finder := v0.NewDedupingFinder(records, file, combiner)
+	finder := v0.NewPagedFinder(common.Records(records), v0.NewPageReader(file), combiner)
 
 	return finder.Find(id)
 }

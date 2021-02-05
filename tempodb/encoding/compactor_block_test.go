@@ -19,13 +19,12 @@ const (
 )
 
 func TestCompactorBlockError(t *testing.T) {
-	_, err := NewCompactorBlock(uuid.New(), "", 0, 0, nil, 0)
+	_, err := NewCompactorBlock(nil, uuid.New(), "", nil, 0)
 	assert.Error(t, err)
 }
 
 func TestCompactorBlockAddObject(t *testing.T) {
 	indexDownsample := 3
-	bloomFP := .01
 
 	metas := []*backend.BlockMeta{
 		{
@@ -39,7 +38,11 @@ func TestCompactorBlockAddObject(t *testing.T) {
 	}
 
 	numObjects := (rand.Int() % 20) + 1
-	cb, err := NewCompactorBlock(uuid.New(), testTenantID, bloomFP, indexDownsample, metas, numObjects)
+	cb, err := NewCompactorBlock(&BlockConfig{
+		BloomFP:         .01,
+		IndexDownsample: indexDownsample,
+		Encoding:        backend.EncGZIP,
+	}, uuid.New(), testTenantID, metas, numObjects)
 	assert.NoError(t, err)
 
 	var minID common.ID
@@ -67,8 +70,8 @@ func TestCompactorBlockAddObject(t *testing.T) {
 			maxID = id
 		}
 	}
-	cb.appender.Complete()
-
+	err = cb.appender.Complete()
+	assert.NoError(t, err)
 	assert.Equal(t, numObjects, cb.Length())
 
 	// test meta

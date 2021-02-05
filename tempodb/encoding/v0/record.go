@@ -73,33 +73,6 @@ func unmarshalRecords(recordBytes []byte) ([]*common.Record, error) {
 	return records, nil
 }
 
-// binary search the bytes.  records are not compressed and ordered
-func findRecord(id common.ID, recordBytes []byte) (*common.Record, error) {
-	mod := len(recordBytes) % recordLength
-	if mod != 0 {
-		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
-	}
-
-	numRecords := recordCount(recordBytes)
-	var record *common.Record
-
-	i := sort.Search(numRecords, func(i int) bool {
-		buff := recordBytes[i*recordLength : (i+1)*recordLength]
-		record = unmarshalRecord(buff)
-
-		return bytes.Compare(record.ID, id) >= 0
-	})
-
-	if i >= 0 && i < numRecords {
-		buff := recordBytes[i*recordLength : (i+1)*recordLength]
-		record = unmarshalRecord(buff)
-
-		return record, nil
-	}
-
-	return nil, nil
-}
-
 func recordCount(b []byte) int {
 	return len(b) / recordLength
 }

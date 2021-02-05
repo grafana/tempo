@@ -29,18 +29,6 @@ import (
 )
 
 var (
-	metricQueryReads = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "query_reads",
-		Help:      "count of reads",
-		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
-	}, []string{"layer"})
-	metricQueryBytesRead = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "query_bytes_read",
-		Help:      "bytes read",
-		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 8),
-	}, []string{"layer"})
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "querier_ingester_clients",
@@ -195,19 +183,12 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	span.LogFields(ot_log.String("msg", "searching store"))
-	partialTraces, metrics, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+	partialTraces, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 	}
 
 	span.LogFields(ot_log.String("msg", "done searching store"))
-	metricQueryReads.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterReads.Load()))
-	metricQueryBytesRead.WithLabelValues("bloom").Observe(float64(metrics.BloomFilterBytesRead.Load()))
-	metricQueryReads.WithLabelValues("index").Observe(float64(metrics.IndexReads.Load()))
-	metricQueryBytesRead.WithLabelValues("index").Observe(float64(metrics.IndexBytesRead.Load()))
-	metricQueryReads.WithLabelValues("block").Observe(float64(metrics.BlockReads.Load()))
-	metricQueryBytesRead.WithLabelValues("block").Observe(float64(metrics.BlockBytesRead.Load()))
-
 	// combine partialTraces with completeTrace
 	for _, partialTrace := range partialTraces {
 		storeTrace := &tempopb.Trace{}

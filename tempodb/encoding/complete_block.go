@@ -18,6 +18,8 @@ import (
 // A CompleteBlock also knows the filepath of the append wal file it was cut from.  It is responsible for
 // cleaning this block up once it has been flushed to the backend.
 type CompleteBlock struct {
+	encoding versionedEncoding
+
 	meta    *backend.BlockMeta
 	bloom   *common.ShardedBloomFilter
 	records []*common.Record
@@ -31,10 +33,11 @@ type CompleteBlock struct {
 }
 
 // NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
-func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator common.Iterator, bloomFP float64, estimatedObjects int, indexDownsample int, filepath string, walFilename string) (*CompleteBlock, error) {
+func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iterator common.Iterator, estimatedObjects int, filepath string, walFilename string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
-		meta:        backend.NewBlockMeta(originatingMeta.TenantID, uuid.New()),
-		bloom:       common.NewWithEstimates(uint(estimatedObjects), bloomFP),
+		encoding:    latestEncoding(),
+		meta:        backend.NewBlockMeta(originatingMeta.TenantID, uuid.New(), currentVersion, cfg.Encoding),
+		bloom:       common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
 		records:     make([]*common.Record, 0),
 		filepath:    filepath,
 		walFilename: walFilename,
@@ -50,7 +53,10 @@ func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator common.Iterat
 		return nil, err
 	}
 
-	appender := newBufferedAppender(appendFile, indexDownsample, estimatedObjects)
+	appender, err := c.encoding.newBufferedAppender(appendFile, cfg.Encoding, cfg.IndexDownsample, estimatedObjects)
+	if err != nil {
+		return nil, err
+	}
 	for {
 		bytesID, bytesObject, err := iterator.Next()
 		if bytesID == nil {
@@ -73,7 +79,10 @@ func NewCompleteBlock(originatingMeta *backend.BlockMeta, iterator common.Iterat
 			return nil, err
 		}
 	}
-	appender.Complete()
+	err = appender.Complete()
+	if err != nil {
+		return nil, err
+	}
 	appendFile.Close()
 	c.records = appender.Records()
 	c.meta.StartTime = originatingMeta.StartTime
@@ -101,12 +110,12 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 		return err
 	}
 
-	err = writeBlockData(ctx, w, c.meta, src, fileStat.Size())
+	err = c.encoding.writeBlockData(ctx, w, c.meta, src, fileStat.Size())
 	if err != nil {
 		return err
 	}
 
-	err = writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
+	err = c.encoding.writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
 	if err != nil {
 		return err
 	}
@@ -133,8 +142,12 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 		return nil, err
 	}
 
-	finder := newDedupingFinder(c.records, file, combiner)
+	pageReader, err := c.encoding.newPageReader(file, c.meta.Encoding)
+	if err != nil {
+		return nil, err
+	}
 
+	finder := c.encoding.newPagedFinder(common.Records(c.records), pageReader, combiner)
 	return finder.Find(id)
 }
 
