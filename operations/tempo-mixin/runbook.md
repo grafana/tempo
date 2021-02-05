@@ -15,7 +15,7 @@ The Query path is instrumented with tracing (!) and this can be used to diagnose
 the Query Frontend, where you can find an info level message for every request. Filter for requests with high latency and view traces.
 
 The Query Frontend allows for scaling the query path by sharding queries. There are a few knobs that can be tuned for optimum
-parllelism -
+parallelism -
 - Number of shards each query is split into, configured via
     ```
     query_frontend:
