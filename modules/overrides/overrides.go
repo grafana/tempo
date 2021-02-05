@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/cortexproject/cortex/pkg/util/runtimeconfig"
 	"github.com/cortexproject/cortex/pkg/util/services"
@@ -152,6 +153,10 @@ func (o *Overrides) IngestionRateSpans(userID string) float64 {
 // IngestionBurstSize is the burst size in spans allowed for this tenant
 func (o *Overrides) IngestionBurstSize(userID string) int {
 	return o.getOverridesForUser(userID).IngestionBurstSize
+}
+
+func (o *Overrides) BlockRetention(userID string) time.Duration {
+	return o.getOverridesForUser(userID).BlockRetention
 }
 
 func (o *Overrides) getOverridesForUser(userID string) *Limits {

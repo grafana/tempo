@@ -37,8 +37,15 @@ func (rw *readerWriter) retainTenant(tenantID string) {
 	start := time.Now()
 	defer func() { metricRetentionDuration.Observe(time.Since(start).Seconds()) }()
 
+	// Check for overrides
+	retention := rw.compactorCfg.BlockRetention // Default
+	if r := rw.compactorOverrides.BlockRentionForTenant(tenantID); r != 0 {
+		retention = r
+	}
+	level.Debug(rw.logger).Log("msg", "Performing block retention", "tenantID", tenantID, "retention", retention)
+
 	// iterate through block list.  make compacted anything that is past retention.
-	cutoff := time.Now().Add(-rw.compactorCfg.BlockRetention)
+	cutoff := time.Now().Add(-retention)
 	blocklist := rw.blocklist(tenantID)
 	for _, b := range blocklist {
 		if b.EndTime.Before(cutoff) && rw.compactorSharder.Owns(b.BlockID.String()) {
