@@ -99,7 +99,7 @@ type CompactorSharder interface {
 }
 
 type CompactorOverrides interface {
-	BlockRentionForTenant(tenantID string) time.Duration
+	BlockRetentionForTenant(tenantID string) time.Duration
 }
 
 type WriteableBlock interface {

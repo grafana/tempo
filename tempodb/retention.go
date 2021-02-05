@@ -39,7 +39,7 @@ func (rw *readerWriter) retainTenant(tenantID string) {
 
 	// Check for overrides
 	retention := rw.compactorCfg.BlockRetention // Default
-	if r := rw.compactorOverrides.BlockRentionForTenant(tenantID); r != 0 {
+	if r := rw.compactorOverrides.BlockRetentionForTenant(tenantID); r != 0 {
 		retention = r
 	}
 	level.Debug(rw.logger).Log("msg", "Performing block retention", "tenantID", tenantID, "retention", retention)

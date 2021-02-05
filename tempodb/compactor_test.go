@@ -41,7 +41,7 @@ type mockOverrides struct {
 	blockRetention time.Duration
 }
 
-func (m *mockOverrides) BlockRentionForTenant(_ string) time.Duration {
+func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 	return m.blockRetention
 }
 

@@ -161,8 +161,8 @@ func (c *Compactor) Combine(objA []byte, objB []byte) []byte {
 	return combinedTrace
 }
 
-// BlockRentionForTenant implements CompactorOverrides
-func (c *Compactor) BlockRentionForTenant(tenantID string) time.Duration {
+// BlockRetentionForTenant implements CompactorOverrides
+func (c *Compactor) BlockRetentionForTenant(tenantID string) time.Duration {
 	return c.overrides.BlockRetention(tenantID)
 }
 
