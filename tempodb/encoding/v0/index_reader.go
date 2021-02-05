@@ -8,7 +8,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-// jpe - test, comment
 type readerBytes struct {
 	index []byte
 }

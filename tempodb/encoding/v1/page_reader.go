@@ -29,7 +29,6 @@ func NewPageReader(r io.ReaderAt, encoding backend.Encoding) (common.PageReader,
 	}, nil
 }
 
-// jpe : tests
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
