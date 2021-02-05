@@ -216,6 +216,10 @@ func BenchmarkWriteNone(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, false)
 }
 
+func BenchmarkWriteZstd(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncZstd, benchDownsample, false)
+}
+
 func BenchmarkReadGzip(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncGZIP, benchDownsample, true)
 }
@@ -230,6 +234,10 @@ func BenchmarkReadLZ41M(b *testing.B) {
 }
 func BenchmarkReadNone(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, true)
+}
+
+func BenchmarkReadZstd(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncZstd, benchDownsample, true)
 }
 
 // Download a block from your backend and place in ./benchmark_block/fake/<guid>

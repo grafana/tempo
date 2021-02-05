@@ -20,6 +20,7 @@ const (
 	EncLZ4_1M
 	EncLZ4_4M
 	EncSnappy
+	EncZstd
 )
 
 // SupportedEncoding is a slice of all supported encodings
@@ -31,6 +32,7 @@ var SupportedEncoding = []Encoding{
 	EncLZ4_1M,
 	EncLZ4_4M,
 	EncSnappy,
+	EncZstd,
 }
 
 func (e Encoding) String() string {
@@ -49,6 +51,8 @@ func (e Encoding) String() string {
 		return "lz4"
 	case EncSnappy:
 		return "snappy"
+	case EncZstd:
+		return "zstd"
 	default:
 		return "unsupported"
 	}

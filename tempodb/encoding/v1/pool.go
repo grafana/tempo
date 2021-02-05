@@ -8,11 +8,12 @@ import (
 	"github.com/golang/snappy"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
 	"github.com/prometheus/prometheus/pkg/pool"
 )
 
-const maxEncoding = backend.EncSnappy
+const maxEncoding = backend.EncZstd
 
 // WriterPool is a pool of io.Writer
 // This is used by every chunk to avoid unnecessary allocations.
@@ -44,6 +45,8 @@ var (
 	Snappy SnappyPool
 	// Noop is the no compression pool
 	Noop NoopPool
+	// Zstd Pool
+	Zstd = ZstdPool{}
 
 	// BytesBufferPool is a bytes buffer used for lines decompressed.
 	// Buckets [0.5KB,1KB,2KB,4KB,8KB]
@@ -75,6 +78,8 @@ func getReaderPool(enc backend.Encoding) (ReaderPool, error) {
 		return &Lz4_4M, nil
 	case backend.EncSnappy:
 		return &Snappy, nil
+	case backend.EncZstd:
+		return &Zstd, nil
 	default:
 		return nil, fmt.Errorf("Unknown pool encoding %d", enc)
 	}
@@ -273,3 +278,56 @@ func (pool *NoopPool) GetWriter(dst io.Writer) io.WriteCloser {
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *NoopPool) PutWriter(writer io.WriteCloser) {}
+
+// ZstdPool is a zstd compression pool
+type ZstdPool struct {
+	readers sync.Pool
+	writers sync.Pool
+}
+
+// Encoding implements WriterPool and ReaderPool
+func (pool *ZstdPool) Encoding() backend.Encoding {
+	return backend.EncZstd
+}
+
+// GetReader gets or creates a new CompressionReader and reset it to read from src
+func (pool *ZstdPool) GetReader(src io.Reader) io.Reader {
+	if r := pool.readers.Get(); r != nil {
+		reader := r.(*zstd.Decoder)
+		err := reader.Reset(src)
+		if err != nil {
+			panic(err)
+		}
+		return reader
+	}
+	reader, err := zstd.NewReader(src)
+	if err != nil {
+		panic(err)
+	}
+	return reader
+}
+
+// PutReader places back in the pool a CompressionReader
+func (pool *ZstdPool) PutReader(reader io.Reader) {
+	pool.readers.Put(reader)
+}
+
+// GetWriter gets or creates a new CompressionWriter and reset it to write to dst
+func (pool *ZstdPool) GetWriter(dst io.Writer) io.WriteCloser {
+	if w := pool.writers.Get(); w != nil {
+		writer := w.(*zstd.Encoder)
+		writer.Reset(dst)
+		return writer
+	}
+
+	w, err := zstd.NewWriter(dst)
+	if err != nil {
+		panic(err) // never happens, error is only returned on wrong compression level.
+	}
+	return w
+}
+
+// PutWriter places back in the pool a CompressionWriter
+func (pool *ZstdPool) PutWriter(writer io.WriteCloser) {
+	pool.writers.Put(writer)
+}
