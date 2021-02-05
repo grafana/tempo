@@ -7,7 +7,7 @@ weight: 470
 This topic helps with day zero operational issues that may come up when getting started with Tempo. It walks through debugging each part of the ingestion and query pipeline to drill down and diagnose issues. 
 
 ## Problem 1. I am unable to see any of my traces in Tempo
->** Potential causes**
+** Potential causes**
 - There could be issues in ingestion of the data into Tempo, that is, spans are either not being sent correctly to Tempo or they are not getting sampled.
 - There could be issues querying for traces that have been received by Tempo.
 
@@ -57,19 +57,42 @@ This can also be confirmed by checking the metric `tempo_request_duration_second
 ### Diagnosing and fixing issues with querying traces
 If you have determined that data has been ingested correctly into Tempo, then it is time to investigate possible issues with querying the data.
 
-The presence of the following errors in the Tempo Querier log files may explain why traces are missing:
+Check the logs of the Tempo Query Frontend. The Query Frontend pod runs with two containers (Query Frontend & Tempo Query), so lets use the following command to view Query Frontend logs -
 
+```console
+kubectl logs -f pod/query-frontend-xxxxx -c query-frontend
+```
+
+The presence of the following errors in the log may explain issues with querying traces:
+
+- `level=info ts=XXXXXXX caller=frontend.go:63 method=GET traceID=XXXXXXXXX url=/api/traces/XXXXXXXXX duration=5m41.729449877s status=500`
 - `no org id`
 - `could not dial 10.X.X.X:3100 connection refused`
 - `tenant-id not found`
 
 Possible reasons for the above errors are:
+- Tempo Querier not connected to Tempo Query Frontend. Check the value of the metric `cortex_query_frontend_connected_clients` exposed by the Query Frontend.
+  It should be > 0, which indicates that Queriers are connected to the Query Frontend.
+- Grafana Tempo Datasource not configured to pass tenant-id in Authorization header (only applicable to multi-tenant deployments).
 - Not connected to Tempo Querier correctly
 - Insufficient permissions
 
 #### Solution
 - Fixing connection issues
-  - In case the application is not connected to Tempo Querier correctly, update the `backend.yaml` configuration file so that it is attempting to connect to the right port of the querier.
+  - In case we the queriers are not connected to the Query Frontend, check the following section in Querier configuration and make sure the address of the Query Frontend is correct
+    ```
+    querier:
+      frontend_worker:
+        frontend_address: query-frontend-discovery.default.svc.cluster.local:9095
+    ```
+  - Verify the `backend.yaml` configuration file present on the Tempo Query container and make sure it is attempting to connect to the right port of the query frontend.
+  - Verify the Grafana Tempo Datasource configuration, and make sure it has the following settings configured:
+    ```
+    jsonData:
+      httpHeaderName1: 'Authorization'
+    secureJsonData:
+      httpHeaderValue1: 'Bearer <tenant-id>'
+    ```
 - Fixing insufficient permissions issue
   - Verify that the Querier has the LIST and GET permissions on the bucket.
 

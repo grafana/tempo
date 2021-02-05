@@ -86,7 +86,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]byte, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, error)
 	Shutdown()
 }
 
@@ -203,10 +203,10 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]byte, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, error) {
 	// tracing instrumentation
 	logger := util.WithContext(ctx, util.Logger)
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "store.Find")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 
 	blockStartUUID, err := uuid.Parse(blockStart)
@@ -248,14 +248,14 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, nil
 	}
 
-	foundBytes, err := rw.pool.RunJobs(derivedCtx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
+	partialTraces, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
 		meta := payload.(*backend.BlockMeta)
 		block, err := encoding.NewBackendBlock(meta, rw.r)
 		if err != nil {
 			return nil, err
 		}
 
-		foundObject, err := block.Find(derivedCtx, id)
+		foundObject, err := block.Find(ctx, id)
 		if err != nil {
 			return nil, err
 		}
@@ -270,7 +270,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return foundObject, nil
 	})
 
-	return foundBytes, err
+	return partialTraces, err
 }
 
 func (rw *readerWriter) Shutdown() {

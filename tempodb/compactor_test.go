@@ -157,7 +157,7 @@ func TestCompaction(t *testing.T) {
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
-		err = proto.Unmarshal(b, out)
+		err = proto.Unmarshal(b[0], out)
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(allReqs[i], out))

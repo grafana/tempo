@@ -148,6 +148,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	defer span.Finish()
 
 	var completeTrace *tempopb.Trace
+	var spanCount, spanCountTotal int
 	if req.QueryIngesters {
 		key := tempo_util.TokenFor(userID, req.TraceID)
 
@@ -170,32 +171,38 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		for _, r := range responses {
 			trace := r.response.Trace
 			if trace != nil {
-				var spanCountA, spanCountB, spanCountTotal int
-				completeTrace, spanCountA, spanCountB, spanCountTotal = tempo_util.CombineTraceProtos(completeTrace, trace)
-				span.LogFields(ot_log.String("msg", "combined trace protos"),
-					ot_log.Int("spansCountA", spanCountA),
-					ot_log.Int("spansCountB", spanCountB),
-					ot_log.Int("spansCountTotal", spanCountTotal))
+				completeTrace, _, _, spanCount = tempo_util.CombineTraceProtos(completeTrace, trace)
+				if spanCount > 0 {
+					spanCountTotal = spanCount
+				}
+				span.LogFields(ot_log.String("msg", "combined trace protos from ingesters"))
 			}
 		}
+
+		span.LogFields(ot_log.String("msg", "done searching ingesters"), ot_log.Bool("found", completeTrace != nil))
 	}
 
-	// if the ingester didn't have it check the store.
-	if completeTrace == nil {
-		foundBytes, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
-		if err != nil {
-			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
-		}
+	span.LogFields(ot_log.String("msg", "searching store"))
+	partialTraces, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
+	}
 
-		out := &tempopb.Trace{}
-		err = proto.Unmarshal(foundBytes, out)
+	span.LogFields(ot_log.String("msg", "done searching store"))
+	// combine partialTraces with completeTrace
+	for _, partialTrace := range partialTraces {
+		storeTrace := &tempopb.Trace{}
+		err = proto.Unmarshal(partialTrace, storeTrace)
 		if err != nil {
 			return nil, err
 		}
-
-		span.LogFields(ot_log.String("msg", "found backend trace"), ot_log.Int("len", len(foundBytes)))
-		completeTrace = out
+		completeTrace, _, _, spanCount = tempo_util.CombineTraceProtos(completeTrace, storeTrace)
+		if spanCount > 0 {
+			spanCountTotal = spanCount
+		}
 	}
+	span.LogFields(ot_log.String("msg", "combined trace protos from ingesters and store"),
+		ot_log.Int("spanCountTotal", spanCountTotal))
 
 	return &tempopb.TraceByIDResponse{
 		Trace: completeTrace,
