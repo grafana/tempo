@@ -12,12 +12,9 @@
       containerPort.new('prom-metrics', port),
     ]) +
     container.withArgs([
-      '-loki-base-url=' + $._config.vulture.loki_base_url,
-      '-loki-query=' + $._config.vulture.loki_query,
-      '-loki-user=' + $._config.vulture.loki_user,
-      '-loki-pass=' + $._config.vulture.loki_pass,
       '-prometheus-listen-address=:' + port,
-      '-tempo-base-url=http://query-frontend:3100',
+      '-tempo-push-url=http://distributor',
+      '-tempo-query-url=http://query-frontend:3100',
       '-logtostderr=true',
       '-tempo-org-id=1',
     ]) +

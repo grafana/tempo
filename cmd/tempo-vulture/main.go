@@ -26,7 +26,8 @@ var (
 	prometheusListenAddress string
 	prometheusPath          string
 
-	tempoBaseURL         string
+	tempoQueryURL        string
+	tempoPushURL         string
 	tempoOrgID           string
 	tempoBackoffDuration time.Duration
 )
@@ -41,9 +42,10 @@ func init() {
 	flag.StringVar(&prometheusPath, "prometheus-path", "/metrics", "The path to publish Prometheus metrics to.")
 	flag.StringVar(&prometheusListenAddress, "prometheus-listen-address", ":80", "The address to listen on for Prometheus scrapes.")
 
-	flag.StringVar(&tempoBaseURL, "tempo-base-url", "", "The base URL (scheme://hostname) at which to find tempo.")
+	flag.StringVar(&tempoQueryURL, "tempo-query-url", "", "The URL (scheme://hostname) at which to query Tempo.")
+	flag.StringVar(&tempoPushURL, "tempo-push-url", "", "The URL (scheme://hostname) at which to push traces to Tempo.")
 	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
-	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", time.Second, "The amount of time to pause between tempo calls")
+	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", time.Second, "The amount of time to pause between Tempo calls")
 }
 
 func main() {
@@ -57,19 +59,19 @@ func main() {
 
 	// Write
 	go func() {
-
 		for {
 			<-ticker.C
+
 			iteration++
 			rand.Seed(startTime / iteration)
-			u, _ := url.Parse(tempoBaseURL)
-			host, _, _ := net.SplitHostPort(u.Host)
-			c, err := newJaegerGRPCClient(host + ":14250")
+
+			c, err := newJaegerGRPCClient(tempoPushURL)
 			if err != nil {
 				glog.Error("error creating grpc client", err)
 				metricErrorTotal.Inc()
 				continue
 			}
+
 			batch := makeThriftBatch()
 			err = c.EmitBatch(context.Background(), batch)
 			if err != nil {
@@ -84,14 +86,18 @@ func main() {
 	go func() {
 		for {
 			<-ticker.C
+
 			if iteration == 1 {
 				continue
 			}
-			randomIteration := randInt(1, iteration-1)
-			rand.Seed(startTime / randomIteration)
+
+			// pick past iteration and re-generate trace
+			rand.Seed(startTime / randInt(1, iteration-1))
 			batch := makeThriftBatch()
 			hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
-			metrics, err := queryTempoAndAnalyze(tempoBaseURL, hexID)
+
+			// query the trace
+			metrics, err := queryTempoAndAnalyze(tempoQueryURL, hexID)
 			if err != nil {
 				glog.Error("error querying Tempo ", err)
 				metricErrorTotal.Inc()
@@ -109,8 +115,11 @@ func main() {
 }
 
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
+	// remove scheme and port
+	u, _ := url.Parse(endpoint)
+	host, _, _ := net.SplitHostPort(u.Host)
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
+	conn, err := grpc.Dial(host+":14250", grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
