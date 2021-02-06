@@ -2,33 +2,29 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
+	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 var (
 	prometheusListenAddress string
 	prometheusPath          string
-
-	lokiBaseURL string
-	lokiQuery   string
-	lokiUser    string
-	lokiPass    string
 
 	tempoBaseURL         string
 	tempoOrgID           string
@@ -45,11 +41,6 @@ func init() {
 	flag.StringVar(&prometheusPath, "prometheus-path", "/metrics", "The path to publish Prometheus metrics to.")
 	flag.StringVar(&prometheusListenAddress, "prometheus-listen-address", ":80", "The address to listen on for Prometheus scrapes.")
 
-	flag.StringVar(&lokiBaseURL, "loki-base-url", "", "The base URL (scheme://hostname) at which to find loki.")
-	flag.StringVar(&lokiQuery, "loki-query", "", "The query to use to find traceIDs in Loki.")
-	flag.StringVar(&lokiUser, "loki-user", "", "The user to use for Loki basic auth.")
-	flag.StringVar(&lokiPass, "loki-pass", "", "The password to use for Loki basic auth.")
-
 	flag.StringVar(&tempoBaseURL, "tempo-base-url", "", "The base URL (scheme://hostname) at which to find tempo.")
 	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
 	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", time.Second, "The amount of time to pause between tempo calls")
@@ -58,45 +49,59 @@ func init() {
 func main() {
 	flag.Parse()
 
-	glog.Error("Application Starting")
+	glog.Error("Tempo Vulture Starting")
 
-	testDurations := []time.Duration{
-		24 * time.Hour,
-		12 * time.Hour,
-		6 * time.Hour,
-		3 * time.Hour,
-		time.Hour,
-		30 * time.Minute,
-	}
+	startTime := time.Now().UTC().UnixNano()
+	ticker := time.NewTicker(tempoBackoffDuration)
 
-	ticker := time.NewTicker(15 * time.Second)
+	// Write
 	go func() {
+		var iteration int64 = 0
 		for {
 			<-ticker.C
-
-			for _, duration := range testDurations {
-
-				// query loki for trace ids
-				lines, err := queryLoki(lokiBaseURL, lokiQuery, duration, lokiUser, lokiPass)
-				if err != nil {
-					glog.Error("error querying Loki ", err)
-					metricErrorTotal.Inc()
-					continue
-				}
-				ids := extractTraceIDs(lines)
-
-				// query tempo for trace ids
-				metrics, err := queryTempoAndAnalyze(tempoBaseURL, tempoBackoffDuration, ids)
-				if err != nil {
-					glog.Error("error querying Tempo ", err)
-					metricErrorTotal.Inc()
-					continue
-				}
-
-				metricTracesInspected.WithLabelValues(strconv.Itoa(int(duration.Seconds()))).Add(float64(metrics.requested))
-				metricTracesErrors.WithLabelValues("notfound", strconv.Itoa(int(duration.Seconds()))).Add(float64(metrics.notfound))
-				metricTracesErrors.WithLabelValues("missingspans", strconv.Itoa(int(duration.Seconds()))).Add(float64(metrics.missingSpans))
+			iteration++
+			rand.Seed(startTime / iteration)
+			u, _ := url.Parse(tempoBaseURL)
+			host, _, _ := net.SplitHostPort(u.Host)
+			c, err := newJaegerGRPCClient(host + ":14250")
+			if err != nil {
+				glog.Error("error creating grpc client", err)
+				metricErrorTotal.Inc()
+				continue
 			}
+			batch := makeThriftBatch()
+			err = c.EmitBatch(context.Background(), batch)
+			if err != nil {
+				glog.Error("error pushing trace to Tempo ", err)
+				metricErrorTotal.Inc()
+				continue
+			}
+		}
+	}()
+
+	// Read
+	go func() {
+		var iteration int64 = 0
+		for {
+			<-ticker.C
+			iteration++
+			if iteration == 1 {
+				continue
+			}
+			randomIteration := randInt(1, iteration-1)
+			rand.Seed(startTime / randomIteration)
+			batch := makeThriftBatch()
+			hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+			metrics, err := queryTempoAndAnalyze(tempoBaseURL, hexID)
+			if err != nil {
+				glog.Error("error querying Tempo ", err)
+				metricErrorTotal.Inc()
+				continue
+			}
+
+			metricTracesInspected.Add(float64(metrics.requested))
+			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notfound))
+			metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
 		}
 	}()
 
@@ -104,36 +109,67 @@ func main() {
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
 }
 
-func queryTempoAndAnalyze(baseURL string, backoff time.Duration, traceIDs []string) (*traceMetrics, error) {
+func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
+	// new jaeger grpc exporter
+	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
+	return jaeger_grpc.NewReporter(conn, nil, logger), err
+}
+
+func makeThriftBatch() *thrift.Batch {
+	var spans []*thrift.Span
+	spans = append(spans, &thrift.Span{
+		TraceIdLow:    rand.Int63(),
+		TraceIdHigh:   0,
+		SpanId:        rand.Int63(),
+		ParentSpanId:  0,
+		OperationName: "my operation",
+		References:    nil,
+		Flags:         0,
+		StartTime:     time.Now().Unix(),
+		Duration:      1,
+		Tags:          nil,
+		Logs:          nil,
+	})
+	return &thrift.Batch{Spans: spans}
+}
+
+func randInt(min int64, max int64) int64 {
+	if min == max {
+		return 1
+	}
+	return min + rand.Int63n(max-min)
+}
+
+func queryTempoAndAnalyze(baseURL string, traceID string) (*traceMetrics, error) {
 	tm := &traceMetrics{
-		requested: len(traceIDs),
+		requested: 1,
+	}
+	glog.Error("tempo url ", baseURL+"/api/traces/"+traceID)
+	trace, err := util.QueryTrace(baseURL, traceID, tempoOrgID)
+	if err == util.ErrTraceNotFound {
+		glog.Error("trace not found ", traceID)
+		tm.notfound++
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	for _, id := range traceIDs {
-		time.Sleep(backoff)
+	if len(trace.Batches) == 0 {
+		glog.Error("trace not found", traceID)
+		tm.notfound++
+	}
 
-		glog.Error("tempo url ", baseURL+"/api/traces/"+id)
-		trace, err := util.QueryTrace(baseURL, id, tempoOrgID)
-		if err == util.ErrTraceNotFound {
-			glog.Error("trace not found ", id)
-			tm.notfound++
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		if len(trace.Batches) == 0 {
-			glog.Error("trace not found", id)
-			tm.notfound++
-			continue
-		}
-
-		// iterate through
-		if hasMissingSpans(trace) {
-			glog.Error("has missing spans", id)
-			tm.missingSpans++
-		}
+	// iterate through
+	if hasMissingSpans(trace) {
+		glog.Error("has missing spans", traceID)
+		tm.missingSpans++
 	}
 
 	return tm, nil
@@ -174,66 +210,4 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 	}
 
 	return false
-}
-
-func queryLoki(baseURL string, query string, durationAgo time.Duration, user string, pass string) ([]string, error) {
-	start := time.Now().Add(-durationAgo).Add(-30 * time.Second) // offsetting 30 seconds prevents it from querying logs from now which naturally have a high percentage of errors
-	end := start.Add(30 * time.Minute)
-	url := baseURL + fmt.Sprintf("/api/prom/query?limit=10&start=%d&end=%d&query=%s", start.UnixNano(), end.UnixNano(), url.QueryEscape(query))
-
-	glog.Error("loki url ", url)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error building request %v", err)
-	}
-	req.SetBasicAuth(user, pass)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error querying %v", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			glog.Error("error closing body ", err)
-		}
-	}()
-
-	if resp.StatusCode/100 != 2 {
-		buf, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("error response from server: %s %v", string(buf), err)
-	}
-	var decoded logproto.QueryResponse
-	err = json.NewDecoder(resp.Body).Decode(&decoded)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding response %v", err)
-	}
-
-	lines := make([]string, 0)
-	for _, stream := range decoded.Streams {
-		for _, entry := range stream.Entries {
-			lines = append(lines, entry.Line)
-		}
-	}
-
-	return lines, nil
-}
-
-func extractTraceIDs(lines []string) []string {
-	regex := regexp.MustCompile("traceID=(.*?) ")
-	ids := make([]string, 0, len(lines))
-
-	for _, l := range lines {
-		match := regex.FindString(l)
-
-		if match != "" {
-			traceID := strings.TrimSpace(strings.TrimPrefix(match, "traceID="))
-			if len(traceID)%2 == 1 {
-				traceID = "0" + traceID
-			}
-			ids = append(ids, traceID)
-		}
-	}
-
-	return ids
 }
