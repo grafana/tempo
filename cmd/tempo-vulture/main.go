@@ -116,8 +116,14 @@ func main() {
 
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	// remove scheme and port
-	u, _ := url.Parse(endpoint)
-	host, _, _ := net.SplitHostPort(u.Host)
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	host, _, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		return nil, err
+	}
 	// new jaeger grpc exporter
 	conn, err := grpc.Dial(host+":14250", grpc.WithInsecure())
 	if err != nil {
