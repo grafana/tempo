@@ -292,14 +292,14 @@ func (pool *ZstdPool) Encoding() backend.Encoding {
 
 // GetReader gets or creates a new CompressionReader and reset it to read from src
 func (pool *ZstdPool) GetReader(src io.Reader) io.Reader {
-	if r := pool.readers.Get(); r != nil {
-		reader := r.(*zstd.Decoder)
-		err := reader.Reset(src)
-		if err != nil {
-			panic(err)
-		}
-		return reader
-	}
+	// if r := pool.readers.Get(); r != nil {
+	// 	reader := r.(*zstd.Decoder)
+	// 	err := reader.Reset(src)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	return reader
+	// }
 	reader, err := zstd.NewReader(src)
 	if err != nil {
 		panic(err)
@@ -309,7 +309,10 @@ func (pool *ZstdPool) GetReader(src io.Reader) io.Reader {
 
 // PutReader places back in the pool a CompressionReader
 func (pool *ZstdPool) PutReader(reader io.Reader) {
-	pool.readers.Put(reader)
+	r := reader.(*zstd.Decoder)
+	r.Close()
+	/*r.Reset(nil) // give up resources
+	pool.readers.Put(reader)*/
 }
 
 // GetWriter gets or creates a new CompressionWriter and reset it to write to dst
