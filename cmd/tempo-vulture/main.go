@@ -53,10 +53,11 @@ func main() {
 
 	startTime := time.Now().UTC().UnixNano()
 	ticker := time.NewTicker(tempoBackoffDuration)
+	iteration := int64(0)
 
 	// Write
 	go func() {
-		var iteration int64 = 0
+
 		for {
 			<-ticker.C
 			iteration++
@@ -81,10 +82,8 @@ func main() {
 
 	// Read
 	go func() {
-		var iteration int64 = 0
 		for {
 			<-ticker.C
-			iteration++
 			if iteration == 1 {
 				continue
 			}
