@@ -4,10 +4,15 @@ weight: 470
 ---
 
 # Troubleshooting missing traces
-This topic helps with day zero operational issues that may come up when getting started with Tempo. It walks through debugging each part of the ingestion and query pipeline to drill down and diagnose issues. 
+This topic helps with day zero operational issues that may come up when getting started with Tempo. It walks through debugging each part of the ingestion and query pipeline to drill down and diagnose issues.
+
+- [Problem 1. I am unable to see any of my traces in Tempo](#problem-1-i-am-unable-to-see-any-of-my-traces-in-tempo)
+- [Problem 2. Some of my traces are missing in Tempo](#problem-2-some-of-my-traces-are-missing-in-tempo)
+- [Problem 3. Getting error message ‘Too many jobs in the queue’](#problem-3-getting-error-message-too-many-jobs-in-the-queue)
+- [Problem 4. Distributor is not accepting traces](#problem-4-distributor-is-not-accepting-traces)
 
 ## Problem 1. I am unable to see any of my traces in Tempo
-** Potential causes**
+**Potential causes**
 - There could be issues in ingestion of the data into Tempo, that is, spans are either not being sent correctly to Tempo or they are not getting sampled.
 - There could be issues querying for traces that have been received by Tempo.
 
@@ -132,3 +137,16 @@ If this metric is greater than zero (0), check the logs of the compactor for an 
   - `max_block_bytes` to determine when the ingester cuts blocks. A good number is anywhere from 100MB to 2GB depending on the workload.
   - `max_compaction_objects` to determine the max number of objects in a compacted block. This should relatively high, generally in the millions.
   - `retention_duration` for how long traces should be retained in the backend.
+
+## Problem 4. Distributor is not accepting traces
+
+The distributor is not accepting traces. It is showing the followingg messages:
+`max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 10000) exceeded`.
+
+Possible reasons why you are seeing this error is because you have reached the [maximum number of live traces allowed](https://github.com/grafana/tempo/blob/3710d944cfe2a51836c3e4ef4a97316ed0526a58/modules/overrides/limits.go#L25) per tenant in the ingester.
+
+### Solutions
+
+- Check if you have the `overrides` parameter in your configuration file. 
+- If it is missing, add the setting using instructions in [Override live traces limit](../configuration/override).
+- Increased the maximum limit to a failsafe value like `50000`.
