@@ -16,6 +16,7 @@ type Record struct {
 // Iterator is capable of iterating through a set of objects
 type Iterator interface {
 	Next() (ID, []byte, error)
+	Close()
 }
 
 // Finder is capable of finding the requested ID

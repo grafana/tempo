@@ -305,6 +305,7 @@ func (i *Ingester) replayBlock(b *tempodb_wal.ReplayBlock, instance *instance) e
 	if err != nil {
 		return err
 	}
+	defer iterator.Close()
 	for {
 		id, obj, err := iterator.Next()
 		if id == nil {

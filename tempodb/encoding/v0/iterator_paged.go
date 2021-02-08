@@ -93,3 +93,7 @@ func (i *pagedIterator) Next() (common.ID, []byte, error) {
 
 	return id, object, nil
 }
+
+func (i *pagedIterator) Close() {
+	i.pageReader.Close()
+}

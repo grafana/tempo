@@ -86,6 +86,7 @@ func (h *AppendBlock) Complete(cfg *encoding.BlockConfig, w *WAL, combiner commo
 	if err != nil {
 		return nil, err
 	}
+	defer iterator.Close()
 
 	orderedBlock, err := encoding.NewCompleteBlock(cfg, h.meta, iterator, len(records), w.c.CompletedFilepath, h.fullFilename())
 	if err != nil {

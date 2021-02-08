@@ -122,12 +122,16 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
 	nextCompactionLevel := compactionLevel + 1
 
-	defer func() {
-		level.Info(rw.logger).Log("msg", "compaction complete")
-	}()
-
 	var err error
 	bookmarks := make([]*bookmark, 0, len(blockMetas))
+
+	// cleanup compaction
+	defer func() {
+		level.Info(rw.logger).Log("msg", "compaction complete")
+		for _, bm := range bookmarks {
+			bm.iter.Close()
+		}
+	}()
 
 	var totalRecords int
 	for _, blockMeta := range blockMetas {
