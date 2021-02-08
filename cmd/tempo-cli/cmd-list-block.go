@@ -7,6 +7,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -52,10 +53,15 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	fmt.Println("ID            : ", unifiedMeta.id)
 	fmt.Println("Version       : ", unifiedMeta.version)
 	fmt.Println("Total Objects : ", unifiedMeta.objects)
+	fmt.Println("Data Size     : ", humanize.Bytes(unifiedMeta.size))
+	fmt.Println("File Size     : ", humanize.Bytes(unifiedMeta.finalSize))
+	fmt.Println("Encoding      : ", unifiedMeta.encoding)
 	fmt.Println("Level         : ", unifiedMeta.compactionLevel)
 	fmt.Println("Window        : ", unifiedMeta.window)
 	fmt.Println("Start         : ", unifiedMeta.start)
 	fmt.Println("End           : ", unifiedMeta.end)
+	fmt.Println("Duration      : ", fmt.Sprint(unifiedMeta.end.Sub(unifiedMeta.start).Round(time.Second)))
+	fmt.Println("Age           : ", fmt.Sprint(time.Since(unifiedMeta.end).Round(time.Second)))
 
 	if checkDupes {
 		fmt.Println("Searching for dupes ...")
