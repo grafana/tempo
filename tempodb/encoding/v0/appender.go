@@ -25,7 +25,7 @@ func NewAppender(writer io.Writer) common.Appender {
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 //   Copies should be made and passed in if this is a problem
 func (a *appender) Append(id common.ID, b []byte) error {
-	length, err := marshalObjectToWriter(id, b, a.writer)
+	length, err := MarshalObjectToWriter(id, b, a.writer)
 	if err != nil {
 		return err
 	}
@@ -57,6 +57,6 @@ func (a *appender) DataLength() uint64 {
 	return a.currentOffset
 }
 
-func (a *appender) Complete() {
-
+func (a *appender) Complete() error {
+	return nil
 }

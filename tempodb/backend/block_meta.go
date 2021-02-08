@@ -23,18 +23,20 @@ type BlockMeta struct {
 	EndTime         time.Time `json:"endTime"`
 	TotalObjects    int       `json:"totalObjects"`
 	CompactionLevel uint8     `json:"compactionLevel"`
+	Encoding        Encoding  `json:"encoding"`
 }
 
-func NewBlockMeta(tenantID string, blockID uuid.UUID) *BlockMeta {
+func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding) *BlockMeta {
 	now := time.Now()
 	b := &BlockMeta{
-		Version:   "v0", // jpe - think about this
+		Version:   version,
 		BlockID:   blockID,
 		MinID:     []byte{},
 		MaxID:     []byte{},
 		TenantID:  tenantID,
 		StartTime: now,
 		EndTime:   now,
+		Encoding:  encoding,
 	}
 
 	return b

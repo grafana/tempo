@@ -20,7 +20,9 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -51,10 +53,13 @@ func TestReturnAllHits(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
+		Block: &encoding.BlockConfig{
+			Encoding:        backend.EncNone,
 			IndexDownsample: 10,
 			BloomFP:         .05,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 50 * time.Millisecond,
 	}, log.NewNopLogger())
@@ -85,7 +90,7 @@ func TestReturnAllHits(t *testing.T) {
 		err = head.Write(testTraceID, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 
-		complete, err := head.Complete(wal, &mockSharder{})
+		complete, err := w.CompleteBlock(head, &mockSharder{})
 		assert.NoError(t, err)
 
 		err = w.WriteBlock(context.Background(), complete)
@@ -96,7 +101,7 @@ func TestReturnAllHits(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// find should return both now
-	foundBytes, _, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
+	foundBytes, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
 	assert.NoError(t, err)
 	require.Len(t, foundBytes, 2)
 

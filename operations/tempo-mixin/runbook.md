@@ -11,6 +11,43 @@ Ingester component can cause 404s on traces until they are flushed to the backen
 scale one per hour.  However, if Ingesters are falling over, it's better to scale fast, ingest successfully and throw 404s 
 on query than to have an unstable ingest path.  Make the call!
 
+The Query path is instrumented with tracing (!) and this can be used to diagnose issues with higher latency. View the logs of
+the Query Frontend, where you can find an info level message for every request. Filter for requests with high latency and view traces.
+
+The Query Frontend allows for scaling the query path by sharding queries. There are a few knobs that can be tuned for optimum
+parallelism -
+- Number of shards each query is split into, configured via
+    ```
+    query_frontend:
+        query_shards: 10
+    ```
+- Number of Queriers (each of these process the sharded queries in parallel). This can be changed by modifying the size of the
+Querier deployment. More Queriers -> faster processing of shards in parallel -> lower request latency.
+
+- Querier parallelism, which is a combination of a few settings:
+
+    ```
+    querier:
+      max_concurrent_queries: 10
+      frontend_worker:
+          match_max_concurrent: true  // true by default
+          parallelism: 5              // parallelism per query-frontend. ignored if match_max_concurrent is set to true
+
+    storage:
+      trace:
+        pool:
+          max_workers: 100
+    ```
+
+MaxConcurrentQueries defines the total number of shards each Querier processes at a given time. By default, this number will
+be split between the query frontends, so if there are N query frontends, the Querier will process (Max Concurrent Queries/ N)
+queries per query frontend.
+
+Another way to increase parallelism is by increasing the size of the worker pool that queries the cache & backend blocks.
+
+A theoretically ideal value for this config to avoid _any_ queueing would be (Size of blocklist / Max Concurrent Queries).
+But also factor in the resources provided to the querier.
+
 ## TempoCompactorUnhealthy
 
 Tempo by default uses [Memberlist](https://github.com/hashicorp/memberlist) to persist the ring state between components.

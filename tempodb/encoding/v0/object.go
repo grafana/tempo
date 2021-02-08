@@ -17,7 +17,7 @@ const (
 	| total length | id length | id | object bytes |
 */
 
-func marshalObjectToWriter(id common.ID, b []byte, w io.Writer) (int, error) {
+func MarshalObjectToWriter(id common.ID, b []byte, w io.Writer) (int, error) {
 	idLength := len(id)
 	totalLength := len(b) + idLength + uint32Size*2
 

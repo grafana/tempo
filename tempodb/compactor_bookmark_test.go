@@ -14,6 +14,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -30,10 +31,13 @@ func TestCurrentClear(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
+		Block: &encoding.BlockConfig{
 			IndexDownsample: 17,
 			BloomFP:         .01,
+			Encoding:        backend.EncGZIP,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -64,16 +68,16 @@ func TestCurrentClear(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	complete, err := head.Complete(wal, &mockSharder{})
+	complete, err := w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 
 	err = w.WriteBlock(context.Background(), complete)
 	assert.NoError(t, err)
 
 	rw := r.(*readerWriter)
-	block, err := encoding.NewBackendBlock(complete.BlockMeta())
+	block, err := encoding.NewBackendBlock(complete.BlockMeta(), rw.r)
 	assert.NoError(t, err)
-	iter, err := block.Iterator(10, rw.r)
+	iter, err := block.Iterator(10)
 	assert.NoError(t, err)
 	bm := newBookmark(iter)
 

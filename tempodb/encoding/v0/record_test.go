@@ -43,7 +43,7 @@ func TestMarshalUnmarshalRecords(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func TestFindRecord(t *testing.T) {
+/*func TestFindRecord(t *testing.T) { // jpe - move to index_reader_test.go
 	numRecords := 10
 	expected := make([]*common.Record, 0, numRecords)
 
@@ -66,7 +66,7 @@ func TestFindRecord(t *testing.T) {
 		assert.NoError(t, err, "unexpected error finding records")
 		assert.Equal(t, r, found)
 	}
-}
+}*/
 
 func TestSortRecord(t *testing.T) {
 	numRecords := 10

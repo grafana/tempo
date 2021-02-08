@@ -227,7 +227,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok = i.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, i.limiter, i.store.WAL())
+		inst, err = newInstance(instanceID, i.limiter, i.store)
 		if err != nil {
 			return nil, err
 		}

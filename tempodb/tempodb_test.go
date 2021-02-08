@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,10 +37,13 @@ func TestDB(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
+		Block: &encoding.BlockConfig{
 			IndexDownsample: 17,
 			BloomFP:         .01,
+			Encoding:        backend.EncGZIP,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -76,7 +80,7 @@ func TestDB(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	complete, err := head.Complete(wal, &mockSharder{})
+	complete, err := w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 
 	err = w.WriteBlock(context.Background(), complete)
@@ -87,7 +91,7 @@ func TestDB(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, _, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		bFound, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
@@ -112,10 +116,13 @@ func TestBlockSharding(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
+		Block: &encoding.BlockConfig{
 			IndexDownsample: 17,
 			BloomFP:         .01,
+			Encoding:        backend.EncLZ4_256k,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -139,7 +146,7 @@ func TestBlockSharding(t *testing.T) {
 	assert.NoError(t, err, "unexpected error writing req")
 
 	// write block to backend
-	complete, err := head.Complete(wal, &mockSharder{})
+	complete, err := w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 
 	err = w.WriteBlock(context.Background(), complete)
@@ -157,7 +164,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case1: hit
 	blockStart := uuid.MustParse(BlockIDMin).String()
 	blockEnd := uuid.MustParse(BlockIDMax).String()
-	bFound, _, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
+	bFound, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
 	assert.Greater(t, len(bFound), 0)
 
@@ -169,7 +176,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case2: miss
 	blockStart = uuid.MustParse(BlockIDMin).String()
 	blockEnd = uuid.MustParse(BlockIDMin).String()
-	bFound, _, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
+	bFound, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
 	assert.Len(t, bFound, 0)
 }
@@ -184,16 +191,19 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
+		Block: &encoding.BlockConfig{
 			IndexDownsample: 17,
 			BloomFP:         .01,
+			Encoding:        backend.EncLZ4_256k,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
+	buff, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
 }
@@ -208,10 +218,13 @@ func TestBlockCleanup(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
+		Block: &encoding.BlockConfig{
 			IndexDownsample: 17,
 			BloomFP:         .01,
+			Encoding:        backend.EncLZ4_256k,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -232,7 +245,7 @@ func TestBlockCleanup(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err)
 
-	complete, err := head.Complete(wal, &mockSharder{})
+	complete, err := w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 
 	err = w.WriteBlock(context.Background(), complete)
@@ -287,10 +300,13 @@ func TestCleanMissingTenants(t *testing.T) {
 				Local: &local.Config{
 					Path: path.Join("/tmp", "traces"),
 				},
-				WAL: &wal.Config{
-					Filepath:        path.Join("/tmp", "wal"),
+				Block: &encoding.BlockConfig{
 					IndexDownsample: 17,
 					BloomFP:         .01,
+					Encoding:        backend.EncLZ4_256k,
+				},
+				WAL: &wal.Config{
+					Filepath: path.Join("/tmp", "wal"),
 				},
 				BlocklistPoll: 0,
 			}, log.NewNopLogger())
@@ -344,10 +360,13 @@ func TestUpdateBlocklist(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
+		Block: &encoding.BlockConfig{
 			IndexDownsample: 17,
 			BloomFP:         .01,
+			Encoding:        backend.EncLZ4_256k,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -528,10 +547,13 @@ func TestUpdateBlocklistCompacted(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
+		Block: &encoding.BlockConfig{
 			IndexDownsample: 17,
 			BloomFP:         .01,
+			Encoding:        backend.EncLZ4_256k,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())

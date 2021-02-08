@@ -12,7 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -26,10 +28,13 @@ func TestRetention(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		WAL: &wal.Config{
-			Filepath:        path.Join(tempDir, "wal"),
+		Block: &encoding.BlockConfig{
 			IndexDownsample: 17,
 			BloomFP:         .01,
+			Encoding:        backend.EncLZ4_256k,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -50,7 +55,7 @@ func TestRetention(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err)
 
-	complete, err := head.Complete(wal, &mockSharder{})
+	complete, err := w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 	blockID = complete.BlockMeta().BlockID
 
