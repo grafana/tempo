@@ -8,6 +8,7 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/alecthomas/kong v0.2.11
 	github.com/cortexproject/cortex v1.6.0
+	github.com/dustin/go-humanize v1.0.0
 	github.com/go-kit/kit v0.10.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/gogo/status v1.0.3
