@@ -18,9 +18,10 @@ type CompactorBlock struct {
 
 	bloom *common.ShardedBloomFilter
 
-	bufferedObjects int
-	appendBuffer    *bytes.Buffer
-	appender        common.Appender
+	bufferedObjects   int
+	totalBytesFlushed uint64
+	appendBuffer      *bytes.Buffer
+	appender          common.Appender
 }
 
 // NewCompactorBlock creates a ... new compactor block!
@@ -56,7 +57,7 @@ func (c *CompactorBlock) AddObject(id common.ID, object []byte) error {
 		return err
 	}
 	c.bufferedObjects++
-	c.compactedMeta.ObjectAdded(id)
+	c.compactedMeta.ObjectAdded(id, object)
 	c.bloom.Add(id)
 	return nil
 }
@@ -86,6 +87,7 @@ func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.Append
 	}
 
 	bytesFlushed := c.appendBuffer.Len()
+	c.totalBytesFlushed += uint64(bytesFlushed)
 	c.appendBuffer.Reset()
 	c.bufferedObjects = 0
 
@@ -121,6 +123,7 @@ func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
 
 	meta.StartTime = c.inMetas[0].StartTime
 	meta.EndTime = c.inMetas[0].EndTime
+	meta.FinalSize = c.totalBytesFlushed
 
 	// everything should be correct here except the start/end times which we will get from the passed in metas
 	for _, m := range c.inMetas[1:] {

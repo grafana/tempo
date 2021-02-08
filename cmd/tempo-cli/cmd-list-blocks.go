@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
@@ -109,12 +110,15 @@ func loadBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 
 func displayResults(results []blockStats, windowDuration time.Duration, includeCompacted bool) {
 
-	columns := []string{"id", "lvl", "count", "window", "start", "end", "duration", "age"}
+	columns := []string{"id", "lvl", "objects", "size (orig)", "encoding", "vers", "window", "start", "end", "duration", "age"}
 	if includeCompacted {
 		columns = append(columns, "cmp")
 	}
 
 	totalObjects := 0
+	totalBytes := uint64(0)
+	totalFinalBytes := uint64(0)
+
 	out := make([][]string, 0)
 	for _, r := range results {
 
@@ -127,8 +131,14 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 				s = r.id.String()
 			case "lvl":
 				s = strconv.Itoa(int(r.compactionLevel))
-			case "count":
+			case "objects":
 				s = strconv.Itoa(r.objects)
+			case "size (orig)":
+				s = fmt.Sprintf("%v (%v)", humanize.Bytes(r.finalSize), humanize.Bytes(r.size))
+			case "encoding":
+				s = r.encoding
+			case "vers":
+				s = r.version
 			case "window":
 				// Display compaction window in human-readable format
 				window := time.Unix(r.window*int64(windowDuration.Seconds()), 0).UTC()
@@ -156,6 +166,8 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 
 		out = append(out, line)
 		totalObjects += r.objects
+		totalBytes += r.size
+		totalFinalBytes += r.finalSize
 	}
 
 	footer := make([]string, 0)
@@ -163,6 +175,8 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 		switch c {
 		case "count":
 			footer = append(footer, strconv.Itoa(totalObjects))
+		case "size":
+			footer = append(footer, fmt.Sprintf("%v (%v)", humanize.Bytes(totalFinalBytes), humanize.Bytes(totalBytes)))
 		default:
 			footer = append(footer, "")
 		}

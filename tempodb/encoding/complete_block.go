@@ -68,7 +68,7 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 			return nil, err
 		}
 
-		c.meta.ObjectAdded(bytesID)
+		c.meta.ObjectAdded(bytesID, bytesObject)
 		c.bloom.Add(bytesID)
 		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
 		writeID := append([]byte(nil), bytesID...)
@@ -83,6 +83,7 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 	if err != nil {
 		return nil, err
 	}
+	c.meta.FinalSize = appender.DataLength() // Must be after Complete()
 	appendFile.Close()
 	c.records = appender.Records()
 	c.meta.StartTime = originatingMeta.StartTime
