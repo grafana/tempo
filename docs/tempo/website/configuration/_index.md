@@ -15,6 +15,7 @@ This section explains the configuration options for Tempo as well as the details
   - [Compactor](#compactor)
   - [Storage](#storage)
   - [Memberlist](#memberlist)
+  - [Compression](#compression)
 
 ## Authentication/Server
 Tempo uses the Weaveworks/common server.  See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.

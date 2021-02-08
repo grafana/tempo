@@ -37,7 +37,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.Block = &encoding.BlockConfig{}
 	f.Float64Var(&cfg.Trace.Block.BloomFP, util.PrefixConfig(prefix, "trace.block.bloom-filter-false-positive"), .05, "Bloom False Positive.")
 	f.IntVar(&cfg.Trace.Block.IndexDownsample, util.PrefixConfig(prefix, "trace.block.index-downsample"), 100, "Number of traces per index record.")
-	cfg.Trace.Block.Encoding = backend.EncLZ4_256k
+	cfg.Trace.Block.Encoding = backend.EncZstd
 
 	cfg.Trace.Azure = &azure.Config{}
 	f.StringVar(&cfg.Trace.Azure.StorageAccountName.Value, util.PrefixConfig(prefix, "trace.azure.storage-account-name"), "", "Azure storage account name.")

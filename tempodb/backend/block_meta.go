@@ -23,7 +23,7 @@ type BlockMeta struct {
 	EndTime         time.Time `json:"endTime"`
 	TotalObjects    int       `json:"totalObjects"`
 	CompactionLevel uint8     `json:"compactionLevel"`
-	Encoding        Encoding  `json:"encoding"`
+	Encoding        Encoding  `json:"compression"`
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding) *BlockMeta {
