@@ -10,6 +10,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/pkg/errors"
@@ -23,8 +24,9 @@ const (
 type Compactor struct {
 	services.Service
 
-	cfg   *Config
-	store storage.Store
+	cfg       *Config
+	store     storage.Store
+	overrides *overrides.Overrides
 
 	// Ring used for sharding compactions.
 	ringLifecycler *ring.Lifecycler
@@ -34,11 +36,12 @@ type Compactor struct {
 	subservicesWatcher *services.FailureWatcher
 }
 
-// New makes a new Querier.
-func New(cfg Config, store storage.Store) (*Compactor, error) {
+// New makes a new Compactor.
+func New(cfg Config, store storage.Store, overrides *overrides.Overrides) (*Compactor, error) {
 	c := &Compactor{
-		cfg:   &cfg,
-		store: store,
+		cfg:       &cfg,
+		store:     store,
+		overrides: overrides,
 	}
 
 	subservices := []services.Service(nil)
@@ -95,7 +98,7 @@ func (c *Compactor) running(ctx context.Context) error {
 		level.Info(util.Logger).Log("msg", "waiting for compaction ring to settle", "waitDuration", waitOnStartup)
 		time.Sleep(waitOnStartup)
 		level.Info(util.Logger).Log("msg", "enabling compaction")
-		c.store.EnableCompaction(&c.cfg.Compactor, c)
+		c.store.EnableCompaction(&c.cfg.Compactor, c, c)
 	}()
 
 	if c.subservices != nil {
@@ -121,6 +124,7 @@ func (c *Compactor) stopping(_ error) error {
 	return nil
 }
 
+// Owns implements CompactorSharder
 func (c *Compactor) Owns(hash string) bool {
 	if !c.isSharded() {
 		return true
@@ -148,12 +152,18 @@ func (c *Compactor) Owns(hash string) bool {
 	return rs.Ingesters[0].Addr == c.ringLifecycler.Addr
 }
 
+// Combine implements CompactorSharder
 func (c *Compactor) Combine(objA []byte, objB []byte) []byte {
 	combinedTrace, err := tempo_util.CombineTraces(objA, objB)
 	if err != nil {
 		level.Error(util.Logger).Log("msg", "error combining trace protos", "err", err.Error())
 	}
 	return combinedTrace
+}
+
+// BlockRetentionForTenant implements CompactorOverrides
+func (c *Compactor) BlockRetentionForTenant(tenantID string) time.Duration {
+	return c.overrides.BlockRetention(tenantID)
 }
 
 func (c *Compactor) waitRingActive(ctx context.Context) error {

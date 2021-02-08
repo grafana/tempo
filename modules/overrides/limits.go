@@ -26,6 +26,9 @@ type Limits struct {
 	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user"`
 	MaxSpansPerTrace       int `yaml:"max_spans_per_trace"`
 
+	// Compactor enforced limits.
+	BlockRetention time.Duration `yaml:"block_retention"`
+
 	// Config for overrides, convenient if it goes here.
 	PerTenantOverrideConfig string        `yaml:"per_tenant_override_config"`
 	PerTenantOverridePeriod time.Duration `yaml:"per_tenant_override_period"`

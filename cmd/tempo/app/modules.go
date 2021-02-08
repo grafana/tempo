@@ -188,7 +188,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 }
 
 func (t *App) initCompactor() (services.Service, error) {
-	compactor, err := compactor.New(t.cfg.Compactor, t.store)
+	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.overrides)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor %w", err)
 	}
@@ -260,7 +260,7 @@ func (t *App) setupModuleManager() error {
 		Distributor:   {Ring, Server, Overrides},
 		Ingester:      {Store, Server, Overrides, MemberlistKV},
 		Querier:       {Store, Ring},
-		Compactor:     {Store, Server, MemberlistKV},
+		Compactor:     {Store, Server, Overrides, MemberlistKV},
 		All:           {Compactor, QueryFrontend, Querier, Ingester, Distributor},
 	}
 
