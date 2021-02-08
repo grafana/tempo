@@ -256,7 +256,7 @@ func (t *App) setupModuleManager() error {
 		// Server:       nil,
 		// Overrides:    nil,
 		// Store:        nil,
-		// MemberlistKV: nil,
+		MemberlistKV:  {Server},
 		QueryFrontend: {Server},
 		Ring:          {Server, MemberlistKV},
 		Distributor:   {Ring, Server, Overrides},
