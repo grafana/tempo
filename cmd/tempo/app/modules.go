@@ -232,6 +232,8 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 
+	t.server.HTTP.Handle("/memberlist", t.memberlistKV)
+
 	return t.memberlistKV, nil
 }
 
