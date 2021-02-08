@@ -140,7 +140,7 @@ If this metric is greater than zero (0), check the logs of the compactor for an 
 
 ## Problem 4. Distributor is not accepting traces
 
-The distributor is not accepting traces. It is showing the followingg messages:
+The distributor is not accepting traces. It is showing the following messages:
 `max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 10000) exceeded`.
 
 Possible reasons why you are seeing this error is because you have reached the [maximum number of live traces allowed](https://github.com/grafana/tempo/blob/3710d944cfe2a51836c3e4ef4a97316ed0526a58/modules/overrides/limits.go#L25) per tenant in the ingester.
@@ -148,5 +148,5 @@ Possible reasons why you are seeing this error is because you have reached the [
 ### Solutions
 
 - Check if you have the `overrides` parameter in your configuration file. 
-- If it is missing, add the setting using instructions in [Override live traces limit](../configuration/override).
-- Increased the maximum limit to a failsafe value like `50000`.
+- If it is missing, add the setting using instructions in [Override trace limit](../configuration/override).
+- Increase the maximum limit of the `max_traces_per_user` parameter to a failsafe value like `50000`.
