@@ -25,13 +25,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		MatchMaxConcurrency:   true,
 		MaxConcurrentRequests: cfg.MaxConcurrentQueries,
 		Parallelism:           2,
-		GRPCClientConfig: grpcclient.ConfigWithTLS{
-			GRPC: grpcclient.Config{
-				MaxRecvMsgSize:     100 << 20,
-				MaxSendMsgSize:     16 << 20,
-				UseGzipCompression: false,
-				GRPCCompression:    "gzip",
-			},
+		GRPCClientConfig: grpcclient.Config{
+			MaxRecvMsgSize:  100 << 20,
+			MaxSendMsgSize:  16 << 20,
+			GRPCCompression: "gzip",
 		},
 	}
 

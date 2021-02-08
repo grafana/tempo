@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	cortex_util "github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
@@ -163,7 +163,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 				_ = i.completingBlock.Clear()
 				metricFailedFlushes.Inc()
 				i.completingBlock = nil
-				level.Error(cortex_util.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
+				level.Error(log.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
 				return
 			}
 			i.completingBlock = nil
@@ -340,7 +340,7 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte) error {
 func (i *instance) Combine(objA []byte, objB []byte) []byte {
 	combinedTrace, err := util.CombineTraces(objA, objB)
 	if err != nil {
-		level.Error(cortex_util.Logger).Log("msg", "error combining trace protos", "err", err.Error())
+		level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
 	}
 	return combinedTrace
 }

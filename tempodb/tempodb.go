@@ -15,7 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/cortexproject/cortex/pkg/util"
+	log_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 
@@ -210,7 +210,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, error) {
 	// tracing instrumentation
-	logger := util.WithContext(ctx, util.Logger)
+	logger := log_util.WithContext(ctx, log_util.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 

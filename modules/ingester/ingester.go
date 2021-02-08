@@ -14,7 +14,7 @@ import (
 	"github.com/weaveworks/common/user"
 
 	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -275,11 +275,11 @@ func (i *Ingester) replayWal() error {
 		return nil
 	}
 
-	level.Info(util.Logger).Log("msg", "beginning wal replay", "numBlocks", len(blocks))
+	level.Info(log.Logger).Log("msg", "beginning wal replay", "numBlocks", len(blocks))
 
 	for _, b := range blocks {
 		tenantID := b.TenantID()
-		level.Info(util.Logger).Log("msg", "beginning block replay", "tenantID", tenantID)
+		level.Info(log.Logger).Log("msg", "beginning block replay", "tenantID", tenantID)
 
 		instance, err := i.getOrCreateInstance(tenantID)
 		if err != nil {
@@ -289,7 +289,7 @@ func (i *Ingester) replayWal() error {
 		err = i.replayBlock(b, instance)
 		if err != nil {
 			// there was an error, log and keep on keeping on
-			level.Error(util.Logger).Log("msg", "error replaying block.  removing", "error", err)
+			level.Error(log.Logger).Log("msg", "error replaying block.  removing", "error", err)
 		}
 		err = b.Clear()
 		if err != nil {

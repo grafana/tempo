@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	log_util "github.com/cortexproject/cortex/pkg/util"
+	log_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
