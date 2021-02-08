@@ -111,11 +111,14 @@ func (a *bufferedAppender) flush() error {
 		return nil
 	}
 
-	compressedWriter := a.pool.GetWriter(a.outputWriter)
+	compressedWriter, err := a.pool.GetWriter(a.outputWriter)
+	if err != nil {
+		return err
+	}
 
 	// write compressed data
 	buffer := a.v0Buffer.Bytes()
-	_, err := compressedWriter.Write(buffer)
+	_, err = compressedWriter.Write(buffer)
 	if err != nil {
 		return err
 	}

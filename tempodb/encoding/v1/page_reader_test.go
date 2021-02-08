@@ -30,7 +30,8 @@ func TestPageReader(t *testing.T) {
 				mw := &meteredWriter{
 					wrappedWriter: buff,
 				}
-				writer := wPool.GetWriter(mw)
+				writer, err := wPool.GetWriter(mw)
+				require.NoError(t, err)
 
 				_, err = writer.Write(tc.readerBytes)
 				require.NoError(t, err)

@@ -41,7 +41,10 @@ func (r *pageReader) Read(records []*common.Record) ([][]byte, error) {
 	// now decompress
 	decompressedPages := make([][]byte, 0, len(compressedPages))
 	for _, page := range compressedPages {
-		reader := r.pool.GetReader(bytes.NewReader(page))
+		reader, err := r.pool.GetReader(bytes.NewReader(page))
+		if err != nil {
+			return nil, err
+		}
 
 		page, err := ioutil.ReadAll(reader)
 		r.pool.PutReader(reader)
