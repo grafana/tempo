@@ -110,8 +110,10 @@ func (a *bufferedAppender) Complete() error {
 		return err
 	}
 
-	a.pool.PutWriter(a.compressionWriter)
-	a.compressionWriter = nil
+	if a.compressionWriter != nil {
+		a.pool.PutWriter(a.compressionWriter)
+		a.compressionWriter = nil
+	}
 
 	return nil
 }
@@ -125,7 +127,7 @@ func (a *bufferedAppender) flush() error {
 	if a.compressionWriter == nil {
 		a.compressionWriter, err = a.pool.GetWriter(a.outputWriter)
 	} else {
-		err = a.pool.ResetWriter(a.outputWriter, a.compressionWriter)
+		a.compressionWriter, err = a.pool.ResetWriter(a.outputWriter, a.compressionWriter)
 	}
 	if err != nil {
 		return err

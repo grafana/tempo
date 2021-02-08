@@ -20,7 +20,7 @@ const maxEncoding = backend.EncZstd
 type WriterPool interface {
 	GetWriter(io.Writer) (io.WriteCloser, error)
 	PutWriter(io.WriteCloser)
-	ResetWriter(dst io.Writer, resetWriter io.WriteCloser) error
+	ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.WriteCloser, error)
 	Encoding() backend.Encoding
 }
 
@@ -28,7 +28,7 @@ type WriterPool interface {
 type ReaderPool interface {
 	GetReader(io.Reader) (io.Reader, error)
 	PutReader(io.Reader)
-	ResetReader(src io.Reader, resetReader io.Reader) error
+	ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error)
 	Encoding() backend.Encoding
 }
 
@@ -122,9 +122,14 @@ func (pool *GzipPool) PutReader(reader io.Reader) {
 }
 
 // ResetReader implements ReaderPool
-func (pool *GzipPool) ResetReader(src io.Reader, resetReader io.Reader) error {
+func (pool *GzipPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
 	reader := resetReader.(*gzip.Reader)
-	return reader.Reset(src)
+	err := reader.Reset(src)
+	if err != nil {
+		return nil, err
+	}
+
+	return reader, nil
 }
 
 // GetWriter gets or creates a new CompressionWriter and reset it to write to dst
@@ -152,11 +157,11 @@ func (pool *GzipPool) PutWriter(writer io.WriteCloser) {
 }
 
 // ResetWriter implements WriterPool
-func (pool *GzipPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) error {
+func (pool *GzipPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.WriteCloser, error) {
 	writer := resetWriter.(*gzip.Writer)
 	writer.Reset(dst)
 
-	return nil
+	return writer, nil
 }
 
 // LZ4Pool is an pool...of lz4s...
@@ -200,10 +205,10 @@ func (pool *LZ4Pool) PutReader(reader io.Reader) {
 }
 
 // ResetReader implements ReaderPool
-func (pool *LZ4Pool) ResetReader(src io.Reader, resetReader io.Reader) error {
+func (pool *LZ4Pool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
 	reader := resetReader.(*lz4.Reader)
 	reader.Reset(src)
-	return nil
+	return reader, nil
 }
 
 // GetWriter gets or creates a new CompressionWriter and reset it to write to dst
@@ -232,10 +237,10 @@ func (pool *LZ4Pool) PutWriter(writer io.WriteCloser) {
 }
 
 // ResetWriter implements WriterPool
-func (pool *LZ4Pool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) error {
+func (pool *LZ4Pool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.WriteCloser, error) {
 	writer := resetWriter.(*lz4.Writer)
 	writer.Reset(dst)
-	return nil
+	return writer, nil
 }
 
 // SnappyPool is a really cool looking pool.  Dang that pool is _snappy_.
@@ -265,10 +270,10 @@ func (pool *SnappyPool) PutReader(reader io.Reader) {
 }
 
 // ResetReader implements ReaderPool
-func (pool *SnappyPool) ResetReader(src io.Reader, resetReader io.Reader) error {
+func (pool *SnappyPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
 	reader := resetReader.(*snappy.Reader)
 	reader.Reset(src)
-	return nil
+	return reader, nil
 }
 
 // GetWriter gets or creates a new CompressionWriter and reset it to write to dst
@@ -287,10 +292,10 @@ func (pool *SnappyPool) PutWriter(writer io.WriteCloser) {
 }
 
 // ResetWriter implements WriterPool
-func (pool *SnappyPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) error {
+func (pool *SnappyPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.WriteCloser, error) {
 	writer := resetWriter.(*snappy.Writer)
 	writer.Reset(dst)
-	return nil
+	return writer, nil
 }
 
 // NoopPool is for people who think compression is for the weak
@@ -310,8 +315,8 @@ func (pool *NoopPool) GetReader(src io.Reader) (io.Reader, error) {
 func (pool *NoopPool) PutReader(reader io.Reader) {}
 
 // ResetReader implements ReaderPool
-func (pool *NoopPool) ResetReader(src io.Reader, resetReader io.Reader) error {
-	return nil
+func (pool *NoopPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
+	return src, nil
 }
 
 type noopCloser struct {
@@ -329,8 +334,8 @@ func (pool *NoopPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 func (pool *NoopPool) PutWriter(writer io.WriteCloser) {}
 
 // ResetWriter implements WriterPool
-func (pool *NoopPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) error {
-	return nil
+func (pool *NoopPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.WriteCloser, error) {
+	return noopCloser{dst}, nil
 }
 
 // ZstdPool is a zstd compression pool
@@ -359,9 +364,13 @@ func (pool *ZstdPool) PutReader(reader io.Reader) {
 }
 
 // ResetReader implements ReaderPool
-func (pool *ZstdPool) ResetReader(src io.Reader, resetReader io.Reader) error {
+func (pool *ZstdPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
 	reader := resetReader.(*zstd.Decoder)
-	return reader.Reset(src)
+	err := reader.Reset(src)
+	if err != nil {
+		return nil, err
+	}
+	return reader, nil
 }
 
 // GetWriter gets or creates a new CompressionWriter and reset it to write to dst
@@ -380,8 +389,8 @@ func (pool *ZstdPool) PutWriter(writer io.WriteCloser) {
 }
 
 // ResetWriter implements WriterPool
-func (pool *ZstdPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) error {
+func (pool *ZstdPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.WriteCloser, error) {
 	writer := resetWriter.(*zstd.Encoder)
 	writer.Reset(dst)
-	return nil
+	return writer, nil
 }

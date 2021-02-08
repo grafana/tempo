@@ -13,7 +13,8 @@ import (
 type pageReader struct {
 	v0PageReader common.PageReader
 
-	pool ReaderPool
+	pool             ReaderPool
+	compressedReader io.Reader
 }
 
 // NewPageReader constructs a v1 PageReader that handles compression
@@ -41,13 +42,16 @@ func (r *pageReader) Read(records []*common.Record) ([][]byte, error) {
 	// now decompress
 	decompressedPages := make([][]byte, 0, len(compressedPages))
 	for _, page := range compressedPages {
-		reader, err := r.pool.GetReader(bytes.NewReader(page))
+		if r.compressedReader == nil {
+			r.compressedReader, err = r.pool.GetReader(bytes.NewReader(page))
+		} else {
+			r.compressedReader, err = r.pool.ResetReader(bytes.NewReader(page), r.compressedReader)
+		}
 		if err != nil {
 			return nil, err
 		}
 
-		page, err := ioutil.ReadAll(reader)
-		r.pool.PutReader(reader)
+		page, err := ioutil.ReadAll(r.compressedReader)
 		if err != nil {
 			return nil, err
 		}
@@ -56,4 +60,12 @@ func (r *pageReader) Read(records []*common.Record) ([][]byte, error) {
 	}
 
 	return decompressedPages, nil
+}
+
+func (r *pageReader) Close() {
+	r.v0PageReader.Close()
+
+	if r.compressedReader != nil {
+		r.pool.PutReader(r.compressedReader)
+	}
 }

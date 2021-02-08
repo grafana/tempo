@@ -123,6 +123,7 @@ func TestPageReader(t *testing.T) {
 	for _, tc := range tests {
 		reader := NewPageReader(bytes.NewReader(tc.readerBytes))
 		actual, err := reader.Read(tc.records)
+		reader.Close()
 
 		if tc.expectedError {
 			assert.Error(t, err)

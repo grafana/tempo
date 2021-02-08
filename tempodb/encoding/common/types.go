@@ -44,6 +44,7 @@ type ObjectCombiner interface {
 // formats.
 type PageReader interface {
 	Read([]*Record) ([][]byte, error)
+	Close()
 }
 
 // IndexReader is used to abstract away the details of an index.  Currently

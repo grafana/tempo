@@ -40,6 +40,7 @@ func TestPageReader(t *testing.T) {
 
 				encryptedBytes := buff.Bytes()
 				reader, err := NewPageReader(bytes.NewReader(encryptedBytes), enc)
+				defer reader.Close()
 				require.NoError(t, err)
 
 				actual, err := reader.Read([]*common.Record{
