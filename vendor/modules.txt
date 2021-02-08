@@ -740,7 +740,6 @@ github.com/olekukonko/tablewriter
 # github.com/open-telemetry/opentelemetry-proto v0.4.0
 ## explicit
 github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1
-github.com/open-telemetry/opentelemetry-proto/gen/go/metrics/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1
 github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1
 # github.com/opentracing-contrib/go-grpc v0.0.0-20191001143057-db30781987df => github.com/pracucci/go-grpc v0.0.0-20201022134131-ef559b8db645
