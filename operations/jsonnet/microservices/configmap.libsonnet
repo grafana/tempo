@@ -108,6 +108,11 @@
     configMap.new('tempo-compactor') +
     configMap.withData({
       'tempo.yaml': $.util.manifestYaml($.tempo_compactor_config),
+    }) +
+    configMap.withDataMixin({
+      'overrides.yaml': $.util.manifestYaml({
+        overrides: $._config.overrides,
+      }),
     }),
 
   tempo_query_frontend_config:: $.tempo_config{},
