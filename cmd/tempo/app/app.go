@@ -13,6 +13,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/cortexproject/cortex/pkg/util/grpc/healthcheck"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
@@ -92,26 +93,26 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 // CheckConfig checks if config values are suspect.
 func (c *Config) CheckConfig() {
 	if c.Ingester.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
-		level.Warn(util.Logger).Log("msg", "ingester.complete_block_timeout < storage.trace.blocklist_poll",
+		level.Warn(log.Logger).Log("msg", "ingester.complete_block_timeout < storage.trace.blocklist_poll",
 			"explan", "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block")
 	}
 
 	if c.Compactor.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
-		level.Warn(util.Logger).Log("msg", "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
+		level.Warn(log.Logger).Log("msg", "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
 			"explan", "Queriers and Compactors may attempt to read a block that no longer exists")
 	}
 
 	if c.Compactor.Compactor.RetentionConcurrency == 0 {
-		level.Warn(util.Logger).Log("msg", "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultRetentionConcurrency)
+		level.Warn(log.Logger).Log("msg", "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultRetentionConcurrency)
 	}
 
 	if c.StorageConfig.Trace.Backend == "s3" && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
-		level.Warn(util.Logger).Log("msg", "c.Compactor.Compactor.FlushSizeBytes < 5242880",
+		level.Warn(log.Logger).Log("msg", "c.Compactor.Compactor.FlushSizeBytes < 5242880",
 			"explan", "Compaction flush size should be 5MB or higher for S3 backend")
 	}
 
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
-		level.Warn(util.Logger).Log("msg", "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultBlocklistPollConcurrency)
+		level.Warn(log.Logger).Log("msg", "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultBlocklistPollConcurrency)
 	}
 }
 
@@ -193,7 +194,7 @@ func (t *App) setupAuthMiddleware() {
 // Run starts, and blocks until a signal is received.
 func (t *App) Run() error {
 	if !t.moduleManager.IsUserVisibleModule(t.cfg.Target) {
-		level.Warn(util.Logger).Log("msg", "selected target is an internal module, is this intended?", "target", t.cfg.Target)
+		level.Warn(log.Logger).Log("msg", "selected target is an internal module, is this intended?", "target", t.cfg.Target)
 	}
 
 	serviceMap, err := t.moduleManager.InitModuleServices(t.cfg.Target)
@@ -218,8 +219,8 @@ func (t *App) Run() error {
 	grpc_health_v1.RegisterHealthServer(t.server.GRPC, healthcheck.New(sm))
 
 	// Let's listen for events from this manager, and log them.
-	healthy := func() { level.Info(util.Logger).Log("msg", "Tempo started") }
-	stopped := func() { level.Info(util.Logger).Log("msg", "Tempo stopped") }
+	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }
+	stopped := func() { level.Info(log.Logger).Log("msg", "Tempo stopped") }
 	serviceFailed := func(service services.Service) {
 		// if any service fails, stop everything
 		sm.StopAsync()
@@ -228,15 +229,15 @@ func (t *App) Run() error {
 		for m, s := range serviceMap {
 			if s == service {
 				if service.FailureCase() == util.ErrStopProcess {
-					level.Info(util.Logger).Log("msg", "received stop signal via return error", "module", m, "err", service.FailureCase())
+					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", service.FailureCase())
 				} else {
-					level.Error(util.Logger).Log("msg", "module failed", "module", m, "err", service.FailureCase())
+					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", service.FailureCase())
 				}
 				return
 			}
 		}
 
-		level.Error(util.Logger).Log("msg", "module failed", "module", "unknown", "err", service.FailureCase())
+		level.Error(log.Logger).Log("msg", "module failed", "module", "unknown", "err", service.FailureCase())
 	}
 	sm.AddListener(services.NewManagerListener(healthy, stopped, serviceFailed))
 
@@ -268,7 +269,7 @@ func (t *App) configHandler() http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/yaml")
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write(out); err != nil {
-			level.Error(util.Logger).Log("msg", "error writing response", "err", err)
+			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
 		}
 	}
 

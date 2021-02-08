@@ -19,8 +19,8 @@ import (
 	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/tracing"
 
-	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
+	"github.com/cortexproject/cortex/pkg/util/log"
 )
 
 const appName = "tempo"
@@ -55,20 +55,20 @@ func main() {
 
 	// Init the logger which will honor the log level set in config.Server
 	if reflect.DeepEqual(&config.Server.LogLevel, &logging.Level{}) {
-		level.Error(util.Logger).Log("msg", "invalid log level")
+		level.Error(log.Logger).Log("msg", "invalid log level")
 		os.Exit(1)
 	}
-	util.InitLogger(&config.Server)
+	log.InitLogger(&config.Server)
 
 	// Setting the environment variable JAEGER_AGENT_HOST enables tracing
 	trace, err := tracing.NewFromEnv(fmt.Sprintf("%s-%s", appName, config.Target))
 	if err != nil {
-		level.Error(util.Logger).Log("msg", "error initialising tracer", "err", err)
+		level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
 		os.Exit(1)
 	}
 	defer func() {
 		if err := trace.Close(); err != nil {
-			level.Error(util.Logger).Log("msg", "error closing tracing", "err", err)
+			level.Error(log.Logger).Log("msg", "error closing tracing", "err", err)
 			os.Exit(1)
 		}
 	}()
@@ -82,19 +82,19 @@ func main() {
 	// Start Tempo
 	t, err := app.New(*config)
 	if err != nil {
-		level.Error(util.Logger).Log("msg", "error initialising Tempo", "err", err)
+		level.Error(log.Logger).Log("msg", "error initialising Tempo", "err", err)
 		os.Exit(1)
 	}
 
-	level.Info(util.Logger).Log("msg", "Starting Tempo", "version", version.Info())
+	level.Info(log.Logger).Log("msg", "Starting Tempo", "version", version.Info())
 
 	if err := t.Run(); err != nil {
-		level.Error(util.Logger).Log("msg", "error running Tempo", "err", err)
+		level.Error(log.Logger).Log("msg", "error running Tempo", "err", err)
 		os.Exit(1)
 	}
 	runtime.KeepAlive(ballast)
 
-	level.Info(util.Logger).Log("msg", "Tempo running")
+	level.Info(log.Logger).Log("msg", "Tempo running")
 }
 
 func loadConfig() (*app.Config, error) {

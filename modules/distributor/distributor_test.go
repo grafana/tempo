@@ -348,7 +348,7 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distrib
 		replicationFactor: 3,
 	}
 	for addr := range ingesters {
-		ingestersRing.ingesters = append(ingestersRing.ingesters, ring.IngesterDesc{
+		ingestersRing.ingesters = append(ingestersRing.ingesters, ring.InstanceDesc{
 			Addr: addr,
 		})
 	}
@@ -392,13 +392,13 @@ func (i *mockIngester) Close() error {
 // ingesters.
 type mockRing struct {
 	prometheus.Counter
-	ingesters         []ring.IngesterDesc
+	ingesters         []ring.InstanceDesc
 	replicationFactor uint32
 }
 
 var _ ring.ReadRing = (*mockRing)(nil)
 
-func (r mockRing) Get(key uint32, op ring.Operation, buf []ring.IngesterDesc) (ring.ReplicationSet, error) {
+func (r mockRing) Get(key uint32, op ring.Operation, buf []ring.InstanceDesc, _, _ []string) (ring.ReplicationSet, error) {
 	result := ring.ReplicationSet{
 		MaxErrors: 1,
 		Ingesters: buf[:0],
@@ -433,7 +433,7 @@ func (r mockRing) ShuffleShardWithLookback(string, int, time.Duration, time.Time
 	return r
 }
 
-func (r mockRing) IngesterCount() int {
+func (r mockRing) InstancesCount() int {
 	return len(r.ingesters)
 }
 

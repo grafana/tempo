@@ -12,7 +12,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
@@ -137,7 +137,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		// if we're in single binary mode with no worker address specified, register default endpoint
 		if t.cfg.Querier.Worker.FrontendAddress == "" {
 			t.cfg.Querier.Worker.FrontendAddress = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
-			level.Warn(util.Logger).Log("msg", "Worker address is empty in single binary mode.  Attempting automatic worker configuration.  If queries are unresponsive consider configuring the worker explicitly.", "address", t.cfg.Querier.Worker.FrontendAddress)
+			level.Warn(log.Logger).Log("msg", "Worker address is empty in single binary mode.  Attempting automatic worker configuration.  If queries are unresponsive consider configuring the worker explicitly.", "address", t.cfg.Querier.Worker.FrontendAddress)
 		}
 	}
 
@@ -159,20 +159,20 @@ func (t *App) initQuerier() (services.Service, error) {
 func (t *App) initQueryFrontend() (services.Service, error) {
 	var err error
 
-	cortexTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, util.Logger, prometheus.DefaultRegisterer)
+	cortexTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
 	t.frontend = v1
 
 	// custom tripperware that splits requests
-	shardingTripperWare, err := frontend.NewTripperware(t.cfg.Frontend, util.Logger, prometheus.DefaultRegisterer)
+	shardingTripperWare, err := frontend.NewTripperware(t.cfg.Frontend, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
 	shardingTripper := shardingTripperWare(cortexTripper)
 
-	cortexHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, shardingTripper, util.Logger, prometheus.DefaultRegisterer)
+	cortexHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, shardingTripper, log.Logger, prometheus.DefaultRegisterer)
 
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
@@ -203,7 +203,7 @@ func (t *App) initCompactor() (services.Service, error) {
 }
 
 func (t *App) initStore() (services.Service, error) {
-	store, err := tempo_storage.NewStore(t.cfg.StorageConfig, util.Logger)
+	store, err := tempo_storage.NewStore(t.cfg.StorageConfig, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create store %w", err)
 	}
@@ -226,7 +226,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	// todo: do we still need this?  does the package do this by default now?
 	t.cfg.MemberlistKV.NodeName = hostname + "-" + uuid.New().String()
 
-	t.memberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, util.Logger)
+	t.memberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger)
 
 	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV

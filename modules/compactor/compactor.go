@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
 	"github.com/grafana/tempo/modules/overrides"
@@ -83,7 +83,7 @@ func (c *Compactor) starting(ctx context.Context) error {
 
 		ctx := context.Background()
 
-		level.Info(util.Logger).Log("msg", "waiting to be active in the ring")
+		level.Info(log.Logger).Log("msg", "waiting to be active in the ring")
 		err = c.waitRingActive(ctx)
 		if err != nil {
 			return err
@@ -95,9 +95,9 @@ func (c *Compactor) starting(ctx context.Context) error {
 
 func (c *Compactor) running(ctx context.Context) error {
 	go func() {
-		level.Info(util.Logger).Log("msg", "waiting for compaction ring to settle", "waitDuration", waitOnStartup)
+		level.Info(log.Logger).Log("msg", "waiting for compaction ring to settle", "waitDuration", waitOnStartup)
 		time.Sleep(waitOnStartup)
-		level.Info(util.Logger).Log("msg", "enabling compaction")
+		level.Info(log.Logger).Log("msg", "enabling compaction")
 		c.store.EnableCompaction(&c.cfg.Compactor, c, c)
 	}()
 
@@ -130,24 +130,24 @@ func (c *Compactor) Owns(hash string) bool {
 		return true
 	}
 
-	level.Debug(util.Logger).Log("msg", "checking hash", "hash", hash)
+	level.Debug(log.Logger).Log("msg", "checking hash", "hash", hash)
 
 	hasher := fnv.New32a()
 	_, _ = hasher.Write([]byte(hash))
 	hash32 := hasher.Sum32()
 
-	rs, err := c.Ring.Get(hash32, ring.Read, []ring.IngesterDesc{})
+	rs, err := c.Ring.Get(hash32, ring.Read, []ring.InstanceDesc{}, nil, nil)
 	if err != nil {
-		level.Error(util.Logger).Log("msg", "failed to get ring", "err", err)
+		level.Error(log.Logger).Log("msg", "failed to get ring", "err", err)
 		return false
 	}
 
 	if len(rs.Ingesters) != 1 {
-		level.Error(util.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Ingesters))
+		level.Error(log.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Ingesters))
 		return false
 	}
 
-	level.Debug(util.Logger).Log("msg", "checking addresses", "owning_addr", rs.Ingesters[0].Addr, "this_addr", c.ringLifecycler.Addr)
+	level.Debug(log.Logger).Log("msg", "checking addresses", "owning_addr", rs.Ingesters[0].Addr, "this_addr", c.ringLifecycler.Addr)
 
 	return rs.Ingesters[0].Addr == c.ringLifecycler.Addr
 }
@@ -156,7 +156,7 @@ func (c *Compactor) Owns(hash string) bool {
 func (c *Compactor) Combine(objA []byte, objB []byte) []byte {
 	combinedTrace, err := tempo_util.CombineTraces(objA, objB)
 	if err != nil {
-		level.Error(util.Logger).Log("msg", "error combining trace protos", "err", err.Error())
+		level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
 	}
 	return combinedTrace
 }

@@ -6,11 +6,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/weaveworks/common/httpgrpc"
 
 	"github.com/cortexproject/cortex/pkg/ingester/client"
+	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/extract"
 )
 
@@ -33,7 +36,7 @@ const (
 	errInvalidLabel       = "sample invalid label: %.200q metric %.200q"
 	errLabelNameTooLong   = "label name too long: %.200q metric %.200q"
 	errLabelValueTooLong  = "label value too long: %.200q metric %.200q"
-	errTooManyLabels      = "sample for '%s' has %d label names; limit %d"
+	errTooManyLabels      = "series has too many labels (actual: %d, limit: %d) series: '%s'"
 	errTooOld             = "sample for '%s' has timestamp too old: %d"
 	errTooNew             = "sample for '%s' has timestamp too new: %d"
 	errDuplicateLabelName = "duplicate label name: %.200q metric %.200q"
@@ -56,6 +59,9 @@ const (
 	// RateLimited is one of the values for the reason to discard samples.
 	// Declared here to avoid duplication in ingester and distributor.
 	RateLimited = "rate_limited"
+
+	// Too many HA clusters is one of the reasons for discarding samples.
+	TooManyHAClusters = "too_many_ha_clusters"
 )
 
 // DiscardedSamples is a metric of the number of discarded samples, by reason.
@@ -129,7 +135,7 @@ func ValidateLabels(cfg LabelValidationConfig, userID string, ls []client.LabelA
 	numLabelNames := len(ls)
 	if numLabelNames > cfg.MaxLabelNamesPerSeries(userID) {
 		DiscardedSamples.WithLabelValues(maxLabelNamesPerSeries, userID).Inc()
-		return httpgrpc.Errorf(http.StatusBadRequest, errTooManyLabels, client.FromLabelAdaptersToMetric(ls).String(), numLabelNames, cfg.MaxLabelNamesPerSeries(userID))
+		return httpgrpc.Errorf(http.StatusBadRequest, errTooManyLabels, numLabelNames, cfg.MaxLabelNamesPerSeries(userID), client.FromLabelAdaptersToMetric(ls).String())
 	}
 
 	maxLabelNameLength := cfg.MaxLabelNameLength(userID)
@@ -234,4 +240,15 @@ func formatLabelSet(ls []client.LabelAdapter) string {
 	}
 
 	return fmt.Sprintf("%s{%s}", metricName, strings.Join(labelStrings, ", "))
+}
+
+func DeletePerUserValidationMetrics(userID string, log log.Logger) {
+	filter := map[string]string{"user": userID}
+
+	if err := util.DeleteMatchingLabels(DiscardedSamples, filter); err != nil {
+		level.Warn(log).Log("msg", "failed to remove cortex_discarded_samples_total metric for user", "user", userID, "err", err)
+	}
+	if err := util.DeleteMatchingLabels(DiscardedMetadata, filter); err != nil {
+		level.Warn(log).Log("msg", "failed to remove cortex_discarded_metadata_total metric for user", "user", userID, "err", err)
+	}
 }

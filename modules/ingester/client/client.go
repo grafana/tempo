@@ -48,7 +48,13 @@ func New(addr string, cfg Config) (*Client, error) {
 			grpc.UseCompressor("gzip"),
 		),
 	}
-	opts = append(opts, cfg.GRPCClientConfig.DialOption(instrumentation())...)
+
+	instrumentationOpts, err := cfg.GRPCClientConfig.DialOption(instrumentation())
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts, instrumentationOpts...)
 	conn, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return nil, err
