@@ -646,7 +646,7 @@ github.com/julienschmidt/httprouter
 # github.com/kisielk/gotool v1.0.0
 github.com/kisielk/gotool
 github.com/kisielk/gotool/internal/load
-# github.com/klauspost/compress v1.10.5
+# github.com/klauspost/compress v1.11.7
 ## explicit
 github.com/klauspost/compress/flate
 github.com/klauspost/compress/fse

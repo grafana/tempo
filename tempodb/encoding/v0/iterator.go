@@ -19,3 +19,6 @@ func NewIterator(reader io.Reader) common.Iterator {
 func (i *iterator) Next() (common.ID, []byte, error) {
 	return unmarshalObjectFromReader(i.reader)
 }
+
+func (i *iterator) Close() {
+}

@@ -30,7 +30,8 @@ func TestPageReader(t *testing.T) {
 				mw := &meteredWriter{
 					wrappedWriter: buff,
 				}
-				writer := wPool.GetWriter(mw)
+				writer, err := wPool.GetWriter(mw)
+				require.NoError(t, err)
 
 				_, err = writer.Write(tc.readerBytes)
 				require.NoError(t, err)
@@ -40,6 +41,7 @@ func TestPageReader(t *testing.T) {
 				encryptedBytes := buff.Bytes()
 				reader, err := NewPageReader(bytes.NewReader(encryptedBytes), enc)
 				require.NoError(t, err)
+				defer reader.Close()
 
 				actual, err := reader.Read([]*common.Record{
 					{

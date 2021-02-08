@@ -16,6 +16,7 @@ type Record struct {
 // Iterator is capable of iterating through a set of objects
 type Iterator interface {
 	Next() (ID, []byte, error)
+	Close()
 }
 
 // Finder is capable of finding the requested ID
@@ -44,6 +45,7 @@ type ObjectCombiner interface {
 // formats.
 type PageReader interface {
 	Read([]*Record) ([][]byte, error)
+	Close()
 }
 
 // IndexReader is used to abstract away the details of an index.  Currently

@@ -64,3 +64,7 @@ func (i *dedupingIterator) Next() (common.ID, []byte, error) {
 
 	return dedupedID, dedupedObject, nil
 }
+
+func (i *dedupingIterator) Close() {
+	i.iter.Close()
+}

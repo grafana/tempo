@@ -70,13 +70,15 @@ func TestCompleteBlock(t *testing.T) {
 
 func TestCompleteBlockAll(t *testing.T) {
 	for _, enc := range backend.SupportedEncoding {
-		testCompleteBlockToBackendBlock(t,
-			&BlockConfig{
-				IndexDownsample: 13,
-				BloomFP:         .01,
-				Encoding:        enc,
-			},
-		)
+		t.Run(enc.String(), func(t *testing.T) {
+			testCompleteBlockToBackendBlock(t,
+				&BlockConfig{
+					IndexDownsample: 13,
+					BloomFP:         .01,
+					Encoding:        enc,
+				},
+			)
+		})
 	}
 }
 

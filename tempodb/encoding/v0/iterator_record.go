@@ -53,3 +53,6 @@ func (i *recordIterator) Next() (common.ID, []byte, error) {
 	// done
 	return nil, nil, nil
 }
+
+func (i *recordIterator) Close() {
+}
