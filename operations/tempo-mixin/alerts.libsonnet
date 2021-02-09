@@ -70,7 +70,8 @@
           {
             alert: 'TempoCompactionsFailing',
             expr: |||
-              sum by (cluster, namespace) (increase(tempodb_compaction_errors_total{}[1h])) > %s
+              sum by (cluster, namespace) (increase(tempodb_compaction_errors_total{}[1h])) > %s and
+              sum by (cluster, namespace) (increase(tempodb_compaction_errors_total{}[5m])) > 0
             ||| % $._config.alerts.compactions_per_hour_failed,
             labels: {
               severity: 'critical',
@@ -83,7 +84,8 @@
           {
             alert: 'TempoFlushesFailing',
             expr: |||
-              sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s
+              sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s and
+              sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0
             ||| % $._config.alerts.flushes_per_hour_failed,
             labels: {
               severity: 'critical',
@@ -96,7 +98,8 @@
           {
             alert: 'TempoPollsFailing',
             expr: |||
-              sum by (cluster, namespace) (increase(tempodb_blocklist_poll_errors_total{}[1h])) > %s
+              sum by (cluster, namespace) (increase(tempodb_blocklist_poll_errors_total{}[1h])) > %s and
+              sum by (cluster, namespace) (increase(tempodb_blocklist_poll_errors_total{}[5m])) > 0
             ||| % $._config.alerts.polls_per_hour_failed,
             labels: {
               severity: 'critical',
