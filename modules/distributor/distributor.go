@@ -38,8 +38,8 @@ const (
 	reasonRateLimited = "rate_limited"
 	// reasonTraceTooLarge indicates that a single trace has too many spans
 	reasonTraceTooLarge = "trace_too_large"
-	// reasonTooManyTraces indicates that tempo is already tracking too many live traces in the ingesters for this user
-	reasonTooManyTraces = "too_many_traces"
+	// reasonLiveTracesExceeded indicates that tempo is already tracking too many live traces in the ingesters for this user
+	reasonLiveTracesExceeded = "live_traces_exceeded"
 )
 
 var (
@@ -226,7 +226,10 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, spanCount) {
 		metricDiscardedSpans.WithLabelValues(reasonRateLimited, userID).Add(float64(spanCount))
-		return nil, status.Errorf(codes.ResourceExhausted, "ingestion rate limit (%d spans) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
+		return nil, status.Errorf(codes.ResourceExhausted,
+			"%s ingestion rate limit (%d spans) exceeded while adding %d spans",
+			overrides.ErrorPrefixRateLimited,
+			int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 
 	keys, traces, err := requestsByTraceID(req, userID, spanCount)
@@ -236,7 +239,7 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 
 	err = d.sendToIngestersViaBytes(ctx, userID, traces, keys)
 	if err != nil {
-		metricDiscardedSpans.WithLabelValues(reasonForError(err), userID).Add(float64(spanCount))
+		recordDiscaredSpans(err, userID, spanCount)
 	}
 
 	return nil, err // PushRequest is ignored, so no reason to create one
@@ -354,14 +357,12 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 	return keys, pushRequests, nil
 }
 
-func reasonForError(err error) string {
+func recordDiscaredSpans(err error, userID string, spanCount int) {
 	desc := grpc.ErrorDesc(err)
 
-	if strings.HasPrefix(desc, overrides.ErrorPrefixTooManyTraces) {
-		return reasonTooManyTraces
+	if strings.HasPrefix(desc, overrides.ErrorPrefixLiveTracesExceeded) {
+		metricDiscardedSpans.WithLabelValues(reasonLiveTracesExceeded, userID).Add(float64(spanCount))
 	} else if strings.HasPrefix(desc, overrides.ErrorPrefixTraceTooLarge) {
-		return reasonTraceTooLarge
+		metricDiscardedSpans.WithLabelValues(reasonTraceTooLarge, userID).Add(float64(spanCount))
 	}
-
-	return ""
 }

@@ -47,7 +47,7 @@ func TestLimits(t *testing.T) {
 	require.NoError(t, err)
 	err = tempo.WaitSumMetricsWithOptions(cortex_e2e.Equals(1),
 		[]string{"tempo_discarded_spans_total"},
-		cortex_e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "too_many_traces")),
+		cortex_e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "live_traces_exceeded")),
 	)
 	require.NoError(t, err)
 	err = tempo.WaitSumMetricsWithOptions(cortex_e2e.Equals(10),
