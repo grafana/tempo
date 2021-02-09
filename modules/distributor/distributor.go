@@ -40,8 +40,6 @@ const (
 	reasonTraceTooLarge = "trace_too_large"
 	// reasonTooManyTraces indicates that tempo is already tracking too many live traces in the ingesters for this user
 	reasonTooManyTraces = "too_many_traces"
-	// reasonInternalError indicates that spans were rejected b/c of a failure in Tempo
-	reasonInternalError = "internal_error"
 )
 
 var (
@@ -233,7 +231,6 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 
 	keys, traces, err := requestsByTraceID(req, userID, spanCount)
 	if err != nil {
-		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
 		return nil, err
 	}
 
@@ -366,5 +363,5 @@ func reasonForError(err error) string {
 		return reasonTraceTooLarge
 	}
 
-	return reasonInternalError
+	return ""
 }
