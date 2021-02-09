@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -18,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
@@ -32,9 +34,14 @@ import (
 const (
 	discardReasonLabel = "reason"
 
-	// RateLimited is one of the values for the reason to discard samples.
-	// Declared here to avoid duplication in ingester and distributor.
-	rateLimited = "rate_limited"
+	// reasonRateLimited indicates that the tenants spans/second exceeded their limits
+	reasonRateLimited = "rate_limited"
+	// reasonTraceTooLarge indicates that a single trace has too many spans
+	reasonTraceTooLarge = "trace_too_large"
+	// reasonTooManyTraces indicates that tempo is already tracking too many live traces in the ingesters for this user
+	reasonTooManyTraces = "too_many_traces"
+	// reasonInternalError indicates that spans were rejected b/c of a failure in Tempo
+	reasonInternalError = "internal_error"
 )
 
 var (
@@ -196,14 +203,15 @@ func (d *Distributor) stopping(_ error) error {
 func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
+		// can't record discarded spans here b/c there's no tenant
 		return nil, err
 	}
 
-	// calculate and metric size...
+	// metric size
 	size := req.Size()
 	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
 
-	// ... and spans
+	// metric spans
 	if req.Batch == nil {
 		return &tempopb.PushResponse{}, nil
 	}
@@ -219,19 +227,20 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	// check limits
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, spanCount) {
-		// Return a 4xx here to have the client discard the data and not retry. If a client
-		// is sending too much data consistently we will unlikely ever catch up otherwise.
-		metricDiscardedSpans.WithLabelValues(rateLimited, userID).Add(float64(spanCount))
-
+		metricDiscardedSpans.WithLabelValues(reasonRateLimited, userID).Add(float64(spanCount))
 		return nil, status.Errorf(codes.ResourceExhausted, "ingestion rate limit (%d spans) exceeded while adding %d spans", int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
 	}
 
 	keys, traces, err := requestsByTraceID(req, userID, spanCount)
 	if err != nil {
+		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
 		return nil, err
 	}
 
 	err = d.sendToIngestersViaBytes(ctx, userID, traces, keys)
+	if err != nil {
+		metricDiscardedSpans.WithLabelValues(reasonForError(err), userID).Add(float64(spanCount))
+	}
 
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
@@ -346,4 +355,16 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 	}
 
 	return keys, pushRequests, nil
+}
+
+func reasonForError(err error) string {
+	desc := grpc.ErrorDesc(err)
+
+	if strings.HasPrefix(desc, overrides.ErrorPrefixTooManyTraces) {
+		return reasonTooManyTraces
+	} else if strings.HasPrefix(desc, overrides.ErrorPrefixTraceTooLarge) {
+		return reasonTraceTooLarge
+	}
+
+	return reasonInternalError
 }

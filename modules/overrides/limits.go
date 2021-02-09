@@ -6,11 +6,15 @@ import (
 )
 
 const (
-	// Local ingestion rate strategy
+	// LocalIngestionRateStrategy indicates that this limit can be evaluated in local terms only
 	LocalIngestionRateStrategy = "local"
-
-	// Global ingestion rate strategy
+	// GlobalIngestionRateStrategy indicates that an attempt should be made to consider this limit across the entire Tempo cluster
 	GlobalIngestionRateStrategy = "global"
+
+	// ErrorPrefixTooManyTraces is used to flag batches from the ingester that were rejected b/c they had too many traces
+	ErrorPrefixTooManyTraces = "TOO_MANY_TRACES:"
+	// ErrorPrefixTraceTooLarge is used to flag batches from the ingester that were rejected b/c they exceeded the single trace limit
+	ErrorPrefixTraceTooLarge = "TRACE_TOO_LARGE:"
 )
 
 // Limits describe all the limits for users; can be used to describe global default
