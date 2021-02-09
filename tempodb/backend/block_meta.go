@@ -22,8 +22,7 @@ type BlockMeta struct {
 	StartTime       time.Time `json:"startTime"`
 	EndTime         time.Time `json:"endTime"`
 	TotalObjects    int       `json:"totalObjects"`
-	TotalSize       uint64    `json:"totalSize"`
-	FinalSize       uint64    `json:"finalSize"`
+	Size            uint64    `json:"size"`
 	CompactionLevel uint8     `json:"compactionLevel"`
 	Encoding        Encoding  `json:"encoding"`
 }
@@ -44,7 +43,7 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding E
 	return b
 }
 
-func (b *BlockMeta) ObjectAdded(id []byte, d []byte) {
+func (b *BlockMeta) ObjectAdded(id []byte) {
 	b.EndTime = time.Now()
 
 	if len(b.MinID) == 0 || bytes.Compare(id, b.MinID) == -1 {
@@ -56,5 +55,4 @@ func (b *BlockMeta) ObjectAdded(id []byte, d []byte) {
 	}
 
 	b.TotalObjects++
-	b.TotalSize += uint64(len(d))
 }

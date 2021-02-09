@@ -117,7 +117,6 @@ type unifiedBlockMeta struct {
 	compactionLevel uint8
 	objects         int
 	size            uint64
-	finalSize       uint64
 	window          int64
 	start           time.Time
 	end             time.Time
@@ -132,8 +131,7 @@ func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta,
 			id:              meta.BlockID,
 			compactionLevel: meta.CompactionLevel,
 			objects:         meta.TotalObjects,
-			size:            meta.TotalSize,
-			finalSize:       meta.FinalSize,
+			size:            meta.Size,
 			window:          meta.EndTime.Unix() / int64(windowRange/time.Second),
 			start:           meta.StartTime,
 			end:             meta.EndTime,
@@ -147,8 +145,7 @@ func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta,
 			id:              compactedMeta.BlockID,
 			compactionLevel: compactedMeta.CompactionLevel,
 			objects:         compactedMeta.TotalObjects,
-			size:            compactedMeta.TotalSize,
-			finalSize:       compactedMeta.FinalSize,
+			size:            compactedMeta.Size,
 			window:          compactedMeta.EndTime.Unix() / int64(windowRange/time.Second),
 			start:           compactedMeta.StartTime,
 			end:             compactedMeta.EndTime,

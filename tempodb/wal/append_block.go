@@ -55,7 +55,7 @@ func (h *AppendBlock) Write(id common.ID, b []byte) error {
 	if err != nil {
 		return err
 	}
-	h.meta.ObjectAdded(id, b)
+	h.meta.ObjectAdded(id)
 	return nil
 }
 
