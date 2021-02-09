@@ -165,9 +165,9 @@ func TestAppendBlockComplete(t *testing.T) {
 	}
 
 	complete, err := block.Complete(&encoding.BlockConfig{
-		IndexDownsample: 13,
-		BloomFP:         .01,
-		Encoding:        backend.EncGZIP,
+		IndexDownsampleBytes: 13,
+		BloomFP:              .01,
+		Encoding:             backend.EncGZIP,
 	}, wal, &mockCombiner{})
 	assert.NoError(t, err, "unexpected error completing block")
 

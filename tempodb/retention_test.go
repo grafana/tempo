@@ -29,9 +29,9 @@ func TestRetention(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 17,
-			BloomFP:         .01,
-			Encoding:        backend.EncLZ4_256k,
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			Encoding:             backend.EncLZ4_256k,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -86,9 +86,9 @@ func TestBlockRetentionOverride(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 17,
-			BloomFP:         .01,
-			Encoding:        backend.EncLZ4_256k,
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			Encoding:             backend.EncLZ4_256k,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

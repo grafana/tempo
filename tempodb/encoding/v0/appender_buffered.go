@@ -45,7 +45,7 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 	a.currentRecord.ID = id
 	a.currentRecord.Length += uint32(length)
 
-	if a.totalObjects%a.indexDownsample == 0 {
+	if int(a.currentRecord.Length) > a.indexDownsample {
 		a.records = append(a.records, a.currentRecord)
 		a.currentRecord = nil
 	}

@@ -39,9 +39,9 @@ func TestCompactorBlockAddObject(t *testing.T) {
 
 	numObjects := (rand.Int() % 20) + 1
 	cb, err := NewCompactorBlock(&BlockConfig{
-		BloomFP:         .01,
-		IndexDownsample: indexDownsample,
-		Encoding:        backend.EncGZIP,
+		BloomFP:              .01,
+		IndexDownsampleBytes: indexDownsample,
+		Encoding:             backend.EncGZIP,
 	}, uuid.New(), testTenantID, metas, numObjects)
 	assert.NoError(t, err)
 
