@@ -83,6 +83,7 @@ func TestCompactorBlockAddObject(t *testing.T) {
 	assert.Equal(t, maxID, common.ID(meta.MaxID))
 	assert.Equal(t, testTenantID, meta.TenantID)
 	assert.Equal(t, numObjects, meta.TotalObjects)
+	assert.Greater(t, meta.Size, uint64(0))
 
 	// bloom
 	for _, id := range ids {
