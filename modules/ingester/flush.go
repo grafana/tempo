@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -47,7 +47,7 @@ func (i *Ingester) Flush() {
 	for _, instance := range instances {
 		err := instance.CutCompleteTraces(0, true)
 		if err != nil {
-			level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut complete traces on shutdown", "err", err)
+			level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut complete traces on shutdown", "err", err)
 		}
 	}
 }
@@ -85,21 +85,21 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	// cut traces internally
 	err := instance.CutCompleteTraces(i.cfg.MaxTraceIdle, immediate)
 	if err != nil {
-		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut traces", "err", err)
+		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut traces", "err", err)
 		return
 	}
 
 	// see if it's ready to cut a block?
 	err = instance.CutBlockIfReady(i.cfg.MaxBlockDuration, i.cfg.MaxBlockBytes, immediate)
 	if err != nil {
-		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to cut block", "err", err)
+		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut block", "err", err)
 		return
 	}
 
 	// dump any blocks that have been flushed for awhile
 	err = instance.ClearFlushedBlocks(i.cfg.CompleteBlockTimeout)
 	if err != nil {
-		level.Error(util.WithUserID(instance.instanceID, util.Logger)).Log("msg", "failed to complete block", "err", err)
+		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to complete block", "err", err)
 	}
 
 	// see if any complete blocks are ready to be flushed
@@ -113,7 +113,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 
 func (i *Ingester) flushLoop(j int) {
 	defer func() {
-		level.Debug(util.Logger).Log("msg", "Ingester.flushLoop() exited")
+		level.Debug(log.Logger).Log("msg", "Ingester.flushLoop() exited")
 		i.flushQueuesDone.Done()
 	}()
 
@@ -124,11 +124,11 @@ func (i *Ingester) flushLoop(j int) {
 		}
 		op := o.(*flushOp)
 
-		level.Debug(util.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
+		level.Debug(log.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
 
 		err := i.flushUserTraces(op.userID)
 		if err != nil {
-			level.Error(util.WithUserID(op.userID, util.Logger)).Log("msg", "failed to flush user", "err", err)
+			level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "failed to flush user", "err", err)
 
 			// re-queue failed flush
 			op.from += int64(flushBackoff)

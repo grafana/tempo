@@ -54,7 +54,7 @@ func TestDB(t *testing.T) {
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	}, &mockSharder{})
+	}, &mockSharder{}, &mockOverrides{})
 
 	blockID := uuid.New()
 
@@ -235,7 +235,7 @@ func TestBlockCleanup(t *testing.T) {
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	}, &mockSharder{})
+	}, &mockSharder{}, &mockOverrides{})
 
 	blockID := uuid.New()
 

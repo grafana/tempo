@@ -88,6 +88,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error building page reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
+	defer pageReader.Close()
 
 	// passing nil for objectCombiner here.  this is fine b/c a backend block should never have dupes
 	finder := b.encoding.newPagedFinder(indexReader, pageReader, nil)

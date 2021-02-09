@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"contrib.go.opencensus.io/exporter/prometheus"
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
@@ -53,7 +53,7 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEn
 	shim := &receiversShim{
 		authEnabled: authEnabled,
 		pusher:      pusher,
-		logger:      tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(util.Logger)),
+		logger:      tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
 	}
 
 	v := viper.New()
@@ -183,7 +183,7 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 
 // implements component.Host
 func (r *receiversShim) ReportFatalError(err error) {
-	level.Error(util.Logger).Log("msg", "fatal error reported", "err", err)
+	level.Error(log.Logger).Log("msg", "fatal error reported", "err", err)
 }
 
 // implements component.Host

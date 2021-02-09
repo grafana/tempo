@@ -8,8 +8,8 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
-	cortex_util "github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/limiter"
+	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/gogo/status"
 	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
@@ -248,7 +248,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		rawRequests[i] = b
 	}
 
-	err := ring.DoBatch(ctx, d.ingestersRing, keys, func(ingester ring.IngesterDesc, indexes []int) error {
+	err := ring.DoBatch(ctx, ring.Write, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
 
 		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
 		defer cancel()

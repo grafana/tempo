@@ -45,7 +45,7 @@ func TestRetention(t *testing.T) {
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	}, &mockSharder{})
+	}, &mockSharder{}, &mockOverrides{})
 
 	blockID := uuid.New()
 
@@ -73,4 +73,59 @@ func TestRetention(t *testing.T) {
 	// retention again should clear it
 	r.(*readerWriter).doRetention()
 	checkBlocklists(t, blockID, 0, 0, rw)
+}
+
+func TestBlockRetentionOverride(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	r, w, c, err := New(&Config{
+		Backend: "local",
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &encoding.BlockConfig{
+			IndexDownsample: 17,
+			BloomFP:         .01,
+			Encoding:        backend.EncLZ4_256k,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	overrides := &mockOverrides{}
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          time.Hour,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, overrides)
+
+	cutTestBlocks(t, w, testTenantID, 10, 10)
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist()
+
+	// Retention = 1 hour, does nothing
+	overrides.blockRetention = time.Hour
+	r.(*readerWriter).doRetention()
+	rw.pollBlocklist()
+	assert.Equal(t, 10, len(rw.blocklist(testTenantID)))
+
+	// Retention = 0, use default, still does nothing
+	overrides.blockRetention = time.Minute
+	r.(*readerWriter).doRetention()
+	rw.pollBlocklist()
+	assert.Equal(t, 10, len(rw.blocklist(testTenantID)))
+
+	// Retention = 1ns, deletes everything
+	overrides.blockRetention = time.Nanosecond
+	r.(*readerWriter).doRetention()
+	rw.pollBlocklist()
+	assert.Equal(t, 0, len(rw.blocklist(testTenantID)))
 }

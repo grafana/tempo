@@ -7,7 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -33,7 +33,7 @@ func CombineTraces(objA []byte, objB []byte) ([]byte, error) {
 		return objA, errors.Wrap(errB, "error unsmarshaling objB")
 	} else if errA != nil && errB != nil {
 		// if both failed let's send back an empty trace
-		level.Error(util.Logger).Log("msg", "both A and B failed to unmarshal.  returning an empty trace")
+		level.Error(log.Logger).Log("msg", "both A and B failed to unmarshal.  returning an empty trace")
 		bytes, _ := proto.Marshal(&tempopb.Trace{})
 		return bytes, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
 	}

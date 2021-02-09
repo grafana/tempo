@@ -16,7 +16,7 @@ import (
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 
@@ -69,7 +69,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			ring_client.NewRingServiceDiscovery(ring),
 			factory,
 			metricIngesterClients,
-			util.Logger),
+			log.Logger),
 		store:  store,
 		limits: limits,
 	}
@@ -83,7 +83,7 @@ func (q *Querier) CreateAndRegisterWorker(tracesHandler http.Handler) error {
 	worker, err := cortex_worker.NewQuerierWorker(
 		q.cfg.Worker,
 		httpgrpc_server.NewServer(tracesHandler),
-		util.Logger,
+		log.Logger,
 		nil,
 	)
 	if err != nil {
@@ -153,8 +153,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		key := tempo_util.TokenFor(userID, req.TraceID)
 
 		const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
-		var descs [maxExpectedReplicationSet]ring.IngesterDesc
-		replicationSet, err := q.ring.Get(key, ring.Read, descs[:0])
+		var descs [maxExpectedReplicationSet]ring.InstanceDesc
+		replicationSet, err := q.ring.Get(key, ring.Read, descs[:0], nil, nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
 		}
@@ -211,7 +211,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 // forGivenIngesters runs f, in parallel, for given ingesters
 func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (*tempopb.TraceByIDResponse, error)) ([]responseFromIngesters, error) {
-	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.IngesterDesc) (interface{}, error) {
+	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
 		client, err := q.pool.GetClientFor(ingester.Addr)
 		if err != nil {
 			return nil, err

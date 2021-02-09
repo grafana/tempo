@@ -15,7 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/cortexproject/cortex/pkg/util"
+	log_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 
@@ -91,12 +91,16 @@ type Reader interface {
 }
 
 type Compactor interface {
-	EnableCompaction(cfg *CompactorConfig, sharder CompactorSharder)
+	EnableCompaction(cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 }
 
 type CompactorSharder interface {
 	Combine(objA []byte, objB []byte) []byte
 	Owns(hash string) bool
+}
+
+type CompactorOverrides interface {
+	BlockRetentionForTenant(tenantID string) time.Duration
 }
 
 type WriteableBlock interface {
@@ -119,6 +123,7 @@ type readerWriter struct {
 	compactorCfg          *CompactorConfig
 	compactedBlockLists   map[string][]*backend.CompactedBlockMeta
 	compactorSharder      CompactorSharder
+	compactorOverrides    CompactorOverrides
 	compactorTenantOffset uint
 }
 
@@ -205,7 +210,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, error) {
 	// tracing instrumentation
-	logger := util.WithContext(ctx, util.Logger)
+	logger := log_util.WithContext(ctx, log_util.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 
@@ -279,7 +284,7 @@ func (rw *readerWriter) Shutdown() {
 	rw.r.Shutdown()
 }
 
-func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder) {
+func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) {
 	// Set default if needed. This is mainly for tests.
 	if cfg.RetentionConcurrency == 0 {
 		cfg.RetentionConcurrency = DefaultRetentionConcurrency
@@ -287,6 +292,7 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 
 	rw.compactorCfg = cfg
 	rw.compactorSharder = c
+	rw.compactorOverrides = overrides
 
 	if rw.cfg.BlocklistPoll == 0 {
 		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  compaction and retention disabled.")

@@ -38,6 +38,14 @@ func (m *mockSharder) Combine(objA []byte, objB []byte) []byte {
 	return objB
 }
 
+type mockOverrides struct {
+	blockRetention time.Duration
+}
+
+func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
+	return m.blockRetention
+}
+
 func TestCompaction(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -68,7 +76,7 @@ func TestCompaction(t *testing.T) {
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	}, &mockSharder{})
+	}, &mockSharder{}, &mockOverrides{})
 
 	wal := w.WAL()
 	assert.NoError(t, err)
@@ -195,7 +203,7 @@ func TestSameIDCompaction(t *testing.T) {
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	}, &mockSharder{})
+	}, &mockSharder{}, &mockOverrides{})
 
 	wal := w.WAL()
 	assert.NoError(t, err)
@@ -282,7 +290,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	}, &mockSharder{})
+	}, &mockSharder{}, &mockOverrides{})
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -347,7 +355,7 @@ func TestCompactionMetrics(t *testing.T) {
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	}, &mockSharder{})
+	}, &mockSharder{}, &mockOverrides{})
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -422,7 +430,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 		MaxCompactionObjects:    1000,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
-	}, &mockSharder{})
+	}, &mockSharder{}, &mockOverrides{})
 
 	// Cut blocks for multiple tenants
 	cutTestBlocks(t, w, testTenantID, 2, 2)

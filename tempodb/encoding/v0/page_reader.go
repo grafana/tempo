@@ -62,3 +62,6 @@ func (r *pageReader) Read(records []*common.Record) ([][]byte, error) {
 
 	return slicePages, nil
 }
+
+func (r *pageReader) Close() {
+}

@@ -27,14 +27,21 @@ func (m *meteredWriter) Write(p []byte) (n int, err error) {
 //  used by CompleteBlock/CompactorBlock
 // may need additional code?  i.e. a signal that it's "about to flush" triggering a compression
 type bufferedAppender struct {
+	// output buffer and writer
 	v0Buffer     *bytes.Buffer
 	outputWriter *meteredWriter
-	pool         WriterPool
-	records      []*common.Record
 
-	totalObjects    int
-	currentOffset   uint64
-	currentRecord   *common.Record
+	// compression
+	pool              WriterPool
+	compressionWriter io.WriteCloser
+
+	// record keeping
+	records       []*common.Record
+	totalObjects  int
+	currentOffset uint64
+	currentRecord *common.Record
+
+	// config
 	indexDownsample int
 }
 
@@ -103,6 +110,11 @@ func (a *bufferedAppender) Complete() error {
 		return err
 	}
 
+	if a.compressionWriter != nil {
+		a.pool.PutWriter(a.compressionWriter)
+		a.compressionWriter = nil
+	}
+
 	return nil
 }
 
@@ -111,19 +123,26 @@ func (a *bufferedAppender) flush() error {
 		return nil
 	}
 
-	compressedWriter := a.pool.GetWriter(a.outputWriter)
+	var err error
+	if a.compressionWriter == nil {
+		a.compressionWriter, err = a.pool.GetWriter(a.outputWriter)
+	} else {
+		a.compressionWriter, err = a.pool.ResetWriter(a.outputWriter, a.compressionWriter)
+	}
+	if err != nil {
+		return err
+	}
 
 	// write compressed data
 	buffer := a.v0Buffer.Bytes()
-	_, err := compressedWriter.Write(buffer)
+	_, err = a.compressionWriter.Write(buffer)
 	if err != nil {
 		return err
 	}
 
 	// now clear our v0 buffer so we can start the new block page
-	compressedWriter.Close()
+	a.compressionWriter.Close()
 	a.v0Buffer.Reset()
-	a.pool.PutWriter(compressedWriter)
 
 	a.currentOffset += uint64(a.outputWriter.bytesWritten)
 	a.currentRecord.Length += uint32(a.outputWriter.bytesWritten)
