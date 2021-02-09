@@ -234,20 +234,29 @@ func TestMicroservices(t *testing.T) {
 }
 
 func makeThriftBatch() *thrift.Batch {
+	return makeThriftBatchWithSpanCount(1)
+}
+
+func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
 	var spans []*thrift.Span
-	spans = append(spans, &thrift.Span{
-		TraceIdLow:    rand.Int63(),
-		TraceIdHigh:   0,
-		SpanId:        rand.Int63(),
-		ParentSpanId:  0,
-		OperationName: "my operation",
-		References:    nil,
-		Flags:         0,
-		StartTime:     time.Now().Unix(),
-		Duration:      1,
-		Tags:          nil,
-		Logs:          nil,
-	})
+
+	traceIDLow := rand.Int63()
+	traceIDHigh := rand.Int63()
+	for i := 0; i < n; i++ {
+		spans = append(spans, &thrift.Span{
+			TraceIdLow:    traceIDLow,
+			TraceIdHigh:   traceIDHigh,
+			SpanId:        rand.Int63(),
+			ParentSpanId:  0,
+			OperationName: "my operation",
+			References:    nil,
+			Flags:         0,
+			StartTime:     time.Now().Unix(),
+			Duration:      1,
+			Tags:          nil,
+			Logs:          nil,
+		})
+	}
 	return &thrift.Batch{Spans: spans}
 }
 
