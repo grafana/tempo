@@ -197,6 +197,9 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 	require.Equal(t, originatingMeta.EndTime, block.meta.EndTime)
 	require.Equal(t, originatingMeta.TenantID, block.meta.TenantID)
 
+	// Verify block size was written
+	require.Greater(t, block.meta.Size, uint64(0))
+
 	return block, ids, reqs
 }
 

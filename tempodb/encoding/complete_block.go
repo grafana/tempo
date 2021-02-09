@@ -85,6 +85,7 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 	}
 	appendFile.Close()
 	c.records = appender.Records()
+	c.meta.Size = appender.DataLength() // Must be after Complete()
 	c.meta.StartTime = originatingMeta.StartTime
 	c.meta.EndTime = originatingMeta.EndTime
 

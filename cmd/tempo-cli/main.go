@@ -116,11 +116,13 @@ type unifiedBlockMeta struct {
 	id              uuid.UUID
 	compactionLevel uint8
 	objects         int
+	size            uint64
 	window          int64
 	start           time.Time
 	end             time.Time
 	compacted       bool
 	version         string
+	encoding        string
 }
 
 func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta, windowRange time.Duration) unifiedBlockMeta {
@@ -129,11 +131,13 @@ func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta,
 			id:              meta.BlockID,
 			compactionLevel: meta.CompactionLevel,
 			objects:         meta.TotalObjects,
+			size:            meta.Size,
 			window:          meta.EndTime.Unix() / int64(windowRange/time.Second),
 			start:           meta.StartTime,
 			end:             meta.EndTime,
 			compacted:       false,
 			version:         meta.Version,
+			encoding:        meta.Encoding.String(),
 		}
 	}
 	if compactedMeta != nil {
@@ -141,11 +145,13 @@ func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta,
 			id:              compactedMeta.BlockID,
 			compactionLevel: compactedMeta.CompactionLevel,
 			objects:         compactedMeta.TotalObjects,
+			size:            compactedMeta.Size,
 			window:          compactedMeta.EndTime.Unix() / int64(windowRange/time.Second),
 			start:           compactedMeta.StartTime,
 			end:             compactedMeta.EndTime,
 			compacted:       true,
 			version:         compactedMeta.Version,
+			encoding:        compactedMeta.Encoding.String(),
 		}
 	}
 	return unifiedBlockMeta{

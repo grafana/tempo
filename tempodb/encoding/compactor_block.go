@@ -121,6 +121,7 @@ func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
 
 	meta.StartTime = c.inMetas[0].StartTime
 	meta.EndTime = c.inMetas[0].EndTime
+	meta.Size = c.appender.DataLength()
 
 	// everything should be correct here except the start/end times which we will get from the passed in metas
 	for _, m := range c.inMetas[1:] {

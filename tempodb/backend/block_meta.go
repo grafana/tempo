@@ -22,6 +22,7 @@ type BlockMeta struct {
 	StartTime       time.Time `json:"startTime"`
 	EndTime         time.Time `json:"endTime"`
 	TotalObjects    int       `json:"totalObjects"`
+	Size            uint64    `json:"size"`
 	CompactionLevel uint8     `json:"compactionLevel"`
 	Encoding        Encoding  `json:"encoding"`
 }
