@@ -19,7 +19,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
@@ -358,7 +357,11 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 }
 
 func recordDiscaredSpans(err error, userID string, spanCount int) {
-	desc := grpc.ErrorDesc(err)
+	s := status.Convert(err)
+	if s == nil {
+		return
+	}
+	desc := s.Message()
 
 	if strings.HasPrefix(desc, overrides.ErrorPrefixLiveTracesExceeded) {
 		metricDiscardedSpans.WithLabelValues(reasonLiveTracesExceeded, userID).Add(float64(spanCount))
