@@ -39,7 +39,7 @@ datasources:
   jsonData:
     httpHeaderName1: 'Authorization'
   secureJsonData:
-    httpHeaderValue1: 'Bearer authed-tenant'
+    httpHeaderValue1: 'Bearer foo-bar-baz'
 - name: Loki
   type: loki
   access: proxy

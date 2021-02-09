@@ -7,7 +7,7 @@ exporters:
     endpoint: tempo:55680
     insecure: true
     headers:
-      x-scope-orgid: authed-tenant
+      x-scope-orgid: foo-bar-baz
 service:
   pipelines:
     traces:
