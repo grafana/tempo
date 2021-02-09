@@ -87,13 +87,15 @@ func main() {
 		for {
 			<-ticker.C
 
+			currentTime := time.Now().Unix()
+
 			// don't query traces before retention
-			if (time.Now().Unix() - startTime) > int64(tempoRetentionDuration/time.Second) {
-				startTime = time.Now().Unix() - int64(tempoRetentionDuration/time.Second)
+			if (currentTime - startTime) > int64(tempoRetentionDuration/time.Second) {
+				startTime = currentTime - int64(tempoRetentionDuration/time.Second)
 			}
 
 			// pick past slot and re-generate trace
-			rand.Seed((randInt(startTime, time.Now().Unix()) / slot) * slot)
+			rand.Seed((randInt(startTime, currentTime) / slot) * slot)
 			batch := makeThriftBatch()
 			hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
 
