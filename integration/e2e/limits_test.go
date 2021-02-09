@@ -35,6 +35,9 @@ func TestLimits(t *testing.T) {
 	// should fail b/c this will be too many traces
 	batch = makeThriftBatch()
 	require.Error(t, c.EmitBatch(context.Background(), batch))
+	// should fail b/c due to ingestion rate limit
+	batch = makeThriftBatchWithSpanCount(10)
+	require.Error(t, c.EmitBatch(context.Background(), batch))
 
 	// test limit metrics
 	err = tempo.WaitSumMetricsWithOptions(cortex_e2e.Equals(2),
@@ -45,6 +48,11 @@ func TestLimits(t *testing.T) {
 	err = tempo.WaitSumMetricsWithOptions(cortex_e2e.Equals(1),
 		[]string{"tempo_discarded_spans_total"},
 		cortex_e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "too_many_traces")),
+	)
+	require.NoError(t, err)
+	err = tempo.WaitSumMetricsWithOptions(cortex_e2e.Equals(10),
+		[]string{"tempo_discarded_spans_total"},
+		cortex_e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
 	)
 	require.NoError(t, err)
 }

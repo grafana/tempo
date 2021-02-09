@@ -14,6 +14,8 @@ distributor:
 overrides:
   max_spans_per_trace: 1
   max_traces_per_user: 1
+  ingestion_rate_limit: 5
+  ingestion_burst_size: 5
 
 ingester:
   lifecycler:
