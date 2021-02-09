@@ -26,10 +26,11 @@ var (
 	prometheusListenAddress string
 	prometheusPath          string
 
-	tempoQueryURL        string
-	tempoPushURL         string
-	tempoOrgID           string
-	tempoBackoffDuration time.Duration
+	tempoQueryURL          string
+	tempoPushURL           string
+	tempoOrgID             string
+	tempoBackoffDuration   time.Duration
+	tempoRetentionDuration time.Duration
 )
 
 type traceMetrics struct {
@@ -45,7 +46,8 @@ func init() {
 	flag.StringVar(&tempoQueryURL, "tempo-query-url", "", "The URL (scheme://hostname) at which to query Tempo.")
 	flag.StringVar(&tempoPushURL, "tempo-push-url", "", "The URL (scheme://hostname) at which to push traces to Tempo.")
 	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
-	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", time.Second, "The amount of time to pause between Tempo calls")
+	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", 2*time.Second, "The amount of time to pause between Tempo calls")
+	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
 }
 
 func main() {
@@ -53,18 +55,16 @@ func main() {
 
 	glog.Error("Tempo Vulture Starting")
 
-	startTime := time.Now().UTC().UnixNano()
+	startTime := time.Now().Unix()
 	ticker := time.NewTicker(tempoBackoffDuration)
-	iteration := int64(0)
+	slot := int64(tempoBackoffDuration/time.Second) * 2
 
 	// Write
 	go func() {
 		for {
 			<-ticker.C
 
-			iteration++
-			rand.Seed(startTime / iteration)
-
+			rand.Seed((time.Now().Unix() / slot) * slot)
 			c, err := newJaegerGRPCClient(tempoPushURL)
 			if err != nil {
 				glog.Error("error creating grpc client", err)
@@ -87,12 +87,13 @@ func main() {
 		for {
 			<-ticker.C
 
-			if iteration == 1 {
-				continue
+			// don't query traces before retention
+			if (time.Now().Unix() - startTime) > int64(tempoRetentionDuration/time.Second) {
+				startTime = time.Now().Unix() - int64(tempoRetentionDuration/time.Second)
 			}
 
-			// pick past iteration and re-generate trace
-			rand.Seed(startTime / randInt(1, iteration-1))
+			// pick past slot and re-generate trace
+			rand.Seed((randInt(startTime, time.Now().Unix()) / slot) * slot)
 			batch := makeThriftBatch()
 			hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
 
@@ -155,10 +156,11 @@ func makeThriftBatch() *thrift.Batch {
 }
 
 func randInt(min int64, max int64) int64 {
-	if min == max {
-		return 1
+	number := min + rand.Int63n(max-min)
+	if number == min {
+		return randInt(min, max)
 	}
-	return min + rand.Int63n(max-min)
+	return number
 }
 
 func queryTempoAndAnalyze(baseURL string, traceID string) (*traceMetrics, error) {
