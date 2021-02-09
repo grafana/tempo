@@ -16,6 +16,23 @@ builds:
       - -X main.commit={{ .Commit }}
       - -X main.date={{ .CommitDate }}
     mod_timestamp: '{{ .CommitTimestamp }}'
+  - main: ./cmd/tempo-query
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+    flags:
+      - -v
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .CommitDate }}
+    mod_timestamp: '{{ .CommitTimestamp }}'
 changelog:
   skip: true
   sort: asc
