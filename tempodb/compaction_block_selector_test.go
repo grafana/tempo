@@ -18,8 +18,9 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 	tests := []struct {
 		name           string
 		blocklist      []*backend.BlockMeta
-		minInputBlocks int // optional, defaults to global const
-		maxInputBlocks int // optional, defaults to global const
+		minInputBlocks int    // optional, defaults to global const
+		maxInputBlocks int    // optional, defaults to global const
+		maxBlockBytes  uint64 // optional, defaults to ???
 		expected       []*backend.BlockMeta
 		expectedHash   string
 		expectedSecond []*backend.BlockMeta
@@ -377,6 +378,26 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash2:  "",
 		},
 		{
+			name: "doesn't exceed max block size",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Size:    50,
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Size:    51,
+					EndTime: now,
+				},
+			},
+			maxBlockBytes:  100,
+			expected:       nil,
+			expectedHash:   "",
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
 			name: "Returns as many blocks as possible without exceeding max compaction objects",
 			blocklist: []*backend.BlockMeta{
 				{
@@ -404,6 +425,41 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 50,
 					EndTime:      now,
+				},
+			},
+			expectedHash:   fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
+			name:          "Returns as many blocks as possible without exceeding max block size",
+			maxBlockBytes: 100,
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Size:    50,
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Size:    50,
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					Size:    1,
+					EndTime: now,
+				}},
+			expected: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Size:    50,
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Size:    50,
+					EndTime: now,
 				},
 			},
 			expectedHash:   fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
@@ -569,7 +625,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				max = tt.maxInputBlocks
 			}
 
-			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, min, max)
+			maxSize := uint64(1024 * 1024)
+			if tt.maxBlockBytes > 0 {
+				maxSize = tt.maxBlockBytes
+			}
+
+			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, min, max)
 
 			actual, hash := selector.BlocksToCompact()
 			assert.Equal(t, tt.expected, actual)
@@ -578,190 +639,6 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			actual, hash = selector.BlocksToCompact()
 			assert.Equal(t, tt.expectedSecond, actual)
 			assert.Equal(t, tt.expectedHash2, hash)
-		})
-	}
-}
-
-func TestTimeWindowBlockSelectorSort(t *testing.T) {
-	now := time.Now()
-	timeWindow := time.Hour
-
-	tests := []struct {
-		name      string
-		blocklist []*backend.BlockMeta
-		expected  []*backend.BlockMeta
-	}{
-		{
-			name:      "nil - nil",
-			blocklist: nil,
-			expected:  nil,
-		},
-		{
-			name:      "empty - nil",
-			blocklist: []*backend.BlockMeta{},
-			expected:  nil,
-		},
-		{
-			name: "different time windows",
-			blocklist: []*backend.BlockMeta{
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now.Add(-2 * timeWindow),
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now.Add(-timeWindow),
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime: now,
-				},
-			},
-			expected: []*backend.BlockMeta{
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime: now,
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now.Add(-timeWindow),
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now.Add(-2 * timeWindow),
-				},
-			},
-		},
-		{
-			name: "different compaction lvls",
-			blocklist: []*backend.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					CompactionLevel: 1,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					CompactionLevel: 0,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					CompactionLevel: 2,
-					EndTime:         now,
-				},
-			},
-			expected: []*backend.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					CompactionLevel: 0,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					CompactionLevel: 1,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					CompactionLevel: 2,
-					EndTime:         now,
-				},
-			},
-		},
-		{
-			name: "different sizes",
-			blocklist: []*backend.BlockMeta{
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime:      now,
-					TotalObjects: 2,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime:      now,
-					TotalObjects: 1,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime:      now,
-					TotalObjects: 0,
-				},
-			},
-			expected: []*backend.BlockMeta{
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime:      now,
-					TotalObjects: 0,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime:      now,
-					TotalObjects: 1,
-				},
-				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime:      now,
-					TotalObjects: 2,
-				},
-			},
-		},
-		{
-			name: "all things",
-			blocklist: []*backend.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					CompactionLevel: 1,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					CompactionLevel: 0,
-					EndTime:         now.Add(-timeWindow),
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
-					CompactionLevel: 0,
-					EndTime:         now.Add(-timeWindow),
-					TotalObjects:    1,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					CompactionLevel: 0,
-					EndTime:         now,
-				},
-			},
-			expected: []*backend.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					CompactionLevel: 0,
-					EndTime:         now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					CompactionLevel: 0,
-					EndTime:         now.Add(-timeWindow),
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
-					CompactionLevel: 0,
-					EndTime:         now.Add(-timeWindow),
-					TotalObjects:    1,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					CompactionLevel: 1,
-					EndTime:         now,
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			selector := newTimeWindowBlockSelector(tt.blocklist, timeWindow, 100, defaultMinInputBlocks, defaultMaxInputBlocks)
-			actual := selector.(*timeWindowBlockSelector).blocklist
-			assert.Equal(t, tt.expected, actual)
 		})
 	}
 }
