@@ -81,7 +81,7 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 	a.totalObjects++
 	a.currentRecord.ID = id
 
-	if a.v0Buffer.Len() > 0 {
+	if a.v0Buffer.Len() > a.indexDownsample {
 		err := a.flush()
 		if err != nil {
 			return err
