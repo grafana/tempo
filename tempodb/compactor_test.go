@@ -61,9 +61,9 @@ func TestCompaction(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 11,
-			BloomFP:         .01,
-			Encoding:        backend.EncLZ4_4M,
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			Encoding:             backend.EncLZ4_4M,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -187,9 +187,9 @@ func TestSameIDCompaction(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 11,
-			BloomFP:         .01,
-			Encoding:        backend.EncSnappy,
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			Encoding:             backend.EncSnappy,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -274,9 +274,9 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 11,
-			BloomFP:         .01,
-			Encoding:        backend.EncNone,
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			Encoding:             backend.EncNone,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -339,9 +339,9 @@ func TestCompactionMetrics(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 11,
-			BloomFP:         .01,
-			Encoding:        backend.EncNone,
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			Encoding:             backend.EncNone,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -413,9 +413,9 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 11,
-			BloomFP:         .01,
-			Encoding:        backend.EncLZ4_64k,
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			Encoding:             backend.EncLZ4_64k,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

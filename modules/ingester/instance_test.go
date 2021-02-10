@@ -439,9 +439,9 @@ func defaultInstance(t assert.TestingT, tmpDir string) *instance {
 				Path: tmpDir,
 			},
 			Block: &encoding.BlockConfig{
-				IndexDownsample: 2,
-				BloomFP:         .01,
-				Encoding:        backend.EncLZ4_1M,
+				IndexDownsampleBytes: 2,
+				BloomFP:              .01,
+				Encoding:             backend.EncLZ4_1M,
 			},
 			WAL: &wal.Config{
 				Filepath: tmpDir,

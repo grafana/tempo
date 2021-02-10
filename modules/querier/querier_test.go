@@ -54,9 +54,9 @@ func TestReturnAllHits(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			Encoding:        backend.EncNone,
-			IndexDownsample: 10,
-			BloomFP:         .05,
+			Encoding:             backend.EncNone,
+			IndexDownsampleBytes: 10,
+			BloomFP:              .05,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

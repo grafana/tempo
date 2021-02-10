@@ -42,7 +42,7 @@ type bufferedAppender struct {
 	currentRecord *common.Record
 
 	// config
-	indexDownsample int
+	indexDownsampleBytes int
 }
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
@@ -54,9 +54,9 @@ func NewBufferedAppender(writer io.Writer, encoding backend.Encoding, indexDowns
 	}
 
 	return &bufferedAppender{
-		v0Buffer:        &bytes.Buffer{},
-		indexDownsample: indexDownsample,
-		records:         make([]*common.Record, 0, totalObjectsEstimate/indexDownsample+1),
+		v0Buffer:             &bytes.Buffer{},
+		indexDownsampleBytes: indexDownsample,
+		records:              make([]*common.Record, 0, totalObjectsEstimate/indexDownsample+1),
 
 		outputWriter: &meteredWriter{
 			wrappedWriter: writer,
@@ -81,7 +81,7 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 	a.totalObjects++
 	a.currentRecord.ID = id
 
-	if a.totalObjects%a.indexDownsample == 0 {
+	if a.v0Buffer.Len() > a.indexDownsampleBytes {
 		err := a.flush()
 		if err != nil {
 			return err

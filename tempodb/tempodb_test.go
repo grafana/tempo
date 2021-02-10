@@ -38,9 +38,9 @@ func TestDB(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 17,
-			BloomFP:         .01,
-			Encoding:        backend.EncGZIP,
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			Encoding:             backend.EncGZIP,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -117,9 +117,9 @@ func TestBlockSharding(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 17,
-			BloomFP:         .01,
-			Encoding:        backend.EncLZ4_256k,
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			Encoding:             backend.EncLZ4_256k,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -192,9 +192,9 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 17,
-			BloomFP:         .01,
-			Encoding:        backend.EncLZ4_256k,
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			Encoding:             backend.EncLZ4_256k,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -219,9 +219,9 @@ func TestBlockCleanup(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 17,
-			BloomFP:         .01,
-			Encoding:        backend.EncLZ4_256k,
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			Encoding:             backend.EncLZ4_256k,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -301,9 +301,9 @@ func TestCleanMissingTenants(t *testing.T) {
 					Path: path.Join("/tmp", "traces"),
 				},
 				Block: &encoding.BlockConfig{
-					IndexDownsample: 17,
-					BloomFP:         .01,
-					Encoding:        backend.EncLZ4_256k,
+					IndexDownsampleBytes: 17,
+					BloomFP:              .01,
+					Encoding:             backend.EncLZ4_256k,
 				},
 				WAL: &wal.Config{
 					Filepath: path.Join("/tmp", "wal"),
@@ -361,9 +361,9 @@ func TestUpdateBlocklist(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 17,
-			BloomFP:         .01,
-			Encoding:        backend.EncLZ4_256k,
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			Encoding:             backend.EncLZ4_256k,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -548,9 +548,9 @@ func TestUpdateBlocklistCompacted(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsample: 17,
-			BloomFP:         .01,
-			Encoding:        backend.EncLZ4_256k,
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			Encoding:             backend.EncLZ4_256k,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

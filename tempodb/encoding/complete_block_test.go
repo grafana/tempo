@@ -43,9 +43,9 @@ func TestCompleteBlock(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating temp dir")
 
 	block, ids, reqs := completeBlock(t, &BlockConfig{
-		IndexDownsample: 13,
-		BloomFP:         .01,
-		Encoding:        backend.EncGZIP,
+		IndexDownsampleBytes: 13,
+		BloomFP:              .01,
+		Encoding:             backend.EncGZIP,
 	}, tempDir)
 
 	// test Find
@@ -73,9 +73,9 @@ func TestCompleteBlockAll(t *testing.T) {
 		t.Run(enc.String(), func(t *testing.T) {
 			testCompleteBlockToBackendBlock(t,
 				&BlockConfig{
-					IndexDownsample: 13,
-					BloomFP:         .01,
-					Encoding:        enc,
+					IndexDownsampleBytes: 1000,
+					BloomFP:              .01,
+					Encoding:             enc,
 				},
 			)
 		})
@@ -183,14 +183,27 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
 
+	// calc expected records
+	byteCounter := 0
+	expectedRecords := 0
+	for _, rec := range appender.Records() {
+		byteCounter += int(rec.Length)
+		if byteCounter > cfg.IndexDownsampleBytes {
+			byteCounter = 0
+			expectedRecords++
+		}
+	}
+	if byteCounter > 0 {
+		expectedRecords++
+	}
+
 	iterator := v0.NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
 	block, err := NewCompleteBlock(cfg, originatingMeta, iterator, numMsgs, tempDir, "")
 	require.NoError(t, err, "unexpected error completing block")
 
 	// test downsample config
-	require.Equal(t, numMsgs/cfg.IndexDownsample+1, len(block.records))
+	require.Equal(t, expectedRecords, len(block.records))
 	require.True(t, block.FlushedTime().IsZero())
-
 	require.True(t, bytes.Equal(block.meta.MinID, minID))
 	require.True(t, bytes.Equal(block.meta.MaxID, maxID))
 	require.Equal(t, originatingMeta.StartTime, block.meta.StartTime)
@@ -269,9 +282,9 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 
 	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP)
 	cb, err := NewCompleteBlock(&BlockConfig{
-		IndexDownsample: indexDownsample,
-		BloomFP:         .05,
-		Encoding:        encoding,
+		IndexDownsampleBytes: indexDownsample,
+		BloomFP:              .05,
+		Encoding:             encoding,
 	}, originatingMeta, iterator, 10000, tempDir, "")
 	require.NoError(b, err, "error creating block")
 

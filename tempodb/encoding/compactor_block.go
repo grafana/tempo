@@ -42,7 +42,7 @@ func NewCompactorBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 
 	var err error
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender, err = c.encoding.newBufferedAppender(c.appendBuffer, cfg.Encoding, cfg.IndexDownsample, estimatedObjects)
+	c.appender, err = c.encoding.newBufferedAppender(c.appendBuffer, cfg.Encoding, cfg.IndexDownsampleBytes, estimatedObjects)
 	if err != nil {
 		return nil, fmt.Errorf("failed to created appender: %w", err)
 	}

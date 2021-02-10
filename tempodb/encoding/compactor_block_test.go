@@ -2,7 +2,6 @@ package encoding
 
 import (
 	"bytes"
-	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -24,7 +23,7 @@ func TestCompactorBlockError(t *testing.T) {
 }
 
 func TestCompactorBlockAddObject(t *testing.T) {
-	indexDownsample := 3
+	indexDownsample := 500
 
 	metas := []*backend.BlockMeta{
 		{
@@ -39,14 +38,17 @@ func TestCompactorBlockAddObject(t *testing.T) {
 
 	numObjects := (rand.Int() % 20) + 1
 	cb, err := NewCompactorBlock(&BlockConfig{
-		BloomFP:         .01,
-		IndexDownsample: indexDownsample,
-		Encoding:        backend.EncGZIP,
+		BloomFP:              .01,
+		IndexDownsampleBytes: indexDownsample,
+		Encoding:             backend.EncGZIP,
 	}, uuid.New(), testTenantID, metas, numObjects)
 	assert.NoError(t, err)
 
 	var minID common.ID
 	var maxID common.ID
+
+	expectedRecords := 0
+	byteCounter := 0
 
 	ids := make([][]byte, 0)
 	for i := 0; i < numObjects; i++ {
@@ -63,6 +65,12 @@ func TestCompactorBlockAddObject(t *testing.T) {
 		err = cb.AddObject(id, object)
 		assert.NoError(t, err)
 
+		byteCounter += len(id) + len(object) + 4 + 4
+		if byteCounter > indexDownsample {
+			byteCounter = 0
+			expectedRecords++
+		}
+
 		if len(minID) == 0 || bytes.Compare(id, minID) == -1 {
 			minID = id
 		}
@@ -70,6 +78,10 @@ func TestCompactorBlockAddObject(t *testing.T) {
 			maxID = id
 		}
 	}
+	if byteCounter > 0 {
+		expectedRecords++
+	}
+
 	err = cb.appender.Complete()
 	assert.NoError(t, err)
 	assert.Equal(t, numObjects, cb.Length())
@@ -92,7 +104,6 @@ func TestCompactorBlockAddObject(t *testing.T) {
 	}
 
 	records := cb.appender.Records()
-	assert.Equal(t, math.Ceil(float64(numObjects)/float64(indexDownsample)), float64(len(records)))
-
+	assert.Equal(t, expectedRecords, len(records))
 	assert.Equal(t, numObjects, cb.CurrentBufferedObjects())
 }
