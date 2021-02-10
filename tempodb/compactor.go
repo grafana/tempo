@@ -76,7 +76,12 @@ func (rw *readerWriter) doCompaction() {
 	tenantID := tenants[rw.compactorTenantOffset].(string)
 	blocklist := rw.blocklist(tenantID)
 
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, rw.compactorCfg.MaxCompactionObjects, defaultMinInputBlocks, defaultMaxInputBlocks)
+	blockSelector := newTimeWindowBlockSelector(blocklist,
+		rw.compactorCfg.MaxCompactionRange,
+		rw.compactorCfg.MaxCompactionObjects,
+		rw.compactorCfg.MaxBlockSize,
+		defaultMinInputBlocks,
+		defaultMaxInputBlocks)
 
 	start := time.Now()
 

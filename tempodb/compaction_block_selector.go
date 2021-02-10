@@ -58,11 +58,11 @@ func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string)
 // It needs to be reinitialized with updated blocklist.
 
 type timeWindowBlockSelector struct {
-	//blocklist            []*backend.BlockMeta
 	MinInputBlocks       int
 	MaxInputBlocks       int
 	MaxCompactionRange   time.Duration // Size of the time window - say 6 hours
 	MaxCompactionObjects int           // maximum size of compacted objects
+	MaxBlockSize         uint64        // maximum block size, estimate
 
 	entries []timeWindowBlockEntry
 }
@@ -76,13 +76,13 @@ type timeWindowBlockEntry struct {
 
 var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 
-func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, minInputBlocks int, maxInputBlocks int) CompactionBlockSelector {
+func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockSize uint64, minInputBlocks int, maxInputBlocks int) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
-		//blocklist:            append([]*backend.BlockMeta(nil), blocklist...),
 		MinInputBlocks:       minInputBlocks,
 		MaxInputBlocks:       maxInputBlocks,
 		MaxCompactionRange:   maxCompactionRange,
 		MaxCompactionObjects: maxCompactionObjects,
+		MaxBlockSize:         maxBlockSize,
 	}
 
 	now := time.Now()
@@ -96,7 +96,7 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 		// blocks in this window will not be compacted in order to avoid
 		// ownership conflicts where two compactors process the same block
 		// at the same time as it transitions from last active window to first inactive window.
-		if twbs.windowForBlock(b) == activeWindow {
+		if w == activeWindow {
 			continue
 		}
 
@@ -106,21 +106,30 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 
 		age := currWindow - w
 		if activeWindow <= w {
-			// inside active window.  group by compaction lvl -> window. order by size
+			// inside active window.
+			// Group by compaction level and window.
+			// Choose lowest compaction level and most recent windows first.
 			entry.group = fmt.Sprintf("A-%v-%016X", b.CompactionLevel, age)
+
+			// Within group choose smallest blocks first.
 			entry.order = fmt.Sprintf("%016X", entry.meta.TotalObjects)
+
 			entry.hash = fmt.Sprintf("%v-%v-%v", b.TenantID, b.CompactionLevel, w)
 		} else {
-			// outside active window.  group by window. order by compaction lvl -> size
+			// outside active window.
+			// Group by window only.  Choose most recent windows first.
 			entry.group = fmt.Sprintf("B-%016X", age)
+
+			// Within group chose lowest compaction lvl and smallest blocks first.
 			entry.order = fmt.Sprintf("%v-%016X", b.CompactionLevel, entry.meta.TotalObjects)
+
 			entry.hash = fmt.Sprintf("%v-%v", b.TenantID, w)
 		}
 
 		twbs.entries = append(twbs.entries, entry)
 	}
 
-	// sort by group (asc) then order (asc)
+	// sort by group then order
 	sort.SliceStable(twbs.entries, func(i, j int) bool {
 		ei := twbs.entries[i]
 		ej := twbs.entries[j]
@@ -136,17 +145,18 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 
 func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
 	for len(twbs.entries) > 0 {
-		// find everything from cursor forward that belongs to this group
-		chosen := make([]timeWindowBlockEntry, 0)
+		var chosen []timeWindowBlockEntry
 
-		// Gather as many as possible while staying within limits
+		// find everything from cursor forward that belongs to this group
+		// Gather contiguous blocks while staying within limits
 		i := 0
 		for ; i < len(twbs.entries); i++ {
 			for j := i + 1; j < len(twbs.entries); j++ {
 				stripe := twbs.entries[i : j+1]
 				if twbs.entries[i].group == twbs.entries[j].group &&
 					len(stripe) <= twbs.MaxInputBlocks &&
-					totalObjects(stripe) <= twbs.MaxCompactionObjects {
+					totalObjects(stripe) <= twbs.MaxCompactionObjects &&
+					totalSize(stripe) <= twbs.MaxBlockSize {
 					chosen = stripe
 				} else {
 					break
@@ -181,6 +191,14 @@ func totalObjects(entries []timeWindowBlockEntry) int {
 		totalObjects += b.meta.TotalObjects
 	}
 	return totalObjects
+}
+
+func totalSize(entries []timeWindowBlockEntry) uint64 {
+	sz := uint64(0)
+	for _, b := range entries {
+		sz += b.meta.Size
+	}
+	return sz
 }
 
 func (twbs *timeWindowBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {

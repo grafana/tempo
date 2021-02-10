@@ -86,12 +86,13 @@ Compactors stream blocks from the storage backend, combine them and write them b
 ```
 compactor:
     compaction:
-        block_retention: 336h               # duration to keep blocks
-        compacted_block_retention: 1h       # duration to keep blocks that have been compacted elsewhere
-        compaction_window: 1h               # blocks in this time window will be compacted together
-        chunk_size_bytes: 10485760          # amount of data to buffer from input blocks
-        flush_size_bytes: 31457280          # flush data to backend when buffer is this large
-        max_compaction_objects: 1000000     # maximum traces in a compacted block
+        block_retention: 336h               # Optional. Duration to keep blocks.  Default is 14 days (336h).
+        compacted_block_retention: 1h       # Optional. Duration to keep blocks that have been compacted elsewhere
+        compaction_window: 4h               # Optional. Blocks in this time window will be compacted together
+        chunk_size_bytes: 10485760          # Optional. Amount of data to buffer from input blocks. Default is 10 MiB
+        flush_size_bytes: 31457280          # Optional. Flush data to backend when buffer is this large. Default is 30 MiB
+        max_compaction_objects: 6000000     # Optional. Maximum number of traces in a compacted block. Default is 6 million.
+        max_block_size: 107374182400        # Optional. Maximum size of a compacted block in bytes.  Default is 100 GiB
         retention_concurrency: 10           # Optional. Number of tenants to process in parallel during retention. Default is 10.
     ring:
         kvstore:

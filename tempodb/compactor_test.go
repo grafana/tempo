@@ -130,7 +130,7 @@ func TestCompaction(t *testing.T) {
 	rw.pollBlocklist()
 
 	blocklist := rw.blocklist(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, defaultMinInputBlocks, 2)
+	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
 
 	expectedCompactions := len(blocklist) / inputBlocks
 	compactions := 0
@@ -238,7 +238,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 	var blocks []*backend.BlockMeta
 	blocklist := rw.blocklist(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, defaultMinInputBlocks, 2)
+	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
 	blocks, _ = blockSelector.BlocksToCompact()
 	assert.Len(t, blocks, inputBlocks)
 
@@ -428,6 +428,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		MaxCompactionObjects:    1000,
+		MaxBlockSize:            1024 * 1024 * 1024,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})

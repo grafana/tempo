@@ -47,6 +47,7 @@ type CompactorConfig struct {
 	FlushSizeBytes          uint32        `yaml:"flush_size_bytes"`
 	MaxCompactionRange      time.Duration `yaml:"compaction_window"`
 	MaxCompactionObjects    int           `yaml:"max_compaction_objects"`
+	MaxBlockSize            uint64        `yaml:"max_block_size"`
 	BlockRetention          time.Duration `yaml:"block_retention"`
 	CompactedBlockRetention time.Duration `yaml:"compacted_block_retention"`
 	RetentionConcurrency    uint          `yaml:"retention_concurrency"`

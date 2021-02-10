@@ -18,8 +18,9 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 	tests := []struct {
 		name           string
 		blocklist      []*backend.BlockMeta
-		minInputBlocks int // optional, defaults to global const
-		maxInputBlocks int // optional, defaults to global const
+		minInputBlocks int    // optional, defaults to global const
+		maxInputBlocks int    // optional, defaults to global const
+		maxBlockSize   uint64 // optional, defaults to ???
 		expected       []*backend.BlockMeta
 		expectedHash   string
 		expectedSecond []*backend.BlockMeta
@@ -377,6 +378,26 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash2:  "",
 		},
 		{
+			name: "doesn't exceed max block size",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Size:    50,
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Size:    51,
+					EndTime: now,
+				},
+			},
+			maxBlockSize:   100,
+			expected:       nil,
+			expectedHash:   "",
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
 			name: "Returns as many blocks as possible without exceeding max compaction objects",
 			blocklist: []*backend.BlockMeta{
 				{
@@ -404,6 +425,41 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 50,
 					EndTime:      now,
+				},
+			},
+			expectedHash:   fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
+			name:         "Returns as many blocks as possible without exceeding max block size",
+			maxBlockSize: 100,
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Size:    50,
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Size:    50,
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					Size:    1,
+					EndTime: now,
+				}},
+			expected: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Size:    50,
+					EndTime: now,
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Size:    50,
+					EndTime: now,
 				},
 			},
 			expectedHash:   fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
@@ -569,7 +625,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				max = tt.maxInputBlocks
 			}
 
-			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, min, max)
+			maxSize := uint64(1024 * 1024)
+			if tt.maxBlockSize > 0 {
+				maxSize = tt.maxBlockSize
+			}
+
+			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, min, max)
 
 			actual, hash := selector.BlocksToCompact()
 			assert.Equal(t, tt.expected, actual)
