@@ -10,19 +10,19 @@ type bufferedAppender struct {
 	writer  io.Writer
 	records []*common.Record
 
-	totalObjects    int
-	currentOffset   uint64
-	currentRecord   *common.Record
-	indexDownsample int
+	totalObjects         int
+	currentOffset        uint64
+	currentRecord        *common.Record
+	indexDownsampleBytes int
 }
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
 //  the provided writer and also builds a downsampled records slice.
 func NewBufferedAppender(writer io.Writer, indexDownsample int, totalObjectsEstimate int) common.Appender {
 	return &bufferedAppender{
-		writer:          writer,
-		records:         make([]*common.Record, 0, totalObjectsEstimate/indexDownsample+1),
-		indexDownsample: indexDownsample,
+		writer:               writer,
+		records:              make([]*common.Record, 0, totalObjectsEstimate/indexDownsample+1),
+		indexDownsampleBytes: indexDownsample,
 	}
 }
 
@@ -45,7 +45,7 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 	a.currentRecord.ID = id
 	a.currentRecord.Length += uint32(length)
 
-	if int(a.currentRecord.Length) > a.indexDownsample {
+	if int(a.currentRecord.Length) > a.indexDownsampleBytes {
 		a.records = append(a.records, a.currentRecord)
 		a.currentRecord = nil
 	}
