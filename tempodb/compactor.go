@@ -79,7 +79,7 @@ func (rw *readerWriter) doCompaction() {
 	blockSelector := newTimeWindowBlockSelector(blocklist,
 		rw.compactorCfg.MaxCompactionRange,
 		rw.compactorCfg.MaxCompactionObjects,
-		rw.compactorCfg.MaxBlockSize,
+		rw.compactorCfg.MaxBlockBytes,
 		defaultMinInputBlocks,
 		defaultMaxInputBlocks)
 

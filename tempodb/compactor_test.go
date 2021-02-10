@@ -428,7 +428,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		MaxCompactionObjects:    1000,
-		MaxBlockSize:            1024 * 1024 * 1024,
+		MaxBlockBytes:           1024 * 1024 * 1024,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})

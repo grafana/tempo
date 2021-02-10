@@ -20,7 +20,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		blocklist      []*backend.BlockMeta
 		minInputBlocks int    // optional, defaults to global const
 		maxInputBlocks int    // optional, defaults to global const
-		maxBlockSize   uint64 // optional, defaults to ???
+		maxBlockBytes  uint64 // optional, defaults to ???
 		expected       []*backend.BlockMeta
 		expectedHash   string
 		expectedSecond []*backend.BlockMeta
@@ -391,7 +391,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			maxBlockSize:   100,
+			maxBlockBytes:  100,
 			expected:       nil,
 			expectedHash:   "",
 			expectedSecond: nil,
@@ -432,8 +432,8 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash2:  "",
 		},
 		{
-			name:         "Returns as many blocks as possible without exceeding max block size",
-			maxBlockSize: 100,
+			name:          "Returns as many blocks as possible without exceeding max block size",
+			maxBlockBytes: 100,
 			blocklist: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -626,8 +626,8 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			}
 
 			maxSize := uint64(1024 * 1024)
-			if tt.maxBlockSize > 0 {
-				maxSize = tt.maxBlockSize
+			if tt.maxBlockBytes > 0 {
+				maxSize = tt.maxBlockBytes
 			}
 
 			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, min, max)

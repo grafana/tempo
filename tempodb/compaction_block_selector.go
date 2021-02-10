@@ -62,7 +62,7 @@ type timeWindowBlockSelector struct {
 	MaxInputBlocks       int
 	MaxCompactionRange   time.Duration // Size of the time window - say 6 hours
 	MaxCompactionObjects int           // maximum size of compacted objects
-	MaxBlockSize         uint64        // maximum block size, estimate
+	MaxBlockBytes        uint64        // maximum block size, estimate
 
 	entries []timeWindowBlockEntry
 }
@@ -76,13 +76,13 @@ type timeWindowBlockEntry struct {
 
 var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 
-func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockSize uint64, minInputBlocks int, maxInputBlocks int) CompactionBlockSelector {
+func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockBytes uint64, minInputBlocks int, maxInputBlocks int) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
 		MinInputBlocks:       minInputBlocks,
 		MaxInputBlocks:       maxInputBlocks,
 		MaxCompactionRange:   maxCompactionRange,
 		MaxCompactionObjects: maxCompactionObjects,
-		MaxBlockSize:         maxBlockSize,
+		MaxBlockBytes:        maxBlockBytes,
 	}
 
 	now := time.Now()
@@ -156,7 +156,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 				if twbs.entries[i].group == twbs.entries[j].group &&
 					len(stripe) <= twbs.MaxInputBlocks &&
 					totalObjects(stripe) <= twbs.MaxCompactionObjects &&
-					totalSize(stripe) <= twbs.MaxBlockSize {
+					totalSize(stripe) <= twbs.MaxBlockBytes {
 					chosen = stripe
 				} else {
 					break
