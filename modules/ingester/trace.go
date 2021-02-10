@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gogo/status"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"google.golang.org/grpc/codes"
 )
@@ -37,7 +38,7 @@ func (t *trace) Push(_ context.Context, req *tempopb.PushRequest) error {
 		}
 
 		if t.currentSpans+spanCount > t.maxSpans {
-			return status.Errorf(codes.FailedPrecondition, "totalSpans (%d) exceeded while adding %d spans", t.maxSpans, spanCount)
+			return status.Errorf(codes.FailedPrecondition, "%s totalSpans (%d) exceeded while adding %d spans", overrides.ErrorPrefixTraceTooLarge, t.maxSpans, spanCount)
 		}
 
 		t.currentSpans += spanCount

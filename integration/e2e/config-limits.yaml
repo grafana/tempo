@@ -1,0 +1,37 @@
+auth_enabled: false
+
+target: all
+
+server:
+  http_listen_port: 3100
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+
+overrides:
+  max_spans_per_trace: 1
+  max_traces_per_user: 1
+  ingestion_rate_limit: 5
+  ingestion_burst_size: 5
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  trace_idle_period: 3600s
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+    pool:
+      max_workers: 10
+      queue_depth: 100
