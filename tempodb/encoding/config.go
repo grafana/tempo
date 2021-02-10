@@ -15,8 +15,8 @@ type BlockConfig struct {
 
 // ValidateConfig returns true if the config is valid
 func ValidateConfig(b *BlockConfig) error {
-	if b.IndexDownsampleBytes == 0 {
-		return fmt.Errorf("Non-zero index downsample required")
+	if b.IndexDownsampleBytes <= 0 {
+		return fmt.Errorf("Positive index downsample required")
 	}
 
 	if b.BloomFP <= 0.0 {
