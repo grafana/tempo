@@ -73,7 +73,7 @@ func main() {
 			}
 
 			traceID := rand.Int63()
-			for i := int64(0); i < randInt(1, 100); i++ {
+			for i := int64(0); i < generateRandomInt(1, 100); i++ {
 				err = c.EmitBatch(context.Background(), makeThriftBatch(traceID))
 				if err != nil {
 					glog.Error("error pushing batch to Tempo ", err)
@@ -97,7 +97,7 @@ func main() {
 			}
 
 			// pick past slot and re-generate trace
-			rand.Seed((randInt(startTime, currentTime) / slot) * slot)
+			rand.Seed((generateRandomInt(startTime, currentTime) / slot) * slot)
 			traceID := rand.Int63()
 			batch := makeThriftBatch(traceID)
 			hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
@@ -142,11 +142,23 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
+func generateRandomString() string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+	s := make([]rune, generateRandomInt(5, 20))
+	for i := range s {
+		s[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(s)
+}
+
 func generateRandomTags() []*thrift.Tag {
 	var tags []*thrift.Tag
-	for i := int64(0); i < randInt(10, 100); i++ {
+	for i := int64(0); i < generateRandomInt(1, 5); i++ {
+		value := generateRandomString()
 		tags = append(tags, &thrift.Tag{
-			Key: "my tag",
+			Key:  generateRandomString(),
+			VStr: &value,
 		})
 	}
 	return tags
@@ -154,7 +166,7 @@ func generateRandomTags() []*thrift.Tag {
 
 func generateRandomLogs() []*thrift.Log {
 	var logs []*thrift.Log
-	for i := int64(0); i < randInt(10, 100); i++ {
+	for i := int64(0); i < generateRandomInt(1, 5); i++ {
 		logs = append(logs, &thrift.Log{
 			Timestamp: time.Now().Unix(),
 			Fields:    generateRandomTags(),
@@ -165,17 +177,17 @@ func generateRandomLogs() []*thrift.Log {
 
 func makeThriftBatch(traceID int64) *thrift.Batch {
 	var spans []*thrift.Span
-	for i := int64(0); i < randInt(10, 100); i++ {
+	for i := int64(0); i < generateRandomInt(1, 5); i++ {
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    traceID,
 			TraceIdHigh:   0,
 			SpanId:        rand.Int63(),
 			ParentSpanId:  0,
-			OperationName: "my operation",
+			OperationName: generateRandomString(),
 			References:    nil,
 			Flags:         0,
 			StartTime:     time.Now().Unix(),
-			Duration:      1,
+			Duration:      rand.Int63(),
 			Tags:          generateRandomTags(),
 			Logs:          generateRandomLogs(),
 		})
@@ -183,10 +195,10 @@ func makeThriftBatch(traceID int64) *thrift.Batch {
 	return &thrift.Batch{Spans: spans}
 }
 
-func randInt(min int64, max int64) int64 {
+func generateRandomInt(min int64, max int64) int64 {
 	number := min + rand.Int63n(max-min)
 	if number == min {
-		return randInt(min, max)
+		return generateRandomInt(min, max)
 	}
 	return number
 }
