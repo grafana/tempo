@@ -25,6 +25,21 @@ datasources:
   editable: false
   apiVersion: 1
   uid: tempo
+- name: Tempo-Multitenant
+  type: tempo
+  access: proxy
+  orgId: 1
+  url: http://tempo-query:16686
+  basicAuth: false
+  isDefault: false
+  version: 1
+  editable: false
+  apiVersion: 1
+  uid: tempo-authed
+  jsonData:
+    httpHeaderName1: 'Authorization'
+  secureJsonData:
+    httpHeaderValue1: 'Bearer foo-bar-baz'
 - name: Loki
   type: loki
   access: proxy
