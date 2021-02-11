@@ -45,7 +45,7 @@ func New(addr string, cfg Config) (*Client, error) {
 	opts := []grpc.DialOption{
 		grpc.WithInsecure(),
 		grpc.WithDefaultCallOptions(
-			grpc.UseCompressor("gzip"),
+			grpc.UseCompressor("snappy"),
 		),
 	}
 
