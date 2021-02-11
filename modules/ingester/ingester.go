@@ -112,7 +112,7 @@ func (i *Ingester) loop(ctx context.Context) error {
 	for {
 		select {
 		case <-flushTicker.C:
-			i.sweepUsers(false)
+			i.sweepAllInstances(false)
 
 		case <-ctx.Done():
 			return nil
@@ -125,13 +125,9 @@ func (i *Ingester) loop(ctx context.Context) error {
 
 // stopping is run when ingester is asked to stop
 func (i *Ingester) stopping(_ error) error {
-	// This will prevent us accepting any more samples
-	i.stopIncomingRequests()
-
-	// Lifecycler can be nil if the ingester is for a flusher.
-	if i.lifecycler != nil {
-		// Next initiate our graceful exit from the ring.
-		return services.StopAndAwaitTerminated(context.Background(), i.lifecycler)
+	err := i.markUnavailable()
+	if err != nil {
+		return fmt.Errorf("error stopping ingester: %w", err)
 	}
 
 	if i.flushQueues != nil {
@@ -139,6 +135,18 @@ func (i *Ingester) stopping(_ error) error {
 		i.flushQueuesDone.Wait()
 	}
 
+	return nil
+}
+
+func (i *Ingester) markUnavailable() error {
+	// Lifecycler can be nil if the ingester is for a flusher.
+	if i.lifecycler != nil {
+		// Next initiate our graceful exit from the ring.
+		return services.StopAndAwaitTerminated(context.Background(), i.lifecycler)
+	}
+
+	// This will prevent us accepting any more samples
+	i.stopIncomingRequests()
 	return nil
 }
 

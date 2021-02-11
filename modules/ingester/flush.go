@@ -52,11 +52,31 @@ func (i *Ingester) Flush() {
 	}
 }
 
-// FlushHandler calls sweepUsers(true) which will force push all traces into the WAL and force
+// FlushHandler calls sweepAllInstances(true) which will force push all traces into the WAL and force
 //  mark all head blocks as ready to flush.
 func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
-	i.sweepUsers(true)
-	w.WriteHeader(http.StatusNoContent)
+	// stop accepting new writes
+	err := i.markUnavailable()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("error marking ingester unavailable"))
+	}
+
+	// move all data into flushQueue
+	i.sweepAllInstances(true)
+
+	if i.flushQueues != nil {
+		// wait for all flushQueues to flush :)
+		for i.flushQueues.IsEmpty() != true {
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		i.flushQueues.Stop()
+		i.flushQueuesDone.Wait()
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("successfully flushed all data to backend"))
 }
 
 type flushOp struct {
@@ -72,8 +92,8 @@ func (o *flushOp) Priority() int64 {
 	return -o.from
 }
 
-// sweepUsers periodically schedules series for flushing and garbage collects users with no series
-func (i *Ingester) sweepUsers(immediate bool) {
+// sweepAllInstances periodically schedules series for flushing and garbage collects instances with no series
+func (i *Ingester) sweepAllInstances(immediate bool) {
 	instances := i.getInstances()
 
 	for _, instance := range instances {
@@ -103,7 +123,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	// see if any complete blocks are ready to be flushed
-	if instance.GetBlockToBeFlushed() != nil {
+	for instance.GetBlockToBeFlushed() != nil {
 		i.flushQueues.Enqueue(&flushOp{
 			time.Now().Unix(),
 			instance.instanceID,

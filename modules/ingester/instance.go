@@ -133,6 +133,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
+// CutBlockIfReady creates a CompleteBlock out of the current HeadBlock
 func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
