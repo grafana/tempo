@@ -72,12 +72,14 @@ func main() {
 				continue
 			}
 
-			batch := makeThriftBatch()
-			err = c.EmitBatch(context.Background(), batch)
-			if err != nil {
-				glog.Error("error pushing trace to Tempo ", err)
-				metricErrorTotal.Inc()
-				continue
+			traceID := rand.Int63()
+			for i := int64(0); i < randInt(1, 100); i++ {
+				err = c.EmitBatch(context.Background(), makeThriftBatch(traceID))
+				if err != nil {
+					glog.Error("error pushing batch to Tempo ", err)
+					metricErrorTotal.Inc()
+					continue
+				}
 			}
 		}
 	}()
@@ -96,7 +98,8 @@ func main() {
 
 			// pick past slot and re-generate trace
 			rand.Seed((randInt(startTime, currentTime) / slot) * slot)
-			batch := makeThriftBatch()
+			traceID := rand.Int63()
+			batch := makeThriftBatch(traceID)
 			hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
 
 			// query the trace
@@ -139,21 +142,44 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
-func makeThriftBatch() *thrift.Batch {
+func generateRandomTags() []*thrift.Tag {
+	var tags []*thrift.Tag
+	for i := int64(0); i < randInt(10, 100); i++ {
+		tags = append(tags, &thrift.Tag{
+			Key: "my tag",
+		})
+	}
+	return tags
+}
+
+func generateRandomLogs() []*thrift.Log {
+	var logs []*thrift.Log
+	for i := int64(0); i < randInt(10, 100); i++ {
+		logs = append(logs, &thrift.Log{
+			Timestamp: time.Now().Unix(),
+			Fields:    generateRandomTags(),
+		})
+	}
+	return logs
+}
+
+func makeThriftBatch(traceID int64) *thrift.Batch {
 	var spans []*thrift.Span
-	spans = append(spans, &thrift.Span{
-		TraceIdLow:    rand.Int63(),
-		TraceIdHigh:   0,
-		SpanId:        rand.Int63(),
-		ParentSpanId:  0,
-		OperationName: "my operation",
-		References:    nil,
-		Flags:         0,
-		StartTime:     time.Now().Unix(),
-		Duration:      1,
-		Tags:          nil,
-		Logs:          nil,
-	})
+	for i := int64(0); i < randInt(10, 100); i++ {
+		spans = append(spans, &thrift.Span{
+			TraceIdLow:    traceID,
+			TraceIdHigh:   0,
+			SpanId:        rand.Int63(),
+			ParentSpanId:  0,
+			OperationName: "my operation",
+			References:    nil,
+			Flags:         0,
+			StartTime:     time.Now().Unix(),
+			Duration:      1,
+			Tags:          generateRandomTags(),
+			Logs:          generateRandomLogs(),
+		})
+	}
 	return &thrift.Batch{Spans: spans}
 }
 
