@@ -46,7 +46,7 @@ func init() {
 	flag.StringVar(&tempoQueryURL, "tempo-query-url", "", "The URL (scheme://hostname) at which to query Tempo.")
 	flag.StringVar(&tempoPushURL, "tempo-push-url", "", "The URL (scheme://hostname) at which to push traces to Tempo.")
 	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
-	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", 2*time.Second, "The amount of time to pause between Tempo calls")
+	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", 30*time.Second, "The amount of time to pause between Tempo calls")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
 }
 
