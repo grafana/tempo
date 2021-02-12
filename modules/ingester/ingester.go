@@ -88,6 +88,11 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingeste
 }
 
 func (i *Ingester) starting(ctx context.Context) error {
+	err := i.replayWal()
+	if err != nil {
+		return fmt.Errorf("failed to replay wal %w", err)
+	}
+
 	// Now that user states have been created, we can start the lifecycler.
 	// Important: we want to keep lifecycler running until we ask it to stop, so we need to give it independent context
 	if err := i.lifecycler.StartAsync(context.Background()); err != nil {
@@ -95,11 +100,6 @@ func (i *Ingester) starting(ctx context.Context) error {
 	}
 	if err := i.lifecycler.AwaitRunning(ctx); err != nil {
 		return fmt.Errorf("failed to start lifecycle %w", err)
-	}
-
-	err := i.replayWal()
-	if err != nil {
-		return fmt.Errorf("failed to replay wal %w", err)
 	}
 
 	return nil
