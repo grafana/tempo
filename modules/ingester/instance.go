@@ -133,50 +133,30 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-// CutBlockIfReady creates a CompleteBlock out of the current HeadBlock
-func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) error {
+// CutBlockIfReady returns the completingBlock
+func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (*wal.AppendBlock, error) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
-		return nil
+		return nil, nil
 	}
 
 	now := time.Now()
 	if i.lastBlockCut.Add(maxBlockLifetime).Before(now) || i.headBlock.DataLength() >= maxBlockBytes || immediate {
-		if i.completingBlock != nil {
-			return fmt.Errorf("unable to complete head block for %s b/c there is already a completing block.  Will try again next cycle", i.instanceID)
-		}
-
-		i.completingBlock = i.headBlock
+		completingBlock := i.headBlock
 		err := i.resetHeadBlock()
 		if err != nil {
-			return fmt.Errorf("failed to resetHeadBlock: %w", err)
+			return nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
-		// todo : this should be a queue of blocks to complete with workers
-		go func() {
-			completeBlock, err := i.writer.CompleteBlock(i.completingBlock, i)
-			i.blocksMtx.Lock()
-			defer i.blocksMtx.Unlock()
-
-			if err != nil {
-				// this is a really bad error that results in data loss.  most likely due to disk full
-				_ = i.completingBlock.Clear()
-				metricFailedFlushes.Inc()
-				i.completingBlock = nil
-				level.Error(log.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
-				return
-			}
-			i.completingBlock = nil
-			i.completeBlocks = append(i.completeBlocks, completeBlock)
-		}()
+		return completingBlock, nil
 	}
 
-	return nil
+	return nil, nil
 }
 
-func (i *instance) GetBlockToBeFlushed() *encoding.CompleteBlock {
+func (i *instance) GetBlocksToBeFlushed() []*encoding.CompleteBlock {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 

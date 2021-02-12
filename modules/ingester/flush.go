@@ -3,8 +3,12 @@ package ingester
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
+
+	"github.com/cortexproject/cortex/pkg/util/services"
+	"github.com/grafana/tempo/tempodb/wal"
 
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
@@ -32,10 +36,15 @@ var (
 	})
 )
 
+type opKind int
+
 const (
 	// Backoff for retrying 'immediate' flushes. Only counts for queue
 	// position, not wallclock time.
 	flushBackoff = 1 * time.Second
+
+	complete opKind = iota
+	flush    opKind = iota
 )
 
 // Flush triggers a flush of all in memory traces to disk.  This is called
@@ -52,14 +61,15 @@ func (i *Ingester) Flush() {
 	}
 }
 
-// FlushHandler calls sweepAllInstances(true) which will force push all traces into the WAL and force
-//  mark all head blocks as ready to flush.
-func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
+// ShutdownHandler handles a graceful shutdown for an ingester. It does the following things in order
+// * Stop incoming writes by exiting from the ring
+// * Flush all blocks to backend
+func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 	// stop accepting new writes
 	err := i.markUnavailable()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("error marking ingester unavailable"))
+		_, _ = w.Write([]byte("error marking ingester unavailable"))
 	}
 
 	// move all data into flushQueue
@@ -70,18 +80,30 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 		for i.flushQueues.IsEmpty() != true {
 			time.Sleep(100 * time.Millisecond)
 		}
-
-		i.flushQueues.Stop()
-		i.flushQueuesDone.Wait()
 	}
 
+	// lifecycler should exit the ring on shutdown
+	i.lifecycler.SetUnregisterOnShutdown(true)
+
+	// stop ingester which will internally stop lifecycler
+	_ = services.StopAndAwaitTerminated(context.Background(), i)
+
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("successfully flushed all data to backend"))
+	_, _ = w.Write([]byte("ingester successfully shutdown"))
+}
+
+// FlushHandler calls sweepAllInstances(true) which will force push all traces into the WAL and force
+//  mark all head blocks as ready to flush.
+func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
+	i.sweepAllInstances(true)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type flushOp struct {
-	from   int64
-	userID string
+	kind            opKind
+	from            int64
+	userID          string
+	completingBlock *wal.AppendBlock
 }
 
 func (o *flushOp) Key() string {
@@ -109,11 +131,21 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 		return
 	}
 
-	// see if it's ready to cut a block?
-	err = instance.CutBlockIfReady(i.cfg.MaxBlockDuration, i.cfg.MaxBlockBytes, immediate)
+	// see if it's ready to cut a block
+	completingBlock, err := instance.CutBlockIfReady(i.cfg.MaxBlockDuration, i.cfg.MaxBlockBytes, immediate)
 	if err != nil {
 		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut block", "err", err)
 		return
+	}
+
+	// enqueue completingBlock if not nil
+	if completingBlock != nil {
+		i.flushQueues.Enqueue(&flushOp{
+			kind:            complete,
+			completingBlock: completingBlock,
+			from:            math.MaxInt64,
+			userID:          instance.instanceID,
+		})
 	}
 
 	// dump any blocks that have been flushed for awhile
@@ -123,10 +155,12 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	// see if any complete blocks are ready to be flushed
-	for instance.GetBlockToBeFlushed() != nil {
+	// these might get double queued if a routine flush coincides with a shutdown .. but that's OK.
+	for range instance.GetBlocksToBeFlushed() {
 		i.flushQueues.Enqueue(&flushOp{
-			time.Now().Unix(),
-			instance.instanceID,
+			kind:   flush,
+			from:   time.Now().Unix(),
+			userID: instance.instanceID,
 		})
 	}
 }
@@ -144,16 +178,42 @@ func (i *Ingester) flushLoop(j int) {
 		}
 		op := o.(*flushOp)
 
-		level.Debug(log.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
+		if op.kind == complete {
+			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID, "fp")
+			instance, exists := i.getInstanceByID(op.userID)
+			if !exists {
+				// todo: think about this some more.
+				// instance no longer exists? that's bad, clear and continue
+				_ = op.completingBlock.Clear()
+				metricFailedFlushes.Inc()
+				continue
+			}
 
-		err := i.flushUserTraces(op.userID)
-		if err != nil {
-			level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "failed to flush user", "err", err)
+			completeBlock, err := instance.writer.CompleteBlock(op.completingBlock, instance)
 
-			// re-queue failed flush
-			op.from += int64(flushBackoff)
-			i.flushQueues.Requeue(op)
-			continue
+			instance.blocksMtx.Lock()
+			if err != nil {
+				// this is a really bad error that results in data loss.  most likely due to disk full
+				_ = op.completingBlock.Clear()
+				metricFailedFlushes.Inc()
+				level.Error(log.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", op.userID, "err", err)
+				instance.blocksMtx.Unlock()
+				continue
+			}
+			instance.completeBlocks = append(instance.completeBlocks, completeBlock)
+			instance.blocksMtx.Unlock()
+		} else {
+			level.Debug(log.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
+
+			err := i.flushUserTraces(op.userID)
+			if err != nil {
+				level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "failed to flush user", "err", err)
+
+				// re-queue failed flush
+				op.from += int64(flushBackoff)
+				i.flushQueues.Requeue(op)
+				continue
+			}
 		}
 
 		i.flushQueues.Clear(op)
@@ -170,12 +230,7 @@ func (i *Ingester) flushUserTraces(userID string) error {
 		return fmt.Errorf("instance id %s not found", userID)
 	}
 
-	for {
-		block := instance.GetBlockToBeFlushed()
-		if block == nil {
-			break
-		}
-
+	for _, block := range instance.GetBlocksToBeFlushed() {
 		ctx := user.InjectOrgID(context.Background(), userID)
 		ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
 		defer cancel()
