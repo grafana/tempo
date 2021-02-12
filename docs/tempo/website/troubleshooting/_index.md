@@ -118,7 +118,7 @@ Possible reasons why the compactor may not be running are:
 - Compactor sitting idle because no block is hashing to it.
 - Incorrect configuration settings.
 ### Diagnosing the issue
-- Check metric `tempodb_compaction_bytes_written`
+- Check metric `tempodb_compaction_bytes_written_total`
 If this is greater than zero (0), it means the compactor is running and writing to the backend.
 - Check metric `tempodb_compaction_errors_total`
 If this metric is greater than zero (0), check the logs of the compactor for an error message.
