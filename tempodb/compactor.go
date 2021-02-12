@@ -27,12 +27,12 @@ var (
 	}, []string{"level"})
 	metricCompactionObjectsWritten = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
-		Name:      "compaction_objects_written",
+		Name:      "compaction_objects_written_total",
 		Help:      "Total number of objects written to backend during compaction.",
 	}, []string{"level"})
 	metricCompactionBytesWritten = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
-		Name:      "compaction_bytes_written",
+		Name:      "compaction_bytes_written_total",
 		Help:      "Total number of bytes written to backend during compaction.",
 	}, []string{"level"})
 	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
