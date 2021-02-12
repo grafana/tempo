@@ -160,13 +160,14 @@ func (i *instance) GetBlocksToBeFlushed() []*encoding.CompleteBlock {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
+	completeBlockList := []*encoding.CompleteBlock{}
 	for _, c := range i.completeBlocks {
 		if c.FlushedTime().IsZero() {
-			return c
+			completeBlockList = append(completeBlockList, c)
 		}
 	}
 
-	return nil
+	return completeBlockList
 }
 
 func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error {
