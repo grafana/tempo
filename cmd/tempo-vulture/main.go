@@ -72,9 +72,10 @@ func main() {
 				continue
 			}
 
-			traceID := rand.Int63()
+			traceIDHigh := rand.Int63()
+			traceIDLow := rand.Int63()
 			for i := int64(0); i < generateRandomInt(1, 100); i++ {
-				err = c.EmitBatch(context.Background(), makeThriftBatch(traceID))
+				err = c.EmitBatch(context.Background(), makeThriftBatch(traceIDHigh, traceIDLow))
 				if err != nil {
 					glog.Error("error pushing batch to Tempo ", err)
 					metricErrorTotal.Inc()
@@ -98,15 +99,14 @@ func main() {
 
 			// pick past slot and re-generate trace
 			rand.Seed((generateRandomInt(startTime, currentTime) / slot) * slot)
-			traceID := rand.Int63()
-			batch := makeThriftBatch(traceID)
-			hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+			hexID := fmt.Sprintf("%016x%016x", rand.Int63(), rand.Int63())
 
 			// query the trace
 			metrics, err := queryTempoAndAnalyze(tempoQueryURL, hexID)
 			if err != nil {
 				glog.Error("error querying Tempo ", err)
 				metricErrorTotal.Inc()
+				metricTracesErrors.WithLabelValues("failed").Inc()
 				continue
 			}
 
@@ -175,12 +175,12 @@ func generateRandomLogs() []*thrift.Log {
 	return logs
 }
 
-func makeThriftBatch(traceID int64) *thrift.Batch {
+func makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift.Batch {
 	var spans []*thrift.Span
 	for i := int64(0); i < generateRandomInt(1, 5); i++ {
 		spans = append(spans, &thrift.Span{
-			TraceIdLow:    traceID,
-			TraceIdHigh:   0,
+			TraceIdLow:    TraceIDLow,
+			TraceIdHigh:   TraceIDHigh,
 			SpanId:        rand.Int63(),
 			ParentSpanId:  0,
 			OperationName: generateRandomString(),
