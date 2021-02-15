@@ -75,13 +75,6 @@ func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 	// move all data into flushQueue
 	i.sweepAllInstances(true)
 
-	if i.flushQueues != nil {
-		// wait for all flushQueues to flush :)
-		for i.flushQueues.IsEmpty() != true {
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-
 	// lifecycler should exit the ring on shutdown
 	i.lifecycler.SetUnregisterOnShutdown(true)
 
@@ -140,6 +133,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 
 	// enqueue completingBlock if not nil
 	if completingBlock != nil {
+		instance.waitForFlush.Inc()
 		i.flushQueues.Enqueue(&flushOp{
 			kind:            complete,
 			completingBlock: completingBlock,
@@ -152,6 +146,13 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	err = instance.ClearFlushedBlocks(i.cfg.CompleteBlockTimeout)
 	if err != nil {
 		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to complete block", "err", err)
+	}
+
+	// need a way to check that all completingBlocks have been flushed...
+	if immediate {
+		for instance.waitForFlush.Load() != 0 {
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 
 	// see if any complete blocks are ready to be flushed
@@ -182,10 +183,8 @@ func (i *Ingester) flushLoop(j int) {
 			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID, "fp")
 			instance, exists := i.getInstanceByID(op.userID)
 			if !exists {
-				// todo: think about this some more.
 				// instance no longer exists? that's bad, clear and continue
 				_ = op.completingBlock.Clear()
-				metricFailedFlushes.Inc()
 				continue
 			}
 
@@ -214,6 +213,12 @@ func (i *Ingester) flushLoop(j int) {
 				i.flushQueues.Requeue(op)
 				continue
 			}
+
+			instance, exists := i.getInstanceByID(op.userID)
+			if !exists {
+				continue
+			}
+			instance.waitForFlush.Dec()
 		}
 
 		i.flushQueues.Clear(op)

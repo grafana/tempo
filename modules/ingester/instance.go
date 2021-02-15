@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/atomic"
+
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
@@ -58,6 +60,8 @@ type instance struct {
 	headBlock       *wal.AppendBlock
 	completingBlock *wal.AppendBlock
 	completeBlocks  []*encoding.CompleteBlock
+
+	waitForFlush *atomic.Int32
 
 	lastBlockCut time.Time
 
@@ -133,7 +137,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-// CutBlockIfReady returns the completingBlock
+// CutBlockIfReady cuts a completingBlock from the HeadBlock if ready
 func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (*wal.AppendBlock, error) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
@@ -145,6 +149,10 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 	now := time.Now()
 	if i.lastBlockCut.Add(maxBlockLifetime).Before(now) || i.headBlock.DataLength() >= maxBlockBytes || immediate {
 		completingBlock := i.headBlock
+
+		// make completingBlock searchable
+		i.completingBlock = completingBlock
+
 		err := i.resetHeadBlock()
 		if err != nil {
 			return nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
