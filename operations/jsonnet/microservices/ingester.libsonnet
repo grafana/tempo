@@ -34,7 +34,8 @@
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
       volumeMount.new(tempo_data_volume, '/var/tempo'),
-    ]),
+    ]) +
+    $.util.readinessProbe,
 
   tempo_ingester_statefulset:
     statefulset.new(

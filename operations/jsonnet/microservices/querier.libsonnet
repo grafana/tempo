@@ -22,7 +22,8 @@
     ]) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
-    ]),
+    ]) +
+    $.util.readinessProbe,
 
   tempo_querier_deployment:
     deployment.new(
