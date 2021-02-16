@@ -154,7 +154,8 @@ func generateRandomString() string {
 
 func generateRandomTags() []*thrift.Tag {
 	var tags []*thrift.Tag
-	for i := int64(0); i < generateRandomInt(1, 5); i++ {
+	count := generateRandomInt(1, 5)
+	for i := int64(0); i < count; i++ {
 		value := generateRandomString()
 		tags = append(tags, &thrift.Tag{
 			Key:  generateRandomString(),
@@ -166,7 +167,8 @@ func generateRandomTags() []*thrift.Tag {
 
 func generateRandomLogs() []*thrift.Log {
 	var logs []*thrift.Log
-	for i := int64(0); i < generateRandomInt(1, 5); i++ {
+	count := generateRandomInt(1, 5)
+	for i := int64(0); i < count; i++ {
 		logs = append(logs, &thrift.Log{
 			Timestamp: time.Now().Unix(),
 			Fields:    generateRandomTags(),
@@ -177,7 +179,8 @@ func generateRandomLogs() []*thrift.Log {
 
 func makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift.Batch {
 	var spans []*thrift.Span
-	for i := int64(0); i < generateRandomInt(1, 5); i++ {
+	count := generateRandomInt(1, 5)
+	for i := int64(0); i < count; i++ {
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    TraceIDLow,
 			TraceIdHigh:   TraceIDHigh,
