@@ -86,6 +86,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer) (*i
 		limiter:            limiter,
 		writer:             writer,
 
+		waitForFlush: atomic.NewInt32(0),
 		flushChan: make(chan int, 10), // should not need more than 2
 		hash:      fnv.New32(),
 	}
