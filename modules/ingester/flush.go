@@ -36,15 +36,15 @@ var (
 	})
 )
 
-type opKind int
-
 const (
 	// Backoff for retrying 'immediate' flushes. Only counts for queue
 	// position, not wallclock time.
 	flushBackoff = 1 * time.Second
+)
 
-	complete opKind = iota
-	flush    opKind = iota
+const (
+	opKindComplete = iota
+	opKindFlush
 )
 
 // Flush triggers a flush of all in memory traces to disk.  This is called
@@ -75,6 +75,11 @@ func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 	// move all data into flushQueue
 	i.sweepAllInstances(true)
 
+	// wait for blocks to complete and flush
+	for i.isWaitingForFlush() {
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	// lifecycler should exit the ring on shutdown
 	i.lifecycler.SetUnregisterOnShutdown(true)
 
@@ -85,6 +90,18 @@ func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("ingester successfully shutdown"))
 }
 
+func (i *Ingester) isWaitingForFlush() bool {
+	instances := i.getInstances()
+
+	for _, instance := range instances {
+		if instance.waitForFlush.Load() != 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // FlushHandler calls sweepAllInstances(true) which will force push all traces into the WAL and force
 //  mark all head blocks as ready to flush.
 func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
@@ -93,10 +110,11 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 type flushOp struct {
-	kind            opKind
+	kind            int
 	from            int64
 	userID          string
 	completingBlock *wal.AppendBlock
+	immediate       bool
 }
 
 func (o *flushOp) Key() string {
@@ -135,10 +153,11 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	if completingBlock != nil {
 		instance.waitForFlush.Inc()
 		i.flushQueues.Enqueue(&flushOp{
-			kind:            complete,
+			kind:            opKindComplete,
 			completingBlock: completingBlock,
 			from:            math.MaxInt64,
 			userID:          instance.instanceID,
+			immediate:       immediate,
 		})
 	}
 
@@ -148,18 +167,16 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to complete block", "err", err)
 	}
 
-	// need a way to check that all completingBlocks have been flushed...
+	// blocking wait to immediately call flush on the completingBlock and not wait for the next flush cycle
 	if immediate {
-		for instance.waitForFlush.Load() != 0 {
-			time.Sleep(100 * time.Millisecond)
-		}
+		_ = <-instance.flushChan
 	}
 
 	// see if any complete blocks are ready to be flushed
 	// these might get double queued if a routine flush coincides with a shutdown .. but that's OK.
-	for range instance.GetBlocksToBeFlushed() {
+	if len(instance.GetBlocksToBeFlushed()) > 0 {
 		i.flushQueues.Enqueue(&flushOp{
-			kind:   flush,
+			kind:   opKindFlush,
 			from:   time.Now().Unix(),
 			userID: instance.instanceID,
 		})
@@ -179,7 +196,7 @@ func (i *Ingester) flushLoop(j int) {
 		}
 		op := o.(*flushOp)
 
-		if op.kind == complete {
+		if op.kind == opKindComplete {
 			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID, "fp")
 			instance, exists := i.getInstanceByID(op.userID)
 			if !exists {
@@ -189,6 +206,10 @@ func (i *Ingester) flushLoop(j int) {
 			}
 
 			completeBlock, err := instance.writer.CompleteBlock(op.completingBlock, instance)
+
+			if op.immediate {
+				instance.flushChan <- 1
+			}
 
 			instance.blocksMtx.Lock()
 			if err != nil {

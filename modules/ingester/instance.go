@@ -61,6 +61,8 @@ type instance struct {
 	completingBlock *wal.AppendBlock
 	completeBlocks  []*encoding.CompleteBlock
 
+	flushChan chan int
+
 	waitForFlush *atomic.Int32
 
 	lastBlockCut time.Time
@@ -84,7 +86,8 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer) (*i
 		limiter:            limiter,
 		writer:             writer,
 
-		hash: fnv.New32(),
+		flushChan: make(chan int, 10), // should not need more than 2
+		hash:      fnv.New32(),
 	}
 	err := i.resetHeadBlock()
 	if err != nil {
