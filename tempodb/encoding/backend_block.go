@@ -58,7 +58,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
 
-	bloomBytes, err := b.reader.Read(ctx, b.encoding.nameBloom(shardKey), blockID, tenantID)
+	bloomBytes, err := b.reader.Read(ctx, bloomName(shardKey), blockID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
@@ -73,7 +73,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 		return nil, nil
 	}
 
-	indexBytes, err := b.reader.Read(ctx, b.encoding.nameIndex(), blockID, tenantID)
+	indexBytes, err := b.reader.Read(ctx, nameIndex, blockID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("error reading index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
@@ -83,7 +83,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 		return nil, fmt.Errorf("error building index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
-	ra := backend.NewReaderAt(b.meta, b.encoding.nameObjects(), b.reader)
+	ra := backend.NewReaderAt(b.meta, nameObjects, b.reader)
 	pageReader, err := b.encoding.newPageReader(ra, b.meta.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("error building page reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
@@ -104,12 +104,12 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 // Iterator returns an Iterator that iterates over the objects in the block from the backend
 func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (common.Iterator, error) {
 	// read index
-	indexBytes, err := b.reader.Read(context.TODO(), b.encoding.nameIndex(), b.meta.BlockID, b.meta.TenantID)
+	indexBytes, err := b.reader.Read(context.TODO(), nameIndex, b.meta.BlockID, b.meta.TenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
-	ra := backend.NewReaderAt(b.meta, b.encoding.nameObjects(), b.reader)
+	ra := backend.NewReaderAt(b.meta, nameObjects, b.reader)
 	pageReader, err := b.encoding.newPageReader(ra, b.meta.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pageReader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)

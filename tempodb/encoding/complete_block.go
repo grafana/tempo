@@ -111,12 +111,12 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 		return err
 	}
 
-	err = c.encoding.writeBlockData(ctx, w, c.meta, src, fileStat.Size())
+	err = writeBlockData(ctx, w, c.meta, src, fileStat.Size())
 	if err != nil {
 		return err
 	}
 
-	err = c.encoding.writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
+	err = writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
 	if err != nil {
 		return err
 	}

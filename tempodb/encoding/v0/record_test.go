@@ -33,7 +33,7 @@ func TestMarshalUnmarshalRecords(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	recordBytes, err := marshalRecords(expected)
+	recordBytes, err := MarshalRecords(expected)
 	assert.NoError(t, err, "unexpected error encoding records")
 	assert.Equal(t, len(expected)*28, len(recordBytes))
 

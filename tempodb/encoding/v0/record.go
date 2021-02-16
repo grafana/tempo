@@ -37,7 +37,8 @@ func (t *recordSorter) Swap(i, j int) {
 	t.records[i], t.records[j] = t.records[j], t.records[i]
 }
 
-func marshalRecords(records []*common.Record) ([]byte, error) {
+// MarshalRecords jpe : needs to be updated for pagination anyway
+func MarshalRecords(records []*common.Record) ([]byte, error) {
 	recordBytes := make([]byte, len(records)*recordLength)
 
 	for i, r := range records {
