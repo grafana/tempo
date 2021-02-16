@@ -4958,7 +4958,7 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "sum(rate(tempodb_compaction_objects_written{cluster=\"$cluster\",job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
+     "expr": "sum(rate(tempodb_compaction_objects_written_total{cluster=\"$cluster\",job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
      "interval": "",
      "legendFormat": "",
      "refId": "A"
@@ -5067,7 +5067,7 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "sum(rate(tempodb_compaction_bytes_written{cluster=\"$cluster\",job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
+     "expr": "sum(rate(tempodb_compaction_bytes_written_total{cluster=\"$cluster\",job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
      "interval": "",
      "legendFormat": "",
      "refId": "A"
