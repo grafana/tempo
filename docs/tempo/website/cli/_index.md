@@ -97,7 +97,7 @@ tempo-cli list blocks -c ./tempo.yaml single-tenant
 ```
 
 ## List Block
-Lists information about a single block, and optionally, perform an integrity check for duplicate records.
+Lists information about a single block, and optionally, scan its contents.
 
 ```bash
 tempo-cli list block <tenant-id> <block-id>
@@ -108,7 +108,7 @@ Arguments:
 - `block-id` The block ID as UUID string.
 
 Options:
-- `--check-dupes` Also load the block data and perform integrity check for duplicates. **Note:** can be intense.
+- `--scan` Also load the block data, perform integrity check for duplicates, and collect statistics. **Note:** can be intense.
 
 **Example:**
 ```bash
