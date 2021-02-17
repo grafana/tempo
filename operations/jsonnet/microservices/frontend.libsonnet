@@ -24,7 +24,8 @@
     ]) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
-    ]),
+    ]) +
+    $.util.readinessProbe,
 
   tempo_query_container::
     container.new('tempo-query', $._images.tempo_query) +
