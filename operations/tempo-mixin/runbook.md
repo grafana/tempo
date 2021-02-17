@@ -55,7 +55,9 @@ Occasionally this results in old components staying in the ring which particular
 falling behind on the blocklist.  If this occurs port-forward to 3100 on a compactor and bring up `/compactor/ring`.  Use the
 "Forget" button to drop any unhealthy compactors.
 
-Note that this more of an art than a science: https://github.com/grafana/tempo/issues/142
+If unhealthy components persist then do rollouts of the processes that participate in the memberlist cluster.  Start
+with the least impactful components to the most while attempting to forget the unhealthy compactors after each rollout.  For
+the official jsonnet this would be: queriers, compactors, distributors and then ingesters.
 
 ## TempoDistributorUnhealthy
 
@@ -65,7 +67,9 @@ your components will be passing around a lot of unnecessary information. It may 
 unexpectedly and may be worth investigating. If this occurs port-forward to 3100 on a distributor and bring up `/distributor/ring`. 
 Use the "Forget" button to drop any unhealthy distributors.
 
-Note that this more of an art than a science: https://github.com/grafana/tempo/issues/142
+If unhealthy components persist then do rollouts of the processes that participate in the memberlist cluster.  Start
+with the least impactful components to the most while attempting to forget the unhealthy distributors after each rollout.  For
+the official jsonnet this would be: queriers, compactors, distributors and then ingesters.
 
 ## TempoCompactionsFailing
 ## TempoFlushesFailing
