@@ -5,37 +5,53 @@ weight: 30
 
 # Override trace limits
 
-The default per user or per tenant trace limits in Tempo may not be sufficient in high volume tracing environments. For example. the following message indicates that your tenants are running up against the trace limits imposed on them.
+The default per user or per tenant trace limits in Tempo may not be sufficient in high volume tracing environments. The following message, for example, indicates that your tenants are exceeding the trace limits imposed on them.
  ```
     max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 10000) exceeded
 ```    
 
-In such environments, bump up the limits either globally across the cluster or individually by tenants
-so that your traces are not limited by the default settings. 
+In such environments, increase the limits either individually by tenants or globally across the cluster
+so that your traces are not limited by the default settings.
 
-This topic lists the parameters whose limits can be overridden, as well as describes various methods of
-overriding these default limits.
+This following sections describe the parameters whose limits can be overridden, as well as the methods of
+overriding the default limits.
 
 ## Override parameters
 
-The parameters whose default values can be overridden are:
+You can override the default values of the following parameters:
 
-   - `ingestion_burst_size` : `NEED INFO`
-   - `ingestion_max_batch_size` : Per-user allowed ingestion max batch size (in number of spans). Default is `1000`.
+   - `ingestion_burst_size` : Burst size used in span ingestion. Default is `100,000`.
    - `ingestion_rate_limit` : Per-user ingestion rate limit in spans per second. Default is `100,000`.
-   - `max_spans_per_trace` : Maximum number of spans per trace.  0 to disable. Default is `50,000`.
-   - `max_traces_per_user`: Maximum number of active traces per user, per ingester. 0 to disable. Default is `10,000`.
+   - `max_spans_per_trace` : Maximum number of spans per trace.  `0` to disable. Default is `50,000`.
+   - `max_traces_per_user`: Maximum number of active traces per user, per ingester. `0` to disable. Default is `10,000`.
 
-`NEED INFO:The trigger points for each of the trace limits, and the error message to help the user identify which trace limit has been hit.`
+Both the `ingestion_burst_size` and `ingestion_rate_limit` parameters control the rate limit. A log message for these parameters looks like this:
 
+```
+    RATE_LIMITED: ingestion rate limit (100000 spans) exceeded while adding 10 spans
+```    
+
+A log message for the `max_spans_per_trace` parameter looks like this:
+
+```
+    TRACE_TOO_LARGE: totalSpans (50000) exceeded while adding 2 spans
+```
+
+Finally, a log message for the `max_traces_per_user` parameter looks like this:
+
+```
+LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
+```
+
+The metric `tempo_discarded_spans_total` also tracks this information. It has the `reason` and `tenant` labels. The `reason` label can show one of the following values: `trace_too_large`, `live_traces_exceeded` or `rate_limited`, which applies to both the rate limit and burst size.
 ## Specify overrides to the default settings
 
-To change the default Tempo settings for various trace limits, you have to use an `overrides` section. The two approaches for specifying the overrides are:
+To change the default settings for various trace limits, add an `overrides` section. You can:
 
-- By adding `overrides` setting directly in the configuration file.
-- By creating a new yaml file containing the `overrides` settings and then referencing it from the configuration file.
+- Add the `overrides` setting directly in the configuration file.
+- Create a new yaml file containing the `overrides` settings and then reference it from the configuration file.
 
-You can set the `overrides` to apply to all tenants within the cluster, to specific tenants, or globally to the cluster. For more information, refer to the [Override strategies](#override-strategies) section.
+You can set the `overrides` to apply to all tenants within the cluster, to specific tenants, or globally to the cluster. Per tenant settings override the settings in the main configuration file. Use the main configuration file as a place to add the default values. The per tenant settings can be used to adjust to limit each tenant individually. For more information, refer to the [Override strategies](#override-strategies) section.
 
 ### Standard overrides
 
