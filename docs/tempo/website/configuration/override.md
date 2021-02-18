@@ -1,9 +1,9 @@
 ---
-title: Override trace limits
+title: Ingestion limits
 weight: 30
 ---
 
-# Override trace limits
+# Ingestion limits
 
 The default per user or per tenant trace limits in Tempo may not be sufficient in high volume tracing environments. The following message, for example, indicates that your tenants are exceeding the trace limits imposed on them.
  ```
@@ -25,34 +25,34 @@ You can override the default values of the following parameters:
    - `max_spans_per_trace` : Maximum number of spans per trace.  `0` to disable. Default is `50,000`.
    - `max_traces_per_user`: Maximum number of active traces per user, per ingester. `0` to disable. Default is `10,000`.
 
-Both the `ingestion_burst_size` and `ingestion_rate_limit` parameters control the rate limit. A log message for these parameters looks like this:
+Both the `ingestion_burst_size` and `ingestion_rate_limit` parameters control the rate limit. When these limits exceed the following message is logged:
 
 ```
     RATE_LIMITED: ingestion rate limit (100000 spans) exceeded while adding 10 spans
 ```    
 
-A log message for the `max_spans_per_trace` parameter looks like this:
+When the limit for the `max_spans_per_trace` parameter exceeds the following message is logged:
 
 ```
     TRACE_TOO_LARGE: totalSpans (50000) exceeded while adding 2 spans
 ```
 
-Finally, a log message for the `max_traces_per_user` parameter looks like this:
+Finally, when the limit for the `max_traces_per_user` parameter exceeds the following message is logged:
 
 ```
 LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
 ```
-
-The metric `tempo_discarded_spans_total` also tracks this information. It has the `reason` and `tenant` labels. The `reason` label can show one of the following values: `trace_too_large`, `live_traces_exceeded` or `rate_limited`, which applies to both the rate limit and burst size.
 ## Specify overrides to the default settings
 
-To change the default settings for various trace limits, add an `overrides` section. You can:
+To configure overrides add the following block to your `config.yaml` file:
 
-- Add the `overrides` setting directly in the configuration file.
-- Create a new yaml file containing the `overrides` settings and then reference it from the configuration file.
-
-You can set the `overrides` to apply to all tenants within the cluster, to specific tenants, or globally to the cluster. Per tenant settings override the settings in the main configuration file. Use the main configuration file as a place to add the default values. The per tenant settings can be used to adjust to limit each tenant individually. For more information, refer to the [Override strategies](#override-strategies) section.
-
+```
+overrides:
+  ingestion_burst_size: 50000
+  ingestion_rate_limit: 50000
+  max_spans_per_trace: 50000
+  max_traces_per_user: 10000 
+```  
 ### Standard overrides
 
 To set a new trace limit that applies to all tenants of the cluster:
@@ -93,11 +93,11 @@ Sometimes you don't want all tenants within the cluster to have the same setting
     ```
 ## Override strategies
 
-The trace limits specified by the various parameters are, by default, applied as tenant-level limits. For example, a max_traces_per_user setting of 10000 means that each tenant within the cluster has a limit of 10000 traces per user. This is known as a `local` strategy in that the specified trace limits are local to each tenant.
+The trace limits specified by the various parameters are, by default, applied as per-distributor limits. For example, a `max_traces_per_user` setting of 10000 means that each distributor within the cluster has a limit of 10000 traces per user. This is known as a `local` strategy in that the specified trace limits are local to each distributor.
 
-A setting that applies at a tenant level is quite helpful in ensuring that each tenant independently can generate traces up to the limit without affecting the tracing limits on other tenants. This strategy is well suited for situations where all tenants are generating similar amounts of traces.
+A setting that applies at a local level is quite helpful in ensuring that each distributor independently can process traces up to the limit without affecting the tracing limits on other distributors.
 
-However, as a cluster grows quite large, this can lead to quite a large quantity of traces. An alternative strategy may be to set a cluster-level trace limit that establishes a total budget of all traces across all tenants in the cluster. Such a strategy, called `global` strategy, can be useful when different tenants produce different quantities of tracing. Here, a busy tenant can use some capacity from a less busy tenant to generate larger quantities of traces than local limits would have otherwise permitted.
+However, as a cluster grows quite large, this can lead to quite a large quantity of traces. An alternative strategy may be to set a `global` trace limit that establishes a total budget of all traces across all distributors in the cluster. The global limit is averaged across all distributors by using a distributor ring.
 
 The default setting for ingestion strategy is `local`. The strategy setting can also be changed using the `overrides` section, as shown in the following example:
 
