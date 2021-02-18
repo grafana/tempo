@@ -74,7 +74,7 @@ docker run --env BACKEND=localhost:3100 --net host grafana/tempo-query:latest
 
 And open `http://localhost:16686/trace/0123456789abcdef` in the browser of your choice to see:
 
-<p align="center"><img src="pushing-spans-with-http.png" alt="Tempo Logo"></p>
+<p align="center"><img src="pushing-spans-with-http.png" alt="single span"></p>
 
 ## More Spans!
 
@@ -95,8 +95,7 @@ curl -X POST http://localhost:9411 -H 'Content-Type: application/json' -d '[{
 ```
 
 And now the UI shows:
-
-<p align="center"><img src="pushing-spans-with-http2.png" alt="Tempo Logo"></p>
+<p align="center"><img src="pushing-spans-with-http2.png" alt="parent and child spans"></p>
 
 ## Spans from everything!
 
