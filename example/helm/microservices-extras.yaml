@@ -10,7 +10,7 @@ spec:
   - http:
       paths:
       - backend:
-          serviceName: querier
+          serviceName: tempo-tempo-distributed-query-frontend
           servicePort: 16686
         path: /
 ---
