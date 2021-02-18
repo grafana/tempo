@@ -1,5 +1,6 @@
 ---
 title: Ingestion limits
+weight: 30
 ---
 
 # Ingestion limits
@@ -41,34 +42,27 @@ Finally, when the limit for the `max_traces_per_user` parameter exceeds the foll
 ```
 LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
 ```
-## Specify overrides to the default settings
 
-To configure overrides add the following block to your `config.yaml` file:
-
-```
-overrides:
-  ingestion_burst_size: 50000
-  ingestion_rate_limit: 50000
-  max_spans_per_trace: 50000
-  max_traces_per_user: 10000 
-```  
-### Standard overrides
+## Standard overrides
 
 To set a new trace limit that applies to all tenants of the cluster:
 
 1. Create an `overrides` section at the bottom of the `/tempo/integration/bench/config.yaml` file.
 1. Add the override parameters under this section. For example:
 
-    ```
-    overrides: 
-        max_traces_per_user: 50000
-    ```
+```
+    overrides:
+    ingestion_burst_size: 50000
+    ingestion_rate_limit: 50000
+    max_spans_per_trace: 50000
+    max_traces_per_user: 10000 
+``` 
 
 A snippet of a `config.yaml` file showing how the `overrides` section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40). A list of common override parameters and their description can  be found in [Override parameters](#override-parameters).
 
 Setting a maximum value for the `overrides` setting is a failsafe way to prevent one tenant from negatively impacting others within the cluster. See also, [Distributor is not accepting traces](../../troubleshooting/#problem-4-distributor-is-not-accepting-traces) for more information.
 
-### Tenant-specific overrides
+## Tenant-specific overrides
 
 Sometimes you don't want all tenants within the cluster to have the same settings. To add overrides that are specific to an individual tenant:
 
