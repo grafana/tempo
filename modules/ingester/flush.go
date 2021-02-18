@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util/services"
-	"github.com/grafana/tempo/tempodb/wal"
-
 	"github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -65,41 +64,23 @@ func (i *Ingester) Flush() {
 // * Stop incoming writes by exiting from the ring
 // * Flush all blocks to backend
 func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
+	// lifecycler should exit the ring on shutdown
+	i.lifecycler.SetUnregisterOnShutdown(true)
+
 	// stop accepting new writes
-	err := i.markUnavailable()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("error marking ingester unavailable"))
-	}
+	i.markUnavailable()
 
 	// move all data into flushQueue
 	i.sweepAllInstances(true)
 
-	// wait for blocks to complete and flush
-	for i.isWaitingForFlush() {
+	for !i.flushQueues.IsEmpty() {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// lifecycler should exit the ring on shutdown
-	i.lifecycler.SetUnregisterOnShutdown(true)
-
-	// stop ingester which will internally stop lifecycler
+	// stop ingester service
 	_ = services.StopAndAwaitTerminated(context.Background(), i)
 
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ingester successfully shutdown"))
-}
-
-func (i *Ingester) isWaitingForFlush() bool {
-	instances := i.getInstances()
-
-	for _, instance := range instances {
-		if instance.waitForFlush.Load() != 0 {
-			return true
-		}
-	}
-
-	return false
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // FlushHandler calls sweepAllInstances(true) which will force push all traces into the WAL and force
@@ -110,15 +91,13 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 type flushOp struct {
-	kind            int
-	from            int64
-	userID          string
-	completingBlock *wal.AppendBlock
-	immediate       bool
+	kind   int
+	from   int64
+	userID string
 }
 
 func (o *flushOp) Key() string {
-	return o.userID
+	return o.userID + "/" + strconv.Itoa(o.kind)
 }
 
 func (o *flushOp) Priority() int64 {
@@ -143,21 +122,17 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	// see if it's ready to cut a block
-	completingBlock, err := instance.CutBlockIfReady(i.cfg.MaxBlockDuration, i.cfg.MaxBlockBytes, immediate)
+	isReady, err := instance.CutBlockIfReady(i.cfg.MaxBlockDuration, i.cfg.MaxBlockBytes, immediate)
 	if err != nil {
 		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut block", "err", err)
 		return
 	}
 
-	// enqueue completingBlock if not nil
-	if completingBlock != nil {
-		instance.waitForFlush.Inc()
+	if isReady {
 		i.flushQueues.Enqueue(&flushOp{
-			kind:            opKindComplete,
-			completingBlock: completingBlock,
-			from:            math.MaxInt64,
-			userID:          instance.instanceID,
-			immediate:       immediate,
+			kind:   opKindComplete,
+			from:   math.MaxInt64,
+			userID: instance.instanceID,
 		})
 	}
 
@@ -167,13 +142,7 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to complete block", "err", err)
 	}
 
-	// blocking wait to immediately call flush on the completingBlock and not wait for the next flush cycle
-	if immediate {
-		_ = <-instance.flushChan
-	}
-
 	// see if any complete blocks are ready to be flushed
-	// these might get double queued if a routine flush coincides with a shutdown .. but that's OK.
 	if len(instance.GetBlocksToBeFlushed()) > 0 {
 		i.flushQueues.Enqueue(&flushOp{
 			kind:   opKindFlush,
@@ -197,31 +166,25 @@ func (i *Ingester) flushLoop(j int) {
 		op := o.(*flushOp)
 
 		if op.kind == opKindComplete {
-			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID, "fp")
+			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID)
 			instance, exists := i.getInstanceByID(op.userID)
 			if !exists {
-				// instance no longer exists? that's bad, clear and continue
-				_ = op.completingBlock.Clear()
+				// instance no longer exists? that's bad, log and continue
+				level.Error(log.Logger).Log("msg", "instance not found", "tenantID", op.userID)
 				continue
 			}
 
-			completeBlock, err := instance.writer.CompleteBlock(op.completingBlock, instance)
+			isComplete := instance.CompleteBlock()
 
-			if op.immediate {
-				instance.flushChan <- 1
+			if isComplete {
+				// add a flushOp for the block we just completed
+				i.flushQueues.Enqueue(&flushOp{
+					kind:   opKindFlush,
+					from:   time.Now().Unix(),
+					userID: instance.instanceID,
+				})
 			}
 
-			instance.blocksMtx.Lock()
-			if err != nil {
-				// this is a really bad error that results in data loss.  most likely due to disk full
-				_ = op.completingBlock.Clear()
-				metricFailedFlushes.Inc()
-				level.Error(log.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", op.userID, "err", err)
-				instance.blocksMtx.Unlock()
-				continue
-			}
-			instance.completeBlocks = append(instance.completeBlocks, completeBlock)
-			instance.blocksMtx.Unlock()
 		} else {
 			level.Debug(log.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
 
@@ -234,12 +197,6 @@ func (i *Ingester) flushLoop(j int) {
 				i.flushQueues.Requeue(op)
 				continue
 			}
-
-			instance, exists := i.getInstanceByID(op.userID)
-			if !exists {
-				continue
-			}
-			instance.waitForFlush.Dec()
 		}
 
 		i.flushQueues.Clear(op)

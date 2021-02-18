@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber-go/atomic"
-
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
@@ -56,14 +54,10 @@ type instance struct {
 	tracesMtx sync.Mutex
 	traces    map[uint32]*trace
 
-	blocksMtx       sync.RWMutex
-	headBlock       *wal.AppendBlock
-	completingBlock *wal.AppendBlock
-	completeBlocks  []*encoding.CompleteBlock
-
-	flushChan chan int
-
-	waitForFlush *atomic.Int32
+	blocksMtx        sync.RWMutex
+	headBlock        *wal.AppendBlock
+	completingBlocks []*wal.AppendBlock
+	completeBlocks   []*encoding.CompleteBlock
 
 	lastBlockCut time.Time
 
@@ -86,9 +80,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer) (*i
 		limiter:            limiter,
 		writer:             writer,
 
-		waitForFlush: atomic.NewInt32(0),
-		flushChan: make(chan int, 10), // should not need more than 2
-		hash:      fnv.New32(),
+		hash: fnv.New32(),
 	}
 	err := i.resetHeadBlock()
 	if err != nil {
@@ -142,32 +134,64 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 }
 
 // CutBlockIfReady cuts a completingBlock from the HeadBlock if ready
-func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (*wal.AppendBlock, error) {
+// Returns a bool indicating if a block was cut along with the error (if any).
+func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (bool, error) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
-		return nil, nil
+		return false, nil
 	}
 
 	now := time.Now()
 	if i.lastBlockCut.Add(maxBlockLifetime).Before(now) || i.headBlock.DataLength() >= maxBlockBytes || immediate {
-		completingBlock := i.headBlock
-
-		// make completingBlock searchable
-		i.completingBlock = completingBlock
+		i.completingBlocks = append(i.completingBlocks, i.headBlock)
 
 		err := i.resetHeadBlock()
 		if err != nil {
-			return nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
+			return true, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
-		return completingBlock, nil
+		return true, nil
 	}
 
-	return nil, nil
+	return false, nil
 }
 
+// CompleteBlock() moves a completingBlock to a completeBlock
+func (i *instance) CompleteBlock() bool {
+	i.blocksMtx.Lock()
+
+	var completingBlock *wal.AppendBlock
+	if len(i.completingBlocks) > 0 {
+		completingBlock = i.completingBlocks[0]
+	}
+	i.blocksMtx.Unlock()
+
+	if completingBlock == nil {
+		return false
+	}
+
+	// potentially long running operation placed outside blocksMtx
+	completeBlock, err := i.writer.CompleteBlock(completingBlock, i)
+
+	i.blocksMtx.Lock()
+	if err != nil {
+		// this is a really bad error that results in data loss.  most likely due to disk full
+		_ = completingBlock.Clear()
+		metricFailedFlushes.Inc()
+		level.Error(log.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
+		i.blocksMtx.Unlock()
+		return false
+	}
+	i.completeBlocks = append(i.completeBlocks, completeBlock)
+	i.completingBlocks = i.completingBlocks[1:]
+	i.blocksMtx.Unlock()
+
+	return true
+}
+
+// GetBlocksToBeFlushed gets a list of blocks that can be flushed to the backend
 func (i *instance) GetBlocksToBeFlushed() []*encoding.CompleteBlock {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
@@ -234,8 +258,8 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	allBytes = i.Combine(foundBytes, allBytes)
 
 	// completingBlock
-	if i.completingBlock != nil {
-		foundBytes, err = i.completingBlock.Find(id, i)
+	for _, c := range i.completingBlocks {
+		foundBytes, err = c.Find(id, i)
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
 		}
