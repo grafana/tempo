@@ -1,6 +1,7 @@
 builds:
   - id: "tempo"
     main: ./cmd/tempo
+    binary: tempo
     env:
       - CGO_ENABLED=0
     goos:
@@ -19,6 +20,7 @@ builds:
     mod_timestamp: '{{ .CommitTimestamp }}'
   - id: "tempo-query"
     main: ./cmd/tempo-query
+    binary: tempo-query
     env:
       - CGO_ENABLED=0
     goos:
