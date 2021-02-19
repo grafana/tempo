@@ -48,14 +48,14 @@ LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit
 To set a new trace limit that applies to all tenants of the cluster:
 
 1. Create an `overrides` section at the bottom of the `/tempo/integration/bench/config.yaml` file.
-1. Add the override parameters under this section. For example:
+1. Add the `overrides` parameters under this section. For example:
 
 ```
     overrides:
-    ingestion_burst_size: 50000
-    ingestion_rate_limit: 50000
-    max_spans_per_trace: 50000
-    max_traces_per_user: 10000 
+        ingestion_burst_size: 50000
+        ingestion_rate_limit: 50000
+        max_spans_per_trace: 50000
+        max_traces_per_user: 10000 
 ``` 
 
 A snippet of a `config.yaml` file showing how the `overrides` section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40). A list of common override parameters and their description can  be found in [Override parameters](#override-parameters).
