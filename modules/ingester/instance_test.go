@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/go-kit/kit/log"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -52,20 +54,19 @@ func TestInstance(t *testing.T) {
 	err = i.CutCompleteTraces(0, true)
 	assert.NoError(t, err)
 
-	isReady, err := i.CutBlockIfReady(0, 0, false)
+	blockID, err := i.CutBlockIfReady(0, 0, false)
 	assert.NoError(t, err, "unexpected error cutting block")
-	assert.True(t, isReady)
+	assert.NotEqual(t, blockID, uuid.Nil)
 
-	isComplete := i.CompleteBlock()
-	assert.True(t, isComplete)
+	completeBlockID := i.CompleteBlock(blockID)
+	assert.NotEqual(t, completeBlockID, uuid.Nil)
 
-	blocks := i.GetBlocksToBeFlushed()
-	require.NotNil(t, blocks)
-	require.Len(t, blocks, 1)
+	block := i.GetBlockToBeFlushed(completeBlockID)
+	require.NotNil(t, block)
 	assert.Len(t, i.completingBlocks, 0)
 	assert.Len(t, i.completeBlocks, 1)
 
-	err = ingester.store.WriteBlock(context.Background(), blocks[0])
+	err = ingester.store.WriteBlock(context.Background(), block)
 	assert.NoError(t, err)
 
 	err = i.ClearFlushedBlocks(30 * time.Hour)
@@ -80,7 +81,7 @@ func TestInstance(t *testing.T) {
 	assert.NoError(t, err, "unexpected error resetting block")
 }
 
-func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) {
+func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.UUID {
 	traceID := test.MustTraceID(request)
 	err := i.Push(context.Background(), request)
 	assert.NoError(t, err)
@@ -96,13 +97,15 @@ func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) {
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
 
-	isReady, err := i.CutBlockIfReady(0, 0, false)
+	blockID, err := i.CutBlockIfReady(0, 0, false)
 	assert.NoError(t, err, "unexpected error cutting block")
-	assert.True(t, isReady)
+	assert.NotEqual(t, blockID, uuid.Nil)
 
 	trace, err = i.FindTraceByID(traceID)
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
+
+	return blockID
 }
 
 func TestInstanceFind(t *testing.T) {
@@ -119,20 +122,23 @@ func TestInstanceFind(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	request := test.MakeRequest(10, []byte{})
-	pushAndQuery(t, i, request)
+	blockID := pushAndQuery(t, i, request)
 
 	// make another completingBlock
 	request2 := test.MakeRequest(10, []byte{})
 	pushAndQuery(t, i, request2)
 	assert.Len(t, i.completingBlocks, 2)
 
-	i.CompleteBlock()
+	i.CompleteBlock(blockID)
 	assert.Len(t, i.completingBlocks, 1)
 
 	traceID := test.MustTraceID(request)
 	trace, err := i.FindTraceByID(traceID)
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
+
+	completeBlockID := i.CompleteBlock(blockID)
+	assert.Equal(t, completeBlockID, uuid.Nil)
 }
 
 func TestInstanceDoesNotRace(t *testing.T) {
@@ -173,15 +179,15 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, _ = i.CutBlockIfReady(0, 0, false)
-		_ = i.CompleteBlock()
-	})
-
-	go concurrent(func() {
-		blocks := i.GetBlocksToBeFlushed()
-		if len(blocks) > 0 {
-			err := ingester.store.WriteBlock(context.Background(), blocks[0])
-			assert.NoError(t, err, "error writing block")
+		blockID, _ := i.CutBlockIfReady(0, 0, false)
+		if blockID != uuid.Nil {
+			completeBlockID := i.CompleteBlock(blockID)
+			if completeBlockID != uuid.Nil {
+				block := i.GetBlockToBeFlushed(completeBlockID)
+				require.NotNil(t, block)
+				err := ingester.store.WriteBlock(context.Background(), block)
+				assert.NoError(t, err, "error writing block")
+			}
 		}
 	})
 
@@ -430,10 +436,10 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			err := instance.CutCompleteTraces(0, true)
 			require.NoError(t, err)
 
-			_, err = instance.CutBlockIfReady(tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
+			blockID, err := instance.CutBlockIfReady(tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
 			require.NoError(t, err)
 
-			instance.CompleteBlock()
+			instance.CompleteBlock(blockID)
 
 			// Wait for goroutine to finish flushing to avoid test flakiness
 			if tc.expectedToCutBlock {

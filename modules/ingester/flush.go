@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
@@ -64,23 +66,25 @@ func (i *Ingester) Flush() {
 // * Stop incoming writes by exiting from the ring
 // * Flush all blocks to backend
 func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
-	// lifecycler should exit the ring on shutdown
-	i.lifecycler.SetUnregisterOnShutdown(true)
+	go func() {
+		// lifecycler should exit the ring on shutdown
+		i.lifecycler.SetUnregisterOnShutdown(true)
 
-	// stop accepting new writes
-	i.markUnavailable()
+		// stop accepting new writes
+		i.markUnavailable()
 
-	// move all data into flushQueue
-	i.sweepAllInstances(true)
+		// move all data into flushQueue
+		i.sweepAllInstances(true)
 
-	for !i.flushQueues.IsEmpty() {
-		time.Sleep(100 * time.Millisecond)
-	}
+		for !i.flushQueues.IsEmpty() {
+			time.Sleep(100 * time.Millisecond)
+		}
 
-	// stop ingester service
-	_ = services.StopAndAwaitTerminated(context.Background(), i)
+		// stop ingester service
+		_ = services.StopAndAwaitTerminated(context.Background(), i)
+	}()
 
-	w.WriteHeader(http.StatusNoContent)
+	_, _ = w.Write([]byte("shutdown job acknowledged"))
 }
 
 // FlushHandler calls sweepAllInstances(true) which will force push all traces into the WAL and force
@@ -91,13 +95,14 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 type flushOp struct {
-	kind   int
-	from   int64
-	userID string
+	kind    int
+	from    int64
+	userID  string
+	blockID uuid.UUID
 }
 
 func (o *flushOp) Key() string {
-	return o.userID + "/" + strconv.Itoa(o.kind)
+	return o.userID + "/" + strconv.Itoa(o.kind) + "/" + o.blockID.String()
 }
 
 func (o *flushOp) Priority() int64 {
@@ -122,17 +127,18 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	// see if it's ready to cut a block
-	isReady, err := instance.CutBlockIfReady(i.cfg.MaxBlockDuration, i.cfg.MaxBlockBytes, immediate)
+	blockID, err := instance.CutBlockIfReady(i.cfg.MaxBlockDuration, i.cfg.MaxBlockBytes, immediate)
 	if err != nil {
 		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut block", "err", err)
 		return
 	}
 
-	if isReady {
+	if blockID != uuid.Nil {
 		i.flushQueues.Enqueue(&flushOp{
-			kind:   opKindComplete,
-			from:   math.MaxInt64,
-			userID: instance.instanceID,
+			kind:    opKindComplete,
+			from:    math.MaxInt64,
+			userID:  instance.instanceID,
+			blockID: blockID,
 		})
 	}
 
@@ -140,15 +146,6 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	err = instance.ClearFlushedBlocks(i.cfg.CompleteBlockTimeout)
 	if err != nil {
 		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to complete block", "err", err)
-	}
-
-	// see if any complete blocks are ready to be flushed
-	if len(instance.GetBlocksToBeFlushed()) > 0 {
-		i.flushQueues.Enqueue(&flushOp{
-			kind:   opKindFlush,
-			from:   time.Now().Unix(),
-			userID: instance.instanceID,
-		})
 	}
 }
 
@@ -174,21 +171,22 @@ func (i *Ingester) flushLoop(j int) {
 				continue
 			}
 
-			isComplete := instance.CompleteBlock()
+			completeBlockID := instance.CompleteBlock(op.blockID)
 
-			if isComplete {
+			if completeBlockID != uuid.Nil {
 				// add a flushOp for the block we just completed
 				i.flushQueues.Enqueue(&flushOp{
-					kind:   opKindFlush,
-					from:   time.Now().Unix(),
-					userID: instance.instanceID,
+					kind:    opKindFlush,
+					from:    time.Now().Unix(),
+					userID:  instance.instanceID,
+					blockID: completeBlockID,
 				})
 			}
 
 		} else {
 			level.Debug(log.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
 
-			err := i.flushUserTraces(op.userID)
+			err := i.flushBlock(op.userID, op.blockID)
 			if err != nil {
 				level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "failed to flush user", "err", err)
 
@@ -203,7 +201,7 @@ func (i *Ingester) flushLoop(j int) {
 	}
 }
 
-func (i *Ingester) flushUserTraces(userID string) error {
+func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
 	instance, err := i.getOrCreateInstance(userID)
 	if err != nil {
 		return err
@@ -213,7 +211,7 @@ func (i *Ingester) flushUserTraces(userID string) error {
 		return fmt.Errorf("instance id %s not found", userID)
 	}
 
-	for _, block := range instance.GetBlocksToBeFlushed() {
+	if block := instance.GetBlockToBeFlushed(blockID); block != nil {
 		ctx := user.InjectOrgID(context.Background(), userID)
 		ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
 		defer cancel()

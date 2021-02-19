@@ -135,41 +135,47 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 
 // CutBlockIfReady cuts a completingBlock from the HeadBlock if ready
 // Returns a bool indicating if a block was cut along with the error (if any).
-func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (bool, error) {
+func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (uuid.UUID, error) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
-		return false, nil
+		return uuid.Nil, nil
 	}
 
 	now := time.Now()
 	if i.lastBlockCut.Add(maxBlockLifetime).Before(now) || i.headBlock.DataLength() >= maxBlockBytes || immediate {
-		i.completingBlocks = append(i.completingBlocks, i.headBlock)
+		completingBlock := i.headBlock
+
+		i.completingBlocks = append(i.completingBlocks, completingBlock)
 
 		err := i.resetHeadBlock()
 		if err != nil {
-			return true, fmt.Errorf("failed to resetHeadBlock: %w", err)
+			return uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
-		return true, nil
+		return completingBlock.BlockID(), nil
 	}
 
-	return false, nil
+	return uuid.Nil, nil
 }
 
 // CompleteBlock() moves a completingBlock to a completeBlock
-func (i *instance) CompleteBlock() bool {
+func (i *instance) CompleteBlock(blockID uuid.UUID) uuid.UUID {
 	i.blocksMtx.Lock()
 
 	var completingBlock *wal.AppendBlock
-	if len(i.completingBlocks) > 0 {
-		completingBlock = i.completingBlocks[0]
+	for j, iterBlock := range i.completingBlocks {
+		if iterBlock.BlockID() == blockID {
+			completingBlock = iterBlock
+			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
+			break
+		}
 	}
 	i.blocksMtx.Unlock()
 
 	if completingBlock == nil {
-		return false
+		return uuid.Nil
 	}
 
 	// potentially long running operation placed outside blocksMtx
@@ -182,28 +188,27 @@ func (i *instance) CompleteBlock() bool {
 		metricFailedFlushes.Inc()
 		level.Error(log.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
 		i.blocksMtx.Unlock()
-		return false
+		return uuid.Nil
 	}
+	completeBlockID := completeBlock.BlockMeta().BlockID
 	i.completeBlocks = append(i.completeBlocks, completeBlock)
-	i.completingBlocks = i.completingBlocks[1:]
 	i.blocksMtx.Unlock()
 
-	return true
+	return completeBlockID
 }
 
 // GetBlocksToBeFlushed gets a list of blocks that can be flushed to the backend
-func (i *instance) GetBlocksToBeFlushed() []*encoding.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *encoding.CompleteBlock {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	completeBlockList := []*encoding.CompleteBlock{}
 	for _, c := range i.completeBlocks {
-		if c.FlushedTime().IsZero() {
-			completeBlockList = append(completeBlockList, c)
+		if c.BlockMeta().BlockID == blockID && c.FlushedTime().IsZero() {
+			return c
 		}
 	}
 
-	return completeBlockList
+	return nil
 }
 
 func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error {
