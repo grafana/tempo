@@ -22,7 +22,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	_, err = MarshalObjectToWriter(id, bReq, buffer)
 	assert.NoError(t, err)
 
-	outID, outObject, err := unmarshalObjectFromReader(buffer)
+	outID, outObject, err := UnmarshalObjectFromReader(buffer)
 	assert.NoError(t, err)
 	assert.True(t, bytes.Equal(id, outID))
 

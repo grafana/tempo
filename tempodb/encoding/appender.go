@@ -1,4 +1,4 @@
-package v0
+package encoding
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type appender struct {
@@ -25,7 +26,7 @@ func NewAppender(writer io.Writer) common.Appender {
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 //   Copies should be made and passed in if this is a problem
 func (a *appender) Append(id common.ID, b []byte) error {
-	length, err := MarshalObjectToWriter(id, b, a.writer)
+	length, err := v0.MarshalObjectToWriter(id, b, a.writer) // jpe replace all v0.MarshalObject with versioned pagewriter?
 	if err != nil {
 		return err
 	}

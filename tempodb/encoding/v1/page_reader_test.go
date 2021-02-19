@@ -1,17 +1,12 @@
 package v1
 
 import (
-	"bytes"
 	"testing"
-
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPageReader(t *testing.T) {
 
+	/* jpe - pageWriter
 	tests := []struct {
 		readerBytes []byte
 	}{
@@ -55,5 +50,5 @@ func TestPageReader(t *testing.T) {
 				assert.Equal(t, tc.readerBytes, actual[0])
 			})
 		}
-	}
+	}*/
 }

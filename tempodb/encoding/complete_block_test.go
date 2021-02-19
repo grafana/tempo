@@ -20,7 +20,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -149,7 +148,7 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
-	appender := v0.NewAppender(writer)
+	appender := NewAppender(writer)
 
 	numMsgs := 1000
 	reqs := make([][]byte, 0, numMsgs)
@@ -197,7 +196,7 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 		expectedRecords++
 	}
 
-	iterator := v0.NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
+	iterator := NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes())) // jpe review all News and see if we can make private
 	block, err := NewCompleteBlock(cfg, originatingMeta, iterator, numMsgs, tempDir, "")
 	require.NoError(t, err, "unexpected error completing block")
 

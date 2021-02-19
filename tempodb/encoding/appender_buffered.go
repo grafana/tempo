@@ -1,4 +1,4 @@
-package v1
+package encoding
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
+	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
 )
 
 // meteredWriter is a struct that is used to count the number of bytes
@@ -32,7 +33,7 @@ type bufferedAppender struct {
 	outputWriter *meteredWriter
 
 	// compression
-	pool              WriterPool
+	pool              v1.WriterPool // jpe page writer
 	compressionWriter io.WriteCloser
 
 	// record keeping
@@ -48,7 +49,7 @@ type bufferedAppender struct {
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
 //  the provided writer and also builds a downsampled records slice.
 func NewBufferedAppender(writer io.Writer, encoding backend.Encoding, indexDownsample int, totalObjectsEstimate int) (common.Appender, error) {
-	pool, err := getWriterPool(encoding)
+	pool, err := v1.GetWriterPool(encoding)
 	if err != nil {
 		return nil, err
 	}

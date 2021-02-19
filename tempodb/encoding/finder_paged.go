@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type pagedFinder struct {
@@ -70,9 +69,9 @@ func (f *pagedFinder) findOne(id common.ID, record *common.Record) ([]byte, erro
 	}
 
 	// pageReader is expected to return pages in the v0 format.  so this works
-	iter := v0.NewIterator(bytes.NewReader(pages[0]))
+	iter := NewIterator(bytes.NewReader(pages[0]))
 	if f.combiner != nil {
-		iter, err = v0.NewDedupingIterator(iter, f.combiner)
+		iter, err = NewDedupingIterator(iter, f.combiner)
 	}
 	if err != nil {
 		return nil, err

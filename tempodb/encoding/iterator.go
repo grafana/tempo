@@ -1,9 +1,10 @@
-package v0
+package encoding
 
 import (
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type iterator struct {
@@ -17,7 +18,7 @@ func NewIterator(reader io.Reader) common.Iterator {
 }
 
 func (i *iterator) Next() (common.ID, []byte, error) {
-	return unmarshalObjectFromReader(i.reader)
+	return v0.UnmarshalObjectFromReader(i.reader) // jpe pagereader
 }
 
 func (i *iterator) Close() {
