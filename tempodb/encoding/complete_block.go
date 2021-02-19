@@ -149,7 +149,7 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 	}
 	defer pageReader.Close()
 
-	finder := c.encoding.newPagedFinder(common.Records(c.records), pageReader, combiner)
+	finder := NewPagedFinder(common.Records(c.records), pageReader, combiner)
 	return finder.Find(id)
 }
 

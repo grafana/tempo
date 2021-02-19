@@ -15,9 +15,12 @@ const currentVersion = "v1"
 //  currently quite sloppy and could easily be tightened up to just a few methods
 //  but it is what it is for now!
 type versionedEncoding interface {
+	// jpe move to encoding level and create pageWriter
 	newBufferedAppender(writer io.Writer, encoding backend.Encoding, indexDownsample int, totalObjectsEstimate int) (common.Appender, error)
-	newPagedFinder(indexReader common.IndexReader, pageReader common.PageReader, combiner common.ObjectCombiner) common.Finder
-	newPagedIterator(chunkSizeBytes uint32, indexBytes []byte, pageReader common.PageReader) (common.Iterator, error)
+
+	// jpe make these
+	// newPageWriter()
+	// newIndexWriter() // use this in block write commands
 
 	newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error)
 	newIndexReader(indexBytes []byte) (common.IndexReader, error)
@@ -34,17 +37,6 @@ type v0Encoding struct{}
 func (v v0Encoding) newBufferedAppender(writer io.Writer, _ backend.Encoding, indexDownsample int, totalObjectsEstimate int) (common.Appender, error) {
 	return v0.NewBufferedAppender(writer, indexDownsample, totalObjectsEstimate), nil
 }
-func (v v0Encoding) newPagedIterator(chunkSizeBytes uint32, indexBytes []byte, pageReader common.PageReader) (common.Iterator, error) {
-	reader, err := v0.NewIndexReader(indexBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return v0.NewPagedIterator(chunkSizeBytes, reader, pageReader), nil
-}
-func (v v0Encoding) newPagedFinder(indexReader common.IndexReader, pageReader common.PageReader, combiner common.ObjectCombiner) common.Finder {
-	return v0.NewPagedFinder(indexReader, pageReader, combiner)
-}
 func (v v0Encoding) newIndexReader(indexBytes []byte) (common.IndexReader, error) {
 	return v0.NewIndexReader(indexBytes)
 }
@@ -57,17 +49,6 @@ type v1Encoding struct{}
 
 func (v v1Encoding) newBufferedAppender(writer io.Writer, encoding backend.Encoding, indexDownsample int, totalObjectsEstimate int) (common.Appender, error) {
 	return v1.NewBufferedAppender(writer, encoding, indexDownsample, totalObjectsEstimate)
-}
-func (v v1Encoding) newPagedIterator(chunkSizeBytes uint32, indexBytes []byte, pageReader common.PageReader) (common.Iterator, error) {
-	reader, err := v1.NewIndexReader(indexBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return v1.NewPagedIterator(chunkSizeBytes, reader, pageReader), nil
-}
-func (v v1Encoding) newPagedFinder(indexReader common.IndexReader, pageReader common.PageReader, combiner common.ObjectCombiner) common.Finder {
-	return v1.NewPagedFinder(indexReader, pageReader, combiner)
 }
 func (v v1Encoding) newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error) {
 	return v1.NewPageReader(ra, encoding)

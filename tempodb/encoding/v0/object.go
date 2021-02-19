@@ -73,7 +73,7 @@ func unmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
 	return bytesID, bytesObject, nil
 }
 
-func unmarshalAndAdvanceBuffer(buffer []byte) ([]byte, common.ID, []byte, error) {
+func UnmarshalAndAdvanceBuffer(buffer []byte) ([]byte, common.ID, []byte, error) {
 	var totalLength uint32
 
 	if len(buffer) == 0 {

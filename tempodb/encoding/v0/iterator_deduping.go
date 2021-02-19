@@ -16,7 +16,7 @@ type dedupingIterator struct {
 
 // NewDedupingIterator returns a dedupingIterator.  This iterator is used to wrap another
 //  iterator.  It will dedupe consecutive objects with the same id using the ObjectCombiner.
-func NewDedupingIterator(iter common.Iterator, combiner common.ObjectCombiner) (common.Iterator, error) {
+func NewDedupingIterator(iter common.Iterator, combiner common.ObjectCombiner) (common.Iterator, error) { // jpe move up?
 	i := &dedupingIterator{
 		iter:     iter,
 		combiner: combiner,

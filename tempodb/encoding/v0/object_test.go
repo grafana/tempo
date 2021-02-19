@@ -55,7 +55,7 @@ func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 		var outID []byte
 		var outObject []byte
 		var err error
-		actualBuffer, outID, outObject, err = unmarshalAndAdvanceBuffer(actualBuffer)
+		actualBuffer, outID, outObject, err = UnmarshalAndAdvanceBuffer(actualBuffer)
 		assert.NoError(t, err)
 
 		outReq := &tempopb.PushRequest{}
