@@ -15,9 +15,7 @@ const currentVersion = "v1"
 //  currently quite sloppy and could easily be tightened up to just a few methods
 //  but it is what it is for now!
 type versionedEncoding interface {
-	// jpe make these
-	// newPageWriter()
-	// newIndexWriter() // use this in block write commands
+	newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error)
 
 	newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error)
 	newIndexReader(indexBytes []byte) (common.IndexReader, error)
@@ -31,6 +29,9 @@ func latestEncoding() versionedEncoding {
 // v0Encoding
 type v0Encoding struct{}
 
+func (v v0Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error) {
+	return v0.NewPageWriter(writer), nil // ignore encoding.  v0 PageWriter writes raw bytes
+}
 func (v v0Encoding) newIndexReader(indexBytes []byte) (common.IndexReader, error) {
 	return v0.NewIndexReader(indexBytes)
 }
@@ -41,6 +42,9 @@ func (v v0Encoding) newPageReader(ra io.ReaderAt, encoding backend.Encoding) (co
 // v1Encoding
 type v1Encoding struct{}
 
+func (v v1Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error) {
+	return v1.NewPageWriter(writer, encoding)
+}
 func (v v1Encoding) newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error) {
 	return v1.NewPageReader(ra, encoding)
 }

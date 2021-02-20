@@ -1,13 +1,9 @@
 package encoding
 
 import (
-	"bytes"
 	"io"
 
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
-	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
 )
 
 // meteredWriter is a struct that is used to count the number of bytes
@@ -26,21 +22,16 @@ func (m *meteredWriter) Write(p []byte) (n int, err error) {
 
 // buffer up in memory and then write a big ol' compressed block o shit at once
 //  used by CompleteBlock/CompactorBlock
-// may need additional code?  i.e. a signal that it's "about to flush" triggering a compression
 type bufferedAppender struct {
 	// output buffer and writer
-	v0Buffer     *bytes.Buffer
-	outputWriter *meteredWriter
-
-	// compression
-	pool              v1.WriterPool // jpe page writer
-	compressionWriter io.WriteCloser
+	writer common.PageWriter
 
 	// record keeping
-	records       []*common.Record
-	totalObjects  int
-	currentOffset uint64
-	currentRecord *common.Record
+	records             []*common.Record
+	totalObjects        int
+	currentOffset       uint64
+	currentRecord       *common.Record
+	currentBytesWritten int
 
 	// config
 	indexDownsampleBytes int
@@ -48,28 +39,18 @@ type bufferedAppender struct {
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
 //  the provided writer and also builds a downsampled records slice.
-func NewBufferedAppender(writer io.Writer, encoding backend.Encoding, indexDownsample int, totalObjectsEstimate int) (common.Appender, error) {
-	pool, err := v1.GetWriterPool(encoding)
-	if err != nil {
-		return nil, err
-	}
-
+func NewBufferedAppender(writer common.PageWriter, indexDownsample int, totalObjectsEstimate int) (common.Appender, error) {
 	return &bufferedAppender{
-		v0Buffer:             &bytes.Buffer{},
+		writer:               writer,
 		indexDownsampleBytes: indexDownsample,
 		records:              make([]*common.Record, 0, totalObjectsEstimate/indexDownsample+1),
-
-		outputWriter: &meteredWriter{
-			wrappedWriter: writer,
-		},
-		pool: pool,
 	}, nil
 }
 
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 //   Copies should be made and passed in if this is a problem
 func (a *bufferedAppender) Append(id common.ID, b []byte) error {
-	_, err := v0.MarshalObjectToWriter(id, b, a.v0Buffer)
+	bytesWritten, err := a.writer.Write(id, b)
 	if err != nil {
 		return err
 	}
@@ -80,9 +61,10 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 		}
 	}
 	a.totalObjects++
+	a.currentBytesWritten += bytesWritten
 	a.currentRecord.ID = id
 
-	if a.v0Buffer.Len() > a.indexDownsampleBytes {
+	if a.currentBytesWritten > a.indexDownsampleBytes {
 		err := a.flush()
 		if err != nil {
 			return err
@@ -104,19 +86,14 @@ func (a *bufferedAppender) DataLength() uint64 {
 	return a.currentOffset
 }
 
-// compress everything left and flush?
+// Complete jpe
 func (a *bufferedAppender) Complete() error {
 	err := a.flush()
 	if err != nil {
 		return err
 	}
 
-	if a.compressionWriter != nil {
-		a.pool.PutWriter(a.compressionWriter)
-		a.compressionWriter = nil
-	}
-
-	return nil
+	return a.writer.Complete()
 }
 
 func (a *bufferedAppender) flush() error {
@@ -124,30 +101,14 @@ func (a *bufferedAppender) flush() error {
 		return nil
 	}
 
-	var err error
-	if a.compressionWriter == nil {
-		a.compressionWriter, err = a.pool.GetWriter(a.outputWriter)
-	} else {
-		a.compressionWriter, err = a.pool.ResetWriter(a.outputWriter, a.compressionWriter)
-	}
+	bytesWritten, err := a.writer.CutPage()
 	if err != nil {
 		return err
 	}
 
-	// write compressed data
-	buffer := a.v0Buffer.Bytes()
-	_, err = a.compressionWriter.Write(buffer)
-	if err != nil {
-		return err
-	}
-
-	// now clear our v0 buffer so we can start the new block page
-	a.compressionWriter.Close()
-	a.v0Buffer.Reset()
-
-	a.currentOffset += uint64(a.outputWriter.bytesWritten)
-	a.currentRecord.Length += uint32(a.outputWriter.bytesWritten)
-	a.outputWriter.bytesWritten = 0
+	a.currentBytesWritten = 0
+	a.currentOffset += uint64(bytesWritten)
+	a.currentRecord.Length += uint32(bytesWritten)
 
 	// update index
 	a.records = append(a.records, a.currentRecord)

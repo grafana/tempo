@@ -53,7 +53,12 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 		return nil, err
 	}
 
-	appender, err := NewBufferedAppender(appendFile, cfg.Encoding, cfg.IndexDownsampleBytes, estimatedObjects)
+	pageWriter, err := c.encoding.newPageWriter(appendFile, cfg.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	appender, err := NewBufferedAppender(pageWriter, cfg.IndexDownsampleBytes, estimatedObjects)
 	if err != nil {
 		return nil, err
 	}

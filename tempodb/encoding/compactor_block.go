@@ -40,9 +40,13 @@ func NewCompactorBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 		inMetas:       metas,
 	}
 
-	var err error
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender, err = NewBufferedAppender(c.appendBuffer, cfg.Encoding, cfg.IndexDownsampleBytes, estimatedObjects)
+	pageWriter, err := c.encoding.newPageWriter(c.appendBuffer, cfg.Encoding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page writer: %w", err)
+	}
+
+	c.appender, err = NewBufferedAppender(pageWriter, cfg.IndexDownsampleBytes, estimatedObjects)
 	if err != nil {
 		return nil, fmt.Errorf("failed to created appender: %w", err)
 	}
