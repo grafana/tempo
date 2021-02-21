@@ -1,24 +1,8 @@
 package encoding
 
 import (
-	"io"
-
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
-
-// meteredWriter is a struct that is used to count the number of bytes
-// written to a block after compression.  Unfortunately the compression io.Reader
-// returns bytes before compression so this is necessary to know the actual number of
-// byte written.
-type meteredWriter struct {
-	wrappedWriter io.Writer
-	bytesWritten  int
-}
-
-func (m *meteredWriter) Write(p []byte) (n int, err error) {
-	m.bytesWritten += len(p)
-	return m.wrappedWriter.Write(p)
-}
 
 // bufferedAppender buffers objects into pages and builds a downsampled
 // index

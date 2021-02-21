@@ -1,12 +1,16 @@
 package v1
 
 import (
+	"bytes"
 	"testing"
+
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestPageReader(t *testing.T) {
-
-	/* jpe - pageWriter
+func TestAllEncodings(t *testing.T) {
 	tests := []struct {
 		readerBytes []byte
 	}{
@@ -18,7 +22,7 @@ func TestPageReader(t *testing.T) {
 	for _, tc := range tests {
 		for _, enc := range backend.SupportedEncoding {
 			t.Run(enc.String(), func(t *testing.T) {
-				wPool, err := getWriterPool(enc)
+				wPool, err := GetWriterPool(enc)
 				require.NoError(t, err)
 
 				buff := bytes.NewBuffer([]byte{})
@@ -50,5 +54,5 @@ func TestPageReader(t *testing.T) {
 				assert.Equal(t, tc.readerBytes, actual[0])
 			})
 		}
-	}*/
+	}
 }

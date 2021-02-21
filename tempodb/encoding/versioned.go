@@ -11,6 +11,19 @@ import (
 
 const currentVersion = "v1"
 
+// latestEncoding is used by Compactor and Complete block
+func latestEncoding() versionedEncoding {
+	return v1Encoding{}
+}
+
+// allEncodings returns all encodings
+func allEncodings() []versionedEncoding {
+	return []versionedEncoding{
+		v0Encoding{},
+		v1Encoding{},
+	}
+}
+
 // versionedEncoding has a whole bunch of versioned functionality.  This is
 //  currently quite sloppy and could easily be tightened up to just a few methods
 //  but it is what it is for now!
@@ -19,11 +32,6 @@ type versionedEncoding interface {
 
 	newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error)
 	newIndexReader(indexBytes []byte) (common.IndexReader, error)
-}
-
-// latestEncoding is used by Compactor and Complete block
-func latestEncoding() versionedEncoding {
-	return v1Encoding{}
 }
 
 // v0Encoding
