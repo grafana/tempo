@@ -45,7 +45,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 		return nil, err
 	}
 	h.appendFile = f
-	h.appender = encoding.NewAppender(f)
+	h.appender = encoding.NewAppender(v0.NewPageWriter(f))
 
 	return h, nil
 }

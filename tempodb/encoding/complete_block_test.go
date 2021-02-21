@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,7 +149,7 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
-	appender := NewAppender(writer)
+	appender := NewAppender(v0.NewPageWriter(writer))
 
 	numMsgs := 1000
 	reqs := make([][]byte, 0, numMsgs)

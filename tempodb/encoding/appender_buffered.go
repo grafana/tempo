@@ -20,10 +20,10 @@ func (m *meteredWriter) Write(p []byte) (n int, err error) {
 	return m.wrappedWriter.Write(p)
 }
 
-// buffer up in memory and then write a big ol' compressed block o shit at once
-//  used by CompleteBlock/CompactorBlock
+// bufferedAppender buffers objects into pages and builds a downsampled
+// index
 type bufferedAppender struct {
-	// output buffer and writer
+	// output writer
 	writer common.PageWriter
 
 	// record keeping
@@ -74,19 +74,22 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 	return nil
 }
 
+// Records returns a slice of the current records
 func (a *bufferedAppender) Records() []*common.Record {
 	return a.records
 }
 
+// Length returns the number of written objects
 func (a *bufferedAppender) Length() int {
 	return a.totalObjects
 }
 
+// DataLength returns the number of written bytes
 func (a *bufferedAppender) DataLength() uint64 {
 	return a.currentOffset
 }
 
-// Complete jpe
+// Complete flushes all buffers and releases resources
 func (a *bufferedAppender) Complete() error {
 	err := a.flush()
 	if err != nil {
