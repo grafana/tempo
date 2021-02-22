@@ -46,8 +46,8 @@ func testPageWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding)
 
 		reader := bytes.NewReader(buff.Bytes())
 		pageReader, err := v.newPageReader(reader, e)
-		defer pageReader.Close()
 		require.NoError(t, err)
+		defer pageReader.Close()
 
 		actual, err := pageReader.Read([]*common.Record{
 			{
@@ -55,8 +55,9 @@ func testPageWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding)
 				Length: uint32(bytesWritten),
 			},
 		})
-
+		require.NoError(t, err)
 		require.Len(t, actual, 1)
+
 		i := NewIterator(bytes.NewReader(actual[0]))
 		defer i.Close()
 

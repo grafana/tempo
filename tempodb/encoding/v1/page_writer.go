@@ -65,6 +65,9 @@ func (p *pageWriter) Write(id common.ID, obj []byte) (int, error) {
 func (p *pageWriter) CutPage() (int, error) {
 	var err error
 	p.compressionWriter, err = p.pool.ResetWriter(p.outputWriter, p.compressionWriter)
+	if err != nil {
+		return 0, err
+	}
 
 	buffer := p.v0Buffer.Bytes()
 	_, err = p.compressionWriter.Write(buffer)
