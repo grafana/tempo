@@ -162,6 +162,8 @@ func (i *Ingester) flushLoop(j int) {
 		}
 		op := o.(*flushOp)
 
+		var completeBlockID uuid.UUID
+		var err error
 		if op.kind == opKindComplete {
 			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID)
 			instance, exists := i.getInstanceByID(op.userID)
@@ -171,8 +173,7 @@ func (i *Ingester) flushLoop(j int) {
 				continue
 			}
 
-			completeBlockID := instance.CompleteBlock(op.blockID)
-
+			completeBlockID, err = instance.CompleteBlock(op.blockID)
 			if completeBlockID != uuid.Nil {
 				// add a flushOp for the block we just completed
 				i.flushQueues.Enqueue(&flushOp{
@@ -186,15 +187,16 @@ func (i *Ingester) flushLoop(j int) {
 		} else {
 			level.Debug(log.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
 
-			err := i.flushBlock(op.userID, op.blockID)
-			if err != nil {
-				level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "failed to flush user", "err", err)
+			err = i.flushBlock(op.userID, op.blockID)
+		}
 
-				// re-queue failed flush
-				op.from += int64(flushBackoff)
-				i.flushQueues.Requeue(op)
-				continue
-			}
+		if err != nil {
+			level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "error performing op in flushQueue",
+				"op", op.kind, "block", op.blockID.String(), "err", err)
+			// re-queue op with backoff
+			op.from += int64(flushBackoff)
+			i.flushQueues.Requeue(op)
+			continue
 		}
 
 		i.flushQueues.Clear(op)

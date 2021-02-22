@@ -58,7 +58,8 @@ func TestInstance(t *testing.T) {
 	assert.NoError(t, err, "unexpected error cutting block")
 	assert.NotEqual(t, blockID, uuid.Nil)
 
-	completeBlockID := i.CompleteBlock(blockID)
+	completeBlockID, err := i.CompleteBlock(blockID)
+	assert.NoError(t, err, "unexpected error completing block")
 	assert.NotEqual(t, completeBlockID, uuid.Nil)
 
 	block := i.GetBlockToBeFlushed(completeBlockID)
@@ -137,7 +138,8 @@ func TestInstanceFind(t *testing.T) {
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
 
-	completeBlockID := i.CompleteBlock(blockID)
+	completeBlockID, err := i.CompleteBlock(blockID)
+	assert.NoError(t, err, "unexpected error completing block")
 	assert.Equal(t, completeBlockID, uuid.Nil)
 }
 
@@ -181,7 +183,8 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	go concurrent(func() {
 		blockID, _ := i.CutBlockIfReady(0, 0, false)
 		if blockID != uuid.Nil {
-			completeBlockID := i.CompleteBlock(blockID)
+			completeBlockID, err := i.CompleteBlock(blockID)
+			assert.NoError(t, err, "unexpected error completing block")
 			if completeBlockID != uuid.Nil {
 				block := i.GetBlockToBeFlushed(completeBlockID)
 				require.NotNil(t, block)

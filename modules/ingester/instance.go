@@ -161,7 +161,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 }
 
 // CompleteBlock() moves a completingBlock to a completeBlock
-func (i *instance) CompleteBlock(blockID uuid.UUID) uuid.UUID {
+func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
 	i.blocksMtx.Lock()
 
 	var completingBlock *wal.AppendBlock
@@ -175,7 +175,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) uuid.UUID {
 	i.blocksMtx.Unlock()
 
 	if completingBlock == nil {
-		return uuid.Nil
+		return uuid.Nil, nil
 	}
 
 	// potentially long running operation placed outside blocksMtx
@@ -183,18 +183,18 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) uuid.UUID {
 
 	i.blocksMtx.Lock()
 	if err != nil {
-		// this is a really bad error that results in data loss.  most likely due to disk full
-		_ = completingBlock.Clear()
+		// re-add completingBlock into list
+		i.completingBlocks = append(i.completingBlocks, completingBlock)
 		metricFailedFlushes.Inc()
-		level.Error(log.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
+		level.Error(log.Logger).Log("msg", "unable to complete block.", "tenantID", i.instanceID, "err", err)
 		i.blocksMtx.Unlock()
-		return uuid.Nil
+		return uuid.Nil, err
 	}
 	completeBlockID := completeBlock.BlockMeta().BlockID
 	i.completeBlocks = append(i.completeBlocks, completeBlock)
 	i.blocksMtx.Unlock()
 
-	return completeBlockID
+	return completeBlockID, nil
 }
 
 // GetBlocksToBeFlushed gets a list of blocks that can be flushed to the backend
