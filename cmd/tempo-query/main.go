@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 	"github.com/hashicorp/go-hclog"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	jaeger_config "github.com/uber/jaeger-client-go/config"
@@ -51,7 +53,12 @@ func main() {
 	cfg.InitFromViper(v)
 
 	backend := tempo.New(cfg)
-	grpc.Serve(&plugin{backend: backend})
+	logger.Error(fmt.Sprint("Tempo query config:", cfg))
+	plugin := &plugin{backend: backend}
+	grpc.Serve(&shared.PluginServices{
+		Store:        plugin,
+		ArchiveStore: plugin,
+	})
 }
 
 type plugin struct {
@@ -59,6 +66,14 @@ type plugin struct {
 }
 
 func (p *plugin) DependencyReader() dependencystore.Reader {
+	return p.backend
+}
+
+func (p *plugin) ArchiveSpanReader() spanstore.Reader {
+	return p.backend
+}
+
+func (p *plugin) ArchiveSpanWriter() spanstore.Writer {
 	return p.backend
 }
 

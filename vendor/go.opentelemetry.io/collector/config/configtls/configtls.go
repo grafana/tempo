@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -50,10 +50,9 @@ type TLSClientSetting struct {
 	// (InsecureSkipVerify in the tls Config). Please refer to
 	// https://godoc.org/crypto/tls#Config for more information.
 	// (optional, default false)
-	// TODO(ccaraman): With further research InsecureSkipVerify is a valid option
-	// for gRPC connections. Add that ability to the TLSClientSettings in a subsequent
-	// pr.
 	Insecure bool `mapstructure:"insecure"`
+	// InsecureSkipVerify will enable TLS but not verify the certificate.
+	InsecureSkipVerify bool `mapstructure:"insecure_skip_verify"`
 	// ServerName requested by client for virtual hosting.
 	// This sets the ServerName in the TLSConfig. Please refer to
 	// https://godoc.org/crypto/tls#Config for more information. (optional)
@@ -131,6 +130,7 @@ func (c TLSClientSetting) LoadTLSConfig() (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to load TLS config: %w", err)
 	}
 	tlsCfg.ServerName = c.ServerName
+	tlsCfg.InsecureSkipVerify = c.InsecureSkipVerify
 	return tlsCfg, nil
 }
 

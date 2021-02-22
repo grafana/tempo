@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -33,10 +31,11 @@ func New(cfg *Config) *Backend {
 	}
 }
 
-func (b *Backend) GetDependencies(endTs time.Time, lookback time.Duration) ([]jaeger.DependencyLink, error) {
+func (b *Backend) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]jaeger.DependencyLink, error) {
 	return nil, nil
 }
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
+	fmt.Println("TEMPO-QUERY GETTING TRACE", traceID)
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
 
 	span, _ := opentracing.StartSpanFromContext(ctx, "GetTrace")
@@ -76,14 +75,13 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	if err != nil {
 		return nil, fmt.Errorf("error reading response from tempo: %w", err)
 	}
-	out := &tempopb.Trace{}
-	err = proto.Unmarshal(body, out)
+
+	otTrace := ot_pdata.Traces{}
+	err = otTrace.FromOtlpProtoBytes(body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal trace proto, err: %w. Tempo response body: %s", err, string(body))
+		return nil, fmt.Errorf("Error converting tempo response to Otlp: %w", err)
 	}
 
-	span.LogFields(ot_log.String("msg", "otlp to Jaeger"))
-	otTrace := ot_pdata.TracesFromOtlp(out.Batches)
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
 
 	if err != nil {
@@ -124,7 +122,7 @@ func (b *Backend) FindTraces(ctx context.Context, query *jaeger_spanstore.TraceQ
 func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.TraceQueryParameters) ([]jaeger.TraceID, error) {
 	return nil, nil
 }
-func (b *Backend) WriteSpan(span *jaeger.Span) error {
+func (b *Backend) WriteSpan(ctx context.Context, span *jaeger.Span) error {
 	return nil
 }
 

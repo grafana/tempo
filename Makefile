@@ -120,36 +120,29 @@ endif
 
 ### Dependencies
 
-# Copied from OpenTelemetry Collector Makefile
 DOCKER_PROTOBUF ?= otel/build-protobuf:0.1.0
 PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD}/$(PROTO_INTERMEDIATE_DIR) ${DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := -I./opentelemetry-proto/ -Ipkg/tempopb/ -I./
+PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) $(1) --gogofaster_out=plugins=grpc:$(2)
 
 .PHONY: gen-proto
 gen-proto:
-	git submodule init
-	git submodule update
+	git submodule update --init
 	rm -rf ./vendor/github.com/open-telemetry/opentelemetry-proto
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/common/v1/common.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/resource/v1/resource.proto --gogofaster_out=plugins=grpc:./vendor
-	# protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/logs/v1/logs.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/metrics/v1/metrics.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/trace/v1/trace.proto --gogofaster_out=plugins=grpc:./vendor
-	# protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/logs/v1/logs_service.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto \
-	  --grpc-gateway_out=logtostderr=true,grpc_api_configuration=opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service_http.yaml:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto \
-	  --grpc-gateway_out=logtostderr=true,grpc_api_configuration=opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service_http.yaml:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) pkg/tempopb/tempo.proto --gogofaster_out=plugins=grpc:pkg/tempopb
+
+	# Prefix namespace with "tempo." to avoid conflict with otel-collector internal protos
+	find ./opentelemetry-proto -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+ opentelemetry.proto+ tempo.opentelemetry.proto+g'
+	
+	$(call PROTO_GEN,opentelemetry-proto/opentelemetry/proto/common/v1/common.proto,./vendor)
+	$(call PROTO_GEN,opentelemetry-proto/opentelemetry/proto/resource/v1/resource.proto,./vendor)
+	$(call PROTO_GEN,opentelemetry-proto/opentelemetry/proto/metrics/v1/metrics.proto,./vendor)
+	$(call PROTO_GEN,opentelemetry-proto/opentelemetry/proto/trace/v1/trace.proto,./vendor)
+	$(call PROTO_GEN,pkg/tempopb/tempo.proto,pkg/tempopb)
 
 .PHONY: vendor-dependencies
 vendor-dependencies:
 	go mod vendor
-	go mod tidy
-	# ignore log.go b/c the proto version used by v0.6.1 doesn't actually have logs proto.
-	find . | grep 'vendor/go.opentelemetry.io.*go$\' | grep -v -e 'log.go$\' | xargs -L 1 sed -i $(SED_OPTS) 's+go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/+github.com/open-telemetry/opentelemetry-proto/gen/go/+g'
+	go mod tidy -e
 	$(MAKE) gen-proto
 
 

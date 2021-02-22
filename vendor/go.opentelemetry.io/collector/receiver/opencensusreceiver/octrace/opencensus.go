@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumerdata"
 	"go.opentelemetry.io/collector/obsreport"
+	"go.opentelemetry.io/collector/translator/internaldata"
 )
 
 const (
@@ -38,12 +39,13 @@ const (
 
 // Receiver is the type used to handle spans from OpenCensus exporters.
 type Receiver struct {
-	nextConsumer consumer.TraceConsumerOld
+	agenttracepb.UnimplementedTraceServiceServer
+	nextConsumer consumer.TracesConsumer
 	instanceName string
 }
 
 // New creates a new opencensus.Receiver reference.
-func New(instanceName string, nextConsumer consumer.TraceConsumerOld, opts ...Option) (*Receiver, error) {
+func New(instanceName string, nextConsumer consumer.TracesConsumer, opts ...Option) (*Receiver, error) {
 	if nextConsumer == nil {
 		return nil, componenterror.ErrNilNextConsumer
 	}
@@ -64,7 +66,7 @@ var _ agenttracepb.TraceServiceServer = (*Receiver)(nil)
 var errUnimplemented = errors.New("unimplemented")
 
 // Config handles configuration messages.
-func (ocr *Receiver) Config(tcs agenttracepb.TraceService_ConfigServer) error {
+func (ocr *Receiver) Config(agenttracepb.TraceService_ConfigServer) error {
 	// TODO: Implement when we define the config receiver/sender.
 	return errUnimplemented
 }
@@ -79,7 +81,7 @@ func (ocr *Receiver) Export(tes agenttracepb.TraceService_ExportServer) error {
 		ctx = client.NewContext(ctx, c)
 	}
 
-	longLivedRPCCtx := obsreport.ReceiverContext(ctx, ocr.instanceName, receiverTransport, receiverTagValue)
+	longLivedRPCCtx := obsreport.ReceiverContext(ctx, ocr.instanceName, receiverTransport)
 
 	// The first message MUST have a non-nil Node.
 	recv, err := tes.Recv()
@@ -155,7 +157,7 @@ func (ocr *Receiver) sendToNextConsumer(longLivedRPCCtx context.Context, traceda
 	var err error
 	numSpans := len(tracedata.Spans)
 	if numSpans != 0 {
-		err = ocr.nextConsumer.ConsumeTraceData(ctx, tracedata)
+		err = ocr.nextConsumer.ConsumeTraces(ctx, internaldata.OCToTraceData(tracedata))
 	}
 
 	obsreport.EndTraceDataReceiveOp(ctx, receiverDataFormat, numSpans, err)
