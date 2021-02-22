@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io"
 	"strings"
 
@@ -28,8 +27,6 @@ func main() {
 	flag.StringVar(&configPath, "config", "", "A path to the plugin's configuration file")
 	flag.Parse()
 
-	logger.Error(configPath)
-
 	v := viper.New()
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
@@ -53,11 +50,9 @@ func main() {
 	cfg.InitFromViper(v)
 
 	backend := tempo.New(cfg)
-	logger.Error(fmt.Sprint("Tempo query config:", cfg))
 	plugin := &plugin{backend: backend}
 	grpc.Serve(&shared.PluginServices{
-		Store:        plugin,
-		ArchiveStore: plugin,
+		Store: plugin,
 	})
 }
 
@@ -66,14 +61,6 @@ type plugin struct {
 }
 
 func (p *plugin) DependencyReader() dependencystore.Reader {
-	return p.backend
-}
-
-func (p *plugin) ArchiveSpanReader() spanstore.Reader {
-	return p.backend
-}
-
-func (p *plugin) ArchiveSpanWriter() spanstore.Writer {
 	return p.backend
 }
 

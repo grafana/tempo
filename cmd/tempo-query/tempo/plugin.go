@@ -35,7 +35,6 @@ func (b *Backend) GetDependencies(ctx context.Context, endTs time.Time, lookback
 	return nil, nil
 }
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
-	fmt.Println("TEMPO-QUERY GETTING TRACE", traceID)
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
 
 	span, _ := opentracing.StartSpanFromContext(ctx, "GetTrace")
@@ -76,14 +75,13 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("error reading response from tempo: %w", err)
 	}
 
-	otTrace := ot_pdata.Traces{}
+	otTrace := ot_pdata.NewTraces()
 	err = otTrace.FromOtlpProtoBytes(body)
 	if err != nil {
 		return nil, fmt.Errorf("Error converting tempo response to Otlp: %w", err)
 	}
 
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
-
 	if err != nil {
 		return nil, fmt.Errorf("error translating to jaegerBatches %v: %w", hexID, err)
 	}
