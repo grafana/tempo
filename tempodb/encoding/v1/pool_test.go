@@ -16,7 +16,7 @@ func TestGetPool(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, enc, rPool.Encoding())
 
-			wPool, err := getWriterPool(enc)
+			wPool, err := GetWriterPool(enc)
 			assert.NotNil(t, wPool)
 			assert.NoError(t, err)
 			assert.Equal(t, enc, wPool.Encoding())
@@ -27,7 +27,7 @@ func TestGetPool(t *testing.T) {
 	assert.Nil(t, rPool)
 	assert.Error(t, err)
 
-	wPool, err := getWriterPool(maxEncoding + 1)
+	wPool, err := GetWriterPool(maxEncoding + 1)
 	assert.Nil(t, wPool)
 	assert.Error(t, err)
 }

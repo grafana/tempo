@@ -1,10 +1,12 @@
-package v0
+package encoding
 
 import (
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/pkg/errors"
+
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type pagedIterator struct {
@@ -17,9 +19,9 @@ type pagedIterator struct {
 	activePage     []byte
 }
 
-// NewPagedIterator returns a backendIterator.  This iterator is used to iterate
+// newPagedIterator returns a backendIterator.  This iterator is used to iterate
 //  through objects stored in object storage.
-func NewPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, pageReader common.PageReader) common.Iterator {
+func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, pageReader common.PageReader) common.Iterator {
 	return &pagedIterator{
 		pageReader:     pageReader,
 		indexReader:    indexReader,
@@ -41,7 +43,8 @@ func (i *pagedIterator) Next() (common.ID, []byte, error) {
 		i.pages = i.pages[1:] // advance pages
 	}
 
-	i.activePage, id, object, err = unmarshalAndAdvanceBuffer(i.activePage)
+	// pageReader returns pages in the v0 format, so this works
+	i.activePage, id, object, err = v0.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil && err != io.EOF {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	} else if err != io.EOF {
@@ -86,7 +89,7 @@ func (i *pagedIterator) Next() (common.ID, []byte, error) {
 	i.pages = i.pages[1:] // advance pages
 
 	// attempt to get next object from objects
-	i.activePage, id, object, err = unmarshalAndAdvanceBuffer(i.activePage)
+	i.activePage, id, object, err = v0.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}

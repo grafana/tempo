@@ -1,31 +1,30 @@
-package v0
+package encoding
 
 import (
 	"bytes"
-	"io"
 	"sort"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type appender struct {
-	writer        io.Writer
+	pageWriter    common.PageWriter
 	records       []*common.Record
 	currentOffset uint64
 }
 
 // NewAppender returns an appender.  This appender simply appends new objects
-//  to the provided io.Writer.
-func NewAppender(writer io.Writer) common.Appender {
+//  to the provided pageWriter.
+func NewAppender(pageWriter common.PageWriter) common.Appender {
 	return &appender{
-		writer: writer,
+		pageWriter: pageWriter,
 	}
 }
 
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 //   Copies should be made and passed in if this is a problem
 func (a *appender) Append(id common.ID, b []byte) error {
-	length, err := MarshalObjectToWriter(id, b, a.writer)
+	length, err := a.pageWriter.Write(id, b)
 	if err != nil {
 		return err
 	}
@@ -58,5 +57,5 @@ func (a *appender) DataLength() uint64 {
 }
 
 func (a *appender) Complete() error {
-	return nil
+	return a.pageWriter.Complete()
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 const (
@@ -114,7 +113,7 @@ func TestAppend(t *testing.T) {
 	records := block.appender.Records()
 	file, err := block.file()
 	assert.NoError(t, err)
-	iterator := v0.NewRecordIterator(records, file)
+	iterator := encoding.NewRecordIterator(records, file)
 	i := 0
 
 	for {

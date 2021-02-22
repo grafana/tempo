@@ -22,7 +22,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	_, err = MarshalObjectToWriter(id, bReq, buffer)
 	assert.NoError(t, err)
 
-	outID, outObject, err := unmarshalObjectFromReader(buffer)
+	outID, outObject, err := UnmarshalObjectFromReader(buffer)
 	assert.NoError(t, err)
 	assert.True(t, bytes.Equal(id, outID))
 
@@ -55,7 +55,7 @@ func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 		var outID []byte
 		var outObject []byte
 		var err error
-		actualBuffer, outID, outObject, err = unmarshalAndAdvanceBuffer(actualBuffer)
+		actualBuffer, outID, outObject, err = UnmarshalAndAdvanceBuffer(actualBuffer)
 		assert.NoError(t, err)
 
 		outReq := &tempopb.PushRequest{}

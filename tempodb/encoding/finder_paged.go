@@ -1,4 +1,4 @@
-package v0
+package encoding
 
 import (
 	"bytes"
@@ -68,6 +68,7 @@ func (f *pagedFinder) findOne(id common.ID, record *common.Record) ([]byte, erro
 		return nil, errors.New("unexpected 0 length pages in findOne")
 	}
 
+	// pageReader is expected to return pages in the v0 format.  so this works
 	iter := NewIterator(bytes.NewReader(pages[0]))
 	if f.combiner != nil {
 		iter, err = NewDedupingIterator(iter, f.combiner)

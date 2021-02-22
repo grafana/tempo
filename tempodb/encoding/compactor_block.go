@@ -40,9 +40,13 @@ func NewCompactorBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 		inMetas:       metas,
 	}
 
-	var err error
 	c.appendBuffer = &bytes.Buffer{}
-	c.appender, err = c.encoding.newBufferedAppender(c.appendBuffer, cfg.Encoding, cfg.IndexDownsampleBytes, estimatedObjects)
+	pageWriter, err := c.encoding.newPageWriter(c.appendBuffer, cfg.Encoding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page writer: %w", err)
+	}
+
+	c.appender, err = NewBufferedAppender(pageWriter, cfg.IndexDownsampleBytes, estimatedObjects)
 	if err != nil {
 		return nil, fmt.Errorf("failed to created appender: %w", err)
 	}
@@ -80,7 +84,7 @@ func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.Append
 	}
 
 	meta := c.BlockMeta()
-	tracker, err := c.encoding.appendBlockData(ctx, w, meta, tracker, c.appendBuffer.Bytes())
+	tracker, err := appendBlockData(ctx, w, meta, tracker, c.appendBuffer.Bytes())
 	if err != nil {
 		return nil, 0, err
 	}
@@ -108,7 +112,7 @@ func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	records := c.appender.Records()
 	meta := c.BlockMeta()
 
-	err = c.encoding.writeBlockMeta(ctx, w, meta, records, c.bloom)
+	err = writeBlockMeta(ctx, w, meta, records, c.bloom)
 	if err != nil {
 		return 0, err
 	}
