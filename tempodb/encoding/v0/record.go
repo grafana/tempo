@@ -37,7 +37,7 @@ func (t *recordSorter) Swap(i, j int) {
 	t.records[i], t.records[j] = t.records[j], t.records[i]
 }
 
-// MarshalRecords jpe : needs to be updated for pagination anyway
+// MarshalRecords converts a slice of records into a byte slice
 func MarshalRecords(records []*common.Record) ([]byte, error) {
 	recordBytes := make([]byte, len(records)*recordLength)
 

@@ -13,7 +13,7 @@ type Record struct {
 	Length uint32
 }
 
-// Iterator is capable of iterating through a set of objects jpe -> how much of these interfaces can we move out?
+// Iterator is capable of iterating through a set of objects
 type Iterator interface {
 	Next() (ID, []byte, error)
 	Close()
@@ -68,5 +68,3 @@ type PageWriter interface {
 	// Complete must be called when the operation pagewriter is done.
 	Complete() error
 }
-
-// jpe : WriteCloser and ReadCloser instead of PageReader/PageWriter?

@@ -42,7 +42,7 @@ func MarshalObjectToWriter(id common.ID, b []byte, w io.Writer) (int, error) {
 	return totalLength, err
 }
 
-func UnmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) { // jpe make these all private
+func UnmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
 	var totalLength uint32
 	err := binary.Read(r, binary.LittleEndian, &totalLength)
 	if err == io.EOF {

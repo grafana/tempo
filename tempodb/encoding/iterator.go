@@ -11,6 +11,8 @@ type iterator struct {
 	reader io.Reader
 }
 
+// NewIterator returns the most basic iterator.  It iterates over
+// raw objects.
 func NewIterator(reader io.Reader) common.Iterator {
 	return &iterator{
 		reader: reader,
@@ -18,7 +20,7 @@ func NewIterator(reader io.Reader) common.Iterator {
 }
 
 func (i *iterator) Next() (common.ID, []byte, error) {
-	return v0.UnmarshalObjectFromReader(i.reader) // jpe pagereader
+	return v0.UnmarshalObjectFromReader(i.reader)
 }
 
 func (i *iterator) Close() {
