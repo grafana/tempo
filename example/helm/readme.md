@@ -28,7 +28,9 @@ Grafana to run our hosted Tempo offering.
 
 ```console
 # double check you're applying to your local k3d before running this!
-helm install ../../operations/helm/tempo-microservices/ --generate-name
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+helm upgrade --install tempo grafana/tempo-distributed
 kubectl create -f microservices-extras.yaml
 ```
 
@@ -38,7 +40,9 @@ store them in an S3 or GCS bucket.  See configuration docs or some of the other 
 
 ```console
 # double check you're applying to your local k3d before running this!
-helm install ../../operations/helm/tempo-single-binary/ --generate-name
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+helm upgrade --install tempo grafana/tempo
 kubectl create -f single-binary-extras.yaml
 ```
 
