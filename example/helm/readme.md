@@ -42,7 +42,7 @@ store them in an S3 or GCS bucket.  See configuration docs or some of the other 
 # double check you're applying to your local k3d before running this!
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
-helm upgrade --install tempo grafana/tempo-distributed
+helm upgrade --install tempo grafana/tempo
 kubectl create -f single-binary-extras.yaml
 ```
 
