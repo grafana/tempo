@@ -38,5 +38,5 @@ mechanisms.
 
 Helm charts are available in the grafana/helm-charts repo:
 
-- [single Binary](https://github.com/grafana/helm-charts/tree/main/charts/tempo)
+- [single binary](https://github.com/grafana/helm-charts/tree/main/charts/tempo)
 - [microservices](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed)
