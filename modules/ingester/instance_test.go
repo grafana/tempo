@@ -130,7 +130,9 @@ func TestInstanceFind(t *testing.T) {
 	pushAndQuery(t, i, request2)
 	assert.Len(t, i.completingBlocks, 2)
 
-	i.CompleteBlock(blockID)
+	_, err = i.CompleteBlock(blockID)
+	assert.NoError(t, err, "unexpected error completing block")
+
 	assert.Len(t, i.completingBlocks, 1)
 
 	traceID := test.MustTraceID(request)
@@ -442,7 +444,8 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			blockID, err := instance.CutBlockIfReady(tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
 			require.NoError(t, err)
 
-			instance.CompleteBlock(blockID)
+			_, err = instance.CompleteBlock(blockID)
+			assert.NoError(t, err, "unexpected error completing block")
 
 			// Wait for goroutine to finish flushing to avoid test flakiness
 			if tc.expectedToCutBlock {
