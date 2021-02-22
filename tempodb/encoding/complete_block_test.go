@@ -197,7 +197,7 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 		expectedRecords++
 	}
 
-	iterator := NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes())) // jpe review all News and see if we can make private
+	iterator := NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
 	block, err := NewCompleteBlock(cfg, originatingMeta, iterator, numMsgs, tempDir, "")
 	require.NoError(t, err, "unexpected error completing block")
 
