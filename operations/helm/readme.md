@@ -1,5 +1,6 @@
 # Helm
 
-These helm charts are not actually published anywhere, but do serve as a valuable reference for deploying and configuring Tempo.
+Helm charts are available in the grafana/helm-charts repo:
 
-Perhaps one day an enterprising engineer will make these available somewhere.  Perhaps that engineer will be you.
+- [Microservices](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed)
+- [Single Binary](https://github.com/grafana/helm-charts/tree/main/charts/tempo)
