@@ -2,15 +2,9 @@
 
 set -o errexit
 set -o nounset
-#set -o pipefail
+set -o pipefail
 
-if [ "$1" = "" ]
-then
-  echo "Usage: $0 architecture postfix required"
-  exit 1
-fi
-
-SHA="$(git rev-parse --short HEAD)-$1,latest-$1"
+SHA="$(git rev-parse --short HEAD),latest"
 
 # If tag, use tag
 TAG=$( (git describe --exact-match 2> /dev/null || echo "") | sed 's/v//g')
@@ -18,5 +12,5 @@ if [ -z "$TAG" ]
 then
       echo ${SHA}
 else
-      echo ${TAG}-$1
+      echo ${TAG}
 fi
