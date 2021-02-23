@@ -1,4 +1,5 @@
 (import 'ksonnet-util/kausal.libsonnet') +
+(import 'common.libsonnet') +
 (import 'configmap.libsonnet') +
 (import 'config.libsonnet') +
 (import 'compactor.libsonnet') +

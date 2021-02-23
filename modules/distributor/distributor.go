@@ -39,6 +39,8 @@ const (
 	reasonTraceTooLarge = "trace_too_large"
 	// reasonLiveTracesExceeded indicates that tempo is already tracking too many live traces in the ingesters for this user
 	reasonLiveTracesExceeded = "live_traces_exceeded"
+	// reasonInternalError indicates an unexpected error occurred processing these spans. analogous to a 500
+	reasonInternalError = "internal_error"
 )
 
 var (
@@ -228,11 +230,13 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, status.Errorf(codes.ResourceExhausted,
 			"%s ingestion rate limit (%d spans) exceeded while adding %d spans",
 			overrides.ErrorPrefixRateLimited,
-			int(d.ingestionRateLimiter.Limit(now, userID)), spanCount)
+			int(d.ingestionRateLimiter.Limit(now, userID)),
+			spanCount)
 	}
 
 	keys, traces, err := requestsByTraceID(req, userID, spanCount)
 	if err != nil {
+		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
 		return nil, err
 	}
 
@@ -367,5 +371,7 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 		metricDiscardedSpans.WithLabelValues(reasonLiveTracesExceeded, userID).Add(float64(spanCount))
 	} else if strings.HasPrefix(desc, overrides.ErrorPrefixTraceTooLarge) {
 		metricDiscardedSpans.WithLabelValues(reasonTraceTooLarge, userID).Add(float64(spanCount))
+	} else {
+		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
 	}
 }

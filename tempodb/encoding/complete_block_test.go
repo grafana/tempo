@@ -149,7 +149,7 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
-	appender := v0.NewAppender(writer)
+	appender := NewAppender(v0.NewPageWriter(writer))
 
 	numMsgs := 1000
 	reqs := make([][]byte, 0, numMsgs)
@@ -197,7 +197,7 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 		expectedRecords++
 	}
 
-	iterator := v0.NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
+	iterator := NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
 	block, err := NewCompleteBlock(cfg, originatingMeta, iterator, numMsgs, tempDir, "")
 	require.NoError(t, err, "unexpected error completing block")
 
@@ -300,7 +300,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	require.NoError(b, err)
 	pr, err := v1.NewPageReader(file, encoding)
 	require.NoError(b, err)
-	iterator = v1.NewPagedIterator(10*1024*1024, common.Records(cb.records), pr)
+	iterator = newPagedIterator(10*1024*1024, common.Records(cb.records), pr)
 
 	for {
 		id, _, err := iterator.Next()

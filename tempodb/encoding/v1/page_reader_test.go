@@ -10,8 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPageReader(t *testing.T) {
-
+func TestAllEncodings(t *testing.T) {
 	tests := []struct {
 		readerBytes []byte
 	}{
@@ -23,7 +22,7 @@ func TestPageReader(t *testing.T) {
 	for _, tc := range tests {
 		for _, enc := range backend.SupportedEncoding {
 			t.Run(enc.String(), func(t *testing.T) {
-				wPool, err := getWriterPool(enc)
+				wPool, err := GetWriterPool(enc)
 				require.NoError(t, err)
 
 				buff := bytes.NewBuffer([]byte{})

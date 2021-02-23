@@ -33,7 +33,7 @@ func TestMarshalUnmarshalRecords(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	recordBytes, err := marshalRecords(expected)
+	recordBytes, err := MarshalRecords(expected)
 	assert.NoError(t, err, "unexpected error encoding records")
 	assert.Equal(t, len(expected)*28, len(recordBytes))
 
@@ -42,31 +42,6 @@ func TestMarshalUnmarshalRecords(t *testing.T) {
 
 	assert.Equal(t, expected, actual)
 }
-
-/*func TestFindRecord(t *testing.T) { // jpe - move to index_reader_test.go
-	numRecords := 10
-	expected := make([]*common.Record, 0, numRecords)
-
-	for i := 0; i < numRecords; i++ {
-		r, err := makeRecord(t)
-		if err != nil {
-			assert.NoError(t, err, "unexpected error making trace record")
-		}
-		expected = append(expected, r)
-	}
-
-	sortRecords(expected)
-
-	recordBytes, err := marshalRecords(expected)
-	assert.NoError(t, err, "unexpected error encoding records")
-
-	for _, r := range expected {
-		found, err := findRecord(r.ID, recordBytes)
-
-		assert.NoError(t, err, "unexpected error finding records")
-		assert.Equal(t, r, found)
-	}
-}*/
 
 func TestSortRecord(t *testing.T) {
 	numRecords := 10

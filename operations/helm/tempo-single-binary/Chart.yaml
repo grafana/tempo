@@ -1,6 +1,0 @@
-apiVersion: v2
-name: tempo-single-binary
-description: Grafana Tempo
-type: application
-version: 0.1.0
-appVersion: v0.2.0

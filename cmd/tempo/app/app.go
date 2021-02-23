@@ -79,6 +79,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	// Everything else
 	flagext.DefaultValues(&c.IngesterClient)
+	c.IngesterClient.GRPCClientConfig.GRPCCompression = "snappy"
 	flagext.DefaultValues(&c.LimitsConfig)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "distributor"), f)
@@ -295,6 +296,15 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 		if t.ingester != nil {
 			if err := t.ingester.CheckReady(r.Context()); err != nil {
 				http.Error(w, "Ingester not ready: "+err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+		}
+
+		// Query Frontend has a special check that makes sure that a querier is attached before it signals
+		// itself as ready
+		if t.frontend != nil {
+			if err := t.frontend.CheckReady(r.Context()); err != nil {
+				http.Error(w, "Query Frontend not ready: "+err.Error(), http.StatusServiceUnavailable)
 				return
 			}
 		}

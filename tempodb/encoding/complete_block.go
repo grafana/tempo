@@ -53,7 +53,12 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 		return nil, err
 	}
 
-	appender, err := c.encoding.newBufferedAppender(appendFile, cfg.Encoding, cfg.IndexDownsampleBytes, estimatedObjects)
+	pageWriter, err := c.encoding.newPageWriter(appendFile, cfg.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	appender, err := NewBufferedAppender(pageWriter, cfg.IndexDownsampleBytes, estimatedObjects)
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +116,12 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 		return err
 	}
 
-	err = c.encoding.writeBlockData(ctx, w, c.meta, src, fileStat.Size())
+	err = writeBlockData(ctx, w, c.meta, src, fileStat.Size())
 	if err != nil {
 		return err
 	}
 
-	err = c.encoding.writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
+	err = writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
 	if err != nil {
 		return err
 	}
@@ -149,7 +154,7 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 	}
 	defer pageReader.Close()
 
-	finder := c.encoding.newPagedFinder(common.Records(c.records), pageReader, combiner)
+	finder := NewPagedFinder(common.Records(c.records), pageReader, combiner)
 	return finder.Find(id)
 }
 

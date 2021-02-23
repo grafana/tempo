@@ -45,7 +45,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 		return nil, err
 	}
 	h.appendFile = f
-	h.appender = v0.NewAppender(f)
+	h.appender = encoding.NewAppender(v0.NewPageWriter(f))
 
 	return h, nil
 }
@@ -85,8 +85,8 @@ func (h *AppendBlock) Complete(cfg *encoding.BlockConfig, w *WAL, combiner commo
 		return nil, err
 	}
 
-	iterator := v0.NewRecordIterator(records, readFile)
-	iterator, err = v0.NewDedupingIterator(iterator, combiner)
+	iterator := encoding.NewRecordIterator(records, readFile)
+	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 
 	pageReader := v0.NewPageReader(file)
 	defer pageReader.Close()
-	finder := v0.NewPagedFinder(common.Records(records), pageReader, combiner)
+	finder := encoding.NewPagedFinder(common.Records(records), pageReader, combiner)
 
 	return finder.Find(id)
 }

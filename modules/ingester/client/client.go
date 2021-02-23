@@ -44,9 +44,6 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 func New(addr string, cfg Config) (*Client, error) {
 	opts := []grpc.DialOption{
 		grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(
-			grpc.UseCompressor("gzip"),
-		),
 	}
 
 	instrumentationOpts, err := cfg.GRPCClientConfig.DialOption(instrumentation())
