@@ -73,7 +73,7 @@
                    { app: 'tempo' }) +
     statefulset.mixin.spec.withServiceName('tempo') +
     statefulset.mixin.spec.template.metadata.withAnnotations({
-      config_hash: std.md5(std.toString($.tempo_configmap)),
+      config_hash: std.md5(std.toString($.tempo_configmap.data['tempo.yaml'])),
     }) +
     statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
