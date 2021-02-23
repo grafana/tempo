@@ -1,5 +1,7 @@
 ## master / unreleased
 
+* [ENHANCEMENT] Add a Shutdown handler to flush data to backend, at "/shutdown". [#526](https://github.com/grafana/tempo/pull/526)
+
 ## v0.6.0
 
 * [CHANGE] Fixed ingester latency spikes on read [#461](https://github.com/grafana/tempo/pull/461)
