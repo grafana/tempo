@@ -132,6 +132,12 @@ platform:
   arch: amd64
 
 steps:
+- name: image-tag
+  image: alpine/git
+  commands:
+  - git fetch origin --tags
+  - echo $(./tools/image-tag),latest > .tags
+
 - name: manifest-tempo
   image: plugins/manifest
   settings:
