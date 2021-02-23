@@ -583,6 +583,8 @@ github.com/modern-go/reflect2
 github.com/mwitkow/go-conntrack
 # github.com/ncw/swift v1.0.52
 github.com/ncw/swift
+# github.com/nomad-software/vend v1.0.3
+## explicit
 # github.com/oklog/run v1.1.0
 github.com/oklog/run
 # github.com/oklog/ulid v1.3.1
@@ -590,12 +592,6 @@ github.com/oklog/ulid
 # github.com/olekukonko/tablewriter v0.0.2
 ## explicit
 github.com/olekukonko/tablewriter
-# github.com/open-telemetry/opentelemetry-proto v0.4.0
-## explicit
-github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1
-github.com/open-telemetry/opentelemetry-proto/gen/go/metrics/v1
-github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1
-github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1
 # github.com/opentracing-contrib/go-grpc v0.0.0-20191001143057-db30781987df => github.com/pracucci/go-grpc v0.0.0-20201022134131-ef559b8db645
 github.com/opentracing-contrib/go-grpc
 # github.com/opentracing-contrib/go-stdlib v1.0.0

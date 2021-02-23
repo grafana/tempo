@@ -27,7 +27,6 @@ require (
 	github.com/klauspost/compress v1.11.7
 	github.com/minio/minio-go/v7 v7.0.5
 	github.com/olekukonko/tablewriter v0.0.2
-	github.com/open-telemetry/opentelemetry-proto v0.4.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.3
 	github.com/pkg/errors v0.9.1

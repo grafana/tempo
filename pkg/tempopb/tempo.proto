@@ -1,10 +1,8 @@
-// protoc -I vendor/github.com/open-telemetry/opentelemetry-proto -I pkg/tempopb/ pkg/tempopb/tempo.proto --go_out=plugins=grpc:pkg/tempopb
-
 syntax="proto3";
 
 package tempopb;
 
-import "opentelemetry/proto/trace/v1/trace.proto";
+import "trace/v1/trace.proto";
 
 service Pusher {
   rpc Push(PushRequest) returns (PushResponse) {};
@@ -27,11 +25,11 @@ message TraceByIDResponse {
 }
 
 message Trace {
-  repeated tempo.opentelemetry.proto.trace.v1.ResourceSpans batches = 1;
+  repeated tempopb.trace.v1.ResourceSpans batches = 1;
 }
 
 message PushRequest {
-  tempo.opentelemetry.proto.trace.v1.ResourceSpans batch = 1;
+  tempopb.trace.v1.ResourceSpans batch = 1;
 }
 
 message PushResponse {

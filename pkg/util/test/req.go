@@ -6,8 +6,8 @@ import (
 	"sort"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
-	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 func MakeRequest(spans int, traceID []byte) *tempopb.PushRequest {
@@ -17,16 +17,16 @@ func MakeRequest(spans int, traceID []byte) *tempopb.PushRequest {
 	}
 
 	req := &tempopb.PushRequest{
-		Batch: &opentelemetry_proto_trace_v1.ResourceSpans{},
+		Batch: &v1_trace.ResourceSpans{},
 	}
 
-	var ils *opentelemetry_proto_trace_v1.InstrumentationLibrarySpans
+	var ils *v1_trace.InstrumentationLibrarySpans
 
 	for i := 0; i < spans; i++ {
 		// occasionally make a new ils
 		if ils == nil || rand.Int()%3 == 0 {
-			ils = &opentelemetry_proto_trace_v1.InstrumentationLibrarySpans{
-				InstrumentationLibrary: &v1.InstrumentationLibrary{
+			ils = &v1_trace.InstrumentationLibrarySpans{
+				InstrumentationLibrary: &v1_common.InstrumentationLibrary{
 					Name:    "super library",
 					Version: "0.0.1",
 				},
@@ -35,7 +35,7 @@ func MakeRequest(spans int, traceID []byte) *tempopb.PushRequest {
 			req.Batch.InstrumentationLibrarySpans = append(req.Batch.InstrumentationLibrarySpans, ils)
 		}
 
-		sampleSpan := opentelemetry_proto_trace_v1.Span{
+		sampleSpan := v1_trace.Span{
 			Name:    "test",
 			TraceId: traceID,
 			SpanId:  make([]byte, 8),
@@ -50,7 +50,7 @@ func MakeRequest(spans int, traceID []byte) *tempopb.PushRequest {
 
 func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 	trace := &tempopb.Trace{
-		Batches: make([]*opentelemetry_proto_trace_v1.ResourceSpans, 0),
+		Batches: make([]*v1_trace.ResourceSpans, 0),
 	}
 
 	for i := 0; i < requests; i++ {
@@ -62,7 +62,7 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 
 func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempopb.Trace {
 	trace := &tempopb.Trace{
-		Batches: make([]*opentelemetry_proto_trace_v1.ResourceSpans, 0),
+		Batches: make([]*v1_trace.ResourceSpans, 0),
 	}
 
 	for i := 0; i < requests; i++ {
