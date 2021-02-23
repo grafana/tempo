@@ -1,5 +1,5 @@
-##  AMD64  ##
 ---
+##  AMD64  ##
 kind: pipeline
 name: docker-amd64
 
@@ -60,8 +60,8 @@ steps:
     build_args:
     - TARGETARCH=amd64
 
-##  ARM64  ##
 ---
+##  ARM64  ##
 kind: pipeline
 name: docker-arm64
 
@@ -122,8 +122,8 @@ steps:
     build_args:
     - TARGETARCH=arm64
 
-##  MANIFEST  ##
 ---
+##  MANIFEST  ##
 kind: pipeline
 name: manifest
 
@@ -185,5 +185,3 @@ get:
 ---
 kind: signature
 hmac: 7b4fba65b74d2143b31f7f03d3a1cfbccba6960b0037cee65a7406df9f507370
-
-...
