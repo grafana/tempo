@@ -210,7 +210,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	close(end)
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 }
 
 func TestInstanceLimits(t *testing.T) {
