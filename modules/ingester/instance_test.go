@@ -141,7 +141,7 @@ func TestInstanceFind(t *testing.T) {
 	assert.NoError(t, err)
 
 	completeBlockID, err := i.CompleteBlock(blockID)
-	assert.NoError(t, err, "unexpected error completing block")
+	assert.EqualError(t, err, "error finding completingBlock")
 	assert.Equal(t, completeBlockID, uuid.Nil)
 }
 
@@ -445,7 +445,9 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = instance.CompleteBlock(blockID)
-			assert.NoError(t, err, "unexpected error completing block")
+			if tc.expectedToCutBlock {
+				assert.NoError(t, err, "unexpected error completing block")
+			}
 
 			// Wait for goroutine to finish flushing to avoid test flakiness
 			if tc.expectedToCutBlock {
