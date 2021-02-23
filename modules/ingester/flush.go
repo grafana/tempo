@@ -67,6 +67,8 @@ func (i *Ingester) Flush() {
 // * Flush all blocks to backend
 func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 	go func() {
+		level.Info(log.Logger).Log("msg", "shutdown handler called")
+
 		// lifecycler should exit the ring on shutdown
 		i.lifecycler.SetUnregisterOnShutdown(true)
 
@@ -82,6 +84,8 @@ func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 
 		// stop ingester service
 		_ = services.StopAndAwaitTerminated(context.Background(), i)
+
+		level.Info(log.Logger).Log("msg", "shutdown handler complete")
 	}()
 
 	_, _ = w.Write([]byte("shutdown job acknowledged"))
@@ -193,6 +197,7 @@ func (i *Ingester) flushLoop(j int) {
 		if err != nil {
 			level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "error performing op in flushQueue",
 				"op", op.kind, "block", op.blockID.String(), "err", err)
+			metricFailedFlushes.Inc()
 			// re-queue op with backoff
 			op.from += int64(flushBackoff)
 			i.flushQueues.Requeue(op)
@@ -222,10 +227,11 @@ func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
 		err = i.store.WriteBlock(ctx, block)
 		metricFlushDuration.Observe(time.Since(start).Seconds())
 		if err != nil {
-			metricFailedFlushes.Inc()
 			return err
 		}
 		metricBlocksFlushed.Inc()
+	} else {
+		return fmt.Errorf("error getting block to flush")
 	}
 
 	return nil

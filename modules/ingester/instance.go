@@ -165,17 +165,16 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
 	i.blocksMtx.Lock()
 
 	var completingBlock *wal.AppendBlock
-	for j, iterBlock := range i.completingBlocks {
+	for _, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
 			completingBlock = iterBlock
-			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
 			break
 		}
 	}
 	i.blocksMtx.Unlock()
 
 	if completingBlock == nil {
-		return uuid.Nil, nil
+		return uuid.Nil, fmt.Errorf("error finding completingBlock")
 	}
 
 	// potentially long running operation placed outside blocksMtx
@@ -183,12 +182,17 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
 
 	i.blocksMtx.Lock()
 	if err != nil {
-		// re-add completingBlock into list
-		i.completingBlocks = append(i.completingBlocks, completingBlock)
 		metricFailedFlushes.Inc()
 		level.Error(log.Logger).Log("msg", "unable to complete block.", "tenantID", i.instanceID, "err", err)
 		i.blocksMtx.Unlock()
 		return uuid.Nil, err
+	}
+	// remove completingBlock from list
+	for j, iterBlock := range i.completingBlocks {
+		if iterBlock.BlockID() == blockID {
+			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
+			break
+		}
 	}
 	completeBlockID := completeBlock.BlockMeta().BlockID
 	i.completeBlocks = append(i.completeBlocks, completeBlock)
@@ -197,7 +201,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
 	return completeBlockID, nil
 }
 
-// GetBlocksToBeFlushed gets a list of blocks that can be flushed to the backend
+// GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend
 func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *encoding.CompleteBlock {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
