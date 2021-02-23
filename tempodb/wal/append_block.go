@@ -59,6 +59,10 @@ func (h *AppendBlock) Write(id common.ID, b []byte) error {
 	return nil
 }
 
+func (h *AppendBlock) BlockID() uuid.UUID {
+	return h.block.meta.BlockID
+}
+
 func (h *AppendBlock) DataLength() uint64 {
 	return h.appender.DataLength()
 }

@@ -51,7 +51,6 @@ services:
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
-    scale: 4 # every container = 1000 spans/s
     volumes:
       - ./load-generator.json:/etc/load-generator.json
     environment:

@@ -56,6 +56,17 @@ func (f *ExclusiveQueues) Clear(op util.Op) {
 	f.activeKeys.Delete(op.Key())
 }
 
+func (f *ExclusiveQueues) IsEmpty() bool {
+	length := 0
+
+	f.activeKeys.Range(func(_, _ interface{}) bool {
+		length++
+		return false
+	})
+
+	return length <= 0
+}
+
 // Stop closes all queues
 func (f *ExclusiveQueues) Stop() {
 	for _, q := range f.queues {

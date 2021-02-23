@@ -54,10 +54,10 @@ type instance struct {
 	tracesMtx sync.Mutex
 	traces    map[uint32]*trace
 
-	blocksMtx       sync.RWMutex
-	headBlock       *wal.AppendBlock
-	completingBlock *wal.AppendBlock
-	completeBlocks  []*encoding.CompleteBlock
+	blocksMtx        sync.RWMutex
+	headBlock        *wal.AppendBlock
+	completingBlocks []*wal.AppendBlock
+	completeBlocks   []*encoding.CompleteBlock
 
 	lastBlockCut time.Time
 
@@ -133,54 +133,81 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) error {
+// CutBlockIfReady cuts a completingBlock from the HeadBlock if ready
+// Returns a bool indicating if a block was cut along with the error (if any).
+func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (uuid.UUID, error) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
-		return nil
+		return uuid.Nil, nil
 	}
 
 	now := time.Now()
 	if i.lastBlockCut.Add(maxBlockLifetime).Before(now) || i.headBlock.DataLength() >= maxBlockBytes || immediate {
-		if i.completingBlock != nil {
-			return fmt.Errorf("unable to complete head block for %s b/c there is already a completing block.  Will try again next cycle", i.instanceID)
-		}
+		completingBlock := i.headBlock
 
-		i.completingBlock = i.headBlock
+		i.completingBlocks = append(i.completingBlocks, completingBlock)
+
 		err := i.resetHeadBlock()
 		if err != nil {
-			return fmt.Errorf("failed to resetHeadBlock: %w", err)
+			return uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
-		// todo : this should be a queue of blocks to complete with workers
-		go func() {
-			completeBlock, err := i.writer.CompleteBlock(i.completingBlock, i)
-			i.blocksMtx.Lock()
-			defer i.blocksMtx.Unlock()
-
-			if err != nil {
-				// this is a really bad error that results in data loss.  most likely due to disk full
-				_ = i.completingBlock.Clear()
-				metricFailedFlushes.Inc()
-				i.completingBlock = nil
-				level.Error(log.Logger).Log("msg", "unable to complete block.  THIS BLOCK WAS LOST", "tenantID", i.instanceID, "err", err)
-				return
-			}
-			i.completingBlock = nil
-			i.completeBlocks = append(i.completeBlocks, completeBlock)
-		}()
+		return completingBlock.BlockID(), nil
 	}
 
-	return nil
+	return uuid.Nil, nil
 }
 
-func (i *instance) GetBlockToBeFlushed() *encoding.CompleteBlock {
+// CompleteBlock() moves a completingBlock to a completeBlock
+func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
+	i.blocksMtx.Lock()
+
+	var completingBlock *wal.AppendBlock
+	for _, iterBlock := range i.completingBlocks {
+		if iterBlock.BlockID() == blockID {
+			completingBlock = iterBlock
+			break
+		}
+	}
+	i.blocksMtx.Unlock()
+
+	if completingBlock == nil {
+		return uuid.Nil, fmt.Errorf("error finding completingBlock")
+	}
+
+	// potentially long running operation placed outside blocksMtx
+	completeBlock, err := i.writer.CompleteBlock(completingBlock, i)
+
+	i.blocksMtx.Lock()
+	if err != nil {
+		metricFailedFlushes.Inc()
+		level.Error(log.Logger).Log("msg", "unable to complete block.", "tenantID", i.instanceID, "err", err)
+		i.blocksMtx.Unlock()
+		return uuid.Nil, err
+	}
+	// remove completingBlock from list
+	for j, iterBlock := range i.completingBlocks {
+		if iterBlock.BlockID() == blockID {
+			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
+			break
+		}
+	}
+	completeBlockID := completeBlock.BlockMeta().BlockID
+	i.completeBlocks = append(i.completeBlocks, completeBlock)
+	i.blocksMtx.Unlock()
+
+	return completeBlockID, nil
+}
+
+// GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend
+func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *encoding.CompleteBlock {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	for _, c := range i.completeBlocks {
-		if c.FlushedTime().IsZero() {
+		if c.BlockMeta().BlockID == blockID && c.FlushedTime().IsZero() {
 			return c
 		}
 	}
@@ -240,8 +267,8 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	allBytes = i.Combine(foundBytes, allBytes)
 
 	// completingBlock
-	if i.completingBlock != nil {
-		foundBytes, err = i.completingBlock.Find(id, i)
+	for _, c := range i.completingBlocks {
+		foundBytes, err = c.Find(id, i)
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
 		}

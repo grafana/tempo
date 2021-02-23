@@ -112,7 +112,7 @@ func (i *Ingester) loop(ctx context.Context) error {
 	for {
 		select {
 		case <-flushTicker.C:
-			i.sweepUsers(false)
+			i.sweepAllInstances(false)
 
 		case <-ctx.Done():
 			return nil
@@ -125,14 +125,7 @@ func (i *Ingester) loop(ctx context.Context) error {
 
 // stopping is run when ingester is asked to stop
 func (i *Ingester) stopping(_ error) error {
-	// This will prevent us accepting any more samples
-	i.stopIncomingRequests()
-
-	// Lifecycler can be nil if the ingester is for a flusher.
-	if i.lifecycler != nil {
-		// Next initiate our graceful exit from the ring.
-		return services.StopAndAwaitTerminated(context.Background(), i.lifecycler)
-	}
+	i.markUnavailable()
 
 	if i.flushQueues != nil {
 		i.flushQueues.Stop()
@@ -140,6 +133,19 @@ func (i *Ingester) stopping(_ error) error {
 	}
 
 	return nil
+}
+
+func (i *Ingester) markUnavailable() {
+	// Lifecycler can be nil if the ingester is for a flusher.
+	if i.lifecycler != nil {
+		// Next initiate our graceful exit from the ring.
+		if err := services.StopAndAwaitTerminated(context.Background(), i.lifecycler); err != nil {
+			level.Warn(log.Logger).Log("msg", "failed to stop ingester lifecycler", "err", err)
+		}
+	}
+
+	// This will prevent us accepting any more samples
+	i.stopIncomingRequests()
 }
 
 // Push implements tempopb.Pusher.Push
