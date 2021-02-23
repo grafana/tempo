@@ -145,7 +145,7 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-    spec: docker-manifest.tmpl
+    spec: .drone/docker-manifest.tmpl
     target: tempo
 
 - name: manifest-tempo-query
@@ -155,7 +155,7 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-    spec: docker-manifest.tmpl
+    spec: .drone/docker-manifest.tmpl
     target: tempo-query
 
 - name: manifest-tempo-vulture
@@ -165,7 +165,7 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-    spec: docker-manifest.tmpl
+    spec: .drone/docker-manifest.tmpl
     target: tempo-vulture
 
 depends_on:
