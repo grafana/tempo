@@ -49,7 +49,7 @@ If the value of `tempo_ingester_traces_created_total` is 0, the possible reason 
 
 This can also be confirmed by checking the metric `tempo_request_duration_seconds_count{route='/tempopb.Pusher/Push'}` exposed from the ingester which indicates that it is receiving ingestion requests from the distributor.
 
-### Solution
+#### Solution
 - Check logs of distributors for a message like `msg="pusher failed to consume trace data" err="DoBatch: IngesterCount <= 0"`.
   This is likely because no ingester is joining the gossip ring, make sure the same gossip ring address is supplied to the distributors and ingesters.
 
