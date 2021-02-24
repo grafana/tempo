@@ -120,55 +120,47 @@ endif
 
 ### Dependencies
 DOCKER_PROTOBUF ?= otel/build-protobuf:0.1.0
-PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:/work -w/work ${DOCKER_PROTOBUF} --proto_path=/work
-#PROTO_INCLUDES := -I./opentelemetry-proto/ -Ipkg/tempopb/ -I./
-#PROTO_INCLUDES = -I./
-PROTO_INTERMEDIATE_DIR=pkg/.patched-proto
+PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
+PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
 PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
-
-PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1) #--gogofaster_out=plugins=grpc:$(2)
+PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
 
 
 .PHONY: gen-proto
 gen-proto:
-	#git submodule update --init
-	#rm -rf ./vendor/github.com/open-telemetry/opentelemetry-proto
-
-	@echo Delete intermediate directory.
-	@rm -rf $(PROTO_INTERMEDIATE_DIR)
+	@echo --
+	@echo -- Copying proto to $(PROTO_INTERMEDIATE_DIR)
+	@echo --
 	
-	@echo Copy .proto file to intermediate directory.
+	git submodule update --init
+	rm -rf $(PROTO_INTERMEDIATE_DIR)
 	mkdir -p $(PROTO_INTERMEDIATE_DIR)
 	cp -R opentelemetry-proto/opentelemetry/proto/* $(PROTO_INTERMEDIATE_DIR)
-	cp ./pkg/tempopb/tempo.proto $(PROTO_INTERMEDIATE_DIR)
 
-	# Change package from opentelemetry.proto.* -> tempopb.*
+	@echo --
+	@echo -- Editing proto
+	@echo --
+
+	@# Update package and types from opentelemetry.proto.* -> tempopb.*
+	@# giving final types like "tempopb.common.v1.InstrumentationLibrary" which
+	@# will not conflict with other usages of opentelemetry proto in downstream apps.
 	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+ opentelemetry.proto+ tempopb+g'
 
-	# Change go_package
+	@# Update go_package
 	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+github.com/open-telemetry/opentelemetry-proto/gen/go+github.com/grafana/tempo/pkg/tempopb+g'
 
-	# Change imports
+	@# Update import paths
 	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+import "opentelemetry/proto/+import "+g'
 
-	# Prefix namespace with "tempo." to avoid conflict with otel-collector internal protos
-	
-	
+	@echo --
+	@echo -- Gen proto -- 
+	@echo --
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/tempopb/)
-	#$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/proto/metrics/v1/metrics.proto,./)
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
-
 	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
-	
-	#$(call PROTO_GEN,opentelemetry-proto/opentelemetry/proto/common/v1/common.proto,./vendor)
-	#$(call PROTO_GEN,opentelemetry-proto/opentelemetry/proto/resource/v1/resource.proto,./vendor)
-	#$(call PROTO_GEN,opentelemetry-proto/opentelemetry/proto/metrics/v1/metrics.proto,./vendor)
-	#$(call PROTO_GEN,opentelemetry-proto/opentelemetry/proto/trace/v1/trace.proto,./vendor)
-	#$(call PROTO_GEN,pkg/tempopb/tempo.proto,pkg/tempopb)
 
-	@echo Delete intermediate directory - cleanup
-	@rm -rf $(PROTO_INTERMEDIATE_DIR)
+	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
 .PHONY: vendor-dependencies
 vendor-dependencies:
