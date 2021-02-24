@@ -119,7 +119,7 @@ ifndef COMPONENT
 endif
 
 ### Dependencies
-DOCKER_PROTOBUF ?= otel/build-protobuf:0.1.0
+DOCKER_PROTOBUF ?= otel/build-protobuf:0.2.1
 PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
 PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
