@@ -1,16 +1,13 @@
-image: grafana/{{config.target}}:{{#if build.tag}}{{trimPrefix "v" build.tag}}{{else}}{{build.branch}}-{{substr 0 7 build.commit}}{{/if}}
+image: grafana/{{config.target}}
 tags:
-{{#if build.tags}}
-{{#each build.tags}}
-  - {{this}}
-{{/each}}
-{{/if}}
+  - latest
+  - {{index build.tags 0}}
 manifests:
-  - image: grafana/{{config.target}}:{{#if build.tag}}{{trimPrefix "v" build.tag}}{{else}}{{build.branch}}-{{substr 0 7 build.commit}}{{/if}}-amd64
+  - image: grafana/{{config.target}}:{{index build.tags 0}}-amd64
     platform:
       architecture: amd64
       os: linuxw
-  - image: grafana/{{config.target}}:{{#if build.tag}}{{trimPrefix "v" build.tag}}{{else}}{{build.branch}}-{{substr 0 7 build.commit}}{{/if}}-arm64
+  - image: grafana/{{config.target}}:{{index build.tags 0}}-amd64
     platform:
       architecture: arm64
       os: linux

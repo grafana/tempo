@@ -12,7 +12,7 @@ steps:
   image: alpine/git
   commands:
   - git fetch origin --tags
-  - echo $(./tools/image-tag)-amd64,latest-amd64 > .tags
+  - echo $(./tools/image-tag)-amd64 > .tags
 
 # binaries
 - name: build-tempo-binaries
@@ -74,7 +74,7 @@ steps:
   image: alpine/git
   commands:
   - git fetch origin --tags
-  - echo $(./tools/image-tag)-arm64,latest-arm64 > .tags
+  - echo $(./tools/image-tag)-arm64 > .tags
 
 # binaries
 - name: build-tempo-binaries
@@ -136,7 +136,7 @@ steps:
   image: alpine/git
   commands:
   - git fetch origin --tags
-  - echo $(./tools/image-tag),latest > .tags
+  - echo $(./tools/image-tag) > .tags
 
 - name: manifest-tempo
   image: plugins/manifest
