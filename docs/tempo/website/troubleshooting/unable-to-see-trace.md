@@ -53,7 +53,7 @@ This can also be confirmed by checking the metric `tempo_request_duration_second
 - Check logs of distributors for a message like `msg="pusher failed to consume trace data" err="DoBatch: IngesterCount <= 0"`.
   This is likely because no ingester is joining the gossip ring, make sure the same gossip ring address is supplied to the distributors and ingesters.
 
-## Diagnosing and fixing issues with querying traces
+## Section 2: Diagnosing and fixing issues with querying traces
 If you have determined that data has been ingested correctly into Tempo, then it is time to investigate possible issues with querying the data.
 
 Check the logs of the Tempo Query Frontend. The Query Frontend pod runs with two containers (Query Frontend & Tempo Query), so lets use the following command to view Query Frontend logs -
