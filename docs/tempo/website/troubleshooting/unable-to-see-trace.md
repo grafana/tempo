@@ -10,7 +10,7 @@ weight: 471
 - There could be issues in ingestion of the data into Tempo, that is, spans are either not being sent correctly to Tempo or they are not getting sampled.
 - There could be issues querying for traces that have been received by Tempo.
 
-## Diagnosing and fixing ingestion issues
+## Section 1: Diagnosing and fixing ingestion issues
 Check whether the application spans are actually reaching Tempo. The following metrics help determine this
 - `tempo_distributor_spans_received_total`
 - `tempo_ingester_traces_created_total`
