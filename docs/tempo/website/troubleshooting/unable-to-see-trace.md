@@ -28,7 +28,7 @@ If the value of `tempo_distributor_spans_received_total` is 0, possible reasons 
 
 Receiver specific traffic information can also be obtained using `tempo_receiver_accepted_spans` which has a label for the receiver (protocol used for ingestion. Ex: `jaeger-thrift`).
 
-### Solutions
+#### Solutions
 
 ##### Fixing protocol/port problems
 - Find out which communication protocol is being used by the application to emit traces. This is unique to every client SDK. For instance: Jaeger Golang Client uses `Thrift Compact over UDP` by default.
