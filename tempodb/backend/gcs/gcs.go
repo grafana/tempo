@@ -65,14 +65,9 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 
 	bucket := client.Bucket(cfg.BucketName)
 
-	// Check bucket exists by listing things
-	iter := bucket.Objects(ctx, &storage.Query{
-		Prefix:   "/",
-		Versions: false,
-	})
-	_, err = iter.Next()
-	if err != nil && err != iterator.Done {
-		return nil, nil, nil, errors.Wrap(err, "listing bucket objects")
+	// Check bucket exists by getting attrs
+	if _, err = bucket.Attrs(ctx); err != nil {
+		return nil, nil, nil, errors.Wrap(err, "getting bucket attrs")
 	}
 
 	rw := &readerWriter{
