@@ -76,7 +76,7 @@ Possible reasons for the above errors are:
 - Not connected to Tempo Querier correctly
 - Insufficient permissions
 
-### Solution
+#### Solutions
 - Fixing connection issues
   - In case we the queriers are not connected to the Query Frontend, check the following section in Querier configuration and make sure the address of the Query Frontend is correct
     ```
