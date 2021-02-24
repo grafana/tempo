@@ -1,13 +1,13 @@
 image: grafana/{{config.target}}
 tags:
   - latest
-  - {{index build.tags 0}}
+  - {{build.tags}}
 manifests:
-  - image: grafana/{{config.target}}:{{index build.tags 0}}-amd64
+  - image: grafana/{{config.target}}:{{build.tags}}-amd64
     platform:
       architecture: amd64
       os: linuxw
-  - image: grafana/{{config.target}}:{{index build.tags 0}}-amd64
+  - image: grafana/{{config.target}}:{{build.tags}}-arm64
     platform:
       architecture: arm64
       os: linux
