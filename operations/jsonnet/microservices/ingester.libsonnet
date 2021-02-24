@@ -48,7 +48,7 @@
         [$._config.gossip_member_label]: 'true',
       },
     )
-    + $.util.antiAffinity
+    + $.util.antiAffinityStatefulSet
     + statefulset.mixin.spec.withServiceName(target_name)
     + statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_configmap.metadata.name),
