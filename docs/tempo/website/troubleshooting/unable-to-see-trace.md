@@ -40,7 +40,7 @@ Receiver specific traffic information can also be obtained using `tempo_receiver
 - Some clients also provide metrics on the number of spans reported from the application, for example `jaeger_tracer_reporter_spans_total`. Check the value of that metric if available and make sure it is greater than zero.
 - Another way to diagnose this problem would be to generate lots and lots of traces to see if some records make their way to Tempo.
 
-#### Fixing incorrect endpoint issue
+##### Fixing incorrect endpoint issue
 - If the application is also running inside docker, make sure the application is sending traces to the correct endpoint (`tempo:<receiver-port>`).
 
 ## Issue 2 - `tempo_ingester_traces_created_total` is 0
