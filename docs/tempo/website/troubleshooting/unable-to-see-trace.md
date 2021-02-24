@@ -34,7 +34,7 @@ Receiver specific traffic information can also be obtained using `tempo_receiver
 - Find out which communication protocol is being used by the application to emit traces. This is unique to every client SDK. For instance: Jaeger Golang Client uses `Thrift Compact over UDP` by default.
 - Check the list of supported protocols and their ports and ensure that the correct combination is being used. You will find the list of supported protocols and ports here: https://grafana.com/docs/tempo/latest/getting-started/#step-1-spin-up-tempo-backend
 
-#### Fixing sampling issues
+##### Fixing sampling issues
 - These issues can be tricky to determine because most SDKs use a probabilistic sampler by default. This may lead to just one in a 1000 records being picked up.
 - Check the sampling configuration of the tracer being initialized in the application and make sure it has a high sampling rate.
 - Some clients also provide metrics on the number of spans reported from the application, for example `jaeger_tracer_reporter_spans_total`. Check the value of that metric if available and make sure it is greater than zero.
