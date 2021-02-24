@@ -43,7 +43,7 @@ Receiver specific traffic information can also be obtained using `tempo_receiver
 ##### Fixing incorrect endpoint issue
 - If the application is also running inside docker, make sure the application is sending traces to the correct endpoint (`tempo:<receiver-port>`).
 
-## Issue 2 - `tempo_ingester_traces_created_total` is 0
+## Case 2 - `tempo_ingester_traces_created_total` is 0
 If the value of `tempo_ingester_traces_created_total` is 0, the possible reason is -
 - Network issues between distributors and ingesters.
 
