@@ -150,11 +150,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	var completeTrace *tempopb.Trace
 	var spanCount, spanCountTotal int
 	if req.QueryIngesters {
-		key := tempo_util.TokenFor(userID, req.TraceID)
-
-		const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
-		var descs [maxExpectedReplicationSet]ring.InstanceDesc
-		replicationSet, err := q.ring.Get(key, ring.Read, descs[:0], nil, nil)
+		replicationSet, err := q.ring.GetAllHealthy(ring.Read)
 		if err != nil {
 			return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
 		}
