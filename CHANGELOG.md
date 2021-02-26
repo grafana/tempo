@@ -1,6 +1,7 @@
 ## master / unreleased
 
 * [ENHANCEMENT] Add a Shutdown handler to flush data to backend, at "/shutdown". [#526](https://github.com/grafana/tempo/pull/526)
+* [ENHANCEMENT] Queriers now query all (healthy) ingesters for a trace to mitigate 404s on ingester rollouts. [#557](https://github.com/grafana/tempo/pull/557)
 
 ## v0.6.0
 
