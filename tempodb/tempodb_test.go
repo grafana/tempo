@@ -18,8 +18,10 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -632,6 +634,158 @@ func TestUpdateBlocklistCompacted(t *testing.T) {
 			for i := range tt.expected {
 				assert.Equal(t, tt.expected[i].BlockID, rw.compactedBlockLists[testTenantID][i].BlockID)
 			}
+		})
+	}
+}
+
+func TestIncludeBlock(t *testing.T) {
+	tests := []struct {
+		name       string
+		searchID   common.ID
+		blockStart uuid.UUID
+		blockEnd   uuid.UUID
+		meta       *backend.BlockMeta
+		expected   bool
+	}{
+		// includes
+		{
+			name:       "include - duh",
+			searchID:   []byte{0x05},
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				MinID:   []byte{0x00},
+				MaxID:   []byte{0x10},
+			},
+			expected: true,
+		},
+		{
+			name:       "include - min id range",
+			searchID:   []byte{0x00},
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				MinID:   []byte{0x00},
+				MaxID:   []byte{0x10},
+			},
+			expected: true,
+		},
+		{
+			name:       "include - max id range",
+			searchID:   []byte{0x10},
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				MinID:   []byte{0x00},
+				MaxID:   []byte{0x10},
+			},
+			expected: true,
+		},
+		{
+			name:       "include - min block range",
+			searchID:   []byte{0x05},
+			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse(BlockIDMax),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				MinID:   []byte{0x00},
+				MaxID:   []byte{0x10},
+			},
+			expected: true,
+		},
+		{
+			name:       "include - max block range",
+			searchID:   []byte{0x05},
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				MinID:   []byte{0x00},
+				MaxID:   []byte{0x10},
+			},
+			expected: true,
+		},
+		{
+			name:       "include - exact hit",
+			searchID:   []byte{0x05},
+			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				MinID:   []byte{0x05},
+				MaxID:   []byte{0x05},
+			},
+			expected: true,
+		},
+		// excludes
+		{
+			name:       "exclude - duh",
+			searchID:   []byte{0x20},
+			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("52000000-0000-0000-0000-000000000000"),
+				MinID:   []byte{0x00},
+				MaxID:   []byte{0x10},
+			},
+		},
+		{
+			name:       "exclude - min id range",
+			searchID:   []byte{0x00},
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				MinID:   []byte{0x01},
+				MaxID:   []byte{0x10},
+			},
+		},
+		{
+			name:       "exclude - max id range",
+			searchID:   []byte{0x11},
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				MinID:   []byte{0x01},
+				MaxID:   []byte{0x10},
+			},
+		},
+		{
+			name:       "exclude - min block range",
+			searchID:   []byte{0x05},
+			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("4FFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"),
+				MinID:   []byte{0x00},
+				MaxID:   []byte{0x10},
+			},
+		},
+		{
+			name:       "exclude - max block range",
+			searchID:   []byte{0x05},
+			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+			meta: &backend.BlockMeta{
+				BlockID: uuid.MustParse("51000000-0000-0000-0000-000000000001"),
+				MinID:   []byte{0x00},
+				MaxID:   []byte{0x10},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := tc.blockStart.MarshalBinary()
+			require.NoError(t, err)
+			e, err := tc.blockEnd.MarshalBinary()
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expected, includeBlock(tc.meta, tc.searchID, s, e))
 		})
 	}
 }
