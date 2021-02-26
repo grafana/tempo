@@ -94,10 +94,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 // return values are (valid, blockStart, blockEnd, queryIngesters)
 func validateAndSanitizeRequest(r *http.Request) (string, string, bool, error) {
-	// get parameter values
 	q := r.URL.Query().Get(QueryIngestersKey)
-	start := r.URL.Query().Get(BlockStartKey)
-	end := r.URL.Query().Get(BlockEndKey)
 
 	// validate queryIngesters. it should either be empty or one of (true|false)
 	var queryIngesters bool
@@ -108,6 +105,14 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, bool, error) {
 	} else {
 		return "", "", false, fmt.Errorf("invalid value for queryIngesters %s", q)
 	}
+
+	// no need to validate/sanitize other parameters if queryIngesters is true
+	if queryIngesters {
+		return "", "", true, nil
+	}
+
+	start := r.URL.Query().Get(BlockStartKey)
+	end := r.URL.Query().Get(BlockEndKey)
 
 	// validate start. it should either be empty or a valid uuid
 	if len(start) == 0 {

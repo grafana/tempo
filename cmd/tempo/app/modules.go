@@ -158,8 +158,11 @@ func (t *App) initQuerier() (services.Service, error) {
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
-	var err error
+	if t.cfg.Frontend.QueryShards < frontend.MinQueryShards || t.cfg.Frontend.QueryShards > frontend.MaxQueryShards {
+		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", frontend.MinQueryShards, frontend.MaxQueryShards)
+	}
 
+	var err error
 	cortexTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
@@ -179,7 +182,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 		t.httpAuthMiddleware,
 	).Wrap(cortexHandler)
 
+	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
+	// http query endpoint
 	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
 
 	return services.NewIdleService(nil, func(_ error) error {

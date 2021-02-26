@@ -23,6 +23,9 @@ import (
 )
 
 const (
+	MinQueryShards = 2
+	MaxQueryShards = 256
+
 	querierPrefix  = "/querier"
 	queryDelimiter = "?"
 )
@@ -53,7 +56,7 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 
 	// only need to initialise boundaries once
 	if len(s.blockBoundaries) == 0 {
-		s.blockBoundaries = createBlockBoundaries(s.queryShards)
+		s.blockBoundaries = createBlockBoundaries(s.queryShards - 1) // one shard will be used to query ingesters
 	}
 
 	// check marshalling format
@@ -63,15 +66,15 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 	}
 
 	reqs := make([]*http.Request, s.queryShards)
-	for i := 0; i < len(s.blockBoundaries)-1; i++ {
+	for i := 0; i < s.queryShards; i++ {
 		reqs[i] = r.Clone(r.Context())
-		q := reqs[i].URL.Query()
-		q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i]))
-		q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i+1]))
 
-		if i == 0 {
+		q := reqs[i].URL.Query()
+		if i == (s.queryShards - 1) { // one shard dedicated to querying ingesters
 			q.Add(querier.QueryIngestersKey, "true")
 		} else {
+			q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i]))
+			q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i+1]))
 			q.Add(querier.QueryIngestersKey, "false")
 		}
 
