@@ -30,7 +30,7 @@ Grafana to run our hosted Tempo offering.
 # double check you're applying to your local k3d before running this!
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
-helm upgrade --install tempo grafana/tempo-distributed
+helm upgrade --set traces.jaeger.thriftHttp=true --install tempo grafana/tempo-distributed
 kubectl create -f microservices-extras.yaml
 ```
 
