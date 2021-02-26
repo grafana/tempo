@@ -14,7 +14,7 @@ memcached {
         self.memcached_exporter,
       ], []) +
       statefulSet.mixin.spec.withServiceName(self.name) +
-      $.util.antiAffinity,
+      $.util.antiAffinityStatefulSet,
 
     local service = $.core.v1.service,
 

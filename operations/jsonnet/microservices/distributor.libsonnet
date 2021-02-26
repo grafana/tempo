@@ -37,7 +37,7 @@
                      [$._config.gossip_member_label]: 'true',
                    }) +
     deployment.mixin.spec.template.metadata.withAnnotations({
-      config_hash: std.md5(std.toString($.tempo_configmap)),
+      config_hash: std.md5(std.toString($.tempo_configmap.data['tempo.yaml'])),
     }) +
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_configmap.metadata.name),
