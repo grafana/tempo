@@ -26,11 +26,12 @@ var (
 	prometheusListenAddress string
 	prometheusPath          string
 
-	tempoQueryURL          string
-	tempoPushURL           string
-	tempoOrgID             string
-	tempoBackoffDuration   time.Duration
-	tempoRetentionDuration time.Duration
+	tempoQueryURL             string
+	tempoPushURL              string
+	tempoOrgID                string
+	tempoWriteBackoffDuration time.Duration
+	tempoReadBackoffDuration  time.Duration
+	tempoRetentionDuration    time.Duration
 )
 
 type traceMetrics struct {
@@ -46,7 +47,8 @@ func init() {
 	flag.StringVar(&tempoQueryURL, "tempo-query-url", "", "The URL (scheme://hostname) at which to query Tempo.")
 	flag.StringVar(&tempoPushURL, "tempo-push-url", "", "The URL (scheme://hostname) at which to push traces to Tempo.")
 	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
-	flag.DurationVar(&tempoBackoffDuration, "tempo-backoff-duration", 30*time.Second, "The amount of time to pause between Tempo calls")
+	flag.DurationVar(&tempoWriteBackoffDuration, "tempo-write-backoff-duration", 15*time.Second, "The amount of time to pause between write Tempo calls")
+	flag.DurationVar(&tempoReadBackoffDuration, "tempo-read-backoff-duration", 30*time.Second, "The amount of time to pause between read Tempo calls")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
 }
 
@@ -56,15 +58,16 @@ func main() {
 	glog.Error("Tempo Vulture Starting")
 
 	startTime := time.Now().Unix()
-	ticker := time.NewTicker(tempoBackoffDuration)
-	slot := int64(tempoBackoffDuration/time.Second) * 2
+	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
+	tickerRead := time.NewTicker(tempoReadBackoffDuration)
+	interval := int64(tempoWriteBackoffDuration / time.Second)
 
 	// Write
 	go func() {
 		for {
-			<-ticker.C
+			<-tickerWrite.C
 
-			rand.Seed((time.Now().Unix() / slot) * slot)
+			rand.Seed((time.Now().Unix() / interval) * interval)
 			c, err := newJaegerGRPCClient(tempoPushURL)
 			if err != nil {
 				glog.Error("error creating grpc client", err)
@@ -88,7 +91,7 @@ func main() {
 	// Read
 	go func() {
 		for {
-			<-ticker.C
+			<-tickerRead.C
 
 			currentTime := time.Now().Unix()
 
@@ -97,8 +100,8 @@ func main() {
 				startTime = currentTime - int64(tempoRetentionDuration/time.Second)
 			}
 
-			// pick past slot and re-generate trace
-			rand.Seed((generateRandomInt(startTime, currentTime) / slot) * slot)
+			// pick past interval and re-generate trace
+			rand.Seed((generateRandomInt(startTime, currentTime) / interval) * interval)
 			hexID := fmt.Sprintf("%016x%016x", rand.Int63(), rand.Int63())
 
 			// query the trace
