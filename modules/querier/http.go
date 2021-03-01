@@ -108,7 +108,7 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, string, error)
 	} else if q == QueryModeBlocks {
 		queryMode = QueryModeBlocks
 	} else {
-		return "", "", "", fmt.Errorf("invalid value for queryMode %s", q)
+		return "", "", "", fmt.Errorf("invalid value for mode %s", q)
 	}
 
 	// no need to validate/sanitize other parameters if queryMode == QueryModeIngesters
