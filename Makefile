@@ -132,8 +132,8 @@ gen-proto:
 	@echo --
 	rm -rf opentelemetry-proto
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
-	find pkg/tempopb -name *.pb.go | xargs -L 1 rm
-	find pkg/tempopb -name *.proto | grep -v tempo.proto | xargs -L 1 rm 
+	find pkg/tempopb -name *.pb.go | xargs -L 1 -r rm
+	find pkg/tempopb -name *.proto | grep -v tempo.proto | xargs -L 1 -r rm 
 
 	@echo --
 	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
