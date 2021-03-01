@@ -2,7 +2,7 @@
 
 * [ENHANCEMENT] Add a Shutdown handler to flush data to backend, at "/shutdown". [#526](https://github.com/grafana/tempo/pull/526)
 * [BUGFIX] Fixes permissions errors on startup in GCS. [#554](https://github.com/grafana/tempo/pull/554)
-* [BUGFIX] Fixes error were Dell ECS cannot list objects. [#561](https://github.com/grafana/tempo/pull/561)
+* [BUGFIX] Fixes error where Dell ECS cannot list objects. [#561](https://github.com/grafana/tempo/pull/561)
 
 
 ## v0.6.0
