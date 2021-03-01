@@ -125,15 +125,20 @@ PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
 PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
 PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
 
-
 .PHONY: gen-proto
-gen-proto:
+gen-proto: 
 	@echo --
-	@echo -- Copying proto to $(PROTO_INTERMEDIATE_DIR)
+	@echo -- Deleting existing
 	@echo --
-	
-	git submodule update --init
+	rm -rf opentelemetry-proto
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
+	find pkg/tempopb -name *.pb.go | xargs -L 1 rm
+	find pkg/tempopb -name *.proto | grep -v tempo.proto | xargs -L 1 rm 
+
+	@echo --
+	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
+	@echo --
+	git submodule update --init
 	mkdir -p $(PROTO_INTERMEDIATE_DIR)
 	cp -R opentelemetry-proto/opentelemetry/proto/* $(PROTO_INTERMEDIATE_DIR)
 
@@ -162,22 +167,13 @@ gen-proto:
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
-.PHONY: vendor-dependencies
-vendor-dependencies:
+
+### Check vendored files and generated proto
+.PHONY: vendor-check
+vendor-check: gen-proto
 	go mod vendor
 	go mod tidy -e
-	$(MAKE) gen-proto
-
-
-.PHONE: clear-protos
-clear-protos:
-	rm -rf opentelemetry-proto
-
-
-### Check vendored files
-.PHONY: vendor-check
-vendor-check: clear-protos vendor-dependencies
-	git diff --exit-code
+	git diff --exit-code -- go.sum go.mod vendor/ pkg/tempopb/
 
 ### Release (intended to be used in the .github/workflows/images.yml)
 $(GORELEASER):
