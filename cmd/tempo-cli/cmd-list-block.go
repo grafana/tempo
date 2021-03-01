@@ -5,6 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -16,9 +19,9 @@ import (
 type listBlockCmd struct {
 	backendOptions
 
-	TenantID   string `arg:"" help:"tenant-id within the bucket"`
-	BlockID    string `arg:"" help:"block ID to list"`
-	CheckDupes bool   `help:"check contents of block for duplicate trace IDs (warning, can be intense)"`
+	TenantID string `arg:"" help:"tenant-id within the bucket"`
+	BlockID  string `arg:"" help:"block ID to list"`
+	Scan     bool   `help:"scan contents of block for duplicate trace IDs and other info (warning, can be intense)"`
 }
 
 func (cmd *listBlockCmd) Run(ctx *globalOptions) error {
@@ -27,10 +30,10 @@ func (cmd *listBlockCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	return dumpBlock(r, c, cmd.TenantID, time.Hour, cmd.BlockID, cmd.CheckDupes)
+	return dumpBlock(r, c, cmd.TenantID, time.Hour, cmd.BlockID, cmd.Scan)
 }
 
-func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, blockID string, checkDupes bool) error {
+func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, blockID string, scan bool) error {
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
@@ -62,10 +65,16 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	fmt.Println("Duration      : ", fmt.Sprint(unifiedMeta.end.Sub(unifiedMeta.start).Round(time.Second)))
 	fmt.Println("Age           : ", fmt.Sprint(time.Since(unifiedMeta.end).Round(time.Second)))
 
-	if checkDupes {
-		fmt.Println("Searching for dupes ...")
+	if scan {
+		fmt.Println("Scanning block contents.  Press CRTL+C to quit ...")
+
+		en, err := tempodb_backend.ParseEncoding(unifiedMeta.encoding)
+		if err != nil {
+			return err
+		}
 
 		block, err := encoding.NewBackendBlock(&tempodb_backend.BlockMeta{
+			Encoding: en,
 			Version:  unifiedMeta.version,
 			TenantID: tenantID,
 			BlockID:  id,
@@ -74,21 +83,51 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 			return err
 		}
 
-		iter, err := block.Iterator(10 * 1024 * 1024)
+		iter, err := block.Iterator(uint32(2 * 1024 * 1024))
 		if err != nil {
 			return err
 		}
 		defer iter.Close()
 
+		// Scanning stats
 		i := 0
 		dupe := 0
+		maxObjSize := 0
+		minObjSize := 0
+
+		printStats := func() {
+			fmt.Println()
+			fmt.Println("Scanning results:")
+			fmt.Println("Objects scanned : ", i)
+			fmt.Println("Duplicates      : ", dupe)
+			fmt.Println("Smallest object : ", humanize.Bytes(uint64(minObjSize)))
+			fmt.Println("Largest object  : ", humanize.Bytes(uint64(maxObjSize)))
+		}
+
+		// Print stats on ctrl+c
+		c := make(chan os.Signal)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-c
+			printStats()
+			os.Exit(0)
+		}()
+
 		prevID := make([]byte, 16)
 		for {
-			objID, _, err := iter.Next()
+			objID, obj, err := iter.Next()
 			if err == io.EOF {
 				break
 			} else if err != nil {
 				return err
+			}
+
+			if len(obj) > maxObjSize {
+				maxObjSize = len(obj)
+			}
+
+			if len(obj) < minObjSize || minObjSize == 0 {
+				minObjSize = len(obj)
 			}
 
 			if bytes.Equal(objID, prevID) {
@@ -102,8 +141,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 			}
 		}
 
-		fmt.Println("total: ", i)
-		fmt.Println("dupes: ", dupe)
+		printStats()
 	}
 
 	return nil

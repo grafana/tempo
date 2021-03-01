@@ -55,7 +55,7 @@ var (
 	BytesBufferPool = pool.New(1<<9, 1<<13, 2, func(size int) interface{} { return make([]byte, 0, size) })
 )
 
-func getWriterPool(enc backend.Encoding) (WriterPool, error) {
+func GetWriterPool(enc backend.Encoding) (WriterPool, error) {
 	r, err := getReaderPool(enc)
 	if err != nil {
 		return nil, err

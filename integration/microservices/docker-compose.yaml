@@ -51,7 +51,6 @@ services:
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
-    scale: 4 # every container = 1000 spans/s
     volumes:
       - ./load-generator.json:/etc/load-generator.json
     environment:
@@ -73,7 +72,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:7.3.0-beta1
+    image: grafana/grafana:7.4.2
     volumes:
       - ./grafana/datasources/:/etc/grafana/provisioning/datasources/
       - ./grafana/dashboards-provisioning/:/etc/grafana/provisioning/dashboards/

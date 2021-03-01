@@ -78,7 +78,7 @@ querier:
         frontend_address: query-frontend-discovery.default.svc.cluster.local:9095   # the address of the query frontend to connect to, and process queries
 ```
 
-## [Compactor]
+## Compactor
 See [here](https://github.com/grafana/tempo/blob/master/modules/compactor/config.go) for all configuration options.
 
 Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
@@ -100,7 +100,7 @@ compactor:
                                     # this tells the compactors to use a ring stored in memberlist to coordinate.
 ```
 
-## [Storage]
+## Storage
 See [here](https://github.com/grafana/tempo/blob/master/tempodb/config.go) for all configuration options.
 
 The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.  

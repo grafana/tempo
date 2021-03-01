@@ -42,7 +42,7 @@ services:
     - tempo
 
   grafana:
-    image: grafana/grafana:7.3.0-beta1
+    image: grafana/grafana:7.4.2
     volumes:
       - ./example-data/datasources:/etc/grafana/provisioning/datasources
       - ./example-data/dashboards-provisioning:/etc/grafana/provisioning/dashboards

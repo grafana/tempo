@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/go-kit/kit/log"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -52,20 +54,17 @@ func TestInstance(t *testing.T) {
 	err = i.CutCompleteTraces(0, true)
 	assert.NoError(t, err)
 
-	err = i.CutBlockIfReady(0, 0, false)
+	blockID, err := i.CutBlockIfReady(0, 0, false)
 	assert.NoError(t, err, "unexpected error cutting block")
+	assert.NotEqual(t, blockID, uuid.Nil)
 
-	// try a few times while the block gets completed
-	block := i.GetBlockToBeFlushed()
-	for j := 0; j < 5; j++ {
-		if block != nil {
-			continue
-		}
-		time.Sleep(100 * time.Millisecond)
-		block = i.GetBlockToBeFlushed()
-	}
-	assert.NotNil(t, block)
-	assert.Nil(t, i.completingBlock)
+	completeBlockID, err := i.CompleteBlock(blockID)
+	assert.NoError(t, err, "unexpected error completing block")
+	assert.NotEqual(t, completeBlockID, uuid.Nil)
+
+	block := i.GetBlockToBeFlushed(completeBlockID)
+	require.NotNil(t, block)
+	assert.Len(t, i.completingBlocks, 0)
 	assert.Len(t, i.completeBlocks, 1)
 
 	err = ingester.store.WriteBlock(context.Background(), block)
@@ -83,22 +82,9 @@ func TestInstance(t *testing.T) {
 	assert.NoError(t, err, "unexpected error resetting block")
 }
 
-func TestInstanceFind(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
-	assert.NoError(t, err, "unexpected error creating limits")
-	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
-
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	ingester, _, _ := defaultIngester(t, tempDir)
-	request := test.MakeRequest(10, []byte{})
+func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.UUID {
 	traceID := test.MustTraceID(request)
-
-	i, err := newInstance("fake", limiter, ingester.store)
-	assert.NoError(t, err, "unexpected error creating new instance")
-	err = i.Push(context.Background(), request)
+	err := i.Push(context.Background(), request)
 	assert.NoError(t, err)
 
 	trace, err := i.FindTraceByID(traceID)
@@ -112,12 +98,51 @@ func TestInstanceFind(t *testing.T) {
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
 
-	err = i.CutBlockIfReady(0, 0, false)
-	assert.NoError(t, err)
+	blockID, err := i.CutBlockIfReady(0, 0, false)
+	assert.NoError(t, err, "unexpected error cutting block")
+	assert.NotEqual(t, blockID, uuid.Nil)
 
 	trace, err = i.FindTraceByID(traceID)
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
+
+	return blockID
+}
+
+func TestInstanceFind(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+	i, err := newInstance("fake", limiter, ingester.store)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	request := test.MakeRequest(10, []byte{})
+	blockID := pushAndQuery(t, i, request)
+
+	// make another completingBlock
+	request2 := test.MakeRequest(10, []byte{})
+	pushAndQuery(t, i, request2)
+	assert.Len(t, i.completingBlocks, 2)
+
+	_, err = i.CompleteBlock(blockID)
+	assert.NoError(t, err, "unexpected error completing block")
+
+	assert.Len(t, i.completingBlocks, 1)
+
+	traceID := test.MustTraceID(request)
+	trace, err := i.FindTraceByID(traceID)
+	assert.NotNil(t, trace)
+	assert.NoError(t, err)
+
+	completeBlockID, err := i.CompleteBlock(blockID)
+	assert.EqualError(t, err, "error finding completingBlock")
+	assert.Equal(t, completeBlockID, uuid.Nil)
 }
 
 func TestInstanceDoesNotRace(t *testing.T) {
@@ -158,14 +183,16 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_ = i.CutBlockIfReady(0, 0, false)
-	})
-
-	go concurrent(func() {
-		block := i.GetBlockToBeFlushed()
-		if block != nil {
-			err := ingester.store.WriteBlock(context.Background(), block)
-			assert.NoError(t, err, "error writing block")
+		blockID, _ := i.CutBlockIfReady(0, 0, false)
+		if blockID != uuid.Nil {
+			completeBlockID, err := i.CompleteBlock(blockID)
+			assert.NoError(t, err, "unexpected error completing block")
+			if completeBlockID != uuid.Nil {
+				block := i.GetBlockToBeFlushed(completeBlockID)
+				require.NotNil(t, block)
+				err := ingester.store.WriteBlock(context.Background(), block)
+				assert.NoError(t, err, "error writing block")
+			}
 		}
 	})
 
@@ -183,7 +210,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	close(end)
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 }
 
 func TestInstanceLimits(t *testing.T) {
@@ -414,8 +441,13 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			err := instance.CutCompleteTraces(0, true)
 			require.NoError(t, err)
 
-			err = instance.CutBlockIfReady(tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
+			blockID, err := instance.CutBlockIfReady(tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
 			require.NoError(t, err)
+
+			_, err = instance.CompleteBlock(blockID)
+			if tc.expectedToCutBlock {
+				assert.NoError(t, err, "unexpected error completing block")
+			}
 
 			// Wait for goroutine to finish flushing to avoid test flakiness
 			if tc.expectedToCutBlock {

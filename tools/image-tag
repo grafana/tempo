@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-SHA="$(git rev-parse --short HEAD),latest"
+SHA="$(git rev-parse --short HEAD)"
 
 # If tag, use tag
 TAG=$( (git describe --exact-match 2> /dev/null || echo "") | sed 's/v//g')

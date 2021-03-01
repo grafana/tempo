@@ -36,7 +36,7 @@
     deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(0) +
     deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
     deployment.mixin.spec.template.metadata.withAnnotations({
-      config_hash: std.md5(std.toString($.tempo_compactor_configmap)),
+      config_hash: std.md5(std.toString($.tempo_compactor_configmap.data['tempo.yaml'])),
     }) +
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_compactor_configmap.metadata.name),

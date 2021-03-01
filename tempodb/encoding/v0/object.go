@@ -42,7 +42,7 @@ func MarshalObjectToWriter(id common.ID, b []byte, w io.Writer) (int, error) {
 	return totalLength, err
 }
 
-func unmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
+func UnmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
 	var totalLength uint32
 	err := binary.Read(r, binary.LittleEndian, &totalLength)
 	if err == io.EOF {
@@ -73,7 +73,7 @@ func unmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
 	return bytesID, bytesObject, nil
 }
 
-func unmarshalAndAdvanceBuffer(buffer []byte) ([]byte, common.ID, []byte, error) {
+func UnmarshalAndAdvanceBuffer(buffer []byte) ([]byte, common.ID, []byte, error) {
 	var totalLength uint32
 
 	if len(buffer) == 0 {

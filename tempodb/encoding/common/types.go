@@ -57,3 +57,14 @@ type IndexReader interface {
 	At(i int) *Record
 	Find(id ID) (*Record, int)
 }
+
+// PageWriter is used to write paged data to the backend
+type PageWriter interface {
+	// Write writes the passed ID/byte to the current page
+	Write(ID, []byte) (int, error)
+	// CutPage completes the current page and start a new one.  It
+	//  returns the length in bytes of the cut page.
+	CutPage() (int, error)
+	// Complete must be called when the operation pagewriter is done.
+	Complete() error
+}

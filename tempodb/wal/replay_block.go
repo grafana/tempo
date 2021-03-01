@@ -3,8 +3,8 @@ package wal
 import (
 	"os"
 
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type ReplayBlock struct {
@@ -18,7 +18,7 @@ func (r *ReplayBlock) Iterator() (common.Iterator, error) {
 		return nil, err
 	}
 
-	return v0.NewIterator(f), nil
+	return encoding.NewIterator(f), nil
 }
 
 func (r *ReplayBlock) TenantID() string {

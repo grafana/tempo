@@ -34,8 +34,9 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	ctx := context.Background()
 
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
-
-	transportOptions := []option.ClientOption{}
+	transportOptions := []option.ClientOption{
+		option.WithScopes(storage.ScopeReadWrite),
+	}
 	if cfg.Insecure {
 		transportOptions = append(transportOptions, option.WithoutAuthentication())
 		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}

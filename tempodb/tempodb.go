@@ -35,7 +35,9 @@ import (
 )
 
 const (
+	// BlockIDMin is the minimum possible value for a block id as a string
 	BlockIDMin = "00000000-0000-0000-0000-000000000000"
+	// BlockIDMax is the maximum possible value for a block id as a string
 	BlockIDMax = "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
 )
 
@@ -236,14 +238,8 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
 
 	for _, b := range blocklist {
-		// if in range copy
-		if bytes.Compare(id, b.MinID) != -1 && bytes.Compare(id, b.MaxID) != 1 {
-			blockIDBytes, _ := b.BlockID.MarshalBinary()
-			// check block is in shard boundaries
-			// blockStartBytes <= blockIDBytes <= blockEndBytes
-			if (bytes.Compare(blockIDBytes, blockStartBytes) >= 0) && (bytes.Compare(blockIDBytes, blockEndBytes) <= 0) {
-				copiedBlocklist = append(copiedBlocklist, b)
-			}
+		if includeBlock(b, id, blockStartBytes, blockEndBytes) {
+			copiedBlocklist = append(copiedBlocklist, b)
 		}
 	}
 	rw.blockListsMtx.Unlock()
@@ -516,4 +512,20 @@ func (rw *readerWriter) updateBlocklist(tenantID string, add []*backend.BlockMet
 
 	// ******** Compacted blocks ********
 	rw.compactedBlockLists[tenantID] = append(rw.compactedBlockLists[tenantID], compactedAdd...)
+}
+
+// includeBlock indicates whether a given block should be included in a backend search
+func includeBlock(b *backend.BlockMeta, id common.ID, blockStart []byte, blockEnd []byte) bool {
+	if bytes.Compare(id, b.MinID) == -1 || bytes.Compare(id, b.MaxID) == 1 {
+		return false
+	}
+
+	blockIDBytes, _ := b.BlockID.MarshalBinary()
+	// check block is in shard boundaries
+	// blockStartBytes <= blockIDBytes <= blockEndBytes
+	if bytes.Compare(blockIDBytes, blockStart) == -1 || bytes.Compare(blockIDBytes, blockEnd) == 1 {
+		return false
+	}
+
+	return true
 }

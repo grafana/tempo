@@ -125,6 +125,7 @@ func (t *App) initIngester() (services.Service, error) {
 	tempopb.RegisterPusherServer(t.server.GRPC, t.ingester)
 	tempopb.RegisterQuerierServer(t.server.GRPC, t.ingester)
 	t.server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
+	t.server.HTTP.Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
 	return t.ingester, nil
 }
 
