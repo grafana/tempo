@@ -14,7 +14,7 @@ ingester:
     ring:
       kvstore:
         store: memberlist
-      replication_factor: 2
+      replication_factor: 3
   trace_idle_period: 100ms
   max_block_duration: 2s
   complete_block_timeout: 5s

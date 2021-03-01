@@ -11,7 +11,7 @@
     ingester: {
       lifecycler: {
         ring: {
-          replication_factor: 2,
+          replication_factor: 3,
         },
       },
     },

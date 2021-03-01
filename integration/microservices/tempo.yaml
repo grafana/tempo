@@ -11,7 +11,7 @@ ingester:
     trace_idle_period: 1s
     lifecycler:
         ring:
-            replication_factor: 2
+            replication_factor: 3
 
 memberlist:
   abort_if_cluster_join_fails: false
@@ -19,6 +19,7 @@ memberlist:
   join_members:
   - ingester-0:7946
   - ingester-1:7946
+  - ingester-2:7946
 
 overrides:
   ingestion_burst_size: 100000

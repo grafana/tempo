@@ -151,10 +151,11 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, util.CopyFileToSharedDir(s, configMicroservices, "config.yaml"))
 	tempoIngester1 := util.NewTempoIngester(1)
 	tempoIngester2 := util.NewTempoIngester(2)
+	tempoIngester3 := util.NewTempoIngester(3)
 	tempoDistributor := util.NewTempoDistributor()
 	tempoQueryFrontend := util.NewTempoQueryFrontend()
 	tempoQuerier := util.NewTempoQuerier()
-	require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoDistributor, tempoQueryFrontend, tempoQuerier))
+	require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoIngester3, tempoDistributor, tempoQueryFrontend, tempoQuerier))
 
 	// wait for 2 active ingesters
 	time.Sleep(1 * time.Second)
@@ -170,7 +171,7 @@ func TestMicroservices(t *testing.T) {
 			Value: "ACTIVE",
 		},
 	}
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(cortex_e2e.Equals(2), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
+	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
 
 	// Get port for the otlp receiver endpoint
 	c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
@@ -188,6 +189,7 @@ func TestMicroservices(t *testing.T) {
 	// ensure trace is created in ingester (trace_idle_time has passed)
 	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempoIngester3.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	// query an in-memory trace
 	queryAndAssertTrace(t, "http://"+tempoQueryFrontend.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
@@ -206,9 +208,11 @@ func TestMicroservices(t *testing.T) {
 
 	// test metrics
 	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Equals(2), "tempodb_blocklist_length"))
+	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
 	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(2), "tempodb_blocklist_length"))
+	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
+	require.NoError(t, tempoIngester3.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+	require.NoError(t, tempoIngester3.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
 	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_query_frontend_queries_total"))
 
 	// query trace - should fetch from backend

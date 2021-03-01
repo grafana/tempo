@@ -37,6 +37,18 @@ services:
     depends_on:
       - distributor # inverted relationship here to add delay for minio
 
+  ingester-2:
+    image: tempo:latest
+    command: "-target=ingester -config.file=/etc/tempo.yaml"
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "14268"  # jaeger ingest
+      - "3100"   # tempo
+      - "7946"
+    depends_on:
+      - distributor # inverted relationship here to add delay for minio
+
   minio:
     image: minio/minio:RELEASE.2020-07-27T18-37-02Z
     environment:
