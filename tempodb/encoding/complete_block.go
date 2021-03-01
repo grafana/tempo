@@ -121,7 +121,13 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 		return err
 	}
 
-	err = writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
+	indexWriter := c.encoding.newIndexWriter()
+	indexBytes, err := indexWriter.Write(c.records)
+	if err != nil {
+		return err
+	}
+
+	err = writeBlockMeta(ctx, w, c.meta, indexBytes, c.bloom)
 	if err != nil {
 		return err
 	}

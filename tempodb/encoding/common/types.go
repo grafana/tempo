@@ -68,3 +68,9 @@ type PageWriter interface {
 	// Complete must be called when the operation pagewriter is done.
 	Complete() error
 }
+
+// IndexWriter is used to write paged indexes
+type IndexWriter interface {
+	// Write returns a byte representation of the provided Records
+	Write([]*Record) ([]byte, error)
+}
