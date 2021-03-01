@@ -1,6 +1,6 @@
 module github.com/grafana/tempo
 
-go 1.15
+go 1.16
 
 require (
 	cloud.google.com/go/storage v1.12.0
@@ -16,16 +16,16 @@ require (
 	github.com/golang/protobuf v1.4.3
 	github.com/golang/snappy v0.0.3-0.20201103224600-674baa8c7fc3
 	github.com/google/uuid v1.1.2
-	github.com/gorilla/mux v1.7.4
+	github.com/gorilla/mux v1.8.0
 	github.com/grafana/loki v1.3.0
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v0.14.0
-	github.com/jaegertracing/jaeger v1.18.2-0.20200707061226-97d2319ff2be
+	github.com/hashicorp/go-plugin v1.3.0 // indirect
+	github.com/jaegertracing/jaeger v1.21.0
 	github.com/jsternberg/zap-logfmt v1.0.0
 	github.com/klauspost/compress v1.11.7
 	github.com/minio/minio-go/v7 v7.0.5
 	github.com/olekukonko/tablewriter v0.0.2
-	github.com/open-telemetry/opentelemetry-proto v0.4.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.3
 	github.com/pkg/errors v0.9.1
@@ -33,7 +33,6 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.15.0
 	github.com/prometheus/prometheus v1.8.2-0.20210124145330-b5dfa2414b9e
-	github.com/prometheus/prometheus/discovery/config v0.0.0-00010101000000-000000000000 // indirect
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
@@ -43,10 +42,10 @@ require (
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.22.5
-	go.opentelemetry.io/collector v0.6.1
+	go.opentelemetry.io/collector v0.16.0
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
-	go.uber.org/zap v1.15.0
+	go.uber.org/zap v1.16.0
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324
 	google.golang.org/api v0.36.0
 	google.golang.org/grpc v1.33.2
@@ -73,10 +72,6 @@ replace (
 	k8s.io/api => k8s.io/api v0.19.4
 	k8s.io/client-go => k8s.io/client-go v0.19.2
 )
-
-// opentelemtry collector requires older prometheus discovery config
-// copied locally because having issues referencing a subpackage any other way
-replace github.com/prometheus/prometheus/discovery/config => ./vendor-fix/github.com/prometheus/prometheus/discovery/config
 
 // Pin github.com/go-openapi versions to match Prometheus alertmanager to avoid
 // breaking changing affecting the alertmanager.

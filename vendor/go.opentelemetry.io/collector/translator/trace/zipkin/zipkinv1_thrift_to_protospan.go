@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,28 +18,24 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"net"
 
 	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
-	"github.com/pkg/errors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.opentelemetry.io/collector/consumer/consumerdata"
 	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 )
 
-// V1ThriftBatchToOCProto converts Zipkin v1 spans to OC Proto.
-func V1ThriftBatchToOCProto(zSpans []*zipkincore.Span) ([]consumerdata.TraceData, error) {
+// v1ThriftBatchToOCProto converts Zipkin v1 spans to OC Proto.
+func v1ThriftBatchToOCProto(zSpans []*zipkincore.Span) ([]consumerdata.TraceData, error) {
 	ocSpansAndParsedAnnotations := make([]ocSpanAndParsedAnnotations, 0, len(zSpans))
 	for _, zSpan := range zSpans {
-		ocSpan, parsedAnnotations, err := zipkinV1ThriftToOCSpan(zSpan)
-		if err != nil {
-			// error from internal package function, it already wraps the error to give better context.
-			return nil, err
-		}
+		ocSpan, parsedAnnotations := zipkinV1ThriftToOCSpan(zSpan)
 		ocSpansAndParsedAnnotations = append(ocSpansAndParsedAnnotations, ocSpanAndParsedAnnotations{
 			ocSpan:            ocSpan,
 			parsedAnnotations: parsedAnnotations,
@@ -49,7 +45,7 @@ func V1ThriftBatchToOCProto(zSpans []*zipkincore.Span) ([]consumerdata.TraceData
 	return zipkinToOCProtoBatch(ocSpansAndParsedAnnotations)
 }
 
-func zipkinV1ThriftToOCSpan(zSpan *zipkincore.Span) (*tracepb.Span, *annotationParseResult, error) {
+func zipkinV1ThriftToOCSpan(zSpan *zipkincore.Span) (*tracepb.Span, *annotationParseResult) {
 	traceIDHigh := int64(0)
 	if zSpan.TraceIDHigh != nil {
 		traceIDHigh = *zSpan.TraceIDHigh
@@ -64,7 +60,8 @@ func zipkinV1ThriftToOCSpan(zSpan *zipkincore.Span) (*tracepb.Span, *annotationP
 	spanID := tracetranslator.Int64ToByteSpanID(zSpan.ID)
 	var parentID []byte
 	if zSpan.ParentID != nil {
-		parentID = tracetranslator.Int64ToByteSpanID(*zSpan.ParentID)
+		parentIDBytes := tracetranslator.Int64ToByteSpanID(*zSpan.ParentID)
+		parentID = parentIDBytes[:]
 	}
 
 	parsedAnnotations := parseZipkinV1ThriftAnnotations(zSpan.Annotations)
@@ -73,7 +70,7 @@ func zipkinV1ThriftToOCSpan(zSpan *zipkincore.Span) (*tracepb.Span, *annotationP
 		parsedAnnotations.Endpoint.ServiceName = localComponent
 	}
 
-	var startTime, endTime *timestamp.Timestamp
+	var startTime, endTime *timestamppb.Timestamp
 	if zSpan.Timestamp == nil {
 		startTime = parsedAnnotations.EarlyAnnotationTime
 		endTime = parsedAnnotations.LateAnnotationTime
@@ -87,8 +84,8 @@ func zipkinV1ThriftToOCSpan(zSpan *zipkincore.Span) (*tracepb.Span, *annotationP
 	}
 
 	ocSpan := &tracepb.Span{
-		TraceId:      traceID,
-		SpanId:       spanID,
+		TraceId:      traceID[:],
+		SpanId:       spanID[:],
 		ParentSpanId: parentID,
 		Status:       ocStatus,
 		Kind:         parsedAnnotations.Kind,
@@ -104,7 +101,7 @@ func zipkinV1ThriftToOCSpan(zSpan *zipkincore.Span) (*tracepb.Span, *annotationP
 
 	setSpanKind(ocSpan, parsedAnnotations.Kind, parsedAnnotations.ExtendedKind)
 
-	return ocSpan, parsedAnnotations, nil
+	return ocSpan, parsedAnnotations
 }
 
 func parseZipkinV1ThriftAnnotations(ztAnnotations []*zipkincore.Annotation) *annotationParseResult {

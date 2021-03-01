@@ -16,7 +16,7 @@ steps:
 
 # binaries
 - name: build-tempo-binaries
-  image: golang:1.15.3-alpine
+  image: golang:1.16.0-alpine
   commands:
   - apk add make git
   - COMPONENT=tempo GOARCH=amd64 make exe
@@ -78,7 +78,7 @@ steps:
 
 # binaries
 - name: build-tempo-binaries
-  image: golang:1.15.3-alpine
+  image: golang:1.16.0-alpine
   commands:
   - apk add make git
   - COMPONENT=tempo GOARCH=arm64 make exe

@@ -13,7 +13,7 @@ import (
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/gogo/status"
-	opentelemetry_proto_trace_v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
+
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -26,6 +26,7 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 )
@@ -305,7 +306,7 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 	expectedSpansPerTrace := spanCount / expectedTracesPerBatch
 
 	requestsByTrace := make(map[uint32]*tempopb.PushRequest)
-	spansByILS := make(map[string]*opentelemetry_proto_trace_v1.InstrumentationLibrarySpans)
+	spansByILS := make(map[string]*v1.InstrumentationLibrarySpans)
 
 	for _, ils := range req.Batch.InstrumentationLibrarySpans {
 		for _, span := range ils.Spans {
@@ -320,9 +321,9 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 			}
 			existingILS, ok := spansByILS[ilsKey]
 			if !ok {
-				existingILS = &opentelemetry_proto_trace_v1.InstrumentationLibrarySpans{
+				existingILS = &v1.InstrumentationLibrarySpans{
 					InstrumentationLibrary: ils.InstrumentationLibrary,
-					Spans:                  make([]*opentelemetry_proto_trace_v1.Span, 0, expectedSpansPerTrace),
+					Spans:                  make([]*v1.Span, 0, expectedSpansPerTrace),
 				}
 				spansByILS[ilsKey] = existingILS
 			}
@@ -336,8 +337,8 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 			existingReq, ok := requestsByTrace[traceKey]
 			if !ok {
 				existingReq = &tempopb.PushRequest{
-					Batch: &opentelemetry_proto_trace_v1.ResourceSpans{
-						InstrumentationLibrarySpans: make([]*opentelemetry_proto_trace_v1.InstrumentationLibrarySpans, 0, len(req.Batch.InstrumentationLibrarySpans)), // assume most spans belong to the same trace
+					Batch: &v1.ResourceSpans{
+						InstrumentationLibrarySpans: make([]*v1.InstrumentationLibrarySpans, 0, len(req.Batch.InstrumentationLibrarySpans)), // assume most spans belong to the same trace
 						Resource:                    req.Batch.Resource,
 					},
 				}

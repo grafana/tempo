@@ -5,10 +5,10 @@ Tempo uses GitHub to manage reviews of pull requests:
 - If you have a trivial fix or improvement, go ahead and create a pull request.
 - If you plan to do something more involved, discuss your ideas on the relevant GitHub issue.
 
-## Dependency management is weird.  Please read!
+## Dependency management
 
 We use [Go modules](https://golang.org/cmd/go/#hdr-Modules__module_versions__and_more) to manage dependencies on external packages.
-This requires a working Go environment with version 1.15 or greater and git installed.
+This requires a working Go environment with version 1.16 or greater and git installed.
 
 To add or update a new dependency, use the `go get` command:
 
@@ -20,14 +20,11 @@ go get example.com/some/module/pkg
 go get example.com/some/module/pkg@vX.Y.Z
 ```
 
-When updating dependencies it is important not to run the standard go modules commands due to the way that
-OpenTelemetry protos have been vendored.  For now, after making dependency changes run
+Before submitting please run the following to verify that all dependencies and proto defintions are consistent.
 
 ```bash
 make vendor-check
 ```
-
-We are hoping to improve this in the future.
 
 ### Project Structure
 

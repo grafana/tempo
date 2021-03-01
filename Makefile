@@ -119,48 +119,61 @@ ifndef COMPONENT
 endif
 
 ### Dependencies
-
-# Copied from OpenTelemetry Collector Makefile
-DOCKER_PROTOBUF ?= otel/build-protobuf:0.1.0
-PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD}/$(PROTO_INTERMEDIATE_DIR) ${DOCKER_PROTOBUF} --proto_path=${PWD}
-PROTO_INCLUDES := -I./opentelemetry-proto/ -Ipkg/tempopb/ -I./
+DOCKER_PROTOBUF ?= otel/build-protobuf:0.2.1
+PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
+PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
+PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
+PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
 
 .PHONY: gen-proto
-gen-proto:
-	git submodule init
-	git submodule update
-	rm -rf ./vendor/github.com/open-telemetry/opentelemetry-proto
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/common/v1/common.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/resource/v1/resource.proto --gogofaster_out=plugins=grpc:./vendor
-	# protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/logs/v1/logs.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/metrics/v1/metrics.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/trace/v1/trace.proto --gogofaster_out=plugins=grpc:./vendor
-	# protoc -I opentelemetry-proto/ opentelemetry-proto/opentelemetry/proto/collector/logs/v1/logs_service.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service.proto \
-	  --grpc-gateway_out=logtostderr=true,grpc_api_configuration=opentelemetry-proto/opentelemetry/proto/collector/metrics/v1/metrics_service_http.yaml:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto --gogofaster_out=plugins=grpc:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service.proto \
-	  --grpc-gateway_out=logtostderr=true,grpc_api_configuration=opentelemetry-proto/opentelemetry/proto/collector/trace/v1/trace_service_http.yaml:./vendor
-	$(PROTOC) $(PROTO_INCLUDES) pkg/tempopb/tempo.proto --gogofaster_out=plugins=grpc:pkg/tempopb
-
-.PHONY: vendor-dependencies
-vendor-dependencies:
-	go mod vendor
-	go mod tidy
-	# ignore log.go b/c the proto version used by v0.6.1 doesn't actually have logs proto.
-	find . | grep 'vendor/go.opentelemetry.io.*go$\' | grep -v -e 'log.go$\' | xargs -L 1 sed -i $(SED_OPTS) 's+go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/+github.com/open-telemetry/opentelemetry-proto/gen/go/+g'
-	$(MAKE) gen-proto
-
-
-.PHONE: clear-protos
-clear-protos:
+gen-proto: 
+	@echo --
+	@echo -- Deleting existing
+	@echo --
 	rm -rf opentelemetry-proto
+	rm -rf $(PROTO_INTERMEDIATE_DIR)
+	find pkg/tempopb -name *.pb.go | xargs -L 1 -r rm
+	find pkg/tempopb -name *.proto | grep -v tempo.proto | xargs -L 1 -r rm 
 
-### Check vendored files
+	@echo --
+	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
+	@echo --
+	git submodule update --init
+	mkdir -p $(PROTO_INTERMEDIATE_DIR)
+	cp -R opentelemetry-proto/opentelemetry/proto/* $(PROTO_INTERMEDIATE_DIR)
+
+	@echo --
+	@echo -- Editing proto
+	@echo --
+
+	@# Update package and types from opentelemetry.proto.* -> tempopb.*
+	@# giving final types like "tempopb.common.v1.InstrumentationLibrary" which
+	@# will not conflict with other usages of opentelemetry proto in downstream apps.
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+ opentelemetry.proto+ tempopb+g'
+
+	@# Update go_package
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+github.com/open-telemetry/opentelemetry-proto/gen/go+github.com/grafana/tempo/pkg/tempopb+g'
+
+	@# Update import paths
+	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+import "opentelemetry/proto/+import "+g'
+
+	@echo --
+	@echo -- Gen proto -- 
+	@echo --
+	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto,./pkg/tempopb/)
+	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/tempopb/)
+	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
+	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
+
+	rm -rf $(PROTO_INTERMEDIATE_DIR)
+
+
+### Check vendored files and generated proto
 .PHONY: vendor-check
-vendor-check: clear-protos vendor-dependencies
-	git diff --exit-code
+vendor-check: gen-proto
+	go mod vendor
+	go mod tidy -e
+	git diff --exit-code -- go.sum go.mod vendor/ pkg/tempopb/
 
 ### Release (intended to be used in the .github/workflows/images.yml)
 $(GORELEASER):

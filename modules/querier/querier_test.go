@@ -12,7 +12,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
-	v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

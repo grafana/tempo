@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,20 +15,36 @@
 package internaldata
 
 import (
+	"time"
+
 	occommon "github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1"
 	ocresource "github.com/census-instrumentation/opencensus-proto/gen-go/resource/v1"
-	"github.com/golang/protobuf/ptypes"
 
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/translator/conventions"
 )
 
+var ocLangCodeToLangMap = getOCLangCodeToLangMap()
+
+func getOCLangCodeToLangMap() map[occommon.LibraryInfo_Language]string {
+	mappings := make(map[occommon.LibraryInfo_Language]string)
+	mappings[1] = conventions.AttributeSDKLangValueCPP
+	mappings[2] = conventions.AttributeSDKLangValueDotNET
+	mappings[3] = conventions.AttributeSDKLangValueErlang
+	mappings[4] = conventions.AttributeSDKLangValueGo
+	mappings[5] = conventions.AttributeSDKLangValueJava
+	mappings[6] = conventions.AttributeSDKLangValueNodeJS
+	mappings[7] = conventions.AttributeSDKLangValuePHP
+	mappings[8] = conventions.AttributeSDKLangValuePython
+	mappings[9] = conventions.AttributeSDKLangValueRuby
+	mappings[10] = conventions.AttributeSDKLangValueWebJS
+	return mappings
+}
+
 func ocNodeResourceToInternal(ocNode *occommon.Node, ocResource *ocresource.Resource, dest pdata.Resource) {
 	if ocNode == nil && ocResource == nil {
 		return
 	}
-
-	dest.InitEmpty()
 
 	// Number of special fields in OC that will be translated to Attributes
 	const serviceInfoAttrCount = 1     // Number of Node.ServiceInfo fields.
@@ -79,10 +95,10 @@ func ocNodeResourceToInternal(ocNode *occommon.Node, ocResource *ocresource.Reso
 		}
 		if ocNode.Identifier != nil {
 			if ocNode.Identifier.StartTimestamp != nil {
-				attrs.UpsertString(conventions.OCAttributeProcessStartTime, ptypes.TimestampString(ocNode.Identifier.StartTimestamp))
+				attrs.UpsertString(conventions.OCAttributeProcessStartTime, ocNode.Identifier.StartTimestamp.AsTime().Format(time.RFC3339Nano))
 			}
 			if ocNode.Identifier.HostName != "" {
-				attrs.UpsertString(conventions.AttributeHostHostname, ocNode.Identifier.HostName)
+				attrs.UpsertString(conventions.AttributeHostName, ocNode.Identifier.HostName)
 			}
 			if ocNode.Identifier.Pid != 0 {
 				attrs.UpsertInt(conventions.OCAttributeProcessID, int64(ocNode.Identifier.Pid))
@@ -96,7 +112,9 @@ func ocNodeResourceToInternal(ocNode *occommon.Node, ocResource *ocresource.Reso
 				attrs.UpsertString(conventions.OCAttributeExporterVersion, ocNode.LibraryInfo.ExporterVersion)
 			}
 			if ocNode.LibraryInfo.Language != occommon.LibraryInfo_LANGUAGE_UNSPECIFIED {
-				attrs.UpsertString(conventions.AttributeTelemetrySDKLanguage, ocNode.LibraryInfo.Language.String())
+				if str, ok := ocLangCodeToLangMap[ocNode.LibraryInfo.Language]; ok {
+					attrs.UpsertString(conventions.AttributeTelemetrySDKLanguage, str)
+				}
 			}
 		}
 	}
