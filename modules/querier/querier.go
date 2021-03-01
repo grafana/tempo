@@ -149,8 +149,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	var completeTrace *tempopb.Trace
 	var spanCount, spanCountTotal int
-	if req.QueryIngesters {
-		replicationSet, err := q.ring.GetAllHealthy(ring.Read)
+	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
+		replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 		if err != nil {
 			return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
 		}
@@ -176,7 +176,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		span.LogFields(ot_log.String("msg", "done searching ingesters"),
 			ot_log.Bool("found", completeTrace != nil),
 			ot_log.Int("spanCountTotal", spanCountTotal))
-	} else {
+	}
+
+	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
 		partialTraces, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 		if err != nil {

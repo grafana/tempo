@@ -19,7 +19,7 @@ message TraceByIDRequest {
   bytes traceID = 1;
   string blockStart = 2;
   string blockEnd = 3;
-  bool queryIngesters = 4;
+  string queryMode = 4;
 }
 
 message TraceByIDResponse {
