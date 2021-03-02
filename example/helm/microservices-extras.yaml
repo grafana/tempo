@@ -674,7 +674,7 @@ spec:
       containers:
       - env:
         - name: JAEGER_COLLECTOR_URL
-          value: http://tempo-tempo-distributed:14268
+          value: http://tempo-tempo-distributed-distributor:14268
         - name: TOPOLOGY_FILE
           value: /conf/load-generator.json
         image: omnition/synthetic-load-generator:1.0.25

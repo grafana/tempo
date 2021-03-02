@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -53,16 +53,18 @@ import (
 	jaegertranslator "go.opentelemetry.io/collector/translator/trace/jaeger"
 )
 
-// Configuration defines the behavior and the ports that
+// configuration defines the behavior and the ports that
 // the Jaeger receiver will use.
-type Configuration struct {
+type configuration struct {
 	CollectorThriftPort  int
 	CollectorHTTPPort    int
 	CollectorGRPCPort    int
 	CollectorGRPCOptions []grpc.ServerOption
 
 	AgentCompactThriftPort       int
+	AgentCompactThriftConfig     ServerConfigUDP
 	AgentBinaryThriftPort        int
+	AgentBinaryThriftConfig      ServerConfigUDP
 	AgentHTTPPort                int
 	RemoteSamplingClientSettings configgrpc.GRPCClientSettings
 	RemoteSamplingStrategyFile   string
@@ -74,13 +76,13 @@ type jReceiver struct {
 	// mu protects the fields of this type
 	mu sync.Mutex
 
-	nextConsumer consumer.TraceConsumer
+	nextConsumer consumer.TracesConsumer
 	instanceName string
 
 	startOnce sync.Once
 	stopOnce  sync.Once
 
-	config *Configuration
+	config *configuration
 
 	grpc            *grpc.Server
 	collectorServer *http.Server
@@ -93,14 +95,6 @@ type jReceiver struct {
 }
 
 const (
-	defaultAgentQueueSize     = 1000
-	defaultAgentMaxPacketSize = 65000
-	defaultAgentServerWorkers = 10
-
-	// Legacy metrics receiver name tag values
-	collectorReceiverTagValue = "jaeger-collector"
-	agentReceiverTagValue     = "jaeger-agent"
-
 	agentTransportBinary   = "udp_thrift_binary"
 	agentTransportCompact  = "udp_thrift_compact"
 	collectorHTTPTransport = "collector_http"
@@ -117,20 +111,20 @@ var (
 	}
 )
 
-// New creates a TraceReceiver that receives traffic as a Jaeger collector, and
+// newJaegerReceiver creates a TracesReceiver that receives traffic as a Jaeger collector, and
 // also as a Jaeger agent.
-func New(
+func newJaegerReceiver(
 	instanceName string,
-	config *Configuration,
-	nextConsumer consumer.TraceConsumer,
+	config *configuration,
+	nextConsumer consumer.TracesConsumer,
 	params component.ReceiverCreateParams,
-) (component.TraceReceiver, error) {
+) *jReceiver {
 	return &jReceiver{
 		config:       config,
 		nextConsumer: nextConsumer,
 		instanceName: instanceName,
 		logger:       params.Logger,
-	}, nil
+	}
 }
 
 func (jr *jReceiver) agentCompactThriftAddr() string {
@@ -200,12 +194,10 @@ func (jr *jReceiver) Start(_ context.Context, host component.Host) error {
 	var err = componenterror.ErrAlreadyStarted
 	jr.startOnce.Do(func() {
 		if err = jr.startAgent(host); err != nil && err != componenterror.ErrAlreadyStarted {
-			jr.stopTraceReceptionLocked()
 			return
 		}
 
 		if err = jr.startCollector(host); err != nil && err != componenterror.ErrAlreadyStarted {
-			jr.stopTraceReceptionLocked()
 			return
 		}
 
@@ -215,15 +207,10 @@ func (jr *jReceiver) Start(_ context.Context, host component.Host) error {
 }
 
 func (jr *jReceiver) Shutdown(context.Context) error {
-	jr.mu.Lock()
-	defer jr.mu.Unlock()
-
-	return jr.stopTraceReceptionLocked()
-}
-
-func (jr *jReceiver) stopTraceReceptionLocked() error {
 	var err = componenterror.ErrAlreadyStopped
 	jr.stopOnce.Do(func() {
+		jr.mu.Lock()
+		defer jr.mu.Unlock()
 		var errs []error
 
 		if jr.agentServer != nil {
@@ -246,18 +233,13 @@ func (jr *jReceiver) stopTraceReceptionLocked() error {
 			jr.grpc.Stop()
 			jr.grpc = nil
 		}
-		if len(errs) == 0 {
-			err = nil
-			return
-		}
-		// Otherwise combine all these errors
 		err = componenterror.CombineErrors(errs)
 	})
 
 	return err
 }
 
-func consumeTraces(ctx context.Context, batch *jaeger.Batch, consumer consumer.TraceConsumer) (int, error) {
+func consumeTraces(ctx context.Context, batch *jaeger.Batch, consumer consumer.TracesConsumer) (int, error) {
 	if batch == nil {
 		return 0, nil
 	}
@@ -272,7 +254,7 @@ var _ configmanager.ClientConfigManager = (*jReceiver)(nil)
 type agentHandler struct {
 	name         string
 	transport    string
-	nextConsumer consumer.TraceConsumer
+	nextConsumer consumer.TracesConsumer
 }
 
 // EmitZipkinBatch is unsupported agent's
@@ -283,7 +265,7 @@ func (h *agentHandler) EmitZipkinBatch(context.Context, []*zipkincore.Span) (err
 // EmitBatch implements thrift-gen/agent/Agent and it forwards
 // Jaeger spans received by the Jaeger agent processor.
 func (h *agentHandler) EmitBatch(ctx context.Context, batch *jaeger.Batch) error {
-	ctx = obsreport.ReceiverContext(ctx, h.name, h.transport, agentReceiverTagValue)
+	ctx = obsreport.ReceiverContext(ctx, h.name, h.transport)
 	ctx = obsreport.StartTraceDataReceiveOp(ctx, h.name, h.transport)
 
 	numSpans, err := consumeTraces(ctx, batch, h.nextConsumer)
@@ -311,8 +293,7 @@ func (jr *jReceiver) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) 
 		ctx = client.NewContext(ctx, c)
 	}
 
-	ctx = obsreport.ReceiverContext(
-		ctx, jr.instanceName, grpcTransport, collectorReceiverTagValue)
+	ctx = obsreport.ReceiverContext(ctx, jr.instanceName, grpcTransport)
 	ctx = obsreport.StartTraceDataReceiveOp(ctx, jr.instanceName, grpcTransport)
 
 	td := jaegertranslator.ProtoBatchToInternalTraces(r.GetBatch())
@@ -337,7 +318,7 @@ func (jr *jReceiver) startAgent(_ component.Host) error {
 			transport:    agentTransportBinary,
 			nextConsumer: jr.nextConsumer,
 		}
-		processor, err := jr.buildProcessor(jr.agentBinaryThriftAddr(), apacheThrift.NewTBinaryProtocolFactoryDefault(), h)
+		processor, err := jr.buildProcessor(jr.agentBinaryThriftAddr(), jr.config.AgentBinaryThriftConfig, apacheThrift.NewTBinaryProtocolFactoryDefault(), h)
 		if err != nil {
 			return err
 		}
@@ -350,7 +331,7 @@ func (jr *jReceiver) startAgent(_ component.Host) error {
 			transport:    agentTransportCompact,
 			nextConsumer: jr.nextConsumer,
 		}
-		processor, err := jr.buildProcessor(jr.agentCompactThriftAddr(), apacheThrift.NewTCompactProtocolFactory(), h)
+		processor, err := jr.buildProcessor(jr.agentCompactThriftAddr(), jr.config.AgentCompactThriftConfig, apacheThrift.NewTCompactProtocolFactory(), h)
 		if err != nil {
 			return err
 		}
@@ -390,17 +371,22 @@ func (jr *jReceiver) startAgent(_ component.Host) error {
 	return nil
 }
 
-func (jr *jReceiver) buildProcessor(address string, factory apacheThrift.TProtocolFactory, a agent.Agent) (processors.Processor, error) {
+func (jr *jReceiver) buildProcessor(address string, cfg ServerConfigUDP, factory apacheThrift.TProtocolFactory, a agent.Agent) (processors.Processor, error) {
 	handler := agent.NewAgentProcessor(a)
 	transport, err := thriftudp.NewTUDPServerTransport(address)
 	if err != nil {
 		return nil, err
 	}
-	server, err := servers.NewTBufferedServer(transport, defaultAgentQueueSize, defaultAgentMaxPacketSize, metrics.NullFactory)
+	if cfg.SocketBufferSize > 0 {
+		if err = transport.SetSocketBufferSize(cfg.SocketBufferSize); err != nil {
+			return nil, err
+		}
+	}
+	server, err := servers.NewTBufferedServer(transport, cfg.QueueSize, cfg.MaxPacketSize, metrics.NullFactory)
 	if err != nil {
 		return nil, err
 	}
-	processor, err := processors.NewThriftProcessor(server, defaultAgentServerWorkers, metrics.NullFactory, factory, handler, jr.logger)
+	processor, err := processors.NewThriftProcessor(server, cfg.Workers, metrics.NullFactory, factory, handler, jr.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -449,10 +435,8 @@ func (jr *jReceiver) HandleThriftHTTPBatch(w http.ResponseWriter, r *http.Reques
 		ctx = client.NewContext(ctx, c)
 	}
 
-	ctx = obsreport.ReceiverContext(
-		ctx, jr.instanceName, collectorHTTPTransport, collectorReceiverTagValue)
-	ctx = obsreport.StartTraceDataReceiveOp(
-		ctx, jr.instanceName, collectorHTTPTransport)
+	ctx = obsreport.ReceiverContext(ctx, jr.instanceName, collectorHTTPTransport)
+	ctx = obsreport.StartTraceDataReceiveOp(ctx, jr.instanceName, collectorHTTPTransport)
 
 	batch, hErr := jr.decodeThriftHTTPBody(r)
 	if hErr != nil {

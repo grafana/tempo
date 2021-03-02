@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,16 +27,18 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumerdata"
 	"go.opentelemetry.io/collector/obsreport"
+	"go.opentelemetry.io/collector/translator/internaldata"
 )
 
 // Receiver is the type used to handle metrics from OpenCensus exporters.
 type Receiver struct {
+	agentmetricspb.UnimplementedMetricsServiceServer
 	instanceName string
-	nextConsumer consumer.MetricsConsumerOld
+	nextConsumer consumer.MetricsConsumer
 }
 
 // New creates a new ocmetrics.Receiver reference.
-func New(instanceName string, nextConsumer consumer.MetricsConsumerOld) (*Receiver, error) {
+func New(instanceName string, nextConsumer consumer.MetricsConsumer) (*Receiver, error) {
 	if nextConsumer == nil {
 		return nil, componenterror.ErrNilNextConsumer
 	}
@@ -60,8 +62,7 @@ const (
 // Export is the gRPC method that receives streamed metrics from
 // OpenCensus-metricproto compatible libraries/applications.
 func (ocr *Receiver) Export(mes agentmetricspb.MetricsService_ExportServer) error {
-	longLivedRPCCtx := obsreport.ReceiverContext(
-		mes.Context(), ocr.instanceName, receiverTransport, receiverTagValue)
+	longLivedRPCCtx := obsreport.ReceiverContext(mes.Context(), ocr.instanceName, receiverTransport)
 
 	// Retrieve the first message. It MUST have a non-nil Node.
 	recv, err := mes.Recv()
@@ -145,14 +146,13 @@ func (ocr *Receiver) sendToNextConsumer(longLivedRPCCtx context.Context, md cons
 
 	var consumerErr error
 	if len(md.Metrics) > 0 {
-		consumerErr = ocr.nextConsumer.ConsumeMetricsData(ctx, md)
+		consumerErr = ocr.nextConsumer.ConsumeMetrics(ctx, internaldata.OCToMetrics(md))
 	}
 
 	obsreport.EndMetricsReceiveOp(
 		ctx,
 		receiverDataFormat,
 		numPoints,
-		numTimeSeries,
 		consumerErr)
 
 	return consumerErr

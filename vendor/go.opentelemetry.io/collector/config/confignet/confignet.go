@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,4 +38,22 @@ func (na *NetAddr) Dial() (net.Conn, error) {
 
 func (na *NetAddr) Listen() (net.Listener, error) {
 	return net.Listen(na.Transport, na.Endpoint)
+}
+
+// TCPAddr represents a tcp endpoint address.
+type TCPAddr struct {
+	// Endpoint configures the address for this network connection.
+	// The address has the form "host:port". The host must be a literal IP address, or a host name that can be
+	// resolved to IP addresses. The port must be a literal port number or a service name.
+	// If the host is a literal IPv6 address it must be enclosed in square brackets, as in "[2001:db8::1]:80" or
+	// "[fe80::1%zone]:80". The zone specifies the scope of the literal IPv6 address as defined in RFC 4007.
+	Endpoint string `mapstructure:"endpoint"`
+}
+
+func (na *TCPAddr) Dial() (net.Conn, error) {
+	return net.Dial("tcp", na.Endpoint)
+}
+
+func (na *TCPAddr) Listen() (net.Listener, error) {
+	return net.Listen("tcp", na.Endpoint)
 }
