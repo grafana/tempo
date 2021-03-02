@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,11 +33,11 @@ the corresponding common settings struct (the easiest approach is to embed the c
 
 // Config defines the configuration for the various elements of collector or agent.
 type Config struct {
-	Receivers  Receivers
-	Exporters  Exporters
-	Processors Processors
-	Extensions Extensions
-	Service    Service
+	Receivers
+	Exporters
+	Processors
+	Extensions
+	Service
 }
 
 // Type is the component type as it is used in the config.
@@ -46,7 +46,6 @@ type Type string
 // NamedEntity is a configuration entity that has a type and a name.
 type NamedEntity interface {
 	Type() Type
-	SetType(typeStr Type)
 	Name() string
 	SetName(name string)
 }
@@ -151,11 +150,6 @@ func (rs *ReceiverSettings) Type() Type {
 	return rs.TypeVal
 }
 
-// SetType sets the receiver type.
-func (rs *ReceiverSettings) SetType(typeStr Type) {
-	rs.TypeVal = typeStr
-}
-
 // ExporterSettings defines common settings for an exporter configuration.
 // Specific exporters can embed this struct and extend it with more fields if needed.
 type ExporterSettings struct {
@@ -180,11 +174,6 @@ func (es *ExporterSettings) Type() Type {
 	return es.TypeVal
 }
 
-// SetType sets the exporter type.
-func (es *ExporterSettings) SetType(typeStr Type) {
-	es.TypeVal = typeStr
-}
-
 // ProcessorSettings defines common settings for a processor configuration.
 // Specific processors can embed this struct and extend it with more fields if needed.
 type ProcessorSettings struct {
@@ -205,11 +194,6 @@ func (proc *ProcessorSettings) SetName(name string) {
 // Type sets the processor type.
 func (proc *ProcessorSettings) Type() Type {
 	return proc.TypeVal
-}
-
-// SetType sets the processor type.
-func (proc *ProcessorSettings) SetType(typeStr Type) {
-	proc.TypeVal = typeStr
 }
 
 var _ Processor = (*ProcessorSettings)(nil)
@@ -234,11 +218,6 @@ func (ext *ExtensionSettings) SetName(name string) {
 // Type sets the extension type.
 func (ext *ExtensionSettings) Type() Type {
 	return ext.TypeVal
-}
-
-// SetType sets the extension type.
-func (ext *ExtensionSettings) SetType(typeStr Type) {
-	ext.TypeVal = typeStr
 }
 
 var _ Extension = (*ExtensionSettings)(nil)

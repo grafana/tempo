@@ -19,10 +19,13 @@ import (
 )
 
 const (
-	TraceIDVar        = "traceID"
-	BlockStartKey     = "blockStart"
-	BlockEndKey       = "blockEnd"
-	QueryIngestersKey = "queryIngesters"
+	BlockStartKey = "blockStart"
+	BlockEndKey   = "blockEnd"
+	QueryModeKey  = "mode"
+
+	QueryModeIngesters = "ingesters"
+	QueryModeBlocks    = "blocks"
+	QueryModeAll       = "all"
 )
 
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
@@ -41,7 +44,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryIngesters, err := validateAndSanitizeRequest(r)
+	blockStart, blockEnd, queryMode, err := validateAndSanitizeRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -50,13 +53,13 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		ot_log.String("msg", "validated request"),
 		ot_log.String("blockStart", blockStart),
 		ot_log.String("blockEnd", blockEnd),
-		ot_log.Bool("queryIngesters", queryIngesters))
+		ot_log.String("queryMode", queryMode))
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-		TraceID:        byteID,
-		BlockStart:     blockStart,
-		BlockEnd:       blockEnd,
-		QueryIngesters: queryIngesters,
+		TraceID:    byteID,
+		BlockStart: blockStart,
+		BlockEnd:   blockEnd,
+		QueryMode:  queryMode,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -92,22 +95,29 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// return values are (valid, blockStart, blockEnd, queryIngesters)
-func validateAndSanitizeRequest(r *http.Request) (string, string, bool, error) {
-	// get parameter values
-	q := r.URL.Query().Get(QueryIngestersKey)
+// return values are (blockStart, blockEnd, queryMode, error)
+func validateAndSanitizeRequest(r *http.Request) (string, string, string, error) {
+	q := r.URL.Query().Get(QueryModeKey)
+
+	// validate queryMode. it should either be empty or one of (QueryModeIngesters|QueryModeBlocks|QueryModeAll)
+	var queryMode string
+	if len(q) == 0 || q == QueryModeAll {
+		queryMode = QueryModeAll
+	} else if q == QueryModeIngesters {
+		queryMode = QueryModeIngesters
+	} else if q == QueryModeBlocks {
+		queryMode = QueryModeBlocks
+	} else {
+		return "", "", "", fmt.Errorf("invalid value for mode %s", q)
+	}
+
+	// no need to validate/sanitize other parameters if queryMode == QueryModeIngesters
+	if queryMode == QueryModeIngesters {
+		return "", "", queryMode, nil
+	}
+
 	start := r.URL.Query().Get(BlockStartKey)
 	end := r.URL.Query().Get(BlockEndKey)
-
-	// validate queryIngesters. it should either be empty or one of (true|false)
-	var queryIngesters bool
-	if len(q) == 0 || q == "true" {
-		queryIngesters = true
-	} else if q == "false" {
-		queryIngesters = false
-	} else {
-		return "", "", false, fmt.Errorf("invalid value for queryIngesters %s", q)
-	}
 
 	// validate start. it should either be empty or a valid uuid
 	if len(start) == 0 {
@@ -115,7 +125,7 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, bool, error) {
 	} else {
 		_, err := uuid.Parse(start)
 		if err != nil {
-			return "", "", false, errors.Wrap(err, "invalid value for blockStart")
+			return "", "", "", errors.Wrap(err, "invalid value for blockStart")
 		}
 	}
 
@@ -125,9 +135,9 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, bool, error) {
 	} else {
 		_, err := uuid.Parse(end)
 		if err != nil {
-			return "", "", false, errors.Wrap(err, "invalid value for blockEnd")
+			return "", "", "", errors.Wrap(err, "invalid value for blockEnd")
 		}
 	}
 
-	return start, end, queryIngesters, nil
+	return start, end, queryMode, nil
 }

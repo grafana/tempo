@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 	"github.com/hashicorp/go-hclog"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	jaeger_config "github.com/uber/jaeger-client-go/config"
@@ -25,8 +26,6 @@ func main() {
 	var configPath string
 	flag.StringVar(&configPath, "config", "", "A path to the plugin's configuration file")
 	flag.Parse()
-
-	logger.Error(configPath)
 
 	v := viper.New()
 	v.AutomaticEnv()
@@ -51,7 +50,10 @@ func main() {
 	cfg.InitFromViper(v)
 
 	backend := tempo.New(cfg)
-	grpc.Serve(&plugin{backend: backend})
+	plugin := &plugin{backend: backend}
+	grpc.Serve(&shared.PluginServices{
+		Store: plugin,
+	})
 }
 
 type plugin struct {

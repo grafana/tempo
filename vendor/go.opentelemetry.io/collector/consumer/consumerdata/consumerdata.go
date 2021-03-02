@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@ import (
 )
 
 // MetricsData is a struct that groups proto metrics with a unique node and a resource.
+// Deprecated: use pdata.Metrics instead.
 type MetricsData struct {
 	Node     *commonpb.Node
 	Resource *resourcepb.Resource
@@ -30,6 +31,7 @@ type MetricsData struct {
 }
 
 // TraceData is a struct that groups proto spans with a unique node and a resource.
+// Deprecated: use pdata.Traces instead.
 type TraceData struct {
 	Node         *commonpb.Node
 	Resource     *resourcepb.Resource

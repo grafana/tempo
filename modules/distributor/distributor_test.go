@@ -13,9 +13,9 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/gogo/status"
-	v1_common "github.com/open-telemetry/opentelemetry-proto/gen/go/common/v1"
-	v1_resource "github.com/open-telemetry/opentelemetry-proto/gen/go/resource/v1"
-	v1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"

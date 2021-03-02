@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//       http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -37,6 +38,10 @@ const (
 	protoGRPC          = "grpc"
 	protoHTTP          = "http"
 	protocolsFieldName = "protocols"
+
+	defaultGRPCEndpoint = "0.0.0.0:4317"
+	defaultHTTPEndpoint = "0.0.0.0:55681"
+	legacyGRPCEndpoint  = "0.0.0.0:55680"
 )
 
 func NewFactory() component.ReceiverFactory {
@@ -45,6 +50,7 @@ func NewFactory() component.ReceiverFactory {
 		createDefaultConfig,
 		receiverhelper.WithTraces(createTraceReceiver),
 		receiverhelper.WithMetrics(createMetricsReceiver),
+		receiverhelper.WithLogs(createLogReceiver),
 		receiverhelper.WithCustomUnmarshaler(customUnmarshaler))
 }
 
@@ -58,14 +64,14 @@ func createDefaultConfig() configmodels.Receiver {
 		Protocols: Protocols{
 			GRPC: &configgrpc.GRPCServerSettings{
 				NetAddr: confignet.NetAddr{
-					Endpoint:  "0.0.0.0:55680",
+					Endpoint:  defaultGRPCEndpoint,
 					Transport: "tcp",
 				},
 				// We almost write 0 bytes, so no need to tune WriteBufferSize.
 				ReadBufferSize: 512 * 1024,
 			},
 			HTTP: &confighttp.HTTPServerSettings{
-				Endpoint: "0.0.0.0:55681",
+				Endpoint: defaultHTTPEndpoint,
 			},
 		},
 	}
@@ -113,14 +119,14 @@ func customUnmarshaler(componentViperSection *viper.Viper, intoCfg interface{}) 
 	return nil
 }
 
-// CreateTraceReceiver creates a  trace receiver based on provided config.
+// CreateTracesReceiver creates a  trace receiver based on provided config.
 func createTraceReceiver(
 	ctx context.Context,
-	_ component.ReceiverCreateParams,
+	params component.ReceiverCreateParams,
 	cfg configmodels.Receiver,
-	nextConsumer consumer.TraceConsumer,
-) (component.TraceReceiver, error) {
-	r, err := createReceiver(cfg)
+	nextConsumer consumer.TracesConsumer,
+) (component.TracesReceiver, error) {
+	r, err := createReceiver(cfg, params.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -133,11 +139,11 @@ func createTraceReceiver(
 // CreateMetricsReceiver creates a metrics receiver based on provided config.
 func createMetricsReceiver(
 	ctx context.Context,
-	_ component.ReceiverCreateParams,
+	params component.ReceiverCreateParams,
 	cfg configmodels.Receiver,
 	consumer consumer.MetricsConsumer,
 ) (component.MetricsReceiver, error) {
-	r, err := createReceiver(cfg)
+	r, err := createReceiver(cfg, params.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +153,24 @@ func createMetricsReceiver(
 	return r, nil
 }
 
-func createReceiver(cfg configmodels.Receiver) (*Receiver, error) {
+// CreateLogReceiver creates a log receiver based on provided config.
+func createLogReceiver(
+	ctx context.Context,
+	params component.ReceiverCreateParams,
+	cfg configmodels.Receiver,
+	consumer consumer.LogsConsumer,
+) (component.LogsReceiver, error) {
+	r, err := createReceiver(cfg, params.Logger)
+	if err != nil {
+		return nil, err
+	}
+	if err = r.registerLogsConsumer(ctx, consumer); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func createReceiver(cfg configmodels.Receiver, logger *zap.Logger) (*otlpReceiver, error) {
 	rCfg := cfg.(*Config)
 
 	// There must be one receiver for both metrics and traces. We maintain a map of
@@ -158,7 +181,7 @@ func createReceiver(cfg configmodels.Receiver) (*Receiver, error) {
 	if !ok {
 		var err error
 		// We don't have a receiver, so create one.
-		receiver, err = New(rCfg)
+		receiver, err = newOtlpReceiver(rCfg, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -170,6 +193,6 @@ func createReceiver(cfg configmodels.Receiver) (*Receiver, error) {
 
 // This is the map of already created OTLP receivers for particular configurations.
 // We maintain this map because the Factory is asked trace and metric receivers separately
-// when it gets CreateTraceReceiver() and CreateMetricsReceiver() but they must not
-// create separate objects, they must use one Receiver object per configuration.
-var receivers = map[*Config]*Receiver{}
+// when it gets CreateTracesReceiver() and CreateMetricsReceiver() but they must not
+// create separate objects, they must use one otlpReceiver object per configuration.
+var receivers = map[*Config]*otlpReceiver{}

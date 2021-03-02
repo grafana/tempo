@@ -23,6 +23,9 @@ import (
 )
 
 const (
+	MinQueryShards = 2
+	MaxQueryShards = 256
+
 	querierPrefix  = "/querier"
 	queryDelimiter = "?"
 )
@@ -30,9 +33,10 @@ const (
 func ShardingWare(queryShards int, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next Handler) Handler {
 		return shardQuery{
-			next:        next,
-			queryShards: queryShards,
-			logger:      logger,
+			next:            next,
+			queryShards:     queryShards,
+			logger:          logger,
+			blockBoundaries: createBlockBoundaries(queryShards - 1), // one shard will be used to query ingesters
 		}
 	})
 }
@@ -51,11 +55,6 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	// only need to initialise boundaries once
-	if len(s.blockBoundaries) == 0 {
-		s.blockBoundaries = createBlockBoundaries(s.queryShards)
-	}
-
 	// check marshalling format
 	marshallingFormat := util.JSONTypeHeaderValue
 	if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
@@ -63,16 +62,16 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 	}
 
 	reqs := make([]*http.Request, s.queryShards)
-	for i := 0; i < len(s.blockBoundaries)-1; i++ {
+	for i := 0; i < s.queryShards; i++ {
 		reqs[i] = r.Clone(r.Context())
-		q := reqs[i].URL.Query()
-		q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i]))
-		q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i+1]))
 
-		if i == 0 {
-			q.Add(querier.QueryIngestersKey, "true")
+		q := reqs[i].URL.Query()
+		if i == (s.queryShards - 1) { // one shard dedicated to querying ingesters
+			q.Add(querier.QueryModeKey, querier.QueryModeIngesters)
 		} else {
-			q.Add(querier.QueryIngestersKey, "false")
+			q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i]))
+			q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i+1]))
+			q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
 		}
 
 		reqs[i].Header.Set(user.OrgIDHeaderName, userID)

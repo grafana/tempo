@@ -207,12 +207,10 @@ func TestMicroservices(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	// test metrics
-	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
-	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
-	require.NoError(t, tempoIngester3.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempoIngester3.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
+	for _, i := range []*cortex_e2e.HTTPService{tempoIngester1, tempoIngester2, tempoIngester3} {
+		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
+	}
 	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_query_frontend_queries_total"))
 
 	// query trace - should fetch from backend
@@ -221,6 +219,9 @@ func TestMicroservices(t *testing.T) {
 	// stop an ingester and confirm we can still write and query
 	err = tempoIngester2.Stop()
 	require.NoError(t, err)
+
+	// sleep for heartbeat timeout
+	time.Sleep(1 * time.Second)
 
 	batch = makeThriftBatch()
 	require.NoError(t, c.EmitBatch(context.Background(), batch))
@@ -270,8 +271,8 @@ func queryAndAssertTrace(t *testing.T, url string, expectedName string, expected
 	require.NoError(t, err)
 	out := &tempopb.Trace{}
 	unmarshaller := &jsonpb.Unmarshaler{}
-	assert.NoError(t, unmarshaller.Unmarshal(res.Body, out))
-	assert.Len(t, out.Batches, expectedBatches)
+	require.NoError(t, unmarshaller.Unmarshal(res.Body, out))
+	require.Len(t, out.Batches, expectedBatches)
 	assert.Equal(t, expectedName, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name)
 	defer res.Body.Close()
 }
