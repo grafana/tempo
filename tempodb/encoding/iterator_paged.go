@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"context"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -32,7 +33,7 @@ func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, pag
 // For performance reasons the ID and object slices returned from this method are owned by
 // the iterator.  If you have need to keep these values for longer than a single iteration
 // you need to make a copy of them.
-func (i *pagedIterator) Next() (common.ID, []byte, error) {
+func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	var err error
 	var id common.ID
 	var object []byte
@@ -77,7 +78,7 @@ func (i *pagedIterator) Next() (common.ID, []byte, error) {
 		currentRecord = i.indexReader.At(i.currentIndex)
 	}
 
-	i.pages, err = i.pageReader.Read(records)
+	i.pages, err = i.pageReader.Read(ctx, records)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}

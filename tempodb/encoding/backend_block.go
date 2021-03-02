@@ -92,7 +92,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 
 	// passing nil for objectCombiner here.  this is fine b/c a backend block should never have dupes
 	finder := NewPagedFinder(indexReader, pageReader, nil)
-	objectBytes, err := finder.Find(id)
+	objectBytes, err := finder.Find(ctx, id)
 
 	if err != nil {
 		return nil, fmt.Errorf("error using pageFinder (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)

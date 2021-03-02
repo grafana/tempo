@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"bytes"
+	"context"
 	"errors"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -24,7 +25,7 @@ func NewPagedFinder(index common.IndexReader, r common.PageReader, combiner comm
 	}
 }
 
-func (f *pagedFinder) Find(id common.ID) ([]byte, error) {
+func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	var bytesFound []byte
 	record, i := f.index.Find(id)
 
@@ -33,7 +34,7 @@ func (f *pagedFinder) Find(id common.ID) ([]byte, error) {
 	}
 
 	for {
-		bytesOne, err := f.findOne(id, record)
+		bytesOne, err := f.findOne(ctx, id, record)
 		if err != nil {
 			return nil, err
 		}
@@ -59,8 +60,8 @@ func (f *pagedFinder) Find(id common.ID) ([]byte, error) {
 	return bytesFound, nil
 }
 
-func (f *pagedFinder) findOne(id common.ID, record *common.Record) ([]byte, error) {
-	pages, err := f.r.Read([]*common.Record{record})
+func (f *pagedFinder) findOne(ctx context.Context, id common.ID, record *common.Record) ([]byte, error) {
+	pages, err := f.r.Read(ctx, []*common.Record{record})
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +79,7 @@ func (f *pagedFinder) findOne(id common.ID, record *common.Record) ([]byte, erro
 	}
 
 	for {
-		foundID, b, err := iter.Next()
+		foundID, b, err := iter.Next(ctx)
 		if foundID == nil {
 			break
 		}

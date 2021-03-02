@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"bytes"
+	"context"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -23,7 +24,7 @@ func NewDedupingIterator(iter common.Iterator, combiner common.ObjectCombiner) (
 	}
 
 	var err error
-	i.currentID, i.currentObject, err = i.iter.Next()
+	i.currentID, i.currentObject, err = i.iter.Next(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +32,7 @@ func NewDedupingIterator(iter common.Iterator, combiner common.ObjectCombiner) (
 	return i, nil
 }
 
-func (i *dedupingIterator) Next() (common.ID, []byte, error) {
+func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if i.currentID == nil {
 		return nil, nil, io.EOF
 	}
@@ -40,7 +41,7 @@ func (i *dedupingIterator) Next() (common.ID, []byte, error) {
 	var dedupedObject []byte
 
 	for {
-		id, obj, err := i.iter.Next()
+		id, obj, err := i.iter.Next(ctx)
 		if err == io.EOF {
 			i.currentID = nil
 			i.currentObject = nil

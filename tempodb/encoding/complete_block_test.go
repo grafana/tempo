@@ -131,7 +131,7 @@ func testCompleteBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 	require.NoError(t, err, "error getting iterator")
 	i := 0
 	for {
-		id, obj, err := iterator.Next()
+		id, obj, err := iterator.Next(context.Background())
 		if id == nil {
 			break
 		}
@@ -298,12 +298,12 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	b.ResetTimer()
 	file, err := os.Open(cb.fullFilename())
 	require.NoError(b, err)
-	pr, err := v1.NewPageReader(file, encoding)
+	pr, err := v1.NewPageReader(backend.NewReaderAtWithReaderAt(file), encoding)
 	require.NoError(b, err)
 	iterator = newPagedIterator(10*1024*1024, common.Records(cb.records), pr)
 
 	for {
-		id, _, err := iterator.Next()
+		id, _, err := iterator.Next(context.Background())
 		if err != io.EOF {
 			require.NoError(b, err)
 		}

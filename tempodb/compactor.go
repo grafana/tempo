@@ -119,6 +119,9 @@ func (rw *readerWriter) doCompaction() {
 func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
+	// todo - add timeout?
+	ctx := context.Background()
+
 	if len(blockMetas) == 0 {
 		return nil
 	}
@@ -155,7 +158,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 		bookmarks = append(bookmarks, newBookmark(iter))
 
-		_, err = rw.r.BlockMeta(context.TODO(), blockMeta.BlockID, tenantID)
+		_, err = rw.r.BlockMeta(ctx, blockMeta.BlockID, tenantID)
 		if err != nil {
 			return err
 		}
@@ -166,14 +169,14 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	var currentBlock *encoding.CompactorBlock
 	var tracker backend.AppendTracker
 
-	for !allDone(bookmarks) {
+	for !allDone(ctx, bookmarks) {
 		var lowestID []byte
 		var lowestObject []byte
 		var lowestBookmark *bookmark
 
 		// find lowest ID of the new object
 		for _, b := range bookmarks {
-			currentID, currentObject, err := b.current()
+			currentID, currentObject, err := b.current(ctx)
 			if err == io.EOF {
 				continue
 			} else if err != nil {
@@ -274,9 +277,9 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encodin
 	return nil
 }
 
-func allDone(bookmarks []*bookmark) bool {
+func allDone(ctx context.Context, bookmarks []*bookmark) bool {
 	for _, b := range bookmarks {
-		if !b.done() {
+		if !b.done(ctx) {
 			return false
 		}
 	}

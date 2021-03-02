@@ -1,14 +1,15 @@
 package v0
 
 import (
+	"context"
 	"fmt"
-	"io"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type pageReader struct {
-	r io.ReaderAt
+	r backend.ReaderAtContext
 }
 
 // NewPageReader returns a new v0 pageReader.  A v0 pageReader
@@ -16,7 +17,7 @@ type pageReader struct {
 // ranges and returns them as is.
 // A pages "format" is a contiguous collection of objects
 // | -- object -- | -- object -- | ...
-func NewPageReader(r io.ReaderAt) common.PageReader {
+func NewPageReader(r backend.ReaderAtContext) common.PageReader {
 	return &pageReader{
 		r: r,
 	}
@@ -25,7 +26,7 @@ func NewPageReader(r io.ReaderAt) common.PageReader {
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
-func (r *pageReader) Read(records []*common.Record) ([][]byte, error) {
+func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
 	if len(records) == 0 {
 		return nil, nil
 	}
@@ -37,7 +38,7 @@ func (r *pageReader) Read(records []*common.Record) ([][]byte, error) {
 	}
 
 	contiguousPages := make([]byte, length)
-	_, err := r.r.ReadAt(contiguousPages, int64(start))
+	_, err := r.r.ReadAt(ctx, contiguousPages, int64(start))
 	if err != nil {
 		return nil, err
 	}

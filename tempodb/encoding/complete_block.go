@@ -62,8 +62,11 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 	if err != nil {
 		return nil, err
 	}
+
+	// todo: add a timeout?  propagage context from completing?
+	ctx := context.Background()
 	for {
-		bytesID, bytesObject, err := iterator.Next()
+		bytesID, bytesObject, err := iterator.Next(ctx)
 		if bytesID == nil {
 			break
 		}
@@ -154,14 +157,14 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 		return nil, err
 	}
 
-	pageReader, err := c.encoding.newPageReader(file, c.meta.Encoding)
+	pageReader, err := c.encoding.newPageReader(backend.NewReaderAtWithReaderAt(file), c.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	defer pageReader.Close()
 
 	finder := NewPagedFinder(common.Records(c.records), pageReader, combiner)
-	return finder.Find(id)
+	return finder.Find(context.Background(), id)
 }
 
 // Clear removes the backing file.

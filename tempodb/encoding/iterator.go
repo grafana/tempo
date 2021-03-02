@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"context"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -19,7 +20,7 @@ func NewIterator(reader io.Reader) common.Iterator {
 	}
 }
 
-func (i *iterator) Next() (common.ID, []byte, error) {
+func (i *iterator) Next(_ context.Context) (common.ID, []byte, error) {
 	return v0.UnmarshalObjectFromReader(i.reader)
 }
 

@@ -31,8 +31,8 @@ type versionedEncoding interface {
 	newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error)
 	newIndexWriter() common.IndexWriter
 
-	newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error) // jpe pass context through readerAt
-	newIndexReader(indexBytes []byte) (common.IndexReader, error)                       // jpe indexBytes => readerAtContextThing.  Needs plain ol' read function to
+	newPageReader(ra backend.ReaderAtContext, encoding backend.Encoding) (common.PageReader, error)
+	newIndexReader(indexBytes []byte) (common.IndexReader, error) // jpe indexBytes => readerAtContextThing.  Needs plain ol' read function to
 }
 
 // v0Encoding
@@ -47,7 +47,7 @@ func (v v0Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (
 func (v v0Encoding) newIndexReader(indexBytes []byte) (common.IndexReader, error) {
 	return v0.NewIndexReader(indexBytes)
 }
-func (v v0Encoding) newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error) {
+func (v v0Encoding) newPageReader(ra backend.ReaderAtContext, encoding backend.Encoding) (common.PageReader, error) {
 	return v0.NewPageReader(ra), nil
 }
 
@@ -60,7 +60,7 @@ func (v v1Encoding) newIndexWriter() common.IndexWriter {
 func (v v1Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error) {
 	return v1.NewPageWriter(writer, encoding)
 }
-func (v v1Encoding) newPageReader(ra io.ReaderAt, encoding backend.Encoding) (common.PageReader, error) {
+func (v v1Encoding) newPageReader(ra backend.ReaderAtContext, encoding backend.Encoding) (common.PageReader, error) {
 	return v1.NewPageReader(ra, encoding)
 }
 func (v v1Encoding) newIndexReader(indexBytes []byte) (common.IndexReader, error) {

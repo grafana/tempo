@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"context"
 	"os"
 
 	"github.com/google/uuid"
@@ -107,11 +108,11 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 
-	pageReader := v0.NewPageReader(file)
+	pageReader := v0.NewPageReader(backend.NewReaderAtWithReaderAt(file))
 	defer pageReader.Close()
 	finder := encoding.NewPagedFinder(common.Records(records), pageReader, combiner)
 
-	return finder.Find(id)
+	return finder.Find(context.Background(), id)
 }
 
 func (h *AppendBlock) Clear() error {

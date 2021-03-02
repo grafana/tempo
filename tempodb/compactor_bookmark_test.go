@@ -83,7 +83,7 @@ func TestCurrentClear(t *testing.T) {
 
 	i := 0
 	for {
-		_, _, err = bm.current()
+		_, _, err = bm.current(context.Background())
 		if err == io.EOF {
 			break
 		}

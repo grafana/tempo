@@ -2,8 +2,10 @@ package v0
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 )
@@ -121,8 +123,8 @@ func TestPageReader(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		reader := NewPageReader(bytes.NewReader(tc.readerBytes))
-		actual, err := reader.Read(tc.records)
+		reader := NewPageReader(backend.NewReaderAtWithReaderAt(bytes.NewReader(tc.readerBytes)))
+		actual, err := reader.Read(context.Background(), tc.records)
 		reader.Close()
 
 		if tc.expectedError {

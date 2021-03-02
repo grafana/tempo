@@ -1,5 +1,7 @@
 package common
 
+import "context"
+
 // This file contains types that need to be referenced by both the ./encoding and ./encoding/vX packages.
 // It primarily exists here to break dependency loops.
 
@@ -15,13 +17,13 @@ type Record struct {
 
 // Iterator is capable of iterating through a set of objects
 type Iterator interface {
-	Next() (ID, []byte, error)
+	Next(context.Context) (ID, []byte, error)
 	Close()
 }
 
 // Finder is capable of finding the requested ID
 type Finder interface {
-	Find(id ID) ([]byte, error)
+	Find(context.Context, ID) ([]byte, error)
 }
 
 // Appender is capable of tracking objects and ids that are added to it
@@ -44,7 +46,7 @@ type ObjectCombiner interface {
 // PageReader is the primary abstraction point for supporting multiple data
 // formats.
 type PageReader interface {
-	Read([]*Record) ([][]byte, error)
+	Read(context.Context, []*Record) ([][]byte, error)
 	Close()
 }
 
