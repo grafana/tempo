@@ -56,8 +56,8 @@ type PageReader interface {
 // IndexReader is the primary abstraction point for supporting multiple index
 // formats.
 type IndexReader interface {
-	At(i int) *Record // jpe take context
-	Find(id ID) (*Record, int)
+	At(ctx context.Context, i int) (*Record, error)
+	Find(ctx context.Context, id ID) (*Record, int, error)
 }
 
 // PageWriter is used to write paged data to the backend

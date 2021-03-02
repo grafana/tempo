@@ -38,7 +38,7 @@ func (t *recordSorter) Swap(i, j int) {
 }
 
 // MarshalRecords converts a slice of records into a byte slice
-func MarshalRecords(records []*common.Record) ([]byte, error) { // jpe change to take a writer or preallocated buffer for v2 index
+func MarshalRecords(records []*common.Record) ([]byte, error) {
 	recordBytes := make([]byte, len(records)*recordLength)
 
 	for i, r := range records {

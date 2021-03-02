@@ -32,16 +32,16 @@ func NewIndexReader(r backend.ReaderAtContext) (common.IndexReader, error) {
 	}, nil
 }
 
-func (r *readerBytes) At(i int) *common.Record {
+func (r *readerBytes) At(_ context.Context, i int) (*common.Record, error) {
 	if i < 0 || i >= len(r.index)/recordLength {
-		return nil
+		return nil, nil
 	}
 
 	buff := r.index[i*recordLength : (i+1)*recordLength]
-	return unmarshalRecord(buff)
+	return unmarshalRecord(buff), nil
 }
 
-func (r *readerBytes) Find(id common.ID) (*common.Record, int) {
+func (r *readerBytes) Find(_ context.Context, id common.ID) (*common.Record, int, error) {
 	numRecords := recordCount(r.index)
 	var record *common.Record
 
@@ -56,8 +56,8 @@ func (r *readerBytes) Find(id common.ID) (*common.Record, int) {
 		buff := r.index[i*recordLength : (i+1)*recordLength]
 		record = unmarshalRecord(buff)
 
-		return record, i
+		return record, i, nil
 	}
 
-	return nil, -1
+	return nil, -1, nil
 }

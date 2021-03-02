@@ -27,7 +27,10 @@ func NewPagedFinder(index common.IndexReader, r common.PageReader, combiner comm
 
 func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	var bytesFound []byte
-	record, i := f.index.Find(id)
+	record, i, err := f.index.Find(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 
 	if record == nil {
 		return nil, nil
@@ -48,7 +51,10 @@ func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
 
 		// we need to check the next record to see if it also matches our id
 		i++
-		record = f.index.At(i)
+		record, err = f.index.At(ctx, i)
+		if err != nil {
+			return nil, err
+		}
 		if record == nil {
 			break
 		}

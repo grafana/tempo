@@ -54,7 +54,10 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 
 	// objects reader was empty, check the index
 	// if no index left, EOF
-	currentRecord := i.indexReader.At(i.currentIndex)
+	currentRecord, err := i.indexReader.At(ctx, i.currentIndex)
+	if err != nil {
+		return nil, nil, err
+	}
 	if currentRecord == nil {
 		return nil, nil, io.EOF
 	}
@@ -75,7 +78,10 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 
 		// get next
 		i.currentIndex++
-		currentRecord = i.indexReader.At(i.currentIndex)
+		currentRecord, err = i.indexReader.At(ctx, i.currentIndex)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	i.pages, err = i.pageReader.Read(ctx, records)

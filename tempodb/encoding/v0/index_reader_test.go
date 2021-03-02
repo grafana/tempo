@@ -2,6 +2,7 @@ package v0
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -84,8 +85,11 @@ func TestIndexReader(t *testing.T) {
 			continue
 		}
 
-		assert.Equal(t, tc.expectedAt, reader.At(tc.at))
-		actualFind, actualIndex := reader.Find(tc.find)
+		at, err := reader.At(context.Background(), tc.at)
+		assert.NoError(t, err)
+		assert.Equal(t, tc.expectedAt, at)
+		actualFind, actualIndex, err := reader.Find(context.Background(), tc.find)
+		assert.NoError(t, err)
 		assert.Equal(t, tc.expectedFind, actualFind)
 		assert.Equal(t, tc.expectedFindIndex, actualIndex)
 	}
