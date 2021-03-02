@@ -1,8 +1,10 @@
 package v0
 
 import (
+	"bytes"
 	"testing"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,7 +78,7 @@ func TestIndexReader(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		reader, err := NewIndexReader(tc.recordBytes)
+		reader, err := NewIndexReader(backend.NewReaderAtWithReaderAt(bytes.NewReader(tc.recordBytes)))
 		if tc.expectedError {
 			assert.Error(t, err)
 			continue

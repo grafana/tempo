@@ -73,12 +73,8 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 		return nil, nil
 	}
 
-	indexBytes, err := b.reader.Read(ctx, nameIndex, blockID, tenantID)
-	if err != nil {
-		return nil, fmt.Errorf("error reading index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
-	}
-
-	indexReader, err := b.encoding.newIndexReader(indexBytes)
+	indexReaderAt := backend.NewReaderAt(b.meta, nameIndex, b.reader)
+	indexReader, err := b.encoding.newIndexReader(indexReaderAt)
 	if err != nil {
 		return nil, fmt.Errorf("error building index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
@@ -104,18 +100,14 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 // Iterator returns an Iterator that iterates over the objects in the block from the backend
 func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (common.Iterator, error) {
 	// read index
-	indexBytes, err := b.reader.Read(context.TODO(), nameIndex, b.meta.BlockID, b.meta.TenantID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
-	}
-
 	ra := backend.NewReaderAt(b.meta, nameObjects, b.reader)
 	pageReader, err := b.encoding.newPageReader(ra, b.meta.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pageReader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
-	reader, err := b.encoding.newIndexReader(indexBytes)
+	indexReaderAt := backend.NewReaderAt(b.meta, nameIndex, b.reader)
+	reader, err := b.encoding.newIndexReader(indexReaderAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}

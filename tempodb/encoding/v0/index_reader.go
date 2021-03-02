@@ -2,9 +2,11 @@ package v0
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sort"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -14,7 +16,12 @@ type readerBytes struct {
 
 // NewIndexReader returns an index reader for a byte slice of marshalled
 // ordered records.
-func NewIndexReader(index []byte) (common.IndexReader, error) {
+func NewIndexReader(r backend.ReaderAtContext) (common.IndexReader, error) {
+	index, err := r.ReadAll(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
 	mod := len(index) % recordLength
 	if mod != 0 {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", len(index))

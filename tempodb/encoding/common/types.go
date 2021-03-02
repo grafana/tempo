@@ -56,7 +56,7 @@ type PageReader interface {
 // IndexReader is the primary abstraction point for supporting multiple index
 // formats.
 type IndexReader interface {
-	At(i int) *Record
+	At(i int) *Record // jpe take context
 	Find(id ID) (*Record, int)
 }
 
