@@ -31,8 +31,8 @@ type versionedEncoding interface {
 	newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error)
 	newIndexWriter() common.IndexWriter
 
-	newPageReader(ra backend.ReaderAtContext, encoding backend.Encoding) (common.PageReader, error)
-	newIndexReader(ra backend.ReaderAtContext) (common.IndexReader, error)
+	newPageReader(ra backend.ContextReader, encoding backend.Encoding) (common.PageReader, error)
+	newIndexReader(ra backend.ContextReader) (common.IndexReader, error)
 }
 
 // v0Encoding
@@ -44,10 +44,10 @@ func (v v0Encoding) newIndexWriter() common.IndexWriter {
 func (v v0Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error) {
 	return v0.NewPageWriter(writer), nil // ignore encoding.  v0 PageWriter writes raw bytes
 }
-func (v v0Encoding) newIndexReader(ra backend.ReaderAtContext) (common.IndexReader, error) {
+func (v v0Encoding) newIndexReader(ra backend.ContextReader) (common.IndexReader, error) {
 	return v0.NewIndexReader(ra)
 }
-func (v v0Encoding) newPageReader(ra backend.ReaderAtContext, encoding backend.Encoding) (common.PageReader, error) {
+func (v v0Encoding) newPageReader(ra backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
 	return v0.NewPageReader(ra), nil
 }
 
@@ -60,9 +60,9 @@ func (v v1Encoding) newIndexWriter() common.IndexWriter {
 func (v v1Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error) {
 	return v1.NewPageWriter(writer, encoding)
 }
-func (v v1Encoding) newPageReader(ra backend.ReaderAtContext, encoding backend.Encoding) (common.PageReader, error) {
+func (v v1Encoding) newPageReader(ra backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
 	return v1.NewPageReader(ra, encoding)
 }
-func (v v1Encoding) newIndexReader(ra backend.ReaderAtContext) (common.IndexReader, error) {
+func (v v1Encoding) newIndexReader(ra backend.ContextReader) (common.IndexReader, error) {
 	return v1.NewIndexReader(ra)
 }

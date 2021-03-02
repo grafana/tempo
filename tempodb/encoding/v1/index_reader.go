@@ -9,6 +9,6 @@ import (
 // NewIndexReader returns an index reader for a byte slice of marshalled
 // ordered records.
 // The index has not changed between v0 and v1.
-func NewIndexReader(r backend.ReaderAtContext) (common.IndexReader, error) {
+func NewIndexReader(r backend.ContextReader) (common.IndexReader, error) {
 	return v0.NewIndexReader(r)
 }

@@ -39,7 +39,7 @@ func TestAllEncodings(t *testing.T) {
 				require.NoError(t, err)
 
 				encryptedBytes := buff.Bytes()
-				reader, err := NewPageReader(backend.NewReaderAtWithReaderAt(bytes.NewReader(encryptedBytes)), enc)
+				reader, err := NewPageReader(backend.NewContextReaderWithAllReader(bytes.NewReader(encryptedBytes)), enc)
 				require.NoError(t, err)
 				defer reader.Close()
 

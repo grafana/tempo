@@ -123,7 +123,7 @@ func TestPageReader(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		reader := NewPageReader(backend.NewReaderAtWithReaderAt(bytes.NewReader(tc.readerBytes)))
+		reader := NewPageReader(backend.NewContextReaderWithAllReader(bytes.NewReader(tc.readerBytes)))
 		actual, err := reader.Read(context.Background(), tc.records)
 		reader.Close()
 

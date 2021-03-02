@@ -16,7 +16,7 @@ type readerBytes struct {
 
 // NewIndexReader returns an index reader for a byte slice of marshalled
 // ordered records.
-func NewIndexReader(r backend.ReaderAtContext) (common.IndexReader, error) {
+func NewIndexReader(r backend.ContextReader) (common.IndexReader, error) {
 	index, err := r.ReadAll(context.Background())
 	if err != nil {
 		return nil, err

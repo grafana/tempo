@@ -9,7 +9,7 @@ import (
 )
 
 type pageReader struct {
-	r backend.ReaderAtContext
+	r backend.ContextReader
 }
 
 // NewPageReader returns a new v0 pageReader.  A v0 pageReader
@@ -17,7 +17,7 @@ type pageReader struct {
 // ranges and returns them as is.
 // A pages "format" is a contiguous collection of objects
 // | -- object -- | -- object -- | ...
-func NewPageReader(r backend.ReaderAtContext) common.PageReader {
+func NewPageReader(r backend.ContextReader) common.PageReader {
 	return &pageReader{
 		r: r,
 	}

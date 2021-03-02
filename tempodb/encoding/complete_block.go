@@ -157,7 +157,7 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 		return nil, err
 	}
 
-	pageReader, err := c.encoding.newPageReader(backend.NewReaderAtWithReaderAt(file), c.meta.Encoding)
+	pageReader, err := c.encoding.newPageReader(backend.NewContextReaderWithAllReader(file), c.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}

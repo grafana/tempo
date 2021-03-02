@@ -6,23 +6,23 @@ import (
 	"io/ioutil"
 )
 
-// ReaderAtContext is an io.ReaderAt interface that passes context.  It is used to simplify access to backend objects
+// ContextReader is an io.ReaderAt interface that passes context.  It is used to simplify access to backend objects
 // and abstract away the name/meta and other details so that the data can be accessed directly and simply
-type ReaderAtContext interface { // jpe ContextReader
+type ContextReader interface {
 	ReadAt(ctx context.Context, p []byte, off int64) (int, error)
 	ReadAll(ctx context.Context) ([]byte, error)
 }
 
-// readerAt is a shim that allows a backend.Reader to be used as an io.ReaderAt
-type readerAt struct {
+// backendReader is a shim that allows a backend.Reader to be used as a ContextReader
+type backendReader struct {
 	meta *BlockMeta
 	name string
 	r    Reader
 }
 
-// NewReaderAt creates a ReaderAt for the given BlockMeta
-func NewReaderAt(meta *BlockMeta, name string, r Reader) ReaderAtContext {
-	return &readerAt{
+// NewContextReader creates a ReaderAt for the given BlockMeta
+func NewContextReader(meta *BlockMeta, name string, r Reader) ContextReader {
+	return &backendReader{
 		meta: meta,
 		name: name,
 		r:    r,
@@ -30,13 +30,13 @@ func NewReaderAt(meta *BlockMeta, name string, r Reader) ReaderAtContext {
 }
 
 // ReadAt implements ReaderAtContext
-func (b *readerAt) ReadAt(ctx context.Context, p []byte, off int64) (int, error) {
+func (b *backendReader) ReadAt(ctx context.Context, p []byte, off int64) (int, error) {
 	err := b.r.ReadRange(ctx, b.name, b.meta.BlockID, b.meta.TenantID, uint64(off), p)
 	return len(p), err
 }
 
 // ReadAll implements ReaderAtContext
-func (b *readerAt) ReadAll(ctx context.Context) ([]byte, error) {
+func (b *backendReader) ReadAll(ctx context.Context) ([]byte, error) {
 	return b.r.Read(ctx, b.name, b.meta.BlockID, b.meta.TenantID)
 }
 
@@ -46,25 +46,24 @@ type AllReader interface {
 	io.ReaderAt
 }
 
-// readerAtContext wraps a file and implements backend.ReaderAtContext
-type readerAtContext struct {
-	r      AllReader
-	length int
+// allReader wraps an AllReader and implements backend.ReaderAtContext
+type allReader struct {
+	r AllReader
 }
 
-// NewReaderAtWithReaderAt wraps a normal ReaderAt and drops the context
-func NewReaderAtWithReaderAt(r AllReader) ReaderAtContext { // jpe change name (all names in this file)
-	return &readerAtContext{
+// NewContextReaderWithAllReader wraps a normal ReaderAt and drops the context
+func NewContextReaderWithAllReader(r AllReader) ContextReader {
+	return &allReader{
 		r: r,
 	}
 }
 
 // ReadAt implements ReaderAtContext
-func (r *readerAtContext) ReadAt(ctx context.Context, p []byte, off int64) (int, error) {
+func (r *allReader) ReadAt(ctx context.Context, p []byte, off int64) (int, error) {
 	return r.r.ReadAt(p, off)
 }
 
 // ReadAll implements ReaderAtContext
-func (r *readerAtContext) ReadAll(ctx context.Context) ([]byte, error) {
+func (r *allReader) ReadAll(ctx context.Context) ([]byte, error) {
 	return ioutil.ReadAll(r.r)
 }

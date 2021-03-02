@@ -79,7 +79,7 @@ func TestIndexReader(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		reader, err := NewIndexReader(backend.NewReaderAtWithReaderAt(bytes.NewReader(tc.recordBytes)))
+		reader, err := NewIndexReader(backend.NewContextReaderWithAllReader(bytes.NewReader(tc.recordBytes)))
 		if tc.expectedError {
 			assert.Error(t, err)
 			continue

@@ -108,7 +108,7 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 
-	pageReader := v0.NewPageReader(backend.NewReaderAtWithReaderAt(file))
+	pageReader := v0.NewPageReader(backend.NewContextReaderWithAllReader(file))
 	defer pageReader.Close()
 	finder := encoding.NewPagedFinder(common.Records(records), pageReader, combiner)
 

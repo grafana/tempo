@@ -19,7 +19,7 @@ type pageReader struct {
 }
 
 // NewPageReader constructs a v1 PageReader that handles compression
-func NewPageReader(r backend.ReaderAtContext, encoding backend.Encoding) (common.PageReader, error) {
+func NewPageReader(r backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
 	pool, err := getReaderPool(encoding)
 	if err != nil {
 		return nil, err

@@ -46,7 +46,7 @@ func testPageWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding)
 		require.NoError(t, err)
 
 		reader := bytes.NewReader(buff.Bytes())
-		pageReader, err := v.newPageReader(backend.NewReaderAtWithReaderAt(reader), e)
+		pageReader, err := v.newPageReader(backend.NewContextReaderWithAllReader(reader), e)
 		require.NoError(t, err)
 		defer pageReader.Close()
 
