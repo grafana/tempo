@@ -98,7 +98,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 }
 
 // Iterator returns an Iterator that iterates over the objects in the block from the backend
-func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (common.Iterator, error) {
+func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 	// read index
 	ra := backend.NewContextReader(b.meta, nameObjects, b.reader)
 	pageReader, err := b.encoding.newPageReader(ra, b.meta.Encoding)

@@ -15,26 +15,6 @@ type Record struct {
 	Length uint32
 }
 
-// Iterator is capable of iterating through a set of objects
-type Iterator interface {
-	Next(context.Context) (ID, []byte, error)
-	Close()
-}
-
-// Finder is capable of finding the requested ID
-type Finder interface {
-	Find(context.Context, ID) ([]byte, error)
-}
-
-// Appender is capable of tracking objects and ids that are added to it
-type Appender interface {
-	Append(ID, []byte) error
-	Complete() error
-	Records() []*Record
-	Length() int
-	DataLength() uint64
-}
-
 // ObjectCombiner is used to combine two objects in the backend
 type ObjectCombiner interface {
 	Combine(objA []byte, objB []byte) []byte

@@ -4,14 +4,13 @@ import (
 	"os"
 
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type ReplayBlock struct {
 	block
 }
 
-func (r *ReplayBlock) Iterator() (common.Iterator, error) {
+func (r *ReplayBlock) Iterator() (encoding.Iterator, error) {
 	name := r.fullFilename()
 	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 	if err != nil {

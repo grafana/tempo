@@ -12,12 +12,12 @@ type recordIterator struct {
 	records []*common.Record
 	ra      io.ReaderAt
 
-	currentIterator common.Iterator
+	currentIterator Iterator
 }
 
 // NewRecordIterator returns a recordIterator.  This iterator is used for iterating through
 //  a series of objects by reading them one at a time from Records.
-func NewRecordIterator(r []*common.Record, ra io.ReaderAt) common.Iterator {
+func NewRecordIterator(r []*common.Record, ra io.ReaderAt) Iterator {
 	return &recordIterator{
 		records: r,
 		ra:      ra,

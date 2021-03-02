@@ -23,7 +23,7 @@ type bufferedAppender struct {
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
 //  the provided writer and also builds a downsampled records slice.
-func NewBufferedAppender(writer common.PageWriter, indexDownsample int, totalObjectsEstimate int) (common.Appender, error) {
+func NewBufferedAppender(writer common.PageWriter, indexDownsample int, totalObjectsEstimate int) (Appender, error) {
 	return &bufferedAppender{
 		writer:               writer,
 		indexDownsampleBytes: indexDownsample,

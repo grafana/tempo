@@ -23,7 +23,7 @@ type AppendBlock struct {
 	block
 
 	appendFile *os.File
-	appender   common.Appender
+	appender   encoding.Appender
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {

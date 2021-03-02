@@ -20,7 +20,7 @@ type CompactorBlock struct {
 
 	bufferedObjects int
 	appendBuffer    *bytes.Buffer
-	appender        common.Appender
+	appender        Appender
 }
 
 // NewCompactorBlock creates a ... new compactor block!

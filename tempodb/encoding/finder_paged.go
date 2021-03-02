@@ -8,6 +8,11 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// Finder is capable of finding the requested ID
+type Finder interface {
+	Find(context.Context, common.ID) ([]byte, error)
+}
+
 type pagedFinder struct {
 	r        common.PageReader
 	index    common.IndexReader
@@ -17,7 +22,7 @@ type pagedFinder struct {
 // NewPagedFinder returns a paged. This finder is used for searching
 //  a set of records and returning an object. If a set of consecutive records has
 //  matching ids they will be combined using the ObjectCombiner.
-func NewPagedFinder(index common.IndexReader, r common.PageReader, combiner common.ObjectCombiner) common.Finder {
+func NewPagedFinder(index common.IndexReader, r common.PageReader, combiner common.ObjectCombiner) Finder {
 	return &pagedFinder{
 		r:        r,
 		index:    index,
