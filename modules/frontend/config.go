@@ -17,7 +17,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Config.DownstreamURL = ""
 	cfg.Config.Handler.LogQueriesLongerThan = 0
 	cfg.Config.FrontendV1.MaxOutstandingPerTenant = 100
-	cfg.QueryShards = 4
+	cfg.QueryShards = 2
 }
 
 type CortexNoQuerierLimits struct{}

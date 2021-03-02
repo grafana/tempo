@@ -149,12 +149,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	var completeTrace *tempopb.Trace
 	var spanCount, spanCountTotal int
-	if req.QueryIngesters {
-		key := tempo_util.TokenFor(userID, req.TraceID)
-
-		const maxExpectedReplicationSet = 3 // 3.  b/c frigg it
-		var descs [maxExpectedReplicationSet]ring.InstanceDesc
-		replicationSet, err := q.ring.Get(key, ring.Read, descs[:0], nil, nil)
+	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
+		replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 		if err != nil {
 			return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
 		}
@@ -175,34 +171,37 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 				if spanCount > 0 {
 					spanCountTotal = spanCount
 				}
-				span.LogFields(ot_log.String("msg", "combined trace protos from ingesters"))
 			}
 		}
-
-		span.LogFields(ot_log.String("msg", "done searching ingesters"), ot_log.Bool("found", completeTrace != nil))
+		span.LogFields(ot_log.String("msg", "done searching ingesters"),
+			ot_log.Bool("found", completeTrace != nil),
+			ot_log.Int("spanCountTotal", spanCountTotal))
 	}
 
-	span.LogFields(ot_log.String("msg", "searching store"))
-	partialTraces, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
-	if err != nil {
-		return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
-	}
-
-	span.LogFields(ot_log.String("msg", "done searching store"))
-	// combine partialTraces with completeTrace
-	for _, partialTrace := range partialTraces {
-		storeTrace := &tempopb.Trace{}
-		err = proto.Unmarshal(partialTrace, storeTrace)
+	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
+		span.LogFields(ot_log.String("msg", "searching store"))
+		partialTraces, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}
-		completeTrace, _, _, spanCount = tempo_util.CombineTraceProtos(completeTrace, storeTrace)
-		if spanCount > 0 {
-			spanCountTotal = spanCount
+
+		span.LogFields(ot_log.String("msg", "done searching store"))
+
+		// combine partialTraces
+		for _, partialTrace := range partialTraces {
+			storeTrace := &tempopb.Trace{}
+			err = proto.Unmarshal(partialTrace, storeTrace)
+			if err != nil {
+				return nil, err
+			}
+			completeTrace, _, _, spanCount = tempo_util.CombineTraceProtos(completeTrace, storeTrace)
+			if spanCount > 0 {
+				spanCountTotal = spanCount
+			}
 		}
+		span.LogFields(ot_log.String("msg", "combined trace protos from store"),
+			ot_log.Int("spanCountTotal", spanCountTotal))
 	}
-	span.LogFields(ot_log.String("msg", "combined trace protos from ingesters and store"),
-		ot_log.Int("spanCountTotal", spanCountTotal))
 
 	return &tempopb.TraceByIDResponse{
 		Trace: completeTrace,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/opentracing/opentracing-go"
+	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -208,6 +209,8 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 	if err != nil {
 		return nil, err
 	}
+
+	span.LogFields(ot_log.Bool("trace found", trace != nil))
 
 	return &tempopb.TraceByIDResponse{
 		Trace: trace,
