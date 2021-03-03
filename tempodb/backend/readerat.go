@@ -29,13 +29,13 @@ func NewContextReader(meta *BlockMeta, name string, r Reader) ContextReader {
 	}
 }
 
-// ReadAt implements ReaderAtContext
+// ReadAt implements ContextReader
 func (b *backendReader) ReadAt(ctx context.Context, p []byte, off int64) (int, error) {
 	err := b.r.ReadRange(ctx, b.name, b.meta.BlockID, b.meta.TenantID, uint64(off), p)
 	return len(p), err
 }
 
-// ReadAll implements ReaderAtContext
+// ReadAll implements ContextReader
 func (b *backendReader) ReadAll(ctx context.Context) ([]byte, error) {
 	return b.r.Read(ctx, b.name, b.meta.BlockID, b.meta.TenantID)
 }
@@ -46,7 +46,7 @@ type AllReader interface {
 	io.ReaderAt
 }
 
-// allReader wraps an AllReader and implements backend.ReaderAtContext
+// allReader wraps an AllReader and implements backend.ContextReader
 type allReader struct {
 	r AllReader
 }
@@ -58,12 +58,12 @@ func NewContextReaderWithAllReader(r AllReader) ContextReader {
 	}
 }
 
-// ReadAt implements ReaderAtContext
+// ReadAt implements ContextReader
 func (r *allReader) ReadAt(ctx context.Context, p []byte, off int64) (int, error) {
 	return r.r.ReadAt(p, off)
 }
 
-// ReadAll implements ReaderAtContext
+// ReadAll implements ContextReader
 func (r *allReader) ReadAll(ctx context.Context) ([]byte, error) {
 	return ioutil.ReadAll(r.r)
 }
