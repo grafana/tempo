@@ -7,13 +7,14 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
-const currentVersion = "v1"
+const currentVersion = "v2"
 
 // latestEncoding is used by Compactor and Complete block
 func latestEncoding() versionedEncoding {
-	return v1Encoding{}
+	return v2Encoding{}
 }
 
 // allEncodings returns all encodings
@@ -21,6 +22,7 @@ func allEncodings() []versionedEncoding {
 	return []versionedEncoding{
 		v0Encoding{},
 		v1Encoding{},
+		v2Encoding{},
 	}
 }
 
@@ -65,4 +67,20 @@ func (v v1Encoding) newPageReader(ra backend.ContextReader, encoding backend.Enc
 }
 func (v v1Encoding) newIndexReader(ra backend.ContextReader) (common.IndexReader, error) {
 	return v1.NewIndexReader(ra)
+}
+
+// v2Encoding
+type v2Encoding struct{}
+
+func (v v2Encoding) newIndexWriter() common.IndexWriter {
+	return v2.NewIndexWriter()
+}
+func (v v2Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error) {
+	return v2.NewPageWriter(writer, encoding)
+}
+func (v v2Encoding) newPageReader(ra backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
+	return v2.NewPageReader(ra, encoding)
+}
+func (v v2Encoding) newIndexReader(ra backend.ContextReader) (common.IndexReader, error) {
+	return v2.NewIndexReader(ra)
 }

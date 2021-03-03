@@ -30,6 +30,8 @@ func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, 
 		encoding = v0Encoding{}
 	case "v1":
 		encoding = v1Encoding{}
+	case "v2":
+		encoding = v2Encoding{}
 	default:
 		return nil, fmt.Errorf("%s is not a valid block version", meta.Version)
 	}
