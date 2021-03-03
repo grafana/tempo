@@ -18,15 +18,22 @@ type pageReader struct {
 	compressedReader io.Reader
 }
 
-// NewPageReader constructs a v1 PageReader that handles compression
+// NewPageReader constructs a v1 PageReader that handles compression.  By default it assumes
+// a v0 page reader
 func NewPageReader(r backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
+	return NewPageReaderWithReader(v0.NewPageReader(r), encoding)
+}
+
+// jpe need to rework this for sanity
+// NewPageReaderWithReader is useful for nesting compression inside of a different reader
+func NewPageReaderWithReader(r common.PageReader, encoding backend.Encoding) (common.PageReader, error) {
 	pool, err := getReaderPool(encoding)
 	if err != nil {
 		return nil, err
 	}
 
 	return &pageReader{
-		v0PageReader: v0.NewPageReader(r),
+		v0PageReader: r,
 		pool:         pool,
 	}, nil
 }
