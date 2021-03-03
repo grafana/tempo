@@ -2,10 +2,16 @@ package encoding
 
 import (
 	"bytes"
+	"context"
 	"errors"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
+
+// Finder is capable of finding the requested ID
+type Finder interface {
+	Find(context.Context, common.ID) ([]byte, error)
+}
 
 type pagedFinder struct {
 	r        common.PageReader
@@ -16,7 +22,7 @@ type pagedFinder struct {
 // NewPagedFinder returns a paged. This finder is used for searching
 //  a set of records and returning an object. If a set of consecutive records has
 //  matching ids they will be combined using the ObjectCombiner.
-func NewPagedFinder(index common.IndexReader, r common.PageReader, combiner common.ObjectCombiner) common.Finder {
+func NewPagedFinder(index common.IndexReader, r common.PageReader, combiner common.ObjectCombiner) Finder {
 	return &pagedFinder{
 		r:        r,
 		index:    index,
@@ -24,16 +30,19 @@ func NewPagedFinder(index common.IndexReader, r common.PageReader, combiner comm
 	}
 }
 
-func (f *pagedFinder) Find(id common.ID) ([]byte, error) {
+func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	var bytesFound []byte
-	record, i := f.index.Find(id)
+	record, i, err := f.index.Find(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 
 	if record == nil {
 		return nil, nil
 	}
 
 	for {
-		bytesOne, err := f.findOne(id, record)
+		bytesOne, err := f.findOne(ctx, id, record)
 		if err != nil {
 			return nil, err
 		}
@@ -47,7 +56,10 @@ func (f *pagedFinder) Find(id common.ID) ([]byte, error) {
 
 		// we need to check the next record to see if it also matches our id
 		i++
-		record = f.index.At(i)
+		record, err = f.index.At(ctx, i)
+		if err != nil {
+			return nil, err
+		}
 		if record == nil {
 			break
 		}
@@ -59,8 +71,8 @@ func (f *pagedFinder) Find(id common.ID) ([]byte, error) {
 	return bytesFound, nil
 }
 
-func (f *pagedFinder) findOne(id common.ID, record *common.Record) ([]byte, error) {
-	pages, err := f.r.Read([]*common.Record{record})
+func (f *pagedFinder) findOne(ctx context.Context, id common.ID, record *common.Record) ([]byte, error) {
+	pages, err := f.r.Read(ctx, []*common.Record{record})
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +90,7 @@ func (f *pagedFinder) findOne(id common.ID, record *common.Record) ([]byte, erro
 	}
 
 	for {
-		foundID, b, err := iter.Next()
+		foundID, b, err := iter.Next(ctx)
 		if foundID == nil {
 			break
 		}

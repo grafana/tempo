@@ -2,6 +2,7 @@ package v1
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -38,11 +39,11 @@ func TestAllEncodings(t *testing.T) {
 				require.NoError(t, err)
 
 				encryptedBytes := buff.Bytes()
-				reader, err := NewPageReader(bytes.NewReader(encryptedBytes), enc)
+				reader, err := NewPageReader(backend.NewContextReaderWithAllReader(bytes.NewReader(encryptedBytes)), enc)
 				require.NoError(t, err)
 				defer reader.Close()
 
-				actual, err := reader.Read([]*common.Record{
+				actual, err := reader.Read(context.Background(), []*common.Record{
 					{
 						Start:  0,
 						Length: uint32(mw.bytesWritten),

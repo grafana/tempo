@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"context"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -21,7 +22,7 @@ type pagedIterator struct {
 
 // newPagedIterator returns a backendIterator.  This iterator is used to iterate
 //  through objects stored in object storage.
-func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, pageReader common.PageReader) common.Iterator {
+func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, pageReader common.PageReader) Iterator {
 	return &pagedIterator{
 		pageReader:     pageReader,
 		indexReader:    indexReader,
@@ -32,7 +33,7 @@ func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, pag
 // For performance reasons the ID and object slices returned from this method are owned by
 // the iterator.  If you have need to keep these values for longer than a single iteration
 // you need to make a copy of them.
-func (i *pagedIterator) Next() (common.ID, []byte, error) {
+func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	var err error
 	var id common.ID
 	var object []byte
@@ -53,7 +54,10 @@ func (i *pagedIterator) Next() (common.ID, []byte, error) {
 
 	// objects reader was empty, check the index
 	// if no index left, EOF
-	currentRecord := i.indexReader.At(i.currentIndex)
+	currentRecord, err := i.indexReader.At(ctx, i.currentIndex)
+	if err != nil {
+		return nil, nil, err
+	}
 	if currentRecord == nil {
 		return nil, nil, io.EOF
 	}
@@ -74,10 +78,13 @@ func (i *pagedIterator) Next() (common.ID, []byte, error) {
 
 		// get next
 		i.currentIndex++
-		currentRecord = i.indexReader.At(i.currentIndex)
+		currentRecord, err = i.indexReader.At(ctx, i.currentIndex)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
-	i.pages, err = i.pageReader.Read(records)
+	i.pages, err = i.pageReader.Read(ctx, records)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}

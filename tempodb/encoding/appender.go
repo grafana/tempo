@@ -7,6 +7,15 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// Appender is capable of tracking objects and ids that are added to it
+type Appender interface {
+	Append(common.ID, []byte) error
+	Complete() error
+	Records() []*common.Record
+	Length() int
+	DataLength() uint64
+}
+
 type appender struct {
 	pageWriter    common.PageWriter
 	records       []*common.Record
@@ -15,7 +24,7 @@ type appender struct {
 
 // NewAppender returns an appender.  This appender simply appends new objects
 //  to the provided pageWriter.
-func NewAppender(pageWriter common.PageWriter) common.Appender {
+func NewAppender(pageWriter common.PageWriter) Appender {
 	return &appender{
 		pageWriter: pageWriter,
 	}

@@ -8,7 +8,6 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 const (
@@ -26,19 +25,14 @@ func bloomName(shard int) string {
 }
 
 // writeBlockMeta writes the bloom filter, meta and index to the passed in backend.Writer
-func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, records []*common.Record, b *common.ShardedBloomFilter) error {
-	index, err := v0.MarshalRecords(records)
-	if err != nil {
-		return err
-	}
-
+func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, indexBytes []byte, b *common.ShardedBloomFilter) error {
 	blooms, err := b.WriteTo()
 	if err != nil {
 		return err
 	}
 
 	// index
-	err = w.Write(ctx, nameIndex, meta.BlockID, meta.TenantID, index)
+	err = w.Write(ctx, nameIndex, meta.BlockID, meta.TenantID, indexBytes)
 	if err != nil {
 		return fmt.Errorf("unexpected error writing index %w", err)
 	}

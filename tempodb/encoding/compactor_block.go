@@ -20,7 +20,7 @@ type CompactorBlock struct {
 
 	bufferedObjects int
 	appendBuffer    *bytes.Buffer
-	appender        common.Appender
+	appender        Appender
 }
 
 // NewCompactorBlock creates a ... new compactor block!
@@ -112,7 +112,13 @@ func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	records := c.appender.Records()
 	meta := c.BlockMeta()
 
-	err = writeBlockMeta(ctx, w, meta, records, c.bloom)
+	indexWriter := c.encoding.newIndexWriter()
+	indexBytes, err := indexWriter.Write(records)
+	if err != nil {
+		return 0, err
+	}
+
+	err = writeBlockMeta(ctx, w, meta, indexBytes, c.bloom)
 	if err != nil {
 		return 0, err
 	}

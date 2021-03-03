@@ -2,13 +2,14 @@ package encoding
 
 import (
 	"bytes"
+	"context"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type dedupingIterator struct {
-	iter          common.Iterator
+	iter          Iterator
 	combiner      common.ObjectCombiner
 	currentID     []byte
 	currentObject []byte
@@ -16,14 +17,14 @@ type dedupingIterator struct {
 
 // NewDedupingIterator returns a dedupingIterator.  This iterator is used to wrap another
 //  iterator.  It will dedupe consecutive objects with the same id using the ObjectCombiner.
-func NewDedupingIterator(iter common.Iterator, combiner common.ObjectCombiner) (common.Iterator, error) {
+func NewDedupingIterator(iter Iterator, combiner common.ObjectCombiner) (Iterator, error) {
 	i := &dedupingIterator{
 		iter:     iter,
 		combiner: combiner,
 	}
 
 	var err error
-	i.currentID, i.currentObject, err = i.iter.Next()
+	i.currentID, i.currentObject, err = i.iter.Next(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +32,7 @@ func NewDedupingIterator(iter common.Iterator, combiner common.ObjectCombiner) (
 	return i, nil
 }
 
-func (i *dedupingIterator) Next() (common.ID, []byte, error) {
+func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if i.currentID == nil {
 		return nil, nil, io.EOF
 	}
@@ -40,7 +41,7 @@ func (i *dedupingIterator) Next() (common.ID, []byte, error) {
 	var dedupedObject []byte
 
 	for {
-		id, obj, err := i.iter.Next()
+		id, obj, err := i.iter.Next(ctx)
 		if err == io.EOF {
 			i.currentID = nil
 			i.currentObject = nil

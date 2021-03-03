@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -45,11 +46,11 @@ func testPageWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding)
 		require.NoError(t, err)
 
 		reader := bytes.NewReader(buff.Bytes())
-		pageReader, err := v.newPageReader(reader, e)
+		pageReader, err := v.newPageReader(backend.NewContextReaderWithAllReader(reader), e)
 		require.NoError(t, err)
 		defer pageReader.Close()
 
-		actual, err := pageReader.Read([]*common.Record{
+		actual, err := pageReader.Read(context.Background(), []*common.Record{
 			{
 				Start:  0,
 				Length: uint32(bytesWritten),
@@ -61,7 +62,7 @@ func testPageWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding)
 		i := NewIterator(bytes.NewReader(actual[0]))
 		defer i.Close()
 
-		id, obj, err := i.Next()
+		id, obj, err := i.Next(context.Background())
 		assert.NoError(t, err)
 		assert.Equal(t, tc.readerBytes, obj)
 		assert.Equal(t, []byte{0x01}, []byte(id))

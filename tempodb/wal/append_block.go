@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"context"
 	"os"
 
 	"github.com/google/uuid"
@@ -22,7 +23,7 @@ type AppendBlock struct {
 	block
 
 	appendFile *os.File
-	appender   common.Appender
+	appender   encoding.Appender
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
@@ -107,11 +108,11 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 
-	pageReader := v0.NewPageReader(file)
+	pageReader := v0.NewPageReader(backend.NewContextReaderWithAllReader(file))
 	defer pageReader.Close()
 	finder := encoding.NewPagedFinder(common.Records(records), pageReader, combiner)
 
-	return finder.Find(id)
+	return finder.Find(context.Background(), id)
 }
 
 func (h *AppendBlock) Clear() error {

@@ -2,6 +2,7 @@ package v1
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 
@@ -18,7 +19,7 @@ type pageReader struct {
 }
 
 // NewPageReader constructs a v1 PageReader that handles compression
-func NewPageReader(r io.ReaderAt, encoding backend.Encoding) (common.PageReader, error) {
+func NewPageReader(r backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
 	pool, err := getReaderPool(encoding)
 	if err != nil {
 		return nil, err
@@ -33,8 +34,8 @@ func NewPageReader(r io.ReaderAt, encoding backend.Encoding) (common.PageReader,
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
-func (r *pageReader) Read(records []*common.Record) ([][]byte, error) {
-	compressedPages, err := r.v0PageReader.Read(records)
+func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
+	compressedPages, err := r.v0PageReader.Read(ctx, records)
 	if err != nil {
 		return nil, err
 	}

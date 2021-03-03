@@ -33,7 +33,7 @@ type CompleteBlock struct {
 }
 
 // NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
-func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iterator common.Iterator, estimatedObjects int, filepath string, walFilename string) (*CompleteBlock, error) {
+func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iterator Iterator, estimatedObjects int, filepath string, walFilename string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
 		encoding:    latestEncoding(),
 		meta:        backend.NewBlockMeta(originatingMeta.TenantID, uuid.New(), currentVersion, cfg.Encoding),
@@ -62,8 +62,11 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 	if err != nil {
 		return nil, err
 	}
+
+	// todo: add a timeout?  propagage context from completing?
+	ctx := context.Background()
 	for {
-		bytesID, bytesObject, err := iterator.Next()
+		bytesID, bytesObject, err := iterator.Next(ctx)
 		if bytesID == nil {
 			break
 		}
@@ -121,7 +124,13 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 		return err
 	}
 
-	err = writeBlockMeta(ctx, w, c.meta, c.records, c.bloom)
+	indexWriter := c.encoding.newIndexWriter()
+	indexBytes, err := indexWriter.Write(c.records)
+	if err != nil {
+		return err
+	}
+
+	err = writeBlockMeta(ctx, w, c.meta, indexBytes, c.bloom)
 	if err != nil {
 		return err
 	}
@@ -148,14 +157,14 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 		return nil, err
 	}
 
-	pageReader, err := c.encoding.newPageReader(file, c.meta.Encoding)
+	pageReader, err := c.encoding.newPageReader(backend.NewContextReaderWithAllReader(file), c.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	defer pageReader.Close()
 
 	finder := NewPagedFinder(common.Records(c.records), pageReader, combiner)
-	return finder.Find(id)
+	return finder.Find(context.Background(), id)
 }
 
 // Clear removes the backing file.
