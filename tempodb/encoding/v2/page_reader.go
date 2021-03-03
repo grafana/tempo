@@ -5,21 +5,21 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
 )
 
 type pageReader struct {
-	v0PageReader common.PageReader
+	pageReader common.PageReader
 }
 
 // NewPageReader constructs a v2 PageReader that handles paged...reading
-func NewPageReader(r backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
+func NewPageReader(r common.PageReader, encoding backend.Encoding) (common.PageReader, error) {
 	v2PageReader := &pageReader{
-		v0PageReader: v0.NewPageReader(r),
+		pageReader: r,
 	}
 
-	v1PageReader, err := v1.NewPageReaderWithReader(v2PageReader, encoding)
+	// wrap the paged reader in a compressed/v1 reader and return that
+	v1PageReader, err := v1.NewPageReader(v2PageReader, encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func NewPageReader(r backend.ContextReader, encoding backend.Encoding) (common.P
 }
 
 func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
-	v0Pages, err := r.v0PageReader.Read(ctx, records)
+	v0Pages, err := r.pageReader.Read(ctx, records)
 	if err != nil {
 		return nil, err
 	}
@@ -47,5 +47,5 @@ func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]by
 }
 
 func (r *pageReader) Close() {
-	r.v0PageReader.Close()
+	r.pageReader.Close()
 }

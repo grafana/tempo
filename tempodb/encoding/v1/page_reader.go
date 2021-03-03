@@ -8,33 +8,25 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type pageReader struct {
-	v0PageReader common.PageReader
+	pageReader common.PageReader
 
 	pool             ReaderPool
 	compressedReader io.Reader
 }
 
-// NewPageReader constructs a v1 PageReader that handles compression.  By default it assumes
-// a v0 page reader
-func NewPageReader(r backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
-	return NewPageReaderWithReader(v0.NewPageReader(r), encoding)
-}
-
-// jpe need to rework this for sanity
-// NewPageReaderWithReader is useful for nesting compression inside of a different reader
-func NewPageReaderWithReader(r common.PageReader, encoding backend.Encoding) (common.PageReader, error) {
+// NewPageReader is useful for nesting compression inside of a different reader
+func NewPageReader(r common.PageReader, encoding backend.Encoding) (common.PageReader, error) {
 	pool, err := getReaderPool(encoding)
 	if err != nil {
 		return nil, err
 	}
 
 	return &pageReader{
-		v0PageReader: r,
-		pool:         pool,
+		pageReader: r,
+		pool:       pool,
 	}, nil
 }
 
@@ -42,7 +34,7 @@ func NewPageReaderWithReader(r common.PageReader, encoding backend.Encoding) (co
 // assumes that if there are multiple records they are ordered
 // and contiguous
 func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
-	compressedPages, err := r.v0PageReader.Read(ctx, records)
+	compressedPages, err := r.pageReader.Read(ctx, records)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +63,7 @@ func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]by
 }
 
 func (r *pageReader) Close() {
-	r.v0PageReader.Close()
+	r.pageReader.Close()
 
 	if r.compressedReader != nil {
 		r.pool.PutReader(r.compressedReader)

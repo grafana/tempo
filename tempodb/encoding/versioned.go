@@ -63,7 +63,7 @@ func (v v1Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (
 	return v1.NewPageWriter(writer, encoding)
 }
 func (v v1Encoding) newPageReader(ra backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
-	return v1.NewPageReader(ra, encoding)
+	return v1.NewPageReader(v0.NewPageReader(ra), encoding)
 }
 func (v v1Encoding) newIndexReader(ra backend.ContextReader) (common.IndexReader, error) {
 	return v1.NewIndexReader(ra)
@@ -79,7 +79,7 @@ func (v v2Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (
 	return v2.NewPageWriter(writer, encoding)
 }
 func (v v2Encoding) newPageReader(ra backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
-	return v2.NewPageReader(ra, encoding)
+	return v2.NewPageReader(v0.NewPageReader(ra), encoding)
 }
 func (v v2Encoding) newIndexReader(ra backend.ContextReader) (common.IndexReader, error) {
 	return v2.NewIndexReader(ra)
