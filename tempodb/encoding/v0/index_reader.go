@@ -22,7 +22,7 @@ func NewIndexReader(r backend.ContextReader) (common.IndexReader, error) {
 		return nil, err
 	}
 
-	mod := len(index) % recordLength
+	mod := len(index) % RecordLength
 	if mod != 0 {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", len(index))
 	}
@@ -33,12 +33,12 @@ func NewIndexReader(r backend.ContextReader) (common.IndexReader, error) {
 }
 
 func (r *readerBytes) At(_ context.Context, i int) (*common.Record, error) {
-	if i < 0 || i >= len(r.index)/recordLength {
+	if i < 0 || i >= len(r.index)/RecordLength {
 		return nil, nil
 	}
 
-	buff := r.index[i*recordLength : (i+1)*recordLength]
-	return unmarshalRecord(buff), nil
+	buff := r.index[i*RecordLength : (i+1)*RecordLength]
+	return UnmarshalRecord(buff), nil
 }
 
 func (r *readerBytes) Find(_ context.Context, id common.ID) (*common.Record, int, error) {
@@ -46,15 +46,15 @@ func (r *readerBytes) Find(_ context.Context, id common.ID) (*common.Record, int
 	var record *common.Record
 
 	i := sort.Search(numRecords, func(i int) bool {
-		buff := r.index[i*recordLength : (i+1)*recordLength]
-		record = unmarshalRecord(buff)
+		buff := r.index[i*RecordLength : (i+1)*RecordLength]
+		record = UnmarshalRecord(buff)
 
 		return bytes.Compare(record.ID, id) >= 0
 	})
 
 	if i >= 0 && i < numRecords {
-		buff := r.index[i*recordLength : (i+1)*recordLength]
-		record = unmarshalRecord(buff)
+		buff := r.index[i*RecordLength : (i+1)*RecordLength]
+		record = UnmarshalRecord(buff)
 
 		return record, i, nil
 	}

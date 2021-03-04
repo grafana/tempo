@@ -3,6 +3,7 @@ package v0
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -10,13 +11,14 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-const recordLength = 28 // 28 = 128 bit ID, 64bit start, 32bit length
+const RecordLength = 28 // 28 = 128 bit ID, 64bit start, 32bit length
 
 type recordSorter struct {
 	records []*common.Record
 }
 
-func sortRecords(records []*common.Record) {
+// SortRecords sorts a slice of record pointers
+func SortRecords(records []*common.Record) {
 	sort.Sort(&recordSorter{
 		records: records,
 	})
@@ -38,24 +40,38 @@ func (t *recordSorter) Swap(i, j int) {
 }
 
 // MarshalRecords converts a slice of records into a byte slice
-func MarshalRecords(records []*common.Record) ([]byte, error) {
-	recordBytes := make([]byte, len(records)*recordLength)
+func MarshalRecords(records []*common.Record) ([]byte, error) { // jpe move to encoding raw?
+	recordBytes := make([]byte, len(records)*RecordLength)
 
-	for i, r := range records {
-		buff := recordBytes[i*recordLength : (i+1)*recordLength]
-
-		if !validation.ValidTraceID(r.ID) { // todo: remove this check.  maybe have a max id size of 128 bits?
-			return nil, fmt.Errorf("Ids must be 128 bit")
-		}
-
-		marshalRecord(r, buff)
+	err := MarshalRecordsToBuffer(records, recordBytes)
+	if err != nil {
+		return nil, err
 	}
 
 	return recordBytes, nil
 }
 
+// MarshalRecordsToBuffer converts a slice of records and marshals them to an existing byte slice
+func MarshalRecordsToBuffer(records []*common.Record, buffer []byte) error { // jpe move to encoding raw?
+	if len(records)*RecordLength > len(buffer) {
+		return fmt.Errorf("buffer %d is not big enough for records %d", len(buffer), len(records)*RecordLength)
+	}
+
+	for i, r := range records {
+		buff := buffer[i*RecordLength : (i+1)*RecordLength]
+
+		if !validation.ValidTraceID(r.ID) { // todo: remove this check.  maybe have a max id size of 128 bits?
+			return errors.New("ids must be 128 bit")
+		}
+
+		marshalRecord(r, buff)
+	}
+
+	return nil
+}
+
 func unmarshalRecords(recordBytes []byte) ([]*common.Record, error) {
-	mod := len(recordBytes) % recordLength
+	mod := len(recordBytes) % RecordLength
 	if mod != 0 {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
 	}
@@ -64,9 +80,9 @@ func unmarshalRecords(recordBytes []byte) ([]*common.Record, error) {
 	records := make([]*common.Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
-		buff := recordBytes[i*recordLength : (i+1)*recordLength]
+		buff := recordBytes[i*RecordLength : (i+1)*RecordLength]
 
-		r := unmarshalRecord(buff)
+		r := UnmarshalRecord(buff)
 
 		records = append(records, r)
 	}
@@ -75,7 +91,7 @@ func unmarshalRecords(recordBytes []byte) ([]*common.Record, error) {
 }
 
 func recordCount(b []byte) int {
-	return len(b) / recordLength
+	return len(b) / RecordLength
 }
 
 func marshalRecord(r *common.Record, buff []byte) {
@@ -85,7 +101,7 @@ func marshalRecord(r *common.Record, buff []byte) {
 	binary.LittleEndian.PutUint32(buff[24:], r.Length)
 }
 
-func unmarshalRecord(buff []byte) *common.Record {
+func UnmarshalRecord(buff []byte) *common.Record {
 	r := newRecord()
 
 	copy(r.ID, buff[:16])
