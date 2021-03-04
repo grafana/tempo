@@ -272,21 +272,31 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 // Blocks implements backend.Reader
 func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 	prefix := tenantID + "/"
-	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
-	res, err := rw.core.ListObjects(rw.cfg.Bucket, prefix, "", "/", 0)
-	if err != nil {
-		return nil, errors.Wrapf(err, "error listing blocks in s3 bucket, bucket: %s", rw.cfg.Bucket)
+	var blockIDs []uuid.UUID
+
+	nextMarker := ""
+	isTruncated := true
+	for isTruncated {
+		// ListObjects(bucket, prefix, nextMarker, delimiter string, maxKeys int)
+		res, err := rw.core.ListObjects(rw.cfg.Bucket, prefix, nextMarker, "/", 0)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error listing blocks in s3 bucket, bucket: %s", rw.cfg.Bucket)
+		}
+		isTruncated = res.IsTruncated
+		nextMarker = res.NextMarker
+
+		level.Debug(rw.logger).Log("msg", "listing blocks", "tenantID", tenantID,
+			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextMarker)
+
+		for _, cp := range res.CommonPrefixes {
+			blockID, err := uuid.Parse(strings.Split(strings.TrimPrefix(cp.Prefix, prefix), "/")[0])
+			if err != nil {
+				return nil, errors.Wrapf(err, "error parsing uuid of obj, objectName: %s", cp.Prefix)
+			}
+			blockIDs = append(blockIDs, blockID)
+		}
 	}
 
-	level.Debug(rw.logger).Log("msg", "listing blocks", "tenantID", tenantID, "found", len(res.CommonPrefixes))
-	var blockIDs []uuid.UUID
-	for _, cp := range res.CommonPrefixes {
-		blockID, err := uuid.Parse(strings.Split(strings.TrimPrefix(cp.Prefix, prefix), "/")[0])
-		if err != nil {
-			return nil, errors.Wrapf(err, "error parsing uuid of obj, objectName: %s", cp.Prefix)
-		}
-		blockIDs = append(blockIDs, blockID)
-	}
 	return blockIDs, nil
 }
 
