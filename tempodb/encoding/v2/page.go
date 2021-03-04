@@ -14,6 +14,7 @@ const (
 
 // jpe - any headers to add in the first version of this?
 //     - checksum? crc?  for indexes only?
+//     - min/max ids for record?
 type page struct {
 	data []byte
 }
@@ -80,7 +81,7 @@ func marshalPageToWriter(b []byte, w io.Writer) (int, error) {
 // marshalPageToBuffer marshals a page to the passed buffer.  It uses the
 // writePage method to write the bytes directly.  writePage method is expected
 // to error if the buffer is too small
-func marshalPageToBuffer(writePage func([]byte) error, buffer []byte) (int, error) { // jpe test
+func marshalPageToBuffer(writePage func([]byte) error, buffer []byte) (int, error) {
 	var headerLength uint16
 	var totalLength uint32
 
@@ -105,11 +106,19 @@ func marshalPageToBuffer(writePage func([]byte) error, buffer []byte) (int, erro
 	return int(totalLength), nil
 }
 
-func objectsPerPage(objectSizeBytes int, pageSizeBytes int) int { // jpe test
+func objectsPerPage(objectSizeBytes int, pageSizeBytes int) int {
+	if objectSizeBytes == 0 {
+		return 0
+	}
+
 	return (pageSizeBytes - int(totalHeaderSize)) / objectSizeBytes
 }
 
-func totalPages(totalObjects int, objectsPerPage int) int { // jpe test
+func totalPages(totalObjects int, objectsPerPage int) int {
+	if objectsPerPage == 0 {
+		return 0
+	}
+
 	pages := totalObjects / objectsPerPage
 	if totalObjects%objectsPerPage != 0 {
 		pages++

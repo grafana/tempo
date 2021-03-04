@@ -19,7 +19,7 @@ type indexReader struct {
 	pageSizeBytes int
 	totalRecords  int
 
-	pageCache map[int]*page // jpe - concurrency safe?
+	pageCache map[int]*page // indexReader is not concurrency safe, but since it is currently used within one request it is fine.
 }
 
 // jpe - cache requested pages - needs total records.  write to header?
@@ -86,7 +86,7 @@ func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, i
 }
 
 func (r *indexReader) getPage(ctx context.Context, pageIdx int) ([]byte, error) {
-	page, ok := r.pageCache[pageIdx] // jpe concurrency
+	page, ok := r.pageCache[pageIdx]
 	if ok {
 		return page.data, nil
 	}

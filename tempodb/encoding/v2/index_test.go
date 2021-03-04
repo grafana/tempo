@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIndexReaderWriter(t *testing.T) {
+func TestIndexWriterReaderAt(t *testing.T) {
 	numRecords := 10000
-	pageSize := 100
+	pageSize := 120
 
 	randomRecords := []*common.Record{}
 

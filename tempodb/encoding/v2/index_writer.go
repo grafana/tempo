@@ -21,7 +21,7 @@ func NewIndexWriter(pageSizeBytes int) common.IndexWriter {
 }
 
 // Write implements common.IndexWriter
-func (w *indexWriter) Write(records []*common.Record) ([]byte, error) { // jpe return total pages, test
+func (w *indexWriter) Write(records []*common.Record) ([]byte, error) { // jpe return total pages
 	// we need to write a page at a time to an output byte slice
 	//  first let's calculate how many pages we need
 	recordsPerPage := objectsPerPage(v0.RecordLength, w.pageSizeBytes)
@@ -49,7 +49,7 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) { // jpe r
 			return v0.MarshalRecordsToBuffer(pageRecords, b)
 		}
 
-		pageBuffer := indexBuffer[currentPage*w.pageSizeBytes : (currentPage+1)*w.pageSizeBytes] // jpe protect this?
+		pageBuffer := indexBuffer[currentPage*w.pageSizeBytes : (currentPage+1)*w.pageSizeBytes]
 		_, err := marshalPageToBuffer(writePageData, pageBuffer)
 		if err != nil {
 			return nil, err
