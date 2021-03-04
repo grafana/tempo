@@ -4,10 +4,9 @@ import (
 	"context"
 	"io"
 
+	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/pkg/errors"
-
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type pagedIterator struct {
@@ -44,8 +43,8 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		i.pages = i.pages[1:] // advance pages
 	}
 
-	// pageReader returns pages in the v0 format, so this works
-	i.activePage, id, object, err = v0.UnmarshalAndAdvanceBuffer(i.activePage)
+	// pageReader returns pages in the raw format, so this works
+	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage) // jpe review, does this still work?
 	if err != nil && err != io.EOF {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	} else if err != io.EOF {
@@ -96,7 +95,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	i.pages = i.pages[1:] // advance pages
 
 	// attempt to get next object from objects
-	i.activePage, id, object, err = v0.UnmarshalAndAdvanceBuffer(i.activePage)
+	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage) // jpe same question as above
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}

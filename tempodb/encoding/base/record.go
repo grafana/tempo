@@ -1,4 +1,4 @@
-package v0
+package base
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// RecordLength holds the size of a single record in bytes
 const RecordLength = 28 // 28 = 128 bit ID, 64bit start, 32bit length
 
 type recordSorter struct {
@@ -76,7 +77,7 @@ func unmarshalRecords(recordBytes []byte) ([]*common.Record, error) {
 		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
 	}
 
-	numRecords := recordCount(recordBytes)
+	numRecords := RecordCount(recordBytes)
 	records := make([]*common.Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
@@ -90,10 +91,12 @@ func unmarshalRecords(recordBytes []byte) ([]*common.Record, error) {
 	return records, nil
 }
 
-func recordCount(b []byte) int {
+// RecordCount returns the number of records in a byte slice
+func RecordCount(b []byte) int {
 	return len(b) / RecordLength
 }
 
+// marshalRecord writes a record to an existing byte slice
 func marshalRecord(r *common.Record, buff []byte) {
 	copy(buff, r.ID)
 
@@ -101,6 +104,7 @@ func marshalRecord(r *common.Record, buff []byte) {
 	binary.LittleEndian.PutUint32(buff[24:], r.Length)
 }
 
+// UnmarshalRecord creates a new record from the contents ofa byte slice
 func UnmarshalRecord(buff []byte) *common.Record {
 	r := newRecord()
 

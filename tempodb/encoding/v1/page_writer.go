@@ -5,8 +5,8 @@ import (
 	"io"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 // meteredWriter is a struct that is used to count the number of bytes
@@ -58,7 +58,7 @@ func NewPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWrit
 
 // Write implements common.PageWriter
 func (p *pageWriter) Write(id common.ID, obj []byte) (int, error) {
-	return v0.MarshalObjectToWriter(id, obj, p.v0Buffer)
+	return base.MarshalObjectToWriter(id, obj, p.v0Buffer)
 }
 
 // CutPage implements common.PageWriter

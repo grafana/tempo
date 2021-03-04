@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func TestIndexWriterReaderAt(t *testing.T) {
 		randomRecords = append(randomRecords, rec)
 	}
 
-	v0.SortRecords(randomRecords)
+	base.SortRecords(randomRecords)
 
 	indexWriter := NewIndexWriter(pageSize)
 	indexBytes, err := indexWriter.Write(randomRecords)

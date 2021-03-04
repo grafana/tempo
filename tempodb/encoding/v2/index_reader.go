@@ -6,8 +6,8 @@ import (
 	"math"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 const maxByte = byte(0xff)
@@ -43,7 +43,7 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, nil
 	}
 
-	recordsPerPage := objectsPerPage(v0.RecordLength, r.pageSizeBytes)
+	recordsPerPage := objectsPerPage(base.RecordLength, r.pageSizeBytes)
 	pageIdx := i / recordsPerPage
 	recordIdx := i % recordsPerPage
 
@@ -52,11 +52,11 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, err
 	}
 
-	if recordIdx >= len(page)/v0.RecordLength {
+	if recordIdx >= len(page)/base.RecordLength {
 		return nil, fmt.Errorf("unexpected out of bounds index %d, %d, %d, %d", i, pageIdx, recordIdx, len(page))
 	}
 
-	recordBytes := page[recordIdx*v0.RecordLength : (recordIdx+1)*v0.RecordLength]
+	recordBytes := page[recordIdx*base.RecordLength : (recordIdx+1)*base.RecordLength]
 
 	// double check the record is not all 0s.  this could occur if we read empty buffer space past the final
 	// record in the final page
@@ -71,7 +71,7 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, fmt.Errorf("unexpected zero value record %d, %d, %d, %d", i, pageIdx, recordIdx, len(page))
 	}
 
-	return v0.UnmarshalRecord(recordBytes), nil
+	return base.UnmarshalRecord(recordBytes), nil
 }
 
 func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, int, error) { // jpe test :(

@@ -3,8 +3,8 @@ package v2
 import (
 	"fmt"
 
+	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type indexWriter struct {
@@ -24,7 +24,7 @@ func NewIndexWriter(pageSizeBytes int) common.IndexWriter {
 func (w *indexWriter) Write(records []*common.Record) ([]byte, error) { // jpe return total pages
 	// we need to write a page at a time to an output byte slice
 	//  first let's calculate how many pages we need
-	recordsPerPage := objectsPerPage(v0.RecordLength, w.pageSizeBytes)
+	recordsPerPage := objectsPerPage(base.RecordLength, w.pageSizeBytes)
 	totalPages := totalPages(len(records), recordsPerPage)
 
 	totalBytes := totalPages * w.pageSizeBytes
@@ -46,7 +46,7 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) { // jpe r
 		}
 
 		writePageData := func(b []byte) error {
-			return v0.MarshalRecordsToBuffer(pageRecords, b)
+			return base.MarshalRecordsToBuffer(pageRecords, b)
 		}
 
 		pageBuffer := indexBuffer[currentPage*w.pageSizeBytes : (currentPage+1)*w.pageSizeBytes]

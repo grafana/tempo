@@ -3,6 +3,7 @@ package v0
 import (
 	"io"
 
+	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -21,7 +22,7 @@ func NewPageWriter(writer io.Writer) common.PageWriter {
 
 // Write implements common.PageWriter
 func (p *pageWriter) Write(id common.ID, obj []byte) (int, error) {
-	written, err := MarshalObjectToWriter(id, obj, p.w)
+	written, err := base.MarshalObjectToWriter(id, obj, p.w)
 	if err != nil {
 		return 0, err
 	}

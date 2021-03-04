@@ -1,6 +1,7 @@
 package v0
 
 import (
+	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -14,5 +15,5 @@ func NewIndexWriter() common.IndexWriter {
 
 // Write implements common.IndexWriter
 func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
-	return MarshalRecords(records)
+	return base.MarshalRecords(records)
 }
