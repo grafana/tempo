@@ -187,6 +187,12 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
 		i.blocksMtx.Unlock()
 		return uuid.Nil, err
 	}
+
+	err = completingBlock.Clear()
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "Error clearing wal", "tenantID", i.instanceID, "err", err)
+	}
+
 	// remove completingBlock from list
 	for j, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
@@ -194,6 +200,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
 			break
 		}
 	}
+
 	completeBlockID := completeBlock.BlockMeta().BlockID
 	i.completeBlocks = append(i.completeBlocks, completeBlock)
 	i.blocksMtx.Unlock()
