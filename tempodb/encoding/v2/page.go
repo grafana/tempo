@@ -7,16 +7,16 @@ import (
 )
 
 const (
-	uint32Size      = uint32(4) // jpe review:  lots of casting
-	uint16Size      = uint32(2)
-	totalHeaderSize = uint16Size + uint32Size + 0
+	uint32Size = uint32(4) // jpe review:  lots of casting
+	uint16Size = uint32(2)
 )
 
 // jpe - any headers to add in the first version of this?
 //     - checksum? crc?  for indexes only?
 //     - min/max ids for record?
 type page struct {
-	data []byte
+	data   []byte
+	header pageHeader
 }
 
 /*
@@ -25,7 +25,8 @@ type page struct {
   |   32 bits   |   16 bits  |                    |            |
   | totalLength | header len | header fields      | page bytes |
 */
-func unmarshalPageFromBytes(b []byte) (*page, error) {
+func unmarshalPageFromBytes(b []byte, header pageHeader) (*page, error) {
+	totalHeaderSize := uint16Size + uint32Size + uint32(header.headerLength())
 	if len(b) < int(totalHeaderSize) {
 		return nil, fmt.Errorf("page of size %d too small", len(b))
 	}
@@ -34,28 +35,29 @@ func unmarshalPageFromBytes(b []byte) (*page, error) {
 	b = b[uint32Size:]
 	headerLength := binary.LittleEndian.Uint16(b[:uint16Size])
 	b = b[uint16Size:]
-
-	// no header fields yet
-	if headerLength != 0 {
-		return nil, fmt.Errorf("headerLen unexpectedly %d while reading a page", headerLength)
+	err := header.unmarshalHeader(b[:headerLength])
+	if err != nil {
+		return nil, err
 	}
+	b = b[headerLength:]
 
-	dataLength := totalLength - uint32Size - uint16Size - uint32(headerLength)
+	dataLength := totalLength - totalHeaderSize
 	if len(b) != int(dataLength) {
-		return nil, fmt.Errorf("page size %d but read %d", totalLength, dataLength)
+		return nil, fmt.Errorf("expected data len %d does not match actual %d", dataLength, len(b))
 	}
 
 	return &page{
-		data: b,
+		data:   b,
+		header: header,
 	}, nil
 }
 
 // marshalPageToWriter marshals the page bytes to the passed writer
-func marshalPageToWriter(b []byte, w io.Writer) (int, error) {
+func marshalPageToWriter(b []byte, w io.Writer, header pageHeader) (int, error) {
 	var headerLength uint16
 	var totalLength uint32
 
-	headerLength = 0
+	headerLength = uint16(header.headerLength()) // jpe - casting :(
 	totalLength = uint32(headerLength) + uint32Size + uint16Size + uint32(len(b))
 
 	err := binary.Write(w, binary.LittleEndian, totalLength)
@@ -68,7 +70,18 @@ func marshalPageToWriter(b []byte, w io.Writer) (int, error) {
 		return 0, err
 	}
 
-	// header fields?
+	if headerLength != 0 {
+		headerBuff := make([]byte, headerLength)
+		err = header.marshalHeader(headerBuff)
+		if err != nil {
+			return 0, err
+		}
+
+		_, err := w.Write(headerBuff)
+		if err != nil {
+			return 0, err
+		}
+	}
 
 	_, err = w.Write(b)
 	if err != nil {
@@ -80,15 +93,16 @@ func marshalPageToWriter(b []byte, w io.Writer) (int, error) {
 
 // marshalHeaderToPage marshals the header only to the passed in page and then returns
 //  the rest of the page slice for the caller to finish
-func marshalHeaderToPage(page []byte) ([]byte, error) {
+func marshalHeaderToPage(page []byte, header pageHeader) ([]byte, error) {
 	var headerLength uint16
 	var totalLength uint32
 
+	totalHeaderSize := uint16Size + uint32Size + uint32(header.headerLength())
 	if len(page) < int(totalHeaderSize) {
 		return nil, fmt.Errorf("page of size %d too small", len(page))
 	}
 
-	headerLength = 0
+	headerLength = uint16(header.headerLength()) // jpe casting
 	totalLength = uint32(len(page))
 
 	binary.LittleEndian.PutUint32(page[:uint32Size], totalLength)
@@ -96,15 +110,20 @@ func marshalHeaderToPage(page []byte) ([]byte, error) {
 	binary.LittleEndian.PutUint16(page[:uint16Size], headerLength)
 	page = page[uint16Size:]
 
-	return page, nil
+	err := header.marshalHeader(page[:headerLength])
+	if err != nil {
+		return nil, err
+	}
+
+	return page[headerLength:], nil
 }
 
-func objectsPerPage(objectSizeBytes int, pageSizeBytes int) int {
+func objectsPerPage(objectSizeBytes int, pageSizeBytes int, headerSize int) int {
 	if objectSizeBytes == 0 {
 		return 0
 	}
 
-	return (pageSizeBytes - int(totalHeaderSize)) / objectSizeBytes
+	return (pageSizeBytes - headerSize) / objectSizeBytes
 }
 
 func totalPages(totalObjects int, objectsPerPage int) int {

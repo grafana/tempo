@@ -24,7 +24,7 @@ func NewIndexWriter(pageSizeBytes int) common.IndexWriter {
 func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 	// we need to write a page at a time to an output byte slice
 	//  first let's calculate how many pages we need
-	recordsPerPage := objectsPerPage(base.RecordLength, w.pageSizeBytes)
+	recordsPerPage := objectsPerPage(base.RecordLength, w.pageSizeBytes, IndexHeaderLength)
 	totalPages := totalPages(len(records), recordsPerPage)
 
 	if recordsPerPage == 0 {
@@ -50,7 +50,7 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 		}
 
 		pageBuffer := indexBuffer[currentPage*w.pageSizeBytes : (currentPage+1)*w.pageSizeBytes]
-		pageBuffer, err := marshalHeaderToPage(pageBuffer)
+		pageBuffer, err := marshalHeaderToPage(pageBuffer, &indexHeader{})
 		if err != nil {
 			return nil, err
 		}

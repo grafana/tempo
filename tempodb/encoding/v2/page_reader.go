@@ -12,6 +12,11 @@ type pageReader struct {
 	pageReader common.PageReader
 }
 
+// constDataHeader is a singleton data header.  the data header is
+//  stateless b/c there are no fields.  to very minorly reduce allocations all
+//  data should just use this.
+var constDataHeader = &dataHeader{}
+
 // NewPageReader constructs a v2 PageReader that handles paged...reading
 func NewPageReader(r common.PageReader, encoding backend.Encoding) (common.PageReader, error) {
 	v2PageReader := &pageReader{
@@ -35,7 +40,7 @@ func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]by
 
 	pages := make([][]byte, 0, len(v0Pages))
 	for _, v0Page := range v0Pages {
-		page, err := unmarshalPageFromBytes(v0Page)
+		page, err := unmarshalPageFromBytes(v0Page, constDataHeader)
 		if err != nil {
 			return nil, err
 		}

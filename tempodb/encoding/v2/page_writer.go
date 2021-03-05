@@ -44,7 +44,7 @@ func (p *pageWriter) CutPage() (int, error) {
 	}
 
 	// v1Buffer currently has all of the v1 bytes. let's wrap it in our page and write
-	bytesWritten, err := marshalPageToWriter(p.v1Buffer.Bytes(), p.outputWriter)
+	bytesWritten, err := marshalPageToWriter(p.v1Buffer.Bytes(), p.outputWriter, constDataHeader)
 	if err != nil {
 		return 0, err
 	}

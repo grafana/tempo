@@ -43,7 +43,7 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, nil
 	}
 
-	recordsPerPage := objectsPerPage(base.RecordLength, r.pageSizeBytes)
+	recordsPerPage := objectsPerPage(base.RecordLength, r.pageSizeBytes, IndexHeaderLength)
 	if recordsPerPage == 0 {
 		return nil, fmt.Errorf("page %d is too small for one record", r.pageSizeBytes)
 	}
@@ -100,7 +100,7 @@ func (r *indexReader) getPage(ctx context.Context, pageIdx int) ([]byte, error) 
 		return nil, err
 	}
 
-	page, err = unmarshalPageFromBytes(pageBuffer)
+	page, err = unmarshalPageFromBytes(pageBuffer, &indexHeader{})
 	if err != nil {
 		return nil, err
 	}
