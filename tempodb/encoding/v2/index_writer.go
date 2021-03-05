@@ -21,11 +21,15 @@ func NewIndexWriter(pageSizeBytes int) common.IndexWriter {
 }
 
 // Write implements common.IndexWriter
-func (w *indexWriter) Write(records []*common.Record) ([]byte, error) { // jpe return total pages
+func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 	// we need to write a page at a time to an output byte slice
 	//  first let's calculate how many pages we need
 	recordsPerPage := objectsPerPage(base.RecordLength, w.pageSizeBytes)
 	totalPages := totalPages(len(records), recordsPerPage)
+
+	if recordsPerPage == 0 {
+		return nil, fmt.Errorf("pageSize %d too small for one record", w.pageSizeBytes)
+	}
 
 	totalBytes := totalPages * w.pageSizeBytes
 	indexBuffer := make([]byte, totalBytes)
@@ -45,7 +49,7 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) { // jpe r
 			return nil, fmt.Errorf("unexpected 0 length records %d,%d,%d,%d", currentPage, recordsPerPage, w.pageSizeBytes, totalPages)
 		}
 
-		writePageData := func(b []byte) error {
+		writePageData := func(b []byte) error { // jpe does this need to exist?  change to marshalHeaderOnly and return the rest of the page?
 			return base.MarshalRecordsToBuffer(pageRecords, b)
 		}
 

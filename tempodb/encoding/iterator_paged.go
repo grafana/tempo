@@ -44,7 +44,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	}
 
 	// pageReader returns pages in the raw format, so this works
-	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage) // jpe review, does this still work?
+	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil && err != io.EOF {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	} else if err != io.EOF {
@@ -95,7 +95,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	i.pages = i.pages[1:] // advance pages
 
 	// attempt to get next object from objects
-	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage) // jpe same question as above
+	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}

@@ -92,7 +92,6 @@ func marshalPageToBuffer(writePage func([]byte) error, buffer []byte) (int, erro
 	headerLength = 0
 	totalLength = uint32(len(buffer))
 
-	// jpe check buffer length
 	binary.LittleEndian.PutUint32(buffer[:uint32Size], totalLength)
 	buffer = buffer[uint32Size:]
 	binary.LittleEndian.PutUint16(buffer[:uint16Size], headerLength)

@@ -44,6 +44,9 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 	}
 
 	recordsPerPage := objectsPerPage(base.RecordLength, r.pageSizeBytes)
+	if recordsPerPage == 0 {
+		return nil, fmt.Errorf("page %d is too small for one record", r.pageSizeBytes)
+	}
 	pageIdx := i / recordsPerPage
 	recordIdx := i % recordsPerPage
 

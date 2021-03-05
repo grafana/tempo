@@ -20,7 +20,7 @@ func ValidateConfig(b *BlockConfig) error {
 		return fmt.Errorf("Positive index downsample required")
 	}
 
-	if b.IndexPageSizeBytes <= 0 {
+	if b.IndexPageSizeBytes <= 0 { // jpe - warn if we can't even fit a single record
 		return fmt.Errorf("Positive index page size required")
 	}
 
