@@ -45,7 +45,7 @@ func (h *dataHeader) marshalHeader(b []byte) error {
 //   min id
 //   max id
 type indexHeader struct {
-	fnvChecksum uint32    // jpe - test crc failures
+	fnvChecksum uint32
 	maxID       common.ID // 128 bits/16 bytes : inclusive
 	minID       common.ID // 128 bits/16 bytes : exclusive
 }

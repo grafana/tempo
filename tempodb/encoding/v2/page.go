@@ -12,9 +12,6 @@ const (
 	baseHeaderSize = uint16Size + uint32Size
 )
 
-// jpe - any headers to add in the first version of this?
-//     - checksum? crc?  for indexes only?
-//     - min/max ids for record?
 type page struct {
 	data   []byte
 	header pageHeader

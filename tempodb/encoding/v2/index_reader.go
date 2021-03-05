@@ -23,8 +23,6 @@ type indexReader struct {
 	pageCache map[int]*page // indexReader is not concurrency safe, but since it is currently used within one request it is fine.
 }
 
-// jpe - cache requested pages - needs total records.  write to header?
-
 // NewIndexReader returns an index reader for a byte slice of marshalled
 // ordered records.
 // The index has not changed between v0 and v1.
