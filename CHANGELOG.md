@@ -7,7 +7,7 @@
 * [BUGFIX] Fixes permissions errors on startup in GCS. [#554](https://github.com/grafana/tempo/pull/554)
 * [BUGFIX] Fixes error where Dell ECS cannot list objects. [#561](https://github.com/grafana/tempo/pull/561)
 * [BUGFIX] Fixes listing blocks in S3 when the list is truncated. [#567](https://github.com/grafana/tempo/pull/567)
-* [BUGFIX] [#569](https://github.com/grafana/tempo/issues/569)
+* [BUGFIX] Fixes where ingester may leave file open [#569](https://github.com/grafana/tempo/issues/569)
 
 ## v0.6.0
 
