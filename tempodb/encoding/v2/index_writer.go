@@ -49,15 +49,12 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 			return nil, fmt.Errorf("unexpected 0 length records %d,%d,%d,%d", currentPage, recordsPerPage, w.pageSizeBytes, totalPages)
 		}
 
-		writePageData := func(b []byte) error { // jpe does this need to exist?  change to marshalHeaderOnly and return the rest of the page?
-			return base.MarshalRecordsToBuffer(pageRecords, b)
-		}
-
 		pageBuffer := indexBuffer[currentPage*w.pageSizeBytes : (currentPage+1)*w.pageSizeBytes]
-		_, err := marshalPageToBuffer(writePageData, pageBuffer)
+		pageBuffer, err := marshalHeaderToPage(pageBuffer)
 		if err != nil {
 			return nil, err
 		}
+		base.MarshalRecordsToBuffer(pageRecords, pageBuffer)
 	}
 
 	return indexBuffer, nil

@@ -27,7 +27,7 @@ type indexReader struct {
 // NewIndexReader returns an index reader for a byte slice of marshalled
 // ordered records.
 // The index has not changed between v0 and v1.
-func NewIndexReader(r backend.ContextReader, pageSizeBytes int, totalRecords int) (common.IndexReader, error) { // jpe need total records, add to page?
+func NewIndexReader(r backend.ContextReader, pageSizeBytes int, totalRecords int) (common.IndexReader, error) {
 	return &indexReader{
 		r: r,
 

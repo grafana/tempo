@@ -41,7 +41,7 @@ func (t *recordSorter) Swap(i, j int) {
 }
 
 // MarshalRecords converts a slice of records into a byte slice
-func MarshalRecords(records []*common.Record) ([]byte, error) { // jpe move to encoding raw?
+func MarshalRecords(records []*common.Record) ([]byte, error) {
 	recordBytes := make([]byte, len(records)*RecordLength)
 
 	err := MarshalRecordsToBuffer(records, recordBytes)
@@ -53,7 +53,7 @@ func MarshalRecords(records []*common.Record) ([]byte, error) { // jpe move to e
 }
 
 // MarshalRecordsToBuffer converts a slice of records and marshals them to an existing byte slice
-func MarshalRecordsToBuffer(records []*common.Record, buffer []byte) error { // jpe move to encoding raw?
+func MarshalRecordsToBuffer(records []*common.Record, buffer []byte) error {
 	if len(records)*RecordLength > len(buffer) {
 		return fmt.Errorf("buffer %d is not big enough for records %d", len(buffer), len(records)*RecordLength)
 	}

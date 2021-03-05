@@ -78,31 +78,25 @@ func marshalPageToWriter(b []byte, w io.Writer) (int, error) {
 	return int(totalLength), nil
 }
 
-// marshalPageToBuffer marshals a page to the passed buffer.  It uses the
-// writePage method to write the bytes directly.  writePage method is expected
-// to error if the buffer is too small
-func marshalPageToBuffer(writePage func([]byte) error, buffer []byte) (int, error) {
+// marshalHeaderToPage marshals the header only to the passed in page and then returns
+//  the rest of the page slice for the caller to finish
+func marshalHeaderToPage(page []byte) ([]byte, error) {
 	var headerLength uint16
 	var totalLength uint32
 
-	if len(buffer) < int(totalHeaderSize) {
-		return 0, fmt.Errorf("page of size %d too small", len(buffer))
+	if len(page) < int(totalHeaderSize) {
+		return nil, fmt.Errorf("page of size %d too small", len(page))
 	}
 
 	headerLength = 0
-	totalLength = uint32(len(buffer))
+	totalLength = uint32(len(page))
 
-	binary.LittleEndian.PutUint32(buffer[:uint32Size], totalLength)
-	buffer = buffer[uint32Size:]
-	binary.LittleEndian.PutUint16(buffer[:uint16Size], headerLength)
-	buffer = buffer[uint16Size:]
+	binary.LittleEndian.PutUint32(page[:uint32Size], totalLength)
+	page = page[uint32Size:]
+	binary.LittleEndian.PutUint16(page[:uint16Size], headerLength)
+	page = page[uint16Size:]
 
-	err := writePage(buffer)
-	if err != nil {
-		return 0, err
-	}
-
-	return int(totalLength), nil
+	return page, nil
 }
 
 func objectsPerPage(objectSizeBytes int, pageSizeBytes int) int {

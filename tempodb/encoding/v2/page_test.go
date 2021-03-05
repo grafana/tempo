@@ -2,10 +2,10 @@ package v2
 
 import (
 	"bytes"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPageMarshalToWriter(t *testing.T) {
@@ -44,36 +44,17 @@ func TestPageMarshalToBuffer(t *testing.T) {
 		{
 			expected: []byte{},
 		},
-		{
-			expected:     []byte{},
-			expectsError: true,
-		},
 	}
 
 	for _, tc := range tests {
 		outputBuffer := make([]byte, len(tc.expected)+int(totalHeaderSize))
 
-		write := func(b []byte) error {
-			copy(b, tc.expected)
-
-			if tc.expectsError {
-				return errors.New("eep")
-			}
-
-			return nil
-		}
-
-		bytesWritten, err := marshalPageToBuffer(write, outputBuffer)
-		if tc.expectsError {
-			assert.Error(t, err)
-			continue
-		}
-
-		assert.NoError(t, err)
-		assert.Equal(t, len(tc.expected)+int(totalHeaderSize), bytesWritten)
+		restOfPage, err := marshalHeaderToPage(outputBuffer)
+		require.NoError(t, err)
+		copy(restOfPage, tc.expected)
 
 		page, err := unmarshalPageFromBytes(outputBuffer)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, tc.expected, page.data)
 	}
 }
