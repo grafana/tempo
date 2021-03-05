@@ -179,31 +179,28 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
 
 	// potentially long running operation placed outside blocksMtx
 	completeBlock, err := i.writer.CompleteBlock(completingBlock, i)
-
-	i.blocksMtx.Lock()
 	if err != nil {
 		metricFailedFlushes.Inc()
 		level.Error(log.Logger).Log("msg", "unable to complete block.", "tenantID", i.instanceID, "err", err)
-		i.blocksMtx.Unlock()
 		return uuid.Nil, err
 	}
 
-	err = completingBlock.Clear()
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "Error clearing wal", "tenantID", i.instanceID, "err", err)
-	}
-
-	// remove completingBlock from list
+	// remove completingBlock and add completeBlock
+	i.blocksMtx.Lock()
 	for j, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
 			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
 			break
 		}
 	}
-
 	completeBlockID := completeBlock.BlockMeta().BlockID
 	i.completeBlocks = append(i.completeBlocks, completeBlock)
 	i.blocksMtx.Unlock()
+
+	err = completingBlock.Clear()
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "Error clearing wal", "tenantID", i.instanceID, "err", err)
+	}
 
 	return completeBlockID, nil
 }
