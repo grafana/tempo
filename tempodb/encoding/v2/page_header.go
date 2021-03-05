@@ -41,7 +41,7 @@ func (h *dataHeader) marshalHeader(b []byte) error {
 }
 
 // indexHeader implements a pageHeader that has index fields
-//   fnvChecksum
+//   fnvChecksum   jpe - consider other hash functions (xxhash?)
 //   min id
 //   max id
 type indexHeader struct {
