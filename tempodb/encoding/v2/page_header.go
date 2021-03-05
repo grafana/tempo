@@ -1,6 +1,12 @@
 package v2
 
-import "errors"
+import (
+	"encoding/binary"
+	"errors"
+	"fmt"
+
+	"github.com/grafana/tempo/tempodb/encoding/common"
+)
 
 type pageHeader interface {
 	unmarshalHeader([]byte) error
@@ -12,7 +18,7 @@ type pageHeader interface {
 const DataHeaderLength = 0
 
 // IndexHeaderLength is the length in bytes for the record header
-const IndexHeaderLength = 0
+const IndexHeaderLength = int(uint32Size) + 16 + 16 // crc32 + 2 128 bit ids
 
 // dataHeader implements a pageHeader that has no fields
 type dataHeader struct {
@@ -35,14 +41,27 @@ func (h *dataHeader) marshalHeader(b []byte) error {
 }
 
 // indexHeader implements a pageHeader that has index fields
-//   crc
+//   fnvChecksum
 //   min id
 //   max id
 type indexHeader struct {
-	//jpe todo
+	fnvChecksum uint32    // jpe - test crc failures
+	maxID       common.ID // 128 bits/16 bytes : inclusive
+	minID       common.ID // 128 bits/16 bytes : exclusive
 }
 
 func (h *indexHeader) unmarshalHeader(b []byte) error {
+	if len(b) != IndexHeaderLength {
+		return fmt.Errorf("unexpected index header len of %d", len(b))
+	}
+
+	h.fnvChecksum = binary.LittleEndian.Uint32(b[:uint32Size])
+	b = b[uint32Size:]
+	h.maxID = b[:16]
+	b = b[16:]
+	h.minID = b[:16]
+	//b = b[16:]
+
 	return nil
 }
 
@@ -51,5 +70,16 @@ func (h *indexHeader) headerLength() int {
 }
 
 func (h *indexHeader) marshalHeader(b []byte) error {
+	if len(b) != IndexHeaderLength {
+		return fmt.Errorf("unexpected index header len of %d", len(b))
+	}
+
+	binary.LittleEndian.PutUint32(b, h.fnvChecksum)
+	b = b[uint32Size:]
+	copy(b, h.maxID)
+	b = b[16:]
+	copy(b, h.minID)
+	// b = b[16:]
+
 	return nil
 }

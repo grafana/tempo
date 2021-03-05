@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"math"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -10,8 +11,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-const maxByte = byte(0xff)
-const minByte = byte(0x00)
+var constMaxID = []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+var constMinID = []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 type indexReader struct {
 	r backend.ContextReader
@@ -55,11 +56,11 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, err
 	}
 
-	if recordIdx >= len(page)/base.RecordLength {
-		return nil, fmt.Errorf("unexpected out of bounds index %d, %d, %d, %d", i, pageIdx, recordIdx, len(page))
+	if recordIdx >= len(page.data)/base.RecordLength {
+		return nil, fmt.Errorf("unexpected out of bounds index %d, %d, %d, %d", i, pageIdx, recordIdx, len(page.data))
 	}
 
-	recordBytes := page[recordIdx*base.RecordLength : (recordIdx+1)*base.RecordLength]
+	recordBytes := page.data[recordIdx*base.RecordLength : (recordIdx+1)*base.RecordLength]
 
 	// double check the record is not all 0s.  this could occur if we read empty buffer space past the final
 	// record in the final page
@@ -71,7 +72,7 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		}
 	}
 	if allZeros {
-		return nil, fmt.Errorf("unexpected zero value record %d, %d, %d, %d", i, pageIdx, recordIdx, len(page))
+		return nil, fmt.Errorf("unexpected zero value record %d, %d, %d, %d", i, pageIdx, recordIdx, len(page.data))
 	}
 
 	return base.UnmarshalRecord(recordBytes), nil
@@ -88,10 +89,10 @@ func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, i
 	return nil, 0, nil
 }
 
-func (r *indexReader) getPage(ctx context.Context, pageIdx int) ([]byte, error) {
+func (r *indexReader) getPage(ctx context.Context, pageIdx int) (*page, error) {
 	page, ok := r.pageCache[pageIdx]
 	if ok {
-		return page.data, nil
+		return page, nil
 	}
 
 	pageBuffer := make([]byte, r.pageSizeBytes)
@@ -105,9 +106,16 @@ func (r *indexReader) getPage(ctx context.Context, pageIdx int) ([]byte, error) 
 		return nil, err
 	}
 
+	// checksum
+	h := fnv.New32()
+	_, _ = h.Write(page.data)
+	if page.header.(*indexHeader).fnvChecksum != h.Sum32() {
+		return nil, fmt.Errorf("mismatched checksum: %d", pageIdx)
+	}
+
 	r.pageCache[pageIdx] = page
 
-	return page.data, nil
+	return page, nil
 }
 
 func estimatePage(totalPages int, id common.ID) int {
@@ -120,7 +128,7 @@ func estimatePage(totalPages int, id common.ID) int {
 		}
 	}
 
-	place := float64(firstIDByte) / float64((maxByte - minByte))
+	place := float64(firstIDByte) / float64((constMaxID[0] - constMinID[0])) // jpe this is dumb and needs to be fixed
 	guessPage := int(math.Floor(place * float64(totalPages)))
 
 	return guessPage

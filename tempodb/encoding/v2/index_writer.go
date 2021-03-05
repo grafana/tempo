@@ -2,6 +2,7 @@ package v2
 
 import (
 	"fmt"
+	"hash/fnv"
 
 	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -34,6 +35,7 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 	totalBytes := totalPages * w.pageSizeBytes
 	indexBuffer := make([]byte, totalBytes)
 
+	minPageID := constMinID
 	for currentPage := 0; currentPage < totalPages; currentPage++ {
 		var pageRecords []*common.Record
 
@@ -49,12 +51,29 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 			return nil, fmt.Errorf("unexpected 0 length records %d,%d,%d,%d", currentPage, recordsPerPage, w.pageSizeBytes, totalPages)
 		}
 
+		// header
+		// get from page records and use previous iterations min id
+		header := &indexHeader{
+			maxID: pageRecords[len(pageRecords)-1].ID,
+			minID: minPageID,
+		}
+		minPageID = pageRecords[0].ID
+
+		// page
 		pageBuffer := indexBuffer[currentPage*w.pageSizeBytes : (currentPage+1)*w.pageSizeBytes]
-		pageBuffer, err := marshalHeaderToPage(pageBuffer, &indexHeader{})
+
+		// write records and calculate crc
+		pageData := pageBuffer[header.headerLength()+int(baseHeaderSize):]
+		base.MarshalRecordsToBuffer(pageRecords, pageData)
+
+		h := fnv.New32()
+		_, _ = h.Write(pageData)
+		header.fnvChecksum = h.Sum32()
+
+		_, err := marshalHeaderToPage(pageBuffer, header)
 		if err != nil {
 			return nil, err
 		}
-		base.MarshalRecordsToBuffer(pageRecords, pageBuffer)
 	}
 
 	return indexBuffer, nil
