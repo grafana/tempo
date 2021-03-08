@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/opentracing/opentracing-go"
 )
 
 var constMaxID = []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
@@ -81,10 +82,12 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 }
 
 // Find implements common.indexReader
-func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, int, error) { // jpe test :(, get min/max ids in here, instrument!, test with a bunch of perfectly ordered IDs
+func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, int, error) {
 	// with a linear distribution of trace ids we can actually do much better than a normal
 	// binary search.  unfortunately there are edge cases which make this perform far worse.
 	// for instance consider a set of trace ids what with 90% 64 bit ids and 10% 128 bit ids.
+	span, ctx := opentracing.StartSpanFromContext(ctx, "indexReader.Find")
+	defer span.Finish()
 
 	var err error
 	i := sort.Search(r.totalRecords, func(i int) bool {
