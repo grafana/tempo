@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIndexWriterReaderAt(t *testing.T) {
+func TestIndexWriterReader(t *testing.T) {
 	numRecords := 100000
 	pageSize := 210
 
@@ -26,10 +26,15 @@ func TestIndexWriterReaderAt(t *testing.T) {
 
 	i := 0
 	for i = 0; i < numRecords; i++ {
-		actualRecord, err := indexReader.At(context.Background(), i)
-		assert.NoError(t, err)
 		expectedRecord := randomRecords[i]
 
+		actualRecord, err := indexReader.At(context.Background(), i)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedRecord, actualRecord)
+
+		actualRecord, actualIdx, err := indexReader.Find(context.Background(), expectedRecord.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, i, actualIdx)
 		assert.Equal(t, expectedRecord, actualRecord)
 	}
 
@@ -57,14 +62,14 @@ func TestIndexHeaderMinMax(t *testing.T) {
 
 	numPages := numRecords / recordsPerPage
 	minID := common.ID(constMinID)
-	// fill cache
+
 	for i := 0; i < numPages; i++ {
 		page, err := r.(*indexReader).getPage(context.Background(), i)
 		require.NoError(t, err)
 		maxID := randomRecords[(i+1)*recordsPerPage-1].ID
 		assert.Equal(t, minID, page.header.(*indexHeader).minID)
 		assert.Equal(t, maxID, page.header.(*indexHeader).maxID)
-		minID = randomRecords[i*recordsPerPage].ID
+		minID = randomRecords[i*recordsPerPage].ID // jpe this is wrong.  review
 	}
 }
 

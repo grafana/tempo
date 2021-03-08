@@ -1,10 +1,11 @@
 package v2
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"hash/fnv"
-	"math"
+	"sort"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/base"
@@ -19,6 +20,8 @@ type indexReader struct {
 
 	pageSizeBytes int
 	totalRecords  int
+	minID         common.ID
+	maxID         common.ID
 
 	pageCache map[int]*page // indexReader is not concurrency safe, but since it is currently used within one request it is fine.
 }
@@ -37,6 +40,7 @@ func NewIndexReader(r backend.ContextReader, pageSizeBytes int, totalRecords int
 	}, nil
 }
 
+// At implements common.indexReader
 func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 	if i < 0 || i >= r.totalRecords {
 		return nil, nil
@@ -76,15 +80,40 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 	return base.UnmarshalRecord(recordBytes), nil
 }
 
-func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, int, error) { // jpe test :(
-	// recordsPerPage := objectsPerPage(v0.RecordLength, r.pageSizeBytes)
-	// totalPages := totalPages(r.totalRecords, recordsPerPage)
+// Find implements common.indexReader
+func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, int, error) { // jpe test :(, get min/max ids in here, instrument!, test with a bunch of perfectly ordered IDs
+	// with a linear distribution of trace ids we can actually do much better than a normal
+	// binary search.  unfortunately there are edge cases which make this perform far worse.
+	// for instance consider a set of trace ids what with 90% 64 bit ids and 10% 128 bit ids.
 
-	// // jpe pass min/max ids in here for better accuracy? do this: 64 bit ids
-	// // guess the page assuming linear distribution of traceids
-	// page := estimatePage(totalPages, id)
+	var err error
+	i := sort.Search(r.totalRecords, func(i int) bool {
+		if err != nil { // if we get an error somewhere then just force bail the search
+			return true
+		}
 
-	return nil, 0, nil
+		var record *common.Record
+		record, err = r.At(ctx, i)
+		if err != nil {
+			return true
+		}
+
+		return bytes.Compare(record.ID, id) >= 0
+	})
+
+	if err != nil {
+		return nil, -1, err
+	}
+
+	var record *common.Record
+	if i >= 0 && i < r.totalRecords {
+		record, err = r.At(ctx, i)
+		if err != nil {
+			return nil, -1, err
+		}
+		return record, i, nil
+	}
+	return nil, -1, nil
 }
 
 func (r *indexReader) getPage(ctx context.Context, pageIdx int) (*page, error) {
@@ -114,20 +143,4 @@ func (r *indexReader) getPage(ctx context.Context, pageIdx int) (*page, error) {
 	r.pageCache[pageIdx] = page
 
 	return page, nil
-}
-
-func estimatePage(totalPages int, id common.ID) int {
-	// find the first non-zero byte
-	firstIDByte := byte(0x00)
-	for _, b := range id {
-		if b != 0x00 {
-			firstIDByte = b
-			break
-		}
-	}
-
-	place := float64(firstIDByte) / float64((constMaxID[0] - constMinID[0])) // jpe this is dumb and needs to be fixed
-	guessPage := int(math.Floor(place * float64(totalPages)))
-
-	return guessPage
 }

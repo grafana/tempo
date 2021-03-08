@@ -106,7 +106,7 @@ func createBlockBoundaries(queryShards int) [][]byte {
 	}
 	const MaxUint = uint64(^uint8(0))
 	for i := 0; i < queryShards; i++ {
-		binary.LittleEndian.PutUint64(blockBoundaries[i][:8], (MaxUint/uint64(queryShards))*uint64(i))
+		binary.LittleEndian.PutUint64(blockBoundaries[i][:8], (MaxUint/uint64(queryShards))*uint64(i)) // jpe - wut
 		binary.LittleEndian.PutUint64(blockBoundaries[i][8:], 0)
 	}
 	const MaxUint64 = ^uint64(0)
