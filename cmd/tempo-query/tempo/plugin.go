@@ -27,7 +27,7 @@ type Backend struct {
 
 func New(cfg *Config) *Backend {
 	return &Backend{
-		tempoEndpoint: "http://" + cfg.Backend + "/api/traces/",
+		tempoEndpoint: "http://" + cfg.Backend + "/tempo/api/traces/",
 	}
 }
 
@@ -73,6 +73,10 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("error reading response from tempo: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s", body)
 	}
 
 	otTrace := ot_pdata.NewTraces()

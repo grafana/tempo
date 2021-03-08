@@ -35,7 +35,7 @@ Batches traces into blocks, blooms, indexes and flushes to backend.  Blocks in t
 Responsible for sharding the search space for an incoming query.
 
 Traces are exposed via a simple HTTP endpoint:
-`GET /api/traces/<traceID>`
+`GET /tempo/api/traces/<traceID>`
 
 Internally, the Query Frontend splits the blockID space into a configurable number of shards and queues these requests.
 Queriers connect to the Query Frontend via a streaming gRPC connection to process these sharded queries.
@@ -45,7 +45,7 @@ Queriers connect to the Query Frontend via a streaming gRPC connection to proces
 The querier is responsible for finding the requested trace id in either the ingesters or the backend storage.  It begins by querying the ingesters to see if the id is currently stored there, if not it proceeds to use the bloom and indexes to find the trace in the storage backend.
 
 The querier exposes an HTTP endpoint at:
-`GET /querier/api/traces/<traceID>`, but its not expected to be used directly.
+`GET /querier/tempo/api/traces/<traceID>`, but its not expected to be used directly.
 
 Queries should be sent to the Query Frontend.
 
