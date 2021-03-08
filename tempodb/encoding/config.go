@@ -8,8 +8,8 @@ import (
 
 // BlockConfig holds configuration options for newly created blocks
 type BlockConfig struct {
-	IndexDownsampleBytes int              `yaml:"index_downsample_bytes"` // jpe make this 1MB after this change by default
-	IndexPageSizeBytes   int              `yaml:"index_page_size_bytes"`  // jpe add default
+	IndexDownsampleBytes int              `yaml:"index_downsample_bytes"`
+	IndexPageSizeBytes   int              `yaml:"index_page_size_bytes"`
 	BloomFP              float64          `yaml:"bloom_filter_false_positive"`
 	Encoding             backend.Encoding `yaml:"encoding"`
 }
