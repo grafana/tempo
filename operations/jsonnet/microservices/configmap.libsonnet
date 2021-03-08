@@ -128,12 +128,4 @@
     configMap.withData({
       'tempo.yaml': $.util.manifestYaml($.tempo_query_frontend_config),
     }),
-
-  tempo_query_configmap:
-    configMap.new('tempo-query') +
-    configMap.withData({
-      'tempo-query.yaml': $.util.manifestYaml({
-        backend: 'localhost:%d' % $._config.port,
-      }),
-    }),
 }
