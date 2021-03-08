@@ -99,7 +99,7 @@ func testCompleteBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 	require.NoError(t, err, "error creating backend")
 
 	err = block.Write(context.Background(), w)
-	require.EqualError(t, err, "remove : no such file or directory") // we expect an error here b/c there is no wal file to clear
+	require.NoError(t, err, "error writing backend")
 
 	// meta?
 	uuids, err := r.Blocks(context.Background(), testTenantID)
@@ -198,7 +198,7 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 	}
 
 	iterator := NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()))
-	block, err := NewCompleteBlock(cfg, originatingMeta, iterator, numMsgs, tempDir, "")
+	block, err := NewCompleteBlock(cfg, originatingMeta, iterator, numMsgs, tempDir)
 	require.NoError(t, err, "unexpected error completing block")
 
 	// test downsample config
@@ -285,7 +285,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		IndexDownsampleBytes: indexDownsample,
 		BloomFP:              .05,
 		Encoding:             encoding,
-	}, originatingMeta, iterator, 10000, tempDir, "")
+	}, originatingMeta, iterator, 10000, tempDir)
 	require.NoError(b, err, "error creating block")
 
 	lastRecord := cb.records[len(cb.records)-1]
