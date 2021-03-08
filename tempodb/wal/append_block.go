@@ -35,13 +35,8 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 	}
 
 	name := h.fullFilename()
-	unused, err := os.Create(name)
-	if err != nil {
-		return nil, err
-	}
-	unused.Close()
 
-	f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +88,7 @@ func (h *AppendBlock) Complete(cfg *encoding.BlockConfig, w *WAL, combiner commo
 	}
 	defer iterator.Close()
 
-	orderedBlock, err := encoding.NewCompleteBlock(cfg, h.meta, iterator, len(records), w.c.CompletedFilepath, h.fullFilename())
+	orderedBlock, err := encoding.NewCompleteBlock(cfg, h.meta, iterator, len(records), w.c.CompletedFilepath)
 	if err != nil {
 		return nil, err
 	}
