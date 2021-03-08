@@ -9,8 +9,7 @@ import (
 )
 
 type indexWriter struct {
-	pageSizeBytes  int
-	recordsPerPage int
+	pageSizeBytes int
 }
 
 // NewIndexWriter returns an index writer that writes to the provided io.Writer.
@@ -58,13 +57,16 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 
 		// write records and calculate crc
 		pageData := pageBuffer[header.headerLength()+int(baseHeaderSize):]
-		base.MarshalRecordsToBuffer(pageRecords, pageData)
+		err := base.MarshalRecordsToBuffer(pageRecords, pageData)
+		if err != nil {
+			return nil, err
+		}
 
 		h := xxhash.New()
 		_, _ = h.Write(pageData)
 		header.checksum = h.Sum64()
 
-		_, err := marshalHeaderToPage(pageBuffer, header)
+		_, err = marshalHeaderToPage(pageBuffer, header)
 		if err != nil {
 			return nil, err
 		}

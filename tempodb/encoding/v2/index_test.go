@@ -23,6 +23,7 @@ func TestIndexWriterReader(t *testing.T) {
 	require.NoError(t, err)
 
 	indexReader, err := NewIndexReader(backend.NewContextReaderWithAllReader(bytes.NewReader(indexBytes)), pageSize, numRecords)
+	require.NoError(t, err)
 
 	i := 0
 	for i = 0; i < numRecords; i++ {
@@ -61,6 +62,7 @@ func TestIndexHeaderChecksum(t *testing.T) {
 	indexBytes[len(indexBytes)-1]++
 
 	r, err := NewIndexReader(backend.NewContextReaderWithAllReader(bytes.NewReader(indexBytes)), pageSize, numRecords)
+	assert.NoError(t, err)
 	_, err = r.(*indexReader).getPage(context.Background(), 0)
 	assert.Error(t, err)
 }

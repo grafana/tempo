@@ -7,9 +7,9 @@ import (
 )
 
 const (
-	uint64Size     = uint32(8)
-	uint32Size     = uint32(4) // jpe review:  lots of casting
-	uint16Size     = uint32(2)
+	uint64Size     = 8
+	uint32Size     = 4
+	uint16Size     = 2
 	baseHeaderSize = uint16Size + uint32Size
 )
 
@@ -25,8 +25,8 @@ type page struct {
   | totalLength | header len | header fields      | page bytes |
 */
 func unmarshalPageFromBytes(b []byte, header pageHeader) (*page, error) {
-	totalHeaderSize := baseHeaderSize + uint32(header.headerLength())
-	if len(b) < int(totalHeaderSize) {
+	totalHeaderSize := baseHeaderSize + header.headerLength()
+	if len(b) < totalHeaderSize {
 		return nil, fmt.Errorf("page of size %d too small", len(b))
 	}
 
@@ -40,8 +40,8 @@ func unmarshalPageFromBytes(b []byte, header pageHeader) (*page, error) {
 	}
 	b = b[headerLength:]
 
-	dataLength := totalLength - totalHeaderSize
-	if len(b) != int(dataLength) {
+	dataLength := int(totalLength) - totalHeaderSize
+	if len(b) != dataLength {
 		return nil, fmt.Errorf("expected data len %d does not match actual %d", dataLength, len(b))
 	}
 
@@ -56,7 +56,7 @@ func marshalPageToWriter(b []byte, w io.Writer, header pageHeader) (int, error) 
 	var headerLength uint16
 	var totalLength uint32
 
-	headerLength = uint16(header.headerLength()) // jpe - casting :(
+	headerLength = uint16(header.headerLength())
 	totalLength = uint32(headerLength) + baseHeaderSize + uint32(len(b))
 
 	err := binary.Write(w, binary.LittleEndian, totalLength)
