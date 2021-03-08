@@ -4,8 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type pageHeader interface {
@@ -18,7 +16,7 @@ type pageHeader interface {
 const DataHeaderLength = 0
 
 // IndexHeaderLength is the length in bytes for the record header
-const IndexHeaderLength = int(uint64Size) + 16 + 16 // 64bit checksum (xxhash) + 2 128 bit ids
+const IndexHeaderLength = int(uint64Size) // 64bit checksum (xxhash)
 
 // dataHeader implements a pageHeader that has no fields
 type dataHeader struct {
@@ -42,12 +40,8 @@ func (h *dataHeader) marshalHeader(b []byte) error {
 
 // indexHeader implements a pageHeader that has index fields
 //   checksum - 64 bit xxhash
-//   min id
-//   max id
 type indexHeader struct {
 	checksum uint64
-	maxID    common.ID // 128 bits/16 bytes : inclusive
-	minID    common.ID // 128 bits/16 bytes : exclusive
 }
 
 func (h *indexHeader) unmarshalHeader(b []byte) error {
@@ -56,11 +50,7 @@ func (h *indexHeader) unmarshalHeader(b []byte) error {
 	}
 
 	h.checksum = binary.LittleEndian.Uint64(b[:uint64Size])
-	b = b[uint64Size:]
-	h.maxID = b[:16]
-	b = b[16:]
-	h.minID = b[:16]
-	//b = b[16:]
+	// b = b[uint64Size:]
 
 	return nil
 }
@@ -75,11 +65,7 @@ func (h *indexHeader) marshalHeader(b []byte) error {
 	}
 
 	binary.LittleEndian.PutUint64(b, h.checksum)
-	b = b[uint64Size:]
-	copy(b, h.maxID)
-	b = b[16:]
-	copy(b, h.minID)
-	// b = b[16:]
+	// b = b[uint64Size:]
 
 	return nil
 }

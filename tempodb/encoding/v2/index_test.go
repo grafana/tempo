@@ -48,31 +48,6 @@ func TestIndexWriterReader(t *testing.T) {
 	assert.Nil(t, actualRecord)
 }
 
-func TestIndexHeaderMinMax(t *testing.T) {
-	recordsPerPage := 4
-	numRecords := 20
-	pageSize := int(baseHeaderSize) + IndexHeaderLength + base.RecordLength*recordsPerPage
-
-	randomRecords := randomOrderedRecords(t, numRecords)
-	indexWriter := NewIndexWriter(pageSize)
-	indexBytes, err := indexWriter.Write(randomRecords)
-	require.NoError(t, err)
-
-	r, err := NewIndexReader(backend.NewContextReaderWithAllReader(bytes.NewReader(indexBytes)), pageSize, numRecords)
-
-	numPages := numRecords / recordsPerPage
-	minID := common.ID(constMinID)
-
-	for i := 0; i < numPages; i++ {
-		page, err := r.(*indexReader).getPage(context.Background(), i)
-		require.NoError(t, err)
-		maxID := randomRecords[(i+1)*recordsPerPage-1].ID
-		assert.Equal(t, minID, page.header.(*indexHeader).minID)
-		assert.Equal(t, maxID, page.header.(*indexHeader).maxID)
-		minID = randomRecords[i*recordsPerPage].ID // jpe this is wrong.  review
-	}
-}
-
 func TestIndexHeaderChecksum(t *testing.T) {
 	recordsPerPage := 4
 	numRecords := 4

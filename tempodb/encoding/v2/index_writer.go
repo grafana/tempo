@@ -35,7 +35,6 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 	totalBytes := totalPages * w.pageSizeBytes
 	indexBuffer := make([]byte, totalBytes)
 
-	minPageID := constMinID
 	for currentPage := 0; currentPage < totalPages; currentPage++ {
 		var pageRecords []*common.Record
 
@@ -52,12 +51,7 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 		}
 
 		// header
-		// get from page records and use previous iterations min id
-		header := &indexHeader{
-			maxID: pageRecords[len(pageRecords)-1].ID,
-			minID: minPageID,
-		}
-		minPageID = pageRecords[0].ID
+		header := &indexHeader{}
 
 		// page
 		pageBuffer := indexBuffer[currentPage*w.pageSizeBytes : (currentPage+1)*w.pageSizeBytes]
