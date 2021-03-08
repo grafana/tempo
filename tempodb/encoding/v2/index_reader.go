@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"hash/fnv"
 	"sort"
 
+	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -137,9 +137,9 @@ func (r *indexReader) getPage(ctx context.Context, pageIdx int) (*page, error) {
 	}
 
 	// checksum
-	h := fnv.New32()
+	h := xxhash.New()
 	_, _ = h.Write(page.data)
-	if page.header.(*indexHeader).fnvChecksum != h.Sum32() {
+	if page.header.(*indexHeader).checksum != h.Sum64() {
 		return nil, fmt.Errorf("mismatched checksum: %d", pageIdx)
 	}
 

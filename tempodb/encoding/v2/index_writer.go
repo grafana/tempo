@@ -2,8 +2,8 @@ package v2
 
 import (
 	"fmt"
-	"hash/fnv"
 
+	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -66,9 +66,9 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 		pageData := pageBuffer[header.headerLength()+int(baseHeaderSize):]
 		base.MarshalRecordsToBuffer(pageRecords, pageData)
 
-		h := fnv.New32()
+		h := xxhash.New()
 		_, _ = h.Write(pageData)
-		header.fnvChecksum = h.Sum32()
+		header.checksum = h.Sum64()
 
 		_, err := marshalHeaderToPage(pageBuffer, header)
 		if err != nil {

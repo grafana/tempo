@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	uint64Size     = uint32(8)
 	uint32Size     = uint32(4) // jpe review:  lots of casting
 	uint16Size     = uint32(2)
 	baseHeaderSize = uint16Size + uint32Size
