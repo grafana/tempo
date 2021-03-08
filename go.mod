@@ -7,6 +7,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.2.0
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/alecthomas/kong v0.2.11
+	github.com/cespare/xxhash v1.1.0
 	github.com/cortexproject/cortex v1.6.1-0.20210205171041-527f9b58b93c
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-kit/kit v0.10.0
