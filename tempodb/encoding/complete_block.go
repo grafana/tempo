@@ -29,6 +29,8 @@ type CompleteBlock struct {
 	filepath string
 	readFile *os.File
 	once     sync.Once
+
+	cfg *BlockConfig
 }
 
 // NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
@@ -39,6 +41,7 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 		bloom:    common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
 		records:  make([]*common.Record, 0),
 		filepath: filepath,
+		cfg:      cfg,
 	}
 
 	appendFile, err := os.OpenFile(c.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
@@ -115,11 +118,14 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 		return err
 	}
 
-	indexWriter := c.encoding.newIndexWriter()
+	indexWriter := c.encoding.newIndexWriter(c.cfg.IndexPageSizeBytes)
 	indexBytes, err := indexWriter.Write(c.records)
 	if err != nil {
 		return err
 	}
+
+	c.meta.TotalRecords = uint32(len(c.records))
+	c.meta.IndexPageSize = uint32(c.cfg.IndexPageSizeBytes)
 
 	err = writeBlockMeta(ctx, w, c.meta, indexBytes, c.bloom)
 	if err != nil {

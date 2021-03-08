@@ -64,6 +64,7 @@ func TestCompaction(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_4M,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -190,6 +191,7 @@ func TestSameIDCompaction(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			Encoding:             backend.EncSnappy,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -277,6 +279,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			Encoding:             backend.EncNone,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -342,6 +345,7 @@ func TestCompactionMetrics(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			Encoding:             backend.EncNone,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -411,6 +415,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_64k,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

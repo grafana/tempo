@@ -32,6 +32,7 @@ func TestRetention(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -89,6 +90,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

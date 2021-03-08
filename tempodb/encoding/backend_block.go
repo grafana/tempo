@@ -76,7 +76,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	}
 
 	indexReaderAt := backend.NewContextReader(b.meta, nameIndex, b.reader)
-	indexReader, err := b.encoding.newIndexReader(indexReaderAt)
+	indexReader, err := b.encoding.newIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
 	if err != nil {
 		return nil, fmt.Errorf("error building index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
@@ -109,7 +109,7 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 	}
 
 	indexReaderAt := backend.NewContextReader(b.meta, nameIndex, b.reader)
-	reader, err := b.encoding.newIndexReader(indexReaderAt)
+	reader, err := b.encoding.newIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}

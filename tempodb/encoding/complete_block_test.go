@@ -76,6 +76,7 @@ func TestCompleteBlockAll(t *testing.T) {
 					IndexDownsampleBytes: 1000,
 					BloomFP:              .01,
 					Encoding:             enc,
+					IndexPageSizeBytes:   1000,
 				},
 			)
 		})

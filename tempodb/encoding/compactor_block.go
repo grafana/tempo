@@ -21,6 +21,8 @@ type CompactorBlock struct {
 	bufferedObjects int
 	appendBuffer    *bytes.Buffer
 	appender        Appender
+
+	cfg *BlockConfig
 }
 
 // NewCompactorBlock creates a ... new compactor block!
@@ -38,6 +40,7 @@ func NewCompactorBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding),
 		bloom:         common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
 		inMetas:       metas,
+		cfg:           cfg,
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
@@ -112,11 +115,14 @@ func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	records := c.appender.Records()
 	meta := c.BlockMeta()
 
-	indexWriter := c.encoding.newIndexWriter()
+	indexWriter := c.encoding.newIndexWriter(c.cfg.IndexPageSizeBytes)
 	indexBytes, err := indexWriter.Write(records)
 	if err != nil {
 		return 0, err
 	}
+
+	meta.TotalRecords = uint32(len(records)) // casting
+	meta.IndexPageSize = uint32(c.cfg.IndexPageSizeBytes)
 
 	err = writeBlockMeta(ctx, w, meta, indexBytes, c.bloom)
 	if err != nil {

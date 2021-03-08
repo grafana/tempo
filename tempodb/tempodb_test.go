@@ -43,6 +43,7 @@ func TestDB(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			Encoding:             backend.EncGZIP,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -122,6 +123,7 @@ func TestBlockSharding(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -197,6 +199,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -224,6 +227,7 @@ func TestBlockCleanup(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -306,6 +310,7 @@ func TestCleanMissingTenants(t *testing.T) {
 					IndexDownsampleBytes: 17,
 					BloomFP:              .01,
 					Encoding:             backend.EncLZ4_256k,
+					IndexPageSizeBytes:   1000,
 				},
 				WAL: &wal.Config{
 					Filepath: path.Join("/tmp", "wal"),
@@ -366,6 +371,7 @@ func TestUpdateBlocklist(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -553,6 +559,7 @@ func TestUpdateBlocklistCompacted(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

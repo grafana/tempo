@@ -19,12 +19,13 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCurrentClear(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	require.NoError(t, err, "unexpected error creating temp dir")
 
 	r, w, c, err := New(&Config{
 		Backend: "local",
@@ -35,13 +36,14 @@ func TestCurrentClear(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			Encoding:             backend.EncGZIP,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -51,12 +53,12 @@ func TestCurrentClear(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 
 	wal := w.WAL()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	recordCount := 10
 	blockID := uuid.New()
 	head, err := wal.NewBlock(blockID, testTenantID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for i := 0; i < recordCount; i++ {
 		id := make([]byte, 16)
