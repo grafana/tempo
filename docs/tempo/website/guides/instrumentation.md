@@ -17,3 +17,4 @@ end to end examples with Grafana, Loki, and Tempo.
 
 - [NodeJS](https://github.com/mnadeem/nodejs-opentelemetry-tempo)
 - [Java Spring Boot](https://github.com/mnadeem/boot-opentelemetry-tempo)
+- [Python](https://github.com/dgzlopes/foobar-demo)
