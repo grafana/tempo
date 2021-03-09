@@ -15,8 +15,8 @@ export let options = {
       exec: 'writePath',
       startVUs: 1,
       stages: [
-        { duration: '2m', target: 5 },
-        { duration: '1m', target: 10 },
+        { duration: '2m', target: 2 },
+        { duration: '1m', target: 5 },
         { duration: '1m', target: 0 },
         { duration: '1m', target: 5 },
       ],
