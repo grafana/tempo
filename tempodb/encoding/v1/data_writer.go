@@ -23,7 +23,7 @@ func (m *meteredWriter) Write(p []byte) (n int, err error) {
 	return m.wrappedWriter.Write(p)
 }
 
-type pageWriter struct {
+type dataWriter struct {
 	v0Buffer     *bytes.Buffer
 	outputWriter *meteredWriter
 
@@ -31,9 +31,9 @@ type pageWriter struct {
 	compressionWriter io.WriteCloser
 }
 
-// NewPageWriter creates a v0 page writer.  This page writer
+// NewDataWriter creates a v0 page writer.  This page writer
 // writes raw bytes only
-func NewPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error) {
+func NewDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWriter, error) {
 	pool, err := GetWriterPool(encoding)
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func NewPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWrit
 		return nil, err
 	}
 
-	return &pageWriter{
+	return &dataWriter{
 		v0Buffer:          &bytes.Buffer{},
 		outputWriter:      outputWriter,
 		pool:              pool,
@@ -56,13 +56,13 @@ func NewPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWrit
 	}, nil
 }
 
-// Write implements common.PageWriter
-func (p *pageWriter) Write(id common.ID, obj []byte) (int, error) {
+// Write implements DataWriter
+func (p *dataWriter) Write(id common.ID, obj []byte) (int, error) {
 	return base.MarshalObjectToWriter(id, obj, p.v0Buffer)
 }
 
-// CutPage implements common.PageWriter
-func (p *pageWriter) CutPage() (int, error) {
+// CutPage implements DataWriter
+func (p *dataWriter) CutPage() (int, error) {
 	var err error
 	p.compressionWriter, err = p.pool.ResetWriter(p.outputWriter, p.compressionWriter)
 	if err != nil {
@@ -85,8 +85,8 @@ func (p *pageWriter) CutPage() (int, error) {
 	return bytesWritten, nil
 }
 
-// Complete implements common.PageWriter
-func (p *pageWriter) Complete() error {
+// Complete implements DataWriter
+func (p *dataWriter) Complete() error {
 	if p.compressionWriter != nil {
 		p.pool.PutWriter(p.compressionWriter)
 		p.compressionWriter = nil

@@ -8,17 +8,17 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type pageReader struct {
+type dataReader struct {
 	r backend.ContextReader
 }
 
-// NewPageReader returns a new v0 pageReader.  A v0 pageReader
+// NewDataReader returns a new v0 dataReader.  A v0 dataReader
 // is basically a no-op.  It retrieves the requested byte
 // ranges and returns them as is.
 // A pages "format" is a contiguous collection of objects
 // | -- object -- | -- object -- | ...
-func NewPageReader(r backend.ContextReader) common.PageReader {
-	return &pageReader{
+func NewDataReader(r backend.ContextReader) common.DataReader {
+	return &dataReader{
 		r: r,
 	}
 }
@@ -26,7 +26,7 @@ func NewPageReader(r backend.ContextReader) common.PageReader {
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
-func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
+func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
 	if len(records) == 0 {
 		return nil, nil
 	}
@@ -53,7 +53,7 @@ func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]by
 		}
 
 		if previousEnd != record.Start && previousEnd != 0 {
-			return nil, fmt.Errorf("non-contiguous pages requested from pageReader: %d, %+v", previousEnd, record)
+			return nil, fmt.Errorf("non-contiguous pages requested from dataReader: %d, %+v", previousEnd, record)
 		}
 
 		slicePages = append(slicePages, contiguousPages[cursor:end])
@@ -64,5 +64,5 @@ func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]by
 	return slicePages, nil
 }
 
-func (r *pageReader) Close() {
+func (r *dataReader) Close() {
 }

@@ -14,12 +14,12 @@ import (
 func TestAllVersions(t *testing.T) {
 	for _, v := range allEncodings() {
 		for _, e := range backend.SupportedEncoding {
-			testPageWriterReader(t, v, e)
+			testDataWriterReader(t, v, e)
 		}
 	}
 }
 
-func testPageWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding) {
+func testDataWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding) {
 	tests := []struct {
 		readerBytes []byte
 	}{
@@ -33,24 +33,24 @@ func testPageWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding)
 
 	for _, tc := range tests {
 		buff := bytes.NewBuffer([]byte{})
-		pageWriter, err := v.newPageWriter(buff, e)
+		dataWriter, err := v.newDataWriter(buff, e)
 		require.NoError(t, err)
 
-		_, err = pageWriter.Write([]byte{0x01}, tc.readerBytes)
+		_, err = dataWriter.Write([]byte{0x01}, tc.readerBytes)
 		require.NoError(t, err)
 
-		bytesWritten, err := pageWriter.CutPage()
+		bytesWritten, err := dataWriter.CutPage()
 		require.NoError(t, err)
 
-		err = pageWriter.Complete()
+		err = dataWriter.Complete()
 		require.NoError(t, err)
 
 		reader := bytes.NewReader(buff.Bytes())
-		pageReader, err := v.newPageReader(backend.NewContextReaderWithAllReader(reader), e)
+		dataReader, err := v.newDataReader(backend.NewContextReaderWithAllReader(reader), e)
 		require.NoError(t, err)
-		defer pageReader.Close()
+		defer dataReader.Close()
 
-		actual, err := pageReader.Read(context.Background(), []*common.Record{
+		actual, err := dataReader.Read(context.Background(), []*common.Record{
 			{
 				Start:  0,
 				Length: uint32(bytesWritten),

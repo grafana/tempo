@@ -20,12 +20,12 @@ type ObjectCombiner interface {
 	Combine(objA []byte, objB []byte) []byte
 }
 
-// PageReader returns a slice of pages in the encoding/v0 format referenced by
+// DataReader returns a slice of pages in the encoding/v0 format referenced by
 // the slice of *Records passed in.  The length of the returned slice is guaranteed
 // to be equal to the length of the provided records unless error is non nil.
-// PageReader is the primary abstraction point for supporting multiple data
+// DataReader is the primary abstraction point for supporting multiple data
 // formats.
-type PageReader interface {
+type DataReader interface {
 	Read(context.Context, []*Record) ([][]byte, error)
 	Close()
 }
@@ -40,14 +40,14 @@ type IndexReader interface {
 	Find(ctx context.Context, id ID) (*Record, int, error)
 }
 
-// PageWriter is used to write paged data to the backend
-type PageWriter interface {
+// DataWriter is used to write paged data to the backend
+type DataWriter interface {
 	// Write writes the passed ID/byte to the current page
 	Write(ID, []byte) (int, error)
 	// CutPage completes the current page and start a new one.  It
 	//  returns the length in bytes of the cut page.
 	CutPage() (int, error)
-	// Complete must be called when the operation pagewriter is done.
+	// Complete must be called when the operation DataWriter is done.
 	Complete() error
 }
 

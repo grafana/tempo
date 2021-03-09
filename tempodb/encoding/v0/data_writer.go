@@ -7,21 +7,21 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type pageWriter struct {
+type dataWriter struct {
 	w            io.Writer
 	bytesWritten int
 }
 
-// NewPageWriter creates a v0 page writer.  This page writer
+// NewDataWriter creates a v0 page writer.  This page writer
 // writes raw bytes only
-func NewPageWriter(writer io.Writer) common.PageWriter {
-	return &pageWriter{
+func NewDataWriter(writer io.Writer) common.DataWriter {
+	return &dataWriter{
 		w: writer,
 	}
 }
 
-// Write implements common.PageWriter
-func (p *pageWriter) Write(id common.ID, obj []byte) (int, error) {
+// Write implements DataWriter
+func (p *dataWriter) Write(id common.ID, obj []byte) (int, error) {
 	written, err := base.MarshalObjectToWriter(id, obj, p.w)
 	if err != nil {
 		return 0, err
@@ -31,15 +31,15 @@ func (p *pageWriter) Write(id common.ID, obj []byte) (int, error) {
 	return written, nil
 }
 
-// CutPage implements common.PageWriter
-func (p *pageWriter) CutPage() (int, error) {
+// CutPage implements DataWriter
+func (p *dataWriter) CutPage() (int, error) {
 	ret := p.bytesWritten
 	p.bytesWritten = 0
 
 	return ret, nil
 }
 
-// Complete implements common.PageWriter
-func (p *pageWriter) Complete() error {
+// Complete implements DataWriter
+func (p *dataWriter) Complete() error {
 	return nil
 }

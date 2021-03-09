@@ -8,8 +8,8 @@ import (
 	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
 )
 
-type pageReader struct {
-	pageReader common.PageReader
+type dataReader struct {
+	dataReader common.DataReader
 }
 
 // constDataHeader is a singleton data header.  the data header is
@@ -17,23 +17,23 @@ type pageReader struct {
 //  data should just use this.
 var constDataHeader = &dataHeader{}
 
-// NewPageReader constructs a v2 PageReader that handles paged...reading
-func NewPageReader(r common.PageReader, encoding backend.Encoding) (common.PageReader, error) {
-	v2PageReader := &pageReader{
-		pageReader: r,
+// NewDataReader constructs a v2 DataReader that handles paged...reading
+func NewDataReader(r common.DataReader, encoding backend.Encoding) (common.DataReader, error) {
+	v2DataReader := &dataReader{
+		dataReader: r,
 	}
 
 	// wrap the paged reader in a compressed/v1 reader and return that
-	v1PageReader, err := v1.NewPageReader(v2PageReader, encoding)
+	v1DataReader, err := v1.NewDataReader(v2DataReader, encoding)
 	if err != nil {
 		return nil, err
 	}
 
-	return v1PageReader, nil
+	return v1DataReader, nil
 }
 
-func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
-	v0Pages, err := r.pageReader.Read(ctx, records)
+func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
+	v0Pages, err := r.dataReader.Read(ctx, records)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +51,6 @@ func (r *pageReader) Read(ctx context.Context, records []*common.Record) ([][]by
 	return pages, nil
 }
 
-func (r *pageReader) Close() {
-	r.pageReader.Close()
+func (r *dataReader) Close() {
+	r.dataReader.Close()
 }

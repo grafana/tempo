@@ -17,23 +17,23 @@ type Appender interface {
 }
 
 type appender struct {
-	pageWriter    common.PageWriter
+	dataWriter    common.DataWriter
 	records       []*common.Record
 	currentOffset uint64
 }
 
 // NewAppender returns an appender.  This appender simply appends new objects
-//  to the provided pageWriter.
-func NewAppender(pageWriter common.PageWriter) Appender {
+//  to the provided dataWriter.
+func NewAppender(dataWriter common.DataWriter) Appender {
 	return &appender{
-		pageWriter: pageWriter,
+		dataWriter: dataWriter,
 	}
 }
 
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 //   Copies should be made and passed in if this is a problem
 func (a *appender) Append(id common.ID, b []byte) error {
-	length, err := a.pageWriter.Write(id, b)
+	length, err := a.dataWriter.Write(id, b)
 	if err != nil {
 		return err
 	}
@@ -66,5 +66,5 @@ func (a *appender) DataLength() uint64 {
 }
 
 func (a *appender) Complete() error {
-	return a.pageWriter.Complete()
+	return a.dataWriter.Complete()
 }

@@ -150,7 +150,7 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
-	appender := NewAppender(v0.NewPageWriter(writer))
+	appender := NewAppender(v0.NewDataWriter(writer))
 
 	numMsgs := 1000
 	reqs := make([][]byte, 0, numMsgs)
@@ -299,7 +299,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	b.ResetTimer()
 	file, err := os.Open(cb.fullFilename())
 	require.NoError(b, err)
-	pr, err := v2.NewPageReader(v0.NewPageReader(backend.NewContextReaderWithAllReader(file)), encoding)
+	pr, err := v2.NewDataReader(v0.NewDataReader(backend.NewContextReaderWithAllReader(file)), encoding)
 	require.NoError(b, err)
 	iterator = newPagedIterator(10*1024*1024, common.Records(cb.records), pr)
 

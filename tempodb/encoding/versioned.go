@@ -30,10 +30,10 @@ func allEncodings() []versionedEncoding {
 //  currently quite sloppy and could easily be tightened up to just a few methods
 //  but it is what it is for now!
 type versionedEncoding interface {
-	newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error)
+	newDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWriter, error)
 	newIndexWriter(pageSizeBytes int) common.IndexWriter
 
-	newPageReader(ra backend.ContextReader, encoding backend.Encoding) (common.PageReader, error)
+	newDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error)
 	newIndexReader(ra backend.ContextReader, pageSizeBytes int, totalPages int) (common.IndexReader, error)
 }
 
@@ -43,14 +43,14 @@ type v0Encoding struct{}
 func (v v0Encoding) newIndexWriter(pageSizeBytes int) common.IndexWriter {
 	return v0.NewIndexWriter()
 }
-func (v v0Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error) {
-	return v0.NewPageWriter(writer), nil // ignore encoding.  v0 PageWriter writes raw bytes
+func (v v0Encoding) newDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWriter, error) {
+	return v0.NewDataWriter(writer), nil // ignore encoding.  v0 DataWriter writes raw bytes
 }
 func (v v0Encoding) newIndexReader(ra backend.ContextReader, pageSizeBytes int, totalPages int) (common.IndexReader, error) {
 	return v0.NewIndexReader(ra)
 }
-func (v v0Encoding) newPageReader(ra backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
-	return v0.NewPageReader(ra), nil
+func (v v0Encoding) newDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error) {
+	return v0.NewDataReader(ra), nil
 }
 
 // v1Encoding
@@ -59,14 +59,14 @@ type v1Encoding struct{}
 func (v v1Encoding) newIndexWriter(pageSizeBytes int) common.IndexWriter {
 	return v1.NewIndexWriter()
 }
-func (v v1Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error) {
-	return v1.NewPageWriter(writer, encoding)
-}
-func (v v1Encoding) newPageReader(ra backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
-	return v1.NewPageReader(v0.NewPageReader(ra), encoding)
+func (v v1Encoding) newDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWriter, error) {
+	return v1.NewDataWriter(writer, encoding)
 }
 func (v v1Encoding) newIndexReader(ra backend.ContextReader, pageSizeBytes int, totalPages int) (common.IndexReader, error) {
 	return v1.NewIndexReader(ra)
+}
+func (v v1Encoding) newDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error) {
+	return v1.NewDataReader(v0.NewDataReader(ra), encoding)
 }
 
 // v2Encoding
@@ -75,12 +75,12 @@ type v2Encoding struct{}
 func (v v2Encoding) newIndexWriter(pageSizeBytes int) common.IndexWriter {
 	return v2.NewIndexWriter(pageSizeBytes)
 }
-func (v v2Encoding) newPageWriter(writer io.Writer, encoding backend.Encoding) (common.PageWriter, error) {
-	return v2.NewPageWriter(writer, encoding)
-}
-func (v v2Encoding) newPageReader(ra backend.ContextReader, encoding backend.Encoding) (common.PageReader, error) {
-	return v2.NewPageReader(v0.NewPageReader(ra), encoding)
+func (v v2Encoding) newDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWriter, error) {
+	return v2.NewDataWriter(writer, encoding)
 }
 func (v v2Encoding) newIndexReader(ra backend.ContextReader, pageSizeBytes int, totalPages int) (common.IndexReader, error) {
 	return v2.NewIndexReader(ra, pageSizeBytes, totalPages)
+}
+func (v v2Encoding) newDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error) {
+	return v2.NewDataReader(v0.NewDataReader(ra), encoding)
 }

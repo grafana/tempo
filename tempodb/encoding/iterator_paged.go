@@ -10,7 +10,7 @@ import (
 )
 
 type pagedIterator struct {
-	pageReader   common.PageReader
+	dataReader   common.DataReader
 	indexReader  common.IndexReader
 	currentIndex int
 
@@ -21,9 +21,9 @@ type pagedIterator struct {
 
 // newPagedIterator returns a backendIterator.  This iterator is used to iterate
 //  through objects stored in object storage.
-func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, pageReader common.PageReader) Iterator {
+func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader) Iterator {
 	return &pagedIterator{
-		pageReader:     pageReader,
+		dataReader:     dataReader,
 		indexReader:    indexReader,
 		chunkSizeBytes: chunkSizeBytes,
 	}
@@ -43,7 +43,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		i.pages = i.pages[1:] // advance pages
 	}
 
-	// pageReader returns pages in the raw format, so this works
+	// dataReader returns pages in the raw format, so this works
 	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil && err != io.EOF {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
@@ -83,7 +83,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		}
 	}
 
-	i.pages, err = i.pageReader.Read(ctx, records)
+	i.pages, err = i.dataReader.Read(ctx, records)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}
@@ -104,5 +104,5 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 }
 
 func (i *pagedIterator) Close() {
-	i.pageReader.Close()
+	i.dataReader.Close()
 }
