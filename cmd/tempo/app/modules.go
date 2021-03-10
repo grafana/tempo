@@ -47,6 +47,10 @@ const (
 	All           string = "all"
 )
 
+const (
+	queryEndpoint = "/tempo/api/traces/{traceID}"
+)
+
 func (t *App) initServer() (services.Service, error) {
 	t.cfg.Server.MetricsNamespace = metricsNamespace
 	t.cfg.Server.ExcludeRequestInLog = true
@@ -153,7 +157,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 
-	t.server.HTTP.Handle("/querier/api/traces/{traceID}", tracesHandler)
+	t.server.HTTP.Handle("/querier"+queryEndpoint, tracesHandler)
 	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTPServer.Handler)
 }
 
@@ -185,7 +189,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
 	// http query endpoint
-	t.server.HTTP.Handle("/api/traces/{traceID}", tracesHandler)
+	t.server.HTTP.Handle(queryEndpoint, tracesHandler)
 
 	return services.NewIdleService(nil, func(_ error) error {
 		t.frontend.Close()
