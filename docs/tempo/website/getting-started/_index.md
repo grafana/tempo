@@ -19,7 +19,7 @@ docker network create docker-tempo
 Next, download the [configuration file](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-local.yaml) using the following command -
 
 ```
-curl -o tempo.yaml https://raw.githubusercontent.com/grafana/tempo/master/example/docker-compose/etc/tempo-local.yaml
+curl -o tempo-local.yaml https://raw.githubusercontent.com/grafana/tempo/master/example/docker-compose/etc/tempo-local.yaml
 ```
 
 The config file above configures Tempo to listen on default ports for a number of protocols.

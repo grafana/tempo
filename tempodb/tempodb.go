@@ -242,6 +242,15 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 			copiedBlocklist = append(copiedBlocklist, b)
 		}
 	}
+
+	// if block is compacted within lookback period, include it in search
+	lookback := time.Now().Add(-(2 * rw.cfg.BlocklistPoll))
+	compactedBlocklist := rw.compactedBlockLists[tenantID]
+	for _, c := range compactedBlocklist {
+		if c.CompactedTime.After(lookback) {
+			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
+		}
+	}
 	rw.blockListsMtx.Unlock()
 
 	// deliberately placed outside the blocklist mtx unlock

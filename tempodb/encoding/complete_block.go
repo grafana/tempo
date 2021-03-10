@@ -25,7 +25,6 @@ type CompleteBlock struct {
 	records []*common.Record
 
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
-	walFilename string
 
 	filepath string
 	readFile *os.File
@@ -33,25 +32,20 @@ type CompleteBlock struct {
 }
 
 // NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
-func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iterator Iterator, estimatedObjects int, filepath string, walFilename string) (*CompleteBlock, error) {
+func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iterator Iterator, estimatedObjects int, filepath string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
-		encoding:    latestEncoding(),
-		meta:        backend.NewBlockMeta(originatingMeta.TenantID, uuid.New(), currentVersion, cfg.Encoding),
-		bloom:       common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
-		records:     make([]*common.Record, 0),
-		filepath:    filepath,
-		walFilename: walFilename,
+		encoding: latestEncoding(),
+		meta:     backend.NewBlockMeta(originatingMeta.TenantID, uuid.New(), currentVersion, cfg.Encoding),
+		bloom:    common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
+		records:  make([]*common.Record, 0),
+		filepath: filepath,
 	}
 
-	_, err := os.Create(c.fullFilename())
+	appendFile, err := os.OpenFile(c.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return nil, err
 	}
-
-	appendFile, err := os.OpenFile(c.fullFilename(), os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
+	defer appendFile.Close()
 
 	pageWriter, err := c.encoding.newPageWriter(appendFile, cfg.Encoding)
 	if err != nil {
@@ -71,7 +65,6 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 			break
 		}
 		if err != nil {
-			_ = appendFile.Close()
 			_ = os.Remove(c.fullFilename())
 			return nil, err
 		}
@@ -82,7 +75,6 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 		writeID := append([]byte(nil), bytesID...)
 		err = appender.Append(writeID, bytesObject)
 		if err != nil {
-			_ = appendFile.Close()
 			_ = os.Remove(c.fullFilename())
 			return nil, err
 		}
@@ -91,7 +83,6 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 	if err != nil {
 		return nil, err
 	}
-	appendFile.Close()
 	c.records = appender.Records()
 	c.meta.Size = appender.DataLength() // Must be after Complete()
 	c.meta.StartTime = originatingMeta.StartTime
@@ -137,11 +128,6 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 
 	// book keeping
 	c.flushedTime.Store(time.Now().Unix())
-	err = os.Remove(c.walFilename) // now that we are flushed, remove our wal file
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 

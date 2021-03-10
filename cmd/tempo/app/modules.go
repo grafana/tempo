@@ -157,7 +157,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 
-	t.server.HTTP.Handle("/querier" + queryEndpoint, tracesHandler)
+	t.server.HTTP.Handle("/querier"+queryEndpoint, tracesHandler)
 	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTPServer.Handler)
 }
 

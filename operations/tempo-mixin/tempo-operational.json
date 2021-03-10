@@ -4054,7 +4054,7 @@
       "pluginVersion": "7.5.0-11433pre",
       "targets": [
         {
-          "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\", error=\"notfound\"}[1h])) by (secondsago) / sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])) by (secondsago)",
+          "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\", error=\"notfound\"}[1h])) / sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
           "interval": "",
           "legendFormat": "{{secondsago}}",
           "refId": "A"
