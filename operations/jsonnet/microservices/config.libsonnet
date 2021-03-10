@@ -35,6 +35,9 @@
     },
     vulture: {
       replicas: 0,
+      tempoPushUrl: 'http://distributor:14250',
+      tempoQueryUrl: 'http://query-frontend:3100',
+      tempoOrgId: '',
     },
     ballast_size_mbs: '1024',
     port: 3100,
