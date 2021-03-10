@@ -4,14 +4,13 @@ import (
 	"context"
 	"io"
 
+	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/pkg/errors"
-
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type pagedIterator struct {
-	pageReader   common.PageReader
+	dataReader   common.DataReader
 	indexReader  common.IndexReader
 	currentIndex int
 
@@ -22,9 +21,9 @@ type pagedIterator struct {
 
 // newPagedIterator returns a backendIterator.  This iterator is used to iterate
 //  through objects stored in object storage.
-func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, pageReader common.PageReader) Iterator {
+func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader) Iterator {
 	return &pagedIterator{
-		pageReader:     pageReader,
+		dataReader:     dataReader,
 		indexReader:    indexReader,
 		chunkSizeBytes: chunkSizeBytes,
 	}
@@ -44,8 +43,8 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		i.pages = i.pages[1:] // advance pages
 	}
 
-	// pageReader returns pages in the v0 format, so this works
-	i.activePage, id, object, err = v0.UnmarshalAndAdvanceBuffer(i.activePage)
+	// dataReader returns pages in the raw format, so this works
+	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil && err != io.EOF {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	} else if err != io.EOF {
@@ -84,7 +83,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		}
 	}
 
-	i.pages, err = i.pageReader.Read(ctx, records)
+	i.pages, err = i.dataReader.Read(ctx, records)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}
@@ -96,7 +95,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	i.pages = i.pages[1:] // advance pages
 
 	// attempt to get next object from objects
-	i.activePage, id, object, err = v0.UnmarshalAndAdvanceBuffer(i.activePage)
+	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}
@@ -105,5 +104,5 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 }
 
 func (i *pagedIterator) Close() {
-	i.pageReader.Close()
+	i.dataReader.Close()
 }

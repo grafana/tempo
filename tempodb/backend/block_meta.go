@@ -25,6 +25,8 @@ type BlockMeta struct {
 	Size            uint64    `json:"size"`
 	CompactionLevel uint8     `json:"compactionLevel"`
 	Encoding        Encoding  `json:"encoding"`
+	IndexPageSize   uint32    `json:"indexPageSize"`
+	TotalRecords    uint32    `json:"totalRecords"`
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding) *BlockMeta {

@@ -46,7 +46,7 @@ func TestAllInOne(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	// Get port for the otlp receiver endpoint
+	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
@@ -105,7 +105,7 @@ func TestAzuriteAllInOne(t *testing.T) {
 	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
-	// Get port for the otlp receiver endpoint
+	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
@@ -173,7 +173,7 @@ func TestMicroservices(t *testing.T) {
 	}
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
 
-	// Get port for the otlp receiver endpoint
+	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
