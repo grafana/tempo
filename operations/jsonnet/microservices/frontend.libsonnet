@@ -9,6 +9,7 @@
 
   local target_name = 'query-frontend',
   local tempo_config_volume = 'tempo-conf',
+  local tempo_query_config_volume = 'tempo-query-conf',
   local tempo_data_volume = 'tempo-data',
 
   tempo_query_frontend_container::
@@ -26,11 +27,29 @@
     ]) +
     $.util.readinessProbe,
 
+  tempo_query_container::
+    container.new('tempo-query', $._images.tempo_query) +
+    container.withPorts([
+      containerPort.new('jaeger-ui', 16686),
+      containerPort.new('jaeger-metrics', 16687),
+    ]) +
+    container.withArgs([
+      '--query.base-path=' + $._config.jaeger_ui.base_path,
+      '--grpc-storage-plugin.configuration-file=/conf/tempo-query.yaml',
+      '--query.bearer-token-propagation=true',
+    ]) +
+    container.withVolumeMounts([
+      volumeMount.new(tempo_query_config_volume, '/conf'),
+    ]) +
+    container.withEnvMap({
+      JAEGER_DISABLED: 'true',
+    }),
+
   tempo_query_frontend_deployment:
     deployment.new(
       target_name,
       $._config.query_frontend.replicas,
-      $.tempo_query_frontend_container,
+      [$.tempo_query_frontend_container, $.tempo_query_container],
       {
         app: target_name,
       }
@@ -41,6 +60,7 @@
       config_hash: std.md5(std.toString($.tempo_query_frontend_configmap.data['tempo.yaml'])),
     }) +
     deployment.mixin.spec.template.spec.withVolumes([
+      volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
       volume.fromConfigMap(tempo_config_volume, $.tempo_query_frontend_configmap.metadata.name),
     ]),
 
@@ -49,7 +69,7 @@
     + service.mixin.spec.withPortsMixin([
       servicePort.withName('http')
       + servicePort.withPort(80)
-      + servicePort.withTargetPort(3100),
+      + servicePort.withTargetPort(16686),
     ]),
 
   tempo_query_frontend_discovery_service:
