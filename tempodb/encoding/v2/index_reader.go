@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sort"
+
+	"github.com/grafana/tempo/pkg/sort"
 
 	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -84,19 +85,13 @@ func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, i
 	span, ctx := opentracing.StartSpanFromContext(ctx, "indexReader.Find")
 	defer span.Finish()
 
-	var err error
-	i := sort.Search(r.totalRecords, func(i int) bool {
-		if err != nil { // if we get an error somewhere then just force bail the search
-			return true
-		}
-
-		var record *common.Record
-		record, err = r.At(ctx, i)
+	i, err := sort.SearchWithErrors(r.totalRecords, func(i int) (bool, error) {
+		record, err := r.At(ctx, i)
 		if err != nil {
-			return true
+			return true, err
 		}
 
-		return bytes.Compare(record.ID, id) >= 0
+		return bytes.Compare(record.ID, id) >= 0, nil
 	})
 
 	if err != nil {
