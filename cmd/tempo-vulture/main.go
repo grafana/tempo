@@ -18,6 +18,7 @@ import (
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/weaveworks/common/user"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -78,7 +79,14 @@ func main() {
 			traceIDHigh := rand.Int63()
 			traceIDLow := rand.Int63()
 			for i := int64(0); i < generateRandomInt(1, 100); i++ {
-				err = c.EmitBatch(context.Background(), makeThriftBatch(traceIDHigh, traceIDLow))
+				ctx := user.InjectOrgID(context.Background(), tempoOrgID)
+				ctx, err := user.InjectIntoGRPCRequest(ctx)
+				if err != nil {
+					glog.Error("error injecting org id ", err)
+					metricErrorTotal.Inc()
+					continue
+				}
+				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow))
 				if err != nil {
 					glog.Error("error pushing batch to Tempo ", err)
 					metricErrorTotal.Inc()
