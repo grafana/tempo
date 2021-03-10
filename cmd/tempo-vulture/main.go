@@ -80,6 +80,12 @@ func main() {
 			traceIDLow := rand.Int63()
 			for i := int64(0); i < generateRandomInt(1, 100); i++ {
 				ctx := user.InjectOrgID(context.Background(), tempoOrgID)
+				ctx, err := user.InjectIntoGRPCRequest(ctx)
+				if err != nil {
+					glog.Error("error injecting org id ", err)
+					metricErrorTotal.Inc()
+					continue
+				}
 				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow))
 				if err != nil {
 					glog.Error("error pushing batch to Tempo ", err)
