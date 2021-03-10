@@ -247,7 +247,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	lookback := time.Now().Add(-(2 * rw.cfg.BlocklistPoll))
 	compactedBlocklist := rw.compactedBlockLists[tenantID]
 	for _, c := range compactedBlocklist {
-		if  c.CompactedTime.After(lookback) {
+		if c.CompactedTime.After(lookback) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 		}
 	}
