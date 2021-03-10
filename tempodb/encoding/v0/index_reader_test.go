@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func TestIndexReader(t *testing.T) {
 		Length: 3,
 	}
 
-	recordBytes, err := MarshalRecords([]*common.Record{record1, record2, record3})
+	recordBytes, err := base.MarshalRecords([]*common.Record{record1, record2, record3})
 	require.NoError(t, err)
 
 	tests := []struct {

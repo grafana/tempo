@@ -8,7 +8,7 @@ import (
 // index
 type bufferedAppender struct {
 	// output writer
-	writer common.PageWriter
+	writer common.DataWriter
 
 	// record keeping
 	records             []*common.Record
@@ -23,7 +23,7 @@ type bufferedAppender struct {
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
 //  the provided writer and also builds a downsampled records slice.
-func NewBufferedAppender(writer common.PageWriter, indexDownsample int, totalObjectsEstimate int) (Appender, error) {
+func NewBufferedAppender(writer common.DataWriter, indexDownsample int, totalObjectsEstimate int) (Appender, error) {
 	return &bufferedAppender{
 		writer:               writer,
 		indexDownsampleBytes: indexDownsample,

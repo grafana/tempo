@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPageReader(t *testing.T) {
+func TestDataReader(t *testing.T) {
 
 	tests := []struct {
 		readerBytes   []byte
@@ -123,7 +123,7 @@ func TestPageReader(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		reader := NewPageReader(backend.NewContextReaderWithAllReader(bytes.NewReader(tc.readerBytes)))
+		reader := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(tc.readerBytes)))
 		actual, err := reader.Read(context.Background(), tc.records)
 		reader.Close()
 

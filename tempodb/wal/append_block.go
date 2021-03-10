@@ -41,7 +41,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 		return nil, err
 	}
 	h.appendFile = f
-	h.appender = encoding.NewAppender(v0.NewPageWriter(f))
+	h.appender = encoding.NewAppender(v0.NewDataWriter(f))
 
 	return h, nil
 }
@@ -103,9 +103,9 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 
-	pageReader := v0.NewPageReader(backend.NewContextReaderWithAllReader(file))
-	defer pageReader.Close()
-	finder := encoding.NewPagedFinder(common.Records(records), pageReader, combiner)
+	dataReader := v0.NewDataReader(backend.NewContextReaderWithAllReader(file))
+	defer dataReader.Close()
+	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner)
 
 	return finder.Find(context.Background(), id)
 }

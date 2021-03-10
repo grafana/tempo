@@ -194,6 +194,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 				IndexDownsampleBytes: 2,
 				BloomFP:              .01,
 				Encoding:             backend.EncLZ4_1M,
+				IndexPageSizeBytes:   1000,
 			},
 			WAL: &wal.Config{
 				Filepath: tmpDir,
