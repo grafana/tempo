@@ -65,17 +65,16 @@ func main() {
 
 	// Write
 	go func() {
+		c, err := newJaegerGRPCClient(tempoPushURL)
+		if err != nil {
+			glog.Error("error creating grpc client", err)
+			metricErrorTotal.Inc()
+		}
+
 		for {
 			<-tickerWrite.C
 
 			rand.Seed((time.Now().Unix() / interval) * interval)
-			c, err := newJaegerGRPCClient(tempoPushURL)
-			if err != nil {
-				glog.Error("error creating grpc client", err)
-				metricErrorTotal.Inc()
-				continue
-			}
-
 			traceIDHigh := rand.Int63()
 			traceIDLow := rand.Int63()
 			for i := int64(0); i < generateRandomInt(1, 100); i++ {
