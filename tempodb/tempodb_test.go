@@ -797,6 +797,76 @@ func TestIncludeBlock(t *testing.T) {
 	}
 }
 
+func TestIncludeCompactedBlock(t *testing.T) {
+	blocklistPoll := 5 * time.Minute
+	tests := []struct {
+		name       string
+		searchID   common.ID
+		blockStart uuid.UUID
+		blockEnd   uuid.UUID
+		meta       *backend.CompactedBlockMeta
+		expected   bool
+	}{
+		{
+			name:       "include recent",
+			searchID:   []byte{0x05},
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
+			meta: &backend.CompactedBlockMeta{
+				BlockMeta: backend.BlockMeta{
+					BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+					MinID:   []byte{0x00},
+					MaxID:   []byte{0x10},
+				},
+				CompactedTime: time.Now().Add(- (1 * blocklistPoll)),
+			},
+			expected: true,
+		},
+		{
+			name:       "skip old",
+			searchID:   []byte{0x05},
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
+			meta: &backend.CompactedBlockMeta{
+				BlockMeta: backend.BlockMeta{
+					BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+					MinID:   []byte{0x00},
+					MaxID:   []byte{0x10},
+				},
+				CompactedTime: time.Now().Add(- (3 * blocklistPoll)),
+			},
+			expected: false,
+		},
+		{
+			name:       "skip recent but out of range",
+			searchID:   []byte{0x05},
+			blockStart: uuid.MustParse("40000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			meta: &backend.CompactedBlockMeta{
+				BlockMeta: backend.BlockMeta{
+					BlockID: uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+					MinID:   []byte{0x00},
+					MaxID:   []byte{0x10},
+				},
+				CompactedTime: time.Now().Add(- (1 * blocklistPoll)),
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := tc.blockStart.MarshalBinary()
+			require.NoError(t, err)
+			e, err := tc.blockEnd.MarshalBinary()
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expected, includeCompactedBlock(tc.meta, tc.searchID, s, e, blocklistPoll))
+		})
+	}
+
+	}
+
 func TestSearchCompactedBlocks(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -811,6 +881,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -892,9 +963,9 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	require.Len(t, blocks, 1)
 	assert.NotEqual(t, blocks[0].BlockID.String(), blockID)
 
-	// find should succeed with completely different guid ranges
+	// find should succeed with old block range
 	for i, id := range ids {
-		bFound, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMin)
+		bFound, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}

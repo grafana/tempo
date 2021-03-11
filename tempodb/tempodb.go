@@ -243,11 +243,9 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		}
 	}
 
-	// if block is compacted within lookback period, include it in search
-	lookback := time.Now().Add(-(2 * rw.cfg.BlocklistPoll))
 	compactedBlocklist := rw.compactedBlockLists[tenantID]
 	for _, c := range compactedBlocklist {
-		if c.CompactedTime.After(lookback) {
+		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 		}
 	}
@@ -469,23 +467,21 @@ func (rw *readerWriter) cleanMissingTenants(tenants []string) {
 		tenantSet[tenantID] = struct{}{}
 	}
 
+	rw.blockListsMtx.Lock()
 	for tenantID := range rw.blockLists {
 		if _, present := tenantSet[tenantID]; !present {
-			rw.blockListsMtx.Lock()
 			delete(rw.blockLists, tenantID)
-			rw.blockListsMtx.Unlock()
 			level.Info(rw.logger).Log("msg", "deleted in-memory blocklists", "tenantID", tenantID)
 		}
 	}
 
 	for tenantID := range rw.compactedBlockLists {
 		if _, present := tenantSet[tenantID]; !present {
-			rw.blockListsMtx.Lock()
 			delete(rw.compactedBlockLists, tenantID)
-			rw.blockListsMtx.Unlock()
 			level.Info(rw.logger).Log("msg", "deleted in-memory compacted blocklists", "tenantID", tenantID)
 		}
 	}
+	rw.blockListsMtx.Unlock()
 }
 
 // updateBlocklist Add and remove regular or compacted blocks from the in-memory blocklist.
@@ -537,4 +533,13 @@ func includeBlock(b *backend.BlockMeta, id common.ID, blockStart []byte, blockEn
 	}
 
 	return true
+}
+
+// if block is compacted within lookback period, and is within shard ranges, include it in search
+func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart []byte, blockEnd []byte, poll time.Duration) bool {
+	lookback := time.Now().Add(-(2 * poll))
+	if c.CompactedTime.After(lookback) {
+		return includeBlock(&c.BlockMeta, id, blockStart, blockEnd)
+	}
+	return false
 }
