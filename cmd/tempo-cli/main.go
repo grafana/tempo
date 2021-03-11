@@ -4,12 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/tempodb/backend"
-	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"gopkg.in/yaml.v2"
 
@@ -36,8 +33,9 @@ var cli struct {
 	globalOptions
 
 	List struct {
-		Block  listBlockCmd  `cmd:"" help:"List information about a block"`
-		Blocks listBlocksCmd `cmd:"" help:"List information about all blocks in a bucket"`
+		Block             listBlockCmd             `cmd:"" help:"List information about a block"`
+		Blocks            listBlocksCmd            `cmd:"" help:"List information about all blocks in a bucket"`
+		CompactionSummary listCompactionSummaryCmd `cmd:"" help:"List summary of data by compaction level"`
 	} `cmd:""`
 
 	Query queryCmd `cmd:"" help:"query tempo api"`
@@ -54,7 +52,7 @@ func main() {
 	ctx.FatalIfErrorf(err)
 }
 
-func loadBackend(b *backendOptions, g *globalOptions) (tempodb_backend.Reader, tempodb_backend.Compactor, error) {
+func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.Compactor, error) {
 	// Defaults
 	cfg := app.Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
@@ -89,8 +87,8 @@ func loadBackend(b *backendOptions, g *globalOptions) (tempodb_backend.Reader, t
 	}
 
 	var err error
-	var r tempodb_backend.Reader
-	var c tempodb_backend.Compactor
+	var r backend.Reader
+	var c backend.Compactor
 
 	switch cfg.StorageConfig.Trace.Backend {
 	case "local":
@@ -110,57 +108,4 @@ func loadBackend(b *backendOptions, g *globalOptions) (tempodb_backend.Reader, t
 	}
 
 	return r, c, nil
-}
-
-type unifiedBlockMeta struct {
-	id              uuid.UUID
-	compactionLevel uint8
-	objects         int
-	size            uint64
-	window          int64
-	start           time.Time
-	end             time.Time
-	compacted       bool
-	version         string
-	encoding        string
-}
-
-func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta, windowRange time.Duration) unifiedBlockMeta {
-	if meta != nil {
-		return unifiedBlockMeta{
-			id:              meta.BlockID,
-			compactionLevel: meta.CompactionLevel,
-			objects:         meta.TotalObjects,
-			size:            meta.Size,
-			window:          meta.EndTime.Unix() / int64(windowRange/time.Second),
-			start:           meta.StartTime,
-			end:             meta.EndTime,
-			compacted:       false,
-			version:         meta.Version,
-			encoding:        meta.Encoding.String(),
-		}
-	}
-	if compactedMeta != nil {
-		return unifiedBlockMeta{
-			id:              compactedMeta.BlockID,
-			compactionLevel: compactedMeta.CompactionLevel,
-			objects:         compactedMeta.TotalObjects,
-			size:            compactedMeta.Size,
-			window:          compactedMeta.EndTime.Unix() / int64(windowRange/time.Second),
-			start:           compactedMeta.StartTime,
-			end:             compactedMeta.EndTime,
-			compacted:       true,
-			version:         compactedMeta.Version,
-			encoding:        compactedMeta.Encoding.String(),
-		}
-	}
-	return unifiedBlockMeta{
-		id:              uuid.UUID{},
-		compactionLevel: 0,
-		objects:         -1,
-		window:          -1,
-		start:           time.Unix(0, 0),
-		end:             time.Unix(0, 0),
-		compacted:       false,
-	}
 }
