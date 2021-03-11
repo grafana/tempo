@@ -67,8 +67,7 @@ func main() {
 	go func() {
 		c, err := newJaegerGRPCClient(tempoPushURL)
 		if err != nil {
-			glog.Error("error creating grpc client", err)
-			metricErrorTotal.Inc()
+			panic(err)
 		}
 
 		for {
