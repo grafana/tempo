@@ -57,6 +57,7 @@ func TestReturnAllHits(t *testing.T) {
 			Encoding:             backend.EncNone,
 			IndexDownsampleBytes: 10,
 			BloomFP:              .05,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

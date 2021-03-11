@@ -9,6 +9,7 @@ import (
 // BlockConfig holds configuration options for newly created blocks
 type BlockConfig struct {
 	IndexDownsampleBytes int              `yaml:"index_downsample_bytes"`
+	IndexPageSizeBytes   int              `yaml:"index_page_size_bytes"`
 	BloomFP              float64          `yaml:"bloom_filter_false_positive"`
 	Encoding             backend.Encoding `yaml:"encoding"`
 }
@@ -17,6 +18,10 @@ type BlockConfig struct {
 func ValidateConfig(b *BlockConfig) error {
 	if b.IndexDownsampleBytes <= 0 {
 		return fmt.Errorf("Positive index downsample required")
+	}
+
+	if b.IndexPageSizeBytes <= 0 {
+		return fmt.Errorf("Positive index page size required")
 	}
 
 	if b.BloomFP <= 0.0 {

@@ -72,7 +72,7 @@ export function readPath() {
 
   console.log(`type=read traceId=${traceId}`);
 
-  let res = http.get(`${QUERY_ENDPOINT}/api/traces/${traceId}`, params);
+  let res = http.get(`${QUERY_ENDPOINT}/tempo/api/traces/${traceId}`, params);
   check(res, {
     'read status is 200': (r) => r.status === 200,
   }, { type: 'read' });

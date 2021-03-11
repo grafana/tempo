@@ -34,22 +34,22 @@ dashboard_utils {
         g.row('Query Frontend')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="api_traces_traceid"}' % $.jobMatcher($._config.jobs.query_frontend))
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="tempo_api_traces_traceid"}' % $.jobMatcher($._config.jobs.query_frontend))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="api_traces_traceid"}' % $.jobMatcher($._config.jobs.query_frontend))
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="tempo_api_traces_traceid"}' % $.jobMatcher($._config.jobs.query_frontend))
         )
       )
       .addRow(
         g.row('Querier')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="querier_api_traces_traceid"}' % $.jobMatcher($._config.jobs.querier))
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="querier_tempo_api_traces_traceid"}' % $.jobMatcher($._config.jobs.querier))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="querier_api_traces_traceid"}' % $.jobMatcher($._config.jobs.querier))
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="querier_tempo_api_traces_traceid"}' % $.jobMatcher($._config.jobs.querier))
         )
       )
       .addRow(

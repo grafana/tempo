@@ -21,7 +21,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
-	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,6 +76,7 @@ func TestCompleteBlockAll(t *testing.T) {
 					IndexDownsampleBytes: 1000,
 					BloomFP:              .01,
 					Encoding:             enc,
+					IndexPageSizeBytes:   1000,
 				},
 			)
 		})
@@ -149,7 +150,7 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
-	appender := NewAppender(v0.NewPageWriter(writer))
+	appender := NewAppender(v0.NewDataWriter(writer))
 
 	numMsgs := 1000
 	reqs := make([][]byte, 0, numMsgs)
@@ -298,7 +299,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	b.ResetTimer()
 	file, err := os.Open(cb.fullFilename())
 	require.NoError(b, err)
-	pr, err := v1.NewPageReader(backend.NewContextReaderWithAllReader(file), encoding)
+	pr, err := v2.NewDataReader(v0.NewDataReader(backend.NewContextReaderWithAllReader(file)), encoding)
 	require.NoError(b, err)
 	iterator = newPagedIterator(10*1024*1024, common.Records(cb.records), pr)
 

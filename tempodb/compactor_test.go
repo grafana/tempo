@@ -13,6 +13,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -64,12 +65,14 @@ func TestCompaction(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_4M,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
+	require.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -190,6 +193,7 @@ func TestSameIDCompaction(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			Encoding:             backend.EncSnappy,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -277,6 +281,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			Encoding:             backend.EncNone,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -342,6 +347,7 @@ func TestCompactionMetrics(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			Encoding:             backend.EncNone,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -390,12 +396,7 @@ func TestCompactionMetrics(t *testing.T) {
 
 	bytesEnd, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
-	bytesPerRecord :=
-		4 /* total length */ +
-			4 /* id length */ +
-			16 /* id */ +
-			3 /* test record length */
-	assert.Equal(t, float64(blockCount*recordCount*bytesPerRecord), bytesEnd-bytesStart)
+	assert.Greater(t, bytesEnd, bytesStart) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
 }
 
 func TestCompactionIteratesThroughTenants(t *testing.T) {
@@ -416,6 +417,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			Encoding:             backend.EncLZ4_64k,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

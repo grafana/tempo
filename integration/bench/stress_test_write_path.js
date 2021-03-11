@@ -15,10 +15,10 @@ export let options = {
       exec: 'writePath',
       startVUs: 1,
       stages: [
-        { duration: '2m', target: 5 },
-        { duration: '1m', target: 10 },
+        { duration: '2m', target: 15 },
+        { duration: '1m', target: 30 },
         { duration: '1m', target: 0 },
-        { duration: '1m', target: 5 },
+        { duration: '1m', target: 20 },
       ],
       gracefulRampDown: '5s',
     },
@@ -53,6 +53,7 @@ export function writePath() {
   check(res, {
     'write is status 202': (r) => r.status === 202
   }, { type: 'write' });
+  sleep(0.01)
 }
 
 

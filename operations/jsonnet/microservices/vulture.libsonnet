@@ -13,10 +13,10 @@
     ]) +
     container.withArgs([
       '-prometheus-listen-address=:' + port,
-      '-tempo-push-url=http://distributor',
-      '-tempo-query-url=http://query-frontend:3100',
+      '-tempo-push-url=' + $._config.vulture.tempoPushUrl,
+      '-tempo-query-url=' + $._config.vulture.tempoQueryUrl,
       '-logtostderr=true',
-      '-tempo-org-id=1',
+      '-tempo-org-id=' + $._config.vulture.tempoOrgId,
     ]) +
     $.util.resourcesRequests('50m', '100Mi') +
     $.util.resourcesLimits('100m', '500Mi'),

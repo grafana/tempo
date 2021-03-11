@@ -1,4 +1,4 @@
-package v0
+package base
 
 import (
 	"bytes"
@@ -13,10 +13,10 @@ func TestEncodeDecodeRecord(t *testing.T) {
 	expected, err := makeRecord(t)
 	assert.NoError(t, err, "unexpected error making trace record")
 
-	buff := make([]byte, recordLength)
+	buff := make([]byte, RecordLength)
 
 	marshalRecord(expected, buff)
-	actual := unmarshalRecord(buff)
+	actual := UnmarshalRecord(buff)
 
 	assert.Equal(t, expected, actual)
 }
@@ -55,7 +55,7 @@ func TestSortRecord(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	sortRecords(expected)
+	SortRecords(expected)
 
 	for i := range expected {
 		if i == 0 {
