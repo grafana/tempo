@@ -818,7 +818,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 					MinID:   []byte{0x00},
 					MaxID:   []byte{0x10},
 				},
-				CompactedTime: time.Now().Add(- (1 * blocklistPoll)),
+				CompactedTime: time.Now().Add(-(1 * blocklistPoll)),
 			},
 			expected: true,
 		},
@@ -833,7 +833,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 					MinID:   []byte{0x00},
 					MaxID:   []byte{0x10},
 				},
-				CompactedTime: time.Now().Add(- (3 * blocklistPoll)),
+				CompactedTime: time.Now().Add(-(3 * blocklistPoll)),
 			},
 			expected: false,
 		},
@@ -848,7 +848,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 					MinID:   []byte{0x00},
 					MaxID:   []byte{0x10},
 				},
-				CompactedTime: time.Now().Add(- (1 * blocklistPoll)),
+				CompactedTime: time.Now().Add(-(1 * blocklistPoll)),
 			},
 			expected: false,
 		},
@@ -865,7 +865,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 		})
 	}
 
-	}
+}
 
 func TestSearchCompactedBlocks(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
