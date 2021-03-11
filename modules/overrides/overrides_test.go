@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/util/services"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -42,7 +43,7 @@ func TestOverrides(t *testing.T) {
 			expectedIngestionRateSpans:  map[string]int{"user1": 5, "user2": 5},
 		},
 		{
-			name: "basic override",
+			name: "basic overrides",
 			limits: Limits{
 				MaxGlobalTracesPerUser: 1,
 				MaxLocalTracesPerUser:  2,
@@ -67,6 +68,39 @@ func TestOverrides(t *testing.T) {
 			expectedIngestionBurstSpans: map[string]int{"user1": 9, "user2": 4},
 			expectedIngestionRateSpans:  map[string]int{"user1": 10, "user2": 5},
 		},
+		{
+			name: "wildcard override",
+			limits: Limits{
+				MaxGlobalTracesPerUser: 1,
+				MaxLocalTracesPerUser:  2,
+				MaxSpansPerTrace:       3,
+				IngestionBurstSize:     4,
+				IngestionRateSpans:     5,
+			},
+			overrides: &perTenantOverrides{
+				TenantLimits: map[string]*Limits{
+					"user1": {
+						MaxGlobalTracesPerUser: 6,
+						MaxLocalTracesPerUser:  7,
+						MaxSpansPerTrace:       8,
+						IngestionBurstSize:     9,
+						IngestionRateSpans:     10,
+					},
+					"*": {
+						MaxGlobalTracesPerUser: 11,
+						MaxLocalTracesPerUser:  12,
+						MaxSpansPerTrace:       13,
+						IngestionBurstSize:     14,
+						IngestionRateSpans:     15,
+					},
+				},
+			},
+			expectedMaxGlobalTraces:     map[string]int{"user1": 6, "user2": 11},
+			expectedMaxLocalTraces:      map[string]int{"user1": 7, "user2": 12},
+			expectedMaxSpansPerTrace:    map[string]int{"user1": 8, "user2": 13},
+			expectedIngestionBurstSpans: map[string]int{"user1": 9, "user2": 14},
+			expectedIngestionRateSpans:  map[string]int{"user1": 10, "user2": 15},
+		},
 	}
 
 	for _, tt := range tests {
@@ -84,6 +118,7 @@ func TestOverrides(t *testing.T) {
 				tt.limits.PerTenantOverridePeriod = time.Hour
 			}
 
+			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
 			overrides, err := NewOverrides(tt.limits)
 			require.NoError(t, err)
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
