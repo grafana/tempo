@@ -116,7 +116,7 @@ func main() {
 			if err != nil {
 				glog.Error("error querying Tempo ", err)
 				metricErrorTotal.Inc()
-				metricTracesErrors.WithLabelValues("failed").Inc()
+				metricTracesErrors.WithLabelValues("notfound").Inc()
 				continue
 			}
 
