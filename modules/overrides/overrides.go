@@ -16,6 +16,8 @@ import (
 // nil, if there are no tenant-specific limits.
 type TenantLimits func(userID string) *Limits
 
+const wildcardTenant = "*"
+
 // perTenantOverrides represents the overrides config file
 type perTenantOverrides struct {
 	TenantLimits map[string]*Limits `yaml:"overrides"`
@@ -162,6 +164,11 @@ func (o *Overrides) BlockRetention(userID string) time.Duration {
 func (o *Overrides) getOverridesForUser(userID string) *Limits {
 	if o.tenantLimits != nil {
 		l := o.tenantLimits(userID)
+		if l != nil {
+			return l
+		}
+
+		l = o.tenantLimits(wildcardTenant)
 		if l != nil {
 			return l
 		}
