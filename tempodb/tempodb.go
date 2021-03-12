@@ -538,8 +538,8 @@ func includeBlock(b *backend.BlockMeta, id common.ID, blockStart []byte, blockEn
 // if block is compacted within lookback period, and is within shard ranges, include it in search
 func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart []byte, blockEnd []byte, poll time.Duration) bool {
 	lookback := time.Now().Add(-(2 * poll))
-	if c.CompactedTime.After(lookback) {
-		return includeBlock(&c.BlockMeta, id, blockStart, blockEnd)
+	if c.CompactedTime.Before(lookback) {
+		return false
 	}
-	return false
+	return includeBlock(&c.BlockMeta, id, blockStart, blockEnd)
 }

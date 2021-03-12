@@ -25,8 +25,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
-  "id": 115,
-  "iteration": 1612469301683,
+  "iteration": 1615543281712,
   "links": [],
   "panels": [
     {
@@ -50,9 +49,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 0,
@@ -81,7 +78,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -145,9 +142,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 0,
@@ -176,7 +171,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -240,9 +235,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 0,
@@ -271,7 +264,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -334,9 +327,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 0,
@@ -365,7 +356,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -430,9 +421,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 0,
@@ -461,7 +450,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -525,9 +514,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 0,
@@ -556,7 +543,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -628,9 +615,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 0,
@@ -659,7 +644,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -722,9 +707,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -753,7 +736,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -831,9 +814,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -862,7 +843,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -926,9 +907,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -957,7 +936,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1030,9 +1009,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -1061,7 +1038,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": true,
       "renderer": "flot",
@@ -1136,9 +1113,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -1167,7 +1142,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1232,9 +1207,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -1263,7 +1236,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": true,
       "renderer": "flot",
@@ -1339,9 +1312,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -1370,7 +1341,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1440,9 +1411,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -1471,7 +1440,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1550,15 +1519,13 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
-        "h": 10,
+        "h": 5,
         "w": 6,
         "x": 0,
         "y": 13
@@ -1581,7 +1548,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1591,7 +1558,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(tempo_request_duration_seconds_count{route=\"api_traces_traceid\", job=\"$namespace/query-frontend\"}[$__rate_interval])) by (status_code)",
+          "expr": "sum(rate(tempo_request_duration_seconds_count{route=\"tempo_api_traces_traceid\", job=\"$namespace/cortex-gw\"}[$__rate_interval])) by (status_code)",
           "hide": false,
           "interval": "",
           "legendFormat": "{{status_code}}",
@@ -1602,7 +1569,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Queries/Sec (Query Frontend)",
+      "title": "Queries/Sec (cortex-gw)",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -1646,16 +1613,14 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
-        "h": 10,
-        "w": 6,
+        "h": 5,
+        "w": 9,
         "x": 6,
         "y": 13
       },
@@ -1677,7 +1642,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1753,18 +1718,110 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 12,
-        "y": 13
+        "w": 6,
+        "x": 0,
+        "y": 18
+      },
+      "hiddenSeries": false,
+      "id": 90,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.5.0-14141pre",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "sum(rate(tempo_request_duration_seconds_count{route=\"tempo_api_traces_traceid\", job=\"$namespace/query-frontend\"}[$__rate_interval])) by (status_code)",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "{{status_code}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Queries/Sec (Query Frontend)",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 9,
+        "x": 6,
+        "y": 18
       },
       "hiddenSeries": false,
       "id": 17,
@@ -1784,7 +1841,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1794,19 +1851,19 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/query-frontend\", route=\"api_traces_traceid\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/query-frontend\", route=\"tempo_api_traces_traceid\"}[$__rate_interval])) by (le))",
           "interval": "",
           "legendFormat": ".99",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/query-frontend\", route=\"api_traces_traceid\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/query-frontend\", route=\"tempo_api_traces_traceid\"}[$__rate_interval])) by (le))",
           "interval": "",
           "legendFormat": ".9",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/query-frontend\", route=\"api_traces_traceid\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/query-frontend\", route=\"tempo_api_traces_traceid\"}[$__rate_interval])) by (le))",
           "interval": "",
           "legendFormat": ".5",
           "refId": "C"
@@ -1860,18 +1917,110 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 16,
-        "y": 13
+        "w": 6,
+        "x": 0,
+        "y": 23
+      },
+      "hiddenSeries": false,
+      "id": 91,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.5.0-14141pre",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "sum(rate(tempo_request_duration_seconds_count{route=\"querier_tempo_api_traces_traceid\", job=\"$namespace/querier\"}[$__rate_interval])) by (status_code)",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "{{status_code}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Queries/Sec (Querier)",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 9,
+        "x": 6,
+        "y": 23
       },
       "hiddenSeries": false,
       "id": 89,
@@ -1891,7 +2040,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1901,19 +2050,19 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/querier\", route=\"querier_api_traces_traceid\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/querier\", route=\"querier_tempo_api_traces_traceid\"}[$__rate_interval])) by (le))",
           "interval": "",
           "legendFormat": ".99",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/querier\", route=\"querier_api_traces_traceid\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/querier\", route=\"querier_tempo_api_traces_traceid\"}[$__rate_interval])) by (le))",
           "interval": "",
           "legendFormat": ".9",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/querier\", route=\"querier_api_traces_traceid\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{job=\"$namespace/querier\", route=\"querier_tempo_api_traces_traceid\"}[$__rate_interval])) by (le))",
           "interval": "",
           "legendFormat": ".5",
           "refId": "C"
@@ -1967,18 +2116,110 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 12,
-        "y": 18
+        "w": 6,
+        "x": 0,
+        "y": 28
+      },
+      "hiddenSeries": false,
+      "id": 92,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.5.0-14141pre",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "sum(rate(tempo_request_duration_seconds_count{route=\"/tempopb.Querier/FindTraceByID\", job=\"$namespace/ingester\"}[$__rate_interval])) by (status_code)",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "{{status_code}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Queries/Sec (Ingester)",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$ds",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 5,
+        "w": 9,
+        "x": 6,
+        "y": 28
       },
       "hiddenSeries": false,
       "id": 3,
@@ -1998,7 +2239,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2074,7 +2315,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 33
       },
       "id": 19,
       "panels": [],
@@ -2088,9 +2329,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 0,
@@ -2099,7 +2338,7 @@
         "h": 5,
         "w": 3,
         "x": 0,
-        "y": 24
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 10,
@@ -2119,7 +2358,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2183,9 +2422,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -2194,7 +2431,7 @@
         "h": 5,
         "w": 3,
         "x": 3,
-        "y": 24
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 9,
@@ -2214,7 +2451,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2278,9 +2515,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -2289,7 +2524,7 @@
         "h": 5,
         "w": 3,
         "x": 6,
-        "y": 24
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 8,
@@ -2309,7 +2544,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2373,9 +2608,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -2384,7 +2617,7 @@
         "h": 5,
         "w": 3,
         "x": 9,
-        "y": 24
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 12,
@@ -2404,7 +2637,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2468,9 +2701,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -2479,7 +2710,7 @@
         "h": 5,
         "w": 3,
         "x": 12,
-        "y": 24
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 26,
@@ -2499,7 +2730,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2563,9 +2794,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -2574,7 +2803,7 @@
         "h": 5,
         "w": 3,
         "x": 15,
-        "y": 24
+        "y": 34
       },
       "hiddenSeries": false,
       "id": 36,
@@ -2594,7 +2823,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": true,
       "renderer": "flot",
@@ -2670,9 +2899,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -2681,7 +2908,7 @@
         "h": 10,
         "w": 7,
         "x": 0,
-        "y": 29
+        "y": 39
       },
       "hiddenSeries": false,
       "id": 71,
@@ -2701,7 +2928,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2765,9 +2992,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -2776,7 +3001,7 @@
         "h": 10,
         "w": 6,
         "x": 7,
-        "y": 29
+        "y": 39
       },
       "hiddenSeries": false,
       "id": 72,
@@ -2796,7 +3021,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2866,9 +3091,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -2877,7 +3100,7 @@
         "h": 5,
         "w": 6,
         "x": 13,
-        "y": 29
+        "y": 39
       },
       "hiddenSeries": false,
       "id": 79,
@@ -2897,7 +3120,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2973,9 +3196,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -2984,7 +3205,7 @@
         "h": 5,
         "w": 6,
         "x": 13,
-        "y": 34
+        "y": 44
       },
       "hiddenSeries": false,
       "id": 2,
@@ -3004,7 +3225,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -3080,7 +3301,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 49
       },
       "id": 74,
       "panels": [],
@@ -3095,7 +3316,6 @@
       "datasource": "$ds",
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -3106,7 +3326,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 50
       },
       "hiddenSeries": false,
       "id": 75,
@@ -3126,7 +3346,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -3191,7 +3411,6 @@
       "datasource": "$ds",
       "fieldConfig": {
         "defaults": {
-          "custom": {},
           "links": []
         },
         "overrides": []
@@ -3202,7 +3421,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 50
       },
       "hiddenSeries": false,
       "id": 76,
@@ -3222,7 +3441,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -3298,7 +3517,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 58
       },
       "id": 28,
       "panels": [
@@ -3514,7 +3733,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 49
+        "y": 59
       },
       "id": 56,
       "panels": [
@@ -3925,7 +4144,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 60
       },
       "id": 69,
       "panels": [],
@@ -3939,7 +4158,6 @@
           "color": {
             "mode": "thresholds"
           },
-          "custom": {},
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -4035,7 +4253,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 61
       },
       "id": 77,
       "options": {
@@ -4051,7 +4269,7 @@
         "showUnfilled": true,
         "text": {}
       },
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "targets": [
         {
           "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\", error=\"notfound\"}[1h])) / sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
@@ -4072,7 +4290,6 @@
           "color": {
             "mode": "thresholds"
           },
-          "custom": {},
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -4168,7 +4385,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 61
       },
       "id": 67,
       "options": {
@@ -4184,7 +4401,7 @@
         "showUnfilled": true,
         "text": {}
       },
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "targets": [
         {
           "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\", error=\"missingspans\"}[1h])) by (secondsago) / sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])) by (secondsago)",
@@ -4205,7 +4422,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 70
       },
       "id": 81,
       "panels": [],
@@ -4219,9 +4436,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -4230,7 +4445,7 @@
         "h": 6,
         "w": 4,
         "x": 0,
-        "y": 61
+        "y": 71
       },
       "hiddenSeries": false,
       "id": 83,
@@ -4250,7 +4465,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -4317,9 +4532,7 @@
       "datasource": "$ds",
       "description": "",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -4328,7 +4541,7 @@
         "h": 6,
         "w": 4,
         "x": 4,
-        "y": 61
+        "y": 71
       },
       "hiddenSeries": false,
       "id": 85,
@@ -4348,7 +4561,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -4412,9 +4625,7 @@
       "dashes": false,
       "datasource": null,
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -4423,7 +4634,7 @@
         "h": 6,
         "w": 4,
         "x": 8,
-        "y": 61
+        "y": 71
       },
       "hiddenSeries": false,
       "id": 88,
@@ -4443,7 +4654,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -4507,9 +4718,7 @@
       "dashes": false,
       "datasource": "$ds",
       "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
+        "defaults": {},
         "overrides": []
       },
       "fill": 1,
@@ -4518,7 +4727,7 @@
         "h": 6,
         "w": 4,
         "x": 12,
-        "y": 61
+        "y": 71
       },
       "hiddenSeries": false,
       "id": 86,
@@ -4538,7 +4747,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-11433pre",
+      "pluginVersion": "7.5.0-14141pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -4777,6 +4986,6 @@
   },
   "timezone": "",
   "title": "Tempo Operational",
-  "uid": "AOFXrRUZz",
+  "uid": "a6175b9cc7ec20591890117c39580030",
   "version": 1
 }
