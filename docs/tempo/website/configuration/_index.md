@@ -78,7 +78,7 @@ querier:
         frontend_address: query-frontend-discovery.default.svc.cluster.local:9095   # the address of the query frontend to connect to, and process queries
 ```
 
-The Querier also queries compacted blocks that fall within (2 * BlocklistPoll) where the value of Blocklist poll duration
+It also queries compacted blocks that fall within the (2 * BlocklistPoll) range where the value of Blocklist poll duration
 is defined in the storage section below.
 
 ## Compactor
