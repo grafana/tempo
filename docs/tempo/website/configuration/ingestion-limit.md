@@ -81,6 +81,16 @@ Sometimes you don't want all tenants within the cluster to have the same setting
 
 This overrides file is dynamically loaded.  It can be changed at runtime and will be reloaded by Tempo without restarting the application.
 
+1. Additionally a "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
+```
+    overrides:
+        "*":
+            ingestion_max_batch_size: 5000
+            ingestion_rate_limit: 400000
+            max_spans_per_trace: 250000
+            max_traces_per_user: 100000
+```
+
 ## Override strategies
 
 The trace limits specified by the various parameters are, by default, applied as per-distributor limits. For example, a `max_traces_per_user` setting of 10000 means that each distributor within the cluster has a limit of 10000 traces per user. This is known as a `local` strategy in that the specified trace limits are local to each distributor.
