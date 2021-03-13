@@ -107,8 +107,8 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 
 // PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
 func (i *instance) PushBytes(ctx context.Context, id []byte, object []byte) error {
-	i.tracesMtx.Lock()
-	defer i.tracesMtx.Unlock()
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
 	return i.headBlock.Write(id, object)
 }
