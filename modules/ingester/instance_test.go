@@ -178,6 +178,13 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
+		id := make([]byte, 16)
+		_, _ = rand.Read(id)
+		err := i.PushBytes(context.Background(), id, []byte{0x01})
+		assert.NoError(t, err, "error pushing traces")
+	})
+
+	go concurrent(func() {
 		err := i.CutCompleteTraces(0, true)
 		assert.NoError(t, err, "error cutting complete traces")
 	})
