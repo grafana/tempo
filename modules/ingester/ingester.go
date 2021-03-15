@@ -281,6 +281,7 @@ func (i *Ingester) replayWal() error {
 	blocks, err := i.store.WAL().AllBlocks()
 	// todo: should this fail startup?
 	if err != nil {
+		level.Error(log.Logger).Log("msg", "error beginning wal replay", "err", err)
 		return nil
 	}
 
@@ -288,14 +289,9 @@ func (i *Ingester) replayWal() error {
 
 	for _, b := range blocks {
 		tenantID := b.TenantID()
-		level.Info(log.Logger).Log("msg", "beginning block replay", "tenantID", tenantID)
+		level.Info(log.Logger).Log("msg", "beginning block replay", "tenantID", tenantID, "block", b.BlockID())
 
-		instance, err := i.getOrCreateInstance(tenantID)
-		if err != nil {
-			return err
-		}
-
-		err = i.replayBlock(b, instance)
+		err = i.replayBlock(b)
 		if err != nil {
 			// there was an error, log and keep on keeping on
 			level.Error(log.Logger).Log("msg", "error replaying block.  removing", "error", err)
@@ -309,7 +305,7 @@ func (i *Ingester) replayWal() error {
 	return nil
 }
 
-func (i *Ingester) replayBlock(b *tempodb_wal.ReplayBlock, instance *instance) error {
+func (i *Ingester) replayBlock(b *tempodb_wal.ReplayBlock) error {
 	iterator, err := b.Iterator()
 	if err != nil {
 		return err
@@ -317,18 +313,35 @@ func (i *Ingester) replayBlock(b *tempodb_wal.ReplayBlock, instance *instance) e
 	defer iterator.Close()
 
 	ctx := context.Background()
+
+	// Pull first entry to see if block has any data
+	id, obj, err := iterator.Next(ctx)
+	if err != nil {
+		return err
+	}
+	if id == nil {
+		// Block is empty
+		return nil
+	}
+
+	// Only create instance for tenant now that we know data exists
+	instance, err := i.getOrCreateInstance(b.TenantID())
+	if err != nil {
+		return err
+	}
+
 	for {
-		id, obj, err := iterator.Next(ctx)
-		if id == nil {
-			break
-		}
+		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
+		writeID := append([]byte(nil), id...)
+		err = instance.PushBytes(context.Background(), writeID, obj)
 		if err != nil {
 			return err
 		}
 
-		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
-		writeID := append([]byte(nil), id...)
-		err = instance.PushBytes(context.Background(), writeID, obj)
+		id, obj, err = iterator.Next(ctx)
+		if id == nil {
+			break
+		}
 		if err != nil {
 			return err
 		}

@@ -73,6 +73,7 @@ func (h *AppendBlock) Complete(cfg *encoding.BlockConfig, w *WAL, combiner commo
 		if err != nil {
 			return nil, err
 		}
+		h.appendFile = nil
 	}
 
 	records := h.appender.Records()
@@ -113,10 +114,12 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 func (h *AppendBlock) Clear() error {
 	if h.readFile != nil {
 		_ = h.readFile.Close()
+		h.readFile = nil
 	}
 
 	if h.appendFile != nil {
 		_ = h.appendFile.Close()
+		h.appendFile = nil
 	}
 
 	name := h.fullFilename()

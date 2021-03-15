@@ -58,13 +58,12 @@ func TestInstance(t *testing.T) {
 	assert.NoError(t, err, "unexpected error cutting block")
 	assert.NotEqual(t, blockID, uuid.Nil)
 
-	completeBlockID, err := i.CompleteBlock(blockID)
+	err = i.CompleteBlock(blockID)
 	assert.NoError(t, err, "unexpected error completing block")
-	assert.NotEqual(t, completeBlockID, uuid.Nil)
 
-	block := i.GetBlockToBeFlushed(completeBlockID)
+	block := i.GetBlockToBeFlushed(blockID)
 	require.NotNil(t, block)
-	assert.Len(t, i.completingBlocks, 0)
+	assert.Len(t, i.completingBlocks, 1)
 	assert.Len(t, i.completeBlocks, 1)
 
 	err = ingester.store.WriteBlock(context.Background(), block)
@@ -130,19 +129,15 @@ func TestInstanceFind(t *testing.T) {
 	pushAndQuery(t, i, request2)
 	assert.Len(t, i.completingBlocks, 2)
 
-	_, err = i.CompleteBlock(blockID)
+	err = i.CompleteBlock(blockID)
 	assert.NoError(t, err, "unexpected error completing block")
 
-	assert.Len(t, i.completingBlocks, 1)
+	assert.Len(t, i.completingBlocks, 2)
 
 	traceID := test.MustTraceID(request)
 	trace, err := i.FindTraceByID(traceID)
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
-
-	completeBlockID, err := i.CompleteBlock(blockID)
-	assert.EqualError(t, err, "error finding completingBlock")
-	assert.Equal(t, completeBlockID, uuid.Nil)
 }
 
 func TestInstanceDoesNotRace(t *testing.T) {
@@ -185,14 +180,12 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	go concurrent(func() {
 		blockID, _ := i.CutBlockIfReady(0, 0, false)
 		if blockID != uuid.Nil {
-			completeBlockID, err := i.CompleteBlock(blockID)
+			err := i.CompleteBlock(blockID)
 			assert.NoError(t, err, "unexpected error completing block")
-			if completeBlockID != uuid.Nil {
-				block := i.GetBlockToBeFlushed(completeBlockID)
-				require.NotNil(t, block)
-				err := ingester.store.WriteBlock(context.Background(), block)
-				assert.NoError(t, err, "error writing block")
-			}
+			block := i.GetBlockToBeFlushed(blockID)
+			require.NotNil(t, block)
+			err = ingester.store.WriteBlock(context.Background(), block)
+			assert.NoError(t, err, "error writing block")
 		}
 	})
 
@@ -444,7 +437,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			blockID, err := instance.CutBlockIfReady(tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
 			require.NoError(t, err)
 
-			_, err = instance.CompleteBlock(blockID)
+			err = instance.CompleteBlock(blockID)
 			if tc.expectedToCutBlock {
 				assert.NoError(t, err, "unexpected error completing block")
 			}

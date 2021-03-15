@@ -9,7 +9,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -37,7 +36,7 @@ type CompleteBlock struct {
 func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iterator Iterator, estimatedObjects int, filepath string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
 		encoding: latestEncoding(),
-		meta:     backend.NewBlockMeta(originatingMeta.TenantID, uuid.New(), currentVersion, cfg.Encoding),
+		meta:     backend.NewBlockMeta(originatingMeta.TenantID, originatingMeta.BlockID, currentVersion, cfg.Encoding),
 		bloom:    common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
 		records:  make([]*common.Record, 0),
 		filepath: filepath,
