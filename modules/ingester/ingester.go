@@ -302,6 +302,8 @@ func (i *Ingester) replayWal() error {
 		}
 	}
 
+	level.Info(log.Logger).Log("msg", "wal replay complete")
+
 	return nil
 }
 
