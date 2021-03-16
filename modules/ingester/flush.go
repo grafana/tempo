@@ -3,6 +3,7 @@ package ingester
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
@@ -38,6 +39,7 @@ var (
 
 const (
 	initialBackoff      = 1 * time.Second
+	flushJitter         = 10 * time.Second
 	maxBackoff          = time.Minute
 	maxCompleteAttempts = 10
 )
@@ -141,9 +143,9 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	if blockID != uuid.Nil {
-		i.flushQueues.Enqueue(&flushOp{
+		// jitter to help when flushing many instances at the same time
+		i.enqueueWithJitter(&flushOp{
 			kind:    opKindComplete,
-			at:      time.Now(),
 			userID:  instance.instanceID,
 			blockID: blockID,
 		})
@@ -174,21 +176,25 @@ func (i *Ingester) flushLoop(j int) {
 
 		if op.kind == opKindComplete {
 			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID)
-			instance, exists := i.getInstanceByID(op.userID)
-			if !exists {
-				// instance no longer exists? that's bad, log and continue
-				level.Error(log.Logger).Log("msg", "instance not found", "userID", op.userID, "block", op.blockID.String())
+			instance, err := i.getOrCreateInstance(op.userID)
+			if err != nil {
+				handleFlushError(op, err)
 				continue
 			}
 
-			err := instance.CompleteBlock(op.blockID)
+			err = instance.CompleteBlock(op.blockID)
 			if err != nil {
 				handleFlushError(op, err)
 
 				if op.attempts >= maxCompleteAttempts {
 					level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "Block exceeded max completion errors. Deleting. POSSIBLE DATA LOSS",
 						"userID", op.userID, "attempts", op.attempts, "block", op.blockID.String())
-					instance.ClearCompletingBlock(op.blockID)
+
+					err = instance.ClearCompletingBlock(op.blockID)
+					if err != nil {
+						// Failure to delete the WAL doesn't prevent flushing the bloc
+						handleFlushError(op, err)
+					}
 				} else {
 					retry = true
 				}
@@ -255,6 +261,17 @@ func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func (i *Ingester) enqueueWithJitter(op *flushOp) {
+	delay := time.Duration(rand.Float32() * float32(flushJitter))
+
+	op.at = time.Now().Add(delay)
+
+	go func() {
+		time.Sleep(delay)
+		i.flushQueues.Enqueue(op)
+	}()
 }
 
 func (i *Ingester) requeue(op *flushOp) {

@@ -192,7 +192,8 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	return nil
 }
 
-func (i *instance) ClearCompletingBlock(blockID uuid.UUID) {
+// nolint:interfacer
+func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	var completingBlock *wal.AppendBlock
 	for j, iterBlock := range i.completingBlocks {
@@ -205,13 +206,14 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) {
 	i.blocksMtx.Unlock()
 
 	if completingBlock != nil {
-		err := completingBlock.Clear()
-		if err != nil {
-			level.Error(log.Logger).Log("msg", "Error clearing wal", "tenantID", i.instanceID, "blockID", blockID.String(), "err", err)
-		}
-	} else {
-		level.Error(log.Logger).Log("msg", "Error finding wal completingBlock to clear")
+		return completingBlock.Clear()
+		//if err != nil {
+		//	return err
+		//level.Error(log.Logger).Log("msg", "Error clearing wal", "tenantID", i.instanceID, "blockID", blockID.String(), "err", err)
+		//}
 	}
+
+	return fmt.Errorf("Error finding wal completingBlock to clear")
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend
