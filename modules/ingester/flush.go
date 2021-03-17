@@ -38,10 +38,10 @@ var (
 )
 
 const (
-	initialBackoff      = 1 * time.Second
+	initialBackoff      = 30 * time.Second
 	flushJitter         = 10 * time.Second
-	maxBackoff          = time.Minute
-	maxCompleteAttempts = 10
+	maxBackoff          = 120 * time.Second
+	maxCompleteAttempts = 3
 )
 
 const (
