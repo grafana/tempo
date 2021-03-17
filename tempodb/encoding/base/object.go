@@ -66,6 +66,9 @@ func UnmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
 	if uint32(readLength) != protoLength {
 		return nil, nil, fmt.Errorf("read %d but expected %d", readLength, protoLength)
 	}
+	if int(idLength) > len(b) {
+		return nil, nil, fmt.Errorf("id length %d outside bounds of buffer %d. corrupt buffer?", idLength, len(b))
+	}
 
 	bytesID := b[:idLength]
 	bytesObject := b[idLength:]
