@@ -144,11 +144,12 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 
 	if blockID != uuid.Nil {
 		// jitter to help when flushing many instances at the same time
-		i.enqueueWithJitter(&flushOp{
+		// no jitter if immediate (initiated via /flush handler for example)
+		i.enqueue(&flushOp{
 			kind:    opKindComplete,
 			userID:  instance.instanceID,
 			blockID: blockID,
-		})
+		}, !immediate)
 	}
 
 	// dump any blocks that have been flushed for awhile
@@ -175,16 +176,23 @@ func (i *Ingester) flushLoop(j int) {
 		retry := false
 
 		if op.kind == opKindComplete {
+			// No point in proceeding if shutdown has been initiated since
+			// we won't be able to queue up the next flush op
+			if i.flushQueues.IsStopped() {
+				handleAbandonedOp(op)
+				continue
+			}
+
 			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID)
 			instance, err := i.getOrCreateInstance(op.userID)
 			if err != nil {
-				handleFlushError(op, err)
+				handleFailedOp(op, err)
 				continue
 			}
 
 			err = instance.CompleteBlock(op.blockID)
 			if err != nil {
-				handleFlushError(op, err)
+				handleFailedOp(op, err)
 
 				if op.attempts >= maxCompleteAttempts {
 					level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "Block exceeded max completion errors. Deleting. POSSIBLE DATA LOSS",
@@ -193,19 +201,19 @@ func (i *Ingester) flushLoop(j int) {
 					err = instance.ClearCompletingBlock(op.blockID)
 					if err != nil {
 						// Failure to delete the WAL doesn't prevent flushing the bloc
-						handleFlushError(op, err)
+						handleFailedOp(op, err)
 					}
 				} else {
 					retry = true
 				}
 			} else {
 				// add a flushOp for the block we just completed
-				i.flushQueues.Enqueue(&flushOp{
+				// No delay
+				i.enqueue(&flushOp{
 					kind:    opKindFlush,
-					at:      time.Now(),
 					userID:  instance.instanceID,
 					blockID: op.blockID,
-				})
+				}, false)
 			}
 
 		} else {
@@ -213,7 +221,7 @@ func (i *Ingester) flushLoop(j int) {
 
 			err := i.flushBlock(op.userID, op.blockID)
 			if err != nil {
-				handleFlushError(op, err)
+				handleFailedOp(op, err)
 				retry = true
 			}
 		}
@@ -226,10 +234,15 @@ func (i *Ingester) flushLoop(j int) {
 	}
 }
 
-func handleFlushError(op *flushOp, err error) {
+func handleFailedOp(op *flushOp, err error) {
 	level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "error performing op in flushQueue",
 		"op", op.kind, "block", op.blockID.String(), "attempts", op.attempts, "err", err)
 	metricFailedFlushes.Inc()
+}
+
+func handleAbandonedOp(op *flushOp) {
+	level.Info(log.WithUserID(op.userID, log.Logger)).Log("msg", "Abandoning op in flush queue because ingester is shutting down",
+		"op", op.kind, "block", op.blockID.String(), "attempts", op.attempts)
 }
 
 func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
@@ -253,8 +266,15 @@ func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
 		if err != nil {
 			return err
 		}
+
 		// Delete original wal only after successful flush
-		instance.ClearCompletingBlock(blockID)
+		err = instance.ClearCompletingBlock(blockID)
+		if err != nil {
+			// Error deleting wal doesn't fail the flush
+			level.Error(log.Logger).Log("msg", "Error clearing wal", "userID", userID, "blockID", blockID.String(), "err", err)
+			metricFailedFlushes.Inc()
+		}
+
 		metricBlocksFlushed.Inc()
 	} else {
 		return fmt.Errorf("error getting block to flush")
@@ -263,13 +283,24 @@ func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
 	return nil
 }
 
-func (i *Ingester) enqueueWithJitter(op *flushOp) {
-	delay := time.Duration(rand.Float32() * float32(flushJitter))
+func (i *Ingester) enqueue(op *flushOp, jitter bool) {
+	delay := time.Duration(0)
+
+	if jitter {
+		delay = time.Duration(rand.Float32() * float32(flushJitter))
+	}
 
 	op.at = time.Now().Add(delay)
 
 	go func() {
 		time.Sleep(delay)
+
+		// Check if shutdown initiated
+		if i.flushQueues.IsStopped() {
+			handleAbandonedOp(op)
+			return
+		}
+
 		i.flushQueues.Enqueue(op)
 	}()
 }
@@ -290,6 +321,13 @@ func (i *Ingester) requeue(op *flushOp) {
 
 	go func() {
 		time.Sleep(op.backoff)
+
+		// Check if shutdown initiated
+		if i.flushQueues.IsStopped() {
+			handleAbandonedOp(op)
+			return
+		}
+
 		i.flushQueues.Requeue(op)
 	}()
 }

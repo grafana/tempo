@@ -207,10 +207,6 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 
 	if completingBlock != nil {
 		return completingBlock.Clear()
-		//if err != nil {
-		//	return err
-		//level.Error(log.Logger).Log("msg", "Error clearing wal", "tenantID", i.instanceID, "blockID", blockID.String(), "err", err)
-		//}
 	}
 
 	return fmt.Errorf("Error finding wal completingBlock to clear")
