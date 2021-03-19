@@ -135,8 +135,6 @@ func (r *receiversShim) starting(ctx context.Context) error {
 
 // Called after distributor is asked to stop via StopAsync.
 func (r *receiversShim) stopping(_ error) error {
-	fmt.Println("!!stopping!!", time.Now())
-
 	ctx, cancelFn := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelFn()
 
@@ -154,9 +152,6 @@ func (r *receiversShim) stopping(_ error) error {
 	}
 
 	view.Unregister(r.metricViews...)
-
-	fmt.Println("!!done stopping!!", time.Now())
-	time.Sleep(time.Hour)
 	return nil
 }
 

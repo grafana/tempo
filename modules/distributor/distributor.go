@@ -196,7 +196,9 @@ func (d *Distributor) running(ctx context.Context) error {
 
 // Called after distributor is asked to stop via StopAsync.
 func (d *Distributor) stopping(_ error) error {
-	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
+	err := services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
+	time.Sleep(30 * time.Second)
+	return err
 }
 
 // Push a set of streams.
