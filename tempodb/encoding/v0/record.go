@@ -1,4 +1,4 @@
-package base
+package v0
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// jpe can we hide this?
 // RecordLength holds the size of a single record in bytes
 const RecordLength = 28 // 28 = 128 bit ID, 64bit start, 32bit length
 
@@ -40,11 +41,19 @@ func (t *recordSorter) Swap(i, j int) {
 	t.records[i], t.records[j] = t.records[j], t.records[i]
 }
 
+type record struct{}
+
+var staticRecord = record{}
+
+func NewRecordReaderWriter() common.RecordReaderWriter {
+	return staticRecord
+}
+
 // MarshalRecords converts a slice of records into a byte slice
-func MarshalRecords(records []*common.Record) ([]byte, error) {
+func (r record) MarshalRecords(records []*common.Record) ([]byte, error) {
 	recordBytes := make([]byte, len(records)*RecordLength)
 
-	err := MarshalRecordsToBuffer(records, recordBytes)
+	err := r.MarshalRecordsToBuffer(records, recordBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +62,7 @@ func MarshalRecords(records []*common.Record) ([]byte, error) {
 }
 
 // MarshalRecordsToBuffer converts a slice of records and marshals them to an existing byte slice
-func MarshalRecordsToBuffer(records []*common.Record, buffer []byte) error {
+func (record) MarshalRecordsToBuffer(records []*common.Record, buffer []byte) error {
 	if len(records)*RecordLength > len(buffer) {
 		return fmt.Errorf("buffer %d is not big enough for records %d", len(buffer), len(records)*RecordLength)
 	}
@@ -71,28 +80,8 @@ func MarshalRecordsToBuffer(records []*common.Record, buffer []byte) error {
 	return nil
 }
 
-func unmarshalRecords(recordBytes []byte) ([]*common.Record, error) {
-	mod := len(recordBytes) % RecordLength
-	if mod != 0 {
-		return nil, fmt.Errorf("records are an unexpected number of bytes %d", mod)
-	}
-
-	numRecords := RecordCount(recordBytes)
-	records := make([]*common.Record, 0, numRecords)
-
-	for i := 0; i < numRecords; i++ {
-		buff := recordBytes[i*RecordLength : (i+1)*RecordLength]
-
-		r := UnmarshalRecord(buff)
-
-		records = append(records, r)
-	}
-
-	return records, nil
-}
-
 // RecordCount returns the number of records in a byte slice
-func RecordCount(b []byte) int {
+func (record) RecordCount(b []byte) int {
 	return len(b) / RecordLength
 }
 
@@ -105,7 +94,7 @@ func marshalRecord(r *common.Record, buff []byte) {
 }
 
 // UnmarshalRecord creates a new record from the contents ofa byte slice
-func UnmarshalRecord(buff []byte) *common.Record {
+func (record) UnmarshalRecord(buff []byte) *common.Record {
 	r := newRecord()
 
 	copy(r.ID, buff[:16])

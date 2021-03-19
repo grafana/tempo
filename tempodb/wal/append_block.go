@@ -81,7 +81,7 @@ func (h *AppendBlock) Complete(cfg *encoding.BlockConfig, w *WAL, combiner commo
 		return nil, err
 	}
 
-	iterator := encoding.NewRecordIterator(records, readFile)
+	iterator := encoding.NewRecordIterator(records, readFile, v0.NewObjectReaderWriter())
 	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
 		return nil, err
@@ -105,7 +105,7 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 
 	dataReader := v0.NewDataReader(backend.NewContextReaderWithAllReader(file))
 	defer dataReader.Close()
-	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner)
+	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, v0.NewObjectReaderWriter())
 
 	return finder.Find(context.Background(), id)
 }

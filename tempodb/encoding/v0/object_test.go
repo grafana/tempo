@@ -1,4 +1,4 @@
-package base
+package v0
 
 import (
 	"bytes"
@@ -19,10 +19,11 @@ func TestMarshalUnmarshal(t *testing.T) {
 	bReq, err := proto.Marshal(req)
 	assert.NoError(t, err)
 
-	_, err = MarshalObjectToWriter(id, bReq, buffer)
+	o := object{}
+	_, err = o.MarshalObjectToWriter(id, bReq, buffer)
 	assert.NoError(t, err)
 
-	outID, outObject, err := UnmarshalObjectFromReader(buffer)
+	outID, outObject, err := o.UnmarshalObjectFromReader(buffer)
 	assert.NoError(t, err)
 	assert.True(t, bytes.Equal(id, outID))
 
@@ -38,6 +39,7 @@ func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 	id := []byte{0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01}
 	rand.Read(id)
 
+	o := object{}
 	var reqs []*tempopb.PushRequest
 	for i := 0; i < 10; i++ {
 		req := test.MakeRequest(10, id)
@@ -46,7 +48,7 @@ func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 		bReq, err := proto.Marshal(req)
 		assert.NoError(t, err)
 
-		_, err = MarshalObjectToWriter(id, bReq, buffer)
+		_, err = o.MarshalObjectToWriter(id, bReq, buffer)
 		assert.NoError(t, err)
 	}
 
@@ -55,7 +57,7 @@ func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 		var outID []byte
 		var outObject []byte
 		var err error
-		actualBuffer, outID, outObject, err = UnmarshalAndAdvanceBuffer(actualBuffer)
+		actualBuffer, outID, outObject, err = o.UnmarshalAndAdvanceBuffer(actualBuffer)
 		assert.NoError(t, err)
 
 		outReq := &tempopb.PushRequest{}

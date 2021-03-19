@@ -3,13 +3,13 @@ package v0
 import (
 	"io"
 
-	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type dataWriter struct {
 	w            io.Writer
 	bytesWritten int
+	o            common.ObjectReaderWriter
 }
 
 // NewDataWriter creates a v0 page writer.  This page writer
@@ -17,12 +17,13 @@ type dataWriter struct {
 func NewDataWriter(writer io.Writer) common.DataWriter {
 	return &dataWriter{
 		w: writer,
+		o: NewObjectReaderWriter(),
 	}
 }
 
 // Write implements DataWriter
 func (p *dataWriter) Write(id common.ID, obj []byte) (int, error) {
-	written, err := base.MarshalObjectToWriter(id, obj, p.w)
+	written, err := p.o.MarshalObjectToWriter(id, obj, p.w)
 	if err != nil {
 		return 0, err
 	}

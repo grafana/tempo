@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 
-	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/pkg/errors"
 )
@@ -12,6 +11,7 @@ import (
 type pagedIterator struct {
 	dataReader   common.DataReader
 	indexReader  common.IndexReader
+	objectRW     common.ObjectReaderWriter
 	currentIndex int
 
 	chunkSizeBytes uint32
@@ -21,11 +21,12 @@ type pagedIterator struct {
 
 // newPagedIterator returns a backendIterator.  This iterator is used to iterate
 //  through objects stored in object storage.
-func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader) Iterator {
+func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter) Iterator {
 	return &pagedIterator{
 		dataReader:     dataReader,
 		indexReader:    indexReader,
 		chunkSizeBytes: chunkSizeBytes,
+		objectRW:       objectRW,
 	}
 }
 
@@ -44,7 +45,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	}
 
 	// dataReader returns pages in the raw format, so this works
-	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage)
+	i.activePage, id, object, err = i.objectRW.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil && err != io.EOF {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	} else if err != io.EOF {
@@ -65,7 +66,6 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	var length uint32
 	records := make([]*common.Record, 0, 5) // 5?  why not?
 	for currentRecord != nil {
-		//record := unmarshalRecord(i.indexBuffer[:recordLength])
 		// see if we can fit this record in.  we have to get at least one record in
 		if length+currentRecord.Length > i.chunkSizeBytes && len(records) != 0 {
 			break
@@ -95,7 +95,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	i.pages = i.pages[1:] // advance pages
 
 	// attempt to get next object from objects
-	i.activePage, id, object, err = base.UnmarshalAndAdvanceBuffer(i.activePage)
+	i.activePage, id, object, err = i.objectRW.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}

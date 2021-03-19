@@ -1,4 +1,4 @@
-package base
+package v0
 
 import (
 	"bytes"
@@ -15,30 +15,9 @@ func TestEncodeDecodeRecord(t *testing.T) {
 
 	buff := make([]byte, RecordLength)
 
+	r := record{}
 	marshalRecord(expected, buff)
-	actual := UnmarshalRecord(buff)
-
-	assert.Equal(t, expected, actual)
-}
-
-func TestMarshalUnmarshalRecords(t *testing.T) {
-	numRecords := 10
-	expected := make([]*common.Record, 0, numRecords)
-
-	for i := 0; i < numRecords; i++ {
-		r, err := makeRecord(t)
-		if err != nil {
-			assert.NoError(t, err, "unexpected error making trace record")
-		}
-		expected = append(expected, r)
-	}
-
-	recordBytes, err := MarshalRecords(expected)
-	assert.NoError(t, err, "unexpected error encoding records")
-	assert.Equal(t, len(expected)*28, len(recordBytes))
-
-	actual, err := unmarshalRecords(recordBytes)
-	assert.NoError(t, err, "unexpected error decoding records")
+	actual := r.UnmarshalRecord(buff)
 
 	assert.Equal(t, expected, actual)
 }
@@ -69,7 +48,7 @@ func TestSortRecord(t *testing.T) {
 	}
 }
 
-// todo: belongs in util/test?
+// todo: belongs in util/test? jpe, can we hide this?
 func makeRecord(t *testing.T) (*common.Record, error) {
 	t.Helper()
 

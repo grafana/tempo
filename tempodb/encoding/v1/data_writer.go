@@ -5,7 +5,6 @@ import (
 	"io"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -29,6 +28,7 @@ type dataWriter struct {
 
 	pool              WriterPool
 	compressionWriter io.WriteCloser
+	objectRW          common.ObjectReaderWriter
 }
 
 // NewDataWriter creates a v0 page writer.  This page writer
@@ -53,12 +53,13 @@ func NewDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWrit
 		outputWriter:      outputWriter,
 		pool:              pool,
 		compressionWriter: compressionWriter,
+		objectRW:          NewObjectReaderWriter(),
 	}, nil
 }
 
 // Write implements DataWriter
 func (p *dataWriter) Write(id common.ID, obj []byte) (int, error) {
-	return base.MarshalObjectToWriter(id, obj, p.v0Buffer)
+	return p.objectRW.MarshalObjectToWriter(id, obj, p.v0Buffer)
 }
 
 // CutPage implements DataWriter

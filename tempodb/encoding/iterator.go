@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 
-	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -16,18 +15,20 @@ type Iterator interface {
 
 type iterator struct {
 	reader io.Reader
+	o      common.ObjectReaderWriter
 }
 
 // NewIterator returns the most basic iterator.  It iterates over
 // raw objects.
-func NewIterator(reader io.Reader) Iterator {
+func NewIterator(reader io.Reader, o common.ObjectReaderWriter) Iterator {
 	return &iterator{
 		reader: reader,
+		o:      o,
 	}
 }
 
 func (i *iterator) Next(_ context.Context) (common.ID, []byte, error) {
-	return base.UnmarshalObjectFromReader(i.reader)
+	return i.o.UnmarshalObjectFromReader(i.reader)
 }
 
 func (i *iterator) Close() {

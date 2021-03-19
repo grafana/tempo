@@ -9,18 +9,20 @@ import (
 )
 
 type recordIterator struct {
-	records []*common.Record
-	ra      io.ReaderAt
+	records  []*common.Record
+	ra       io.ReaderAt
+	objectRW common.ObjectReaderWriter
 
 	currentIterator Iterator
 }
 
 // NewRecordIterator returns a recordIterator.  This iterator is used for iterating through
 //  a series of objects by reading them one at a time from Records.
-func NewRecordIterator(r []*common.Record, ra io.ReaderAt) Iterator {
+func NewRecordIterator(r []*common.Record, ra io.ReaderAt, objectRW common.ObjectReaderWriter) Iterator {
 	return &recordIterator{
-		records: r,
-		ra:      ra,
+		records:  r,
+		ra:       ra,
+		objectRW: objectRW,
 	}
 }
 
@@ -45,7 +47,7 @@ func (i *recordIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 			return nil, nil, err
 		}
 
-		i.currentIterator = NewIterator(bytes.NewReader(buff))
+		i.currentIterator = NewIterator(bytes.NewReader(buff), i.objectRW)
 		i.records = i.records[1:]
 
 		return i.currentIterator.Next(ctx)

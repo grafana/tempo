@@ -35,6 +35,9 @@ type versionedEncoding interface {
 
 	newDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error)
 	newIndexReader(ra backend.ContextReader, pageSizeBytes int, totalPages int) (common.IndexReader, error)
+
+	newObjectReaderWriter() common.ObjectReaderWriter
+	newRecordReaderWriter() common.RecordReaderWriter
 }
 
 // v0Encoding
@@ -52,6 +55,12 @@ func (v v0Encoding) newIndexReader(ra backend.ContextReader, pageSizeBytes int, 
 func (v v0Encoding) newDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error) {
 	return v0.NewDataReader(ra), nil
 }
+func (v v0Encoding) newObjectReaderWriter() common.ObjectReaderWriter {
+	return v0.NewObjectReaderWriter()
+}
+func (v v0Encoding) newRecordReaderWriter() common.RecordReaderWriter {
+	return v0.NewRecordReaderWriter()
+}
 
 // v1Encoding
 type v1Encoding struct{}
@@ -68,6 +77,12 @@ func (v v1Encoding) newIndexReader(ra backend.ContextReader, pageSizeBytes int, 
 func (v v1Encoding) newDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error) {
 	return v1.NewDataReader(v0.NewDataReader(ra), encoding)
 }
+func (v v1Encoding) newObjectReaderWriter() common.ObjectReaderWriter {
+	return v1.NewObjectReaderWriter()
+}
+func (v v1Encoding) newRecordReaderWriter() common.RecordReaderWriter {
+	return v1.NewRecordReaderWriter()
+}
 
 // v2Encoding
 type v2Encoding struct{}
@@ -83,4 +98,10 @@ func (v v2Encoding) newIndexReader(ra backend.ContextReader, pageSizeBytes int, 
 }
 func (v v2Encoding) newDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error) {
 	return v2.NewDataReader(v0.NewDataReader(ra), encoding)
+}
+func (v v2Encoding) newObjectReaderWriter() common.ObjectReaderWriter {
+	return v2.NewObjectReaderWriter()
+}
+func (v v2Encoding) newRecordReaderWriter() common.RecordReaderWriter {
+	return v2.NewRecordReaderWriter()
 }

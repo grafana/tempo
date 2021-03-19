@@ -17,16 +17,18 @@ type pagedFinder struct {
 	r        common.DataReader
 	index    common.IndexReader
 	combiner common.ObjectCombiner
+	objectRW common.ObjectReaderWriter
 }
 
 // NewPagedFinder returns a paged. This finder is used for searching
 //  a set of records and returning an object. If a set of consecutive records has
 //  matching ids they will be combined using the ObjectCombiner.
-func NewPagedFinder(index common.IndexReader, r common.DataReader, combiner common.ObjectCombiner) Finder {
+func NewPagedFinder(index common.IndexReader, r common.DataReader, combiner common.ObjectCombiner, objectRW common.ObjectReaderWriter) Finder {
 	return &pagedFinder{
 		r:        r,
 		index:    index,
 		combiner: combiner,
+		objectRW: objectRW,
 	}
 }
 
@@ -81,7 +83,7 @@ func (f *pagedFinder) findOne(ctx context.Context, id common.ID, record *common.
 	}
 
 	// dataReader is expected to return pages in the v0 format.  so this works
-	iter := NewIterator(bytes.NewReader(pages[0]))
+	iter := NewIterator(bytes.NewReader(pages[0]), f.objectRW)
 	if f.combiner != nil {
 		iter, err = NewDedupingIterator(iter, f.combiner)
 	}

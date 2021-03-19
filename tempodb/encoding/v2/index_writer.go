@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	"github.com/cespare/xxhash"
-	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type indexWriter struct {
 	pageSizeBytes int
+	recordRW      common.RecordReaderWriter
 }
 
 // NewIndexWriter returns an index writer that writes to the provided io.Writer.
@@ -17,6 +18,7 @@ type indexWriter struct {
 func NewIndexWriter(pageSizeBytes int) common.IndexWriter {
 	return &indexWriter{
 		pageSizeBytes: pageSizeBytes,
+		recordRW:      NewRecordReaderWriter(),
 	}
 }
 
@@ -24,7 +26,7 @@ func NewIndexWriter(pageSizeBytes int) common.IndexWriter {
 func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 	// we need to write a page at a time to an output byte slice
 	//  first let's calculate how many pages we need
-	recordsPerPage := objectsPerPage(base.RecordLength, w.pageSizeBytes, IndexHeaderLength)
+	recordsPerPage := objectsPerPage(v0.RecordLength, w.pageSizeBytes, IndexHeaderLength)
 	totalPages := totalPages(len(records), recordsPerPage)
 
 	if recordsPerPage == 0 {
@@ -57,7 +59,7 @@ func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 
 		// write records and calculate crc
 		pageData := pageBuffer[header.headerLength()+int(baseHeaderSize):]
-		err := base.MarshalRecordsToBuffer(pageRecords, pageData)
+		err := w.recordRW.MarshalRecordsToBuffer(pageRecords, pageData)
 		if err != nil {
 			return nil, err
 		}

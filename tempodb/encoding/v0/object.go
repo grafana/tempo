@@ -1,4 +1,4 @@
-package base
+package v0
 
 import (
 	"encoding/binary"
@@ -12,12 +12,21 @@ const (
 	uint32Size = 4
 )
 
+type object struct {
+}
+
+var staticObject = object{}
+
+func NewObjectReaderWriter() common.ObjectReaderWriter {
+	return staticObject
+}
+
 /*
 	|          -- totalLength --                   |
 	| total length | id length | id | object bytes |
 */
 
-func MarshalObjectToWriter(id common.ID, b []byte, w io.Writer) (int, error) {
+func (object) MarshalObjectToWriter(id common.ID, b []byte, w io.Writer) (int, error) {
 	idLength := len(id)
 	totalLength := len(b) + idLength + uint32Size*2
 
@@ -42,7 +51,7 @@ func MarshalObjectToWriter(id common.ID, b []byte, w io.Writer) (int, error) {
 	return totalLength, err
 }
 
-func UnmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
+func (object) UnmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
 	var totalLength uint32
 	err := binary.Read(r, binary.LittleEndian, &totalLength)
 	if err == io.EOF {
@@ -76,7 +85,7 @@ func UnmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
 	return bytesID, bytesObject, nil
 }
 
-func UnmarshalAndAdvanceBuffer(buffer []byte) ([]byte, common.ID, []byte, error) {
+func (object) UnmarshalAndAdvanceBuffer(buffer []byte) ([]byte, common.ID, []byte, error) {
 	var totalLength uint32
 
 	if len(buffer) == 0 {

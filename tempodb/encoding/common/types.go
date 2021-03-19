@@ -1,6 +1,9 @@
 package common
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 // This file contains types that need to be referenced by both the ./encoding and ./encoding/vX packages.
 // It primarily exists here to break dependency loops.
@@ -55,4 +58,21 @@ type DataWriter interface {
 type IndexWriter interface {
 	// Write returns a byte representation of the provided Records
 	Write([]*Record) ([]byte, error)
+}
+
+// ObjectReaderWriter represents a library of methods to read and write
+// at the object level
+type ObjectReaderWriter interface {
+	MarshalObjectToWriter(id ID, b []byte, w io.Writer) (int, error)
+	UnmarshalObjectFromReader(r io.Reader) (ID, []byte, error)
+	UnmarshalAndAdvanceBuffer(buffer []byte) ([]byte, ID, []byte, error)
+}
+
+// RecordReaderWriter represents a library of methods to read and write
+// records
+type RecordReaderWriter interface {
+	MarshalRecords(records []*Record) ([]byte, error)
+	MarshalRecordsToBuffer(records []*Record, buffer []byte) error
+	RecordCount(b []byte) int
+	UnmarshalRecord(buff []byte) *Record
 }
