@@ -301,7 +301,10 @@ func (i *Ingester) enqueue(op *flushOp, jitter bool) {
 			return
 		}
 
-		i.flushQueues.Enqueue(op)
+		err := i.flushQueues.Enqueue(op)
+		if err != nil {
+			handleFailedOp(op, err)
+		}
 	}()
 }
 
@@ -328,6 +331,9 @@ func (i *Ingester) requeue(op *flushOp) {
 			return
 		}
 
-		i.flushQueues.Requeue(op)
+		err := i.flushQueues.Requeue(op)
+		if err != nil {
+			handleFailedOp(op, err)
+		}
 	}()
 }
