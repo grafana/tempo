@@ -135,6 +135,9 @@ func (r *receiversShim) starting(ctx context.Context) error {
 
 // Called after distributor is asked to stop via StopAsync.
 func (r *receiversShim) stopping(_ error) error {
+	// when shutdown is called the receiver immediately begins dropping requests
+	time.Sleep(30 * time.Second)
+
 	ctx, cancelFn := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelFn()
 
