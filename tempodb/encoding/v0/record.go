@@ -1,11 +1,9 @@
 package v0
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -13,32 +11,6 @@ import (
 
 // recordLength holds the size of a single record in bytes
 const recordLength = 28 // 28 = 128 bit ID, 64bit start, 32bit length
-
-type recordSorter struct {
-	records []*common.Record
-}
-
-// SortRecords sorts a slice of record pointers
-func SortRecords(records []*common.Record) {
-	sort.Sort(&recordSorter{
-		records: records,
-	})
-}
-
-func (t *recordSorter) Len() int {
-	return len(t.records)
-}
-
-func (t *recordSorter) Less(i, j int) bool {
-	a := t.records[i]
-	b := t.records[j]
-
-	return bytes.Compare(a.ID, b.ID) == -1
-}
-
-func (t *recordSorter) Swap(i, j int) {
-	t.records[i], t.records[j] = t.records[j], t.records[i]
-}
 
 type record struct{}
 

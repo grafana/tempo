@@ -101,7 +101,7 @@ func marshalHeaderToPage(page []byte, header pageHeader) ([]byte, error) {
 		return nil, fmt.Errorf("page of size %d too small", len(page))
 	}
 
-	headerLength = uint16(header.headerLength()) // jpe casting
+	headerLength = uint16(header.headerLength())
 	totalLength = uint32(len(page))
 
 	binary.LittleEndian.PutUint32(page[:uint32Size], totalLength)

@@ -8,7 +8,6 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -84,7 +83,7 @@ func randomOrderedRecords(t *testing.T, num int) []*common.Record {
 		randomRecords = append(randomRecords, rec)
 	}
 
-	v0.SortRecords(randomRecords)
+	sortRecords(randomRecords)
 
 	return randomRecords
 }

@@ -46,7 +46,7 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 
 	recordLength := r.recordRW.RecordLength()
 
-	recordsPerPage := objectsPerPage(recordLength, r.pageSizeBytes, IndexHeaderLength) // jpe make record length on writer
+	recordsPerPage := objectsPerPage(recordLength, r.pageSizeBytes, IndexHeaderLength)
 	if recordsPerPage == 0 {
 		return nil, fmt.Errorf("page %d is too small for one record", r.pageSizeBytes)
 	}
