@@ -75,4 +75,5 @@ type RecordReaderWriter interface {
 	MarshalRecordsToBuffer(records []*Record, buffer []byte) error
 	RecordCount(b []byte) int
 	UnmarshalRecord(buff []byte) *Record
+	RecordLength() int
 }

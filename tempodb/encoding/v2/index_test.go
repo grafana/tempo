@@ -52,7 +52,7 @@ func TestIndexWriterReader(t *testing.T) {
 func TestIndexHeaderChecksum(t *testing.T) {
 	recordsPerPage := 4
 	numRecords := 4
-	pageSize := int(baseHeaderSize) + IndexHeaderLength + v0.RecordLength*recordsPerPage
+	pageSize := int(baseHeaderSize) + IndexHeaderLength + NewRecordReaderWriter().RecordLength()*recordsPerPage
 
 	randomRecords := randomOrderedRecords(t, numRecords)
 	indexWriter := NewIndexWriter(pageSize)

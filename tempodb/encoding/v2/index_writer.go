@@ -5,7 +5,6 @@ import (
 
 	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type indexWriter struct {
@@ -26,7 +25,7 @@ func NewIndexWriter(pageSizeBytes int) common.IndexWriter {
 func (w *indexWriter) Write(records []*common.Record) ([]byte, error) {
 	// we need to write a page at a time to an output byte slice
 	//  first let's calculate how many pages we need
-	recordsPerPage := objectsPerPage(v0.RecordLength, w.pageSizeBytes, IndexHeaderLength)
+	recordsPerPage := objectsPerPage(w.recordRW.RecordLength(), w.pageSizeBytes, IndexHeaderLength)
 	totalPages := totalPages(len(records), recordsPerPage)
 
 	if recordsPerPage == 0 {

@@ -11,9 +11,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-// jpe can we hide this?
-// RecordLength holds the size of a single record in bytes
-const RecordLength = 28 // 28 = 128 bit ID, 64bit start, 32bit length
+// recordLength holds the size of a single record in bytes
+const recordLength = 28 // 28 = 128 bit ID, 64bit start, 32bit length
 
 type recordSorter struct {
 	records []*common.Record
@@ -51,7 +50,7 @@ func NewRecordReaderWriter() common.RecordReaderWriter {
 
 // MarshalRecords converts a slice of records into a byte slice
 func (r record) MarshalRecords(records []*common.Record) ([]byte, error) {
-	recordBytes := make([]byte, len(records)*RecordLength)
+	recordBytes := make([]byte, len(records)*recordLength)
 
 	err := r.MarshalRecordsToBuffer(records, recordBytes)
 	if err != nil {
@@ -63,12 +62,12 @@ func (r record) MarshalRecords(records []*common.Record) ([]byte, error) {
 
 // MarshalRecordsToBuffer converts a slice of records and marshals them to an existing byte slice
 func (record) MarshalRecordsToBuffer(records []*common.Record, buffer []byte) error {
-	if len(records)*RecordLength > len(buffer) {
-		return fmt.Errorf("buffer %d is not big enough for records %d", len(buffer), len(records)*RecordLength)
+	if len(records)*recordLength > len(buffer) {
+		return fmt.Errorf("buffer %d is not big enough for records %d", len(buffer), len(records)*recordLength)
 	}
 
 	for i, r := range records {
-		buff := buffer[i*RecordLength : (i+1)*RecordLength]
+		buff := buffer[i*recordLength : (i+1)*recordLength]
 
 		if !validation.ValidTraceID(r.ID) { // todo: remove this check.  maybe have a max id size of 128 bits?
 			return errors.New("ids must be 128 bit")
@@ -82,15 +81,11 @@ func (record) MarshalRecordsToBuffer(records []*common.Record, buffer []byte) er
 
 // RecordCount returns the number of records in a byte slice
 func (record) RecordCount(b []byte) int {
-	return len(b) / RecordLength
+	return len(b) / recordLength
 }
 
-// marshalRecord writes a record to an existing byte slice
-func marshalRecord(r *common.Record, buff []byte) {
-	copy(buff, r.ID)
-
-	binary.LittleEndian.PutUint64(buff[16:24], r.Start)
-	binary.LittleEndian.PutUint32(buff[24:], r.Length)
+func (record) RecordLength() int {
+	return recordLength
 }
 
 // UnmarshalRecord creates a new record from the contents ofa byte slice
@@ -102,6 +97,14 @@ func (record) UnmarshalRecord(buff []byte) *common.Record {
 	r.Length = binary.LittleEndian.Uint32(buff[24:])
 
 	return r
+}
+
+// marshalRecord writes a record to an existing byte slice
+func marshalRecord(r *common.Record, buff []byte) {
+	copy(buff, r.ID)
+
+	binary.LittleEndian.PutUint64(buff[16:24], r.Start)
+	binary.LittleEndian.PutUint32(buff[24:], r.Length)
 }
 
 func newRecord() *common.Record {

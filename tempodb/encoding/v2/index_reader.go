@@ -10,7 +10,6 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	"github.com/opentracing/opentracing-go"
 )
 
@@ -45,7 +44,9 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, nil
 	}
 
-	recordsPerPage := objectsPerPage(v0.RecordLength, r.pageSizeBytes, IndexHeaderLength) // jpe make record length on writer
+	recordLength := r.recordRW.RecordLength()
+
+	recordsPerPage := objectsPerPage(recordLength, r.pageSizeBytes, IndexHeaderLength) // jpe make record length on writer
 	if recordsPerPage == 0 {
 		return nil, fmt.Errorf("page %d is too small for one record", r.pageSizeBytes)
 	}
@@ -57,11 +58,11 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, err
 	}
 
-	if recordIdx >= len(page.data)/v0.RecordLength {
+	if recordIdx >= len(page.data)/recordLength {
 		return nil, fmt.Errorf("unexpected out of bounds index %d, %d, %d, %d", i, pageIdx, recordIdx, len(page.data))
 	}
 
-	recordBytes := page.data[recordIdx*v0.RecordLength : (recordIdx+1)*v0.RecordLength]
+	recordBytes := page.data[recordIdx*recordLength : (recordIdx+1)*recordLength]
 
 	// double check the record is not all 0s.  this could occur if we read empty buffer space past the final
 	// record in the final page
