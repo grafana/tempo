@@ -36,6 +36,7 @@
                      app: target_name,
                      [$._config.gossip_member_label]: 'true',
                    }) +
+    deployment.mixin.spec.template.spec.withTerminationGracePeriodSeconds(60) +
     deployment.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_configmap.data['tempo.yaml'])),
     }) +
