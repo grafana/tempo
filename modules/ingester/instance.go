@@ -160,8 +160,8 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 	return uuid.Nil, nil
 }
 
-// CompleteBlock() moves a completingBlock to a completeBlock
-func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
+// CompleteBlock() moves a completingBlock to a completeBlock. The new completeBlock has the same ID
+func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 
 	var completingBlock *wal.AppendBlock
@@ -174,7 +174,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
 	i.blocksMtx.Unlock()
 
 	if completingBlock == nil {
-		return uuid.Nil, fmt.Errorf("error finding completingBlock")
+		return fmt.Errorf("error finding completingBlock")
 	}
 
 	// potentially long running operation placed outside blocksMtx
@@ -182,27 +182,34 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) (uuid.UUID, error) {
 	if err != nil {
 		metricFailedFlushes.Inc()
 		level.Error(log.Logger).Log("msg", "unable to complete block.", "tenantID", i.instanceID, "err", err)
-		return uuid.Nil, err
+		return err
 	}
 
-	// remove completingBlock and add completeBlock
 	i.blocksMtx.Lock()
+	i.completeBlocks = append(i.completeBlocks, completeBlock)
+	i.blocksMtx.Unlock()
+
+	return nil
+}
+
+// nolint:interfacer
+func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
+	i.blocksMtx.Lock()
+	var completingBlock *wal.AppendBlock
 	for j, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
+			completingBlock = iterBlock
 			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
 			break
 		}
 	}
-	completeBlockID := completeBlock.BlockMeta().BlockID
-	i.completeBlocks = append(i.completeBlocks, completeBlock)
 	i.blocksMtx.Unlock()
 
-	err = completingBlock.Clear()
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "Error clearing wal", "tenantID", i.instanceID, "err", err)
+	if completingBlock != nil {
+		return completingBlock.Clear()
 	}
 
-	return completeBlockID, nil
+	return fmt.Errorf("Error finding wal completingBlock to clear")
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend
