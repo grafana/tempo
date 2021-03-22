@@ -1,6 +1,8 @@
 package util
 
 import (
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -21,9 +23,32 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 		return nil, fmt.Errorf("please provide a traceID")
 	}
 
-	byteID, err := HexStringToTraceID(traceID)
+	byteID, err := hexStringToTraceID(traceID)
 	if err != nil {
 		return nil, err
+	}
+
+	return byteID, nil
+}
+
+func hexStringToTraceID(id string) ([]byte, error) {
+	// the encoding/hex package does not like odd length strings.
+	// just append a bit here
+	if len(id)%2 == 1 {
+		id = "0" + id
+	}
+
+	byteID, err := hex.DecodeString(id)
+	if err != nil {
+		return nil, err
+	}
+
+	size := len(byteID)
+	if size > 16 {
+		return nil, errors.New("trace ids can't be larger than 128 bits")
+	}
+	if size < 16 {
+		byteID = append(make([]byte, 16-size), byteID...)
 	}
 
 	return byteID, nil
