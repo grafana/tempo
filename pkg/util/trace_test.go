@@ -17,6 +17,9 @@ func TestCombine(t *testing.T) {
 	t1 := test.MakeTrace(10, []byte{0x01, 0x02})
 	t2 := test.MakeTrace(10, []byte{0x01, 0x03})
 
+	SortTrace(t1)
+	SortTrace(t2)
+
 	b1, err := proto.Marshal(t1)
 	assert.NoError(t, err)
 	b2, err := proto.Marshal(t2)
@@ -95,9 +98,6 @@ func TestCombine(t *testing.T) {
 			assert.NoError(t, err)
 			err = proto.Unmarshal(actual, actualTrace)
 			assert.NoError(t, err)
-
-			test.SortTrace(actualTrace)
-			test.SortTrace(expectedTrace)
 
 			assert.Equal(t, expectedTrace, actualTrace)
 		}

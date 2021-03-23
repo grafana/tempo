@@ -1,9 +1,7 @@
 package test
 
 import (
-	"bytes"
 	"math/rand"
-	"sort"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -70,22 +68,4 @@ func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempop
 	}
 
 	return trace
-}
-
-func SortTrace(t *tempopb.Trace) {
-	sort.Slice(t.Batches, func(i, j int) bool {
-		return bytes.Compare(t.Batches[i].InstrumentationLibrarySpans[0].Spans[0].SpanId, t.Batches[j].InstrumentationLibrarySpans[0].Spans[0].SpanId) == 1
-	})
-
-	for _, b := range t.Batches {
-		sort.Slice(b.InstrumentationLibrarySpans, func(i, j int) bool {
-			return bytes.Compare(b.InstrumentationLibrarySpans[i].Spans[0].SpanId, b.InstrumentationLibrarySpans[j].Spans[0].SpanId) == 1
-		})
-
-		for _, ils := range b.InstrumentationLibrarySpans {
-			sort.Slice(ils.Spans, func(i, j int) bool {
-				return bytes.Compare(ils.Spans[i].SpanId, ils.Spans[j].SpanId) == 1
-			})
-		}
-	}
 }
