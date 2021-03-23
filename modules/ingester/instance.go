@@ -380,7 +380,7 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte) error {
 }
 
 func (i *instance) Combine(objA []byte, objB []byte) []byte {
-	combinedTrace, err := util.CombineTraces(objA, objB)
+	combinedTrace, _, err := util.CombineTraces(objA, objB)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
 	}

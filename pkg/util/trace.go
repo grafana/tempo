@@ -15,10 +15,10 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
-func CombineTraces(objA []byte, objB []byte) ([]byte, error) {
+func CombineTraces(objA []byte, objB []byte) (_ []byte, wasCombined bool, _ error) {
 	// if the byte arrays are the same, we can return quickly
 	if bytes.Equal(objA, objB) {
-		return objA, nil
+		return objA, false, nil
 	}
 
 	// bytes differ.  unmarshal and combine traces
@@ -30,23 +30,23 @@ func CombineTraces(objA []byte, objB []byte) ([]byte, error) {
 
 	// if we had problems unmarshaling one or the other, return the one that marshalled successfully
 	if errA != nil && errB == nil {
-		return objB, errors.Wrap(errA, "error unsmarshaling objA")
+		return objB, false, errors.Wrap(errA, "error unsmarshaling objA")
 	} else if errB != nil && errA == nil {
-		return objA, errors.Wrap(errB, "error unsmarshaling objB")
+		return objA, false, errors.Wrap(errB, "error unsmarshaling objB")
 	} else if errA != nil && errB != nil {
 		// if both failed let's send back an empty trace
 		level.Error(log.Logger).Log("msg", "both A and B failed to unmarshal.  returning an empty trace")
 		bytes, _ := proto.Marshal(&tempopb.Trace{})
-		return bytes, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
+		return bytes, false, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
 	}
 
 	traceComplete, _, _, _ := CombineTraceProtos(traceA, traceB)
 
 	bytes, err := proto.Marshal(traceComplete)
 	if err != nil {
-		return objA, errors.Wrap(err, "marshalling the combine trace threw an error")
+		return objA, true, errors.Wrap(err, "marshalling the combine trace threw an error")
 	}
-	return bytes, nil
+	return bytes, true, nil
 }
 
 // CombineTraceProtos combines two trace protos into one.  Note that it is destructive.
