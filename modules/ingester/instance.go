@@ -118,6 +118,9 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 
 	for _, t := range tracesToCut {
+
+		util.SortTrace(t.trace)
+
 		out, err := proto.Marshal(t.trace)
 		if err != nil {
 			return err

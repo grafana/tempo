@@ -108,7 +108,7 @@ func TestReturnAllHits(t *testing.T) {
 
 	// expected trace
 	expectedTrace, _, _, _ := util.CombineTraceProtos(testTraces[0], testTraces[1])
-	test.SortTrace(expectedTrace)
+	util.SortTrace(expectedTrace)
 
 	// actual trace
 	actualTraceBytes, err := util.CombineTraces(foundBytes[1], foundBytes[0])
@@ -117,6 +117,6 @@ func TestReturnAllHits(t *testing.T) {
 	err = proto.Unmarshal(actualTraceBytes, actualTrace)
 	assert.NoError(t, err)
 
-	test.SortTrace(actualTrace)
+	util.SortTrace(actualTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }

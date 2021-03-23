@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 )
@@ -15,6 +16,9 @@ import (
 func TestCombine(t *testing.T) {
 	t1 := test.MakeTrace(10, []byte{0x01, 0x02})
 	t2 := test.MakeTrace(10, []byte{0x01, 0x03})
+
+	SortTrace(t1)
+	SortTrace(t2)
 
 	b1, err := proto.Marshal(t1)
 	assert.NoError(t, err)
@@ -94,9 +98,6 @@ func TestCombine(t *testing.T) {
 			assert.NoError(t, err)
 			err = proto.Unmarshal(actual, actualTrace)
 			assert.NoError(t, err)
-
-			test.SortTrace(actualTrace)
-			test.SortTrace(expectedTrace)
 
 			assert.Equal(t, expectedTrace, actualTrace)
 		}
@@ -198,5 +199,78 @@ func BenchmarkCombineTraceProtos(b *testing.B) {
 				CombineTraceProtos(t1, t2)
 			}
 		})
+	}
+}
+
+func TestSortTrace(t *testing.T) {
+	tests := []struct {
+		input    *tempopb.Trace
+		expected *tempopb.Trace
+	}{
+		{
+			input:    &tempopb.Trace{},
+			expected: &tempopb.Trace{},
+		},
+
+		{
+			input: &tempopb.Trace{
+				Batches: []*v1.ResourceSpans{
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										StartTimeUnixNano: 2,
+									},
+								},
+							},
+						},
+					},
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										StartTimeUnixNano: 1,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: &tempopb.Trace{
+				Batches: []*v1.ResourceSpans{
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										StartTimeUnixNano: 1,
+									},
+								},
+							},
+						},
+					},
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										StartTimeUnixNano: 2,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		SortTrace(tt.input)
+
+		assert.Equal(t, tt.expected, tt.input)
 	}
 }
