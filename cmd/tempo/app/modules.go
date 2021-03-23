@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/cortexproject/cortex/pkg/cortex"
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend"
@@ -227,12 +226,6 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.MemberlistKV.Codecs = []codec.Codec{
 		ring.GetCodec(),
 	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hostname %w", err)
-	}
-	t.cfg.MemberlistKV.NodeName = hostname
 
 	t.memberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger)
 
