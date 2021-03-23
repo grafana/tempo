@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 )
@@ -198,5 +199,78 @@ func BenchmarkCombineTraceProtos(b *testing.B) {
 				CombineTraceProtos(t1, t2)
 			}
 		})
+	}
+}
+
+func TestSortTrace(t *testing.T) {
+	tests := []struct {
+		input    *tempopb.Trace
+		expected *tempopb.Trace
+	}{
+		{
+			input:    &tempopb.Trace{},
+			expected: &tempopb.Trace{},
+		},
+
+		{
+			input: &tempopb.Trace{
+				Batches: []*v1.ResourceSpans{
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										StartTimeUnixNano: 2,
+									},
+								},
+							},
+						},
+					},
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										StartTimeUnixNano: 1,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: &tempopb.Trace{
+				Batches: []*v1.ResourceSpans{
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										StartTimeUnixNano: 1,
+									},
+								},
+							},
+						},
+					},
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										StartTimeUnixNano: 2,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		SortTrace(tt.input)
+
+		assert.Equal(t, tt.expected, tt.input)
 	}
 }
