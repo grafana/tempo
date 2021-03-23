@@ -97,7 +97,6 @@ type Compactor interface {
 }
 
 type CompactorSharder interface {
-	Combine(objA []byte, objB []byte) []byte
 	Owns(hash string) bool
 }
 

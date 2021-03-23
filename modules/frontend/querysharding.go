@@ -172,7 +172,7 @@ func mergeResponses(ctx context.Context, marshallingFormat string, rrs []Request
 			if len(combinedTrace) == 0 {
 				combinedTrace = body
 			} else {
-				combinedTrace, err = util.CombineTraces(combinedTrace, body)
+				combinedTrace, _, err = util.CombineTraces(combinedTrace, body)
 				if err != nil {
 					// will result in a 500 internal server error
 					return nil, errors.Wrap(err, "error combining traces at query frontend")

@@ -83,7 +83,7 @@ func TestCombine(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		actual, err := CombineTraces(tt.trace1, tt.trace2)
+		actual, _, err := CombineTraces(tt.trace1, tt.trace2)
 		if len(tt.errString) > 0 {
 			assert.EqualError(t, err, tt.errString)
 		} else {

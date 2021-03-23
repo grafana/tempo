@@ -220,7 +220,9 @@ func TestSameIDCompaction(t *testing.T) {
 		head, err := wal.NewBlock(blockID, testTenantID)
 		assert.NoError(t, err)
 		id := []byte{0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02}
-		rec := []byte{0x01, 0x02, 0x03}
+
+		// Different content to ensure that object combination takes place
+		rec, _ := proto.Marshal(test.MakeTrace(1, id))
 
 		err = head.Write(id, rec)
 		assert.NoError(t, err, "unexpected error writing req")
@@ -235,7 +237,7 @@ func TestSameIDCompaction(t *testing.T) {
 	rw := r.(*readerWriter)
 
 	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// poll
 	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
@@ -247,7 +249,7 @@ func TestSameIDCompaction(t *testing.T) {
 	assert.Len(t, blocks, inputBlocks)
 
 	err = rw.compact(blocks, testTenantID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	checkBlocklists(t, uuid.Nil, blockCount-blocksPerCompaction, inputBlocks, rw)
 
