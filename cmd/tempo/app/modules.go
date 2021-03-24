@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/cortexproject/cortex/pkg/cortex"
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend"
@@ -16,7 +15,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/modules"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
@@ -228,13 +226,6 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.MemberlistKV.Codecs = []codec.Codec{
 		ring.GetCodec(),
 	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hostname %w", err)
-	}
-	// todo: do we still need this?  does the package do this by default now?
-	t.cfg.MemberlistKV.NodeName = hostname + "-" + uuid.New().String()
 
 	t.memberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger)
 
