@@ -30,6 +30,7 @@ func newTrace(maxSpans int, token uint32, traceID []byte) *trace {
 }
 
 func (t *trace) Push(_ context.Context, req *tempopb.PushRequest) error {
+	t.lastAppend = time.Now()
 	if t.maxSpans != 0 {
 		// count spans
 		spanCount := 0
@@ -45,7 +46,6 @@ func (t *trace) Push(_ context.Context, req *tempopb.PushRequest) error {
 	}
 
 	t.trace.Batches = append(t.trace.Batches, req.Batch)
-	t.lastAppend = time.Now()
 
 	return nil
 }
