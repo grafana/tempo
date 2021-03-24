@@ -108,11 +108,19 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 		return nil, fmt.Errorf("failed to create dataReader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
+	reader, err := b.NewIndexReader()
+	if err != nil {
+		return nil, err
+	}
+
+	return newPagedIterator(chunkSizeBytes, reader, dataReader), nil
+}
+
+func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
 	indexReaderAt := backend.NewContextReader(b.meta, nameIndex, b.reader)
 	reader, err := b.encoding.newIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
-
-	return newPagedIterator(chunkSizeBytes, reader, dataReader), nil
+	return reader, nil
 }
