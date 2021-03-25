@@ -9,13 +9,13 @@ import (
 
 	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 )
 
 type indexReader struct {
-	r backend.ContextReader
+	r        backend.ContextReader
+	recordRW common.RecordReaderWriter
 
 	pageSizeBytes int
 	totalRecords  int
@@ -28,7 +28,8 @@ type indexReader struct {
 // The index has not changed between v0 and v1.
 func NewIndexReader(r backend.ContextReader, pageSizeBytes int, totalRecords int) (common.IndexReader, error) {
 	return &indexReader{
-		r: r,
+		r:        r,
+		recordRW: NewRecordReaderWriter(),
 
 		pageSizeBytes: pageSizeBytes,
 		totalRecords:  totalRecords,
@@ -43,7 +44,9 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, nil
 	}
 
-	recordsPerPage := objectsPerPage(base.RecordLength, r.pageSizeBytes, IndexHeaderLength)
+	recordLength := r.recordRW.RecordLength()
+
+	recordsPerPage := objectsPerPage(recordLength, r.pageSizeBytes, IndexHeaderLength)
 	if recordsPerPage == 0 {
 		return nil, fmt.Errorf("page %d is too small for one record", r.pageSizeBytes)
 	}
@@ -55,11 +58,11 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, err
 	}
 
-	if recordIdx >= len(page.data)/base.RecordLength {
+	if recordIdx >= len(page.data)/recordLength {
 		return nil, fmt.Errorf("unexpected out of bounds index %d, %d, %d, %d", i, pageIdx, recordIdx, len(page.data))
 	}
 
-	recordBytes := page.data[recordIdx*base.RecordLength : (recordIdx+1)*base.RecordLength]
+	recordBytes := page.data[recordIdx*recordLength : (recordIdx+1)*recordLength]
 
 	// double check the record is not all 0s.  this could occur if we read empty buffer space past the final
 	// record in the final page
@@ -74,7 +77,7 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, fmt.Errorf("unexpected zero value record %d, %d, %d, %d", i, pageIdx, recordIdx, len(page.data))
 	}
 
-	return base.UnmarshalRecord(recordBytes), nil
+	return r.recordRW.UnmarshalRecord(recordBytes), nil
 }
 
 // Find implements common.indexReader

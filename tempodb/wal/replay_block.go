@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/grafana/tempo/tempodb/encoding"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type ReplayBlock struct {
@@ -17,7 +18,7 @@ func (r *ReplayBlock) Iterator() (encoding.Iterator, error) {
 		return nil, err
 	}
 
-	return encoding.NewIterator(f), nil
+	return encoding.NewIterator(f, v0.NewObjectReaderWriter()), nil
 }
 
 func (r *ReplayBlock) TenantID() string {

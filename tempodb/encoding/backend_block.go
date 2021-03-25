@@ -89,7 +89,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	defer dataReader.Close()
 
 	// passing nil for objectCombiner here.  this is fine b/c a backend block should never have dupes
-	finder := NewPagedFinder(indexReader, dataReader, nil)
+	finder := NewPagedFinder(indexReader, dataReader, nil, b.encoding.newObjectReaderWriter())
 	objectBytes, err := finder.Find(ctx, id)
 
 	if err != nil {
@@ -113,7 +113,7 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 		return nil, err
 	}
 
-	return newPagedIterator(chunkSizeBytes, reader, dataReader), nil
+	return newPagedIterator(chunkSizeBytes, reader, dataReader, b.encoding.newObjectReaderWriter()), nil
 }
 
 func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
@@ -122,5 +122,6 @@ func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
+
 	return reader, nil
 }

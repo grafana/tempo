@@ -59,7 +59,7 @@ func testDataWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding)
 		require.NoError(t, err)
 		require.Len(t, actual, 1)
 
-		i := NewIterator(bytes.NewReader(actual[0]))
+		i := NewIterator(bytes.NewReader(actual[0]), v.newObjectReaderWriter())
 		defer i.Close()
 
 		id, obj, err := i.Next(context.Background())

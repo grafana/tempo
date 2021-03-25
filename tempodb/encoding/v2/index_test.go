@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/base"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,7 +51,7 @@ func TestIndexWriterReader(t *testing.T) {
 func TestIndexHeaderChecksum(t *testing.T) {
 	recordsPerPage := 4
 	numRecords := 4
-	pageSize := int(baseHeaderSize) + IndexHeaderLength + base.RecordLength*recordsPerPage
+	pageSize := int(baseHeaderSize) + IndexHeaderLength + NewRecordReaderWriter().RecordLength()*recordsPerPage
 
 	randomRecords := randomOrderedRecords(t, numRecords)
 	indexWriter := NewIndexWriter(pageSize)
@@ -84,7 +83,7 @@ func randomOrderedRecords(t *testing.T, num int) []*common.Record {
 		randomRecords = append(randomRecords, rec)
 	}
 
-	base.SortRecords(randomRecords)
+	sortRecords(randomRecords)
 
 	return randomRecords
 }
