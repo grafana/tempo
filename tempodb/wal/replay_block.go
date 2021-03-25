@@ -25,6 +25,10 @@ func (r *ReplayBlock) TenantID() string {
 	return r.meta.TenantID
 }
 
+func (r *ReplayBlock) BlockID() string {
+	return r.meta.BlockID.String()
+}
+
 func (r *ReplayBlock) Clear() error {
 	if r.readFile != nil {
 		_ = r.readFile.Close()

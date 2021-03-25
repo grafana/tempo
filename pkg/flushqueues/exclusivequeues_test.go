@@ -33,12 +33,16 @@ func TestExclusiveQueues(t *testing.T) {
 	}
 
 	// enqueue twice
-	q.Enqueue(op)
+	err := q.Enqueue(op)
+	assert.NoError(t, err)
+
 	length, err := test.GetGaugeValue(gauge)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, int(length))
 
-	q.Enqueue(op)
+	err = q.Enqueue(op)
+	assert.NoError(t, err)
+
 	length, err = test.GetGaugeValue(gauge)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, int(length))
@@ -49,7 +53,9 @@ func TestExclusiveQueues(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 0, int(length))
 
-	q.Requeue(op)
+	err = q.Requeue(op)
+	assert.NoError(t, err)
+
 	length, err = test.GetGaugeValue(gauge)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, int(length))
@@ -65,7 +71,9 @@ func TestExclusiveQueues(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 0, int(length))
 
-	q.Enqueue(op)
+	err = q.Enqueue(op)
+	assert.NoError(t, err)
+
 	length, err = test.GetGaugeValue(gauge)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, int(length))
@@ -87,7 +95,8 @@ func TestMultipleQueues(t *testing.T) {
 			key: uuid.New().String(),
 		}
 
-		q.Enqueue(op)
+		err := q.Enqueue(op)
+		assert.NoError(t, err)
 
 		length, err := test.GetGaugeValue(gauge)
 		assert.NoError(t, err)

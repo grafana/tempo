@@ -36,6 +36,11 @@ var cli struct {
 		Block             listBlockCmd             `cmd:"" help:"List information about a block"`
 		Blocks            listBlocksCmd            `cmd:"" help:"List information about all blocks in a bucket"`
 		CompactionSummary listCompactionSummaryCmd `cmd:"" help:"List summary of data by compaction level"`
+		Index             listIndexCmd             `cmd:"" help:"List information about a block index"`
+	} `cmd:""`
+
+	View struct {
+		Index viewIndexCmd `cmd:"" help:"View contents of block index"`
 	} `cmd:""`
 
 	Query queryCmd `cmd:"" help:"query tempo api"`

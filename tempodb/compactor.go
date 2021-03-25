@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/prometheus/client_golang/prometheus"
@@ -184,9 +185,16 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			}
 
 			if bytes.Equal(currentID, lowestID) {
-				lowestObject = rw.compactorSharder.Combine(currentObject, lowestObject)
+				newObj, wasCombined, err := util.CombineTraces(currentObject, lowestObject)
+				if err != nil {
+					level.Error(rw.logger).Log("msg", "error combining trace protos", "err", err.Error())
+				} else {
+					lowestObject = newObj
+				}
+				if wasCombined {
+					metricCompactionObjectsCombined.WithLabelValues(compactionLevelLabel).Inc()
+				}
 				b.clear()
-				metricCompactionObjectsCombined.WithLabelValues(compactionLevelLabel).Inc()
 			} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
 				lowestID = currentID
 				lowestObject = currentObject

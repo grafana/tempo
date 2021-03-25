@@ -3,7 +3,7 @@ package ingester
 import (
 	"context"
 	"fmt"
-	"math"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
@@ -38,9 +38,10 @@ var (
 )
 
 const (
-	// Backoff for retrying 'immediate' flushes. Only counts for queue
-	// position, not wallclock time.
-	flushBackoff = 1 * time.Second
+	initialBackoff      = 30 * time.Second
+	flushJitter         = 10 * time.Second
+	maxBackoff          = 120 * time.Second
+	maxCompleteAttempts = 3
 )
 
 const (
@@ -99,18 +100,22 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 type flushOp struct {
-	kind    int
-	from    int64
-	userID  string
-	blockID uuid.UUID
+	kind     int
+	at       time.Time // When to execute
+	attempts uint
+	backoff  time.Duration
+	userID   string
+	blockID  uuid.UUID
 }
 
 func (o *flushOp) Key() string {
 	return o.userID + "/" + strconv.Itoa(o.kind) + "/" + o.blockID.String()
 }
 
+// Priority orders entries in the queue. The larger the number the higher the priority, so inverted here to
+// prioritize entries with earliest timestamps.
 func (o *flushOp) Priority() int64 {
-	return -o.from
+	return -o.at.Unix()
 }
 
 // sweepAllInstances periodically schedules series for flushing and garbage collects instances with no series
@@ -138,12 +143,13 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	}
 
 	if blockID != uuid.Nil {
-		i.flushQueues.Enqueue(&flushOp{
+		// jitter to help when flushing many instances at the same time
+		// no jitter if immediate (initiated via /flush handler for example)
+		i.enqueue(&flushOp{
 			kind:    opKindComplete,
-			from:    math.MaxInt64,
 			userID:  instance.instanceID,
 			blockID: blockID,
-		})
+		}, !immediate)
 	}
 
 	// dump any blocks that have been flushed for awhile
@@ -165,47 +171,78 @@ func (i *Ingester) flushLoop(j int) {
 			return
 		}
 		op := o.(*flushOp)
+		op.attempts++
 
-		var completeBlockID uuid.UUID
-		var err error
+		retry := false
+
 		if op.kind == opKindComplete {
-			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID)
-			instance, exists := i.getInstanceByID(op.userID)
-			if !exists {
-				// instance no longer exists? that's bad, log and continue
-				level.Error(log.Logger).Log("msg", "instance not found", "tenantID", op.userID)
+			// No point in proceeding if shutdown has been initiated since
+			// we won't be able to queue up the next flush op
+			if i.flushQueues.IsStopped() {
+				handleAbandonedOp(op)
 				continue
 			}
 
-			completeBlockID, err = instance.CompleteBlock(op.blockID)
-			if completeBlockID != uuid.Nil {
+			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID)
+			instance, err := i.getOrCreateInstance(op.userID)
+			if err != nil {
+				handleFailedOp(op, err)
+				continue
+			}
+
+			err = instance.CompleteBlock(op.blockID)
+			if err != nil {
+				handleFailedOp(op, err)
+
+				if op.attempts >= maxCompleteAttempts {
+					level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "Block exceeded max completion errors. Deleting. POSSIBLE DATA LOSS",
+						"userID", op.userID, "attempts", op.attempts, "block", op.blockID.String())
+
+					err = instance.ClearCompletingBlock(op.blockID)
+					if err != nil {
+						// Failure to delete the WAL doesn't prevent flushing the bloc
+						handleFailedOp(op, err)
+					}
+				} else {
+					retry = true
+				}
+			} else {
 				// add a flushOp for the block we just completed
-				i.flushQueues.Enqueue(&flushOp{
+				// No delay
+				i.enqueue(&flushOp{
 					kind:    opKindFlush,
-					from:    time.Now().Unix(),
 					userID:  instance.instanceID,
-					blockID: completeBlockID,
-				})
+					blockID: op.blockID,
+				}, false)
 			}
 
 		} else {
-			level.Debug(log.Logger).Log("msg", "flushing block", "userid", op.userID, "fp")
+			level.Info(log.Logger).Log("msg", "flushing block", "userid", op.userID, "block", op.blockID.String())
 
-			err = i.flushBlock(op.userID, op.blockID)
+			err := i.flushBlock(op.userID, op.blockID)
+			if err != nil {
+				handleFailedOp(op, err)
+				retry = true
+			}
 		}
 
-		if err != nil {
-			level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "error performing op in flushQueue",
-				"op", op.kind, "block", op.blockID.String(), "err", err)
-			metricFailedFlushes.Inc()
-			// re-queue op with backoff
-			op.from += int64(flushBackoff)
-			i.flushQueues.Requeue(op)
-			continue
+		if retry {
+			i.requeue(op)
+		} else {
+			i.flushQueues.Clear(op)
 		}
-
-		i.flushQueues.Clear(op)
 	}
+}
+
+func handleFailedOp(op *flushOp, err error) {
+	level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "error performing op in flushQueue",
+		"op", op.kind, "block", op.blockID.String(), "attempts", op.attempts, "err", err)
+	metricFailedFlushes.Inc()
+}
+
+func handleAbandonedOp(op *flushOp) {
+	level.Info(log.WithUserID(op.userID, log.Logger)).Log("msg", "Abandoning op in flush queue because ingester is shutting down",
+		"op", op.kind, "block", op.blockID.String(), "attempts", op.attempts)
 }
 
 func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
@@ -229,10 +266,74 @@ func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
 		if err != nil {
 			return err
 		}
+
+		// Delete original wal only after successful flush
+		err = instance.ClearCompletingBlock(blockID)
+		if err != nil {
+			// Error deleting wal doesn't fail the flush
+			level.Error(log.Logger).Log("msg", "Error clearing wal", "userID", userID, "blockID", blockID.String(), "err", err)
+			metricFailedFlushes.Inc()
+		}
+
 		metricBlocksFlushed.Inc()
 	} else {
 		return fmt.Errorf("error getting block to flush")
 	}
 
 	return nil
+}
+
+func (i *Ingester) enqueue(op *flushOp, jitter bool) {
+	delay := time.Duration(0)
+
+	if jitter {
+		delay = time.Duration(rand.Float32() * float32(flushJitter))
+	}
+
+	op.at = time.Now().Add(delay)
+
+	go func() {
+		time.Sleep(delay)
+
+		// Check if shutdown initiated
+		if i.flushQueues.IsStopped() {
+			handleAbandonedOp(op)
+			return
+		}
+
+		err := i.flushQueues.Enqueue(op)
+		if err != nil {
+			handleFailedOp(op, err)
+		}
+	}()
+}
+
+func (i *Ingester) requeue(op *flushOp) {
+	op.backoff *= 2
+	if op.backoff < initialBackoff {
+		op.backoff = initialBackoff
+	}
+	if op.backoff > maxBackoff {
+		op.backoff = maxBackoff
+	}
+
+	op.at = time.Now().Add(op.backoff)
+
+	level.Info(log.WithUserID(op.userID, log.Logger)).Log("msg", "retrying op in flushQueue",
+		"op", op.kind, "block", op.blockID.String(), "backoff", op.backoff)
+
+	go func() {
+		time.Sleep(op.backoff)
+
+		// Check if shutdown initiated
+		if i.flushQueues.IsStopped() {
+			handleAbandonedOp(op)
+			return
+		}
+
+		err := i.flushQueues.Requeue(op)
+		if err != nil {
+			handleFailedOp(op, err)
+		}
+	}()
 }

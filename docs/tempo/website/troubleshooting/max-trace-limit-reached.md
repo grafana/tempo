@@ -13,6 +13,6 @@ In high volume tracing environments the default trace limits are sometimes not s
 
    - `ingestion_burst_size` : Burst size used in span ingestion. Default is `100,000`.
    - `ingestion_rate_limit` : Per-user ingestion rate limit in spans per second. Default is `100,000`.
-   - `max_spans_per_trace` : Maximum number of spans per trace.  `0` to disable. Default is `50,000`.
+   - `max_bytes_per_trace` : Maximum size of a single trace in bytes.  `0` to disable. Default is `5,000,000` (~5MB).
    - `max_traces_per_user`: Maximum number of active traces per user, per ingester. `0` to disable. Default is `10,000`.
 - Increase the maximum limit to a failsafe value. For example, increase the limit for the `max_traces_per_user` parameter from `10,000` like `50000`.

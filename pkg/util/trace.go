@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"hash"
 	"hash/fnv"
+	"sort"
 
 	"github.com/pkg/errors"
 
@@ -11,15 +12,16 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
-func CombineTraces(objA []byte, objB []byte) ([]byte, error) {
+func CombineTraces(objA []byte, objB []byte) (_ []byte, wasCombined bool, _ error) {
 	// if the byte arrays are the same, we can return quickly
 	if bytes.Equal(objA, objB) {
-		return objA, nil
+		return objA, false, nil
 	}
 
-	// hashes differ.  unmarshal and combine traces
+	// bytes differ.  unmarshal and combine traces
 	traceA := &tempopb.Trace{}
 	traceB := &tempopb.Trace{}
 
@@ -28,23 +30,23 @@ func CombineTraces(objA []byte, objB []byte) ([]byte, error) {
 
 	// if we had problems unmarshaling one or the other, return the one that marshalled successfully
 	if errA != nil && errB == nil {
-		return objB, errors.Wrap(errA, "error unsmarshaling objA")
+		return objB, false, errors.Wrap(errA, "error unsmarshaling objA")
 	} else if errB != nil && errA == nil {
-		return objA, errors.Wrap(errB, "error unsmarshaling objB")
+		return objA, false, errors.Wrap(errB, "error unsmarshaling objB")
 	} else if errA != nil && errB != nil {
 		// if both failed let's send back an empty trace
 		level.Error(log.Logger).Log("msg", "both A and B failed to unmarshal.  returning an empty trace")
 		bytes, _ := proto.Marshal(&tempopb.Trace{})
-		return bytes, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
+		return bytes, false, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
 	}
 
 	traceComplete, _, _, _ := CombineTraceProtos(traceA, traceB)
 
 	bytes, err := proto.Marshal(traceComplete)
 	if err != nil {
-		return objA, errors.Wrap(err, "marshalling the combine trace threw an error")
+		return objA, true, errors.Wrap(err, "marshalling the combine trace threw an error")
 	}
-	return bytes, nil
+	return bytes, true, nil
 }
 
 // CombineTraceProtos combines two trace protos into one.  Note that it is destructive.
@@ -107,7 +109,50 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int
 		}
 	}
 
+	SortTrace(traceA)
+
 	return traceA, spanCountA, spanCountB, spanCountTotal
+}
+
+func SortTrace(t *tempopb.Trace) {
+	// Sort bottom up by span start times
+	for _, b := range t.Batches {
+		for _, ils := range b.InstrumentationLibrarySpans {
+			sort.Slice(ils.Spans, func(i, j int) bool {
+				return compareSpans(ils.Spans[i], ils.Spans[j])
+			})
+		}
+		sort.Slice(b.InstrumentationLibrarySpans, func(i, j int) bool {
+			return compareIls(b.InstrumentationLibrarySpans[i], b.InstrumentationLibrarySpans[j])
+		})
+	}
+	sort.Slice(t.Batches, func(i, j int) bool {
+		return compareBatches(t.Batches[i], t.Batches[j])
+	})
+}
+
+func compareBatches(a *v1.ResourceSpans, b *v1.ResourceSpans) bool {
+	if len(a.InstrumentationLibrarySpans) > 0 && len(b.InstrumentationLibrarySpans) > 0 {
+		return compareIls(a.InstrumentationLibrarySpans[0], b.InstrumentationLibrarySpans[0])
+	}
+	return false
+}
+
+func compareIls(a *v1.InstrumentationLibrarySpans, b *v1.InstrumentationLibrarySpans) bool {
+	if len(a.Spans) > 0 && len(b.Spans) > 0 {
+		return compareSpans(a.Spans[0], b.Spans[0])
+	}
+	return false
+}
+
+func compareSpans(a *v1.Span, b *v1.Span) bool {
+	// Sort by start time, then id
+
+	if a.StartTimeUnixNano == b.StartTimeUnixNano {
+		return bytes.Compare(a.SpanId, b.SpanId) == -1
+	}
+
+	return a.StartTimeUnixNano < b.StartTimeUnixNano
 }
 
 func tokenForID(h hash.Hash32, b []byte) uint32 {

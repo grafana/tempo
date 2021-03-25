@@ -12,7 +12,6 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
-	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -150,15 +149,6 @@ func (c *Compactor) Owns(hash string) bool {
 	level.Debug(log.Logger).Log("msg", "checking addresses", "owning_addr", rs.Ingesters[0].Addr, "this_addr", c.ringLifecycler.Addr)
 
 	return rs.Ingesters[0].Addr == c.ringLifecycler.Addr
-}
-
-// Combine implements CompactorSharder
-func (c *Compactor) Combine(objA []byte, objB []byte) []byte {
-	combinedTrace, err := tempo_util.CombineTraces(objA, objB)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
-	}
-	return combinedTrace
 }
 
 // BlockRetentionForTenant implements CompactorOverrides
