@@ -142,9 +142,9 @@ func (o *Overrides) MaxGlobalTracesPerUser(userID string) int {
 	return o.getOverridesForUser(userID).MaxGlobalTracesPerUser
 }
 
-// MaxSpansPerTrace returns the maximum number of spans a user can have in a live trace.
-func (o *Overrides) MaxSpansPerTrace(userID string) int {
-	return o.getOverridesForUser(userID).MaxSpansPerTrace
+// MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.
+func (o *Overrides) MaxBytesPerTrace(userID string) int {
+	return o.getOverridesForUser(userID).MaxBytesPerTrace
 }
 
 // IngestionRateSpans is the number of spans per second allowed for this tenant

@@ -215,7 +215,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 
 func TestInstanceLimits(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{
-		MaxSpansPerTrace: 10,
+		MaxBytesPerTrace: 1000,
 	})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
@@ -242,13 +242,13 @@ func TestInstanceLimits(t *testing.T) {
 			name: "succeeds",
 			pushes: []push{
 				{
-					req: test.MakeRequest(3, []byte{}),
+					req: test.MakeRequestWithByteLimit(300, []byte{}),
 				},
 				{
-					req: test.MakeRequest(5, []byte{}),
+					req: test.MakeRequestWithByteLimit(500, []byte{}),
 				},
 				{
-					req: test.MakeRequest(9, []byte{}),
+					req: test.MakeRequestWithByteLimit(900, []byte{}),
 				},
 			},
 		},
@@ -256,14 +256,14 @@ func TestInstanceLimits(t *testing.T) {
 			name: "one fails",
 			pushes: []push{
 				{
-					req: test.MakeRequest(3, []byte{}),
+					req: test.MakeRequestWithByteLimit(300, []byte{}),
 				},
 				{
-					req:          test.MakeRequest(15, []byte{}),
+					req:          test.MakeRequestWithByteLimit(1500, []byte{}),
 					expectsError: true,
 				},
 				{
-					req: test.MakeRequest(9, []byte{}),
+					req: test.MakeRequestWithByteLimit(900, []byte{}),
 				},
 			},
 		},
@@ -271,10 +271,10 @@ func TestInstanceLimits(t *testing.T) {
 			name: "multiple pushes same trace",
 			pushes: []push{
 				{
-					req: test.MakeRequest(5, []byte{0x01}),
+					req: test.MakeRequestWithByteLimit(500, []byte{0x01}),
 				},
 				{
-					req:          test.MakeRequest(7, []byte{0x01}),
+					req:          test.MakeRequestWithByteLimit(700, []byte{0x01}),
 					expectsError: true,
 				},
 			},
