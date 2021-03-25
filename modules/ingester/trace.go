@@ -15,34 +15,29 @@ type trace struct {
 	token        uint32
 	lastAppend   time.Time
 	traceID      []byte
-	maxSpans     int
-	currentSpans int
+	maxBytes     int
+	currentBytes int
 }
 
-func newTrace(maxSpans int, token uint32, traceID []byte) *trace {
+func newTrace(maxBytes int, token uint32, traceID []byte) *trace {
 	return &trace{
 		token:      token,
 		trace:      &tempopb.Trace{},
 		lastAppend: time.Now(),
 		traceID:    traceID,
-		maxSpans:   maxSpans,
+		maxBytes:   maxBytes,
 	}
 }
 
 func (t *trace) Push(_ context.Context, req *tempopb.PushRequest) error {
 	t.lastAppend = time.Now()
-	if t.maxSpans != 0 {
-		// count spans
-		spanCount := 0
-		for _, ils := range req.Batch.InstrumentationLibrarySpans {
-			spanCount += len(ils.Spans)
+	if t.maxBytes != 0 {
+		reqSize := req.Size()
+		if t.currentBytes+reqSize > t.maxBytes {
+			return status.Errorf(codes.FailedPrecondition, "%s max size of trace (%d) exceeded while adding %d bytes", overrides.ErrorPrefixTraceTooLarge, t.maxBytes, reqSize)
 		}
 
-		if t.currentSpans+spanCount > t.maxSpans {
-			return status.Errorf(codes.FailedPrecondition, "%s totalSpans (%d) exceeded while adding %d spans", overrides.ErrorPrefixTraceTooLarge, t.maxSpans, spanCount)
-		}
-
-		t.currentSpans += spanCount
+		t.currentBytes += reqSize
 	}
 
 	t.trace.Batches = append(t.trace.Batches, req.Batch)

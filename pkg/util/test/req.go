@@ -69,3 +69,36 @@ func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempop
 
 	return trace
 }
+
+// Note that this fn will generate a request with size **close to** maxBytes
+func MakeRequestWithByteLimit(maxBytes int, traceID []byte) *tempopb.PushRequest {
+	if len(traceID) == 0 {
+		traceID = make([]byte, 16)
+		rand.Read(traceID)
+	}
+
+	req := &tempopb.PushRequest{
+		Batch: &v1_trace.ResourceSpans{},
+	}
+
+	ils := &v1_trace.InstrumentationLibrarySpans{
+		InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+			Name:    "super library",
+			Version: "0.0.1",
+		},
+	}
+	req.Batch.InstrumentationLibrarySpans = append(req.Batch.InstrumentationLibrarySpans, ils)
+
+	for req.Size() < maxBytes {
+		sampleSpan := v1_trace.Span{
+			Name:    "test",
+			TraceId: traceID,
+			SpanId:  make([]byte, 8),
+		}
+		rand.Read(sampleSpan.SpanId)
+
+		ils.Spans = append(ils.Spans, &sampleSpan)
+	}
+
+	return req
+}
