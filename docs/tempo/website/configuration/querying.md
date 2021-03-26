@@ -18,6 +18,6 @@ binary) and enter the url: `http://<tempo hostname>:<http port number>/tempo`. F
 # Grafana 7.4.x
 
 Grafana 7.4.x is *not* able to query Tempo directly and requires the tempo-query component as an intermediary. In this case 
-you need to run Tempo-Query and direct it at Tempo proper. Check out [the Grafana 7.4.x example](https://github.com/grafana/tempo/tree/master/example/docker-compose#grafana-74x) to help with with configuration.
+you need to run Tempo-Query and direct it at Tempo proper. Check out [the Grafana 7.4.x example](https://github.com/grafana/tempo/tree/master/example/docker-compose#grafana-74x) to help with configuration.
 
 The url entered will be `http://<tempo-query hostname>:16686/`.
