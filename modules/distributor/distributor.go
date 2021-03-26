@@ -226,13 +226,13 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 
 	// check limits
 	now := time.Now()
-	if !d.ingestionRateLimiter.AllowN(now, userID, spanCount) {
+	if !d.ingestionRateLimiter.AllowN(now, userID, req.Size()) {
 		metricDiscardedSpans.WithLabelValues(reasonRateLimited, userID).Add(float64(spanCount))
 		return nil, status.Errorf(codes.ResourceExhausted,
-			"%s ingestion rate limit (%d spans) exceeded while adding %d spans",
+			"%s ingestion rate limit (%d bytes) exceeded while adding %d bytes",
 			overrides.ErrorPrefixRateLimited,
 			int(d.ingestionRateLimiter.Limit(now, userID)),
-			spanCount)
+			req.Size())
 	}
 
 	keys, traces, err := requestsByTraceID(req, userID, spanCount)

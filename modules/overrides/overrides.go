@@ -148,13 +148,13 @@ func (o *Overrides) MaxBytesPerTrace(userID string) int {
 }
 
 // IngestionRateSpans is the number of spans per second allowed for this tenant
-func (o *Overrides) IngestionRateSpans(userID string) float64 {
-	return float64(o.getOverridesForUser(userID).IngestionRateSpans)
+func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
+	return float64(o.getOverridesForUser(userID).IngestionRateLimitBytes)
 }
 
 // IngestionBurstSize is the burst size in spans allowed for this tenant
-func (o *Overrides) IngestionBurstSize(userID string) int {
-	return o.getOverridesForUser(userID).IngestionBurstSize
+func (o *Overrides) IngestionBurstSizeBytes(userID string) int {
+	return o.getOverridesForUser(userID).IngestionBurstSizeBytes
 }
 
 func (o *Overrides) BlockRetention(userID string) time.Duration {

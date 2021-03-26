@@ -48,8 +48,8 @@
     overrides+:: {
       super_user:: {
         max_traces_per_user: 100000,
-        ingestion_rate_limit: 150000,
-        ingestion_burst_size: 150000,
+        ingestion_rate_limit_bytes: 200e5,  // ~20MB per sec
+        ingestion_burst_size_bytes: 200e5,  // ~20MB
         max_bytes_per_trace: 300e5,  // ~30MB
       },
     },

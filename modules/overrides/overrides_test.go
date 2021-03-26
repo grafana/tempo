@@ -33,8 +33,8 @@ func TestOverrides(t *testing.T) {
 				MaxGlobalTracesPerUser: 1,
 				MaxLocalTracesPerUser:  2,
 				MaxBytesPerTrace:       3,
-				IngestionBurstSize:     4,
-				IngestionRateSpans:     5,
+				IngestionBurstSizeBytes:     4,
+				IngestionRateLimitBytes:     5,
 			},
 			expectedMaxGlobalTraces:     map[string]int{"user1": 1, "user2": 1},
 			expectedMaxLocalTraces:      map[string]int{"user1": 2, "user2": 2},
@@ -48,8 +48,8 @@ func TestOverrides(t *testing.T) {
 				MaxGlobalTracesPerUser: 1,
 				MaxLocalTracesPerUser:  2,
 				MaxBytesPerTrace:       3,
-				IngestionBurstSize:     4,
-				IngestionRateSpans:     5,
+				IngestionBurstSizeBytes:     4,
+				IngestionRateLimitBytes:     5,
 			},
 			overrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
@@ -57,8 +57,8 @@ func TestOverrides(t *testing.T) {
 						MaxGlobalTracesPerUser: 6,
 						MaxLocalTracesPerUser:  7,
 						MaxBytesPerTrace:       8,
-						IngestionBurstSize:     9,
-						IngestionRateSpans:     10,
+						IngestionBurstSizeBytes:     9,
+						IngestionRateLimitBytes:     10,
 					},
 				},
 			},
@@ -74,8 +74,8 @@ func TestOverrides(t *testing.T) {
 				MaxGlobalTracesPerUser: 1,
 				MaxLocalTracesPerUser:  2,
 				MaxBytesPerTrace:       3,
-				IngestionBurstSize:     4,
-				IngestionRateSpans:     5,
+				IngestionBurstSizeBytes:     4,
+				IngestionRateLimitBytes:     5,
 			},
 			overrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
@@ -83,15 +83,15 @@ func TestOverrides(t *testing.T) {
 						MaxGlobalTracesPerUser: 6,
 						MaxLocalTracesPerUser:  7,
 						MaxBytesPerTrace:       8,
-						IngestionBurstSize:     9,
-						IngestionRateSpans:     10,
+						IngestionBurstSizeBytes:     9,
+						IngestionRateLimitBytes:     10,
 					},
 					"*": {
 						MaxGlobalTracesPerUser: 11,
 						MaxLocalTracesPerUser:  12,
 						MaxBytesPerTrace:       13,
-						IngestionBurstSize:     14,
-						IngestionRateSpans:     15,
+						IngestionBurstSizeBytes:     14,
+						IngestionRateLimitBytes:     15,
 					},
 				},
 			},
@@ -133,11 +133,11 @@ func TestOverrides(t *testing.T) {
 			}
 
 			for user, expectedVal := range tt.expectedIngestionBurstSpans {
-				assert.Equal(t, expectedVal, overrides.IngestionBurstSize(user))
+				assert.Equal(t, expectedVal, overrides.IngestionBurstSizeBytes(user))
 			}
 
 			for user, expectedVal := range tt.expectedIngestionRateSpans {
-				assert.Equal(t, float64(expectedVal), overrides.IngestionRateSpans(user))
+				assert.Equal(t, float64(expectedVal), overrides.IngestionRateLimitBytes(user))
 			}
 
 			//if srv != nil {
