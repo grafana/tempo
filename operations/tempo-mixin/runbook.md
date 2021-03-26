@@ -72,6 +72,27 @@ with the least impactful components to the most while attempting to forget the u
 the official jsonnet this would be: queriers, compactors, distributors and then ingesters.
 
 ## TempoCompactionsFailing
+
+Check to determine the cause for the failures.  Intermittent failures require no immediate action, because the compactors will
+reattempt the compaction, and any partially written data is ignored and expected to be cleaned up automatically with bucket cleanup
+rules in GCS/S3/etc.
+
+The most common cause for a failing compaction is an OOM from compacting an extremely large trace.  The memory limit should be
+increased until it is enough to get past the trace, and must remain increased until the trace goes out of retention and is
+deleted, or else there is the risk of the trace causing OOMs later.  Ingester limits should be reviewed and possibly reduced. 
+If a block continues to cause problems and cannot be resolved it can be deleted manually.
+
+There are several settings which can be tuned to reduce the amount of work done by compactors to help with stability or scaling:
+- compaction_window - The length of time that will be compacted together by a single pod.  Can be reduced to as little as 15 or 
+  30 minutes.  It could be reduced even further in extremely high volume situations.
+- max_block_bytes - The maximum size of an output block, and controls which input blocks will be compacted. Can be reduced to as
+  little as a few GB to prevent really large compactions.
+- chunk_size_bytes - The amount of (compressed) data buffered from each input block. Can be reduced to a few megabytes to buffer
+  less.  Will increase the amount of reads from the backend. 
+- flush_size_bytes - The amount of data buffered of the output block. Can be reduced to flush more frequently to the backend.
+  There are platform-specific limits on how low this can go.  AWS S3 cannot be set lower than 5MB, or cause more than 10K flushes
+  per block.
+
 ## TempoFlushesFailing
 
 Check ingester logs for flushes and compactor logs for compations.  Failed flushes or compactions could be caused by any number of
