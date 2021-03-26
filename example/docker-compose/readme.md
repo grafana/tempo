@@ -17,6 +17,11 @@ that will be used in the test environment:
 make docker-images
 ```
 
+## Grafana 7.4.x
+All of the included examples are designed to work with Grafana 7.5.x and forward. If you are using Grafana 7.4.x or before then you need
+to use tempo-query along with Tempo for querying. Please see the `docker-compose.grafana7.4.yaml` example and choose the 
+`Tempo-Query` datasource in explore.
+
 ## Storage options
 
 Tempo can be run with local storage, S3, Azure, or GCS backends. See below for examples of [local](#local-storage) and [S3 (Minio)](#s3) storage.

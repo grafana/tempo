@@ -3,7 +3,6 @@ title: Unable to see any of my traces in Tempo
 weight: 471
 ---
 
-
 # I am unable to see any of my traces in Tempo
 
 **Potential causes**
@@ -54,7 +53,7 @@ This can also be confirmed by checking the metric `tempo_request_duration_second
   This is likely because no ingester is joining the gossip ring, make sure the same gossip ring address is supplied to the distributors and ingesters.
 
 ## Section 2: Diagnosing and fixing issues with querying traces
-If you have determined that data has been ingested correctly into Tempo, then it is time to investigate possible issues with querying the data.
+If you have determined that data has been ingested correctly into Tempo, then it is time to investigate possible issues with querying the data. A quick thing to check is your version of Grafana. The way Tempo is queried differs from 7.4.x to 7.5.x. Please refer to [the querying documentation](https://grafana.com/docs/tempo/latest/configuration/querying/) for help. If this is not a Grafana version issue, proceed!
 
 Check the logs of the Tempo Query Frontend. The Query Frontend pod runs with two containers (Query Frontend & Tempo Query), so lets use the following command to view Query Frontend logs -
 

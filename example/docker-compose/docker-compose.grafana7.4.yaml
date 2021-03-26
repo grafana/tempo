@@ -5,22 +5,21 @@ services:
     image: grafana/tempo:latest
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
-      - ./etc/tempo-gcs-fake.yaml:/etc/tempo.yaml
+      - ./etc/tempo-local.yaml:/etc/tempo.yaml
       - ./example-data/tempo:/tmp/tempo
     ports:
-      - "14268"      # jaeger
-      - "3100:3100"  # tempo
-    depends_on:
-      - gcs
+      - "14268"  # jaeger ingest
+      - "3100"   # tempo
 
-  gcs:
-    image: fsouza/fake-gcs-server
-    command: -public-host gcs:4443
-    ports:
-      - "4443:4443"
+  tempo-query:
+    image: grafana/tempo-query:latest
+    command: ["--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml"]
     volumes:
-      # This creates an empty tempo bucket
-      - ./example-data/gcs/tempo/:/data/tempo/
+      - ./etc/tempo-query.yaml:/etc/tempo-query.yaml
+    ports:
+      - "16686:16686"  # jaeger-ui
+    depends_on:
+      - tempo
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
@@ -43,7 +42,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:7.5.1
+    image: grafana/grafana:7.4.2
     volumes:
       - ./example-data/datasources:/etc/grafana/provisioning/datasources
       - ./example-data/dashboards-provisioning:/etc/grafana/provisioning/dashboards
