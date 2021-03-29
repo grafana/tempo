@@ -1,4 +1,43 @@
 ---
+## tempo-query only
+kind: pipeline
+name: tempo-query
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: image-tag
+  image: alpine/git
+  commands:
+  - git fetch origin --tags
+  - echo $(./tools/image-tag) > .tags
+
+- name: build-tempo-binary
+  image: golang:1.15.3-alpine
+  commands:
+  - apk add make git
+  - COMPONENT=tempo-query make exe
+
+- name: build-tempo-query-image
+  image: plugins/docker
+  settings:
+    dockerfile: cmd/tempo-query/Dockerfile
+    repo: grafana/tempo-query
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+    build_args:
+    - TARGETARCH=amd64
+
+trigger:
+  ref:
+  - refs/heads/master
+  - refs/tags/**
+
+---
 ##  AMD64  ##
 kind: pipeline
 name: docker-amd64
@@ -20,7 +59,6 @@ steps:
   commands:
   - apk add make git
   - COMPONENT=tempo GOARCH=amd64 make exe
-  - COMPONENT=tempo-query GOARCH=amd64 make exe
   - COMPONENT=tempo-vulture GOARCH=amd64 make exe
 
 # docker images
@@ -29,18 +67,6 @@ steps:
   settings:
     dockerfile: cmd/tempo/Dockerfile
     repo: grafana/tempo
-    username:
-      from_secret: docker_username
-    password:
-      from_secret: docker_password
-    build_args:
-    - TARGETARCH=amd64
-
-- name: build-tempo-query-image
-  image: plugins/docker
-  settings:
-    dockerfile: cmd/tempo-query/Dockerfile
-    repo: grafana/tempo-query
     username:
       from_secret: docker_username
     password:
@@ -82,7 +108,6 @@ steps:
   commands:
   - apk add make git
   - COMPONENT=tempo GOARCH=arm64 make exe
-  - COMPONENT=tempo-query GOARCH=arm64 make exe
   - COMPONENT=tempo-vulture GOARCH=arm64 make exe
 
 # docker images
@@ -91,18 +116,6 @@ steps:
   settings:
     dockerfile: cmd/tempo/Dockerfile
     repo: grafana/tempo
-    username:
-      from_secret: docker_username
-    password:
-      from_secret: docker_password
-    build_args:
-    - TARGETARCH=arm64
-
-- name: build-tempo-query-image
-  image: plugins/docker
-  settings:
-    dockerfile: cmd/tempo-query/Dockerfile
-    repo: grafana/tempo-query
     username:
       from_secret: docker_username
     password:
@@ -147,16 +160,6 @@ steps:
       from_secret: docker_password
     spec: .drone/docker-manifest.tmpl
     target: tempo
-
-- name: manifest-tempo-query
-  image: plugins/manifest
-  settings:
-    username:
-      from_secret: docker_username
-    password:
-      from_secret: docker_password
-    spec: .drone/docker-manifest.tmpl
-    target: tempo-query
 
 - name: manifest-tempo-vulture
   image: plugins/manifest
