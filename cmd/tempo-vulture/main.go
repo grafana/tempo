@@ -7,10 +7,8 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -136,12 +134,8 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	if err != nil {
 		return nil, err
 	}
-	host, _, err := net.SplitHostPort(u.Host)
-	if err != nil && !strings.Contains(err.Error(), "missing port in address") {
-		return nil, err
-	}
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(host+":14250", grpc.WithInsecure())
+	conn, err := grpc.Dial(u.Host+":14250", grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
