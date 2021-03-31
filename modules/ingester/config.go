@@ -2,10 +2,14 @@ package ingester
 
 import (
 	"flag"
+	"os"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
+	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/go-kit/kit/log/level"
+
 	"github.com/grafana/tempo/modules/storage"
 )
 
@@ -35,9 +39,17 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.FlushCheckPeriod = 30 * time.Second
 	cfg.FlushOpTimeout = 5 * time.Minute
 
-	f.DurationVar(&cfg.MaxTraceIdle, "ingester.trace-idle-period", 30*time.Second, "Duration after which to consider a trace complete if no spans have been received")
-	f.DurationVar(&cfg.MaxBlockDuration, "ingester.max-block-duration", time.Hour, "Maximum duration which the head block can be appended to before cutting it.")
-	f.Uint64Var(&cfg.MaxBlockBytes, "ingester.max-block-bytes", 1024*1024*1024, "Maximum size of the head block before cutting it.")
-	f.DurationVar(&cfg.CompleteBlockTimeout, "ingester.complete-block-timeout", time.Minute+storage.DefaultBlocklistPoll, "Duration to keep head blocks in the ingester after they have been cut.")
+	f.DurationVar(&cfg.MaxTraceIdle, prefix+".trace-idle-period", 30*time.Second, "Duration after which to consider a trace complete if no spans have been received")
+	f.DurationVar(&cfg.MaxBlockDuration, prefix+".max-block-duration", time.Hour, "Maximum duration which the head block can be appended to before cutting it.")
+	f.Uint64Var(&cfg.MaxBlockBytes, prefix+".max-block-bytes", 1024*1024*1024, "Maximum size of the head block before cutting it.")
+	f.DurationVar(&cfg.CompleteBlockTimeout, prefix+".complete-block-timeout", time.Minute+storage.DefaultBlocklistPoll, "Duration to keep head blocks in the ingester after they have been cut.")
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		level.Error(cortex_util.Logger).Log("msg", "failed to get hostname", "err", err)
+		os.Exit(1)
+	}
+	f.StringVar(&cfg.LifecyclerConfig.ID, prefix+".lifecycler.ID", hostname, "ID to register in the ring.")
+
 	cfg.OverrideRingKey = ring.IngesterRingKey
 }
