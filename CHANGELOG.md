@@ -21,6 +21,7 @@
 * [BUGFIX] Fixes issue where Tempo would not parse odd length trace ids [#605](https://github.com/grafana/tempo/pull/605)
 * [BUGFIX] Sort traces on flush to reduce unexpected recombination work by compactors [#606](https://github.com/grafana/tempo/pull/606)
 * [ENHANCEMENT] Add kafka receiver. [#613](https://github.com/grafana/tempo/pull/613)
+* [ENHANCEMENT] Upgrade OTel collector to `v0.21.0`. [#613](https://github.com/grafana/tempo/pull/627)
 
 ## v0.6.0
 
