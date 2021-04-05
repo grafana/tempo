@@ -59,8 +59,7 @@ type instance struct {
 	blocksMtx        sync.RWMutex
 	headBlock        *wal.AppendBlock
 	completingBlocks []*wal.AppendBlock
-	//completeBlocks   []*encoding.CompleteBlock
-	completeBlocks []*IngesterBlock
+	completeBlocks   []*LocalBlock
 
 	lastBlockCut time.Time
 
@@ -84,9 +83,6 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		limiter:            limiter,
 		writer:             writer,
 		local:              l,
-		//localReader:        localReader,
-		//localWriter:        localWriter,
-		//localCompactor:     localCompactor,
 
 		hash: fnv.New32(),
 	}
@@ -228,7 +224,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend
-func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *IngesterBlock {
+func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *LocalBlock {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 

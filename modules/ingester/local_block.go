@@ -14,18 +14,19 @@ import (
 	"github.com/pkg/errors"
 )
 
-type IngesterBlock struct {
+// LocalBlock is a block stored in the ingester's local storage.  It can be searched and flushed to the remote backend.
+type LocalBlock struct {
 	encoding.BackendBlock
 	local *local.Backend
 
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
 }
 
-var _ tempodb.WriteableBlock = (*IngesterBlock)(nil)
+var _ tempodb.WriteableBlock = (*LocalBlock)(nil)
 
-func NewIngesterBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l *local.Backend) (*IngesterBlock, error) {
+func NewIngesterBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l *local.Backend) (*LocalBlock, error) {
 
-	c := &IngesterBlock{
+	c := &LocalBlock{
 		BackendBlock: *existingBlock,
 		local:        l,
 	}
@@ -42,13 +43,13 @@ func NewIngesterBlock(ctx context.Context, existingBlock *encoding.BackendBlock,
 	return c, nil
 }
 
-func (c *IngesterBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
+func (c *LocalBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	return c.BackendBlock.Find(ctx, id)
 }
 
 // FlushedTime returns the time the block was flushed.  Will return 0
 //  if the block was never flushed
-func (c *IngesterBlock) FlushedTime() time.Time {
+func (c *LocalBlock) FlushedTime() time.Time {
 	unixTime := c.flushedTime.Load()
 	if unixTime == 0 {
 		return time.Time{} // return 0 time.  0 unix time is jan 1, 1970
@@ -56,7 +57,7 @@ func (c *IngesterBlock) FlushedTime() time.Time {
 	return time.Unix(unixTime, 0)
 }
 
-func (c *IngesterBlock) SetFlushed(ctx context.Context) error {
+func (c *LocalBlock) SetFlushed(ctx context.Context) error {
 	flushedTime := time.Now()
 	flushedBytes, err := flushedTime.MarshalText()
 	if err != nil {
@@ -72,7 +73,7 @@ func (c *IngesterBlock) SetFlushed(ctx context.Context) error {
 	return nil
 }
 
-func (c *IngesterBlock) Write(ctx context.Context, w backend.Writer) error {
+func (c *LocalBlock) Write(ctx context.Context, w backend.Writer) error {
 	err := c.BackendBlock.Write(ctx, c.local, w)
 	if err != nil {
 		return errors.Wrap(err, "error writing backend block")
