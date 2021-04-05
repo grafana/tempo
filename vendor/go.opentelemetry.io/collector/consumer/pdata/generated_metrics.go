@@ -18,7 +18,7 @@
 package pdata
 
 import (
-	otlpmetrics "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/metrics/v1"
+	otlpmetrics "go.opentelemetry.io/collector/internal/data/protogen/metrics/v1"
 )
 
 // ResourceMetricsSlice logically represents a slice of ResourceMetrics.
@@ -157,21 +157,12 @@ func NewResourceMetrics() ResourceMetrics {
 	return newResourceMetrics(&otlpmetrics.ResourceMetrics{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms ResourceMetrics) InitEmpty() {
-	*ms.orig = otlpmetrics.ResourceMetrics{}
-}
-
 // Resource returns the resource associated with this ResourceMetrics.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms ResourceMetrics) Resource() Resource {
 	return newResource(&(*ms.orig).Resource)
 }
 
 // InstrumentationLibraryMetrics returns the InstrumentationLibraryMetrics associated with this ResourceMetrics.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms ResourceMetrics) InstrumentationLibraryMetrics() InstrumentationLibraryMetricsSlice {
 	return newInstrumentationLibraryMetricsSlice(&(*ms.orig).InstrumentationLibraryMetrics)
 }
@@ -318,21 +309,12 @@ func NewInstrumentationLibraryMetrics() InstrumentationLibraryMetrics {
 	return newInstrumentationLibraryMetrics(&otlpmetrics.InstrumentationLibraryMetrics{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms InstrumentationLibraryMetrics) InitEmpty() {
-	*ms.orig = otlpmetrics.InstrumentationLibraryMetrics{}
-}
-
 // InstrumentationLibrary returns the instrumentationlibrary associated with this InstrumentationLibraryMetrics.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms InstrumentationLibraryMetrics) InstrumentationLibrary() InstrumentationLibrary {
 	return newInstrumentationLibrary(&(*ms.orig).InstrumentationLibrary)
 }
 
 // Metrics returns the Metrics associated with this InstrumentationLibraryMetrics.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms InstrumentationLibraryMetrics) Metrics() MetricSlice {
 	return newMetricSlice(&(*ms.orig).Metrics)
 }
@@ -458,7 +440,7 @@ func (es MetricSlice) Append(e Metric) {
 }
 
 // Metric represents one metric as a collection of datapoints.
-// See Metric definition in OTLP: https://github.com/open-telemetry/opentelemetry-proto/blob/master/opentelemetry/proto/metrics/v1/metrics.proto
+// See Metric definition in OTLP: https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/metrics/v1/metrics.proto
 //
 // This is a reference type, if passed by value and callee modifies it the
 // caller will see the modification.
@@ -480,49 +462,32 @@ func NewMetric() Metric {
 	return newMetric(&otlpmetrics.Metric{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms Metric) InitEmpty() {
-	*ms.orig = otlpmetrics.Metric{}
-}
-
 // Name returns the name associated with this Metric.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms Metric) Name() string {
 	return (*ms.orig).Name
 }
 
 // SetName replaces the name associated with this Metric.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms Metric) SetName(v string) {
 	(*ms.orig).Name = v
 }
 
 // Description returns the description associated with this Metric.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms Metric) Description() string {
 	return (*ms.orig).Description
 }
 
 // SetDescription replaces the description associated with this Metric.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms Metric) SetDescription(v string) {
 	(*ms.orig).Description = v
 }
 
 // Unit returns the unit associated with this Metric.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms Metric) Unit() string {
 	return (*ms.orig).Unit
 }
 
 // SetUnit replaces the unit associated with this Metric.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms Metric) SetUnit(v string) {
 	(*ms.orig).Unit = v
 }
@@ -557,14 +522,7 @@ func NewIntGauge() IntGauge {
 	return newIntGauge(&otlpmetrics.IntGauge{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms IntGauge) InitEmpty() {
-	*ms.orig = otlpmetrics.IntGauge{}
-}
-
 // DataPoints returns the DataPoints associated with this IntGauge.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntGauge) DataPoints() IntDataPointSlice {
 	return newIntDataPointSlice(&(*ms.orig).DataPoints)
 }
@@ -596,14 +554,7 @@ func NewDoubleGauge() DoubleGauge {
 	return newDoubleGauge(&otlpmetrics.DoubleGauge{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms DoubleGauge) InitEmpty() {
-	*ms.orig = otlpmetrics.DoubleGauge{}
-}
-
 // DataPoints returns the DataPoints associated with this DoubleGauge.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleGauge) DataPoints() DoubleDataPointSlice {
 	return newDoubleDataPointSlice(&(*ms.orig).DataPoints)
 }
@@ -635,42 +586,27 @@ func NewIntSum() IntSum {
 	return newIntSum(&otlpmetrics.IntSum{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms IntSum) InitEmpty() {
-	*ms.orig = otlpmetrics.IntSum{}
-}
-
 // AggregationTemporality returns the aggregationtemporality associated with this IntSum.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntSum) AggregationTemporality() AggregationTemporality {
 	return AggregationTemporality((*ms.orig).AggregationTemporality)
 }
 
 // SetAggregationTemporality replaces the aggregationtemporality associated with this IntSum.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntSum) SetAggregationTemporality(v AggregationTemporality) {
 	(*ms.orig).AggregationTemporality = otlpmetrics.AggregationTemporality(v)
 }
 
 // IsMonotonic returns the ismonotonic associated with this IntSum.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntSum) IsMonotonic() bool {
 	return (*ms.orig).IsMonotonic
 }
 
 // SetIsMonotonic replaces the ismonotonic associated with this IntSum.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntSum) SetIsMonotonic(v bool) {
 	(*ms.orig).IsMonotonic = v
 }
 
 // DataPoints returns the DataPoints associated with this IntSum.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntSum) DataPoints() IntDataPointSlice {
 	return newIntDataPointSlice(&(*ms.orig).DataPoints)
 }
@@ -704,42 +640,27 @@ func NewDoubleSum() DoubleSum {
 	return newDoubleSum(&otlpmetrics.DoubleSum{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms DoubleSum) InitEmpty() {
-	*ms.orig = otlpmetrics.DoubleSum{}
-}
-
 // AggregationTemporality returns the aggregationtemporality associated with this DoubleSum.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSum) AggregationTemporality() AggregationTemporality {
 	return AggregationTemporality((*ms.orig).AggregationTemporality)
 }
 
 // SetAggregationTemporality replaces the aggregationtemporality associated with this DoubleSum.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSum) SetAggregationTemporality(v AggregationTemporality) {
 	(*ms.orig).AggregationTemporality = otlpmetrics.AggregationTemporality(v)
 }
 
 // IsMonotonic returns the ismonotonic associated with this DoubleSum.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSum) IsMonotonic() bool {
 	return (*ms.orig).IsMonotonic
 }
 
 // SetIsMonotonic replaces the ismonotonic associated with this DoubleSum.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSum) SetIsMonotonic(v bool) {
 	(*ms.orig).IsMonotonic = v
 }
 
 // DataPoints returns the DataPoints associated with this DoubleSum.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSum) DataPoints() DoubleDataPointSlice {
 	return newDoubleDataPointSlice(&(*ms.orig).DataPoints)
 }
@@ -773,28 +694,17 @@ func NewIntHistogram() IntHistogram {
 	return newIntHistogram(&otlpmetrics.IntHistogram{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms IntHistogram) InitEmpty() {
-	*ms.orig = otlpmetrics.IntHistogram{}
-}
-
 // AggregationTemporality returns the aggregationtemporality associated with this IntHistogram.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogram) AggregationTemporality() AggregationTemporality {
 	return AggregationTemporality((*ms.orig).AggregationTemporality)
 }
 
 // SetAggregationTemporality replaces the aggregationtemporality associated with this IntHistogram.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogram) SetAggregationTemporality(v AggregationTemporality) {
 	(*ms.orig).AggregationTemporality = otlpmetrics.AggregationTemporality(v)
 }
 
 // DataPoints returns the DataPoints associated with this IntHistogram.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogram) DataPoints() IntHistogramDataPointSlice {
 	return newIntHistogramDataPointSlice(&(*ms.orig).DataPoints)
 }
@@ -827,28 +737,17 @@ func NewDoubleHistogram() DoubleHistogram {
 	return newDoubleHistogram(&otlpmetrics.DoubleHistogram{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms DoubleHistogram) InitEmpty() {
-	*ms.orig = otlpmetrics.DoubleHistogram{}
-}
-
 // AggregationTemporality returns the aggregationtemporality associated with this DoubleHistogram.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogram) AggregationTemporality() AggregationTemporality {
 	return AggregationTemporality((*ms.orig).AggregationTemporality)
 }
 
 // SetAggregationTemporality replaces the aggregationtemporality associated with this DoubleHistogram.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogram) SetAggregationTemporality(v AggregationTemporality) {
 	(*ms.orig).AggregationTemporality = otlpmetrics.AggregationTemporality(v)
 }
 
 // DataPoints returns the DataPoints associated with this DoubleHistogram.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogram) DataPoints() DoubleHistogramDataPointSlice {
 	return newDoubleHistogramDataPointSlice(&(*ms.orig).DataPoints)
 }
@@ -881,14 +780,7 @@ func NewDoubleSummary() DoubleSummary {
 	return newDoubleSummary(&otlpmetrics.DoubleSummary{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms DoubleSummary) InitEmpty() {
-	*ms.orig = otlpmetrics.DoubleSummary{}
-}
-
 // DataPoints returns the DataPoints associated with this DoubleSummary.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummary) DataPoints() DoubleSummaryDataPointSlice {
 	return newDoubleSummaryDataPointSlice(&(*ms.orig).DataPoints)
 }
@@ -1034,63 +926,42 @@ func NewIntDataPoint() IntDataPoint {
 	return newIntDataPoint(&otlpmetrics.IntDataPoint{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms IntDataPoint) InitEmpty() {
-	*ms.orig = otlpmetrics.IntDataPoint{}
-}
-
 // LabelsMap returns the Labels associated with this IntDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntDataPoint) LabelsMap() StringMap {
 	return newStringMap(&(*ms.orig).Labels)
 }
 
 // StartTime returns the starttime associated with this IntDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntDataPoint) StartTime() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).StartTimeUnixNano)
 }
 
 // SetStartTime replaces the starttime associated with this IntDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntDataPoint) SetStartTime(v TimestampUnixNano) {
 	(*ms.orig).StartTimeUnixNano = uint64(v)
 }
 
 // Timestamp returns the timestamp associated with this IntDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntDataPoint) Timestamp() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).TimeUnixNano)
 }
 
 // SetTimestamp replaces the timestamp associated with this IntDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntDataPoint) SetTimestamp(v TimestampUnixNano) {
 	(*ms.orig).TimeUnixNano = uint64(v)
 }
 
 // Value returns the value associated with this IntDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntDataPoint) Value() int64 {
 	return (*ms.orig).Value
 }
 
 // SetValue replaces the value associated with this IntDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntDataPoint) SetValue(v int64) {
 	(*ms.orig).Value = v
 }
 
 // Exemplars returns the Exemplars associated with this IntDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntDataPoint) Exemplars() IntExemplarSlice {
 	return newIntExemplarSlice(&(*ms.orig).Exemplars)
 }
@@ -1240,63 +1111,42 @@ func NewDoubleDataPoint() DoubleDataPoint {
 	return newDoubleDataPoint(&otlpmetrics.DoubleDataPoint{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms DoubleDataPoint) InitEmpty() {
-	*ms.orig = otlpmetrics.DoubleDataPoint{}
-}
-
 // LabelsMap returns the Labels associated with this DoubleDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleDataPoint) LabelsMap() StringMap {
 	return newStringMap(&(*ms.orig).Labels)
 }
 
 // StartTime returns the starttime associated with this DoubleDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleDataPoint) StartTime() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).StartTimeUnixNano)
 }
 
 // SetStartTime replaces the starttime associated with this DoubleDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleDataPoint) SetStartTime(v TimestampUnixNano) {
 	(*ms.orig).StartTimeUnixNano = uint64(v)
 }
 
 // Timestamp returns the timestamp associated with this DoubleDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleDataPoint) Timestamp() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).TimeUnixNano)
 }
 
 // SetTimestamp replaces the timestamp associated with this DoubleDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleDataPoint) SetTimestamp(v TimestampUnixNano) {
 	(*ms.orig).TimeUnixNano = uint64(v)
 }
 
 // Value returns the value associated with this DoubleDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleDataPoint) Value() float64 {
 	return (*ms.orig).Value
 }
 
 // SetValue replaces the value associated with this DoubleDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleDataPoint) SetValue(v float64) {
 	(*ms.orig).Value = v
 }
 
 // Exemplars returns the Exemplars associated with this DoubleDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleDataPoint) Exemplars() DoubleExemplarSlice {
 	return newDoubleExemplarSlice(&(*ms.orig).Exemplars)
 }
@@ -1446,105 +1296,72 @@ func NewIntHistogramDataPoint() IntHistogramDataPoint {
 	return newIntHistogramDataPoint(&otlpmetrics.IntHistogramDataPoint{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms IntHistogramDataPoint) InitEmpty() {
-	*ms.orig = otlpmetrics.IntHistogramDataPoint{}
-}
-
 // LabelsMap returns the Labels associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) LabelsMap() StringMap {
 	return newStringMap(&(*ms.orig).Labels)
 }
 
 // StartTime returns the starttime associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) StartTime() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).StartTimeUnixNano)
 }
 
 // SetStartTime replaces the starttime associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) SetStartTime(v TimestampUnixNano) {
 	(*ms.orig).StartTimeUnixNano = uint64(v)
 }
 
 // Timestamp returns the timestamp associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) Timestamp() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).TimeUnixNano)
 }
 
 // SetTimestamp replaces the timestamp associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) SetTimestamp(v TimestampUnixNano) {
 	(*ms.orig).TimeUnixNano = uint64(v)
 }
 
 // Count returns the count associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) Count() uint64 {
 	return (*ms.orig).Count
 }
 
 // SetCount replaces the count associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) SetCount(v uint64) {
 	(*ms.orig).Count = v
 }
 
 // Sum returns the sum associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) Sum() int64 {
 	return (*ms.orig).Sum
 }
 
 // SetSum replaces the sum associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) SetSum(v int64) {
 	(*ms.orig).Sum = v
 }
 
 // BucketCounts returns the bucketcounts associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) BucketCounts() []uint64 {
 	return (*ms.orig).BucketCounts
 }
 
 // SetBucketCounts replaces the bucketcounts associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) SetBucketCounts(v []uint64) {
 	(*ms.orig).BucketCounts = v
 }
 
 // ExplicitBounds returns the explicitbounds associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) ExplicitBounds() []float64 {
 	return (*ms.orig).ExplicitBounds
 }
 
 // SetExplicitBounds replaces the explicitbounds associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) SetExplicitBounds(v []float64) {
 	(*ms.orig).ExplicitBounds = v
 }
 
 // Exemplars returns the Exemplars associated with this IntHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntHistogramDataPoint) Exemplars() IntExemplarSlice {
 	return newIntExemplarSlice(&(*ms.orig).Exemplars)
 }
@@ -1697,105 +1514,72 @@ func NewDoubleHistogramDataPoint() DoubleHistogramDataPoint {
 	return newDoubleHistogramDataPoint(&otlpmetrics.DoubleHistogramDataPoint{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms DoubleHistogramDataPoint) InitEmpty() {
-	*ms.orig = otlpmetrics.DoubleHistogramDataPoint{}
-}
-
 // LabelsMap returns the Labels associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) LabelsMap() StringMap {
 	return newStringMap(&(*ms.orig).Labels)
 }
 
 // StartTime returns the starttime associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) StartTime() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).StartTimeUnixNano)
 }
 
 // SetStartTime replaces the starttime associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) SetStartTime(v TimestampUnixNano) {
 	(*ms.orig).StartTimeUnixNano = uint64(v)
 }
 
 // Timestamp returns the timestamp associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) Timestamp() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).TimeUnixNano)
 }
 
 // SetTimestamp replaces the timestamp associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) SetTimestamp(v TimestampUnixNano) {
 	(*ms.orig).TimeUnixNano = uint64(v)
 }
 
 // Count returns the count associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) Count() uint64 {
 	return (*ms.orig).Count
 }
 
 // SetCount replaces the count associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) SetCount(v uint64) {
 	(*ms.orig).Count = v
 }
 
 // Sum returns the sum associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) Sum() float64 {
 	return (*ms.orig).Sum
 }
 
 // SetSum replaces the sum associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) SetSum(v float64) {
 	(*ms.orig).Sum = v
 }
 
 // BucketCounts returns the bucketcounts associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) BucketCounts() []uint64 {
 	return (*ms.orig).BucketCounts
 }
 
 // SetBucketCounts replaces the bucketcounts associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) SetBucketCounts(v []uint64) {
 	(*ms.orig).BucketCounts = v
 }
 
 // ExplicitBounds returns the explicitbounds associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) ExplicitBounds() []float64 {
 	return (*ms.orig).ExplicitBounds
 }
 
 // SetExplicitBounds replaces the explicitbounds associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) SetExplicitBounds(v []float64) {
 	(*ms.orig).ExplicitBounds = v
 }
 
 // Exemplars returns the Exemplars associated with this DoubleHistogramDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleHistogramDataPoint) Exemplars() DoubleExemplarSlice {
 	return newDoubleExemplarSlice(&(*ms.orig).Exemplars)
 }
@@ -1948,77 +1732,52 @@ func NewDoubleSummaryDataPoint() DoubleSummaryDataPoint {
 	return newDoubleSummaryDataPoint(&otlpmetrics.DoubleSummaryDataPoint{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms DoubleSummaryDataPoint) InitEmpty() {
-	*ms.orig = otlpmetrics.DoubleSummaryDataPoint{}
-}
-
 // LabelsMap returns the Labels associated with this DoubleSummaryDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummaryDataPoint) LabelsMap() StringMap {
 	return newStringMap(&(*ms.orig).Labels)
 }
 
 // StartTime returns the starttime associated with this DoubleSummaryDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummaryDataPoint) StartTime() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).StartTimeUnixNano)
 }
 
 // SetStartTime replaces the starttime associated with this DoubleSummaryDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummaryDataPoint) SetStartTime(v TimestampUnixNano) {
 	(*ms.orig).StartTimeUnixNano = uint64(v)
 }
 
 // Timestamp returns the timestamp associated with this DoubleSummaryDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummaryDataPoint) Timestamp() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).TimeUnixNano)
 }
 
 // SetTimestamp replaces the timestamp associated with this DoubleSummaryDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummaryDataPoint) SetTimestamp(v TimestampUnixNano) {
 	(*ms.orig).TimeUnixNano = uint64(v)
 }
 
 // Count returns the count associated with this DoubleSummaryDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummaryDataPoint) Count() uint64 {
 	return (*ms.orig).Count
 }
 
 // SetCount replaces the count associated with this DoubleSummaryDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummaryDataPoint) SetCount(v uint64) {
 	(*ms.orig).Count = v
 }
 
 // Sum returns the sum associated with this DoubleSummaryDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummaryDataPoint) Sum() float64 {
 	return (*ms.orig).Sum
 }
 
 // SetSum replaces the sum associated with this DoubleSummaryDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummaryDataPoint) SetSum(v float64) {
 	(*ms.orig).Sum = v
 }
 
 // QuantileValues returns the QuantileValues associated with this DoubleSummaryDataPoint.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleSummaryDataPoint) QuantileValues() ValueAtQuantileSlice {
 	return newValueAtQuantileSlice(&(*ms.orig).QuantileValues)
 }
@@ -2169,35 +1928,22 @@ func NewValueAtQuantile() ValueAtQuantile {
 	return newValueAtQuantile(&otlpmetrics.DoubleSummaryDataPoint_ValueAtQuantile{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms ValueAtQuantile) InitEmpty() {
-	*ms.orig = otlpmetrics.DoubleSummaryDataPoint_ValueAtQuantile{}
-}
-
 // Quantile returns the quantile associated with this ValueAtQuantile.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms ValueAtQuantile) Quantile() float64 {
 	return (*ms.orig).Quantile
 }
 
 // SetQuantile replaces the quantile associated with this ValueAtQuantile.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms ValueAtQuantile) SetQuantile(v float64) {
 	(*ms.orig).Quantile = v
 }
 
 // Value returns the value associated with this ValueAtQuantile.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms ValueAtQuantile) Value() float64 {
 	return (*ms.orig).Value
 }
 
 // SetValue replaces the value associated with this ValueAtQuantile.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms ValueAtQuantile) SetValue(v float64) {
 	(*ms.orig).Value = v
 }
@@ -2218,17 +1964,17 @@ func (ms ValueAtQuantile) CopyTo(dest ValueAtQuantile) {
 type IntExemplarSlice struct {
 	// orig points to the slice otlpmetrics.IntExemplar field contained somewhere else.
 	// We use pointer-to-slice to be able to modify it in functions like Resize.
-	orig *[]*otlpmetrics.IntExemplar
+	orig *[]otlpmetrics.IntExemplar
 }
 
-func newIntExemplarSlice(orig *[]*otlpmetrics.IntExemplar) IntExemplarSlice {
+func newIntExemplarSlice(orig *[]otlpmetrics.IntExemplar) IntExemplarSlice {
 	return IntExemplarSlice{orig}
 }
 
 // NewIntExemplarSlice creates a IntExemplarSlice with 0 elements.
 // Can use "Resize" to initialize with a given length.
 func NewIntExemplarSlice() IntExemplarSlice {
-	orig := []*otlpmetrics.IntExemplar(nil)
+	orig := []otlpmetrics.IntExemplar(nil)
 	return IntExemplarSlice{&orig}
 }
 
@@ -2247,7 +1993,7 @@ func (es IntExemplarSlice) Len() int {
 //     ... // Do something with the element
 // }
 func (es IntExemplarSlice) At(ix int) IntExemplar {
-	return newIntExemplar((*es.orig)[ix])
+	return newIntExemplar(&(*es.orig)[ix])
 }
 
 // MoveAndAppendTo moves all elements from the current slice and appends them to the dest.
@@ -2268,18 +2014,13 @@ func (es IntExemplarSlice) CopyTo(dest IntExemplarSlice) {
 	destCap := cap(*dest.orig)
 	if srcLen <= destCap {
 		(*dest.orig) = (*dest.orig)[:srcLen:destCap]
-		for i := range *es.orig {
-			newIntExemplar((*es.orig)[i]).CopyTo(newIntExemplar((*dest.orig)[i]))
-		}
-		return
+	} else {
+		(*dest.orig) = make([]otlpmetrics.IntExemplar, srcLen)
 	}
-	origs := make([]otlpmetrics.IntExemplar, srcLen)
-	wrappers := make([]*otlpmetrics.IntExemplar, srcLen)
+
 	for i := range *es.orig {
-		wrappers[i] = &origs[i]
-		newIntExemplar((*es.orig)[i]).CopyTo(newIntExemplar(wrappers[i]))
+		newIntExemplar(&(*es.orig)[i]).CopyTo(newIntExemplar(&(*dest.orig)[i]))
 	}
-	*dest.orig = wrappers
 }
 
 // Resize is an operation that resizes the slice:
@@ -2302,15 +2043,15 @@ func (es IntExemplarSlice) Resize(newLen int) {
 	}
 
 	if newLen > oldCap {
-		newOrig := make([]*otlpmetrics.IntExemplar, oldLen, newLen)
+		newOrig := make([]otlpmetrics.IntExemplar, oldLen, newLen)
 		copy(newOrig, *es.orig)
 		*es.orig = newOrig
 	}
 
 	// Add extra empty elements to the array.
-	extraOrigs := make([]otlpmetrics.IntExemplar, newLen-oldLen)
-	for i := range extraOrigs {
-		*es.orig = append(*es.orig, &extraOrigs[i])
+	empty := otlpmetrics.IntExemplar{}
+	for i := oldLen; i < newLen; i++ {
+		*es.orig = append(*es.orig, empty)
 	}
 }
 
@@ -2319,7 +2060,7 @@ func (es IntExemplarSlice) Resize(newLen int) {
 // could still be referenced so do not reuse it after passing it to this
 // method.
 func (es IntExemplarSlice) Append(e IntExemplar) {
-	*es.orig = append(*es.orig, e.orig)
+	*es.orig = append(*es.orig, *e.orig)
 }
 
 // IntExemplar is a sample input int measurement.
@@ -2347,42 +2088,27 @@ func NewIntExemplar() IntExemplar {
 	return newIntExemplar(&otlpmetrics.IntExemplar{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms IntExemplar) InitEmpty() {
-	*ms.orig = otlpmetrics.IntExemplar{}
-}
-
 // Timestamp returns the timestamp associated with this IntExemplar.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntExemplar) Timestamp() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).TimeUnixNano)
 }
 
 // SetTimestamp replaces the timestamp associated with this IntExemplar.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntExemplar) SetTimestamp(v TimestampUnixNano) {
 	(*ms.orig).TimeUnixNano = uint64(v)
 }
 
 // Value returns the value associated with this IntExemplar.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntExemplar) Value() int64 {
 	return (*ms.orig).Value
 }
 
 // SetValue replaces the value associated with this IntExemplar.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntExemplar) SetValue(v int64) {
 	(*ms.orig).Value = v
 }
 
 // FilteredLabels returns the FilteredLabels associated with this IntExemplar.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms IntExemplar) FilteredLabels() StringMap {
 	return newStringMap(&(*ms.orig).FilteredLabels)
 }
@@ -2404,17 +2130,17 @@ func (ms IntExemplar) CopyTo(dest IntExemplar) {
 type DoubleExemplarSlice struct {
 	// orig points to the slice otlpmetrics.DoubleExemplar field contained somewhere else.
 	// We use pointer-to-slice to be able to modify it in functions like Resize.
-	orig *[]*otlpmetrics.DoubleExemplar
+	orig *[]otlpmetrics.DoubleExemplar
 }
 
-func newDoubleExemplarSlice(orig *[]*otlpmetrics.DoubleExemplar) DoubleExemplarSlice {
+func newDoubleExemplarSlice(orig *[]otlpmetrics.DoubleExemplar) DoubleExemplarSlice {
 	return DoubleExemplarSlice{orig}
 }
 
 // NewDoubleExemplarSlice creates a DoubleExemplarSlice with 0 elements.
 // Can use "Resize" to initialize with a given length.
 func NewDoubleExemplarSlice() DoubleExemplarSlice {
-	orig := []*otlpmetrics.DoubleExemplar(nil)
+	orig := []otlpmetrics.DoubleExemplar(nil)
 	return DoubleExemplarSlice{&orig}
 }
 
@@ -2433,7 +2159,7 @@ func (es DoubleExemplarSlice) Len() int {
 //     ... // Do something with the element
 // }
 func (es DoubleExemplarSlice) At(ix int) DoubleExemplar {
-	return newDoubleExemplar((*es.orig)[ix])
+	return newDoubleExemplar(&(*es.orig)[ix])
 }
 
 // MoveAndAppendTo moves all elements from the current slice and appends them to the dest.
@@ -2454,18 +2180,13 @@ func (es DoubleExemplarSlice) CopyTo(dest DoubleExemplarSlice) {
 	destCap := cap(*dest.orig)
 	if srcLen <= destCap {
 		(*dest.orig) = (*dest.orig)[:srcLen:destCap]
-		for i := range *es.orig {
-			newDoubleExemplar((*es.orig)[i]).CopyTo(newDoubleExemplar((*dest.orig)[i]))
-		}
-		return
+	} else {
+		(*dest.orig) = make([]otlpmetrics.DoubleExemplar, srcLen)
 	}
-	origs := make([]otlpmetrics.DoubleExemplar, srcLen)
-	wrappers := make([]*otlpmetrics.DoubleExemplar, srcLen)
+
 	for i := range *es.orig {
-		wrappers[i] = &origs[i]
-		newDoubleExemplar((*es.orig)[i]).CopyTo(newDoubleExemplar(wrappers[i]))
+		newDoubleExemplar(&(*es.orig)[i]).CopyTo(newDoubleExemplar(&(*dest.orig)[i]))
 	}
-	*dest.orig = wrappers
 }
 
 // Resize is an operation that resizes the slice:
@@ -2488,15 +2209,15 @@ func (es DoubleExemplarSlice) Resize(newLen int) {
 	}
 
 	if newLen > oldCap {
-		newOrig := make([]*otlpmetrics.DoubleExemplar, oldLen, newLen)
+		newOrig := make([]otlpmetrics.DoubleExemplar, oldLen, newLen)
 		copy(newOrig, *es.orig)
 		*es.orig = newOrig
 	}
 
 	// Add extra empty elements to the array.
-	extraOrigs := make([]otlpmetrics.DoubleExemplar, newLen-oldLen)
-	for i := range extraOrigs {
-		*es.orig = append(*es.orig, &extraOrigs[i])
+	empty := otlpmetrics.DoubleExemplar{}
+	for i := oldLen; i < newLen; i++ {
+		*es.orig = append(*es.orig, empty)
 	}
 }
 
@@ -2505,7 +2226,7 @@ func (es DoubleExemplarSlice) Resize(newLen int) {
 // could still be referenced so do not reuse it after passing it to this
 // method.
 func (es DoubleExemplarSlice) Append(e DoubleExemplar) {
-	*es.orig = append(*es.orig, e.orig)
+	*es.orig = append(*es.orig, *e.orig)
 }
 
 // DoubleExemplar is a sample input double measurement.
@@ -2533,42 +2254,27 @@ func NewDoubleExemplar() DoubleExemplar {
 	return newDoubleExemplar(&otlpmetrics.DoubleExemplar{})
 }
 
-// Deprecated: This function will be removed soon.
-func (ms DoubleExemplar) InitEmpty() {
-	*ms.orig = otlpmetrics.DoubleExemplar{}
-}
-
 // Timestamp returns the timestamp associated with this DoubleExemplar.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleExemplar) Timestamp() TimestampUnixNano {
 	return TimestampUnixNano((*ms.orig).TimeUnixNano)
 }
 
 // SetTimestamp replaces the timestamp associated with this DoubleExemplar.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleExemplar) SetTimestamp(v TimestampUnixNano) {
 	(*ms.orig).TimeUnixNano = uint64(v)
 }
 
 // Value returns the value associated with this DoubleExemplar.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleExemplar) Value() float64 {
 	return (*ms.orig).Value
 }
 
 // SetValue replaces the value associated with this DoubleExemplar.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleExemplar) SetValue(v float64) {
 	(*ms.orig).Value = v
 }
 
 // FilteredLabels returns the FilteredLabels associated with this DoubleExemplar.
-//
-// Important: This causes a runtime error if IsNil() returns "true".
 func (ms DoubleExemplar) FilteredLabels() StringMap {
 	return newStringMap(&(*ms.orig).FilteredLabels)
 }

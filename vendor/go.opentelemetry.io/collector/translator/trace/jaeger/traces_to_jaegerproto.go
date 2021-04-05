@@ -202,21 +202,19 @@ func getJaegerProtoSpanTags(span pdata.Span, instrumentationLibrary pdata.Instru
 		tagsCount++
 	}
 	status := span.Status()
-	if !status.IsNil() {
-		statusCodeTag, statusCodeTagFound = getTagFromStatusCode(status.Code())
-		if statusCodeTagFound {
-			tagsCount++
-		}
+	statusCodeTag, statusCodeTagFound = getTagFromStatusCode(status.Code())
+	if statusCodeTagFound {
+		tagsCount++
+	}
 
-		errorTag, errorTagFound = getErrorTagFromStatusCode(status.Code())
-		if errorTagFound {
-			tagsCount++
-		}
+	errorTag, errorTagFound = getErrorTagFromStatusCode(status.Code())
+	if errorTagFound {
+		tagsCount++
+	}
 
-		statusMsgTag, statusMsgTagFound = getTagFromStatusMsg(status.Message())
-		if statusMsgTagFound {
-			tagsCount++
-		}
+	statusMsgTag, statusMsgTagFound = getTagFromStatusMsg(status.Message())
+	if statusMsgTagFound {
+		tagsCount++
 	}
 
 	traceStateTags, traceStateTagsFound := getTagsFromTraceState(span.TraceState())
@@ -263,7 +261,7 @@ func traceIDToJaegerProto(traceID pdata.TraceID) (model.TraceID, error) {
 }
 
 func spanIDToJaegerProto(spanID pdata.SpanID) (model.SpanID, error) {
-	uSpanID := tracetranslator.BytesToUInt64SpanID(spanID.Bytes())
+	uSpanID := tracetranslator.SpanIDToUInt64(spanID)
 	if uSpanID == 0 {
 		return model.SpanID(0), errZeroSpanID
 	}
@@ -276,7 +274,7 @@ func makeJaegerProtoReferences(
 	parentSpanID pdata.SpanID,
 	traceID model.TraceID,
 ) ([]model.SpanRef, error) {
-	parentSpanIDSet := parentSpanID.IsValid()
+	parentSpanIDSet := !parentSpanID.IsEmpty()
 	if !parentSpanIDSet && links.Len() == 0 {
 		return nil, nil
 	}

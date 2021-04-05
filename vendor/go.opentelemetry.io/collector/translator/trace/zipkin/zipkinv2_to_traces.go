@@ -26,7 +26,7 @@ import (
 
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/internal/data"
-	otlptrace "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/trace/v1"
+	otlptrace "go.opentelemetry.io/collector/internal/data/protogen/trace/v1"
 	"go.opentelemetry.io/collector/translator/conventions"
 	tracetranslator "go.opentelemetry.io/collector/translator/trace"
 )
@@ -157,12 +157,18 @@ func zSpanToInternal(zspan *zipkinmodel.SpanModel, tags map[string]string, dest 
 
 func populateSpanStatus(tags map[string]string, status pdata.SpanStatus) {
 	if value, ok := tags[tracetranslator.TagStatusCode]; ok {
-		status.InitEmpty()
 		status.SetCode(pdata.StatusCode(otlptrace.Status_StatusCode_value[value]))
 		delete(tags, tracetranslator.TagStatusCode)
 		if value, ok := tags[tracetranslator.TagStatusMsg]; ok {
 			status.SetMessage(value)
 			delete(tags, tracetranslator.TagStatusMsg)
+		}
+	}
+
+	if val, ok := tags[tracetranslator.TagError]; ok {
+		if val == "true" {
+			status.SetCode(pdata.StatusCodeError)
+			delete(tags, tracetranslator.TagError)
 		}
 	}
 }

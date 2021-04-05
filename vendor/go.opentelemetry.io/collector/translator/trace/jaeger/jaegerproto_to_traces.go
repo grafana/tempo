@@ -142,7 +142,7 @@ func jSpansToInternal(spans []*model.Span) map[instrumentationLibrary]pdata.Inst
 		if span == nil || reflect.DeepEqual(span, blankJaegerProtoSpan) {
 			continue
 		}
-		span, library := jSpanToInternal(span)
+		pSpan, library := jSpanToInternal(span)
 		ils, found := spansByLibrary[library]
 		if !found {
 			ils = pdata.NewInstrumentationLibrarySpans()
@@ -153,7 +153,7 @@ func jSpansToInternal(spans []*model.Span) map[instrumentationLibrary]pdata.Inst
 				ils.InstrumentationLibrary().SetVersion(library.version)
 			}
 		}
-		ils.Spans().Append(span)
+		ils.Spans().Append(pSpan)
 	}
 	return spansByLibrary
 }
@@ -266,7 +266,6 @@ func setInternalSpanStatus(attrs pdata.AttributeMap, dest pdata.SpanStatus) {
 	}
 
 	if statusExists {
-		dest.InitEmpty()
 		dest.SetCode(statusCode)
 		dest.SetMessage(statusMessage)
 	}
@@ -357,7 +356,7 @@ func jReferencesToSpanLinks(refs []model.SpanRef, excludeParentID model.SpanID, 
 		}
 
 		link.SetTraceID(tracetranslator.UInt64ToTraceID(ref.TraceID.High, ref.TraceID.Low))
-		link.SetSpanID(pdata.NewSpanID(tracetranslator.UInt64ToByteSpanID(uint64(ref.SpanID))))
+		link.SetSpanID(tracetranslator.UInt64ToSpanID(uint64(ref.SpanID)))
 		i++
 	}
 
