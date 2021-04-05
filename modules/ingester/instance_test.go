@@ -464,7 +464,7 @@ func defaultInstance(t require.TestingT, tmpDir string) *instance {
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	l, err := local.NewLocalBackend(&local.Config{
+	l, err := local.NewBackend(&local.Config{
 		Path: tmpDir + "/blocks",
 	})
 	require.NoError(t, err)

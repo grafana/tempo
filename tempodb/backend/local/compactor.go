@@ -12,7 +12,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-func (rw *LocalBackend) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+func (rw *Backend) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	// move meta file to a new location
 	metaFilename := rw.metaFileName(blockID, tenantID)
 	compactedMetaFilename := rw.compactedMetaFileName(blockID, tenantID)
@@ -20,7 +20,7 @@ func (rw *LocalBackend) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	return os.Rename(metaFilename, compactedMetaFilename)
 }
 
-func (rw *LocalBackend) ClearBlock(blockID uuid.UUID, tenantID string) error {
+func (rw *Backend) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
 		return fmt.Errorf("empty tenant id")
 	}
@@ -32,7 +32,7 @@ func (rw *LocalBackend) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return os.RemoveAll(rw.rootPath(blockID, tenantID))
 }
 
-func (rw *LocalBackend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	filename := rw.compactedMetaFileName(blockID, tenantID)
 
 	fi, err := os.Stat(filename)
@@ -58,6 +58,6 @@ func (rw *LocalBackend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	return out, err
 }
 
-func (rw *LocalBackend) compactedMetaFileName(blockID uuid.UUID, tenantID string) string {
+func (rw *Backend) compactedMetaFileName(blockID uuid.UUID, tenantID string) string {
 	return path.Join(rw.rootPath(blockID, tenantID), "meta.compacted.json")
 }
