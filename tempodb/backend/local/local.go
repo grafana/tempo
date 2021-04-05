@@ -216,11 +216,20 @@ func (rw *LocalBackend) ReadRange(ctx context.Context, name string, blockID uuid
 	return nil
 }
 
-func (rw *LocalBackend) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, error) {
+func (rw *LocalBackend) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
 	filename := rw.objectFileName(blockID, tenantID, name)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
-	return f, err
+	if err != nil {
+		return nil, -1, err
+	}
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, -1, err
+	}
+
+	return f, stat.Size(), err
 }
 
 // Shutdown implements backend.Reader

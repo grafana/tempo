@@ -44,7 +44,7 @@ type Reader interface {
 }
 
 type ReaderReader interface {
-	ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, error)
+	ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error)
 }
 
 // Compactor is a collection of methods to interact with compacted elements of a tempodb block

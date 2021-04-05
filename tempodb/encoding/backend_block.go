@@ -140,13 +140,13 @@ func (b *BackendBlock) Write(ctx context.Context, r backend.ReaderReader, w back
 	tenantID := b.meta.TenantID
 
 	copy := func(name string) error {
-		reader, err := r.ReadReader(ctx, name, blockID, tenantID)
+		reader, size, err := r.ReadReader(ctx, name, blockID, tenantID)
 		if err != nil {
 			return errors.Wrapf(err, "error reading %s", name)
 		}
 		defer reader.Close()
 
-		return w.WriteReader(ctx, name, blockID, tenantID, reader, -1)
+		return w.WriteReader(ctx, name, blockID, tenantID, reader, size)
 	}
 
 	// Data
