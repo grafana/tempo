@@ -16,14 +16,14 @@ import (
 
 type IngesterBlock struct {
 	encoding.BackendBlock
-	local *local.LocalBackend
+	local *local.Backend
 
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
 }
 
 var _ tempodb.WriteableBlock = (*IngesterBlock)(nil)
 
-func NewIngesterBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l *local.LocalBackend) (*IngesterBlock, error) {
+func NewIngesterBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l *local.Backend) (*IngesterBlock, error) {
 
 	c := &IngesterBlock{
 		BackendBlock: *existingBlock,

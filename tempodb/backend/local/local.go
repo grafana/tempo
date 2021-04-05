@@ -14,21 +14,21 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-type LocalBackend struct {
+type Backend struct {
 	cfg *Config
 }
 
-var _ backend.Reader = (*LocalBackend)(nil)
-var _ backend.Writer = (*LocalBackend)(nil)
-var _ backend.Compactor = (*LocalBackend)(nil)
+var _ backend.Reader = (*Backend)(nil)
+var _ backend.Writer = (*Backend)(nil)
+var _ backend.Compactor = (*Backend)(nil)
 
-func NewLocalBackend(cfg *Config) (*LocalBackend, error) {
+func NewBackend(cfg *Config) (*Backend, error) {
 	err := os.MkdirAll(cfg.Path, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
 
-	l := &LocalBackend{
+	l := &Backend{
 		cfg: cfg,
 	}
 
@@ -36,17 +36,17 @@ func NewLocalBackend(cfg *Config) (*LocalBackend, error) {
 }
 
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
-	l, err := NewLocalBackend(cfg)
+	l, err := NewBackend(cfg)
 	return l, l, l, err
 }
 
 // Write implements backend.Writer
-func (rw *LocalBackend) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
+func (rw *Backend) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
 	return rw.WriteReader(ctx, name, blockID, tenantID, bytes.NewBuffer(buffer), 0)
 }
 
 // WriteReader implements backend.Writer
-func (rw *LocalBackend) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, _ int64) error {
+func (rw *Backend) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, _ int64) error {
 	blockFolder := rw.rootPath(blockID, tenantID)
 	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
@@ -68,7 +68,7 @@ func (rw *LocalBackend) WriteReader(ctx context.Context, name string, blockID uu
 }
 
 // WriteBlockMeta implements backend.Writer
-func (rw *LocalBackend) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
+func (rw *Backend) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
@@ -93,7 +93,7 @@ func (rw *LocalBackend) WriteBlockMeta(ctx context.Context, meta *backend.BlockM
 }
 
 // Append implements backend.Writer
-func (rw *LocalBackend) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+func (rw *Backend) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	var dst *os.File
 	if tracker == nil {
 		blockFolder := rw.rootPath(blockID, tenantID)
@@ -120,7 +120,7 @@ func (rw *LocalBackend) Append(ctx context.Context, name string, blockID uuid.UU
 }
 
 // CloseAppend implements backend.Writer
-func (rw *LocalBackend) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
 	if tracker == nil {
 		return nil
 	}
@@ -130,7 +130,7 @@ func (rw *LocalBackend) CloseAppend(ctx context.Context, tracker backend.AppendT
 }
 
 // Tenants implements backend.Reader
-func (rw *LocalBackend) Tenants(ctx context.Context) ([]string, error) {
+func (rw *Backend) Tenants(ctx context.Context) ([]string, error) {
 	folders, err := ioutil.ReadDir(rw.cfg.Path)
 	if err != nil {
 		return nil, err
@@ -148,7 +148,7 @@ func (rw *LocalBackend) Tenants(ctx context.Context) ([]string, error) {
 }
 
 // Blocks implements backend.Reader
-func (rw *LocalBackend) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
+func (rw *Backend) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 	var warning error
 	path := path.Join(rw.cfg.Path, tenantID)
 	folders, err := ioutil.ReadDir(path)
@@ -173,7 +173,7 @@ func (rw *LocalBackend) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 }
 
 // BlockMeta implements backend.Reader
-func (rw *LocalBackend) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
+func (rw *Backend) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 	filename := rw.metaFileName(blockID, tenantID)
 	bytes, err := ioutil.ReadFile(filename)
 	if os.IsNotExist(err) {
@@ -193,13 +193,13 @@ func (rw *LocalBackend) BlockMeta(ctx context.Context, blockID uuid.UUID, tenant
 }
 
 // Read implements backend.Reader
-func (rw *LocalBackend) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *Backend) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	filename := rw.objectFileName(blockID, tenantID, name)
 	return ioutil.ReadFile(filename)
 }
 
 // ReadRange implements backend.Reader
-func (rw *LocalBackend) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+func (rw *Backend) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
 	filename := rw.objectFileName(blockID, tenantID, name)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
@@ -216,7 +216,7 @@ func (rw *LocalBackend) ReadRange(ctx context.Context, name string, blockID uuid
 	return nil
 }
 
-func (rw *LocalBackend) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+func (rw *Backend) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
 	filename := rw.objectFileName(blockID, tenantID, name)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
@@ -233,18 +233,18 @@ func (rw *LocalBackend) ReadReader(ctx context.Context, name string, blockID uui
 }
 
 // Shutdown implements backend.Reader
-func (rw *LocalBackend) Shutdown() {
+func (rw *Backend) Shutdown() {
 
 }
 
-func (rw *LocalBackend) objectFileName(blockID uuid.UUID, tenantID string, name string) string {
+func (rw *Backend) objectFileName(blockID uuid.UUID, tenantID string, name string) string {
 	return filepath.Join(rw.rootPath(blockID, tenantID), name)
 }
 
-func (rw *LocalBackend) metaFileName(blockID uuid.UUID, tenantID string) string {
+func (rw *Backend) metaFileName(blockID uuid.UUID, tenantID string) string {
 	return filepath.Join(rw.rootPath(blockID, tenantID), "meta.json")
 }
 
-func (rw *LocalBackend) rootPath(blockID uuid.UUID, tenantID string) string {
+func (rw *Backend) rootPath(blockID uuid.UUID, tenantID string) string {
 	return filepath.Join(rw.cfg.Path, tenantID, blockID.String())
 }
