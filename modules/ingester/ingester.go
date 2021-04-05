@@ -48,7 +48,7 @@ type Ingester struct {
 
 	lifecycler *ring.Lifecycler
 	store      storage.Store
-	local      *local.LocalBackend
+	local      *local.Backend
 	//localReader    backend.Reader
 	//localWriter    backend.Writer
 	//localCompactor backend.Compactor
@@ -70,7 +70,7 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingeste
 		flushQueues: flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
 	}
 
-	l, err := local.NewLocalBackend(&local.Config{
+	l, err := local.NewBackend(&local.Config{
 		Path: store.WAL().BlocksFilePath(),
 	})
 	if err != nil {

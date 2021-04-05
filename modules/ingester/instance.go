@@ -69,12 +69,12 @@ type instance struct {
 	bytesWrittenTotal  prometheus.Counter
 	limiter            *Limiter
 	writer             tempodb.Writer
-	local              *local.LocalBackend
+	local              *local.Backend
 
 	hash hash.Hash32
 }
 
-func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.LocalBackend) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
 		traces: map[uint32]*trace{},
 
