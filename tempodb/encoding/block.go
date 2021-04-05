@@ -3,7 +3,6 @@ package encoding
 import (
 	"context"
 	"fmt"
-	"io"
 	"strconv"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -52,11 +51,6 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	}
 
 	return nil
-}
-
-// writeBlockData writes the data object from an io.Reader to the backend.Writer
-func writeBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, r io.Reader, size int64) error {
-	return w.WriteReader(ctx, nameObjects, meta.BlockID, meta.TenantID, r, size)
 }
 
 // appendBlockData appends the bytes passed to the block data
