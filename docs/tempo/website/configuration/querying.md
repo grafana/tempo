@@ -1,5 +1,5 @@
 ---
-title: Querying
+title: Querying with Grafana
 weight: 30
 ---
 
