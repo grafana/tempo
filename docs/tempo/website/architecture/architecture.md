@@ -53,7 +53,6 @@ Queries should be sent to the Query Frontend.
 
 Compactors stream blocks to and from the backend storage to reduce the total number of blocks.
 
-### Tempo-Query
-Tempo itself does not provide a way to visualize traces and relies on [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) to do so.  `tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to speak with Tempo.
+## Grafana 7.4.x
 
-Tempo Query is also the method by which Grafana queries traces.
+When using older versions of Grafana you must also use `tempo-query` in order to visualize traces. `tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo. See [this example](https://github.com/grafana/tempo/tree/master/example/docker-compose#grafana-74x) and [these docs](../../configuration/querying) for help.
