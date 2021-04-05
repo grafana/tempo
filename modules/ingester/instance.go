@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
-	"io"
 	"sync"
 	"time"
 
@@ -189,83 +188,17 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 		return fmt.Errorf("error finding completingBlock")
 	}
 
-	meta := completingBlock.Meta()
-
-	iter, err := completingBlock.GetIterator(i)
-	if err != nil {
-		return errors.Wrap(err, "error getting completing block iterator")
-	}
-	defer iter.Close()
-
-	cfg := &encoding.BlockConfig{
-		IndexDownsampleBytes: 1_000_000,
-		IndexPageSizeBytes:   250 * 1024,
-		Encoding:             backend.EncZstd,
-		BloomFP:              0.05,
-	}
-
 	ctx := context.Background()
 
-	compactorBlock, err := encoding.NewCompactorBlock(cfg, blockID, i.instanceID, []*backend.BlockMeta{meta}, meta.TotalObjects)
+	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, i, i.local, i.local)
 	if err != nil {
-		return errors.Wrap(err, "error creating compactor block")
-	}
-
-	var tracker backend.AppendTracker
-	for {
-		id, data, err := iter.Next(ctx)
-		if err != nil && err != io.EOF {
-			return errors.Wrap(err, "error iterating")
-		}
-
-		if id == nil {
-			break
-		}
-
-		err = compactorBlock.AddObject(id, data)
-		if err != nil {
-			return errors.Wrap(err, "error adding object to compactor block")
-		}
-
-		if compactorBlock.CurrentBufferLength() > 10_000_000 {
-			tracker, _, err = compactorBlock.FlushBuffer(ctx, tracker, i.local)
-			if err != nil {
-				return errors.Wrap(err, "error flushing compactor block")
-			}
-		}
-	}
-
-	_, err = compactorBlock.Complete(ctx, tracker, i.local)
-	if err != nil {
-		return errors.Wrap(err, "error completing compactor block")
-	}
-
-	backendBlock, err := encoding.NewBackendBlock(compactorBlock.BlockMeta(), i.local)
-	if err != nil {
-		return errors.Wrap(err, "error creating creating backend block")
+		return errors.Wrap(err, "error completing wal block with local backend")
 	}
 
 	ingesterBlock, err := NewIngesterBlock(ctx, backendBlock, i.local)
 	if err != nil {
 		return errors.Wrap(err, "error creating ingester block")
 	}
-
-	/*completeBlock, err := i.writer.CompleteBlock(completingBlock, i)
-	if err != nil {
-		metricFailedFlushes.Inc()
-		level.Error(log.Logger).Log("msg", "unable to complete block.", "tenantID", i.instanceID, "err", err)
-		return err
-	}
-
-	err = completeBlock.Write(context.Background(), i.localWriter)
-	if err != nil {
-		return err
-	}
-
-	err = completeBlock.Clear()
-	if err != nil {
-		return err
-	}*/
 
 	i.blocksMtx.Lock()
 	i.completeBlocks = append(i.completeBlocks, ingesterBlock)

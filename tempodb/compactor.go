@@ -53,6 +53,8 @@ const (
 	outputBlocks = 1
 
 	compactionCycle = 30 * time.Second
+
+	DefaultFlushSizeBytes uint32 = 30 * 1024 * 1024 // 30 MiB
 )
 
 // todo: pass a context/chan in to cancel this cleanly

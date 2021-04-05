@@ -83,11 +83,11 @@ func TestDB(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	complete, err := w.CompleteBlock(head, &mockSharder{})
+	_, err = w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 
-	err = w.WriteBlock(context.Background(), complete)
-	assert.NoError(t, err)
+	//err = w.WriteBlock(context.Background(), complete)
+	//assert.NoError(t, err)
 
 	// poll
 	r.(*readerWriter).pollBlocklist()
@@ -150,11 +150,11 @@ func TestBlockSharding(t *testing.T) {
 	assert.NoError(t, err, "unexpected error writing req")
 
 	// write block to backend
-	complete, err := w.CompleteBlock(head, &mockSharder{})
+	_, err = w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 
-	err = w.WriteBlock(context.Background(), complete)
-	assert.NoError(t, err)
+	//err = w.WriteBlock(context.Background(), complete)
+	//assert.NoError(t, err)
 
 	// poll
 	r.(*readerWriter).pollBlocklist()
@@ -251,11 +251,11 @@ func TestBlockCleanup(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err)
 
-	complete, err := w.CompleteBlock(head, &mockSharder{})
+	_, err = w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 
-	err = w.WriteBlock(context.Background(), complete)
-	assert.NoError(t, err)
+	//err = w.WriteBlock(context.Background(), complete)
+	//assert.NoError(t, err)
 
 	rw := r.(*readerWriter)
 
@@ -924,9 +924,6 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	assert.NoError(t, err)
 
 	blockID := complete.BlockMeta().BlockID.String()
-
-	err = w.WriteBlock(context.Background(), complete)
-	assert.NoError(t, err)
 
 	rw := r.(*readerWriter)
 

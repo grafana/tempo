@@ -31,10 +31,6 @@ func NewCompactorBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 		return nil, fmt.Errorf("empty block meta list")
 	}
 
-	if estimatedObjects <= 0 {
-		return nil, fmt.Errorf("must have non-zero positive estimated objects for a reliable bloom filter")
-	}
-
 	c := &CompactorBlock{
 		encoding:      latestEncoding(),
 		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding),
