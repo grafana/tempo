@@ -2,7 +2,6 @@ package ingester
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
@@ -17,12 +17,12 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
-
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb/backend/local"
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -48,6 +48,10 @@ type Ingester struct {
 
 	lifecycler *ring.Lifecycler
 	store      storage.Store
+	local      *local.LocalBackend
+	//localReader    backend.Reader
+	//localWriter    backend.Writer
+	//localCompactor backend.Compactor
 
 	flushQueues     *flushqueues.ExclusiveQueues
 	flushQueuesDone sync.WaitGroup
@@ -66,12 +70,19 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingeste
 		flushQueues: flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
 	}
 
+	l, err := local.NewLocalBackend(&local.Config{
+		Path: store.WAL().BlocksFilePath(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	i.local = l
+
 	i.flushQueuesDone.Add(cfg.ConcurrentFlushes)
 	for j := 0; j < cfg.ConcurrentFlushes; j++ {
 		go i.flushLoop(j)
 	}
 
-	var err error
 	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %w", err)
@@ -92,6 +103,11 @@ func (i *Ingester) starting(ctx context.Context) error {
 	err := i.replayWal()
 	if err != nil {
 		return fmt.Errorf("failed to replay wal %w", err)
+	}
+
+	err = i.rediscoverLocalBlocks()
+	if err != nil {
+		return fmt.Errorf("failed to rediscover local blocks %w", err)
 	}
 
 	// Now that user states have been created, we can start the lifecycler.
@@ -236,7 +252,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok = i.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, i.limiter, i.store)
+		inst, err = newInstance(instanceID, i.limiter, i.store, i.local)
 		if err != nil {
 			return nil, err
 		}
@@ -346,6 +362,42 @@ func (i *Ingester) replayBlock(b *tempodb_wal.ReplayBlock) error {
 		}
 		if err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func (i *Ingester) rediscoverLocalBlocks() error {
+	ctx := context.TODO()
+
+	tenants, err := i.local.Tenants(ctx)
+	if err != nil {
+		return errors.Wrap(err, "getting local tenants")
+	}
+
+	level.Info(log.Logger).Log("msg", "reloading local blocks", "tenants", len(tenants))
+
+	for _, t := range tenants {
+		inst, err := i.getOrCreateInstance(t)
+		if err != nil {
+			return err
+		}
+
+		err = inst.rediscoverLocalBlocks(ctx)
+		if err != nil {
+			return errors.Wrapf(err, "getting local blocks for tenant %v", t)
+		}
+
+		// Requeue needed flushes
+		for _, b := range inst.completeBlocks {
+			if b.FlushedTime().IsZero() {
+				i.enqueue(&flushOp{
+					kind:    opKindFlush,
+					userID:  t,
+					blockID: b.BlockMeta().BlockID,
+				}, true)
+			}
 		}
 	}
 

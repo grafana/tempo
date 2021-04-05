@@ -83,7 +83,8 @@ var (
 
 type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
-	CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error)
+	//CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error)
+	//CopyBlock(ctx context.Context, block WriteableBlock) error
 	WAL() *wal.WAL
 }
 
@@ -201,9 +202,13 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error 
 	return c.Write(ctx, rw.w)
 }
 
-func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error) {
-	return block.Complete(rw.cfg.Block, rw.wal, combiner)
+func (rw *readerWriter) CopyBlock(ctx context.Context, c WriteableBlock) error {
+	return c.Write(ctx, rw.w)
 }
+
+/*func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error) {
+	return block.Complete(rw.cfg.Block, rw.wal, combiner)
+}*/
 
 func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal

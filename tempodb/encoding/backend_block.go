@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 	willf_bloom "github.com/willf/bloom"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -124,4 +125,51 @@ func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
 	}
 
 	return reader, nil
+}
+
+func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
+	return b.meta
+}
+
+func (b *BackendBlock) Reader() backend.Reader {
+	return b.reader
+}
+
+func (b *BackendBlock) Write(ctx context.Context, r backend.ReaderReader, w backend.Writer) error {
+	blockID := b.meta.BlockID
+	tenantID := b.meta.TenantID
+
+	copy := func(name string) error {
+		reader, err := r.ReadReader(ctx, name, blockID, tenantID)
+		if err != nil {
+			return errors.Wrapf(err, "error reading %s", name)
+		}
+		defer reader.Close()
+
+		return w.WriteReader(ctx, name, blockID, tenantID, reader, -1)
+	}
+
+	// Data
+	err := copy(nameObjects)
+	if err != nil {
+		return err
+	}
+
+	// Bloom
+	for i := 0; i < common.GetShardNum(); i++ {
+		err = copy(bloomName(i))
+		if err != nil {
+			return err
+		}
+	}
+
+	// Index
+	err = copy(nameIndex)
+	if err != nil {
+		return err
+	}
+
+	// Meta
+	err = w.WriteBlockMeta(ctx, b.meta)
+	return err
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
@@ -200,20 +201,26 @@ func (i *Ingester) flushLoop(j int) {
 
 					err = instance.ClearCompletingBlock(op.blockID)
 					if err != nil {
-						// Failure to delete the WAL doesn't prevent flushing the bloc
+						// Failure to delete the WAL doesn't prevent flushing the block
 						handleFailedOp(op, err)
 					}
 				} else {
 					retry = true
 				}
 			} else {
-				// add a flushOp for the block we just completed
-				// No delay
-				i.enqueue(&flushOp{
-					kind:    opKindFlush,
-					userID:  instance.instanceID,
-					blockID: op.blockID,
-				}, false)
+				err = instance.ClearCompletingBlock(op.blockID)
+				if err != nil {
+					err = errors.Wrap(err, "error clearing completing block")
+					handleFailedOp(op, err)
+				} else {
+					// add a flushOp for the block we just completed
+					// No delay
+					i.enqueue(&flushOp{
+						kind:    opKindFlush,
+						userID:  instance.instanceID,
+						blockID: op.blockID,
+					}, false)
+				}
 			}
 
 		} else {
@@ -268,12 +275,12 @@ func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
 		}
 
 		// Delete original wal only after successful flush
-		err = instance.ClearCompletingBlock(blockID)
-		if err != nil {
-			// Error deleting wal doesn't fail the flush
-			level.Error(log.Logger).Log("msg", "Error clearing wal", "userID", userID, "blockID", blockID.String(), "err", err)
-			metricFailedFlushes.Inc()
-		}
+		//err = instance.ClearCompletingBlock(blockID)
+		//if err != nil {
+		//	// Error deleting wal doesn't fail the flush
+		//	level.Error(log.Logger).Log("msg", "Error clearing wal", "userID", userID, "blockID", blockID.String(), "err", err)
+		//	metricFailedFlushes.Inc()
+		//}
 
 		metricBlocksFlushed.Inc()
 	} else {
