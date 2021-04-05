@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -46,7 +45,7 @@ func init() {
 	flag.StringVar(&prometheusListenAddress, "prometheus-listen-address", ":80", "The address to listen on for Prometheus scrapes.")
 
 	flag.StringVar(&tempoQueryURL, "tempo-query-url", "", "The URL (scheme://hostname) at which to query Tempo.")
-	flag.StringVar(&tempoPushURL, "tempo-push-url", "", "The URL (scheme://hostname) at which to push traces to Tempo.")
+	flag.StringVar(&tempoPushURL, "tempo-push-url", "", "The URL (scheme://hostname:port) at which to push traces to Tempo.")
 	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
 	flag.DurationVar(&tempoWriteBackoffDuration, "tempo-write-backoff-duration", 15*time.Second, "The amount of time to pause between write Tempo calls")
 	flag.DurationVar(&tempoReadBackoffDuration, "tempo-read-backoff-duration", 30*time.Second, "The amount of time to pause between read Tempo calls")
@@ -135,12 +134,8 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	if err != nil {
 		return nil, err
 	}
-	host, _, err := net.SplitHostPort(u.Host)
-	if err != nil {
-		return nil, err
-	}
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(host+":14250", grpc.WithInsecure())
+	conn, err := grpc.Dial(u.Host+":14250", grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
