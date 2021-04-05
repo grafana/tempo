@@ -81,4 +81,7 @@ replace (
 	github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
 )
 
+// Pin github.com/soheilhy/cmux to control grpc required version.
+// Before v0.1.5 it contained examples in the root folder that imported grpc without a version,
+// and therefore were importing grpc latest (which is problematic because we need <v1.29.1)
 replace github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
