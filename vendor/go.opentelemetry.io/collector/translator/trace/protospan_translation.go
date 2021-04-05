@@ -26,13 +26,6 @@ import (
 
 // Some of the keys used to represent OTLP constructs as tags or annotations in other formats.
 const (
-	AnnotationDescriptionKey = "description"
-
-	MessageEventIDKey               = "message.id"
-	MessageEventTypeKey             = "message.type"
-	MessageEventCompressedSizeKey   = "message.compressed_size"
-	MessageEventUncompressedSizeKey = "message.uncompressed_size"
-
 	TagMessage = "message"
 
 	TagSpanKind = "span.kind"
@@ -59,7 +52,7 @@ const (
 )
 
 // OpenTracingSpanKind are possible values for TagSpanKind and match the OpenTracing
-// conventions: https://github.com/opentracing/specification/blob/master/semantic_conventions.md
+// conventions: https://github.com/opentracing/specification/blob/main/semantic_conventions.md
 // These values are used for representing span kinds that have no
 // equivalents in OpenCensus format. They are stored as values of TagSpanKind
 type OpenTracingSpanKind string
@@ -278,33 +271,27 @@ func jsonMapToAttributeMap(attrs map[string]interface{}, dest pdata.AttributeMap
 func jsonArrayToAttributeArray(jArray []interface{}, dest pdata.AnyValueArray) {
 	for _, val := range jArray {
 		if val == nil {
-			av := pdata.NewAttributeValueNull()
-			dest.Append(av)
+			dest.Append(pdata.NewAttributeValueNull())
 			continue
 		}
 		if s, ok := val.(string); ok {
-			av := pdata.NewAttributeValueString(s)
-			dest.Append(av)
+			dest.Append(pdata.NewAttributeValueString(s))
 		} else if d, ok := val.(float64); ok {
 			if math.Mod(d, 1.0) == 0.0 {
-				av := pdata.NewAttributeValueInt(int64(d))
-				dest.Append(av)
+				dest.Append(pdata.NewAttributeValueInt(int64(d)))
 			} else {
-				av := pdata.NewAttributeValueDouble(d)
-				dest.Append(av)
+				dest.Append(pdata.NewAttributeValueDouble(d))
 			}
 		} else if b, ok := val.(bool); ok {
-			av := pdata.NewAttributeValueBool(b)
-			dest.Append(av)
+			dest.Append(pdata.NewAttributeValueBool(b))
 		} else {
-			av := pdata.NewAttributeValueString("<Invalid array value>")
-			dest.Append(av)
+			dest.Append(pdata.NewAttributeValueString("<Invalid array value>"))
 		}
 	}
 }
 
 // StatusCodeFromHTTP takes an HTTP status code and return the appropriate OpenTelemetry status code
-// See: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/http.md#status
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/http.md#status
 func StatusCodeFromHTTP(httpStatusCode int) pdata.StatusCode {
 	if httpStatusCode >= 100 && httpStatusCode < 399 {
 		return pdata.StatusCodeUnset

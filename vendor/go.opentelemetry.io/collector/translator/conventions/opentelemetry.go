@@ -15,64 +15,67 @@
 package conventions
 
 // OpenTelemetry Semantic Convention values for Resource attribute names.
-// See: https://github.com/open-telemetry/opentelemetry-specification/tree/master/specification/resource/semantic_conventions/README.md
+// See: https://github.com/open-telemetry/opentelemetry-specification/tree/main/specification/resource/semantic_conventions/README.md
 const (
-	AttributeCloudAccount          = "cloud.account.id"
-	AttributeCloudProvider         = "cloud.provider"
-	AttributeCloudRegion           = "cloud.region"
-	AttributeCloudZone             = "cloud.zone"
-	AttributeContainerID           = "container.id"
-	AttributeContainerImage        = "container.image.name"
-	AttributeContainerName         = "container.name"
-	AttributeContainerTag          = "container.image.tag"
-	AttributeDeploymentEnvironment = "deployment.environment"
-	AttributeFaasID                = "faas.id"
-	AttributeFaasInstance          = "faas.instance"
-	AttributeFaasName              = "faas.name"
-	AttributeFaasVersion           = "faas.version"
-	AttributeHostID                = "host.id"
-	AttributeHostImageID           = "host.image.id"
-	AttributeHostImageName         = "host.image.name"
-	AttributeHostImageVersion      = "host.image.version"
-	AttributeHostName              = "host.name"
-	AttributeHostType              = "host.type"
-	AttributeK8sCluster            = "k8s.cluster.name"
-	AttributeK8sContainer          = "k8s.container.name"
-	AttributeK8sCronJob            = "k8s.cronjob.name"
-	AttributeK8sCronJobUID         = "k8s.cronjob.uid"
-	AttributeK8sDaemonSet          = "k8s.daemonset.name"
-	AttributeK8sDaemonSetUID       = "k8s.daemonset.uid"
-	AttributeK8sDeployment         = "k8s.deployment.name"
-	AttributeK8sDeploymentUID      = "k8s.deployment.uid"
-	AttributeK8sJob                = "k8s.job.name"
-	AttributeK8sJobUID             = "k8s.job.uid"
-	AttributeK8sNamespace          = "k8s.namespace.name"
-	AttributeK8sPod                = "k8s.pod.name"
-	AttributeK8sPodUID             = "k8s.pod.uid"
-	AttributeK8sReplicaSet         = "k8s.replicaset.name"
-	AttributeK8sReplicaSetUID      = "k8s.replicaset.uid"
-	AttributeK8sStatefulSet        = "k8s.statefulset.name"
-	AttributeK8sStatefulSetUID     = "k8s.statefulset.uid"
-	AttributeOSType                = "os.type"
-	AttributeOSDescription         = "os.description"
-	AttributeProcessCommand        = "process.command"
-	AttributeProcessCommandLine    = "process.command_line"
-	AttributeProcessExecutableName = "process.executable.name"
-	AttributeProcessExecutablePath = "process.executable.path"
-	AttributeProcessID             = "process.pid"
-	AttributeProcessOwner          = "process.owner"
-	AttributeServiceInstance       = "service.instance.id"
-	AttributeServiceName           = "service.name"
-	AttributeServiceNamespace      = "service.namespace"
-	AttributeServiceVersion        = "service.version"
-	AttributeTelemetryAutoVersion  = "telemetry.auto.version"
-	AttributeTelemetrySDKLanguage  = "telemetry.sdk.language"
-	AttributeTelemetrySDKName      = "telemetry.sdk.name"
-	AttributeTelemetrySDKVersion   = "telemetry.sdk.version"
+	AttributeCloudAccount               = "cloud.account.id"
+	AttributeCloudProvider              = "cloud.provider"
+	AttributeCloudRegion                = "cloud.region"
+	AttributeCloudZone                  = "cloud.zone"
+	AttributeCloudInfrastructureService = "cloud.infrastructure_service"
+	AttributeContainerID                = "container.id"
+	AttributeContainerImage             = "container.image.name"
+	AttributeContainerName              = "container.name"
+	AttributeContainerTag               = "container.image.tag"
+	AttributeDeploymentEnvironment      = "deployment.environment"
+	AttributeFaasID                     = "faas.id"
+	AttributeFaasInstance               = "faas.instance"
+	AttributeFaasName                   = "faas.name"
+	AttributeFaasVersion                = "faas.version"
+	AttributeHostID                     = "host.id"
+	AttributeHostImageID                = "host.image.id"
+	AttributeHostImageName              = "host.image.name"
+	AttributeHostImageVersion           = "host.image.version"
+	AttributeHostName                   = "host.name"
+	AttributeHostType                   = "host.type"
+	AttributeK8sCluster                 = "k8s.cluster.name"
+	AttributeK8sContainer               = "k8s.container.name"
+	AttributeK8sCronJob                 = "k8s.cronjob.name"
+	AttributeK8sCronJobUID              = "k8s.cronjob.uid"
+	AttributeK8sDaemonSet               = "k8s.daemonset.name"
+	AttributeK8sDaemonSetUID            = "k8s.daemonset.uid"
+	AttributeK8sDeployment              = "k8s.deployment.name"
+	AttributeK8sDeploymentUID           = "k8s.deployment.uid"
+	AttributeK8sJob                     = "k8s.job.name"
+	AttributeK8sJobUID                  = "k8s.job.uid"
+	AttributeK8sNamespace               = "k8s.namespace.name"
+	AttributeK8sNodeName                = "k8s.node.name"
+	AttributeK8sNodeUID                 = "k8s.node.uid"
+	AttributeK8sPod                     = "k8s.pod.name"
+	AttributeK8sPodUID                  = "k8s.pod.uid"
+	AttributeK8sReplicaSet              = "k8s.replicaset.name"
+	AttributeK8sReplicaSetUID           = "k8s.replicaset.uid"
+	AttributeK8sStatefulSet             = "k8s.statefulset.name"
+	AttributeK8sStatefulSetUID          = "k8s.statefulset.uid"
+	AttributeOSType                     = "os.type"
+	AttributeOSDescription              = "os.description"
+	AttributeProcessCommand             = "process.command"
+	AttributeProcessCommandLine         = "process.command_line"
+	AttributeProcessExecutableName      = "process.executable.name"
+	AttributeProcessExecutablePath      = "process.executable.path"
+	AttributeProcessID                  = "process.pid"
+	AttributeProcessOwner               = "process.owner"
+	AttributeServiceInstance            = "service.instance.id"
+	AttributeServiceName                = "service.name"
+	AttributeServiceNamespace           = "service.namespace"
+	AttributeServiceVersion             = "service.version"
+	AttributeTelemetryAutoVersion       = "telemetry.auto.version"
+	AttributeTelemetrySDKLanguage       = "telemetry.sdk.language"
+	AttributeTelemetrySDKName           = "telemetry.sdk.name"
+	AttributeTelemetrySDKVersion        = "telemetry.sdk.version"
 )
 
 // OpenTelemetry Semantic Convention values for Resource attribute "telemetry.sdk.language" values.
-// See: https://github.com/open-telemetry/opentelemetry-specification/tree/master/specification/resource/semantic_conventions/README.md
+// See: https://github.com/open-telemetry/opentelemetry-specification/tree/main/specification/resource/semantic_conventions/README.md
 const (
 	AttributeSDKLangValueCPP    = "cpp"
 	AttributeSDKLangValueDotNET = "dotnet"
@@ -87,11 +90,31 @@ const (
 )
 
 // OpenTelemetry Semantic Convention values for Resource attribute "cloud.provider" values.
-// See: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/resource/semantic_conventions/cloud.md
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/resource/semantic_conventions/cloud.md
 const (
 	AttributeCloudProviderAWS   = "aws"
 	AttributeCloudProviderAzure = "azure"
 	AttributeCloudProviderGCP   = "gcp"
+)
+
+// OpenTelemetry Semantic Convention values for Resource attribute "cloud.infrastructure_service" values.
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/resource/semantic_conventions/cloud.md
+const (
+	AttributeCloudProviderAWSEC2                  = "aws_ec2"
+	AttributeCloudProviderAWSECS                  = "aws_ecs"
+	AttributeCloudProviderAWSEKS                  = "aws_eks"
+	AttributeCloudProviderAWSLambda               = "aws_lambda"
+	AttributeCloudProviderAWSElasticBeanstalk     = "aws_elastic_beanstalk"
+	AttributeCloudProviderAzureVM                 = "azure_vm"
+	AttributeCloudProviderAzureContainerInstances = "azure_container_instances"
+	AttributeCloudProviderAzureAKS                = "azure_aks"
+	AttributeCloudProviderAzureFunctions          = "azure_functions"
+	AttributeCloudProviderAzureAppService         = "azure_app_service"
+	AttributeCloudProviderGCPComputeEngine        = "gcp_compute_engine"
+	AttributeCloudProviderGCPCloudRun             = "gcp_cloud_run"
+	AttributeCloudProviderGCPGKE                  = "gcp_gke"
+	AttributeCloudProviderGCPCloudFunctions       = "gcp_cloud_functions"
+	AttributeCloudProviderGCPAppEngine            = "gcp_app_engine"
 )
 
 // GetResourceSemanticConventionAttributeNames a slice with all the Resource Semantic Conventions attribute names.
@@ -101,6 +124,7 @@ func GetResourceSemanticConventionAttributeNames() []string {
 		AttributeCloudProvider,
 		AttributeCloudRegion,
 		AttributeCloudZone,
+		AttributeCloudInfrastructureService,
 		AttributeContainerID,
 		AttributeContainerImage,
 		AttributeContainerName,
@@ -127,6 +151,8 @@ func GetResourceSemanticConventionAttributeNames() []string {
 		AttributeK8sJob,
 		AttributeK8sJobUID,
 		AttributeK8sNamespace,
+		AttributeK8sNodeName,
+		AttributeK8sNodeUID,
 		AttributeK8sPod,
 		AttributeK8sPodUID,
 		AttributeK8sReplicaSet,
@@ -153,7 +179,7 @@ func GetResourceSemanticConventionAttributeNames() []string {
 }
 
 // OpenTelemetry Semantic Convention values for general Span attribute names.
-// See: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/span-general.md
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/span-general.md
 const (
 	AttributeComponent    = "component"
 	AttributeEnduserID    = "enduser.id"
@@ -177,7 +203,7 @@ const (
 )
 
 // OpenTelemetry Semantic Convention attribute names for HTTP related attributes
-// See: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/http.md
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/http.md
 const (
 	AttributeHTTPClientIP                          = "http.client_ip"
 	AttributeHTTPFlavor                            = "http.flavor"
@@ -200,7 +226,7 @@ const (
 )
 
 // OpenTelemetry Semantic Convention attribute names for database related attributes
-// See: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/database.md
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md
 const (
 	AttributeDBConnectionString = "db.connection_string"
 
@@ -219,7 +245,7 @@ const (
 )
 
 // OpenTelemetry Semantic Convention attribute names for gRPC related attributes
-// See: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/rpc.md
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/rpc.md
 const (
 	AttributeMessageCompressedSize   = "message.compressed_size"
 	AttributeMessageID               = "message.id"
@@ -234,7 +260,7 @@ const (
 )
 
 // OpenTelemetry Semantic Convention attribute names for FaaS related attributes
-// See: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/faas.md
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/faas.md
 const (
 	AttributeFaaSCron               = "faas.cron"
 	AttributeFaaSDocumentCollection = "faas.document.collection"
@@ -252,7 +278,7 @@ const (
 )
 
 // OpenTelemetry Semantic Convention attribute names for messaging system related attributes
-// See: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/messaging.md
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/messaging.md
 const (
 	AttributeMessagingConversationID        = "messaging.conversation_id"
 	AttributeMessagingDestination           = "messaging.destination"
@@ -269,7 +295,7 @@ const (
 )
 
 // OpenTelemetry Semantic Convention attribute names for exceptions
-// See: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/semantic_conventions/exceptions.md
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/exceptions.md
 const (
 	AttributeExceptionEventName  = "exception"
 	AttributeExceptionMessage    = "exception.message"

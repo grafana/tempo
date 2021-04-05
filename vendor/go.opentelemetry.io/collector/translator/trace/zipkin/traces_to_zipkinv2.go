@@ -101,11 +101,11 @@ func spanToZipkinSpan(
 
 	zs := &zipkinmodel.SpanModel{}
 
-	if !span.TraceID().IsValid() {
+	if span.TraceID().IsEmpty() {
 		return zs, errors.New("TraceID is invalid")
 	}
 	zs.TraceID = convertTraceID(span.TraceID())
-	if !span.SpanID().IsValid() {
+	if span.SpanID().IsEmpty() {
 		return zs, errors.New("SpanID is invalid")
 	}
 	zs.ID = convertSpanID(span.SpanID())
@@ -114,7 +114,7 @@ func spanToZipkinSpan(
 		tags[tracetranslator.TagW3CTraceState] = string(span.TraceState())
 	}
 
-	if span.ParentSpanID().IsValid() {
+	if !span.ParentSpanID().IsEmpty() {
 		id := convertSpanID(span.ParentSpanID())
 		zs.ParentID = &id
 	}
@@ -137,13 +137,11 @@ func spanToZipkinSpan(
 	removeRedundentTags(redundantKeys, tags)
 
 	status := span.Status()
-	if !status.IsNil() {
-		tags[tracetranslator.TagStatusCode] = status.Code().String()
-		if status.Message() != "" {
-			tags[tracetranslator.TagStatusMsg] = status.Message()
-			if int32(status.Code()) > 0 {
-				zs.Err = fmt.Errorf("%s", status.Message())
-			}
+	tags[tracetranslator.TagStatusCode] = status.Code().String()
+	if status.Message() != "" {
+		tags[tracetranslator.TagStatusMsg] = status.Message()
+		if int32(status.Code()) > 0 {
+			zs.Err = fmt.Errorf("%s", status.Message())
 		}
 	}
 
@@ -349,5 +347,5 @@ func convertTraceID(t pdata.TraceID) zipkinmodel.TraceID {
 }
 
 func convertSpanID(s pdata.SpanID) zipkinmodel.ID {
-	return zipkinmodel.ID(tracetranslator.BytesToUInt64SpanID(s.Bytes()))
+	return zipkinmodel.ID(tracetranslator.SpanIDToUInt64(s))
 }
