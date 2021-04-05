@@ -18,20 +18,6 @@ services:
       options:
         loki-url: 'http://localhost:3100/api/prom/push'
 
-  tempo-query:
-    image: grafana/tempo-query:latest
-    command: ["--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml"]
-    volumes:
-      - ./etc/tempo-query.yaml:/etc/tempo-query.yaml
-    ports:
-      - "16686:16686"  # jaeger-ui
-    depends_on:
-      - tempo
-    logging:
-      driver: loki
-      options:
-        loki-url: 'http://localhost:3100/api/prom/push'
-
   prometheus:
     image: prom/prometheus:latest
     volumes:
@@ -47,7 +33,7 @@ services:
         loki-url: 'http://localhost:3100/api/prom/push'
 
   grafana:
-    image: grafana/grafana:7.4.2
+    image: grafana/grafana:7.5.1
     volumes:
       - ./example-data/datasources:/etc/grafana/provisioning/datasources
       - ./example-data/dashboards-provisioning:/etc/grafana/provisioning/dashboards

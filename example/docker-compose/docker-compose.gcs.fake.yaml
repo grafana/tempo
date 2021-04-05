@@ -22,16 +22,6 @@ services:
       # This creates an empty tempo bucket
       - ./example-data/gcs/tempo/:/data/tempo/
 
-  tempo-query:
-    image: grafana/tempo-query:latest
-    command: ["--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml"]
-    volumes:
-      - ./etc/tempo-query.yaml:/etc/tempo-query.yaml
-    depends_on:
-      - tempo
-    ports:
-      - "16686:16686"  # jaeger-ui
-
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
     volumes:
@@ -53,7 +43,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:7.4.2
+    image: grafana/grafana:7.5.1
     volumes:
       - ./example-data/datasources:/etc/grafana/provisioning/datasources
       - ./example-data/dashboards-provisioning:/etc/grafana/provisioning/dashboards

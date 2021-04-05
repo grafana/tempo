@@ -5,6 +5,7 @@
   This is a **breaking change**, make sure to change the Grafana Datasource endpoint accordingly. [#574](https://github.com/grafana/tempo/pull/574)
 * [CHANGE] `max_spans_per_trace` limit override has been removed in favour of `max_bytes_per_trace`.
   This is a **breaking change** to the overrides config section. [#612](https://github.com/grafana/tempo/pull/612)
+* [CHANGE] Add new flag `-ingester.lifecycler.ID` to manually override the ingester ID with which to register in the ring. [#625](https://github.com/grafana/tempo/pull/625)
 * [FEATURE] Add page based access to the index file. [#557](https://github.com/grafana/tempo/pull/557)
 * [ENHANCEMENT] Add a Shutdown handler to flush data to backend, at "/shutdown". [#526](https://github.com/grafana/tempo/pull/526)
 * [ENHANCEMENT] Queriers now query all (healthy) ingesters for a trace to mitigate 404s on ingester rollouts/scaleups.
@@ -19,6 +20,7 @@
 * [BUGFIX] Fixes issue where wal was deleted before successful flush and adds exponential backoff for flush errors [#593](https://github.com/grafana/tempo/pull/593)
 * [BUGFIX] Fixes issue where Tempo would not parse odd length trace ids [#605](https://github.com/grafana/tempo/pull/605)
 * [BUGFIX] Sort traces on flush to reduce unexpected recombination work by compactors [#606](https://github.com/grafana/tempo/pull/606)
+* [ENHANCEMENT] Add kafka receiver. [#613](https://github.com/grafana/tempo/pull/613)
 
 ## v0.6.0
 
