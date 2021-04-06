@@ -209,7 +209,8 @@ func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner common.Ob
 	return rw.CompleteBlockWithBackend(context.TODO(), block, combiner, rw.r, rw.w)
 }
 
-// CompleteBlock iterates the given WAL block but flushes it to the given backend instead of the default TempoDB backend.
+// CompleteBlock iterates the given WAL block but flushes it to the given backend instead of the default TempoDB backend. The
+// new block will have the same ID as the input block.
 func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner common.ObjectCombiner, r backend.Reader, w backend.Writer) (*encoding.BackendBlock, error) {
 	meta := block.Meta()
 	blockID := meta.BlockID
@@ -227,7 +228,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 	}
 	defer iter.Close()
 
-	compactorBlock, err := encoding.NewCompactorBlock(rw.cfg.Block, blockID, tenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
+	newBlock, err := encoding.NewStreamingBlock(rw.cfg.Block, blockID, tenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating compactor block")
 	}
@@ -243,25 +244,25 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 			break
 		}
 
-		err = compactorBlock.AddObject(id, data)
+		err = newBlock.AddObject(id, data)
 		if err != nil {
 			return nil, errors.Wrap(err, "error adding object to compactor block")
 		}
 
-		if compactorBlock.CurrentBufferLength() > int(flushSize) {
-			tracker, _, err = compactorBlock.FlushBuffer(ctx, tracker, w)
+		if newBlock.CurrentBufferLength() > int(flushSize) {
+			tracker, _, err = newBlock.FlushBuffer(ctx, tracker, w)
 			if err != nil {
 				return nil, errors.Wrap(err, "error flushing compactor block")
 			}
 		}
 	}
 
-	_, err = compactorBlock.Complete(ctx, tracker, w)
+	_, err = newBlock.Complete(ctx, tracker, w)
 	if err != nil {
 		return nil, errors.Wrap(err, "error completing compactor block")
 	}
 
-	backendBlock, err := encoding.NewBackendBlock(compactorBlock.BlockMeta(), r)
+	backendBlock, err := encoding.NewBackendBlock(newBlock.BlockMeta(), r)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating creating backend block")
 	}
