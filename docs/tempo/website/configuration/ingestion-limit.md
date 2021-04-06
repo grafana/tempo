@@ -16,15 +16,15 @@ The following sections describe the available options, per tenant overrides and 
 
 The following options can be used to limit ingestion:
 
-   - `ingestion_burst_size` : Burst size used in span ingestion. Default is `100,000`.
-   - `ingestion_rate_limit` : Per-user ingestion rate limit in spans per second. Default is `100,000`.
+   - `ingestion_burst_size_bytes` : Burst size (bytes) used in ingestion. Default is `20,000,000` (~20MB).
+   - `ingestion_rate_limit_bytes` : Per-user ingestion rate limit (bytes) used in ingestion. Default is `15,000,000` (~15MB).
    - `max_bytes_per_trace` : Maximum size of a single trace in bytes.  `0` to disable. Default is `5,000,000` (~5MB).
    - `max_traces_per_user`: Maximum number of active traces per user, per ingester. `0` to disable. Default is `10,000`.
 
-Both the `ingestion_burst_size` and `ingestion_rate_limit` parameters control the rate limit. When these limits exceed the following message is logged:
+Both the `ingestion_burst_size_bytes` and `ingestion_rate_limit_bytes` parameters control the rate limit. When these limits exceed the following message is logged:
 
 ```
-    RATE_LIMITED: ingestion rate limit (100000 spans) exceeded while adding 10 spans
+    RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
 ```    
 
 When the limit for the `max_bytes_per_trace` parameter exceeds the following message is logged:
@@ -48,8 +48,8 @@ To configure new ingestion limits that applies to all tenants of the cluster:
 
 ```
     overrides:
-        ingestion_burst_size: 50000
-        ingestion_rate_limit: 50000
+        ingestion_burst_size_bytes: 5_000_000
+        ingestion_rate_limit_bytes: 5_000_000
         max_bytes_per_trace: 5_000_000
         max_traces_per_user: 10000 
 ``` 
@@ -73,8 +73,8 @@ Sometimes you don't want all tenants within the cluster to have the same setting
     ```
     overrides:
         "<tenant id>":
-            ingestion_max_batch_size: 5000
-            ingestion_rate_limit: 400000
+            ingestion_burst_size_bytes: 5_000_000
+            ingestion_rate_limit_bytes: 40_000_000
             max_bytes_per_trace: 25_000_000
             max_traces_per_user: 100000
     ```
@@ -85,8 +85,8 @@ This overrides file is dynamically loaded.  It can be changed at runtime and wil
 ```
     overrides:
         "*":
-            ingestion_max_batch_size: 5000
-            ingestion_rate_limit: 400000
+            ingestion_burst_size_bytes: 5_000_000
+            ingestion_rate_limit_bytes: 40_000_000
             max_bytes_per_trace: 25_000_000
             max_traces_per_user: 100000
 ```

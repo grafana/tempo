@@ -14,8 +14,8 @@ distributor:
 overrides:
   max_bytes_per_trace: 100
   max_traces_per_user: 1
-  ingestion_rate_limit: 5
-  ingestion_burst_size: 5
+  ingestion_rate_limit_bytes: 500
+  ingestion_burst_size_bytes: 500
 
 ingester:
   lifecycler:
