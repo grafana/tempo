@@ -13,6 +13,8 @@ binary) and enter the url: `http://<tempo hostname>:<http port number>`. For mos
 
 <p align="center"><img src="../ds75.png" alt="Grafana 7.5.x datasource"></p>  
 
+Note that the port of 3100 is a common port used in our examples. Tempo default for http is 80.
+
 
 ## Grafana 7.4.x
 
