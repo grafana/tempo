@@ -27,7 +27,7 @@ type Backend struct {
 
 func New(cfg *Config) *Backend {
 	return &Backend{
-		tempoEndpoint: "http://" + cfg.Backend + "/tempo/api/traces/",
+		tempoEndpoint: "http://" + cfg.Backend + "/api/traces/",
 	}
 }
 
