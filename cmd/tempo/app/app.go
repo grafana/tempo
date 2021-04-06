@@ -41,9 +41,9 @@ const metricsNamespace = "tempo"
 
 // Config is the root config for App.
 type Config struct {
-	Target      string `yaml:"target,omitempty"`
-	AuthEnabled bool   `yaml:"auth_enabled,omitempty"`
-	HTTPPrefix  string `yaml:"http_prefix"`
+	Target        string `yaml:"target,omitempty"`
+	AuthEnabled   bool   `yaml:"auth_enabled,omitempty"`
+	HTTPAPIPrefix string `yaml:"http_api_prefix"`
 
 	Server         server.Config          `yaml:"server,omitempty"`
 	Distributor    distributor.Config     `yaml:"distributor,omitempty"`
@@ -63,6 +63,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// global settings
 	f.StringVar(&c.Target, "target", All, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
+	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 
 	// Server settings
 	flagext.DefaultValues(&c.Server)

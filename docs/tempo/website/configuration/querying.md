@@ -9,9 +9,11 @@ and help you set up your datasources appropriately.
 ## Grafana 7.5.x (easy mode)
 
 Grafana 7.5.x is able to query Tempo directly. Point the Grafana datasource at your Tempo query frontend (or single 
-binary) and enter the url: `http://<tempo hostname>:<http port number>/tempo`. For most of [our examples](https://github.com/grafana/tempo/tree/master/example/docker-compose) the following works.
+binary) and enter the url: `http://<tempo hostname>:<http port number>`. For most of [our examples](https://github.com/grafana/tempo/tree/master/example/docker-compose) the following works.
 
 <p align="center"><img src="../ds75.png" alt="Grafana 7.5.x datasource"></p>  
+
+Note that the port of 3100 is a common port used in our examples. Tempo default for http is 80.
 
 
 ## Grafana 7.4.x

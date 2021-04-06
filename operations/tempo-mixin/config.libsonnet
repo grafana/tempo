@@ -1,5 +1,6 @@
 {
   _config+:: {
+    http_api_prefix: '',
     jobs: {
       gateway: 'cortex-gw',
       query_frontend: 'query-frontend',

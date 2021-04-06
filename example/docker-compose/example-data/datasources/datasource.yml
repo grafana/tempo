@@ -18,7 +18,7 @@ datasources:
   type: tempo
   access: proxy
   orgId: 1
-  url: http://tempo:3100/tempo
+  url: http://tempo:3100
   basicAuth: false
   isDefault: false
   version: 1
@@ -29,7 +29,7 @@ datasources:
   type: tempo
   access: proxy
   orgId: 1
-  url: http://tempo/tempo
+  url: http://tempo
   basicAuth: false
   isDefault: false
   version: 1
