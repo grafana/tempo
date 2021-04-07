@@ -37,13 +37,12 @@ func New(c *Config) (*WAL, error) {
 		return nil, err
 	}
 
+	// The /completed/ folder is now obsolete and no new data is written,
+	// but it needs to be cleared out one last time for any files left
+	// from a previous version.
 	if c.CompletedFilepath == "" {
 		completedFilepath := filepath.Join(c.Filepath, completedDir)
 		err = os.RemoveAll(completedFilepath)
-		if err != nil {
-			return nil, err
-		}
-		err = os.MkdirAll(completedFilepath, os.ModePerm)
 		if err != nil {
 			return nil, err
 		}

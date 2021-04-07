@@ -183,7 +183,9 @@ func TestAppend(t *testing.T) {
 	}
 }*/
 
-func TestWorkDir(t *testing.T) {
+func TestCompletedDirIsRemoved(t *testing.T) {
+	// Create /completed/testfile and verify it is removed.
+
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
@@ -200,12 +202,7 @@ func TestWorkDir(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating temp wal")
 
 	_, err = os.Stat(path.Join(tempDir, completedDir))
-	assert.NoError(t, err, "work folder should exist")
-
-	files, err := ioutil.ReadDir(path.Join(tempDir, completedDir))
-	assert.NoError(t, err, "unexpected reading work dir")
-
-	assert.Len(t, files, 0, "work dir should be empty")
+	assert.Error(t, err, "completedDir should not exist")
 }
 
 func BenchmarkWriteRead(b *testing.B) {
