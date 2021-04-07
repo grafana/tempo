@@ -49,9 +49,6 @@ type Ingester struct {
 	lifecycler *ring.Lifecycler
 	store      storage.Store
 	local      *local.Backend
-	//localReader    backend.Reader
-	//localWriter    backend.Writer
-	//localCompactor backend.Compactor
 
 	flushQueues     *flushqueues.ExclusiveQueues
 	flushQueuesDone sync.WaitGroup

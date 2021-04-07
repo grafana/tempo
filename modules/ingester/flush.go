@@ -174,63 +174,17 @@ func (i *Ingester) flushLoop(j int) {
 		op := o.(*flushOp)
 		op.attempts++
 
-		retry := false
+		var retry bool
+		var err error
 
 		if op.kind == opKindComplete {
-			// No point in proceeding if shutdown has been initiated since
-			// we won't be able to queue up the next flush op
-			if i.flushQueues.IsStopped() {
-				handleAbandonedOp(op)
-				continue
-			}
-
-			level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID)
-			instance, err := i.getOrCreateInstance(op.userID)
-			if err != nil {
-				handleFailedOp(op, err)
-				continue
-			}
-
-			err = instance.CompleteBlock(op.blockID)
-			if err != nil {
-				handleFailedOp(op, err)
-
-				if op.attempts >= maxCompleteAttempts {
-					level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "Block exceeded max completion errors. Deleting. POSSIBLE DATA LOSS",
-						"userID", op.userID, "attempts", op.attempts, "block", op.blockID.String())
-
-					err = instance.ClearCompletingBlock(op.blockID)
-					if err != nil {
-						// Failure to delete the WAL doesn't prevent flushing the block
-						handleFailedOp(op, err)
-					}
-				} else {
-					retry = true
-				}
-			} else {
-				err = instance.ClearCompletingBlock(op.blockID)
-				if err != nil {
-					err = errors.Wrap(err, "error clearing completing block")
-					handleFailedOp(op, err)
-				} else {
-					// add a flushOp for the block we just completed
-					// No delay
-					i.enqueue(&flushOp{
-						kind:    opKindFlush,
-						userID:  instance.instanceID,
-						blockID: op.blockID,
-					}, false)
-				}
-			}
-
+			retry, err = i.handleComplete(op)
 		} else {
-			level.Info(log.Logger).Log("msg", "flushing block", "userid", op.userID, "block", op.blockID.String())
+			retry, err = i.handleFlush(op.userID, op.blockID)
+		}
 
-			err := i.flushBlock(op.userID, op.blockID)
-			if err != nil {
-				handleFailedOp(op, err)
-				retry = true
-			}
+		if err != nil {
+			handleFailedOp(op, err)
 		}
 
 		if retry {
@@ -252,14 +206,62 @@ func handleAbandonedOp(op *flushOp) {
 		"op", op.kind, "block", op.blockID.String(), "attempts", op.attempts)
 }
 
-func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
+func (i *Ingester) handleComplete(op *flushOp) (retry bool, err error) {
+	// No point in proceeding if shutdown has been initiated since
+	// we won't be able to queue up the next flush op
+	if i.flushQueues.IsStopped() {
+		handleAbandonedOp(op)
+		return false, nil
+	}
+
+	level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID)
+	instance, err := i.getOrCreateInstance(op.userID)
+	if err != nil {
+		return false, err
+	}
+
+	err = instance.CompleteBlock(op.blockID)
+	if err != nil {
+		handleFailedOp(op, err)
+
+		if op.attempts >= maxCompleteAttempts {
+			level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "Block exceeded max completion errors. Deleting. POSSIBLE DATA LOSS",
+				"userID", op.userID, "attempts", op.attempts, "block", op.blockID.String())
+
+			// Delete WAL and move on
+			err = instance.ClearCompletingBlock(op.blockID)
+			return false, err
+		}
+
+		return true, nil
+	}
+
+	err = instance.ClearCompletingBlock(op.blockID)
+	if err != nil {
+		return false, errors.Wrap(err, "error clearing completing block")
+	}
+
+	// add a flushOp for the block we just completed
+	// No delay
+	i.enqueue(&flushOp{
+		kind:    opKindFlush,
+		userID:  instance.instanceID,
+		blockID: op.blockID,
+	}, false)
+
+	return false, nil
+}
+
+func (i *Ingester) handleFlush(userID string, blockID uuid.UUID) (retry bool, err error) {
+	level.Info(log.Logger).Log("msg", "flushing block", "userid", userID, "block", blockID.String())
+
 	instance, err := i.getOrCreateInstance(userID)
 	if err != nil {
-		return err
+		return true, err
 	}
 
 	if instance == nil {
-		return fmt.Errorf("instance id %s not found", userID)
+		return false, fmt.Errorf("instance id %s not found", userID)
 	}
 
 	if block := instance.GetBlockToBeFlushed(blockID); block != nil {
@@ -271,23 +273,15 @@ func (i *Ingester) flushBlock(userID string, blockID uuid.UUID) error {
 		err = i.store.WriteBlock(ctx, block)
 		metricFlushDuration.Observe(time.Since(start).Seconds())
 		if err != nil {
-			return err
+			return true, err
 		}
-
-		// Delete original wal only after successful flush
-		//err = instance.ClearCompletingBlock(blockID)
-		//if err != nil {
-		//	// Error deleting wal doesn't fail the flush
-		//	level.Error(log.Logger).Log("msg", "Error clearing wal", "userID", userID, "blockID", blockID.String(), "err", err)
-		//	metricFailedFlushes.Inc()
-		//}
 
 		metricBlocksFlushed.Inc()
 	} else {
-		return fmt.Errorf("error getting block to flush")
+		return false, fmt.Errorf("error getting block to flush")
 	}
 
-	return nil
+	return false, nil
 }
 
 func (i *Ingester) enqueue(op *flushOp, jitter bool) {
