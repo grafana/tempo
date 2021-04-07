@@ -24,7 +24,7 @@ List of protocols and their default ports:
 
 |  Protocol    |   Port  |
 |  ---         |   ---   |
-|  OpenTelemetry  | 55680 |  # Grafana Agent uses this.
+|  OpenTelemetry  | 4317 |
 |  Jaeger - Thrift Compact | 6831 |  # Jaeger Golang client uses this when used with JAEGER_AGENT_HOST & JAEGER_AGENT_PORT
 |  Jaeger - Thrift Binary |  6832  |
 |  Jaeger - Thrift HTTP |  14268 |  # Jaeger Golang client uses this when used with JAEGER_ENDPOINT
@@ -46,7 +46,10 @@ docker run -d --rm -p 6831:6831/udp --name tempo -v $(pwd)/tempo-local.yaml:/etc
 ```
 docker run -d --rm -p 3000:3000 \
     --network docker-tempo \
-    grafana/grafana:7.5.1
+    -e GF_AUTH_ANONYMOUS_ENABLED=true \
+    -e GF_AUTH_ANONYMOUS_ORG_ROLE=Admin \
+    -e GF_AUTH_DISABLE_LOGIN_FORM=true \
+    grafana/grafana:7.5.2
 ```
 
 Make sure the UI is accessible at http://localhost:3000.
@@ -58,16 +61,18 @@ Next, configure the tempo datasource in Grafana.
 
 ## Step 3: Send traces from the application to Tempo
 
-Depending on the client SDK used for instrumentation, the parameters to configure might be different. The following example shows configuration parameters for applications instrumented with the [Jaeger Golang Client](https://github.com/jaegertracing/jaeger-client-go).
+Depending on the client SDK used for instrumentation, the parameters to configure might be different.
+The following example shows configuration parameters for applications instrumented with the [Jaeger Golang Client](https://github.com/jaegertracing/jaeger-client-go).
 
 Set the following environment variables for the application -
 
 ```
-JAEGER_AGENT_HOST=localhost              # or 'tempo' if running the application with docker
+JAEGER_AGENT_HOST=localhost     # or 'tempo' if running the application with docker
 JAEGER_AGENT_PORT=6831
 ```
 
 For a complete list of SDKs, visit the [OpenTelemetry Registry](https://opentelemetry.io/registry/?s=sdk).
+Some SDKs (for ex: .NET, Java) also have support for autoinstrumentation.
 
 ## Step 4: Query for traces
 
