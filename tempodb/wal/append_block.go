@@ -8,7 +8,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 // these values should never be used.  these dummy values can help detect
@@ -21,13 +20,16 @@ const appendBlockEncoding = backend.EncNone
 // in the order it was received and an in memory sorted index.
 type AppendBlock struct {
 	block
+	encoding encoding.VersionedEncoding
 
 	appendFile *os.File
 	appender   encoding.Appender
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
+	v, _ := encoding.EncodingByVersion("v0")
 	h := &AppendBlock{
+		encoding: v,
 		block: block{
 			meta:     backend.NewBlockMeta(tenantID, id, appendBlockVersion, appendBlockEncoding),
 			filepath: filepath,
@@ -41,7 +43,12 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 		return nil, err
 	}
 	h.appendFile = f
-	h.appender = encoding.NewAppender(v0.NewDataWriter(f))
+
+	dataWriter, err := h.encoding.NewDataWriter(f, appendBlockEncoding)
+	if err != nil {
+		return nil, err
+	}
+	h.appender = encoding.NewAppender(dataWriter)
 
 	return h, nil
 }
@@ -82,7 +89,7 @@ func (h *AppendBlock) Complete(cfg *encoding.BlockConfig, w *WAL, combiner commo
 		return nil, err
 	}
 
-	iterator := encoding.NewRecordIterator(records, readFile, v0.NewObjectReaderWriter())
+	iterator := encoding.NewRecordIterator(records, readFile, h.encoding.NewObjectReaderWriter())
 	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
 		return nil, err
@@ -104,9 +111,12 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 
-	dataReader := v0.NewDataReader(backend.NewContextReaderWithAllReader(file))
+	dataReader, err := h.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), appendBlockEncoding)
+	if err != nil {
+		return nil, err
+	}
 	defer dataReader.Close()
-	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, v0.NewObjectReaderWriter())
+	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, h.encoding.NewObjectReaderWriter())
 
 	return finder.Find(context.Background(), id)
 }

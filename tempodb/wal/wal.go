@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -66,18 +65,12 @@ func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
 			continue
 		}
 
-		name := f.Name()
-		blockID, tenantID, err := parseFilename(name)
+		r, err := NewReplayBlock(f.Name(), w.c.Filepath)
 		if err != nil {
 			return nil, err
 		}
 
-		blocks = append(blocks, &ReplayBlock{
-			block: block{
-				meta:     backend.NewBlockMeta(tenantID, blockID, appendBlockVersion, appendBlockEncoding),
-				filepath: w.c.Filepath,
-			},
-		})
+		blocks = append(blocks, r)
 	}
 
 	return blocks, nil
