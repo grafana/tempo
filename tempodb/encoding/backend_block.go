@@ -135,7 +135,7 @@ func (b *BackendBlock) Reader() backend.Reader {
 	return b.reader
 }
 
-func (b *BackendBlock) Write(ctx context.Context, r backend.ReaderReader, w backend.Writer) error {
+func (b *BackendBlock) Write(ctx context.Context, r backend.Reader, w backend.Writer) error {
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
 
