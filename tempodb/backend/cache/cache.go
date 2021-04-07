@@ -61,7 +61,7 @@ func (r *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID,
 	return val, err
 }
 
-func (rw *readerWriter) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+func (r *readerWriter) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
 	panic("ReadReader is not yet supported for cache")
 }
 

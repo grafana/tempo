@@ -34,7 +34,7 @@ func (m *MockReader) Read(ctx context.Context, name string, blockID uuid.UUID, t
 	return m.R, nil
 }
 
-func (rw *MockReader) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+func (m *MockReader) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
 	panic("ReadReader is not yet supported for mock reader")
 }
 
