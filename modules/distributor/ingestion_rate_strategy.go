@@ -21,11 +21,11 @@ func newLocalIngestionRateStrategy(limits *overrides.Overrides) limiter.RateLimi
 }
 
 func (s *localStrategy) Limit(userID string) float64 {
-	return s.limits.IngestionRateSpans(userID)
+	return s.limits.IngestionRateLimitBytes(userID)
 }
 
 func (s *localStrategy) Burst(userID string) int {
-	return s.limits.IngestionBurstSize(userID)
+	return s.limits.IngestionBurstSizeBytes(userID)
 }
 
 type globalStrategy struct {
@@ -44,14 +44,14 @@ func (s *globalStrategy) Limit(userID string) float64 {
 	numDistributors := s.ring.HealthyInstancesCount()
 
 	if numDistributors == 0 {
-		return s.limits.IngestionRateSpans(userID)
+		return s.limits.IngestionRateLimitBytes(userID)
 	}
 
-	return s.limits.IngestionRateSpans(userID) / float64(numDistributors)
+	return s.limits.IngestionRateLimitBytes(userID) / float64(numDistributors)
 }
 
 func (s *globalStrategy) Burst(userID string) int {
 	// The meaning of burst doesn't change for the global strategy, in order
 	// to keep it easier to understand for users / operators.
-	return s.limits.IngestionBurstSize(userID)
+	return s.limits.IngestionBurstSizeBytes(userID)
 }

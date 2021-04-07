@@ -23,9 +23,9 @@ const (
 // limits via flags, or per-user limits via yaml config.
 type Limits struct {
 	// Distributor enforced limits.
-	IngestionRateStrategy string `yaml:"ingestion_rate_strategy"`
-	IngestionRateSpans    int    `yaml:"ingestion_rate_limit"`
-	IngestionBurstSize    int    `yaml:"ingestion_burst_size"`
+	IngestionRateStrategy   string `yaml:"ingestion_rate_strategy"`
+	IngestionRateLimitBytes int    `yaml:"ingestion_rate_limit_bytes"`
+	IngestionBurstSizeBytes int    `yaml:"ingestion_burst_size_bytes"`
 
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user"`
@@ -44,8 +44,8 @@ type Limits struct {
 func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	// Distributor Limits
 	f.StringVar(&l.IngestionRateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
-	f.IntVar(&l.IngestionRateSpans, "distributor.ingestion-rate-limit", 100000, "Per-user ingestion rate limit in spans per second.")
-	f.IntVar(&l.IngestionBurstSize, "distributor.ingestion-burst-size", 150000, "Per-user ingestion burst size in spans. Should be set to at least the number of spans expected in a single push request.")
+	f.IntVar(&l.IngestionRateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
+	f.IntVar(&l.IngestionBurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")
 
 	// Ingester limits
 	f.IntVar(&l.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")
