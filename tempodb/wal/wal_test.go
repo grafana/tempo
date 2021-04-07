@@ -114,7 +114,11 @@ func TestAppend(t *testing.T) {
 	records := block.appender.Records()
 	file, err := block.file()
 	assert.NoError(t, err)
-	iterator := encoding.NewRecordIterator(records, file, block.encoding.NewObjectReaderWriter())
+
+	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), appendBlockEncoding)
+	assert.NoError(t, err)
+	iterator := encoding.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
+	defer iterator.Close()
 	i := 0
 
 	for {

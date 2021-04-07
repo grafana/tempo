@@ -14,7 +14,7 @@ import (
 // if they leak elsewhere.  append blocks are not versioned and do not
 // support different encodings
 const appendBlockVersion = "append"
-const appendBlockEncoding = backend.EncNone
+const appendBlockEncoding = backend.EncNone // jpe make configurable
 
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
 // in the order it was received and an in memory sorted index.
@@ -27,7 +27,7 @@ type AppendBlock struct {
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
-	v, _ := encoding.EncodingByVersion("v0")
+	v, _ := encoding.EncodingByVersion("v2")
 	h := &AppendBlock{
 		encoding: v,
 		block: block{
@@ -90,7 +90,12 @@ func (h *AppendBlock) Complete(cfg *encoding.BlockConfig, w *WAL, combiner commo
 		return nil, err
 	}
 
-	iterator := encoding.NewRecordIterator(records, readFile, h.encoding.NewObjectReaderWriter())
+	dataReader, err := h.encoding.NewDataReader(backend.NewContextReaderWithAllReader(readFile), appendBlockEncoding)
+	if err != nil {
+		return nil, err
+	}
+
+	iterator := encoding.NewRecordIterator(records, dataReader, h.encoding.NewObjectReaderWriter())
 	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
 		return nil, err
