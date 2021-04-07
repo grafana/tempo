@@ -74,9 +74,9 @@ func (c *LocalBlock) SetFlushed(ctx context.Context) error {
 }
 
 func (c *LocalBlock) Write(ctx context.Context, w backend.Writer) error {
-	err := c.BackendBlock.Write(ctx, c.local, w)
+	err := encoding.CopyBlock(ctx, c.BackendBlock.BlockMeta(), c.local, w)
 	if err != nil {
-		return errors.Wrap(err, "error writing backend block")
+		return errors.Wrap(err, "error copying block from local to remote backend")
 	}
 
 	err = c.SetFlushed(ctx)

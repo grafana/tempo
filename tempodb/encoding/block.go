@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -56,4 +57,44 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 // appendBlockData appends the bytes passed to the block data
 func appendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	return w.Append(ctx, nameObjects, meta.BlockID, meta.TenantID, tracker, buffer)
+}
+
+// CopyBlock copies a block from one backend to another.   It is done at a low level, all encoding/formatting is preserved.
+func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader, dest backend.Writer) error {
+	blockID := meta.BlockID
+	tenantID := meta.TenantID
+
+	copy := func(name string) error {
+		reader, size, err := src.ReadReader(ctx, name, blockID, tenantID)
+		if err != nil {
+			return errors.Wrapf(err, "error reading %s", name)
+		}
+		defer reader.Close()
+
+		return dest.WriteReader(ctx, name, blockID, tenantID, reader, size)
+	}
+
+	// Data
+	err := copy(nameObjects)
+	if err != nil {
+		return err
+	}
+
+	// Bloom
+	for i := 0; i < common.GetShardNum(); i++ {
+		err = copy(bloomName(i))
+		if err != nil {
+			return err
+		}
+	}
+
+	// Index
+	err = copy(nameIndex)
+	if err != nil {
+		return err
+	}
+
+	// Meta
+	err = dest.WriteBlockMeta(ctx, meta)
+	return err
 }
