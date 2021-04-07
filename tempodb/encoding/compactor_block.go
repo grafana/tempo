@@ -44,7 +44,7 @@ func NewCompactorBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
-	dataWriter, err := c.encoding.newDataWriter(c.appendBuffer, cfg.Encoding)
+	dataWriter, err := c.encoding.NewDataWriter(c.appendBuffer, cfg.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create page writer: %w", err)
 	}
@@ -115,7 +115,7 @@ func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	records := c.appender.Records()
 	meta := c.BlockMeta()
 
-	indexWriter := c.encoding.newIndexWriter(c.cfg.IndexPageSizeBytes)
+	indexWriter := c.encoding.NewIndexWriter(c.cfg.IndexPageSizeBytes)
 	indexBytes, err := indexWriter.Write(records)
 	if err != nil {
 		return 0, err

@@ -301,7 +301,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	require.NoError(b, err)
 	pr, err := v2.NewDataReader(v0.NewDataReader(backend.NewContextReaderWithAllReader(file)), encoding)
 	require.NoError(b, err)
-	iterator = newPagedIterator(10*1024*1024, common.Records(cb.records), pr, backendBlock.encoding.newObjectReaderWriter())
+	iterator = newPagedIterator(10*1024*1024, common.Records(cb.records), pr, backendBlock.encoding.NewObjectReaderWriter())
 
 	for {
 		id, _, err := iterator.Next(context.Background())

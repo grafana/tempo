@@ -44,7 +44,7 @@ func testDataWriterReader(t *testing.T, v VersionedEncoding, e backend.Encoding)
 
 	for _, tc := range tests {
 		buff := bytes.NewBuffer([]byte{})
-		dataWriter, err := v.newDataWriter(buff, e)
+		dataWriter, err := v.NewDataWriter(buff, e)
 		require.NoError(t, err)
 
 		_, err = dataWriter.Write([]byte{0x01}, tc.readerBytes)
@@ -57,7 +57,7 @@ func testDataWriterReader(t *testing.T, v VersionedEncoding, e backend.Encoding)
 		require.NoError(t, err)
 
 		reader := bytes.NewReader(buff.Bytes())
-		dataReader, err := v.newDataReader(backend.NewContextReaderWithAllReader(reader), e)
+		dataReader, err := v.NewDataReader(backend.NewContextReaderWithAllReader(reader), e)
 		require.NoError(t, err)
 		defer dataReader.Close()
 
@@ -70,7 +70,7 @@ func testDataWriterReader(t *testing.T, v VersionedEncoding, e backend.Encoding)
 		require.NoError(t, err)
 		require.Len(t, actual, 1)
 
-		i := NewIterator(bytes.NewReader(actual[0]), v.newObjectReaderWriter())
+		i := NewIterator(bytes.NewReader(actual[0]), v.NewObjectReaderWriter())
 		defer i.Close()
 
 		id, obj, err := i.Next(context.Background())

@@ -68,20 +68,20 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	}
 
 	indexReaderAt := backend.NewContextReader(b.meta, nameIndex, b.reader)
-	indexReader, err := b.encoding.newIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
+	indexReader, err := b.encoding.NewIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
 	if err != nil {
 		return nil, fmt.Errorf("error building index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
 	ra := backend.NewContextReader(b.meta, nameObjects, b.reader)
-	dataReader, err := b.encoding.newDataReader(ra, b.meta.Encoding)
+	dataReader, err := b.encoding.NewDataReader(ra, b.meta.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("error building page reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 	defer dataReader.Close()
 
 	// passing nil for objectCombiner here.  this is fine b/c a backend block should never have dupes
-	finder := NewPagedFinder(indexReader, dataReader, nil, b.encoding.newObjectReaderWriter())
+	finder := NewPagedFinder(indexReader, dataReader, nil, b.encoding.NewObjectReaderWriter())
 	objectBytes, err := finder.Find(ctx, id)
 
 	if err != nil {
@@ -95,7 +95,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 	// read index
 	ra := backend.NewContextReader(b.meta, nameObjects, b.reader)
-	dataReader, err := b.encoding.newDataReader(ra, b.meta.Encoding)
+	dataReader, err := b.encoding.NewDataReader(ra, b.meta.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dataReader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
@@ -105,12 +105,12 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 		return nil, err
 	}
 
-	return newPagedIterator(chunkSizeBytes, reader, dataReader, b.encoding.newObjectReaderWriter()), nil
+	return newPagedIterator(chunkSizeBytes, reader, dataReader, b.encoding.NewObjectReaderWriter()), nil
 }
 
 func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
 	indexReaderAt := backend.NewContextReader(b.meta, nameIndex, b.reader)
-	reader, err := b.encoding.newIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
+	reader, err := b.encoding.NewIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}

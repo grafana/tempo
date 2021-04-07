@@ -49,7 +49,7 @@ func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iter
 	}
 	defer appendFile.Close()
 
-	dataWriter, err := c.encoding.newDataWriter(appendFile, cfg.Encoding)
+	dataWriter, err := c.encoding.NewDataWriter(appendFile, cfg.Encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (c *CompleteBlock) Write(ctx context.Context, w backend.Writer) error {
 		return err
 	}
 
-	indexWriter := c.encoding.newIndexWriter(c.cfg.IndexPageSizeBytes)
+	indexWriter := c.encoding.NewIndexWriter(c.cfg.IndexPageSizeBytes)
 	indexBytes, err := indexWriter.Write(c.records)
 	if err != nil {
 		return err
@@ -148,13 +148,13 @@ func (c *CompleteBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]by
 		return nil, err
 	}
 
-	dataReader, err := c.encoding.newDataReader(backend.NewContextReaderWithAllReader(file), c.meta.Encoding)
+	dataReader, err := c.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), c.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	defer dataReader.Close()
 
-	finder := NewPagedFinder(common.Records(c.records), dataReader, combiner, c.encoding.newObjectReaderWriter())
+	finder := NewPagedFinder(common.Records(c.records), dataReader, combiner, c.encoding.NewObjectReaderWriter())
 	return finder.Find(context.Background(), id)
 }
 
