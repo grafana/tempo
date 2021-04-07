@@ -48,6 +48,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 	if err != nil {
 		return nil, err
 	}
+
 	h.appender = encoding.NewAppender(dataWriter)
 
 	return h, nil

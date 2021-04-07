@@ -13,7 +13,7 @@ type ReplayBlock struct {
 }
 
 func NewReplayBlock(filename string, path string) (*ReplayBlock, error) {
-	v, _ := encoding.EncodingByVersion("v1") // jpe :(
+	v, _ := encoding.EncodingByVersion("v0") // jpe
 
 	blockID, tenantID, err := parseFilename(filename)
 	if err != nil {
