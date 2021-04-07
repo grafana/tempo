@@ -11,15 +11,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestEncodingByVersionErrors(t *testing.T) {
+	encoding, err := EncodingByVersion("definitely-not-a-real-version")
+	assert.Error(t, err)
+	assert.Nil(t, encoding)
+}
+
 func TestAllVersions(t *testing.T) {
 	for _, v := range allEncodings() {
+		encoding, err := EncodingByVersion(v.Version())
+
+		require.Equal(t, v.Version(), encoding.Version())
+		require.NoError(t, err)
+
 		for _, e := range backend.SupportedEncoding {
 			testDataWriterReader(t, v, e)
 		}
 	}
 }
 
-func testDataWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding) {
+func testDataWriterReader(t *testing.T, v VersionedEncoding, e backend.Encoding) {
 	tests := []struct {
 		readerBytes []byte
 	}{

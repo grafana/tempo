@@ -11,7 +11,7 @@ import (
 )
 
 type CompactorBlock struct {
-	encoding versionedEncoding
+	encoding VersionedEncoding
 
 	compactedMeta *backend.BlockMeta
 	inMetas       []*backend.BlockMeta
@@ -36,7 +36,7 @@ func NewCompactorBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 	}
 
 	c := &CompactorBlock{
-		encoding:      latestEncoding(),
+		encoding:      LatestEncoding(),
 		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding),
 		bloom:         common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
 		inMetas:       metas,

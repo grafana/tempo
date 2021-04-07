@@ -14,7 +14,7 @@ import (
 
 // BackendBlock represents a block already in the backend.
 type BackendBlock struct {
-	encoding versionedEncoding
+	encoding VersionedEncoding
 
 	meta   *backend.BlockMeta
 	reader backend.Reader
@@ -23,17 +23,9 @@ type BackendBlock struct {
 // NewBackendBlock returns a BackendBlock for the given backend.BlockMeta
 //  It is version aware.
 func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, error) {
-	var encoding versionedEncoding
-
-	switch meta.Version {
-	case "v0":
-		encoding = v0Encoding{}
-	case "v1":
-		encoding = v1Encoding{}
-	case "v2":
-		encoding = v2Encoding{}
-	default:
-		return nil, fmt.Errorf("%s is not a valid block version", meta.Version)
+	encoding, err := EncodingByVersion(meta.Version)
+	if err != nil {
+		return nil, err
 	}
 
 	return &BackendBlock{

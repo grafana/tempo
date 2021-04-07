@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -12,24 +13,12 @@ import (
 
 const currentVersion = "v2"
 
-// latestEncoding is used by Compactor and Complete block
-func latestEncoding() versionedEncoding {
-	return v2Encoding{}
-}
-
-// allEncodings returns all encodings
-func allEncodings() []versionedEncoding {
-	return []versionedEncoding{
-		v0Encoding{},
-		v1Encoding{},
-		v2Encoding{},
-	}
-}
-
-// versionedEncoding has a whole bunch of versioned functionality.  This is
+// VersionedEncoding has a whole bunch of versioned functionality.  This is
 //  currently quite sloppy and could easily be tightened up to just a few methods
 //  but it is what it is for now!
-type versionedEncoding interface {
+type VersionedEncoding interface {
+	Version() string
+
 	newDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWriter, error)
 	newIndexWriter(pageSizeBytes int) common.IndexWriter
 
@@ -40,9 +29,40 @@ type versionedEncoding interface {
 	newRecordReaderWriter() common.RecordReaderWriter
 }
 
+// EncodingByVersion returns a versioned encoding for the provided string
+func EncodingByVersion(v string) (VersionedEncoding, error) {
+	switch v {
+	case "v0":
+		return v0Encoding{}, nil
+	case "v1":
+		return v1Encoding{}, nil
+	case "v2":
+		return v2Encoding{}, nil
+	}
+
+	return nil, fmt.Errorf("%s is not a valid block version", v)
+}
+
+// LatestEncoding is used by Compactor and Complete block
+func LatestEncoding() VersionedEncoding {
+	return v2Encoding{}
+}
+
+// allEncodings returns all encodings
+func allEncodings() []VersionedEncoding {
+	return []VersionedEncoding{
+		v0Encoding{},
+		v1Encoding{},
+		v2Encoding{},
+	}
+}
+
 // v0Encoding
 type v0Encoding struct{}
 
+func (v v0Encoding) Version() string {
+	return "v0"
+}
 func (v v0Encoding) newIndexWriter(pageSizeBytes int) common.IndexWriter {
 	return v0.NewIndexWriter()
 }
@@ -65,6 +85,9 @@ func (v v0Encoding) newRecordReaderWriter() common.RecordReaderWriter {
 // v1Encoding
 type v1Encoding struct{}
 
+func (v v1Encoding) Version() string {
+	return "v1"
+}
 func (v v1Encoding) newIndexWriter(pageSizeBytes int) common.IndexWriter {
 	return v1.NewIndexWriter()
 }
@@ -87,6 +110,9 @@ func (v v1Encoding) newRecordReaderWriter() common.RecordReaderWriter {
 // v2Encoding
 type v2Encoding struct{}
 
+func (v v2Encoding) Version() string {
+	return "v2"
+}
 func (v v2Encoding) newIndexWriter(pageSizeBytes int) common.IndexWriter {
 	return v2.NewIndexWriter(pageSizeBytes)
 }

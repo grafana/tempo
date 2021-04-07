@@ -17,7 +17,7 @@ import (
 // A CompleteBlock also knows the filepath of the append wal file it was cut from.  It is responsible for
 // cleaning this block up once it has been flushed to the backend.
 type CompleteBlock struct {
-	encoding versionedEncoding
+	encoding VersionedEncoding
 
 	meta    *backend.BlockMeta
 	bloom   *common.ShardedBloomFilter
@@ -35,7 +35,7 @@ type CompleteBlock struct {
 // NewCompleteBlock creates a new block and takes _ALL_ the parameters necessary to build the ordered, deduped file on disk
 func NewCompleteBlock(cfg *BlockConfig, originatingMeta *backend.BlockMeta, iterator Iterator, estimatedObjects int, filepath string) (*CompleteBlock, error) {
 	c := &CompleteBlock{
-		encoding: latestEncoding(),
+		encoding: LatestEncoding(),
 		meta:     backend.NewBlockMeta(originatingMeta.TenantID, originatingMeta.BlockID, currentVersion, cfg.Encoding),
 		bloom:    common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
 		records:  make([]*common.Record, 0),
