@@ -108,6 +108,12 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 		return 0, err
 	}
 
+	// close data file
+	err = w.CloseAppend(ctx, tracker)
+	if err != nil {
+		return 0, err
+	}
+
 	records := c.appender.Records()
 	meta := c.BlockMeta()
 
@@ -120,12 +126,7 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	meta.TotalRecords = uint32(len(records)) // casting
 	meta.IndexPageSize = uint32(c.cfg.IndexPageSizeBytes)
 
-	err = writeBlockMeta(ctx, w, meta, indexBytes, c.bloom)
-	if err != nil {
-		return 0, err
-	}
-
-	return bytesFlushed, w.CloseAppend(ctx, tracker)
+	return bytesFlushed, writeBlockMeta(ctx, w, meta, indexBytes, c.bloom)
 }
 
 func (c *StreamingBlock) BlockMeta() *backend.BlockMeta {
