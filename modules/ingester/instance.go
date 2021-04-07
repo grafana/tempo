@@ -59,7 +59,7 @@ type instance struct {
 	blocksMtx        sync.RWMutex
 	headBlock        *wal.AppendBlock
 	completingBlocks []*wal.AppendBlock
-	completeBlocks   []*LocalBlock
+	completeBlocks   []*wal.LocalBlock
 
 	lastBlockCut time.Time
 
@@ -191,7 +191,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 		return errors.Wrap(err, "error completing wal block with local backend")
 	}
 
-	ingesterBlock, err := NewIngesterBlock(ctx, backendBlock, i.local)
+	ingesterBlock, err := wal.NewLocalBlock(ctx, backendBlock, i.local)
 	if err != nil {
 		return errors.Wrap(err, "error creating ingester block")
 	}
@@ -224,7 +224,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend
-func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *LocalBlock {
+func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *wal.LocalBlock {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
@@ -441,7 +441,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 			return err
 		}
 
-		ib, err := NewIngesterBlock(ctx, b, i.local)
+		ib, err := wal.NewLocalBlock(ctx, b, i.local)
 		if err != nil {
 			return err
 		}

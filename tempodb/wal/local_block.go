@@ -1,4 +1,4 @@
-package ingester
+package wal
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -14,7 +13,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// LocalBlock is a block stored in the ingester's local storage.  It can be searched and flushed to the remote backend.
+// LocalBlock is a block stored in a local storage.  It can be searched and flushed to a remote backend, and
+// permanently tracks the flushed time with a special file in the block
 type LocalBlock struct {
 	encoding.BackendBlock
 	local *local.Backend
@@ -22,9 +22,7 @@ type LocalBlock struct {
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
 }
 
-var _ tempodb.WriteableBlock = (*LocalBlock)(nil)
-
-func NewIngesterBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l *local.Backend) (*LocalBlock, error) {
+func NewLocalBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l *local.Backend) (*LocalBlock, error) {
 
 	c := &LocalBlock{
 		BackendBlock: *existingBlock,

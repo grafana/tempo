@@ -42,7 +42,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 
 // Write implements backend.Writer
 func (rw *Backend) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
-	return rw.WriteReader(ctx, name, blockID, tenantID, bytes.NewBuffer(buffer), 0)
+	return rw.WriteReader(ctx, name, blockID, tenantID, bytes.NewBuffer(buffer), int64(len(buffer)))
 }
 
 // WriteReader implements backend.Writer
