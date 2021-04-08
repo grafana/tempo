@@ -34,7 +34,8 @@ func TestFullFilename(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, tc.b.fullFilename())
+			actual := tc.b.fullFilename()
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
