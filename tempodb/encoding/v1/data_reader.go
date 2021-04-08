@@ -69,3 +69,8 @@ func (r *dataReader) Close() {
 		r.pool.PutReader(r.compressedReader)
 	}
 }
+
+// NextPage implements common.DataReader (kind of)
+func (r *dataReader) NextPage() ([]byte, error) {
+	return nil, common.ErrUnsupported
+}

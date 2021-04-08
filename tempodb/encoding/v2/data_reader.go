@@ -32,6 +32,7 @@ func NewDataReader(r common.DataReader, encoding backend.Encoding) (common.DataR
 	return v1DataReader, nil
 }
 
+// Read implements common.DataReader
 func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
 	v0Pages, err := r.dataReader.Read(ctx, records)
 	if err != nil {
@@ -53,4 +54,9 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]by
 
 func (r *dataReader) Close() {
 	r.dataReader.Close()
+}
+
+// NextPage implements common.DataReader (kind of)
+func (r *dataReader) NextPage() ([]byte, error) {
+	return nil, common.ErrUnsupported // jpe add support
 }

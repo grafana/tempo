@@ -26,7 +26,7 @@ type AppendBlock struct {
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
-	v := encoding.LatestEncoding()
+	v := encoding.LatestEncoding() // jpe get to work with latest encoding
 
 	h := &AppendBlock{
 		encoding: v,

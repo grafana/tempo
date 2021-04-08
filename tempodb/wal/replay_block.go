@@ -28,7 +28,7 @@ func NewReplayBlock(filename string, path string) (*ReplayBlock, error) {
 			meta:     backend.NewBlockMeta(tenantID, blockID, version, e),
 			filepath: path,
 		},
-		encoding: v, // jpe actually get the right one
+		encoding: v,
 	}, nil
 }
 
@@ -39,7 +39,12 @@ func (r *ReplayBlock) Iterator() (encoding.Iterator, error) {
 		return nil, err
 	}
 
-	return encoding.NewIterator(f, r.encoding.NewObjectReaderWriter()), nil
+	dataReader, err := r.encoding.NewDataReader(backend.NewContextReaderWithAllReader(f), r.meta.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	return encoding.NewWALIterator(dataReader, r.encoding.NewObjectReaderWriter()), nil
 }
 
 func (r *ReplayBlock) TenantID() string {
