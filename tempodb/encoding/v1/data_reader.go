@@ -72,5 +72,5 @@ func (r *dataReader) Close() {
 
 // NextPage implements common.DataReader (kind of)
 func (r *dataReader) NextPage() ([]byte, error) {
-	return nil, common.ErrUnsupported
+	return nil, common.ErrUnsupported // v1 can never support this b/c the pages don't have any header information attached. v1 data blocks can only be accessed by record
 }
