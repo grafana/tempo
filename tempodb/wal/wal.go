@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/google/uuid"
 )
@@ -78,22 +77,4 @@ func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
 	return newAppendBlock(id, tenantID, w.c.Filepath)
-}
-
-func parseFilename(name string) (uuid.UUID, string, error) {
-	i := strings.Index(name, ":")
-
-	if i < 0 {
-		return uuid.UUID{}, "", fmt.Errorf("unable to parse %s", name)
-	}
-
-	blockIDString := name[:i]
-	tenantID := name[i+1:]
-
-	blockID, err := uuid.Parse(blockIDString)
-	if err != nil {
-		return uuid.UUID{}, "", err
-	}
-
-	return blockID, tenantID, nil
 }

@@ -27,7 +27,7 @@ type AppendBlock struct {
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
-	v, _ := encoding.EncodingByVersion("v2")
+	v, _ := encoding.EncodingByVersion("v2") // jpe check error? get the right one
 	h := &AppendBlock{
 		encoding: v,
 		block: block{

@@ -3,8 +3,11 @@ package wal
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -17,7 +20,7 @@ type block struct {
 }
 
 func (b *block) fullFilename() string {
-	return fmt.Sprintf("%s/%v:%v", b.filepath, b.meta.BlockID, b.meta.TenantID)
+	return filepath.Join(b.filepath, fmt.Sprintf("%v:%v", b.meta.BlockID, b.meta.TenantID))
 }
 
 func (b *block) file() (*os.File, error) {
@@ -31,4 +34,26 @@ func (b *block) file() (*os.File, error) {
 	})
 
 	return b.readFile, err
+}
+
+func parseFilename(name string) (uuid.UUID, string, error) {
+	i := strings.Index(name, ":")
+
+	if i < 0 {
+		return uuid.UUID{}, "", fmt.Errorf("unable to parse %s. no colon", name)
+	}
+
+	blockIDString := name[:i]
+	tenantID := name[i+1:]
+
+	blockID, err := uuid.Parse(blockIDString)
+	if err != nil {
+		return uuid.UUID{}, "", err
+	}
+
+	if len(tenantID) == 0 {
+		return uuid.UUID{}, "", fmt.Errorf("unable to parse %s. empty tenant", name)
+	}
+
+	return blockID, tenantID, nil
 }

@@ -15,7 +15,7 @@ type ReplayBlock struct {
 func NewReplayBlock(filename string, path string) (*ReplayBlock, error) {
 	v, _ := encoding.EncodingByVersion("v2") // jpe - derps mcgurps, iterate over datareader?
 
-	blockID, tenantID, err := parseFilename(filename)
+	blockID, tenantID, err := parseFilename(filename) // jpe add version/encoding here
 	if err != nil {
 		return nil, err
 	}
