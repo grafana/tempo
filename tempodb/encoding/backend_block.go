@@ -129,7 +129,3 @@ func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
 func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }
-
-func (b *BackendBlock) Reader() backend.Reader {
-	return b.reader
-}

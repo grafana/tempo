@@ -67,23 +67,18 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingeste
 		flushQueues: flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
 	}
 
-	l, err := local.NewBackend(&local.Config{
-		Path: store.WAL().BlocksFilePath(),
-	})
-	if err != nil {
-		return nil, err
-	}
-	i.local = l
+	i.local = store.WAL().LocalBackend()
 
 	i.flushQueuesDone.Add(cfg.ConcurrentFlushes)
 	for j := 0; j < cfg.ConcurrentFlushes; j++ {
 		go i.flushLoop(j)
 	}
 
-	i.lifecycler, err = ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, prometheus.DefaultRegisterer)
+	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %w", err)
 	}
+	i.lifecycler = lc
 
 	// Now that the lifecycler has been created, we can create the limiter
 	// which depends on it.

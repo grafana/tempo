@@ -13,6 +13,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const nameFlushed = "flushed"
+
 // LocalBlock is a block stored in a local storage.  It can be searched and flushed to a remote backend, and
 // permanently tracks the flushed time with a special file in the block
 type LocalBlock struct {
@@ -29,7 +31,7 @@ func NewLocalBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l 
 		local:        l,
 	}
 
-	flushedBytes, err := existingBlock.Reader().Read(ctx, "flushed", c.BlockMeta().BlockID, c.BlockMeta().TenantID)
+	flushedBytes, err := l.Read(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID)
 	if err == nil {
 		flushedTime := time.Time{}
 		err = flushedTime.UnmarshalText(flushedBytes)
@@ -62,7 +64,7 @@ func (c *LocalBlock) SetFlushed(ctx context.Context) error {
 		return errors.Wrap(err, "error marshalling flush time to text")
 	}
 
-	err = c.local.Write(ctx, "flushed", c.BlockMeta().BlockID, c.BlockMeta().TenantID, flushedBytes)
+	err = c.local.Write(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID, flushedBytes)
 	if err != nil {
 		return errors.Wrap(err, "error writing ingester block flushed file")
 	}
@@ -72,7 +74,7 @@ func (c *LocalBlock) SetFlushed(ctx context.Context) error {
 }
 
 func (c *LocalBlock) Write(ctx context.Context, w backend.Writer) error {
-	err := encoding.CopyBlock(ctx, c.BackendBlock.BlockMeta(), c.local, w)
+	err := encoding.CopyBlock(ctx, c.BlockMeta(), c.local, w)
 	if err != nil {
 		return errors.Wrap(err, "error copying block from local to remote backend")
 	}

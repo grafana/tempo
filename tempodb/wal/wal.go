@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
 const (
@@ -18,6 +19,7 @@ const (
 
 type WAL struct {
 	c *Config
+	l *local.Backend
 }
 
 type Config struct {
@@ -50,18 +52,24 @@ func New(c *Config) (*WAL, error) {
 		c.CompletedFilepath = completedFilepath
 	}
 
-	if c.BlocksFilepath == "" {
-		p := filepath.Join(c.Filepath, blocksDir)
-		err = os.MkdirAll(p, os.ModePerm)
-		if err != nil {
-			return nil, err
-		}
+	// Setup local backend in /blocks/
+	p := filepath.Join(c.Filepath, blocksDir)
+	err = os.MkdirAll(p, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	c.BlocksFilepath = p
 
-		c.BlocksFilepath = p
+	l, err := local.NewBackend(&local.Config{
+		Path: p,
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return &WAL{
 		c: c,
+		l: l,
 	}, nil
 }
 
@@ -98,8 +106,8 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
 	return newAppendBlock(id, tenantID, w.c.Filepath)
 }
 
-func (w *WAL) BlocksFilePath() string {
-	return w.c.BlocksFilepath
+func (w *WAL) LocalBackend() *local.Backend {
+	return w.l
 }
 
 func parseFilename(name string) (uuid.UUID, string, error) {
