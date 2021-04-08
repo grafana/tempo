@@ -251,7 +251,6 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
-			//err = b.Clear() // todo: don't remove from complete blocks slice until after clear succeeds?
 			err = i.local.ClearBlock(b.BlockMeta().BlockID, i.instanceID)
 			if err == nil {
 				metricBlocksClearedTotal.Inc()

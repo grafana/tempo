@@ -86,9 +86,6 @@ func TestDB(t *testing.T) {
 	_, err = w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 
-	//err = w.WriteBlock(context.Background(), complete)
-	//assert.NoError(t, err)
-
 	// poll
 	r.(*readerWriter).pollBlocklist()
 
@@ -152,9 +149,6 @@ func TestBlockSharding(t *testing.T) {
 	// write block to backend
 	_, err = w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
-
-	//err = w.WriteBlock(context.Background(), complete)
-	//assert.NoError(t, err)
 
 	// poll
 	r.(*readerWriter).pollBlocklist()
@@ -253,9 +247,6 @@ func TestBlockCleanup(t *testing.T) {
 
 	_, err = w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
-
-	//err = w.WriteBlock(context.Background(), complete)
-	//assert.NoError(t, err)
 
 	rw := r.(*readerWriter)
 
@@ -967,6 +958,66 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(bFound[0], out)
+		assert.NoError(t, err)
+
+		assert.True(t, proto.Equal(out, reqs[i]))
+	}
+}
+
+func TestCompleteBlock(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	assert.NoError(t, err, "unexpected error creating temp dir")
+
+	_, w, _, err := New(&Config{
+		Backend: "local",
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &encoding.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: time.Minute,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	wal := w.WAL()
+
+	blockID := uuid.New()
+
+	block, err := wal.NewBlock(blockID, testTenantID)
+	assert.NoError(t, err, "unexpected error creating block")
+
+	numMsgs := 100
+	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
+	ids := make([][]byte, 0, numMsgs)
+	for i := 0; i < numMsgs; i++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+		req := test.MakeRequest(rand.Int()%1000, id)
+		reqs = append(reqs, req)
+		ids = append(ids, id)
+		bReq, err := proto.Marshal(req)
+		assert.NoError(t, err)
+		err = block.Write(id, bReq)
+		assert.NoError(t, err, "unexpected error writing req")
+	}
+
+	complete, err := w.CompleteBlock(block, &mockSharder{})
+	require.NoError(t, err, "unexpected error completing block")
+
+	for i, id := range ids {
+		out := &tempopb.PushRequest{}
+		foundBytes, err := complete.Find(context.TODO(), id)
+		assert.NoError(t, err)
+
+		err = proto.Unmarshal(foundBytes, out)
 		assert.NoError(t, err)
 
 		assert.True(t, proto.Equal(out, reqs[i]))

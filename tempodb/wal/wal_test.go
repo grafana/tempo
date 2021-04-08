@@ -134,55 +134,6 @@ func TestAppend(t *testing.T) {
 	assert.Equal(t, numMsgs, i)
 }
 
-/*func TestAppendBlockComplete(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	wal, err := New(&Config{
-		Filepath: tempDir,
-	})
-	assert.NoError(t, err, "unexpected error creating temp wal")
-
-	blockID := uuid.New()
-
-	block, err := wal.NewBlock(blockID, testTenantID)
-	assert.NoError(t, err, "unexpected error creating block")
-
-	numMsgs := 100
-	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
-	ids := make([][]byte, 0, numMsgs)
-	for i := 0; i < numMsgs; i++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-		req := test.MakeRequest(rand.Int()%1000, id)
-		reqs = append(reqs, req)
-		ids = append(ids, id)
-		bReq, err := proto.Marshal(req)
-		assert.NoError(t, err)
-		err = block.Write(id, bReq)
-		assert.NoError(t, err, "unexpected error writing req")
-	}
-
-	complete, err := block.Complete(&encoding.BlockConfig{
-		IndexDownsampleBytes: 13,
-		BloomFP:              .01,
-		Encoding:             backend.EncGZIP,
-	}, wal, &mockCombiner{})
-	assert.NoError(t, err, "unexpected error completing block")
-
-	for i, id := range ids {
-		out := &tempopb.PushRequest{}
-		foundBytes, err := complete.Find(id, &mockCombiner{})
-		assert.NoError(t, err)
-
-		err = proto.Unmarshal(foundBytes, out)
-		assert.NoError(t, err)
-
-		assert.True(t, proto.Equal(out, reqs[i]))
-	}
-}*/
-
 func TestCompletedDirIsRemoved(t *testing.T) {
 	// Create /completed/testfile and verify it is removed.
 
