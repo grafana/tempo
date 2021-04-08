@@ -36,24 +36,36 @@ func (b *block) file() (*os.File, error) {
 	return b.readFile, err
 }
 
-func parseFilename(name string) (uuid.UUID, string, error) {
-	i := strings.Index(name, ":")
+func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, error) {
+	splits := strings.Split(name, ":")
 
-	if i < 0 {
-		return uuid.UUID{}, "", fmt.Errorf("unable to parse %s. no colon", name)
+	if len(splits) != 2 && len(splits) != 4 {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. unexpected number of segments", name)
 	}
 
-	blockIDString := name[:i]
-	tenantID := name[i+1:]
+	blockIDString := splits[0]
+	tenantID := splits[1]
+
+	version := "v0"
+	encodingString := backend.EncNone.String()
+	if len(splits) == 4 {
+		version = splits[2]
+		encodingString = splits[3]
+	}
 
 	blockID, err := uuid.Parse(blockIDString)
 	if err != nil {
-		return uuid.UUID{}, "", err
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. error parsing uuid: %w", name, err)
 	}
 
-	if len(tenantID) == 0 {
-		return uuid.UUID{}, "", fmt.Errorf("unable to parse %s. empty tenant", name)
+	encoding, err := backend.ParseEncoding(encodingString)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. error parsing encoding: %w", name, err)
 	}
 
-	return blockID, tenantID, nil
+	if len(tenantID) == 0 || len(version) == 0 {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. missing fields", name)
+	}
+
+	return blockID, tenantID, version, encoding, nil
 }

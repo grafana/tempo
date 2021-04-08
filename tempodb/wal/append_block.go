@@ -13,7 +13,6 @@ import (
 // these values should never be used.  these dummy values can help detect
 // if they leak elsewhere.  append blocks are not versioned and do not
 // support different encodings
-const appendBlockVersion = "append"
 const appendBlockEncoding = backend.EncNone // jpe make configurable
 
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
@@ -27,11 +26,12 @@ type AppendBlock struct {
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
-	v, _ := encoding.EncodingByVersion("v2") // jpe check error? get the right one
+	v := encoding.LatestEncoding()
+
 	h := &AppendBlock{
 		encoding: v,
 		block: block{
-			meta:     backend.NewBlockMeta(tenantID, id, appendBlockVersion, appendBlockEncoding),
+			meta:     backend.NewBlockMeta(tenantID, id, v.Version(), appendBlockEncoding),
 			filepath: filepath,
 		},
 	}
