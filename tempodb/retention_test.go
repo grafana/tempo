@@ -1,7 +1,6 @@
 package tempodb
 
 import (
-	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -59,9 +58,6 @@ func TestRetention(t *testing.T) {
 	complete, err := w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 	blockID = complete.BlockMeta().BlockID
-
-	err = w.WriteBlock(context.Background(), complete)
-	assert.NoError(t, err)
 
 	rw := r.(*readerWriter)
 	// poll

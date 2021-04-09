@@ -9,19 +9,23 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
 const (
 	completedDir = "completed"
+	blocksDir    = "blocks"
 )
 
 type WAL struct {
 	c *Config
+	l *local.Backend
 }
 
 type Config struct {
 	Filepath          string `yaml:"path"`
 	CompletedFilepath string
+	BlocksFilepath    string
 }
 
 func New(c *Config) (*WAL, error) {
@@ -35,13 +39,12 @@ func New(c *Config) (*WAL, error) {
 		return nil, err
 	}
 
+	// The /completed/ folder is now obsolete and no new data is written,
+	// but it needs to be cleared out one last time for any files left
+	// from a previous version.
 	if c.CompletedFilepath == "" {
 		completedFilepath := filepath.Join(c.Filepath, completedDir)
 		err = os.RemoveAll(completedFilepath)
-		if err != nil {
-			return nil, err
-		}
-		err = os.MkdirAll(completedFilepath, os.ModePerm)
 		if err != nil {
 			return nil, err
 		}
@@ -49,8 +52,24 @@ func New(c *Config) (*WAL, error) {
 		c.CompletedFilepath = completedFilepath
 	}
 
+	// Setup local backend in /blocks/
+	p := filepath.Join(c.Filepath, blocksDir)
+	err = os.MkdirAll(p, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	c.BlocksFilepath = p
+
+	l, err := local.NewBackend(&local.Config{
+		Path: p,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	return &WAL{
 		c: c,
+		l: l,
 	}, nil
 }
 
@@ -85,6 +104,10 @@ func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
 	return newAppendBlock(id, tenantID, w.c.Filepath)
+}
+
+func (w *WAL) LocalBackend() *local.Backend {
+	return w.l
 }
 
 func parseFilename(name string) (uuid.UUID, string, error) {

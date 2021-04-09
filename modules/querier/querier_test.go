@@ -91,10 +91,7 @@ func TestReturnAllHits(t *testing.T) {
 		err = head.Write(testTraceID, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 
-		complete, err := w.CompleteBlock(head, &mockSharder{})
-		assert.NoError(t, err)
-
-		err = w.WriteBlock(context.Background(), complete)
+		_, err = w.CompleteBlock(head, &mockSharder{})
 		assert.NoError(t, err)
 	}
 

@@ -53,6 +53,8 @@ const (
 	outputBlocks = 1
 
 	compactionCycle = 30 * time.Second
+
+	DefaultFlushSizeBytes uint32 = 30 * 1024 * 1024 // 30 MiB
 )
 
 // todo: pass a context/chan in to cancel this cleanly
@@ -167,7 +169,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	recordsPerBlock := (totalRecords / outputBlocks)
 	var newCompactedBlocks []*backend.BlockMeta
-	var currentBlock *encoding.CompactorBlock
+	var currentBlock *encoding.StreamingBlock
 	var tracker backend.AppendTracker
 
 	for !allDone(ctx, bookmarks) {
@@ -208,7 +210,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 		// make a new block if necessary
 		if currentBlock == nil {
-			currentBlock, err = encoding.NewCompactorBlock(rw.cfg.Block, uuid.New(), tenantID, blockMetas, recordsPerBlock)
+			currentBlock, err = encoding.NewStreamingBlock(rw.cfg.Block, uuid.New(), tenantID, blockMetas, recordsPerBlock)
 			if err != nil {
 				return errors.Wrap(err, "error making new compacted block")
 			}
@@ -259,7 +261,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	return nil
 }
 
-func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.CompactorBlock) (backend.AppendTracker, error) {
+func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.StreamingBlock) (backend.AppendTracker, error) {
 	compactionLevelLabel := strconv.Itoa(int(block.BlockMeta().CompactionLevel - 1))
 	metricCompactionObjectsWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferedObjects()))
 
@@ -272,7 +274,7 @@ func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *encodin
 	return tracker, nil
 }
 
-func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.CompactorBlock) error {
+func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.StreamingBlock) error {
 	level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", block.BlockMeta()))
 
 	bytesFlushed, err := block.Complete(context.TODO(), tracker, rw.w)

@@ -27,7 +27,7 @@ func TestCurrentClear(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	require.NoError(t, err, "unexpected error creating temp dir")
 
-	r, w, c, err := New(&Config{
+	_, w, c, err := New(&Config{
 		Backend: "local",
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
@@ -73,13 +73,7 @@ func TestCurrentClear(t *testing.T) {
 	complete, err := w.CompleteBlock(head, &mockSharder{})
 	assert.NoError(t, err)
 
-	err = w.WriteBlock(context.Background(), complete)
-	assert.NoError(t, err)
-
-	rw := r.(*readerWriter)
-	block, err := encoding.NewBackendBlock(complete.BlockMeta(), rw.r)
-	assert.NoError(t, err)
-	iter, err := block.Iterator(10)
+	iter, err := complete.Iterator(10)
 	assert.NoError(t, err)
 	bm := newBookmark(iter)
 

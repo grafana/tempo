@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type CompactorBlock struct {
+type StreamingBlock struct {
 	encoding versionedEncoding
 
 	compactedMeta *backend.BlockMeta
@@ -25,17 +25,13 @@ type CompactorBlock struct {
 	cfg *BlockConfig
 }
 
-// NewCompactorBlock creates a ... new compactor block!
-func NewCompactorBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*CompactorBlock, error) {
+// NewStreamingBlock creates a ... new streaming block. Objects are appended one at a time to the backend.
+func NewStreamingBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*StreamingBlock, error) {
 	if len(metas) == 0 {
 		return nil, fmt.Errorf("empty block meta list")
 	}
 
-	if estimatedObjects <= 0 {
-		return nil, fmt.Errorf("must have non-zero positive estimated objects for a reliable bloom filter")
-	}
-
-	c := &CompactorBlock{
+	c := &StreamingBlock{
 		encoding:      latestEncoding(),
 		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding),
 		bloom:         common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
@@ -57,7 +53,7 @@ func NewCompactorBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 	return c, nil
 }
 
-func (c *CompactorBlock) AddObject(id common.ID, object []byte) error {
+func (c *StreamingBlock) AddObject(id common.ID, object []byte) error {
 	err := c.appender.Append(id, object)
 	if err != nil {
 		return err
@@ -68,20 +64,20 @@ func (c *CompactorBlock) AddObject(id common.ID, object []byte) error {
 	return nil
 }
 
-func (c *CompactorBlock) CurrentBufferLength() int {
+func (c *StreamingBlock) CurrentBufferLength() int {
 	return c.appendBuffer.Len()
 }
 
-func (c *CompactorBlock) CurrentBufferedObjects() int {
+func (c *StreamingBlock) CurrentBufferedObjects() int {
 	return c.bufferedObjects
 }
 
-func (c *CompactorBlock) Length() int {
+func (c *StreamingBlock) Length() int {
 	return c.appender.Length()
 }
 
 // FlushBuffer flushes any existing objects to the backend
-func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (backend.AppendTracker, int, error) {
+func (c *StreamingBlock) FlushBuffer(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (backend.AppendTracker, int, error) {
 	if c.appender.Length() == 0 {
 		return tracker, 0, nil
 	}
@@ -100,7 +96,7 @@ func (c *CompactorBlock) FlushBuffer(ctx context.Context, tracker backend.Append
 }
 
 // Complete finishes writes the compactor metadata and closes all buffers and appenders
-func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (int, error) {
+func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTracker, w backend.Writer) (int, error) {
 	err := c.appender.Complete()
 	if err != nil {
 		return 0, err
@@ -108,6 +104,12 @@ func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTra
 
 	// one final flush
 	tracker, bytesFlushed, err := c.FlushBuffer(ctx, tracker, w)
+	if err != nil {
+		return 0, err
+	}
+
+	// close data file
+	err = w.CloseAppend(ctx, tracker)
 	if err != nil {
 		return 0, err
 	}
@@ -124,15 +126,10 @@ func (c *CompactorBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	meta.TotalRecords = uint32(len(records)) // casting
 	meta.IndexPageSize = uint32(c.cfg.IndexPageSizeBytes)
 
-	err = writeBlockMeta(ctx, w, meta, indexBytes, c.bloom)
-	if err != nil {
-		return 0, err
-	}
-
-	return bytesFlushed, w.CloseAppend(ctx, tracker)
+	return bytesFlushed, writeBlockMeta(ctx, w, meta, indexBytes, c.bloom)
 }
 
-func (c *CompactorBlock) BlockMeta() *backend.BlockMeta {
+func (c *StreamingBlock) BlockMeta() *backend.BlockMeta {
 	meta := c.compactedMeta
 
 	meta.StartTime = c.inMetas[0].StartTime

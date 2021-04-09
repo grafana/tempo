@@ -114,11 +114,11 @@ func TestCompaction(t *testing.T) {
 		allReqs = append(allReqs, reqs...)
 		allIds = append(allIds, ids...)
 
-		complete, err := w.CompleteBlock(head, &mockSharder{})
+		_, err = w.CompleteBlock(head, &mockSharder{})
 		assert.NoError(t, err)
 
-		err = w.WriteBlock(context.Background(), complete)
-		assert.NoError(t, err)
+		//err = w.WriteBlock(context.Background(), complete)
+		//assert.NoError(t, err)
 	}
 
 	rw := r.(*readerWriter)
@@ -227,10 +227,7 @@ func TestSameIDCompaction(t *testing.T) {
 		err = head.Write(id, rec)
 		assert.NoError(t, err, "unexpected error writing req")
 
-		complete, err := w.CompleteBlock(head, &mockSharder{})
-		assert.NoError(t, err)
-
-		err = w.WriteBlock(context.Background(), complete)
+		_, err = w.CompleteBlock(head, &mockSharder{})
 		assert.NoError(t, err)
 	}
 
@@ -473,10 +470,7 @@ func cutTestBlocks(t *testing.T, w Writer, tenantID string, blockCount int, reco
 			assert.NoError(t, err, "unexpected error writing rec")
 		}
 
-		complete, err := w.CompleteBlock(head, &mockSharder{})
-		assert.NoError(t, err)
-
-		err = w.WriteBlock(context.Background(), complete)
+		_, err = w.CompleteBlock(head, &mockSharder{})
 		assert.NoError(t, err)
 	}
 }

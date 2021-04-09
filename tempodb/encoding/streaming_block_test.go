@@ -18,7 +18,7 @@ const (
 )
 
 func TestCompactorBlockError(t *testing.T) {
-	_, err := NewCompactorBlock(nil, uuid.New(), "", nil, 0)
+	_, err := NewStreamingBlock(nil, uuid.New(), "", nil, 0)
 	assert.Error(t, err)
 }
 
@@ -37,7 +37,7 @@ func TestCompactorBlockAddObject(t *testing.T) {
 	}
 
 	numObjects := (rand.Int() % 20) + 1
-	cb, err := NewCompactorBlock(&BlockConfig{
+	cb, err := NewStreamingBlock(&BlockConfig{
 		BloomFP:              .01,
 		IndexDownsampleBytes: indexDownsample,
 		Encoding:             backend.EncGZIP,

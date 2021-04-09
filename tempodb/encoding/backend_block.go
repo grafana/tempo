@@ -125,3 +125,7 @@ func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
 
 	return reader, nil
 }
+
+func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
+	return b.meta
+}

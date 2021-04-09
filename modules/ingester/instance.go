@@ -22,6 +22,8 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -57,7 +59,7 @@ type instance struct {
 	blocksMtx        sync.RWMutex
 	headBlock        *wal.AppendBlock
 	completingBlocks []*wal.AppendBlock
-	completeBlocks   []*encoding.CompleteBlock
+	completeBlocks   []*wal.LocalBlock
 
 	lastBlockCut time.Time
 
@@ -66,11 +68,12 @@ type instance struct {
 	bytesWrittenTotal  prometheus.Counter
 	limiter            *Limiter
 	writer             tempodb.Writer
+	local              *local.Backend
 
 	hash hash.Hash32
 }
 
-func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
 		traces: map[uint32]*trace{},
 
@@ -79,6 +82,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer) (*i
 		bytesWrittenTotal:  metricBytesWrittenTotal.WithLabelValues(instanceID),
 		limiter:            limiter,
 		writer:             writer,
+		local:              l,
 
 		hash: fnv.New32(),
 	}
@@ -180,16 +184,20 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 		return fmt.Errorf("error finding completingBlock")
 	}
 
-	// potentially long running operation placed outside blocksMtx
-	completeBlock, err := i.writer.CompleteBlock(completingBlock, i)
+	ctx := context.Background()
+
+	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, i, i.local, i.local)
 	if err != nil {
-		metricFailedFlushes.Inc()
-		level.Error(log.Logger).Log("msg", "unable to complete block.", "tenantID", i.instanceID, "err", err)
-		return err
+		return errors.Wrap(err, "error completing wal block with local backend")
+	}
+
+	ingesterBlock, err := wal.NewLocalBlock(ctx, backendBlock, i.local)
+	if err != nil {
+		return errors.Wrap(err, "error creating ingester block")
 	}
 
 	i.blocksMtx.Lock()
-	i.completeBlocks = append(i.completeBlocks, completeBlock)
+	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
 	i.blocksMtx.Unlock()
 
 	return nil
@@ -216,7 +224,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend
-func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *encoding.CompleteBlock {
+func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *wal.LocalBlock {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
@@ -243,7 +251,7 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
-			err = b.Clear() // todo: don't remove from complete blocks slice until after clear succeeds?
+			err = i.local.ClearBlock(b.BlockMeta().BlockID, i.instanceID)
 			if err == nil {
 				metricBlocksClearedTotal.Inc()
 			}
@@ -291,7 +299,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 
 	// completeBlock
 	for _, c := range i.completeBlocks {
-		foundBytes, err = c.Find(id, i)
+		foundBytes, err = c.Find(context.TODO(), id)
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
 		}
@@ -403,4 +411,46 @@ func pushRequestTraceID(req *tempopb.PushRequest) ([]byte, error) {
 	}
 
 	return req.Batch.InstrumentationLibrarySpans[0].Spans[0].TraceId, nil
+}
+
+func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
+	ids, err := i.local.Blocks(ctx, i.instanceID)
+	if err != nil {
+		return err
+	}
+
+	for _, id := range ids {
+		meta, err := i.local.BlockMeta(ctx, id, i.instanceID)
+		if err != nil {
+			if err == backend.ErrMetaDoesNotExist {
+				// Partial/incomplete block found, remove, it will be recreated from data in the wal.
+				level.Warn(log.Logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "tenant", i.instanceID, "block", id.String())
+				err = i.local.ClearBlock(id, i.instanceID)
+				if err != nil {
+					return errors.Wrapf(err, "deleting bad local block tenant %v block %v", i.instanceID, id.String())
+				}
+				continue
+			}
+
+			return err
+		}
+
+		b, err := encoding.NewBackendBlock(meta, i.local)
+		if err != nil {
+			return err
+		}
+
+		ib, err := wal.NewLocalBlock(ctx, b, i.local)
+		if err != nil {
+			return err
+		}
+
+		i.blocksMtx.Lock()
+		i.completeBlocks = append(i.completeBlocks, ib)
+		i.blocksMtx.Unlock()
+
+		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())
+	}
+
+	return nil
 }
