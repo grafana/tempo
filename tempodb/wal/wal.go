@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -18,8 +19,9 @@ type WAL struct {
 }
 
 type Config struct {
-	Filepath          string `yaml:"path"`
-	CompletedFilepath string
+	Filepath          string           `yaml:"path"`
+	CompletedFilepath string           `yaml:"completed_file_path"`
+	Encoding          backend.Encoding `yaml:"encoding"`
 }
 
 func New(c *Config) (*WAL, error) {
@@ -76,5 +78,5 @@ func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
-	return newAppendBlock(id, tenantID, w.c.Filepath)
+	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding)
 }

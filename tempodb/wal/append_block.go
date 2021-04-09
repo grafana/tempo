@@ -10,11 +10,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-// these values should never be used.  these dummy values can help detect
-// if they leak elsewhere.  append blocks are not versioned and do not
-// support different encodings
-const appendBlockEncoding = backend.EncNone // jpe make configurable
-
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
 // in the order it was received and an in memory sorted index.
 type AppendBlock struct {
@@ -25,13 +20,16 @@ type AppendBlock struct {
 	appender   encoding.Appender
 }
 
-func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
-	v := encoding.LatestEncoding() // jpe get to work with latest encoding
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding) (*AppendBlock, error) {
+	v, err := encoding.EncodingByVersion("v2") // let's pin wal files instead of tracking latest for safety
+	if err != nil {
+		return nil, err
+	}
 
 	h := &AppendBlock{
 		encoding: v,
 		block: block{
-			meta:     backend.NewBlockMeta(tenantID, id, v.Version(), appendBlockEncoding),
+			meta:     backend.NewBlockMeta(tenantID, id, v.Version(), e),
 			filepath: filepath,
 		},
 	}
@@ -44,7 +42,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 	}
 	h.appendFile = f
 
-	dataWriter, err := h.encoding.NewDataWriter(f, appendBlockEncoding)
+	dataWriter, err := h.encoding.NewDataWriter(f, e)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +88,7 @@ func (h *AppendBlock) Complete(cfg *encoding.BlockConfig, w *WAL, combiner commo
 		return nil, err
 	}
 
-	dataReader, err := h.encoding.NewDataReader(backend.NewContextReaderWithAllReader(readFile), appendBlockEncoding)
+	dataReader, err := h.encoding.NewDataReader(backend.NewContextReaderWithAllReader(readFile), h.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +115,7 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 
-	dataReader, err := h.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), appendBlockEncoding)
+	dataReader, err := h.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), h.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}

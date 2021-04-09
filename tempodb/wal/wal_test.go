@@ -117,7 +117,7 @@ func TestAppend(t *testing.T) {
 	file, err := block.file()
 	assert.NoError(t, err)
 
-	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), appendBlockEncoding)
+	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
 	assert.NoError(t, err)
 	iterator := encoding.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
 	defer iterator.Close()
@@ -214,7 +214,7 @@ func TestWorkDir(t *testing.T) {
 	assert.Len(t, files, 0, "work dir should be empty")
 }
 
-func TestAppendReplay(t *testing.T) {
+func TestAppendReplay(t *testing.T) { // jpe add find and test all encodings
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	require.NoError(t, err, "unexpected error creating temp dir")
