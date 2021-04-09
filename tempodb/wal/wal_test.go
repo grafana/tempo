@@ -282,19 +282,41 @@ func BenchmarkWriteRead(b *testing.B) {
 
 	// 1 million requests, 10k spans per request
 	block, _ := wal.NewBlock(blockID, testTenantID)
-	numMsgs := 100
-	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
-	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(100, []byte{})
-		reqs = append(reqs, req)
+	objects := 1000
+	objs := make([][]byte, 0, objects)
+	ids := make([][]byte, 0, objects)
+	for i := 0; i < objects; i++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+		obj := test.MakeRequest(rand.Int()%10, id)
+		ids = append(ids, id)
+		bObj, err := proto.Marshal(obj)
+		require.NoError(b, err)
+		objs = append(objs, bObj)
+
+		block.Write(id, bObj)
+		require.NoError(b, err, "unexpected error writing req")
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for _, req := range reqs {
-			bytes, _ := proto.Marshal(req)
-			_ = block.Write(test.MustTraceID(req), bytes)
-			_, _ = block.Find(test.MustTraceID(req), &mockCombiner{})
+		for j, obj := range objs {
+			err := block.Write(ids[j], obj)
+			require.NoError(b, err)
+		}
+		j := 0
+		replayBlocks, err := wal.AllBlocks()
+		require.NoError(b, err)
+		iter, err := replayBlocks[0].Iterator()
+		require.NoError(b, err)
+
+		for {
+			_, _, err := iter.Next(context.Background())
+			if err == io.EOF {
+				break
+			}
+			require.NoError(b, err)
+			j++
 		}
 	}
 }
