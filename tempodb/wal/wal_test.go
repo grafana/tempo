@@ -168,7 +168,7 @@ func TestAppendReplayFind(t *testing.T) {
 	}
 }
 
-func testAppendReplayFind(t *testing.T, e backend.Encoding) { // jpe add find and test all encodings
+func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	require.NoError(t, err, "unexpected error creating temp dir")

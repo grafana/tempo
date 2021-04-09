@@ -67,6 +67,11 @@ func TestPageMarshalToWriter(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, tc.expected, page.data)
 		assert.Equal(t, tc.field, page.header.(*testHeader).field)
+
+		page, err = unmarshalPageFromReader(buff, &testHeader{})
+		require.NoError(t, err)
+		assert.Equal(t, tc.expected, page.data)
+		assert.Equal(t, tc.field, page.header.(*testHeader).field)
 	}
 }
 

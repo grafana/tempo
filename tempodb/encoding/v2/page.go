@@ -51,7 +51,7 @@ func unmarshalPageFromBytes(b []byte, header pageHeader) (*page, error) {
 	}, nil
 }
 
-func unmarshalPageFromReader(r io.Reader, header pageHeader) (*page, error) { // jpe test
+func unmarshalPageFromReader(r io.Reader, header pageHeader) (*page, error) {
 	totalHeaderSize := baseHeaderSize + header.headerLength()
 
 	var totalLength uint32

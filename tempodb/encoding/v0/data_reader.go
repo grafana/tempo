@@ -70,7 +70,7 @@ func (r *dataReader) Close() {
 }
 
 // NextPage implements common.DataReader
-func (r *dataReader) NextPage() ([]byte, error) { // jpe test
+func (r *dataReader) NextPage() ([]byte, error) {
 	reader, err := r.r.Reader()
 	if err != nil {
 		return nil, err
