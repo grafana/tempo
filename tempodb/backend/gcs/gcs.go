@@ -233,6 +233,10 @@ func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID
 	return bytes, err
 }
 
+func (rw *readerWriter) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+	panic("ReadReader is not yet supported for GCS backend")
+}
+
 // ReadRange implements backend.Reader
 func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.ReadRange")

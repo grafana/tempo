@@ -29,6 +29,7 @@ To learn more about Tempo, consult the following documents & talks:
 
 If you have any questions or feedback regarding Tempo:
 
+- Search existing thread in the Grafana Labs community forum for Tempo: [https://community.grafana.com](https://community.grafana.com/c/grafana-tempo/40)
 - Ask a question on the Tempo Slack channel. To invite yourself to the Grafana Slack, visit [https://slack.grafana.com/](https://slack.grafana.com/) and join the #tempo channel.
 - [File an issue](https://github.com/grafana/tempo/issues/new/choose) for bugs, issues and feature suggestions.
 - UI issues should be filed with [Grafana](https://github.com/grafana/grafana/issues/new/choose).

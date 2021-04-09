@@ -33,6 +33,8 @@ type Writer interface {
 type Reader interface {
 	// Reader is for reading entire objects from the backend.  It is expected that there will be an attempt to retrieve this from cache
 	Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error)
+	// ReadReader is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
+	ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.  It is expected this will _not_ be cached.
 	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error
 

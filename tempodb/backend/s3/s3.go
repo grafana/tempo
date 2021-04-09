@@ -324,6 +324,10 @@ func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID
 	return rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
 }
 
+func (rw *readerWriter) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+	panic("ReadReader is not yet supported for S3 backend")
+}
+
 // ReadRange implements backend.Reader
 func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "ReadRange")

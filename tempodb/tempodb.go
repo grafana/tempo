@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"sort"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -83,7 +85,8 @@ var (
 
 type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
-	CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error)
+	CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.BackendBlock, error)
+	CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner common.ObjectCombiner, r backend.Reader, w backend.Writer) (*encoding.BackendBlock, error)
 	WAL() *wal.WAL
 }
 
@@ -201,8 +204,70 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error 
 	return c.Write(ctx, rw.w)
 }
 
-func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.CompleteBlock, error) {
-	return block.Complete(rw.cfg.Block, rw.wal, combiner)
+// CompleteBlock iterates the given WAL block and flushes it to the TempoDB backend.
+func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.BackendBlock, error) {
+	return rw.CompleteBlockWithBackend(context.TODO(), block, combiner, rw.r, rw.w)
+}
+
+// CompleteBlock iterates the given WAL block but flushes it to the given backend instead of the default TempoDB backend. The
+// new block will have the same ID as the input block.
+func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner common.ObjectCombiner, r backend.Reader, w backend.Writer) (*encoding.BackendBlock, error) {
+	meta := block.Meta()
+	blockID := meta.BlockID
+	tenantID := meta.TenantID
+
+	// Default and nil check is primarily to make testing easier.
+	flushSize := DefaultFlushSizeBytes
+	if rw.compactorCfg != nil && rw.compactorCfg.FlushSizeBytes > 0 {
+		flushSize = rw.compactorCfg.FlushSizeBytes
+	}
+
+	iter, err := block.GetIterator(combiner)
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting completing block iterator")
+	}
+	defer iter.Close()
+
+	newBlock, err := encoding.NewStreamingBlock(rw.cfg.Block, blockID, tenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
+	if err != nil {
+		return nil, errors.Wrap(err, "error creating compactor block")
+	}
+
+	var tracker backend.AppendTracker
+	for {
+		id, data, err := iter.Next(ctx)
+		if err != nil && err != io.EOF {
+			return nil, errors.Wrap(err, "error iterating")
+		}
+
+		if id == nil {
+			break
+		}
+
+		err = newBlock.AddObject(id, data)
+		if err != nil {
+			return nil, errors.Wrap(err, "error adding object to compactor block")
+		}
+
+		if newBlock.CurrentBufferLength() > int(flushSize) {
+			tracker, _, err = newBlock.FlushBuffer(ctx, tracker, w)
+			if err != nil {
+				return nil, errors.Wrap(err, "error flushing compactor block")
+			}
+		}
+	}
+
+	_, err = newBlock.Complete(ctx, tracker, w)
+	if err != nil {
+		return nil, errors.Wrap(err, "error completing compactor block")
+	}
+
+	backendBlock, err := encoding.NewBackendBlock(newBlock.BlockMeta(), r)
+	if err != nil {
+		return nil, errors.Wrap(err, "error creating creating backend block")
+	}
+
+	return backendBlock, nil
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {

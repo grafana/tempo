@@ -46,7 +46,7 @@ func TestInstance(t *testing.T) {
 	ingester, _, _ := defaultIngester(t, tempDir)
 	request := test.MakeRequest(10, []byte{})
 
-	i, err := newInstance("fake", limiter, ingester.store)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 	err = i.Push(context.Background(), request)
 	assert.NoError(t, err)
@@ -118,7 +118,7 @@ func TestInstanceFind(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	i, err := newInstance("fake", limiter, ingester.store)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	request := test.MakeRequest(10, []byte{})
@@ -151,7 +151,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 
 	ingester, _, _ := defaultIngester(t, tempDir)
 
-	i, err := newInstance("fake", limiter, ingester.store)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	end := make(chan struct{})
@@ -226,7 +226,7 @@ func TestInstanceLimits(t *testing.T) {
 
 	ingester, _, _ := defaultIngester(t, tempDir)
 
-	i, err := newInstance("fake", limiter, ingester.store)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	type push struct {
@@ -459,10 +459,15 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 	}
 }
 
-func defaultInstance(t assert.TestingT, tmpDir string) *instance {
+func defaultInstance(t require.TestingT, tmpDir string) *instance {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	l, err := local.NewBackend(&local.Config{
+		Path: tmpDir + "/blocks",
+	})
+	require.NoError(t, err)
 
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
@@ -483,7 +488,7 @@ func defaultInstance(t assert.TestingT, tmpDir string) *instance {
 	}, log.NewNopLogger())
 	assert.NoError(t, err, "unexpected error creating store")
 
-	instance, err := newInstance("fake", limiter, s)
+	instance, err := newInstance("fake", limiter, s, l)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	return instance

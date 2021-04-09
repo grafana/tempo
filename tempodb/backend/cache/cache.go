@@ -61,6 +61,10 @@ func (r *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID,
 	return val, err
 }
 
+func (r *readerWriter) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+	panic("ReadReader is not yet supported for cache")
+}
+
 // ReadRange implements backend.Reader
 func (r *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
 	return r.nextReader.ReadRange(ctx, name, blockID, tenantID, offset, buffer)
