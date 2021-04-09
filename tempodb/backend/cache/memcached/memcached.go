@@ -18,7 +18,7 @@ type Config struct {
 }
 
 type Client struct {
-	client *cortex_cache.Memcached
+	client cortex_cache.Cache
 }
 
 func NewClient(cfg *Config, logger log.Logger) cache.Client {
@@ -38,8 +38,13 @@ func NewClient(cfg *Config, logger log.Logger) cache.Client {
 		BatchSize:   0, // we are currently only requesting one key at a time, which is bad.  we could restructure Find() to batch request all blooms at once
 		Parallelism: 0,
 	}
+	cache := cortex_cache.NewMemcached(memcachedCfg, client, "tempo", prometheus.DefaultRegisterer, logger)
+
 	return &Client{
-		client: cortex_cache.NewMemcached(memcachedCfg, client, "tempo", prometheus.DefaultRegisterer, logger),
+		client: cortex_cache.NewBackground("tempo", cortex_cache.BackgroundConfig{
+			WriteBackGoroutines: 10,
+			WriteBackBuffer:     10000,
+		}, cache, nil),
 	}
 }
 
@@ -57,7 +62,7 @@ func (m *Client) Fetch(ctx context.Context, key string) []byte {
 	return nil
 }
 
-// Shutdown implements cache.Shutdown
-func (m *Client) Shutdown() {
+// Stop implements cache.Stop
+func (m *Client) Stop() {
 	m.client.Stop()
 }

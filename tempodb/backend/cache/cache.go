@@ -17,7 +17,7 @@ type readerWriter struct {
 type Client interface {
 	Fetch(ctx context.Context, key string) []byte
 	Store(ctx context.Context, key string, val []byte)
-	Shutdown()
+	Stop()
 }
 
 func NewCache(nextReader backend.Reader, nextWriter backend.Writer, client Client) (backend.Reader, backend.Writer, error) {
@@ -73,7 +73,7 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.
 // Shutdown implements backend.Reader
 func (r *readerWriter) Shutdown() {
 	r.nextReader.Shutdown()
-	r.client.Shutdown()
+	r.client.Stop()
 }
 
 // Write implements backend.Writer

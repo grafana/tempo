@@ -17,7 +17,7 @@ type Config struct {
 }
 
 type Client struct {
-	client *cortex_cache.RedisCache
+	client cortex_cache.Cache
 }
 
 func NewClient(cfg *Config, logger log.Logger) cache.Client {
@@ -29,8 +29,13 @@ func NewClient(cfg *Config, logger log.Logger) cache.Client {
 	}
 
 	client := cortex_cache.NewRedisClient(&cfg.ClientConfig)
+	cache := cortex_cache.NewRedisCache("tempo", client, logger)
+
 	return &Client{
-		client: cortex_cache.NewRedisCache("tempo", client, logger),
+		client: cortex_cache.NewBackground("tempo", cortex_cache.BackgroundConfig{
+			WriteBackGoroutines: 10,
+			WriteBackBuffer:     10000,
+		}, cache, nil),
 	}
 }
 
@@ -48,7 +53,7 @@ func (r *Client) Fetch(ctx context.Context, key string) []byte {
 	return nil
 }
 
-// Shutdown implements cache.Shutdown
-func (r *Client) Shutdown() {
+// Stop implements cache.Stop
+func (r *Client) Stop() {
 	r.client.Stop()
 }

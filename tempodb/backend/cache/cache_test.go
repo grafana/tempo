@@ -26,7 +26,7 @@ func (m *mockClient) Fetch(_ context.Context, key string) (val []byte) {
 	return nil
 }
 
-func (m *mockClient) Shutdown() {
+func (m *mockClient) Stop() {
 }
 
 // NewMockClient makes a new mockClient.
