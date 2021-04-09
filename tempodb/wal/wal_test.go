@@ -214,13 +214,20 @@ func TestWorkDir(t *testing.T) {
 	assert.Len(t, files, 0, "work dir should be empty")
 }
 
-func TestAppendReplay(t *testing.T) { // jpe add find and test all encodings
+func TestAppendReplayFind(t *testing.T) {
+	for _, e := range backend.SupportedEncoding {
+		testAppendReplayFind(t, e)
+	}
+}
+
+func testAppendReplayFind(t *testing.T, e backend.Encoding) { // jpe add find and test all encodings
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	require.NoError(t, err, "unexpected error creating temp dir")
 
 	wal, err := New(&Config{
 		Filepath: tempDir,
+		Encoding: e,
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
 
@@ -243,6 +250,12 @@ func TestAppendReplay(t *testing.T) { // jpe add find and test all encodings
 
 		block.Write(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
+	}
+
+	for i, id := range ids {
+		obj, err := block.Find(id, &mockCombiner{})
+		require.NoError(t, err)
+		assert.Equal(t, objs[i], obj)
 	}
 
 	blocks, err := wal.AllBlocks()
@@ -270,18 +283,23 @@ func TestAppendReplay(t *testing.T) { // jpe add find and test all encodings
 	assert.Equal(t, objects, i)
 }
 
-func BenchmarkWriteRead(b *testing.B) {
-	tempDir, _ := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
+func BenchmarkWALNone(b *testing.B) {
+	benchmarkWriteFindReplay(b, backend.EncNone)
+}
+func BenchmarkWALSnappy(b *testing.B) {
+	benchmarkWriteFindReplay(b, backend.EncSnappy)
+}
+func BenchmarkWALLZ4(b *testing.B) {
+	benchmarkWriteFindReplay(b, backend.EncLZ4_1M)
+}
+func BenchmarkWALGZIP(b *testing.B) {
+	benchmarkWriteFindReplay(b, backend.EncGZIP)
+}
+func BenchmarkWALZSTD(b *testing.B) {
+	benchmarkWriteFindReplay(b, backend.EncZstd)
+}
 
-	wal, _ := New(&Config{
-		Filepath: tempDir,
-	})
-
-	blockID := uuid.New()
-
-	// 1 million requests, 10k spans per request
-	block, _ := wal.NewBlock(blockID, testTenantID)
+func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 	objects := 1000
 	objs := make([][]byte, 0, objects)
 	ids := make([][]byte, 0, objects)
@@ -293,23 +311,39 @@ func BenchmarkWriteRead(b *testing.B) {
 		bObj, err := proto.Marshal(obj)
 		require.NoError(b, err)
 		objs = append(objs, bObj)
-
-		block.Write(id, bObj)
-		require.NoError(b, err, "unexpected error writing req")
 	}
-
+	mockCombiner := &mockCombiner{}
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
+		tempDir, _ := ioutil.TempDir("/tmp", "")
+		wal, _ := New(&Config{
+			Filepath: tempDir,
+			Encoding: encoding,
+		})
+
+		blockID := uuid.New()
+		block, err := wal.NewBlock(blockID, testTenantID)
+		require.NoError(b, err)
+
+		// write
 		for j, obj := range objs {
 			err := block.Write(ids[j], obj)
 			require.NoError(b, err)
 		}
+
+		// find
+		for _, id := range ids {
+			_, err := block.Find(id, mockCombiner)
+			require.NoError(b, err)
+		}
+
+		// replay
 		j := 0
 		replayBlocks, err := wal.AllBlocks()
 		require.NoError(b, err)
 		iter, err := replayBlocks[0].Iterator()
 		require.NoError(b, err)
-
 		for {
 			_, _, err := iter.Next(context.Background())
 			if err == io.EOF {
@@ -318,5 +352,8 @@ func BenchmarkWriteRead(b *testing.B) {
 			require.NoError(b, err)
 			j++
 		}
+
+		block.Clear()
+		os.RemoveAll(tempDir)
 	}
 }
