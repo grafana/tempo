@@ -18,7 +18,7 @@ func NewReplayBlock(filename string, path string) (*ReplayBlock, error) {
 		return nil, err
 	}
 
-	v, err := encoding.EncodingByVersion(version)
+	v, err := encoding.FromVersion(version)
 	if err != nil {
 		return nil, err
 	}

@@ -196,7 +196,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		require.NoError(t, err)
 		objs = append(objs, bObj)
 
-		block.Write(id, bObj)
+		err = block.Write(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
@@ -301,7 +301,8 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 			j++
 		}
 
-		block.Clear()
+		err = block.Clear()
+		require.NoError(b, err)
 		os.RemoveAll(tempDir)
 	}
 }

@@ -29,8 +29,8 @@ type VersionedEncoding interface {
 	NewRecordReaderWriter() common.RecordReaderWriter
 }
 
-// EncodingByVersion returns a versioned encoding for the provided string
-func EncodingByVersion(v string) (VersionedEncoding, error) {
+// FromVersion returns a versioned encoding for the provided string
+func FromVersion(v string) (VersionedEncoding, error) {
 	switch v {
 	case "v0":
 		return v0Encoding{}, nil

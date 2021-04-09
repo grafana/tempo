@@ -21,7 +21,7 @@ type AppendBlock struct {
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding) (*AppendBlock, error) {
-	v, err := encoding.EncodingByVersion("v2") // let's pin wal files instead of tracking latest for safety
+	v, err := encoding.FromVersion("v2") // let's pin wal files instead of tracking latest for safety
 	if err != nil {
 		return nil, err
 	}

@@ -11,15 +11,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEncodingByVersionErrors(t *testing.T) {
-	encoding, err := EncodingByVersion("definitely-not-a-real-version")
+func TestFromVersionErrors(t *testing.T) {
+	encoding, err := FromVersion("definitely-not-a-real-version")
 	assert.Error(t, err)
 	assert.Nil(t, encoding)
 }
 
 func TestAllVersions(t *testing.T) {
 	for _, v := range allEncodings() {
-		encoding, err := EncodingByVersion(v.Version())
+		encoding, err := FromVersion(v.Version())
 
 		require.Equal(t, v.Version(), encoding.Version())
 		require.NoError(t, err)

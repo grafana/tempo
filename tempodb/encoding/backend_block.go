@@ -23,7 +23,7 @@ type BackendBlock struct {
 // NewBackendBlock returns a BackendBlock for the given backend.BlockMeta
 //  It is version aware.
 func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, error) {
-	encoding, err := EncodingByVersion(meta.Version)
+	encoding, err := FromVersion(meta.Version)
 	if err != nil {
 		return nil, err
 	}
