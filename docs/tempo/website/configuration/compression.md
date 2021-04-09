@@ -30,3 +30,17 @@ The following options are supported:
 It is important to note that although all of these compression formats are supported in Tempo, at Grafana
 we use  zstd and it's possible/probable that the other compression algorithms may have issue at scale.  Please 
 file an issue if you stumble upon any problems!
+
+## WAL
+
+The WAL also supports compression. By default this is turned off because it comes with a small performance penalty.
+However, it does reduce disk i/o and add checksums to the WAL which are valuable in higher volume installations.
+
+```
+storage:
+  trace:
+    wal:
+      encoding: snappy
+```
+
+If WAL compression is turned on it is recommend to use snappy. All of the above options are supported.
