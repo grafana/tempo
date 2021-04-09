@@ -7,7 +7,6 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +39,7 @@ func TestAllEncodings(t *testing.T) {
 				require.NoError(t, err)
 
 				encryptedBytes := buff.Bytes()
-				reader, err := NewDataReader(v0.NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(encryptedBytes))), enc)
+				reader, err := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(encryptedBytes)), enc)
 				require.NoError(t, err)
 				defer reader.Close()
 

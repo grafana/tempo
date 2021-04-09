@@ -98,7 +98,7 @@ func (v v1Encoding) NewIndexReader(ra backend.ContextReader, pageSizeBytes int, 
 	return v1.NewIndexReader(ra)
 }
 func (v v1Encoding) NewDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error) {
-	return v1.NewDataReader(v0.NewDataReader(ra), encoding)
+	return v1.NewDataReader(ra, encoding)
 }
 func (v v1Encoding) NewObjectReaderWriter() common.ObjectReaderWriter {
 	return v1.NewObjectReaderWriter()
@@ -123,7 +123,7 @@ func (v v2Encoding) NewIndexReader(ra backend.ContextReader, pageSizeBytes int, 
 	return v2.NewIndexReader(ra, pageSizeBytes, totalPages)
 }
 func (v v2Encoding) NewDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error) {
-	return v2.NewDataReader(v0.NewDataReader(ra), encoding)
+	return v2.NewDataReader(ra, encoding)
 }
 func (v v2Encoding) NewObjectReaderWriter() common.ObjectReaderWriter {
 	return v2.NewObjectReaderWriter()

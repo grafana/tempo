@@ -2,6 +2,7 @@ package wal
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -100,7 +102,7 @@ func TestAppend(t *testing.T) {
 	block, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
-	numMsgs := 1
+	numMsgs := 100
 	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
 		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
@@ -210,6 +212,62 @@ func TestWorkDir(t *testing.T) {
 	assert.NoError(t, err, "unexpected reading work dir")
 
 	assert.Len(t, files, 0, "work dir should be empty")
+}
+
+func TestAppendReplay(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	require.NoError(t, err, "unexpected error creating temp dir")
+
+	wal, err := New(&Config{
+		Filepath: tempDir,
+	})
+	require.NoError(t, err, "unexpected error creating temp wal")
+
+	blockID := uuid.New()
+
+	block, err := wal.NewBlock(blockID, testTenantID)
+	require.NoError(t, err, "unexpected error creating block")
+
+	objects := 1000
+	objs := make([][]byte, 0, objects)
+	ids := make([][]byte, 0, objects)
+	for i := 0; i < objects; i++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+		obj := test.MakeRequest(rand.Int()%10, id)
+		ids = append(ids, id)
+		bObj, err := proto.Marshal(obj)
+		require.NoError(t, err)
+		objs = append(objs, bObj)
+
+		block.Write(id, bObj)
+		require.NoError(t, err, "unexpected error writing req")
+	}
+
+	blocks, err := wal.AllBlocks()
+	require.NoError(t, err, "unexpected error getting blocks")
+	require.Len(t, blocks, 1)
+
+	replay := blocks[0]
+	iterator, err := replay.Iterator()
+	require.NoError(t, err)
+	defer iterator.Close()
+
+	i := 0
+	for {
+		id, obj, err := iterator.Next(context.Background())
+		if err == io.EOF {
+			break
+		} else {
+			require.NoError(t, err)
+		}
+		assert.Equal(t, objs[i], obj)
+		assert.Equal(t, ids[i], []byte(id))
+		i++
+	}
+
+	assert.Equal(t, objects, i)
 }
 
 func BenchmarkWriteRead(b *testing.B) {
