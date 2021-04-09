@@ -44,7 +44,7 @@ func NewClient(cfg *Config, logger log.Logger) cache.Client {
 		client: cortex_cache.NewBackground("tempo", cortex_cache.BackgroundConfig{
 			WriteBackGoroutines: 10,
 			WriteBackBuffer:     10000,
-		}, cache, nil),
+		}, cache, prometheus.DefaultRegisterer),
 	}
 }
 

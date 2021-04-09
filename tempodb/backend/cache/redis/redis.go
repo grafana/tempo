@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/grafana/tempo/tempodb/backend/cache"
@@ -35,7 +36,7 @@ func NewClient(cfg *Config, logger log.Logger) cache.Client {
 		client: cortex_cache.NewBackground("tempo", cortex_cache.BackgroundConfig{
 			WriteBackGoroutines: 10,
 			WriteBackBuffer:     10000,
-		}, cache, nil),
+		}, cache, prometheus.DefaultRegisterer),
 	}
 }
 
