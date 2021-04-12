@@ -21,7 +21,7 @@ This section explains the configuration options for Tempo as well as the details
 Tempo uses the Weaveworks/common server.  See [here](https://github.com/weaveworks/common/blob/main/server/server.go#L45) for all configuration options.
 
 ```
-auth_enabled: false            # do not require X-Scope-OrgID
+auth_enabled: true            # optional. Require X-Scope-OrgID. By default it's set to false (disabled).
 server:
   http_listen_port: 3100
 ```

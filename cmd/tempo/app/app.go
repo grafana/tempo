@@ -62,7 +62,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = All
 	// global settings
 	f.StringVar(&c.Target, "target", All, "target module")
-	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
+	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth.")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 
 	// Server settings
