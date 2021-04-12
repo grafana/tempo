@@ -2,6 +2,7 @@ package v0
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -64,5 +65,31 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]by
 	return slicePages, nil
 }
 
+// Close implements common.DataReader
 func (r *dataReader) Close() {
+}
+
+// NextPage implements common.DataReader
+func (r *dataReader) NextPage() ([]byte, error) {
+	reader, err := r.r.Reader()
+	if err != nil {
+		return nil, err
+	}
+
+	// v0 pages are just single objects. this method will return one object at a time from the encapsulated reader
+	var totalLength uint32
+	err = binary.Read(reader, binary.LittleEndian, &totalLength)
+	if err != nil {
+		return nil, err
+	}
+
+	page := make([]byte, totalLength)
+	binary.LittleEndian.PutUint32(page, totalLength)
+
+	_, err = reader.Read(page[uint32Size:])
+	if err != nil {
+		return nil, err
+	}
+
+	return page, nil
 }

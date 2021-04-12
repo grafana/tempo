@@ -39,6 +39,7 @@ storage:
       encoding: zstd                   # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd
     wal:
       path: /tmp/tempo/wal             # where to store the the wal locally
+      encoding: none                   # wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd
     local:
       path: /tmp/tempo/blocks
     pool:

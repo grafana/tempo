@@ -51,6 +51,42 @@ func unmarshalPageFromBytes(b []byte, header pageHeader) (*page, error) {
 	}, nil
 }
 
+func unmarshalPageFromReader(r io.Reader, header pageHeader) (*page, error) {
+	totalHeaderSize := baseHeaderSize + header.headerLength()
+
+	var totalLength uint32
+	var headerLength uint16
+
+	err := binary.Read(r, binary.LittleEndian, &totalLength)
+	if err != nil {
+		return nil, err
+	}
+	err = binary.Read(r, binary.LittleEndian, &headerLength)
+	if err != nil {
+		return nil, err
+	}
+	headerBytes := make([]byte, headerLength)
+	_, err = r.Read(headerBytes)
+	if err != nil {
+		return nil, err
+	}
+	err = header.unmarshalHeader(headerBytes)
+	if err != nil {
+		return nil, err
+	}
+	dataLength := int(totalLength) - totalHeaderSize
+	pageBytes := make([]byte, dataLength)
+	_, err = r.Read(pageBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &page{
+		data:   pageBytes,
+		header: header,
+	}, nil
+}
+
 // marshalPageToWriter marshals the page bytes to the passed writer
 func marshalPageToWriter(b []byte, w io.Writer, header pageHeader) (int, error) {
 	var headerLength uint16

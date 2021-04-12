@@ -8,28 +8,28 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
-
-// these values should never be used.  these dummy values can help detect
-// if they leak elsewhere.  append blocks are not versioned and do not
-// support different encodings
-const appendBlockVersion = "append"
-const appendBlockEncoding = backend.EncNone
 
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
 // in the order it was received and an in memory sorted index.
 type AppendBlock struct {
 	block
+	encoding encoding.VersionedEncoding
 
 	appendFile *os.File
 	appender   encoding.Appender
 }
 
-func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBlock, error) {
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding) (*AppendBlock, error) {
+	v, err := encoding.FromVersion("v2") // let's pin wal files instead of tracking latest for safety
+	if err != nil {
+		return nil, err
+	}
+
 	h := &AppendBlock{
+		encoding: v,
 		block: block{
-			meta:     backend.NewBlockMeta(tenantID, id, appendBlockVersion, appendBlockEncoding),
+			meta:     backend.NewBlockMeta(tenantID, id, v.Version(), e),
 			filepath: filepath,
 		},
 	}
@@ -41,7 +41,13 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string) (*AppendBloc
 		return nil, err
 	}
 	h.appendFile = f
-	h.appender = encoding.NewAppender(v0.NewDataWriter(f))
+
+	dataWriter, err := h.encoding.NewDataWriter(f, e)
+	if err != nil {
+		return nil, err
+	}
+
+	h.appender = encoding.NewAppender(dataWriter)
 
 	return h, nil
 }
@@ -82,7 +88,12 @@ func (h *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iter
 		return nil, err
 	}
 
-	iterator := encoding.NewRecordIterator(records, readFile, v0.NewObjectReaderWriter())
+	dataReader, err := h.encoding.NewDataReader(backend.NewContextReaderWithAllReader(readFile), h.meta.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	iterator := encoding.NewRecordIterator(records, dataReader, h.encoding.NewObjectReaderWriter())
 	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
 		return nil, err
@@ -98,9 +109,12 @@ func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 
-	dataReader := v0.NewDataReader(backend.NewContextReaderWithAllReader(file))
+	dataReader, err := h.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), h.meta.Encoding)
+	if err != nil {
+		return nil, err
+	}
 	defer dataReader.Close()
-	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, v0.NewObjectReaderWriter())
+	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, h.encoding.NewObjectReaderWriter())
 
 	return finder.Find(context.Background(), id)
 }

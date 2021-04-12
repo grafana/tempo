@@ -3,12 +3,33 @@ package wal
 import (
 	"os"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 )
 
 type ReplayBlock struct {
 	block
+	encoding encoding.VersionedEncoding
+}
+
+func NewReplayBlock(filename string, path string) (*ReplayBlock, error) {
+	blockID, tenantID, version, e, err := parseFilename(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	v, err := encoding.FromVersion(version)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ReplayBlock{
+		block: block{
+			meta:     backend.NewBlockMeta(tenantID, blockID, version, e),
+			filepath: path,
+		},
+		encoding: v,
+	}, nil
 }
 
 func (r *ReplayBlock) Iterator() (encoding.Iterator, error) {
@@ -18,7 +39,12 @@ func (r *ReplayBlock) Iterator() (encoding.Iterator, error) {
 		return nil, err
 	}
 
-	return encoding.NewIterator(f, v0.NewObjectReaderWriter()), nil
+	dataReader, err := r.encoding.NewDataReader(backend.NewContextReaderWithAllReader(f), r.meta.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	return encoding.NewRecordlessIterator(dataReader, r.encoding.NewObjectReaderWriter()), nil
 }
 
 func (r *ReplayBlock) TenantID() string {

@@ -33,7 +33,12 @@ func NewAppender(dataWriter common.DataWriter) Appender {
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 //   Copies should be made and passed in if this is a problem
 func (a *appender) Append(id common.ID, b []byte) error {
-	length, err := a.dataWriter.Write(id, b)
+	_, err := a.dataWriter.Write(id, b)
+	if err != nil {
+		return err
+	}
+
+	bytesWritten, err := a.dataWriter.CutPage()
 	if err != nil {
 		return err
 	}
@@ -46,10 +51,11 @@ func (a *appender) Append(id common.ID, b []byte) error {
 	a.records[i] = &common.Record{
 		ID:     id,
 		Start:  a.currentOffset,
-		Length: uint32(length),
+		Length: uint32(bytesWritten),
 	}
 
-	a.currentOffset += uint64(length)
+	a.currentOffset += uint64(bytesWritten)
+
 	return nil
 }
 

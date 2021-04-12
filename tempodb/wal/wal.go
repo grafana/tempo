@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -26,6 +25,7 @@ type Config struct {
 	Filepath          string `yaml:"path"`
 	CompletedFilepath string
 	BlocksFilepath    string
+	Encoding          backend.Encoding `yaml:"encoding"`
 }
 
 func New(c *Config) (*WAL, error) {
@@ -85,45 +85,21 @@ func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
 			continue
 		}
 
-		name := f.Name()
-		blockID, tenantID, err := parseFilename(name)
+		r, err := NewReplayBlock(f.Name(), w.c.Filepath)
 		if err != nil {
 			return nil, err
 		}
 
-		blocks = append(blocks, &ReplayBlock{
-			block: block{
-				meta:     backend.NewBlockMeta(tenantID, blockID, appendBlockVersion, appendBlockEncoding),
-				filepath: w.c.Filepath,
-			},
-		})
+		blocks = append(blocks, r)
 	}
 
 	return blocks, nil
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
-	return newAppendBlock(id, tenantID, w.c.Filepath)
+	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding)
 }
 
 func (w *WAL) LocalBackend() *local.Backend {
 	return w.l
-}
-
-func parseFilename(name string) (uuid.UUID, string, error) {
-	i := strings.Index(name, ":")
-
-	if i < 0 {
-		return uuid.UUID{}, "", fmt.Errorf("unable to parse %s", name)
-	}
-
-	blockIDString := name[:i]
-	tenantID := name[i+1:]
-
-	blockID, err := uuid.Parse(blockIDString)
-	if err != nil {
-		return uuid.UUID{}, "", err
-	}
-
-	return blockID, tenantID, nil
 }

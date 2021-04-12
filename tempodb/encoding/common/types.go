@@ -2,11 +2,15 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"io"
 )
 
 // This file contains types that need to be referenced by both the ./encoding and ./encoding/vX packages.
 // It primarily exists here to break dependency loops.
+var (
+	ErrUnsupported = fmt.Errorf("unsupported")
+)
 
 // ID in TempoDB
 type ID []byte
@@ -31,6 +35,9 @@ type ObjectCombiner interface {
 type DataReader interface {
 	Read(context.Context, []*Record) ([][]byte, error)
 	Close()
+
+	// NextPage can be used to iterate at a page at a time. May return ErrUnsupported for older formats
+	NextPage() ([]byte, error)
 }
 
 // IndexReader is used to abstract away the details of an index.  Currently

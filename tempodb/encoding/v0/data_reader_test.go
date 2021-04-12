@@ -3,15 +3,17 @@ package v0
 import (
 	"bytes"
 	"context"
+	"io"
+	"math/rand"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDataReader(t *testing.T) {
-
 	tests := []struct {
 		readerBytes   []byte
 		records       []*common.Record
@@ -134,5 +136,42 @@ func TestDataReader(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, tc.expectedBytes, actual)
+	}
+}
+
+func TestWriterReaderNextPage(t *testing.T) {
+	buff := bytes.NewBuffer(nil)
+	writer := NewDataWriter(buff)
+
+	pageCount := 10
+	pages := make([][]byte, 0, pageCount)
+	for i := 0; i < pageCount; i++ {
+		data := make([]byte, 200)
+		rand.Read(data)
+		pages = append(pages, data)
+
+		_, err := writer.Write([]byte{0x01}, data)
+		require.NoError(t, err)
+		_, err = writer.CutPage()
+		require.NoError(t, err)
+	}
+	err := writer.Complete()
+	require.NoError(t, err)
+
+	reader := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buff.Bytes())))
+	i := 0
+	for {
+		page, err := reader.NextPage()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+
+		_, id, obj, err := staticObject.UnmarshalAndAdvanceBuffer(page)
+		require.NoError(t, err)
+
+		assert.Equal(t, pages[i], obj)
+		assert.Equal(t, []byte{0x01}, []byte(id))
+		i++
 	}
 }
