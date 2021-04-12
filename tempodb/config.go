@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/cache/memcached"
 	"github.com/grafana/tempo/tempodb/backend/cache/redis"
@@ -36,9 +37,10 @@ type Config struct {
 	Azure   *azure.Config `yaml:"azure"`
 
 	// caches
-	Cache     string            `yaml:"cache"`
-	Memcached *memcached.Config `yaml:"memcached"`
-	Redis     *redis.Config     `yaml:"redis"`
+	Cache      string                         `yaml:"cache"`
+	Background *cortex_cache.BackgroundConfig `yaml:"background"`
+	Memcached  *memcached.Config              `yaml:"memcached"`
+	Redis      *redis.Config                  `yaml:"redis"`
 }
 
 // CompactorConfig contains compaction configuration options

@@ -15,19 +15,22 @@ type Config struct {
 	TTL time.Duration `yaml:"ttl"`
 }
 
-func NewClient(cfg *Config, logger log.Logger) cortex_cache.Cache {
+func NewClient(cfg *Config, cfgBackground *cortex_cache.BackgroundConfig, logger log.Logger) cortex_cache.Cache {
 	if cfg.ClientConfig.Timeout == 0 {
 		cfg.ClientConfig.Timeout = 100 * time.Millisecond
 	}
 	if cfg.ClientConfig.Expiration == 0 {
 		cfg.ClientConfig.Expiration = cfg.TTL
 	}
+	if cfgBackground == nil {
+		cfgBackground = &cortex_cache.BackgroundConfig{
+			WriteBackGoroutines: 10,
+			WriteBackBuffer:     1000,
+		}
+	}
 
 	client := cortex_cache.NewRedisClient(&cfg.ClientConfig)
 	cache := cortex_cache.NewRedisCache("tempo", client, logger)
 
-	return cortex_cache.NewBackground("tempo", cortex_cache.BackgroundConfig{
-		WriteBackGoroutines: 10,
-		WriteBackBuffer:     10000,
-	}, cache, prometheus.DefaultRegisterer)
+	return cortex_cache.NewBackground("tempo", *cfgBackground, cache, prometheus.DefaultRegisterer)
 }

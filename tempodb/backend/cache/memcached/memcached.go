@@ -15,7 +15,7 @@ type Config struct {
 	TTL time.Duration `yaml:"ttl"`
 }
 
-func NewClient(cfg *Config, logger log.Logger) cortex_cache.Cache {
+func NewClient(cfg *Config, cfgBackground *cortex_cache.BackgroundConfig, logger log.Logger) cortex_cache.Cache {
 	if cfg.ClientConfig.MaxIdleConns == 0 {
 		cfg.ClientConfig.MaxIdleConns = 16
 	}
@@ -24,6 +24,12 @@ func NewClient(cfg *Config, logger log.Logger) cortex_cache.Cache {
 	}
 	if cfg.ClientConfig.UpdateInterval == 0 {
 		cfg.ClientConfig.UpdateInterval = time.Minute
+	}
+	if cfgBackground == nil {
+		cfgBackground = &cortex_cache.BackgroundConfig{
+			WriteBackGoroutines: 10,
+			WriteBackBuffer:     1000,
+		}
 	}
 
 	client := cortex_cache.NewMemcachedClient(cfg.ClientConfig, "tempo", prometheus.DefaultRegisterer, logger)
@@ -34,8 +40,5 @@ func NewClient(cfg *Config, logger log.Logger) cortex_cache.Cache {
 	}
 	cache := cortex_cache.NewMemcached(memcachedCfg, client, "tempo", prometheus.DefaultRegisterer, logger)
 
-	return cortex_cache.NewBackground("tempo", cortex_cache.BackgroundConfig{
-		WriteBackGoroutines: 10,
-		WriteBackBuffer:     10000,
-	}, cache, prometheus.DefaultRegisterer)
+	return cortex_cache.NewBackground("tempo", *cfgBackground, cache, prometheus.DefaultRegisterer)
 }
