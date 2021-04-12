@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -93,7 +94,7 @@ func (f *pagedFinder) findOne(ctx context.Context, id common.ID, record *common.
 
 	for {
 		foundID, b, err := iter.Next(ctx)
-		if foundID == nil {
+		if err == io.EOF {
 			break
 		}
 		if err != nil {

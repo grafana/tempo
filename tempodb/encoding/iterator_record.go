@@ -29,7 +29,7 @@ func NewRecordIterator(r []*common.Record, ra io.ReaderAt, objectRW common.Objec
 func (i *recordIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if i.currentIterator != nil {
 		id, object, err := i.currentIterator.Next(ctx)
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return nil, nil, err
 		}
 		if id != nil {
@@ -54,7 +54,7 @@ func (i *recordIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	}
 
 	// done
-	return nil, nil, nil
+	return nil, nil, io.EOF
 }
 
 func (i *recordIterator) Close() {

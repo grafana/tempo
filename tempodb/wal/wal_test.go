@@ -2,6 +2,7 @@ package wal
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -118,11 +119,11 @@ func TestAppend(t *testing.T) {
 	i := 0
 
 	for {
-		bytesID, bytesObject, err := iterator.Next(context.Background())
-		assert.NoError(t, err)
-		if bytesID == nil {
+		_, bytesObject, err := iterator.Next(context.Background())
+		if err == io.EOF {
 			break
 		}
+		assert.NoError(t, err)
 
 		req := &tempopb.PushRequest{}
 		err = proto.Unmarshal(bytesObject, req)
