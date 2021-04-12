@@ -8,10 +8,11 @@ import (
 
 // BlockConfig holds configuration options for newly created blocks
 type BlockConfig struct {
-	IndexDownsampleBytes int              `yaml:"index_downsample_bytes"`
-	IndexPageSizeBytes   int              `yaml:"index_page_size_bytes"`
-	BloomFP              float64          `yaml:"bloom_filter_false_positive"`
-	Encoding             backend.Encoding `yaml:"encoding"`
+	IndexDownsampleBytes  int              `yaml:"index_downsample_bytes"`
+	IndexPageSizeBytes    int              `yaml:"index_page_size_bytes"`
+	BloomFilterShardSize  int              `yaml:"bloom_filter_shard_size"`
+	BloomFilterShardCount uint8            `yaml:"bloom_filter_shard_count"`
+	Encoding              backend.Encoding `yaml:"encoding"`
 }
 
 // ValidateConfig returns true if the config is valid
@@ -24,8 +25,8 @@ func ValidateConfig(b *BlockConfig) error {
 		return fmt.Errorf("Positive index page size required")
 	}
 
-	if b.BloomFP <= 0.0 {
-		return fmt.Errorf("invalid bloom filter fp rate %v", b.BloomFP)
+	if b.BloomFilterShardSize <= 0 || b.BloomFilterShardCount <= 0 {
+		return fmt.Errorf("Positive value required for bloom-filter shard size and shard count")
 	}
 
 	return nil

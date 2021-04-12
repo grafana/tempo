@@ -33,10 +33,11 @@ func TestCurrentClear(t *testing.T) {
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			Encoding:             backend.EncGZIP,
-			IndexPageSizeBytes:   1000,
+			IndexDownsampleBytes:  17,
+			BloomFilterShardSize:  100_000,
+			BloomFilterShardCount: 10,
+			Encoding:              backend.EncGZIP,
+			IndexPageSizeBytes:    1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

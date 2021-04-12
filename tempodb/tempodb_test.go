@@ -27,29 +27,38 @@ import (
 const (
 	testTenantID  = "fake"
 	testTenantID2 = "fake2"
+	tmpdir        = "/tmp"
 )
 
-func TestDB(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+func testConfig(enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writer, Compactor, error) {
+	tempDir, err := ioutil.TempDir(tmpdir, "")
 	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	r, w, c, err := New(&Config{
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return New(&Config{
 		Backend: "local",
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			Encoding:             backend.EncGZIP,
-			IndexPageSizeBytes:   1000,
+			IndexDownsampleBytes:  17,
+			BloomFilterShardSize:  100_000,
+			BloomFilterShardCount: 10,
+			Encoding:              enc,
+			IndexPageSizeBytes:    1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
 		},
-		BlocklistPoll: 0,
+		BlocklistPoll: blocklistPoll,
 	}, log.NewNopLogger())
+}
+
+func TestDB(t *testing.T) {
+	r, w, c, err := testConfig(backend.EncGZIP, 0)
 	assert.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
@@ -106,27 +115,7 @@ func TestBlockSharding(t *testing.T) {
 	// push a req with some traceID
 	// cut headblock & write to backend
 	// search with different shards and check if its respecting the params
-
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, w, _, err := New(&Config{
-		Backend: "local",
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	r, w, _, err := testConfig(backend.EncLZ4_256k, 0)
 	assert.NoError(t, err)
 
 	// create block with known ID
@@ -180,26 +169,7 @@ func TestBlockSharding(t *testing.T) {
 }
 
 func TestNilOnUnknownTenantID(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, _, _, err := New(&Config{
-		Backend: "local",
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	r, _, _, err := testConfig(backend.EncLZ4_256k, 0)
 	assert.NoError(t, err)
 
 	buff, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
@@ -208,26 +178,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 }
 
 func TestBlockCleanup(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, w, c, err := New(&Config{
-		Backend: "local",
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	r, w, c, err := testConfig(backend.EncLZ4_256k, 0)
 	assert.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
@@ -255,7 +206,7 @@ func TestBlockCleanup(t *testing.T) {
 
 	assert.Len(t, rw.blockLists[testTenantID], 1)
 
-	os.RemoveAll(tempDir + "/traces/" + testTenantID)
+	os.RemoveAll(tmpdir + "/traces/" + testTenantID)
 
 	// poll
 	rw.pollBlocklist()
@@ -292,22 +243,7 @@ func TestCleanMissingTenants(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, _, _, err := New(&Config{
-				Backend: "local",
-				Local: &local.Config{
-					Path: path.Join("/tmp", "traces"),
-				},
-				Block: &encoding.BlockConfig{
-					IndexDownsampleBytes: 17,
-					BloomFP:              .01,
-					Encoding:             backend.EncLZ4_256k,
-					IndexPageSizeBytes:   1000,
-				},
-				WAL: &wal.Config{
-					Filepath: path.Join("/tmp", "wal"),
-				},
-				BlocklistPoll: 0,
-			}, log.NewNopLogger())
+			r, _, _, err := testConfig(backend.EncLZ4_256k, 0)
 			assert.NoError(t, err)
 
 			rw := r.(*readerWriter)
@@ -349,26 +285,7 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 }
 
 func TestUpdateBlocklist(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, _, _, err := New(&Config{
-		Backend: "local",
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	r, _, _, err := testConfig(backend.EncLZ4_256k, 0)
 	assert.NoError(t, err)
 
 	rw := r.(*readerWriter)
@@ -537,26 +454,7 @@ func TestUpdateBlocklist(t *testing.T) {
 }
 
 func TestUpdateBlocklistCompacted(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, _, _, err := New(&Config{
-		Backend: "local",
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	r, _, _, err := testConfig(backend.EncLZ4_256k, 0)
 	assert.NoError(t, err)
 
 	rw := r.(*readerWriter)
@@ -859,26 +757,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 }
 
 func TestSearchCompactedBlocks(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, w, c, err := New(&Config{
-		Backend: "local",
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: time.Minute,
-	}, log.NewNopLogger())
+	r, w, c, err := testConfig(backend.EncLZ4_256k, time.Minute)
 	assert.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
@@ -965,26 +844,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 }
 
 func TestCompleteBlock(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	_, w, _, err := New(&Config{
-		Backend: "local",
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: time.Minute,
-	}, log.NewNopLogger())
+	_, w, _, err := testConfig(backend.EncLZ4_256k, time.Minute)
 	assert.NoError(t, err)
 
 	wal := w.WAL()

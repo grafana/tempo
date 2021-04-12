@@ -2,6 +2,7 @@ package common
 
 import (
 	"bytes"
+	"math"
 	"math/rand"
 	"testing"
 
@@ -22,8 +23,10 @@ func TestShardedBloom(t *testing.T) {
 	}
 
 	// create sharded bloom filter
-	const bloomFP = .01
-	b := NewWithEstimates(uint(numTraces), bloomFP)
+	shardSize := 1000
+	shardCount := 5
+	estimatedObjects := 1000
+	b := NewBloom(shardSize, shardCount, estimatedObjects)
 
 	// add traceIDs to sharded bloom filter
 	for _, traceID := range traceIDs {
@@ -31,18 +34,22 @@ func TestShardedBloom(t *testing.T) {
 	}
 
 	// get byte representation
-	bloomBytes, err := b.WriteTo()
+	bloomBytes, err := b.Write()
 	assert.NoError(t, err)
-	assert.Len(t, bloomBytes, shardNum)
+	assert.Len(t, bloomBytes, shardCount)
 
 	// parse byte representation into willf_bloom.Bloomfilter
 	var filters []*willf_bloom.BloomFilter
-	for i := 0; i < shardNum; i++ {
+	for i := 0; i < shardCount; i++ {
 		filters = append(filters, &willf_bloom.BloomFilter{})
 	}
 	for i, singleBloom := range bloomBytes {
 		_, err = filters[i].ReadFrom(bytes.NewReader(singleBloom))
 		assert.NoError(t, err)
+
+		// assert that parsed form has the expected _m_ and _k_
+		assert.Equal(t, filters[i].Cap(), uint(shardSize*8))                                       // * 8 because need bits from bytes
+		assert.Equal(t, filters[i].K(), uint(evaluateK(shardSize*8, estimatedObjects/shardCount))) // * 8 because need bits from bytes
 	}
 
 	// confirm that the sharded bloom and parsed form give the same result
@@ -52,9 +59,15 @@ func TestShardedBloom(t *testing.T) {
 		if !found {
 			missingCount++
 		}
-		assert.Equal(t, found, filters[ShardKeyForTraceID(traceID)].Test(traceID))
+		assert.Equal(t, found, filters[ShardKeyForTraceID(traceID, shardCount)].Test(traceID))
 	}
 
-	// check that missingCount is less than bloomFP
-	assert.LessOrEqual(t, float64(missingCount), bloomFP*numTraces)
+	// get estimated bloom filter false positive
+	estimatedBloomFP := filters[0].EstimateFalsePositiveRate(uint(numTraces / shardCount))
+	// check that missingCount is less than estimatedBloomFP
+	assert.LessOrEqual(t, float64(missingCount), estimatedBloomFP*numTraces)
+}
+
+func TestEvaluateK(t *testing.T) {
+	assert.Equal(t, int(math.Ceil(math.Ln2*float64(100))), evaluateK(1000, 10))
 }

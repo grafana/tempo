@@ -27,6 +27,7 @@ type BlockMeta struct {
 	Encoding        Encoding  `json:"encoding"`
 	IndexPageSize   uint32    `json:"indexPageSize"`
 	TotalRecords    uint32    `json:"totalRecords"`
+	BloomShardCount uint8     `json:"bloomShardCount"`
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding) *BlockMeta {
