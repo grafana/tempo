@@ -7,22 +7,22 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type walIterator struct {
+type recordlessIterator struct {
 	o common.ObjectReaderWriter
 	d common.DataReader
 
 	currentPage []byte
 }
 
-// NewWALIterator iterates over pages from a datareader directly like one would for the WAL
-func NewWALIterator(d common.DataReader, o common.ObjectReaderWriter) Iterator {
-	return &walIterator{
+// NewRecordlessIterator iterates over pages from a datareader directly without requiring records
+func NewRecordlessIterator(d common.DataReader, o common.ObjectReaderWriter) Iterator {
+	return &recordlessIterator{
 		o: o,
 		d: d,
 	}
 }
 
-func (i *walIterator) Next(_ context.Context) (common.ID, []byte, error) {
+func (i *recordlessIterator) Next(_ context.Context) (common.ID, []byte, error) {
 	var (
 		id  common.ID
 		obj []byte
@@ -39,6 +39,6 @@ func (i *walIterator) Next(_ context.Context) (common.ID, []byte, error) {
 	return id, obj, err
 }
 
-func (i *walIterator) Close() {
+func (i *recordlessIterator) Close() {
 	i.d.Close()
 }

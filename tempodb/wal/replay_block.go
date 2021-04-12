@@ -44,7 +44,7 @@ func (r *ReplayBlock) Iterator() (encoding.Iterator, error) {
 		return nil, err
 	}
 
-	return encoding.NewWALIterator(dataReader, r.encoding.NewObjectReaderWriter()), nil
+	return encoding.NewRecordlessIterator(dataReader, r.encoding.NewObjectReaderWriter()), nil
 }
 
 func (r *ReplayBlock) TenantID() string {
