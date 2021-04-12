@@ -25,7 +25,7 @@ func NewDedupingIterator(iter Iterator, combiner common.ObjectCombiner) (Iterato
 
 	var err error
 	i.currentID, i.currentObject, err = i.iter.Next(context.Background())
-	if err != nil && err != io.EOF { // jpe test this directly
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
 
