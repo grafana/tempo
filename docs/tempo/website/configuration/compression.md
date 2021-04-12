@@ -40,7 +40,7 @@ However, it does reduce disk i/o and add checksums to the WAL which are valuable
 storage:
   trace:
     wal:
-      encoding: snappy
+      encoding: none
 ```
 
 If WAL compression is turned on it is recommend to use snappy. All of the above options are supported.
