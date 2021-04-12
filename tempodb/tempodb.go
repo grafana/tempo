@@ -53,7 +53,7 @@ var (
 		Namespace: "tempodb",
 		Name:      "blocklist_poll_duration_seconds",
 		Help:      "Records the amount of time to poll and update the blocklist.",
-		Buckets:   prometheus.ExponentialBuckets(10, 2, 6),
+		Buckets:   prometheus.LinearBuckets(0, 60, 5),
 	})
 	metricBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
