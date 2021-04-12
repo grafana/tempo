@@ -123,13 +123,16 @@ storage:
             bucket_name: ops-tools-tracing-ops   # store traces in this bucket
         blocklist_poll: 5m                       # how often to repoll the backend for new blocks
         blocklist_poll_concurrency: 50           # optional. Number of blocks to process in parallel during polling. Default is 50.
-        cache: memcached                         # optional cache configuration
-        memcached:                               # optional memcached configuration
+        cache: memcached                         # optional. Cache configuration
+        background:                              # optional. Background cache configuration
+            writeback_goroutines: 10             # at what concurrency to write back to cache. Default is 10.
+            writeback_buffer: 10000              # how many key batches to buffer for background write-back. Default is 10000.
+        memcached:                               # optional. Memcached configuration
             consistent_hash: true
             host: memcached
             service: memcached-client
             timeout: 500ms
-        redis:                                   # optional redis configuration 
+        redis:                                   # optional. Redis configuration 
             endpoint: redis
             timeout: 500ms
         pool:                                    # the worker pool is used primarily when finding traces by id, but is also used by other
