@@ -20,7 +20,11 @@ type block struct {
 }
 
 func (b *block) fullFilename() string {
-	return filepath.Join(b.filepath, fmt.Sprintf("%v:%v:%v:%v", b.meta.BlockID, b.meta.TenantID, b.meta.Version, b.meta.Encoding))
+	if b.meta.Version == "v0" {
+		return filepath.Join(b.filepath, fmt.Sprintf("%v:%v", b.meta.BlockID, b.meta.TenantID))
+	} else {
+		return filepath.Join(b.filepath, fmt.Sprintf("%v:%v:%v:%v", b.meta.BlockID, b.meta.TenantID, b.meta.Version, b.meta.Encoding))
+	}
 }
 
 func (b *block) file() (*os.File, error) {

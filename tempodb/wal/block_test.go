@@ -15,6 +15,14 @@ func TestFullFilename(t *testing.T) {
 		expected string
 	}{
 		{
+			name: "legacy",
+			b: &block{
+				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v0", backend.EncNone),
+				filepath: "/blerg",
+			},
+			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000:foo",
+		},
+		{
 			name: "ez-mode",
 			b: &block{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone),
