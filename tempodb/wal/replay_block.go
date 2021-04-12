@@ -61,10 +61,5 @@ func (r *ReplayBlock) Clear() error {
 	}
 
 	name := r.fullFilename()
-	err := os.Remove(name)
-	if err != nil {
-
-	}
-
-	return err
+	return os.Remove(name)
 }
