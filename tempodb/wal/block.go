@@ -20,6 +20,10 @@ type block struct {
 }
 
 func (b *block) fullFilename() string {
+	if b.meta.Version == "v0" {
+		return filepath.Join(b.filepath, fmt.Sprintf("%v:%v", b.meta.BlockID, b.meta.TenantID))
+	}
+
 	return filepath.Join(b.filepath, fmt.Sprintf("%v:%v:%v:%v", b.meta.BlockID, b.meta.TenantID, b.meta.Version, b.meta.Encoding))
 }
 
