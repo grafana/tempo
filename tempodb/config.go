@@ -37,10 +37,10 @@ type Config struct {
 	Azure   *azure.Config `yaml:"azure"`
 
 	// caches
-	Cache      string                         `yaml:"cache"`
-	Background *cortex_cache.BackgroundConfig `yaml:"background"`
-	Memcached  *memcached.Config              `yaml:"memcached"`
-	Redis      *redis.Config                  `yaml:"redis"`
+	Cache           string                         `yaml:"cache"`
+	BackgroundCache *cortex_cache.BackgroundConfig `yaml:"background_cache"`
+	Memcached       *memcached.Config              `yaml:"memcached"`
+	Redis           *redis.Config                  `yaml:"redis"`
 }
 
 // CompactorConfig contains compaction configuration options
