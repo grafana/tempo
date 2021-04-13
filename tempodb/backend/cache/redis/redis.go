@@ -22,12 +22,6 @@ func NewClient(cfg *Config, cfgBackground *cortex_cache.BackgroundConfig, logger
 	if cfg.ClientConfig.Expiration == 0 {
 		cfg.ClientConfig.Expiration = cfg.TTL
 	}
-	if cfgBackground == nil {
-		cfgBackground = &cortex_cache.BackgroundConfig{
-			WriteBackGoroutines: 10,
-			WriteBackBuffer:     1000,
-		}
-	}
 
 	client := cortex_cache.NewRedisClient(&cfg.ClientConfig)
 	cache := cortex_cache.NewRedisCache("tempo", client, logger)
