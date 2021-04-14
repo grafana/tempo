@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -54,7 +53,7 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]by
 			return nil, err
 		}
 
-		page, err := ioutil.ReadAll(reader)
+		page, err := tempo_io.ReadAllWithEstimate(reader, len(page)+1) // +1 prevents an extra alloc on uncompressed
 		if err != nil {
 			return nil, err
 		}
