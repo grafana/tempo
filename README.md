@@ -55,3 +55,7 @@ tempo-cli is the place to put any utility functionality related to tempo.  See [
 ## TempoDB
 
 [TempoDB](https://github.com/grafana/tempo/tree/main/tempodb) is included in the this repository but is meant to be a stand alone key value database built on top of cloud object storage (azure/gcs/s3).  It is a natively multitenant, supports a WAL and is the storage engine for Tempo.
+
+## License
+
+Grafana Tempo is distributed under [AGPL-3.0-only](LICENSE). For Apache-2.0 exceptions, see [LICENSING.md](LICENSING.md).
