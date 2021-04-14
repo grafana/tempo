@@ -254,7 +254,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 	for i := 0; i < objects; i++ {
 		id := make([]byte, 16)
 		rand.Read(id)
-		obj := test.MakeRequest(rand.Int()%10, id)
+		obj := test.MakeRequest(rand.Int()%1000, id)
 		ids = append(ids, id)
 		bObj, err := proto.Marshal(obj)
 		require.NoError(b, err)

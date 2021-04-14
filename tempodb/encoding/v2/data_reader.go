@@ -12,6 +12,8 @@ import (
 type dataReader struct {
 	contextReader backend.ContextReader
 	dataReader    common.DataReader
+
+	pageBuffer []byte
 }
 
 // constDataHeader is a singleton data header.  the data header is
@@ -60,16 +62,17 @@ func (r *dataReader) Close() {
 }
 
 // NextPage implements common.DataReader
-func (r *dataReader) NextPage() ([]byte, error) {
+func (r *dataReader) NextPage(buffer []byte) ([]byte, error) {
 	reader, err := r.contextReader.Reader()
 	if err != nil {
 		return nil, err
 	}
 
-	page, err := unmarshalPageFromReader(reader, constDataHeader)
+	page, err := unmarshalPageFromReader(reader, constDataHeader, r.pageBuffer)
 	if err != nil {
 		return nil, err
 	}
+	r.pageBuffer = page.data
 
 	return page.data, nil
 }

@@ -70,7 +70,7 @@ func (r *dataReader) Close() {
 }
 
 // NextPage implements common.DataReader
-func (r *dataReader) NextPage() ([]byte, error) {
+func (r *dataReader) NextPage(buffer []byte) ([]byte, error) {
 	reader, err := r.r.Reader()
 	if err != nil {
 		return nil, err
@@ -83,13 +83,17 @@ func (r *dataReader) NextPage() ([]byte, error) {
 		return nil, err
 	}
 
-	page := make([]byte, totalLength)
-	binary.LittleEndian.PutUint32(page, totalLength)
+	if cap(buffer) < int(totalLength) {
+		buffer = make([]byte, totalLength)
+	} else {
+		buffer = buffer[:totalLength]
+	}
+	binary.LittleEndian.PutUint32(buffer, totalLength)
 
-	_, err = reader.Read(page[uint32Size:])
+	_, err = reader.Read(buffer[uint32Size:])
 	if err != nil {
 		return nil, err
 	}
 
-	return page, nil
+	return buffer, nil
 }

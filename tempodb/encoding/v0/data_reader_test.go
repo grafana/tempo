@@ -161,7 +161,7 @@ func TestWriterReaderNextPage(t *testing.T) {
 	reader := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buff.Bytes())))
 	i := 0
 	for {
-		page, err := reader.NextPage()
+		page, err := reader.NextPage(nil) // jpe test this (i.e. various sizes being passed in here)
 		if err == io.EOF {
 			break
 		}

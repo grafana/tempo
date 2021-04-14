@@ -30,7 +30,7 @@ func (i *recordlessIterator) Next(_ context.Context) (common.ID, []byte, error) 
 	)
 	i.currentPage, id, obj, err = i.o.UnmarshalAndAdvanceBuffer(i.currentPage)
 	if err == io.EOF {
-		i.currentPage, err = i.d.NextPage()
+		i.currentPage, err = i.d.NextPage(i.currentPage)
 		if err != nil {
 			return nil, nil, err
 		}

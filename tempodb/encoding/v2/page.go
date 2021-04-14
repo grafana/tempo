@@ -51,7 +51,7 @@ func unmarshalPageFromBytes(b []byte, header pageHeader) (*page, error) {
 	}, nil
 }
 
-func unmarshalPageFromReader(r io.Reader, header pageHeader) (*page, error) {
+func unmarshalPageFromReader(r io.Reader, header pageHeader, buffer []byte) (*page, error) {
 	totalHeaderSize := baseHeaderSize + header.headerLength()
 
 	var totalLength uint32
@@ -75,14 +75,20 @@ func unmarshalPageFromReader(r io.Reader, header pageHeader) (*page, error) {
 		return nil, err
 	}
 	dataLength := int(totalLength) - totalHeaderSize
-	pageBytes := make([]byte, dataLength)
-	_, err = r.Read(pageBytes)
+
+	if cap(buffer) < dataLength {
+		buffer = make([]byte, dataLength)
+	} else {
+		buffer = buffer[:dataLength]
+	}
+
+	_, err = r.Read(buffer)
 	if err != nil {
 		return nil, err
 	}
 
 	return &page{
-		data:   pageBytes,
+		data:   buffer,
 		header: header,
 	}, nil
 }

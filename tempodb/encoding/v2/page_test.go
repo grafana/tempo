@@ -68,7 +68,7 @@ func TestPageMarshalToWriter(t *testing.T) {
 		assert.Equal(t, tc.expected, page.data)
 		assert.Equal(t, tc.field, page.header.(*testHeader).field)
 
-		page, err = unmarshalPageFromReader(buff, &testHeader{})
+		page, err = unmarshalPageFromReader(buff, &testHeader{}, []byte{})
 		require.NoError(t, err)
 		assert.Equal(t, tc.expected, page.data)
 		assert.Equal(t, tc.field, page.header.(*testHeader).field)

@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
@@ -73,8 +74,8 @@ func (r *dataReader) Close() {
 }
 
 // NextPage implements common.DataReader (kind of)
-func (r *dataReader) NextPage() ([]byte, error) {
-	page, err := r.dataReader.NextPage()
+func (r *dataReader) NextPage(buffer []byte) ([]byte, error) {
+	page, err := r.dataReader.NextPage(buffer)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +83,7 @@ func (r *dataReader) NextPage() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	page, err = ioutil.ReadAll(reader)
+	page, err = tempo_io.ReadAllWithEstimate(reader, 2*len(page))
 	if err != nil {
 		return nil, err
 	}
