@@ -83,7 +83,7 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	page, err = tempo_io.ReadAllWithEstimate(reader, 2*len(page))
+	page, err = tempo_io.ReadAllWithEstimate(reader, len(page)+1) // +1 prevents an extra alloc on uncompressed
 	if err != nil {
 		return nil, err
 	}
