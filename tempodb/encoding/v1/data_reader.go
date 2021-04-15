@@ -16,6 +16,8 @@ type dataReader struct {
 
 	pool             ReaderPool
 	compressedReader io.Reader
+
+	buffer []byte
 }
 
 // NewDataReader creates a datareader that supports compression
@@ -53,7 +55,7 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]by
 			return nil, err
 		}
 
-		page, err := tempo_io.ReadAllWithEstimate(reader, len(page)+1) // +1 prevents an extra alloc on uncompressed
+		page, err := tempo_io.ReadAllWithEstimate(reader, len(page)+1) // +1 prevents an extra alloc on when encoding=None
 		if err != nil {
 			return nil, err
 		}
@@ -82,11 +84,11 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	page, err = tempo_io.ReadAllWithEstimate(reader, len(page)+1) // +1 prevents an extra alloc on uncompressed
+	r.buffer, err = tempo_io.ReadAllWithBuffer(reader, len(page)+1, r.buffer)
 	if err != nil {
 		return nil, err
 	}
-	return page, nil
+	return r.buffer, nil
 }
 
 func (r *dataReader) getCompressedReader(page []byte) (io.Reader, error) {
