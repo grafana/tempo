@@ -104,9 +104,9 @@ func TestMergeResponses(t *testing.T) {
 				},
 			},
 			expected: &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
-				Header:     http.Header{},
+				StatusCode:    http.StatusOK,
+				Body:          ioutil.NopCloser(bytes.NewReader(combinedTrace)),
+				ContentLength: int64(len(combinedTrace)),
 			},
 		},
 		{
@@ -128,7 +128,6 @@ func TestMergeResponses(t *testing.T) {
 			expected: &http.Response{
 				StatusCode: http.StatusInternalServerError,
 				Body:       ioutil.NopCloser(bytes.NewReader([]byte("bar"))),
-				Header:     http.Header{},
 			},
 		},
 		{
@@ -150,7 +149,6 @@ func TestMergeResponses(t *testing.T) {
 			expected: &http.Response{
 				StatusCode: http.StatusInternalServerError,
 				Body:       ioutil.NopCloser(bytes.NewReader([]byte("bar"))),
-				Header:     http.Header{},
 			},
 		},
 		{
@@ -172,7 +170,6 @@ func TestMergeResponses(t *testing.T) {
 			expected: &http.Response{
 				StatusCode: http.StatusInternalServerError,
 				Body:       ioutil.NopCloser(bytes.NewReader([]byte("foo"))),
-				Header:     http.Header{},
 			},
 		},
 		{
@@ -193,9 +190,9 @@ func TestMergeResponses(t *testing.T) {
 			},
 			marshallingFormat: util.JSONTypeHeaderValue,
 			expected: &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       ioutil.NopCloser(bytes.NewReader(combinedTraceJSON.Bytes())),
-				Header:     http.Header{},
+				StatusCode:    http.StatusOK,
+				Body:          ioutil.NopCloser(bytes.NewReader(combinedTraceJSON.Bytes())),
+				ContentLength: int64(len(combinedTraceJSON.Bytes())),
 			},
 		},
 	}
@@ -207,7 +204,15 @@ func TestMergeResponses(t *testing.T) {
 			}
 			merged, err := mergeResponses(context.Background(), marshallingFormat, tt.requestResponse)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, merged)
+			assert.Equal(t, tt.expected.StatusCode, merged.StatusCode)
+			expectedBody, err := ioutil.ReadAll(tt.expected.Body)
+			assert.NoError(t, err)
+			actualBody, err := ioutil.ReadAll(merged.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedBody, actualBody)
+			if tt.expected.ContentLength > 0 {
+				assert.Equal(t, tt.expected.ContentLength, merged.ContentLength)
+			}
 		})
 	}
 
