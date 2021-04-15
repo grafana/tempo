@@ -1,13 +1,12 @@
 package redis
 
 import (
-	"context"
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
-	"github.com/grafana/tempo/tempodb/backend/cache"
 )
 
 type Config struct {
@@ -16,11 +15,7 @@ type Config struct {
 	TTL time.Duration `yaml:"ttl"`
 }
 
-type Client struct {
-	client *cortex_cache.RedisCache
-}
-
-func NewClient(cfg *Config, logger log.Logger) cache.Client {
+func NewClient(cfg *Config, cfgBackground *cortex_cache.BackgroundConfig, logger log.Logger) cortex_cache.Cache {
 	if cfg.ClientConfig.Timeout == 0 {
 		cfg.ClientConfig.Timeout = 100 * time.Millisecond
 	}
@@ -29,26 +24,7 @@ func NewClient(cfg *Config, logger log.Logger) cache.Client {
 	}
 
 	client := cortex_cache.NewRedisClient(&cfg.ClientConfig)
-	return &Client{
-		client: cortex_cache.NewRedisCache("tempo", client, logger),
-	}
-}
+	cache := cortex_cache.NewRedisCache("tempo", client, logger)
 
-// Store implements cache.Store
-func (r *Client) Store(ctx context.Context, key string, val []byte) {
-	r.client.Store(ctx, []string{key}, [][]byte{val})
-}
-
-// Fetch implements cache.Fetch
-func (r *Client) Fetch(ctx context.Context, key string) []byte {
-	found, vals, _ := r.client.Fetch(ctx, []string{key})
-	if len(found) > 0 {
-		return vals[0]
-	}
-	return nil
-}
-
-// Shutdown implements cache.Shutdown
-func (r *Client) Shutdown() {
-	r.client.Stop()
+	return cortex_cache.NewBackground("tempo", *cfgBackground, cache, prometheus.DefaultRegisterer)
 }
