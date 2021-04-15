@@ -214,9 +214,10 @@ func mergeResponses(ctx context.Context, marshallingFormat string, rrs []Request
 
 		span.SetTag("response marshalling format", marshallingFormat)
 		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
-			Header:     http.Header{},
+			StatusCode:    http.StatusOK,
+			Body:          ioutil.NopCloser(bytes.NewReader(combinedTrace)),
+			ContentLength: int64(len(combinedTrace)),
+			Header:        http.Header{},
 		}, nil
 	}
 
