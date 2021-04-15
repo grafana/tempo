@@ -126,7 +126,7 @@ func TestDataReader(t *testing.T) {
 
 	for _, tc := range tests {
 		reader := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(tc.readerBytes)))
-		actual, err := reader.Read(context.Background(), tc.records)
+		actual, _, err := reader.Read(context.Background(), tc.records, nil)
 		reader.Close()
 
 		if tc.expectedError {

@@ -41,10 +41,10 @@ func NewNestedDataReader(r common.DataReader, encoding backend.Encoding) (common
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
-func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
-	compressedPages, err := r.dataReader.Read(ctx, records)
+func (r *dataReader) Read(ctx context.Context, records []*common.Record, buffer []byte) ([][]byte, []byte, error) {
+	compressedPages, buffer, err := r.dataReader.Read(ctx, records, buffer)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// now decompress
@@ -52,18 +52,18 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]by
 	for _, page := range compressedPages {
 		reader, err := r.getCompressedReader(page)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		page, err := tempo_io.ReadAllWithEstimate(reader, len(page)+1) // +1 prevents an extra alloc on when encoding=None
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		decompressedPages = append(decompressedPages, page)
 	}
 
-	return decompressedPages, nil
+	return decompressedPages, buffer, nil
 }
 
 func (r *dataReader) Close() {

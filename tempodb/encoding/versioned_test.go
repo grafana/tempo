@@ -61,12 +61,12 @@ func testDataWriterReader(t *testing.T, v VersionedEncoding, e backend.Encoding)
 		require.NoError(t, err)
 		defer dataReader.Close()
 
-		actual, err := dataReader.Read(context.Background(), []*common.Record{
+		actual, _, err := dataReader.Read(context.Background(), []*common.Record{
 			{
 				Start:  0,
 				Length: uint32(bytesWritten),
 			},
-		})
+		}, nil)
 		require.NoError(t, err)
 		require.Len(t, actual, 1)
 

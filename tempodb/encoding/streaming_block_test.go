@@ -1,16 +1,29 @@
 package encoding
 
 import (
+	"bufio"
 	"bytes"
+	"context"
+	"fmt"
+	"io"
+	"io/ioutil"
 	"math/rand"
+	"os"
+	"sort"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -108,11 +121,10 @@ func TestCompactorBlockAddObject(t *testing.T) {
 	assert.Equal(t, numObjects, cb.CurrentBufferedObjects())
 }
 
-/* jpe - restore
 func TestStreamingBlockAll(t *testing.T) {
 	for _, enc := range backend.SupportedEncoding {
 		t.Run(enc.String(), func(t *testing.T) {
-			testCompleteBlockToBackendBlock(t,
+			testStreamingBlockToBackendBlock(t,
 				&BlockConfig{
 					IndexDownsampleBytes: 1000,
 					BloomFP:              .01,
@@ -124,13 +136,7 @@ func TestStreamingBlockAll(t *testing.T) {
 	}
 }
 
-func testCompleteBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	require.NoError(t, err, "unexpected error creating temp dir")
-
-	block, ids, reqs := completeBlock(t, cfg, tempDir)
-
+func testStreamingBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 	backendTmpDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(backendTmpDir)
 	require.NoError(t, err, "unexpected error creating temp dir")
@@ -139,9 +145,7 @@ func testCompleteBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 		Path: backendTmpDir,
 	})
 	require.NoError(t, err, "error creating backend")
-
-	err = block.Write(context.Background(), w)
-	require.NoError(t, err, "error writing backend")
+	_, ids, reqs := streamingBlock(t, cfg, w)
 
 	// meta?
 	uuids, err := r.Blocks(context.Background(), testTenantID)
@@ -186,7 +190,7 @@ func testCompleteBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 	assert.Equal(t, len(ids), i)
 }
 
-func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlock, [][]byte, [][]byte) {
+func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*StreamingBlock, [][]byte, [][]byte) {
 	rand.Seed(time.Now().Unix())
 
 	buffer := &bytes.Buffer{}
@@ -239,21 +243,43 @@ func completeBlock(t *testing.T, cfg *BlockConfig, tempDir string) (*CompleteBlo
 		expectedRecords++
 	}
 
-	iterator := NewRecordIterator(appender.Records(), bytes.NewReader(buffer.Bytes()), v0.NewObjectReaderWriter())
-	block, err := NewCompleteBlock(cfg, originatingMeta, iterator, numMsgs, tempDir)
+	iter := NewRecordIterator(appender.Records(),
+		v0.NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes()))),
+		v0.NewObjectReaderWriter())
+
+	block, err := NewStreamingBlock(cfg, originatingMeta.BlockID, originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, originatingMeta.TotalObjects)
 	require.NoError(t, err, "unexpected error completing block")
 
+	ctx := context.Background()
+	for {
+		id, data, err := iter.Next(ctx)
+		if err != io.EOF {
+			require.NoError(t, err)
+		}
+
+		if id == nil {
+			break
+		}
+
+		err = block.AddObject(id, data)
+		require.NoError(t, err)
+	}
+	var tracker backend.AppendTracker
+	tracker, _, err = block.FlushBuffer(ctx, tracker, w)
+	require.NoError(t, err)
+	_, err = block.Complete(ctx, tracker, w)
+	require.NoError(t, err)
+
 	// test downsample config
-	require.Equal(t, expectedRecords, len(block.records))
-	require.True(t, block.FlushedTime().IsZero())
-	require.True(t, bytes.Equal(block.meta.MinID, minID))
-	require.True(t, bytes.Equal(block.meta.MaxID, maxID))
-	require.Equal(t, originatingMeta.StartTime, block.meta.StartTime)
-	require.Equal(t, originatingMeta.EndTime, block.meta.EndTime)
-	require.Equal(t, originatingMeta.TenantID, block.meta.TenantID)
+	require.Equal(t, expectedRecords, len(block.appender.Records()))
+	require.True(t, bytes.Equal(block.BlockMeta().MinID, minID))
+	require.True(t, bytes.Equal(block.BlockMeta().MaxID, maxID))
+	require.Equal(t, originatingMeta.StartTime, block.BlockMeta().StartTime)
+	require.Equal(t, originatingMeta.EndTime, block.BlockMeta().EndTime)
+	require.Equal(t, originatingMeta.TenantID, block.BlockMeta().TenantID)
 
 	// Verify block size was written
-	require.Greater(t, block.meta.Size, uint64(0))
+	require.Greater(t, block.BlockMeta().Size, uint64(0))
 
 	return block, ids, reqs
 }
@@ -263,6 +289,7 @@ const benchDownsample = 200
 func BenchmarkWriteGzip(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncGZIP, benchDownsample, false)
 }
+
 func BenchmarkWriteSnappy(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncSnappy, benchDownsample, false)
 }
@@ -315,43 +342,73 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	backendBlock, err := NewBackendBlock(backend.NewBlockMeta("fake", uuid.MustParse("9f15417a-1242-40e4-9de3-a057d3b176c1"), "v0", backend.EncNone), r)
 	require.NoError(b, err, "error creating backend block")
 
-	iterator, err := backendBlock.Iterator(10 * 1024 * 1024)
+	iter, err := backendBlock.Iterator(10 * 1024 * 1024)
 	require.NoError(b, err, "error creating iterator")
+
+	backendTmpDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(backendTmpDir)
+	require.NoError(b, err, "unexpected error creating temp dir")
+
+	_, w, _, err := local.New(&local.Config{
+		Path: backendTmpDir,
+	})
+	require.NoError(b, err, "error creating backend")
 
 	if !benchRead {
 		b.ResetTimer()
 	}
 
-	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP)
-	cb, err := NewCompleteBlock(&BlockConfig{
+	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", encoding)
+	block, err := NewStreamingBlock(&BlockConfig{
 		IndexDownsampleBytes: indexDownsample,
 		BloomFP:              .05,
 		Encoding:             encoding,
-	}, originatingMeta, iterator, 10000, tempDir)
-	require.NoError(b, err, "error creating block")
+		IndexPageSizeBytes:   10 * 1024 * 1024,
+	}, originatingMeta.BlockID, originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, originatingMeta.TotalObjects)
+	require.NoError(b, err, "unexpected error completing block")
 
-	lastRecord := cb.records[len(cb.records)-1]
+	ctx := context.Background()
+	for {
+		id, data, err := iter.Next(ctx)
+		if err != io.EOF {
+			require.NoError(b, err)
+		}
+
+		if id == nil {
+			break
+		}
+
+		err = block.AddObject(id, data)
+		require.NoError(b, err)
+	}
+	var tracker backend.AppendTracker
+	tracker, _, err = block.FlushBuffer(ctx, tracker, w)
+	require.NoError(b, err)
+	_, err = block.Complete(ctx, tracker, w)
+	require.NoError(b, err)
+
+	lastRecord := block.appender.Records()[len(block.appender.Records())-1]
 	fmt.Println("size: ", lastRecord.Start+uint64(lastRecord.Length))
 
 	if !benchRead {
 		return
 	}
 
-	b.ResetTimer()
-	file, err := os.Open(cb.fullFilename())
-	require.NoError(b, err)
-	pr, err := v2.NewDataReader(v0.NewDataReader(backend.NewContextReaderWithAllReader(file)), encoding)
-	require.NoError(b, err)
-	iterator = newPagedIterator(10*1024*1024, common.Records(cb.records), pr, backendBlock.encoding.newObjectReaderWriter())
+	// b.ResetTimer() todo : restore
 
-	for {
-		id, _, err := iterator.Next(context.Background())
-		if err != io.EOF {
-			require.NoError(b, err)
-		}
-		if id == nil {
-			break
-		}
-	}
+	// file, err := os.Open(StreamingBlock.fullFilename())
+	// require.NoError(b, err)
+	// pr, err := v2.NewDataReader(v0.NewDataReader(backend.NewContextReaderWithAllReader(file)), encoding)
+	// require.NoError(b, err)
+	// iterator = newPagedIterator(10*1024*1024, common.Records(cb.records), pr, backendBlock.encoding.newObjectReaderWriter())
+
+	// for {
+	// 	id, _, err := iterator.Next(context.Background())
+	// 	if err != io.EOF {
+	// 		require.NoError(b, err)
+	// 	}
+	// 	if id == nil {
+	// 		break
+	// 	}
+	// }
 }
-*/

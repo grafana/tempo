@@ -33,7 +33,7 @@ type ObjectCombiner interface {
 // DataReader is the primary abstraction point for supporting multiple data
 // formats.
 type DataReader interface {
-	Read(context.Context, []*Record) ([][]byte, error)
+	Read(context.Context, []*Record, []byte) ([][]byte, []byte, error)
 	Close()
 
 	// NextPage can be used to iterate at a page at a time. May return ErrUnsupported for older formats
