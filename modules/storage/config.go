@@ -64,8 +64,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.Trace.Local.Path, util.PrefixConfig(prefix, "trace.local.path"), "", "path to store traces at.")
 
 	cfg.Trace.BackgroundCache = &cortex_cache.BackgroundConfig{}
-	f.IntVar(&cfg.Trace.BackgroundCache.WriteBackBuffer, util.PrefixConfig(prefix, "trace.background_cache.writeback_buffer"), 10000, "Key batches to buffer for background write-back.")
-	f.IntVar(&cfg.Trace.BackgroundCache.WriteBackGoroutines, util.PrefixConfig(prefix, "trace.background_cache.writeback_goroutines"), 10, "Concurrency to write back to cache.")
+	cfg.Trace.BackgroundCache.WriteBackBuffer = 10000
+	cfg.Trace.BackgroundCache.WriteBackGoroutines = 10
 
 	cfg.Trace.Pool = &pool.Config{}
 	f.IntVar(&cfg.Trace.Pool.MaxWorkers, util.PrefixConfig(prefix, "trace.pool.max-workers"), 50, "Workers in the worker pool.")
