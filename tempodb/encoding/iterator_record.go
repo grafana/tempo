@@ -15,6 +15,8 @@ type recordIterator struct {
 	dataR    common.DataReader
 
 	currentIterator Iterator
+
+	buffer []byte
 }
 
 // NewRecordIterator returns a recordIterator.  This iterator is used for iterating through
@@ -40,7 +42,9 @@ func (i *recordIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 
 	// read the next record and create an iterator
 	if len(i.records) > 0 {
-		pages, err := i.dataR.Read(ctx, i.records[:1])
+		var pages [][]byte
+		var err error
+		pages, i.buffer, err = i.dataR.Read(ctx, i.records[:1], i.buffer)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -43,12 +43,12 @@ func TestAllEncodings(t *testing.T) {
 				require.NoError(t, err)
 				defer reader.Close()
 
-				actual, err := reader.Read(context.Background(), []*common.Record{
+				actual, _, err := reader.Read(context.Background(), []*common.Record{
 					{
 						Start:  0,
 						Length: uint32(mw.bytesWritten),
 					},
-				})
+				}, nil)
 
 				assert.NoError(t, err)
 				assert.Len(t, actual, 1)

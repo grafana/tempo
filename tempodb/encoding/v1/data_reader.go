@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
@@ -16,6 +16,8 @@ type dataReader struct {
 
 	pool             ReaderPool
 	compressedReader io.Reader
+
+	buffer []byte
 }
 
 // NewDataReader creates a datareader that supports compression
@@ -39,10 +41,10 @@ func NewNestedDataReader(r common.DataReader, encoding backend.Encoding) (common
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
-func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
-	compressedPages, err := r.dataReader.Read(ctx, records)
+func (r *dataReader) Read(ctx context.Context, records []*common.Record, buffer []byte) ([][]byte, []byte, error) {
+	compressedPages, buffer, err := r.dataReader.Read(ctx, records, buffer)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// now decompress
@@ -50,18 +52,18 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]by
 	for _, page := range compressedPages {
 		reader, err := r.getCompressedReader(page)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		page, err := ioutil.ReadAll(reader)
+		page, err := tempo_io.ReadAllWithEstimate(reader, len(page)+1) // +1 prevents an extra alloc on when encoding=None
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		decompressedPages = append(decompressedPages, page)
 	}
 
-	return decompressedPages, nil
+	return decompressedPages, buffer, nil
 }
 
 func (r *dataReader) Close() {
@@ -73,8 +75,8 @@ func (r *dataReader) Close() {
 }
 
 // NextPage implements common.DataReader (kind of)
-func (r *dataReader) NextPage() ([]byte, error) {
-	page, err := r.dataReader.NextPage()
+func (r *dataReader) NextPage(buffer []byte) ([]byte, error) {
+	page, err := r.dataReader.NextPage(buffer)
 	if err != nil {
 		return nil, err
 	}
@@ -82,11 +84,11 @@ func (r *dataReader) NextPage() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	page, err = ioutil.ReadAll(reader)
+	r.buffer, err = tempo_io.ReadAllWithBuffer(reader, len(page)+1, r.buffer)
 	if err != nil {
 		return nil, err
 	}
-	return page, nil
+	return r.buffer, nil
 }
 
 func (r *dataReader) getCompressedReader(page []byte) (io.Reader, error) {

@@ -126,7 +126,7 @@ func TestDataReader(t *testing.T) {
 
 	for _, tc := range tests {
 		reader := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(tc.readerBytes)))
-		actual, err := reader.Read(context.Background(), tc.records)
+		actual, _, err := reader.Read(context.Background(), tc.records, nil)
 		reader.Close()
 
 		if tc.expectedError {
@@ -161,7 +161,7 @@ func TestWriterReaderNextPage(t *testing.T) {
 	reader := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buff.Bytes())))
 	i := 0
 	for {
-		page, err := reader.NextPage()
+		page, err := reader.NextPage(nil) // jpe test this (i.e. various sizes being passed in here)
 		if err == io.EOF {
 			break
 		}

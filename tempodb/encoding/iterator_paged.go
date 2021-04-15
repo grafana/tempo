@@ -17,6 +17,8 @@ type pagedIterator struct {
 	chunkSizeBytes uint32
 	pages          [][]byte
 	activePage     []byte
+
+	buffer []byte
 }
 
 // newPagedIterator returns a backendIterator.  This iterator is used to iterate
@@ -83,7 +85,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		}
 	}
 
-	i.pages, err = i.dataReader.Read(ctx, records)
+	i.pages, i.buffer, err = i.dataReader.Read(ctx, records, i.buffer)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}
