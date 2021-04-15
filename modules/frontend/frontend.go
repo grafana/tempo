@@ -71,7 +71,7 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 				"duration", time.Since(start).String(),
 				"response_size", contentLength,
 				"status", statusCode,
-				)
+			)
 
 			return resp, err
 		})
