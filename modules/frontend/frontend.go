@@ -57,10 +57,21 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 
 			traceID, _ := middleware.ExtractTraceID(ctx)
 			statusCode := 500
+			var contentLength int64 = 0
 			if resp != nil {
 				statusCode = resp.StatusCode
+				contentLength = resp.ContentLength
 			}
-			level.Info(logger).Log("method", r.Method, "traceID", traceID, "url", r.URL.RequestURI(), "duration", time.Since(start).String(), "status", statusCode)
+
+			level.Info(logger).Log(
+				"tenant", orgID,
+				"method", r.Method,
+				"traceID", traceID,
+				"url", r.URL.RequestURI(),
+				"duration", time.Since(start).String(),
+				"response_size", contentLength,
+				"status", statusCode,
+			)
 
 			return resp, err
 		})
