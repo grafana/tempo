@@ -64,7 +64,7 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 			}
 
 			level.Info(logger).Log(
-				"orgID", orgID,
+				"tenant", orgID,
 				"method", r.Method,
 				"traceID", traceID,
 				"url", r.URL.RequestURI(),
