@@ -3,7 +3,7 @@
 Drone is used for our building our official dockerhub images. It is broken into 3 
 pipelines.  Note that none of the pipelines include testing so it's important that 
 the codebase is otherwise tested when it begins this process. Currently we use GHA
-for testing on PR and only build the master branch.
+for testing on PR and only build the main branch.
 
 # Pipelines
 

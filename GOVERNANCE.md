@@ -148,9 +148,9 @@ The ex-member is
 If needed, we reserve the right to publicly announce removal.
 
 [announce]: https://groups.google.com/forum/#!forum/tempo-announce
-[coc]: https://github.com/grafana/tempo/blob/master/CODE_OF_CONDUCT.md
+[coc]: https://github.com/grafana/tempo/blob/main/CODE_OF_CONDUCT.md
 [devs]: https://groups.google.com/forum/#!forum/tempo-developers
-[maintainers]: https://github.com/grafana/tempo/blob/master/MAINTAINERS.md
+[maintainers]: https://github.com/grafana/tempo/blob/main/MAINTAINERS.md
 [rough]: https://tools.ietf.org/html/rfc7282
 [team]: https://groups.google.com/forum/#!forum/tempo-team
 [users]: https://groups.google.com/forum/#!forum/tempo-users

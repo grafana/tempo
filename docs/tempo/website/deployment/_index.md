@@ -10,25 +10,25 @@ The linked folders contain example deployments of Tempo.  They are a good resour
 
 ## Docker Compose
 
-The [docker-compose](https://github.com/grafana/tempo/tree/master/example/docker-compose) examples are simpler and designed to show minimal configuration.  This is a great place
+The [docker-compose](https://github.com/grafana/tempo/tree/main/example/docker-compose) examples are simpler and designed to show minimal configuration.  This is a great place
 to get started with Tempo and learn about various trace discovery flows.
 
-- [local storage](https://github.com/grafana/tempo/tree/master/example/docker-compose/readme.md#local-storage)
+- [local storage](https://github.com/grafana/tempo/tree/main/example/docker-compose/readme.md#local-storage)
     - At its simplest Tempo only requires a few parameters that identify where to store traces.
-- [s3/minio storage](https://github.com/grafana/tempo/tree/master/example/docker-compose/readme.md#s3)
+- [s3/minio storage](https://github.com/grafana/tempo/tree/main/example/docker-compose/readme.md#s3)
     - To reduce complexity not all config options are exposed on the command line.  This example uses the minio/s3 backend with a config file.
-- [Trace discovery with Loki](https://github.com/grafana/tempo/tree/master/example/docker-compose/readme.md#loki-derived-fields)
+- [Trace discovery with Loki](https://github.com/grafana/tempo/tree/main/example/docker-compose/readme.md#loki-derived-fields)
     - This example brings in Loki and shows how to use a log flow to discover traces.
 
 ## Jsonnet/Tanka
 
-The [jsonnet](https://github.com/grafana/tempo/tree/master/example/tk) examples are more complex and show off the full range of configuration available to Tempo.  The
+The [jsonnet](https://github.com/grafana/tempo/tree/main/example/tk) examples are more complex and show off the full range of configuration available to Tempo.  The
 Helm and jsonnet examples are equivalent.  They are both provided for people who prefer different configuration
 mechanisms.
 
-- [single binary](https://github.com/grafana/tempo/tree/master/example/tk/readme.md#single-binary)
+- [single binary](https://github.com/grafana/tempo/tree/main/example/tk/readme.md#single-binary)
     - A single binary jsonnet deployment.  Valuable for getting started with advanced configuration.
-- [microservices](https://github.com/grafana/tempo/tree/master/example/tk/readme.md#microservices)
+- [microservices](https://github.com/grafana/tempo/tree/main/example/tk/readme.md#microservices)
     - Tempo as a set of independently scalable microservices.  This is recommended for high volume full production deployments.
 
 ## Helm

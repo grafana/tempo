@@ -4,7 +4,7 @@ title: Architecture
 
 ## Architecture
 
-This document provides an overview of the major components that comprise Tempo.  Please refer to [the examples](https://github.com/grafana/tempo/tree/master/example) to see some deployment options.
+This document provides an overview of the major components that comprise Tempo.  Please refer to [the examples](https://github.com/grafana/tempo/tree/main/example) to see some deployment options.
 
 <p align="center"><img src="../tempo_arch.png" alt="Tempo Architecture"></p>
 
@@ -55,4 +55,4 @@ Compactors stream blocks to and from the backend storage to reduce the total num
 
 ## Grafana 7.4.x
 
-When using older versions of Grafana you must also use `tempo-query` in order to visualize traces. `tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo. See [this example](https://github.com/grafana/tempo/tree/master/example/docker-compose#grafana-74x) and [these docs](../../configuration/querying) for help.
+When using older versions of Grafana you must also use `tempo-query` in order to visualize traces. `tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo. See [this example](https://github.com/grafana/tempo/tree/main/example/docker-compose#grafana-74x) and [these docs](../../configuration/querying) for help.
