@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compactor
+  namespace: tracing
+spec:
+  minReadySeconds: 10
+  replicas: 5
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: compactor
+      name: compactor
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      annotations:
+        config_hash: 3bc06ce225fc97d13d89fbee2dd6ea25
+      labels:
+        app: compactor
+        name: compactor
+    spec:
+      containers:
+      - args:
+        - -target=compactor
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        image: grafana/tempo:latest
+        imagePullPolicy: IfNotPresent
+        name: compactor
+        ports:
+        - containerPort: 3100
+          name: prom-metrics
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3100
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+      volumes:
+      - configMap:
+          name: tempo-compactor
+        name: tempo-conf

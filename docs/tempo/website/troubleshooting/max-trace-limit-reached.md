@@ -1,5 +1,6 @@
 ---
 title: Maximum trace limit reached
+weight: 474
 ---
 
 # I am seeing the error: max live traces per tenant exceeded
