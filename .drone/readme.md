@@ -3,7 +3,7 @@
 Drone is used for our building our official dockerhub images. It is broken into 3 
 pipelines.  Note that none of the pipelines include testing so it's important that 
 the codebase is otherwise tested when it begins this process. Currently we use GHA
-for testing on PR and only build the master branch.
+for testing on PR and only build the main branch.
 
 # Pipelines
 
@@ -31,4 +31,4 @@ to these objects: https://github.com/drone-plugins/drone-manifest/blob/master/pl
 
 If we extend this any further we should probably generate drone.yml. It has a lot of 
 repeated lines that will become difficult to maintain.  Currently loki uses a jsonnet file
-and we should perhaps follow suit: https://github.com/grafana/loki/blob/master/.drone/drone.jsonnet
+and we should perhaps follow suit: https://github.com/grafana/loki/blob/main/.drone/drone.jsonnet

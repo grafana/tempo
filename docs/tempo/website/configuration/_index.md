@@ -18,7 +18,7 @@ This section explains the configuration options for Tempo as well as the details
   - [Compression](#compression)
 
 ## Authentication/Server
-Tempo uses the Weaveworks/common server.  See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.
+Tempo uses the Weaveworks/common server.  See [here](https://github.com/weaveworks/common/blob/main/server/server.go#L45) for all configuration options.
 
 ```
 auth_enabled: false            # do not require X-Scope-OrgID
@@ -27,10 +27,10 @@ server:
 ```
 
 ## Distributor
-See [here](https://github.com/grafana/tempo/blob/master/modules/distributor/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go) for all configuration options.
 
 Distributors are responsible for receiving spans and forwarding them to the appropriate ingesters.  The below configuration
-exposes the otlp receiver on port 0.0.0.0:5680.  [This configuration](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-s3-minio.yaml) shows how to
+exposes the otlp receiver on port 0.0.0.0:5680.  [This configuration](https://github.com/grafana/tempo/blob/main/example/docker-compose/etc/tempo-s3-minio.yaml) shows how to
 configure all available receiver options.
 
 ```
@@ -43,7 +43,7 @@ distributor:
 ```
 
 ## Ingester
-See [here](https://github.com/grafana/tempo/blob/master/modules/ingester/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go) for all configuration options.
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
 
@@ -58,7 +58,7 @@ ingester:
 ```
 
 ## Query Frontend
-See [here](https://github.com/grafana/tempo/blob/master/modules/frontend/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go) for all configuration options.
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
@@ -68,7 +68,7 @@ query_frontend:
 ```
 
 ## Querier
-See [here](https://github.com/grafana/tempo/blob/master/modules/querier/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go) for all configuration options.
 
 The Querier is responsible for querying the backends/cache for the traceID.
 
@@ -82,7 +82,7 @@ It also queries compacted blocks that fall within the (2 * BlocklistPoll) range 
 is defined in the storage section below.
 
 ## Compactor
-See [here](https://github.com/grafana/tempo/blob/master/modules/compactor/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go) for all configuration options.
 
 Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
 
@@ -104,7 +104,7 @@ compactor:
 ```
 
 ## Storage
-See [here](https://github.com/grafana/tempo/blob/master/tempodb/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go) for all configuration options.
 
 The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.  
 
@@ -140,7 +140,7 @@ storage:
             queue_depth: 2000                    # length of job queue
         wal:
             path: /var/tempo/wal                 # where to store the head blocks while they are being appended to
-            encoding: none                       # wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd   
+            encoding: none                       # (experimental) wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd   
         block:
             bloom_filter_false_positive: .05     # bloom filter false positive rate.  lower values create larger filters but fewer false positives
             index_downsample_bytes: 1_000_000    # number of bytes per index record 

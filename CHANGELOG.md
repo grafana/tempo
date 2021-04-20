@@ -1,4 +1,4 @@
-## master / unreleased
+## main / unreleased
 
 * [CHANGE] Add `json` struct tags to overrides' `Limits` struct in addition to `yaml` tags. [#656](https://github.com/grafana/tempo/pull/656)
 * [CHANGE] Update to Go 1.16, latest OpenTelemetry proto definition and collector [#546](https://github.com/grafana/tempo/pull/546)
@@ -9,7 +9,7 @@
   `ingestion_burst_size` limit override has been removed in favour of `ingestion_burst_size_bytes`.
   This is a **breaking change** to the overrides config section. [#630](https://github.com/grafana/tempo/pull/630)
 * [FEATURE] Add page based access to the index file. [#557](https://github.com/grafana/tempo/pull/557)
-* [FEATURE] WAL Compression/checksums. [#638](https://github.com/grafana/tempo/pull/638)
+* [FEATURE] (Experimental) WAL Compression/checksums. [#638](https://github.com/grafana/tempo/pull/638)
 * [ENHANCEMENT] Add a Shutdown handler to flush data to backend, at "/shutdown". [#526](https://github.com/grafana/tempo/pull/526)
 * [ENHANCEMENT] Queriers now query all (healthy) ingesters for a trace to mitigate 404s on ingester rollouts/scaleups.
   This is a **breaking change** and will likely result in query errors on rollout as the query signature b/n QueryFrontend & Querier has changed. [#557](https://github.com/grafana/tempo/pull/557)

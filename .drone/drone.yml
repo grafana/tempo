@@ -34,7 +34,7 @@ steps:
 
 trigger:
   ref:
-  - refs/heads/master
+  - refs/heads/main
   - refs/tags/**
 
 ---

@@ -30,7 +30,7 @@ type Config struct {
 	DistributorRing cortex_distributor.RingConfig `yaml:"ring,omitempty"`
 	// receivers map for shim.
 	//  This receivers node is equivalent in format to the receiver node in the
-	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/master/receiver
+	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
 	Receivers       map[string]interface{} `yaml:"receivers"`
 	OverrideRingKey string                 `yaml:"override_ring_key"`
 

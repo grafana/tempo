@@ -25,7 +25,7 @@ func NewDedupingIterator(iter Iterator, combiner common.ObjectCombiner) (Iterato
 
 	var err error
 	i.currentID, i.currentObject, err = i.iter.Next(context.Background())
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
 
@@ -42,11 +42,7 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 
 	for {
 		id, obj, err := i.iter.Next(ctx)
-		if err == io.EOF {
-			i.currentID = nil
-			i.currentObject = nil
-		}
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return nil, nil, err
 		}
 

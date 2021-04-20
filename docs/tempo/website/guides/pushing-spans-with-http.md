@@ -58,7 +58,7 @@ Note that the `timestamp` field is in microseconds and was obtained by running `
 
 ## Retrieving Traces
 
-The easiest way to get the trace is to execute a simple curl command to Tempo.  The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/master/opentelemetry/proto/trace/v1/trace.proto).
+The easiest way to get the trace is to execute a simple curl command to Tempo.  The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
 
 ```bash
 curl http://localhost:3100/tempo/api/traces/0123456789abcdef
