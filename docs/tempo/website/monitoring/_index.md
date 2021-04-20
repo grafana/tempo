@@ -5,7 +5,7 @@ weight: 300
 
 # Monitoring Tempo
 
-The Tempo repository has a [mixin](https://github.com/grafana/tempo/tree/master/operations/tempo-mixin) that includes a
+The Tempo repository has a [mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) that includes a
 set of dashboards, rules and alerts. Together, these can be used to monitor Tempo in production.
 
 ## Dashboards
@@ -60,11 +60,11 @@ This dashboard is included in this repo for two reasons:
 
 ## Rules and Alerts
 
-The Rules and Alerts are available as [yaml files in the mixin](https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/out) on the repository.
+The Rules and Alerts are available as [yaml files in the mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/out) on the repository.
 
 To set up alerting, download the provided json files and configure them for use on your Prometheus monitoring server.
 
-Check the [runbook](https://github.com/grafana/tempo/blob/master/operations/tempo-mixin/runbook.md) to understand the
+Check the [runbook](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md) to understand the
 various steps that can be taken to fix firing alerts!
 
 ## Important Metrics

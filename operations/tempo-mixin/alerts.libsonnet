@@ -20,7 +20,7 @@
               message: |||
                 {{ $labels.job }} {{ $labels.route }} is experiencing {{ printf "%.2f" $value }}% errors.
               |||,
-              runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoRequestErrors'
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRequestErrors'
             },
           },
           {
@@ -36,7 +36,7 @@
               message: |||
                 {{ $labels.job }} {{ $labels.route }} is experiencing {{ printf "%.2f" $value }}s 99th percentile latency.
               |||,
-              runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoRequestLatency'
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRequestLatency'
             },
           },
           {
@@ -50,7 +50,7 @@
             },
             annotations: {
               message: 'There are {{ printf "%f" $value }} unhealthy compactor(s).',
-              runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoCompactorUnhealthy'
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorUnhealthy'
             },
           },
           {
@@ -64,7 +64,7 @@
             },
             annotations: {
               message: 'There are {{ printf "%f" $value }} unhealthy distributor(s).',
-              runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoDistributorUnhealthy'
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoDistributorUnhealthy'
             },
           },
           {
@@ -78,7 +78,7 @@
             },
             annotations: {
               message: 'Greater than %s compactions have failed in the past hour.' % $._config.alerts.compactions_per_hour_failed,
-              runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoCompactionsFailing'
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionsFailing'
             },
           },
           {
@@ -92,7 +92,7 @@
             },
             annotations: {
               message: 'Greater than %s flushes have failed in the past hour.' % $._config.alerts.flushes_per_hour_failed,
-              runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoFlushesFailing'
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoFlushesFailing'
             },
           },
           {
@@ -106,7 +106,7 @@
             },
             annotations: {
               message: 'Greater than %s polls have failed in the past hour.' % $._config.alerts.polls_per_hour_failed,
-              runbook_url: 'https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoPollsFailing'
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPollsFailing'
             },
           },
         ],
