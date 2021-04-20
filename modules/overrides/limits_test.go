@@ -33,12 +33,36 @@ func TestLimitsTagsYamlMatchJson(t *testing.T) {
 }
 
 // Copied from Cortex and modified
-func TestLimitsStringDurationYamlMatchJson(t *testing.T) {
+func TestLimitsYamlMatchJson(t *testing.T) {
 	inputYAML := `
 ingestion_rate_strategy: global
 ingestion_rate_limit_bytes: 100_000
+ingestion_burst_size_bytes: 100_000
+
+max_traces_per_user: 1000
+max_global_traces_per_user: 1000
+max_bytes_per_trace: 100_000
+
+block_retention: 24h
+
+per_tenant_override_config: /etc/overrides.yaml
+per_tenant_override_period: 1m
 `
-	inputJSON := `{"ingestion_rate_strategy": "global", "ingestion_rate_limit_bytes": 100000}`
+	inputJSON := `
+{
+	"ingestion_rate_strategy": "global",
+	"ingestion_rate_limit_bytes": 100000,
+	"ingestion_burst_size_bytes": 100000,
+
+	"max_traces_per_user": 1000,
+	"max_global_traces_per_user": 1000,
+	"max_bytes_per_trace": 100000,
+
+	"block_retention": "24h",
+
+	"per_tenant_override_config": "/etc/overrides.yaml",
+	"per_tenant_override_period": "1m"
+}`
 
 	limitsYAML := Limits{}
 	err := yaml.Unmarshal([]byte(inputYAML), &limitsYAML)
