@@ -3,7 +3,7 @@ title: Multitenancy
 ---
 
 Tempo is a multitenant distributed tracing backend. It supports multitenancy through the use
-of a header: `X-Scope-OrgID`. This guide details how to setup or disable multitenancy.
+of a header: `X-Scope-OrgID`. This guide details how to setup multitenancy.
 
 ## Multitenancy
 
@@ -50,12 +50,12 @@ exporters:
 ## Enabling Multitenancy
 If this is desired simply set the following config value on all Tempo components:
 ```
-auth_enabled: true
+multitenancy_enabled: true
 ```
 
 or from the command line:
 ```
---auth.enabled=true
+--multitenancy.enabled=true
 ```
 
 This option will force all Tempo components to require the `X-Scope-OrgID` header.
