@@ -140,7 +140,7 @@ storage:
             queue_depth: 2000                    # length of job queue
         wal:
             path: /var/tempo/wal                 # where to store the head blocks while they are being appended to
-            encoding: none                       # wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd   
+            encoding: none                       # (experimental) wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd   
         block:
             bloom_filter_false_positive: .05     # bloom filter false positive rate.  lower values create larger filters but fewer false positives
             index_downsample_bytes: 1_000_000    # number of bytes per index record 
