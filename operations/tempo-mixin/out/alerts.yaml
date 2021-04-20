@@ -5,7 +5,7 @@
     "annotations":
       "message": |
         {{ $labels.job }} {{ $labels.route }} is experiencing {{ printf "%.2f" $value }}% errors.
-      "runbook_url": "https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoRequestErrors"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRequestErrors"
     "expr": |
       100 * sum(rate(tempo_request_duration_seconds_count{status_code=~"5.."}[1m])) by (namespace, job, route)
         /
@@ -18,7 +18,7 @@
     "annotations":
       "message": |
         {{ $labels.job }} {{ $labels.route }} is experiencing {{ printf "%.2f" $value }}s 99th percentile latency.
-      "runbook_url": "https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoRequestLatency"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRequestLatency"
     "expr": |
       namespace_job_route:tempo_request_duration_seconds:99quantile{route!~"metrics|/frontend.Frontend/Process"} > 3
     "for": "15m"
@@ -27,7 +27,7 @@
   - "alert": "TempoCompactorUnhealthy"
     "annotations":
       "message": "There are {{ printf \"%f\" $value }} unhealthy compactor(s)."
-      "runbook_url": "https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoCompactorUnhealthy"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorUnhealthy"
     "expr": |
       max by (cluster, namespace) (cortex_ring_members{state="Unhealthy", name="compactor"}) > 0
     "for": "15m"
@@ -36,7 +36,7 @@
   - "alert": "TempoDistributorUnhealthy"
     "annotations":
       "message": "There are {{ printf \"%f\" $value }} unhealthy distributor(s)."
-      "runbook_url": "https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoDistributorUnhealthy"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoDistributorUnhealthy"
     "expr": |
       max by (cluster, namespace) (cortex_ring_members{state="Unhealthy", name="distributor"}) > 0
     "for": "15m"
@@ -45,7 +45,7 @@
   - "alert": "TempoCompactionsFailing"
     "annotations":
       "message": "Greater than 2 compactions have failed in the past hour."
-      "runbook_url": "https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoCompactionsFailing"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionsFailing"
     "expr": |
       sum by (cluster, namespace) (increase(tempodb_compaction_errors_total{}[1h])) > 2
     "labels":
@@ -53,7 +53,7 @@
   - "alert": "TempoFlushesFailing"
     "annotations":
       "message": "Greater than 2 flushes have failed in the past hour."
-      "runbook_url": "https://github.com/grafana/tempo/tree/master/operations/tempo-mixin/runbook.md#TempoFlushesFailing"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoFlushesFailing"
     "expr": |
       sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[1h])) > 2
     "labels":

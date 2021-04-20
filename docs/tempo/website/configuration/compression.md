@@ -31,7 +31,7 @@ It is important to note that although all of these compression formats are suppo
 we use  zstd and it's possible/probable that the other compression algorithms may have issue at scale.  Please 
 file an issue if you stumble upon any problems!
 
-## WAL
+## WAL (Experimental)
 
 The WAL also supports compression. By default this is turned off because it comes with a small performance penalty.
 However, it does reduce disk i/o and add checksums to the WAL which are valuable in higher volume installations.

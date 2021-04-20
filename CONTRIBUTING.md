@@ -78,7 +78,7 @@ import (
 ## Documentation
 
 Tempo uses a CI action to sync documentation to the [Grafana website](https://grafana.com/docs/tempo/latest). The CI is
-triggered on every merge to master in the `docs` subfolder.
+triggered on every merge to main in the `docs` subfolder.
 
 To get a preview of the documentation locally, run `make docs` from the root folder of the Tempo repository. This uses
 the `grafana/docs` image which internally uses Hugo to generate the static site.
