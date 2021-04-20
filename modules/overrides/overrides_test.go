@@ -10,6 +10,7 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -115,7 +116,7 @@ func TestOverrides(t *testing.T) {
 				require.NoError(t, err)
 
 				tt.limits.PerTenantOverrideConfig = overridesFile
-				tt.limits.PerTenantOverridePeriod = time.Hour
+				tt.limits.PerTenantOverridePeriod = model.Duration(time.Hour)
 			}
 
 			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
