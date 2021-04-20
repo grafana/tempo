@@ -26,14 +26,14 @@ Before submitting please run the following to verify that all dependencies and p
 make vendor-check
 ```
 
-### Project Structure
+# Project Structure
 
 ```
 cmd/
   tempo/              - main tempo binary
   tempo-cli/          - cli tool for directly inspecting blocks in the backend
   tempo-vulture/      - bird-themed consistency checker.  optional.
-  tempo-query/        - jaeger-query GRPC plugin
+  tempo-query/        - jaeger-query GRPC plugin (Apache2 licensed)
 docs/
 example/              - great place to get started running Tempo
   docker-compose/
@@ -45,12 +45,14 @@ modules/              - top level Tempo components
   ingester/
   overrides/
   querier/
+  frontend/
   storage/
 opentelemetry-proto/  - git submodule.  necessary for proto vendoring
-operations/           - Tempo deployment and monitoring resources
+operations/           - Tempo deployment and monitoring resources (Apache2 licensed)
   jsonnet/
   tempo-mixin/
 pkg/
+  tempopb/            - proto for interacting with various Tempo services (Apache2 licensed)
 tempodb/              - object storage key/value database
 vendor/
 ```
