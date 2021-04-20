@@ -36,7 +36,6 @@ minio + load + tempo {
 
     // manually overriding to get tempo to talk to minio
     tempo_config +:: {
-        auth_enabled: false,
         storage+: {
             trace+: {
                 s3+: {

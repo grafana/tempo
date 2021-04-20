@@ -18,7 +18,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ```yaml
 target: all
-auth_enabled: true
+multitenancy_enabled: true
 http_api_prefix: ""
 server:
     http_listen_address: ""
