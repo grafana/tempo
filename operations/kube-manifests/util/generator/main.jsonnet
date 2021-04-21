@@ -1,6 +1,6 @@
 // The jsonnet file used to generate these kube-manifests
 
-local tempo = import 'tempo/tempo.libsonnet';
+local tempo = import 'microservices/tempo.libsonnet';
 
 tempo {
   _images+:: {
