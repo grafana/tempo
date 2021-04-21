@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "ksonnet-util"
+        }
+      },
+      "version": "2619bb87ecb336a59616df4c1fe8ced668bdbc94",
+      "sum": "jelt5QWEerVPLHHZN6Ga0B4OQ/MLBl+OLj3kVzTET+Y="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "memcached"
+        }
+      },
+      "version": "2619bb87ecb336a59616df4c1fe8ced668bdbc94",
+      "sum": "dTOeEux3t9bYSqP2L/uCuLo/wUDpCKH4w+4OD9fePUk="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/ksonnet/ksonnet-lib.git",
+          "subdir": "ksonnet.beta.4"
+        }
+      },
+      "version": "0d2f82676817bbf9e4acf6495b2090205f323b9f",
+      "sum": "ur22hPQq0JAPBxm8hNMcwjumj4MkozDwOKiGZvVMYh4="
+    },
+    {
+      "source": {
+        "local": {
+          "directory": "../../jsonnet/microservices"
+        }
+      },
+      "version": ""
+    }
+  ],
+  "legacyImports": false
+}

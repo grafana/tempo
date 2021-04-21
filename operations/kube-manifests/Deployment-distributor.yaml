@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: distributor
+  namespace: tracing
+spec:
+  minReadySeconds: 10
+  replicas: 5
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: distributor
+      name: distributor
+      tempo-gossip-member: "true"
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      annotations:
+        config_hash: 76b3caf721a80349e206778e56d41a66
+      labels:
+        app: distributor
+        name: distributor
+        tempo-gossip-member: "true"
+    spec:
+      containers:
+      - args:
+        - -target=distributor
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        image: grafana/tempo:latest
+        imagePullPolicy: IfNotPresent
+        name: distributor
+        ports:
+        - containerPort: 3100
+          name: prom-metrics
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3100
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - configMap:
+          name: tempo
+        name: tempo-conf
