@@ -94,6 +94,11 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 }
 
+// MultitenancyIsEnabled checks if multitenancy is enabled
+func (c *Config) MultitenancyIsEnabled() bool {
+	return c.MultitenancyEnabled || c.AuthEnabled
+}
+
 // CheckConfig checks if config values are suspect.
 func (c *Config) CheckConfig() {
 	if c.Ingester.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
@@ -156,7 +161,7 @@ func New(cfg Config) (*App, error) {
 }
 
 func (t *App) setupAuthMiddleware() {
-	if t.cfg.MultitenancyEnabled || t.cfg.AuthEnabled {
+	if t.cfg.MultitenancyIsEnabled() {
 
 		// don't check auth for these gRPC methods, since single call is used for multiple users
 		noGRPCAuthOn := []string{
