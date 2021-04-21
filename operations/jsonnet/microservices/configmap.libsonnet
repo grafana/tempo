@@ -133,7 +133,7 @@
     configMap.new('tempo-query') +
     configMap.withData({
       'tempo-query.yaml': $.util.manifestYaml({
-        backend: 'localhost:%d' % $._config.port,
+        backend: 'localhost:%d%s' % [$._config.port, $._config.http_api_prefix],
       }),
     }),
 }

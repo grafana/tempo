@@ -41,6 +41,7 @@
     },
     ballast_size_mbs: '1024',
     port: 3100,
+    http_api_prefix: '',
     gossip_ring_port: 7946,
     backend: error 'Must specify a backend',  // gcs|s3
     bucket: error 'Must specify a bucket',
