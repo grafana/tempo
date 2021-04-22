@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/weaveworks/common/instrument"
 
+	"github.com/cortexproject/cortex/pkg/cortexpb"
 	ingester_client "github.com/cortexproject/cortex/pkg/ingester/client"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/tenant"
@@ -21,7 +22,7 @@ import (
 // Query multiple ingesters and returns a Matrix of samples.
 func (d *Distributor) Query(ctx context.Context, from, to model.Time, matchers ...*labels.Matcher) (model.Matrix, error) {
 	var matrix model.Matrix
-	err := instrument.CollectedRequest(ctx, "Distributor.Query", queryDuration, instrument.ErrorCode, func(ctx context.Context) error {
+	err := instrument.CollectedRequest(ctx, "Distributor.Query", d.queryDuration, instrument.ErrorCode, func(ctx context.Context) error {
 		req, err := ingester_client.ToQueryRequest(from, to, matchers)
 		if err != nil {
 			return err
@@ -48,7 +49,7 @@ func (d *Distributor) Query(ctx context.Context, from, to model.Time, matchers .
 // QueryStream multiple ingesters via the streaming interface and returns big ol' set of chunks.
 func (d *Distributor) QueryStream(ctx context.Context, from, to model.Time, matchers ...*labels.Matcher) (*ingester_client.QueryStreamResponse, error) {
 	var result *ingester_client.QueryStreamResponse
-	err := instrument.CollectedRequest(ctx, "Distributor.QueryStream", queryDuration, instrument.ErrorCode, func(ctx context.Context) error {
+	err := instrument.CollectedRequest(ctx, "Distributor.QueryStream", d.queryDuration, instrument.ErrorCode, func(ctx context.Context) error {
 		req, err := ingester_client.ToQueryRequest(from, to, matchers)
 		if err != nil {
 			return err
@@ -136,9 +137,9 @@ func (d *Distributor) queryIngesters(ctx context.Context, replicationSet ring.Re
 		}
 
 		resp, err := client.(ingester_client.IngesterClient).Query(ctx, req)
-		ingesterQueries.WithLabelValues(ing.Addr).Inc()
+		d.ingesterQueries.WithLabelValues(ing.Addr).Inc()
 		if err != nil {
-			ingesterQueryFailures.WithLabelValues(ing.Addr).Inc()
+			d.ingesterQueryFailures.WithLabelValues(ing.Addr).Inc()
 			return nil, err
 		}
 
@@ -179,11 +180,11 @@ func (d *Distributor) queryIngesterStream(ctx context.Context, replicationSet ri
 		if err != nil {
 			return nil, err
 		}
-		ingesterQueries.WithLabelValues(ing.Addr).Inc()
+		d.ingesterQueries.WithLabelValues(ing.Addr).Inc()
 
 		stream, err := client.(ingester_client.IngesterClient).QueryStream(ctx, req)
 		if err != nil {
-			ingesterQueryFailures.WithLabelValues(ing.Addr).Inc()
+			d.ingesterQueryFailures.WithLabelValues(ing.Addr).Inc()
 			return nil, err
 		}
 		defer stream.CloseSend() //nolint:errcheck
@@ -196,7 +197,7 @@ func (d *Distributor) queryIngesterStream(ctx context.Context, replicationSet ri
 			} else if err != nil {
 				// Do not track a failure if the context was canceled.
 				if !grpc_util.IsGRPCContextCanceled(err) {
-					ingesterQueryFailures.WithLabelValues(ing.Addr).Inc()
+					d.ingesterQueryFailures.WithLabelValues(ing.Addr).Inc()
 				}
 
 				return nil, err
@@ -212,14 +213,14 @@ func (d *Distributor) queryIngesterStream(ctx context.Context, replicationSet ri
 	}
 
 	hashToChunkseries := map[string]ingester_client.TimeSeriesChunk{}
-	hashToTimeSeries := map[string]ingester_client.TimeSeries{}
+	hashToTimeSeries := map[string]cortexpb.TimeSeries{}
 
 	for _, result := range results {
 		response := result.(*ingester_client.QueryStreamResponse)
 
 		// Parse any chunk series
 		for _, series := range response.Chunkseries {
-			key := ingester_client.LabelsToKeyString(ingester_client.FromLabelAdaptersToLabels(series.Labels))
+			key := ingester_client.LabelsToKeyString(cortexpb.FromLabelAdaptersToLabels(series.Labels))
 			existing := hashToChunkseries[key]
 			existing.Labels = series.Labels
 			existing.Chunks = append(existing.Chunks, series.Chunks...)
@@ -228,7 +229,7 @@ func (d *Distributor) queryIngesterStream(ctx context.Context, replicationSet ri
 
 		// Parse any time series
 		for _, series := range response.Timeseries {
-			key := ingester_client.LabelsToKeyString(ingester_client.FromLabelAdaptersToLabels(series.Labels))
+			key := ingester_client.LabelsToKeyString(cortexpb.FromLabelAdaptersToLabels(series.Labels))
 			existing := hashToTimeSeries[key]
 			existing.Labels = series.Labels
 			if existing.Samples == nil {
@@ -242,7 +243,7 @@ func (d *Distributor) queryIngesterStream(ctx context.Context, replicationSet ri
 
 	resp := &ingester_client.QueryStreamResponse{
 		Chunkseries: make([]ingester_client.TimeSeriesChunk, 0, len(hashToChunkseries)),
-		Timeseries:  make([]ingester_client.TimeSeries, 0, len(hashToTimeSeries)),
+		Timeseries:  make([]cortexpb.TimeSeries, 0, len(hashToTimeSeries)),
 	}
 	for _, series := range hashToChunkseries {
 		resp.Chunkseries = append(resp.Chunkseries, series)
@@ -255,12 +256,12 @@ func (d *Distributor) queryIngesterStream(ctx context.Context, replicationSet ri
 }
 
 // Merges and dedupes two sorted slices with samples together.
-func mergeSamples(a, b []ingester_client.Sample) []ingester_client.Sample {
+func mergeSamples(a, b []cortexpb.Sample) []cortexpb.Sample {
 	if sameSamples(a, b) {
 		return a
 	}
 
-	result := make([]ingester_client.Sample, 0, len(a)+len(b))
+	result := make([]cortexpb.Sample, 0, len(a)+len(b))
 	i, j := 0, 0
 	for i < len(a) && j < len(b) {
 		if a[i].TimestampMs < b[j].TimestampMs {
@@ -281,7 +282,7 @@ func mergeSamples(a, b []ingester_client.Sample) []ingester_client.Sample {
 	return result
 }
 
-func sameSamples(a, b []ingester_client.Sample) bool {
+func sameSamples(a, b []cortexpb.Sample) bool {
 	if len(a) != len(b) {
 		return false
 	}

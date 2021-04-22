@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/opentracing/opentracing-go"
@@ -19,6 +21,11 @@ import (
 )
 
 const messageSizeLargerErrFmt = "received message larger than max (%d vs %d)"
+
+// IsRequestBodyTooLarge returns true if the error is "http: request body too large".
+func IsRequestBodyTooLarge(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "http: request body too large")
+}
 
 // BasicAuth configures basic authentication for HTTP clients.
 type BasicAuth struct {
@@ -90,6 +97,23 @@ func RenderHTTPResponse(w http.ResponseWriter, v interface{}, t *template.Templa
 	err := t.Execute(w, v)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// StreamWriteYAMLResponse stream writes data as http response
+func StreamWriteYAMLResponse(w http.ResponseWriter, iter chan interface{}, logger log.Logger) {
+	w.Header().Set("Content-Type", "application/yaml")
+	for v := range iter {
+		data, err := yaml.Marshal(v)
+		if err != nil {
+			level.Error(logger).Log("msg", "yaml marshal failed", "err", err)
+			continue
+		}
+		_, err = w.Write(data)
+		if err != nil {
+			level.Error(logger).Log("msg", "write http response failed", "err", err)
+			return
+		}
 	}
 }
 

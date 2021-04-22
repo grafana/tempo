@@ -4,13 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"hash/fnv"
 	"html/template"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,15 +18,24 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
 	"github.com/prometheus/alertmanager/cluster"
+	"github.com/prometheus/alertmanager/cluster/clusterpb"
 	amconfig "github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
+	"github.com/weaveworks/common/httpgrpc"
+	"github.com/weaveworks/common/httpgrpc/server"
+	"github.com/weaveworks/common/user"
 
-	"github.com/cortexproject/cortex/pkg/alertmanager/alerts"
+	"github.com/cortexproject/cortex/pkg/alertmanager/alertmanagerpb"
+	"github.com/cortexproject/cortex/pkg/alertmanager/alertspb"
+	"github.com/cortexproject/cortex/pkg/alertmanager/alertstore"
 	"github.com/cortexproject/cortex/pkg/ring"
+	"github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/tenant"
 	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/cortexproject/cortex/pkg/util/concurrency"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	util_log "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
@@ -76,6 +85,8 @@ const (
 
 var (
 	statusTemplate *template.Template
+
+	errInvalidExternalURL = errors.New("the configured external URL is invalid: should not end with /")
 )
 
 func init() {
@@ -91,15 +102,11 @@ func init() {
 
 // MultitenantAlertmanagerConfig is the configuration for a multitenant Alertmanager.
 type MultitenantAlertmanagerConfig struct {
-	DataDir      string           `yaml:"data_dir"`
-	Retention    time.Duration    `yaml:"retention"`
-	ExternalURL  flagext.URLValue `yaml:"external_url"`
-	PollInterval time.Duration    `yaml:"poll_interval"`
-
-	DeprecatedClusterBindAddr      string              `yaml:"cluster_bind_address"`
-	DeprecatedClusterAdvertiseAddr string              `yaml:"cluster_advertise_address"`
-	DeprecatedPeers                flagext.StringSlice `yaml:"peers"`
-	DeprecatedPeerTimeout          time.Duration       `yaml:"peer_timeout"`
+	DataDir        string           `yaml:"data_dir"`
+	Retention      time.Duration    `yaml:"retention"`
+	ExternalURL    flagext.URLValue `yaml:"external_url"`
+	PollInterval   time.Duration    `yaml:"poll_interval"`
+	MaxRecvMsgSize int64            `yaml:"max_recv_msg_size"`
 
 	// Enable sharding for the Alertmanager
 	ShardingEnabled bool       `yaml:"sharding_enabled"`
@@ -108,10 +115,16 @@ type MultitenantAlertmanagerConfig struct {
 	FallbackConfigFile string `yaml:"fallback_config_file"`
 	AutoWebhookRoot    string `yaml:"auto_webhook_root"`
 
-	Store   AlertStoreConfig `yaml:"storage"`
-	Cluster ClusterConfig    `yaml:"cluster"`
+	Store   alertstore.LegacyConfig `yaml:"storage" doc:"description=Deprecated. Use -alertmanager-storage.* CLI flags and their respective YAML config options instead."`
+	Cluster ClusterConfig           `yaml:"cluster"`
 
 	EnableAPI bool `yaml:"enable_api"`
+
+	// For distributor.
+	AlertmanagerClient ClientConfig `yaml:"alertmanager_client"`
+
+	// For the state persister.
+	Persister PersisterConfig `yaml:",inline"`
 }
 
 type ClusterConfig struct {
@@ -132,6 +145,7 @@ const (
 func (cfg *MultitenantAlertmanagerConfig) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&cfg.DataDir, "alertmanager.storage.path", "data/", "Base path for data storage.")
 	f.DurationVar(&cfg.Retention, "alertmanager.storage.retention", 5*24*time.Hour, "How long to keep data for.")
+	f.Int64Var(&cfg.MaxRecvMsgSize, "alertmanager.max-recv-msg-size", 16<<20, "Maximum size (bytes) of an accepted HTTP request body.")
 
 	f.Var(&cfg.ExternalURL, "alertmanager.web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.")
 
@@ -139,16 +153,13 @@ func (cfg *MultitenantAlertmanagerConfig) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&cfg.AutoWebhookRoot, "alertmanager.configs.auto-webhook-root", "", "Root of URL to generate if config is "+autoWebhookURL)
 	f.DurationVar(&cfg.PollInterval, "alertmanager.configs.poll-interval", 15*time.Second, "How frequently to poll Cortex configs")
 
-	// Flags prefixed with `cluster` are deprecated in favor of their `alertmanager` prefix equivalent.
-	// TODO: New flags introduced in Cortex 1.7, remove old ones in Cortex 1.9
-	f.StringVar(&cfg.DeprecatedClusterBindAddr, "cluster.listen-address", defaultClusterAddr, "Deprecated. Use -alertmanager.cluster.listen-address instead.")
-	f.StringVar(&cfg.DeprecatedClusterAdvertiseAddr, "cluster.advertise-address", "", "Deprecated. Use -alertmanager.cluster.advertise-address instead.")
-	f.Var(&cfg.DeprecatedPeers, "cluster.peer", "Deprecated. Use -alertmanager.cluster.peers instead.")
-	f.DurationVar(&cfg.DeprecatedPeerTimeout, "cluster.peer-timeout", time.Second*15, "Deprecated. Use -alertmanager.cluster.peer-timeout instead.")
-
 	f.BoolVar(&cfg.EnableAPI, "experimental.alertmanager.enable-api", false, "Enable the experimental alertmanager config api.")
 
 	f.BoolVar(&cfg.ShardingEnabled, "alertmanager.sharding-enabled", false, "Shard tenants across multiple alertmanager instances.")
+
+	cfg.AlertmanagerClient.RegisterFlagsWithPrefix("alertmanager.alertmanager-client", f)
+
+	cfg.Persister.RegisterFlagsWithPrefix("alertmanager", f)
 
 	cfg.ShardingRing.RegisterFlags(f)
 	cfg.Store.RegisterFlags(f)
@@ -165,38 +176,20 @@ func (cfg *ClusterConfig) RegisterFlags(f *flag.FlagSet) {
 	f.DurationVar(&cfg.PushPullInterval, prefix+"push-pull-interval", cluster.DefaultPushPullInterval, "The interval between gossip state syncs. Setting this interval lower (more frequent) will increase convergence speeds across larger clusters at the expense of increased bandwidth usage.")
 }
 
-// SupportDeprecatedFlagset ensures we support the previous set of cluster flags that are now deprecated.
-func (cfg *ClusterConfig) SupportDeprecatedFlagset(amCfg *MultitenantAlertmanagerConfig, logger log.Logger) {
-	if amCfg.DeprecatedClusterBindAddr != defaultClusterAddr {
-		flagext.DeprecatedFlagsUsed.Inc()
-		level.Warn(logger).Log("msg", "running with DEPRECATED flag -cluster.listen-address, use -alertmanager.cluster.listen-address instead.")
-		cfg.ListenAddr = amCfg.DeprecatedClusterBindAddr
-	}
-
-	if amCfg.DeprecatedClusterAdvertiseAddr != "" {
-		flagext.DeprecatedFlagsUsed.Inc()
-		level.Warn(logger).Log("msg", "running with DEPRECATED flag -cluster.advertise-address, use -alertmanager.cluster.advertise-address instead.")
-		cfg.AdvertiseAddr = amCfg.DeprecatedClusterAdvertiseAddr
-	}
-
-	if len(amCfg.DeprecatedPeers) > 0 {
-		flagext.DeprecatedFlagsUsed.Inc()
-		level.Warn(logger).Log("msg", "running with DEPRECATED flag -cluster.peer, use -alertmanager.cluster.peers instead.")
-		cfg.Peers = []string(amCfg.DeprecatedPeers)
-	}
-
-	if amCfg.DeprecatedPeerTimeout != defaultPeerTimeout {
-		flagext.DeprecatedFlagsUsed.Inc()
-		level.Warn(logger).Log("msg", "running with DEPRECATED flag -cluster.peer-timeout, use -alertmanager.cluster.peer-timeout instead.")
-		cfg.PeerTimeout = amCfg.DeprecatedPeerTimeout
-	}
-}
-
 // Validate config and returns error on failure
 func (cfg *MultitenantAlertmanagerConfig) Validate() error {
+	if cfg.ExternalURL.URL != nil && strings.HasSuffix(cfg.ExternalURL.Path, "/") {
+		return errInvalidExternalURL
+	}
+
 	if err := cfg.Store.Validate(); err != nil {
 		return errors.Wrap(err, "invalid storage config")
 	}
+
+	if err := cfg.Persister.Validate(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -231,14 +224,21 @@ type MultitenantAlertmanager struct {
 	cfg *MultitenantAlertmanagerConfig
 
 	// Ring used for sharding alertmanager instances.
+	// When sharding is disabled, the flow is:
+	//   ServeHTTP() -> serveRequest()
+	// When sharding is enabled:
+	//   ServeHTTP() -> distributor.DistributeRequest() -> (sends to other AM or even the current)
+	//     -> HandleRequest() (gRPC call) -> grpcServer() -> handlerForGRPCServer.ServeHTTP() -> serveRequest().
 	ringLifecycler *ring.BasicLifecycler
 	ring           *ring.Ring
+	distributor    *Distributor
+	grpcServer     *server.Server
 
 	// Subservices manager (ring, lifecycler)
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 
-	store AlertStore
+	store alertstore.AlertStore
 
 	// The fallback config is stored as a string and parsed every time it's needed
 	// because we mutate the parsed results and don't want those changes to take
@@ -249,13 +249,14 @@ type MultitenantAlertmanager struct {
 	alertmanagers    map[string]*Alertmanager
 	// Stores the current set of configurations we're running in each tenant's Alertmanager.
 	// Used for comparing configurations as we synchronize them.
-	cfgs map[string]alerts.AlertConfigDesc
+	cfgs map[string]alertspb.AlertConfigDesc
 
 	logger              log.Logger
 	alertmanagerMetrics *alertmanagerMetrics
 	multitenantMetrics  *multitenantAlertmanagerMetrics
 
-	peer *cluster.Peer
+	peer                    *cluster.Peer
+	alertmanagerClientsPool ClientsPool
 
 	registry          prometheus.Registerer
 	ringCheckErrors   prometheus.Counter
@@ -266,7 +267,7 @@ type MultitenantAlertmanager struct {
 }
 
 // NewMultitenantAlertmanager creates a new MultitenantAlertmanager.
-func NewMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, logger log.Logger, registerer prometheus.Registerer) (*MultitenantAlertmanager, error) {
+func NewMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, store alertstore.AlertStore, logger log.Logger, registerer prometheus.Registerer) (*MultitenantAlertmanager, error) {
 	err := os.MkdirAll(cfg.DataDir, 0777)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Alertmanager data directory %q: %s", cfg.DataDir, err)
@@ -288,10 +289,9 @@ func NewMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, logger log.L
 		}
 	}
 
-	cfg.Cluster.SupportDeprecatedFlagset(cfg, logger)
-
 	var peer *cluster.Peer
-	if cfg.Cluster.ListenAddr != "" {
+	// We need to take this case into account to support our legacy upstream clustering.
+	if cfg.Cluster.ListenAddr != "" && !cfg.ShardingEnabled {
 		peer, err = cluster.Create(
 			log.With(logger, "component", "cluster"),
 			registerer,
@@ -315,11 +315,6 @@ func NewMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, logger log.L
 		go peer.Settle(context.Background(), cluster.DefaultGossipInterval)
 	}
 
-	store, err := NewAlertStore(cfg.Store)
-	if err != nil {
-		return nil, err
-	}
-
 	var ringStore kv.Client
 	if cfg.ShardingEnabled {
 		ringStore, err = kv.NewClient(
@@ -335,11 +330,11 @@ func NewMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, logger log.L
 	return createMultitenantAlertmanager(cfg, fallbackConfig, peer, store, ringStore, logger, registerer)
 }
 
-func createMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, fallbackConfig []byte, peer *cluster.Peer, store AlertStore, ringStore kv.Client, logger log.Logger, registerer prometheus.Registerer) (*MultitenantAlertmanager, error) {
+func createMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, fallbackConfig []byte, peer *cluster.Peer, store alertstore.AlertStore, ringStore kv.Client, logger log.Logger, registerer prometheus.Registerer) (*MultitenantAlertmanager, error) {
 	am := &MultitenantAlertmanager{
 		cfg:                 cfg,
 		fallbackConfig:      string(fallbackConfig),
-		cfgs:                map[string]alerts.AlertConfigDesc{},
+		cfgs:                map[string]alertspb.AlertConfigDesc{},
 		alertmanagers:       map[string]*Alertmanager{},
 		alertmanagerMetrics: newAlertmanagerMetrics(),
 		multitenantMetrics:  newMultitenantAlertmanagerMetrics(registerer),
@@ -400,6 +395,14 @@ func createMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, fallbackC
 		if am.registry != nil {
 			am.registry.MustRegister(am.ring)
 		}
+
+		am.grpcServer = server.NewServer(&handlerForGRPCServer{am: am})
+
+		am.alertmanagerClientsPool = newAlertmanagerClientsPool(client.NewRingServiceDiscovery(am.ring), cfg.AlertmanagerClient, logger, am.registry)
+		am.distributor, err = NewDistributor(cfg.AlertmanagerClient, cfg.MaxRecvMsgSize, am.ring, am.alertmanagerClientsPool, log.With(logger, "component", "AlertmanagerDistributor"), am.registry)
+		if err != nil {
+			return nil, errors.Wrap(err, "create distributor")
+		}
 	}
 
 	if registerer != nil {
@@ -411,7 +414,22 @@ func createMultitenantAlertmanager(cfg *MultitenantAlertmanagerConfig, fallbackC
 	return am, nil
 }
 
+// handlerForGRPCServer acts as a handler for gRPC server to serve
+// the serveRequest() via the standard ServeHTTP.
+type handlerForGRPCServer struct {
+	am *MultitenantAlertmanager
+}
+
+func (h *handlerForGRPCServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	h.am.serveRequest(w, req)
+}
+
 func (am *MultitenantAlertmanager) starting(ctx context.Context) (err error) {
+	err = am.migrateStateFilesToPerTenantDirectories()
+	if err != nil {
+		return err
+	}
+
 	defer func() {
 		if err == nil || am.subservices == nil {
 			return
@@ -423,7 +441,7 @@ func (am *MultitenantAlertmanager) starting(ctx context.Context) (err error) {
 	}()
 
 	if am.cfg.ShardingEnabled {
-		if am.subservices, err = services.NewManager(am.ringLifecycler, am.ring); err != nil {
+		if am.subservices, err = services.NewManager(am.ringLifecycler, am.ring, am.distributor); err != nil {
 			return errors.Wrap(err, "failed to start alertmanager's subservices")
 		}
 
@@ -463,6 +481,119 @@ func (am *MultitenantAlertmanager) starting(ctx context.Context) (err error) {
 	}
 
 	return nil
+}
+
+// migrateStateFilesToPerTenantDirectories migrates any existing configuration from old place to new hierarchy.
+// TODO: Remove in Cortex 1.11.
+func (am *MultitenantAlertmanager) migrateStateFilesToPerTenantDirectories() error {
+	migrate := func(from, to string) error {
+		level.Info(am.logger).Log("msg", "migrating alertmanager state", "from", from, "to", to)
+		err := os.Rename(from, to)
+		return errors.Wrapf(err, "failed to migrate alertmanager state from %v to %v", from, to)
+	}
+
+	st, err := am.getObsoleteFilesPerUser()
+	if err != nil {
+		return errors.Wrap(err, "failed to migrate alertmanager state files")
+	}
+
+	for userID, files := range st {
+		tenantDir := am.getTenantDirectory(userID)
+		err := os.MkdirAll(tenantDir, 0777)
+		if err != nil {
+			return errors.Wrapf(err, "failed to create per-tenant directory %v", tenantDir)
+		}
+
+		errs := tsdb_errors.NewMulti()
+
+		if files.notificationLogSnapshot != "" {
+			errs.Add(migrate(files.notificationLogSnapshot, filepath.Join(tenantDir, notificationLogSnapshot)))
+		}
+
+		if files.silencesSnapshot != "" {
+			errs.Add(migrate(files.silencesSnapshot, filepath.Join(tenantDir, silencesSnapshot)))
+		}
+
+		if files.templatesDir != "" {
+			errs.Add(migrate(files.templatesDir, filepath.Join(tenantDir, templatesDir)))
+		}
+
+		if err := errs.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type obsoleteStateFiles struct {
+	notificationLogSnapshot string
+	silencesSnapshot        string
+	templatesDir            string
+}
+
+// getObsoleteFilesPerUser returns per-user set of files that should be migrated from old structure to new structure.
+func (am *MultitenantAlertmanager) getObsoleteFilesPerUser() (map[string]obsoleteStateFiles, error) {
+	files, err := ioutil.ReadDir(am.cfg.DataDir)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to list dir %v", am.cfg.DataDir)
+	}
+
+	// old names
+	const (
+		notificationLogPrefix = "nflog:"
+		silencesPrefix        = "silences:"
+		templates             = "templates"
+	)
+
+	result := map[string]obsoleteStateFiles{}
+
+	for _, f := range files {
+		fullPath := filepath.Join(am.cfg.DataDir, f.Name())
+
+		if f.IsDir() {
+			// Process templates dir.
+			if f.Name() != templates {
+				// Ignore other files -- those are likely per tenant directories.
+				continue
+			}
+
+			templateDirs, err := ioutil.ReadDir(fullPath)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to list dir %v", fullPath)
+			}
+
+			// Previously templates directory contained per-tenant subdirectory.
+			for _, d := range templateDirs {
+				if d.IsDir() {
+					v := result[d.Name()]
+					v.templatesDir = filepath.Join(fullPath, d.Name())
+					result[d.Name()] = v
+				} else {
+					level.Warn(am.logger).Log("msg", "ignoring unknown local file while migrating local alertmanager state files", "file", filepath.Join(fullPath, d.Name()))
+				}
+			}
+			continue
+		}
+
+		switch {
+		case strings.HasPrefix(f.Name(), notificationLogPrefix):
+			userID := strings.TrimPrefix(f.Name(), notificationLogPrefix)
+			v := result[userID]
+			v.notificationLogSnapshot = fullPath
+			result[userID] = v
+
+		case strings.HasPrefix(f.Name(), silencesPrefix):
+			userID := strings.TrimPrefix(f.Name(), silencesPrefix)
+			v := result[userID]
+			v.silencesSnapshot = fullPath
+			result[userID] = v
+
+		default:
+			level.Warn(am.logger).Log("msg", "ignoring unknown local data file while migrating local alertmanager state files", "file", fullPath)
+		}
+	}
+
+	return result, nil
 }
 
 func (am *MultitenantAlertmanager) run(ctx context.Context) error {
@@ -516,6 +647,8 @@ func (am *MultitenantAlertmanager) loadAndSyncConfigs(ctx context.Context, syncR
 	}
 
 	am.syncConfigs(cfgs)
+	am.deleteUnusedLocalUserState()
+
 	return nil
 }
 
@@ -541,55 +674,53 @@ func (am *MultitenantAlertmanager) stopping(_ error) error {
 }
 
 // loadAlertmanagerConfigs Loads (and filters) the alertmanagers configuration from object storage, taking into consideration the sharding strategy.
-func (am *MultitenantAlertmanager) loadAlertmanagerConfigs(ctx context.Context) (map[string]alerts.AlertConfigDesc, error) {
-	configs, err := am.store.ListAlertConfigs(ctx)
+func (am *MultitenantAlertmanager) loadAlertmanagerConfigs(ctx context.Context) (map[string]alertspb.AlertConfigDesc, error) {
+	// Find all users with an alertmanager config.
+	userIDs, err := am.store.ListAllUsers(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to list users with alertmanager configuration")
 	}
+	numUsersDiscovered := len(userIDs)
 
-	// Without any sharding, we return _all_ the configs and there's nothing else for us to do.
-	if !am.cfg.ShardingEnabled {
-		am.tenantsDiscovered.Set(float64(len(configs)))
-		am.tenantsOwned.Set(float64(len(configs)))
-		return configs, nil
-	}
-
-	ownedConfigs := map[string]alerts.AlertConfigDesc{}
-	for userID, cfg := range configs {
-		owned, err := am.isConfigOwned(userID)
-		if err != nil {
-			am.ringCheckErrors.Inc()
-			level.Error(am.logger).Log("msg", "failed to load alertmanager configuration for user", "user", userID, "err", err)
+	// Filter out users not owned by this shard.
+	for i := 0; i < len(userIDs); {
+		if !am.isUserOwned(userIDs[i]) {
+			userIDs = append(userIDs[:i], userIDs[i+1:]...)
 			continue
 		}
 
-		if owned {
-			level.Debug(am.logger).Log("msg", "alertmanager configuration owned", "user", userID)
-			ownedConfigs[userID] = cfg
-		} else {
-			level.Debug(am.logger).Log("msg", "alertmanager configuration not owned, ignoring", "user", userID)
-		}
+		i++
 	}
+	numUsersOwned := len(userIDs)
 
-	am.tenantsDiscovered.Set(float64(len(configs)))
-	am.tenantsOwned.Set(float64(len(ownedConfigs)))
-	return ownedConfigs, nil
-}
-
-func (am *MultitenantAlertmanager) isConfigOwned(userID string) (bool, error) {
-	ringHasher := fnv.New32a()
-	// Hasher never returns err.
-	_, _ = ringHasher.Write([]byte(userID))
-
-	alertmanagers, err := am.ring.Get(ringHasher.Sum32(), RingOp, nil, nil, nil)
+	// Load the configs for the owned users.
+	configs, err := am.store.GetAlertConfigs(ctx, userIDs)
 	if err != nil {
-		return false, errors.Wrap(err, "error reading ring to verify config ownership")
+		return nil, errors.Wrapf(err, "failed to load alertmanager configurations for owned users")
 	}
 
-	return alertmanagers.Includes(am.ringLifecycler.GetInstanceAddr()), nil
+	am.tenantsDiscovered.Set(float64(numUsersDiscovered))
+	am.tenantsOwned.Set(float64(numUsersOwned))
+	return configs, nil
 }
 
-func (am *MultitenantAlertmanager) syncConfigs(cfgs map[string]alerts.AlertConfigDesc) {
+func (am *MultitenantAlertmanager) isUserOwned(userID string) bool {
+	// If sharding is disabled, any alertmanager instance owns all users.
+	if !am.cfg.ShardingEnabled {
+		return true
+	}
+
+	alertmanagers, err := am.ring.Get(shardByUser(userID), RingOp, nil, nil, nil)
+	if err != nil {
+		am.ringCheckErrors.Inc()
+		level.Error(am.logger).Log("msg", "failed to load alertmanager configuration", "user", userID, "err", err)
+		return false
+	}
+
+	return alertmanagers.Includes(am.ringLifecycler.GetInstanceAddr())
+}
+
+func (am *MultitenantAlertmanager) syncConfigs(cfgs map[string]alertspb.AlertConfigDesc) {
 	level.Debug(am.logger).Log("msg", "adding configurations", "num_configs", len(cfgs))
 	for user, cfg := range cfgs {
 		err := am.setConfig(cfg)
@@ -603,31 +734,38 @@ func (am *MultitenantAlertmanager) syncConfigs(cfgs map[string]alerts.AlertConfi
 		am.multitenantMetrics.lastReloadSuccessfulTimestamp.WithLabelValues(user).SetToCurrentTime()
 	}
 
+	userAlertmanagersToStop := map[string]*Alertmanager{}
+
 	am.alertmanagersMtx.Lock()
-	defer am.alertmanagersMtx.Unlock()
 	for userID, userAM := range am.alertmanagers {
 		if _, exists := cfgs[userID]; !exists {
-			level.Info(am.logger).Log("msg", "deactivating per-tenant alertmanager", "user", userID)
-			userAM.Stop()
+			userAlertmanagersToStop[userID] = userAM
 			delete(am.alertmanagers, userID)
 			delete(am.cfgs, userID)
 			am.multitenantMetrics.lastReloadSuccessful.DeleteLabelValues(userID)
 			am.multitenantMetrics.lastReloadSuccessfulTimestamp.DeleteLabelValues(userID)
 			am.alertmanagerMetrics.removeUserRegistry(userID)
-			level.Info(am.logger).Log("msg", "deactivated per-tenant alertmanager", "user", userID)
 		}
+	}
+	am.alertmanagersMtx.Unlock()
+
+	// Now stop alertmanagers and wait until they are really stopped, without holding lock.
+	for userID, userAM := range userAlertmanagersToStop {
+		level.Info(am.logger).Log("msg", "deactivating per-tenant alertmanager", "user", userID)
+		userAM.StopAndWait()
+		level.Info(am.logger).Log("msg", "deactivated per-tenant alertmanager", "user", userID)
 	}
 }
 
 // setConfig applies the given configuration to the alertmanager for `userID`,
 // creating an alertmanager if it doesn't already exist.
-func (am *MultitenantAlertmanager) setConfig(cfg alerts.AlertConfigDesc) error {
+func (am *MultitenantAlertmanager) setConfig(cfg alertspb.AlertConfigDesc) error {
 	var userAmConfig *amconfig.Config
 	var err error
 	var hasTemplateChanges bool
 
 	for _, tmpl := range cfg.Templates {
-		hasChanged, err := createTemplateFile(am.cfg.DataDir, cfg.User, tmpl.Filename, tmpl.Body)
+		hasChanged, err := storeTemplateFile(filepath.Join(am.getTenantDirectory(cfg.User), templatesDir), tmpl.Filename, tmpl.Body)
 		if err != nil {
 			return err
 		}
@@ -704,20 +842,37 @@ func (am *MultitenantAlertmanager) setConfig(cfg alerts.AlertConfigDesc) error {
 			return fmt.Errorf("unable to apply Alertmanager config for user %v: %v", cfg.User, err)
 		}
 	}
+
 	am.cfgs[cfg.User] = cfg
 	return nil
 }
 
+func (am *MultitenantAlertmanager) getTenantDirectory(userID string) string {
+	return filepath.Join(am.cfg.DataDir, userID)
+}
+
 func (am *MultitenantAlertmanager) newAlertmanager(userID string, amConfig *amconfig.Config, rawCfg string) (*Alertmanager, error) {
 	reg := prometheus.NewRegistry()
+
+	tenantDir := am.getTenantDirectory(userID)
+	err := os.MkdirAll(tenantDir, 0777)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create per-tenant directory %v", tenantDir)
+	}
+
 	newAM, err := New(&Config{
-		UserID:      userID,
-		DataDir:     am.cfg.DataDir,
-		Logger:      util_log.Logger,
-		Peer:        am.peer,
-		PeerTimeout: am.cfg.Cluster.PeerTimeout,
-		Retention:   am.cfg.Retention,
-		ExternalURL: am.cfg.ExternalURL.URL,
+		UserID:            userID,
+		TenantDataDir:     tenantDir,
+		Logger:            util_log.Logger,
+		Peer:              am.peer,
+		PeerTimeout:       am.cfg.Cluster.PeerTimeout,
+		Retention:         am.cfg.Retention,
+		ExternalURL:       am.cfg.ExternalURL.URL,
+		ShardingEnabled:   am.cfg.ShardingEnabled,
+		Replicator:        am,
+		ReplicationFactor: am.cfg.ShardingRing.ReplicationFactor,
+		Store:             am.store,
+		PersisterConfig:   am.cfg.Persister,
 	}, reg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start Alertmanager for user %v: %v", userID, err)
@@ -731,6 +886,32 @@ func (am *MultitenantAlertmanager) newAlertmanager(userID string, amConfig *amco
 	return newAM, nil
 }
 
+// GetPositionForUser returns the position this Alertmanager instance holds in the ring related to its other replicas for an specific user.
+func (am *MultitenantAlertmanager) GetPositionForUser(userID string) int {
+	// If we have a replication factor of 1 or less we don't need to do any work and can immediately return.
+	if am.ring == nil || am.ring.ReplicationFactor() <= 1 {
+		return 0
+	}
+
+	set, err := am.ring.Get(shardByUser(userID), RingOp, nil, nil, nil)
+	if err != nil {
+		level.Error(am.logger).Log("msg", "unable to read the ring while trying to determine the alertmanager position", "err", err)
+		// If we're  unable to determine the position, we don't want a tenant to miss out on the notification - instead,
+		// just assume we're the first in line and run the risk of a double notification.
+		return 0
+	}
+
+	var position int
+	for i, instance := range set.Instances {
+		if instance.Addr == am.ringLifecycler.GetInstanceAddr() {
+			position = i
+			break
+		}
+	}
+
+	return position
+}
+
 // ServeHTTP serves the Alertmanager's web UI and API.
 func (am *MultitenantAlertmanager) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if am.State() != services.Running {
@@ -738,6 +919,23 @@ func (am *MultitenantAlertmanager) ServeHTTP(w http.ResponseWriter, req *http.Re
 		return
 	}
 
+	if am.cfg.ShardingEnabled && am.distributor.IsPathSupported(req.URL.Path) {
+		am.distributor.DistributeRequest(w, req)
+		return
+	}
+
+	// If sharding is not enabled or Distributor does not support this path,
+	// it is served by this instance.
+	am.serveRequest(w, req)
+}
+
+// HandleRequest implements gRPC Alertmanager service, which receives request from AlertManager-Distributor.
+func (am *MultitenantAlertmanager) HandleRequest(ctx context.Context, in *httpgrpc.HTTPRequest) (*httpgrpc.HTTPResponse, error) {
+	return am.grpcServer.Handle(ctx, in)
+}
+
+// serveRequest serves the Alertmanager's web UI and API.
+func (am *MultitenantAlertmanager) serveRequest(w http.ResponseWriter, req *http.Request) {
 	userID, err := tenant.TenantID(req.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -748,7 +946,6 @@ func (am *MultitenantAlertmanager) ServeHTTP(w http.ResponseWriter, req *http.Re
 	am.alertmanagersMtx.Unlock()
 
 	if ok {
-
 		userAM.mux.ServeHTTP(w, req)
 		return
 	}
@@ -771,7 +968,7 @@ func (am *MultitenantAlertmanager) ServeHTTP(w http.ResponseWriter, req *http.Re
 
 func (am *MultitenantAlertmanager) alertmanagerFromFallbackConfig(userID string) (*Alertmanager, error) {
 	// Upload an empty config so that the Alertmanager is no de-activated in the next poll
-	cfgDesc := alerts.ToProto("", nil, userID)
+	cfgDesc := alertspb.ToProto("", nil, userID)
 	err := am.store.SetAlertConfig(context.Background(), cfgDesc)
 	if err != nil {
 		return nil, err
@@ -796,34 +993,245 @@ func (am *MultitenantAlertmanager) GetStatusHandler() StatusHandler {
 	}
 }
 
+// ReplicateStateForUser attempts to replicate a partial state sent by an alertmanager to its other replicas through the ring.
+func (am *MultitenantAlertmanager) ReplicateStateForUser(ctx context.Context, userID string, part *clusterpb.Part) error {
+	level.Debug(am.logger).Log("msg", "message received for replication", "user", userID, "key", part.Key)
+
+	selfAddress := am.ringLifecycler.GetInstanceAddr()
+	err := ring.DoBatch(ctx, RingOp, am.ring, []uint32{shardByUser(userID)}, func(desc ring.InstanceDesc, _ []int) error {
+		if desc.GetAddr() == selfAddress {
+			return nil
+		}
+
+		c, err := am.alertmanagerClientsPool.GetClientFor(desc.GetAddr())
+		if err != nil {
+			return err
+		}
+
+		resp, err := c.UpdateState(user.InjectOrgID(ctx, userID), part)
+		if err != nil {
+			return err
+		}
+
+		switch resp.Status {
+		case alertmanagerpb.MERGE_ERROR:
+			level.Error(am.logger).Log("msg", "state replication failed", "user", userID, "key", part.Key, "err", resp.Error)
+		case alertmanagerpb.USER_NOT_FOUND:
+			level.Debug(am.logger).Log("msg", "user not found while trying to replicate state", "user", userID, "key", part.Key)
+		}
+		return nil
+	}, func() {})
+
+	return err
+}
+
+// ReadFullStateForUser attempts to read the full state from each replica for user. Note that it will try to obtain and return
+// state from all replicas, but will consider it a success if state is obtained from at least one replica.
+func (am *MultitenantAlertmanager) ReadFullStateForUser(ctx context.Context, userID string) ([]*clusterpb.FullState, error) {
+
+	// Only get the set of replicas which contain the specified user.
+	key := shardByUser(userID)
+	replicationSet, err := am.ring.Get(key, RingOp, nil, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// We should only query state from other replicas, and not our own state.
+	addrs := replicationSet.GetAddressesWithout(am.ringLifecycler.GetInstanceAddr())
+
+	var (
+		resultsMtx sync.Mutex
+		results    []*clusterpb.FullState
+	)
+
+	// Note that the jobs swallow the errors - this is because we want to give each replica a chance to respond.
+	jobs := concurrency.CreateJobsFromStrings(addrs)
+	err = concurrency.ForEach(ctx, jobs, len(jobs), func(ctx context.Context, job interface{}) error {
+		addr := job.(string)
+		level.Debug(am.logger).Log("msg", "contacting replica for full state", "user", userID, "addr", addr)
+
+		c, err := am.alertmanagerClientsPool.GetClientFor(addr)
+		if err != nil {
+			level.Error(am.logger).Log("msg", "failed to get rpc client", "err", err)
+			return nil
+		}
+
+		resp, err := c.ReadState(user.InjectOrgID(ctx, userID), &alertmanagerpb.ReadStateRequest{})
+		if err != nil {
+			level.Error(am.logger).Log("msg", "rpc reading state from replica failed", "addr", addr, "user", userID, "err", err)
+			return nil
+		}
+
+		switch resp.Status {
+		case alertmanagerpb.READ_OK:
+			resultsMtx.Lock()
+			results = append(results, resp.State)
+			resultsMtx.Unlock()
+		case alertmanagerpb.READ_ERROR:
+			level.Error(am.logger).Log("msg", "error trying to read state", "addr", addr, "user", userID, "err", resp.Error)
+		case alertmanagerpb.READ_USER_NOT_FOUND:
+			level.Debug(am.logger).Log("msg", "user not found while trying to read state", "addr", addr, "user", userID)
+		default:
+			level.Error(am.logger).Log("msg", "unknown response trying to read state", "addr", addr, "user", userID)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// We only require the state from a single replica, though we return as many as we were able to obtain.
+	if len(results) == 0 {
+		return nil, fmt.Errorf("failed to read state from any replica")
+	}
+
+	return results, nil
+}
+
+// UpdateState implements the Alertmanager service.
+func (am *MultitenantAlertmanager) UpdateState(ctx context.Context, part *clusterpb.Part) (*alertmanagerpb.UpdateStateResponse, error) {
+	userID, err := tenant.TenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	am.alertmanagersMtx.Lock()
+	userAM, ok := am.alertmanagers[userID]
+	am.alertmanagersMtx.Unlock()
+
+	if !ok {
+		// We can end up trying to replicate state to an alertmanager that is no longer available due to e.g. a ring topology change.
+		level.Debug(am.logger).Log("msg", "user does not have an alertmanager in this instance", "user", userID)
+		return &alertmanagerpb.UpdateStateResponse{
+			Status: alertmanagerpb.USER_NOT_FOUND,
+			Error:  "alertmanager for this user does not exists",
+		}, nil
+	}
+
+	if err = userAM.mergePartialExternalState(part); err != nil {
+		return &alertmanagerpb.UpdateStateResponse{
+			Status: alertmanagerpb.MERGE_ERROR,
+			Error:  err.Error(),
+		}, nil
+	}
+
+	return &alertmanagerpb.UpdateStateResponse{Status: alertmanagerpb.OK}, nil
+}
+
+// deleteUnusedLocalUserState deletes local files for users that we no longer need.
+func (am *MultitenantAlertmanager) deleteUnusedLocalUserState() {
+	userDirs := am.getPerUserDirectories()
+
+	// And delete remaining files.
+	for userID, dir := range userDirs {
+		am.alertmanagersMtx.Lock()
+		userAM := am.alertmanagers[userID]
+		am.alertmanagersMtx.Unlock()
+
+		// Don't delete directory if AM for user still exists.
+		if userAM != nil {
+			continue
+		}
+
+		err := os.RemoveAll(dir)
+		if err != nil {
+			level.Warn(am.logger).Log("msg", "failed to delete directory for user", "dir", dir, "user", userID, "err", err)
+		} else {
+			level.Info(am.logger).Log("msg", "deleted local directory for user", "dir", dir, "user", userID)
+		}
+	}
+}
+
+// getPerUserDirectories returns map of users to their directories (full path). Only users with local
+// directory are returned.
+func (am *MultitenantAlertmanager) getPerUserDirectories() map[string]string {
+	files, err := ioutil.ReadDir(am.cfg.DataDir)
+	if err != nil {
+		level.Warn(am.logger).Log("msg", "failed to list local dir", "dir", am.cfg.DataDir, "err", err)
+		return nil
+	}
+
+	result := map[string]string{}
+
+	for _, f := range files {
+		fullPath := filepath.Join(am.cfg.DataDir, f.Name())
+
+		if !f.IsDir() {
+			level.Warn(am.logger).Log("msg", "ignoring unexpected file while scanning local alertmanager configs", "file", fullPath)
+			continue
+		}
+
+		result[f.Name()] = fullPath
+	}
+	return result
+}
+
+// UpdateState implements the Alertmanager service.
+func (am *MultitenantAlertmanager) ReadState(ctx context.Context, req *alertmanagerpb.ReadStateRequest) (*alertmanagerpb.ReadStateResponse, error) {
+	userID, err := tenant.TenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	am.alertmanagersMtx.Lock()
+	userAM, ok := am.alertmanagers[userID]
+	am.alertmanagersMtx.Unlock()
+
+	if !ok {
+		level.Debug(am.logger).Log("msg", "user does not have an alertmanager in this instance", "user", userID)
+		return &alertmanagerpb.ReadStateResponse{
+			Status: alertmanagerpb.READ_USER_NOT_FOUND,
+			Error:  "alertmanager for this user does not exists",
+		}, nil
+	}
+
+	state, err := userAM.getFullState()
+	if err != nil {
+		return &alertmanagerpb.ReadStateResponse{
+			Status: alertmanagerpb.READ_ERROR,
+			Error:  err.Error(),
+		}, nil
+	}
+
+	return &alertmanagerpb.ReadStateResponse{
+		Status: alertmanagerpb.READ_OK,
+		State:  state,
+	}, nil
+}
+
 // StatusHandler shows the status of the alertmanager.
 type StatusHandler struct {
 	am *MultitenantAlertmanager
 }
 
 // ServeHTTP serves the status of the alertmanager.
-func (s StatusHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (s StatusHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	err := statusTemplate.Execute(w, s.am.peer.Info())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func createTemplateFile(dataDir, userID, fn, content string) (bool, error) {
-	if fn != filepath.Base(fn) {
-		return false, fmt.Errorf("template file name '%s' is not not valid", fn)
+// storeTemplateFile stores template file with given content into specific directory.
+// Since templateFileName is provided by end-user, it is verified that it doesn't do any path-traversal.
+// Returns true, if file content has changed (new or updated file), false if file with the same name
+// and content was already stored locally.
+func storeTemplateFile(dir, templateFileName, content string) (bool, error) {
+	if templateFileName != filepath.Base(templateFileName) {
+		return false, fmt.Errorf("template file name '%s' is not not valid", templateFileName)
 	}
 
-	dir := filepath.Join(dataDir, "templates", userID, filepath.Dir(fn))
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return false, fmt.Errorf("unable to create Alertmanager templates directory %q: %s", dir, err)
 	}
 
-	file := filepath.Join(dir, fn)
+	file := filepath.Join(dir, templateFileName)
 	// Check if the template file already exists and if it has changed
 	if tmpl, err := ioutil.ReadFile(file); err == nil && string(tmpl) == content {
 		return false, nil
+	} else if err != nil && !os.IsNotExist(err) {
+		return false, err
 	}
 
 	if err := ioutil.WriteFile(file, []byte(content), 0644); err != nil {
