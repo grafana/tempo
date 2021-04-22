@@ -12,7 +12,7 @@
 * [CHANGE] `ingestion_rate_limit` limit override has been removed in favour of `ingestion_rate_limit_bytes`.
   `ingestion_burst_size` limit override has been removed in favour of `ingestion_burst_size_bytes`.
   This is a **breaking change** to the overrides config section. [#630](https://github.com/grafana/tempo/pull/630)
-* [CHANGE] Rename auth.enabled to multitenancy.enabled and set it as false by default. This is not a breaking change, but auth.enabled has been set as deprecated. 
+* [CHANGE] Rename auth.enabled to multitenancy.enabled and set it as false by default. This is a **breaking change** if you were relying on auth/multitenancy being enabled by default. [#646](https://github.com/grafana/tempo/pull/646)
 * [FEATURE] Add page based access to the index file. [#557](https://github.com/grafana/tempo/pull/557)
 * [FEATURE] (Experimental) WAL Compression/checksums. [#638](https://github.com/grafana/tempo/pull/638)
 * [ENHANCEMENT] Add a Shutdown handler to flush data to backend, at "/shutdown". [#526](https://github.com/grafana/tempo/pull/526)
