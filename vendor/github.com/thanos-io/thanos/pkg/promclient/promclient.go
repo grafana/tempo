@@ -31,6 +31,8 @@ import (
 	"github.com/prometheus/prometheus/pkg/timestamp"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
+	"github.com/thanos-io/thanos/pkg/exemplars/exemplarspb"
+	"github.com/thanos-io/thanos/pkg/metadata/metadatapb"
 	"github.com/thanos-io/thanos/pkg/rules/rulespb"
 	"github.com/thanos-io/thanos/pkg/runutil"
 	"github.com/thanos-io/thanos/pkg/store/storepb"
@@ -110,7 +112,7 @@ func (c *Client) req2xx(ctx context.Context, u *url.URL, method string) (_ []byt
 
 	req, err := http.NewRequest(method, u.String(), b)
 	if err != nil {
-		return nil, 0, errors.Wrap(err, "create GET request")
+		return nil, 0, errors.Wrapf(err, "create %s request", method)
 	}
 	if c.userAgent != "" {
 		req.Header.Set("User-Agent", c.userAgent)
@@ -121,7 +123,7 @@ func (c *Client) req2xx(ctx context.Context, u *url.URL, method string) (_ []byt
 
 	resp, err := c.Do(req.WithContext(ctx))
 	if err != nil {
-		return nil, 0, errors.Wrapf(err, "perform GET request against %s", u.String())
+		return nil, 0, errors.Wrapf(err, "perform %s request against %s", method, u.String())
 	}
 	defer runutil.ExhaustCloseWithErrCapture(&err, resp.Body, "%s: close body", req.URL.String())
 
@@ -735,4 +737,48 @@ func (c *Client) RulesInGRPC(ctx context.Context, base *url.URL, typeRules strin
 		g.PartialResponseStrategy = storepb.PartialResponseStrategy_ABORT
 	}
 	return m.Data.Groups, nil
+}
+
+func (c *Client) MetadataInGRPC(ctx context.Context, base *url.URL, metric string, limit int) (map[string][]metadatapb.Meta, error) {
+	u := *base
+	u.Path = path.Join(u.Path, "/api/v1/metadata")
+	q := u.Query()
+
+	if metric != "" {
+		q.Add("metric", metric)
+	}
+	// We only set limit when it is >= 0.
+	if limit >= 0 {
+		q.Add("limit", strconv.Itoa(limit))
+	}
+
+	u.RawQuery = q.Encode()
+
+	var v struct {
+		Data map[string][]metadatapb.Meta `json:"data"`
+	}
+	return v.Data, c.get2xxResultWithGRPCErrors(ctx, "/metadata HTTP[client]", &u, &v)
+}
+
+// ExemplarsInGRPC returns the exemplars from Prometheus exemplars API. It uses gRPC errors.
+// NOTE: This method is tested in pkg/store/prometheus_test.go against Prometheus.
+func (c *Client) ExemplarsInGRPC(ctx context.Context, base *url.URL, query string, startTime, endTime int64) ([]*exemplarspb.ExemplarData, error) {
+	u := *base
+	u.Path = path.Join(u.Path, "/api/v1/query_exemplars")
+	q := u.Query()
+
+	q.Add("query", query)
+	q.Add("start", formatTime(timestamp.Time(startTime)))
+	q.Add("end", formatTime(timestamp.Time(endTime)))
+	u.RawQuery = q.Encode()
+
+	var m struct {
+		Data []*exemplarspb.ExemplarData `json:"data"`
+	}
+
+	if err := c.get2xxResultWithGRPCErrors(ctx, "/prom_exemplars HTTP[client]", &u, &m); err != nil {
+		return nil, err
+	}
+
+	return m.Data, nil
 }
