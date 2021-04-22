@@ -185,10 +185,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http query endpoint
 	t.server.HTTP.Handle(queryEndpoint(&t.cfg), tracesHandler)
 
-	return services.NewIdleService(nil, func(_ error) error {
-		t.frontend.Close()
-		return nil
-	}), nil
+	return t.frontend, nil
 }
 
 func (t *App) initCompactor() (services.Service, error) {

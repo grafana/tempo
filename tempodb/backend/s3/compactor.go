@@ -30,6 +30,8 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 		rw.cfg.Bucket,
 		util.CompactedMetaFileName(blockID, tenantID),
 		nil,
+		minio.CopySrcOptions{},
+		minio.PutObjectOptions{},
 	)
 	if err != nil {
 		return errors.Wrap(err, "error copying obj meta to compacted obj meta")
