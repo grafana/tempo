@@ -54,7 +54,7 @@ func TestHexStringToTraceID(t *testing.T) {
 	}
 }
 
-// For licensing reasons they strings exist in two packages. This test exists to make sure they don't 
+// For licensing reasons they strings exist in two packages. This test exists to make sure they don't
 // drift.
 func TestEquality(t *testing.T) {
 	assert.Equal(t, AcceptHeaderKey, tempo.AcceptHeaderKey)
