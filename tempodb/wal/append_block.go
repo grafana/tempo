@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -17,11 +19,15 @@ import (
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
 // in the order it was received and an in memory sorted index.
 type AppendBlock struct {
-	block
+	meta     *backend.BlockMeta
 	encoding encoding.VersionedEncoding
 
 	appendFile *os.File
 	appender   encoding.Appender
+
+	filepath string
+	readFile *os.File
+	once     sync.Once
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding) (*AppendBlock, error) {
@@ -32,10 +38,8 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 
 	h := &AppendBlock{
 		encoding: v,
-		block: block{
-			meta:     backend.NewBlockMeta(tenantID, id, v.Version(), e),
-			filepath: filepath,
-		},
+		meta:     backend.NewBlockMeta(tenantID, id, v.Version(), e),
+		filepath: filepath,
 	}
 
 	name := h.fullFilename()
@@ -58,7 +62,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 
 // newAppendBlockFromFile returns an AppendBlock that can not be appended to, but can
 // be completed. It is meant for wal replay
-func newAppendBlockFromFile(filename string) (*AppendBlock, error) { // jpe test
+func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error) { // jpe test
 	blockID, tenantID, version, e, err := parseFilename(filename)
 	if err != nil {
 		return nil, err
@@ -70,19 +74,16 @@ func newAppendBlockFromFile(filename string) (*AppendBlock, error) { // jpe test
 	}
 
 	b := &AppendBlock{
-		block: block{
-			meta:     backend.NewBlockMeta(tenantID, blockID, version, e),
-			filepath: filepath.Dir(filename),
-		},
+		meta:     backend.NewBlockMeta(tenantID, blockID, version, e),
+		filepath: path,
 		encoding: v,
 	}
 
-	// append all records. data is being discarded, but already exists in the replayed file
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	// replay file to extract records
+	f, err := b.file()
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 
 	dataReader, err := b.encoding.NewDataReader(backend.NewContextReaderWithAllReader(f), b.meta.Encoding)
 	if err != nil {
@@ -103,12 +104,13 @@ func newAppendBlockFromFile(filename string) (*AppendBlock, error) { // jpe test
 			return nil, err
 		}
 
-		id, _, err := objectReader.UnmarshalObjectFromReader(bytes.NewReader(buffer))
+		reader := bytes.NewReader(buffer)
+		id, _, err := objectReader.UnmarshalObjectFromReader(reader)
 		if err != nil {
 			return nil, err
 		}
 		// wal should only ever have one object per page, test that here
-		_, _, err = objectReader.UnmarshalObjectFromReader(bytes.NewReader(buffer))
+		_, _, err = objectReader.UnmarshalObjectFromReader(reader)
 		if err != io.EOF {
 			return nil, fmt.Errorf("wal pages should only have one object: %w", err)
 		}
@@ -140,7 +142,7 @@ func (h *AppendBlock) Write(id common.ID, b []byte) error {
 }
 
 func (h *AppendBlock) BlockID() uuid.UUID {
-	return h.block.meta.BlockID
+	return h.meta.BlockID
 }
 
 func (h *AppendBlock) DataLength() uint64 {
@@ -210,4 +212,59 @@ func (h *AppendBlock) Clear() error {
 
 	name := h.fullFilename()
 	return os.Remove(name)
+}
+
+func (b *AppendBlock) fullFilename() string {
+	if b.meta.Version == "v0" {
+		return filepath.Join(b.filepath, fmt.Sprintf("%v:%v", b.meta.BlockID, b.meta.TenantID))
+	}
+
+	return filepath.Join(b.filepath, fmt.Sprintf("%v:%v:%v:%v", b.meta.BlockID, b.meta.TenantID, b.meta.Version, b.meta.Encoding))
+}
+
+func (b *AppendBlock) file() (*os.File, error) {
+	var err error
+	b.once.Do(func() {
+		if b.readFile == nil {
+			name := b.fullFilename()
+
+			b.readFile, err = os.OpenFile(name, os.O_RDONLY, 0644)
+		}
+	})
+
+	return b.readFile, err
+}
+
+func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, error) {
+	splits := strings.Split(name, ":")
+
+	if len(splits) != 2 && len(splits) != 4 {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. unexpected number of segments", name)
+	}
+
+	blockIDString := splits[0]
+	tenantID := splits[1]
+
+	version := "v0"
+	encodingString := backend.EncNone.String()
+	if len(splits) == 4 {
+		version = splits[2]
+		encodingString = splits[3]
+	}
+
+	blockID, err := uuid.Parse(blockIDString)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. error parsing uuid: %w", name, err)
+	}
+
+	encoding, err := backend.ParseEncoding(encodingString)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. error parsing encoding: %w", name, err)
+	}
+
+	if len(tenantID) == 0 || len(version) == 0 {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. missing fields", name)
+	}
+
+	return blockID, tenantID, version, encoding, nil
 }

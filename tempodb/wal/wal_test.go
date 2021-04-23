@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"io/ioutil"
@@ -164,7 +165,9 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 
 func TestAppendReplayFind(t *testing.T) {
 	for _, e := range backend.SupportedEncoding {
-		testAppendReplayFind(t, e)
+		t.Run(e.String(), func(t *testing.T) {
+			testAppendReplayFind(t, e)
+		})
 	}
 }
 
@@ -210,10 +213,16 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	replay := blocks[0]
-	iterator, err := replay.Iterator()
+	iterator, err := blocks[0].GetIterator(&mockCombiner{})
 	require.NoError(t, err)
 	defer iterator.Close()
+
+	// append block find
+	for i, id := range ids {
+		obj, err := blocks[0].Find(id, &mockCombiner{})
+		require.NoError(t, err)
+		assert.Equal(t, objs[i], obj)
+	}
 
 	i := 0
 	for {
@@ -223,12 +232,26 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		} else {
 			require.NoError(t, err)
 		}
-		assert.Equal(t, objs[i], obj)
-		assert.Equal(t, ids[i], []byte(id))
+
+		found := false
+		j := 0
+		for ; j < len(ids); j++ {
+			if bytes.Equal(ids[j], id) {
+				found = true
+				break
+			}
+		}
+
+		require.True(t, found)
+		assert.Equal(t, objs[j], obj)
+		assert.Equal(t, ids[j], []byte(id))
 		i++
 	}
 
 	assert.Equal(t, objects, i)
+
+	err = blocks[0].Clear()
+	require.NoError(t, err)
 }
 
 func BenchmarkWALNone(b *testing.B) {
@@ -288,9 +311,9 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 
 		// replay
 		j := 0
-		replayBlocks, err := wal.AllBlocks()
+		blocks, err := wal.AllBlocks()
 		require.NoError(b, err)
-		iter, err := replayBlocks[0].Iterator()
+		iter, err := blocks[0].GetIterator(mockCombiner)
 		require.NoError(b, err)
 		for {
 			_, _, err := iter.Next(context.Background())

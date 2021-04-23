@@ -73,19 +73,19 @@ func New(c *Config) (*WAL, error) {
 	}, nil
 }
 
-func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
+func (w *WAL) AllBlocks() ([]*AppendBlock, error) {
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]*ReplayBlock, 0, len(files))
+	blocks := make([]*AppendBlock, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() {
 			continue
 		}
 
-		r, err := NewReplayBlock(f.Name(), w.c.Filepath)
+		r, err := newAppendBlockFromFile(f.Name(), w.c.Filepath)
 		if err != nil {
 			return nil, err
 		}
