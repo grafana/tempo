@@ -2,6 +2,8 @@
 
 ## v0.7.0
 
+**License Change** v0.7.0 and future versions are licensed under AGPLv3 [#660](https://github.com/grafana/tempo/pull/660)
+
 * [CHANGE] Add `json` struct tags to overrides' `Limits` struct in addition to `yaml` tags. [#656](https://github.com/grafana/tempo/pull/656)
 * [CHANGE] Update to Go 1.16, latest OpenTelemetry proto definition and collector [#546](https://github.com/grafana/tempo/pull/546)
 * [CHANGE] `max_spans_per_trace` limit override has been removed in favour of `max_bytes_per_trace`.
