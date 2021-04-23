@@ -113,7 +113,7 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 	assert.Error(t, err, "completedDir should not exist")
 }
 
-func TestSkipBadBlock(t *testing.T) {
+func TestErrorConditions(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	require.NoError(t, err, "unexpected error creating temp dir")
@@ -126,7 +126,7 @@ func TestSkipBadBlock(t *testing.T) {
 
 	blockID := uuid.New()
 
-	// create good block
+	// create partially corrupt block
 	block, err := wal.NewBlock(blockID, testTenantID)
 	require.NoError(t, err, "unexpected error creating block")
 
@@ -145,9 +145,13 @@ func TestSkipBadBlock(t *testing.T) {
 		err = block.Write(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
+	appendFile, err := os.OpenFile(block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	require.NoError(t, err)
+	appendFile.Write([]byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01})
+	appendFile.Close()
 
-	// create stupid block
-	os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"), []byte{0x01}, 0644)
+	// create unparseable filename
+	os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)
 
 	// create empty block
 	os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
@@ -155,6 +159,8 @@ func TestSkipBadBlock(t *testing.T) {
 	blocks, err := wal.RescanBlocks(log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
+
+	assert.Equal(t, objects, blocks[0].appender.Length())
 
 	// confirm block has been removed
 	assert.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
@@ -206,6 +212,12 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		require.NoError(t, err)
 		assert.Equal(t, objs[i], obj)
 	}
+
+	// write garbage data at the end to confirm a partial block will load
+	appendFile, err := os.OpenFile(block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	require.NoError(t, err)
+	appendFile.Write([]byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01})
+	appendFile.Close()
 
 	blocks, err := wal.RescanBlocks(log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")

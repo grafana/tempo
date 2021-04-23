@@ -5,8 +5,7 @@ import (
 )
 
 type recordAppender struct {
-	records       []*common.Record
-	currentOffset uint64
+	records []*common.Record
 }
 
 // NewRecordAppender returns an appender that stores records only.
@@ -31,7 +30,7 @@ func (a *recordAppender) Length() int {
 }
 
 func (a *recordAppender) DataLength() uint64 {
-	return a.currentOffset
+	return 0
 }
 
 func (a *recordAppender) Complete() error {

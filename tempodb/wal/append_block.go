@@ -61,16 +61,17 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 }
 
 // newAppendBlockFromFile returns an AppendBlock that can not be appended to, but can
-// be completed. It is meant for wal replay
-func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error) {
+// be completed. It can return a warning or a fatal error
+func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, error) {
+	var warning error
 	blockID, tenantID, version, e, err := parseFilename(filename)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	v, err := encoding.FromVersion(version)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	b := &AppendBlock{
@@ -82,12 +83,12 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error) 
 	// replay file to extract records
 	f, err := b.file()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	dataReader, err := b.encoding.NewDataReader(backend.NewContextReaderWithAllReader(f), b.meta.Encoding)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer dataReader.Close()
 
@@ -101,18 +102,21 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error) 
 			break
 		}
 		if err != nil {
-			return nil, err
+			warning = err
+			break
 		}
 
 		reader := bytes.NewReader(buffer)
 		id, _, err := objectReader.UnmarshalObjectFromReader(reader)
 		if err != nil {
-			return nil, err
+			warning = err
+			break
 		}
 		// wal should only ever have one object per page, test that here
 		_, _, err = objectReader.UnmarshalObjectFromReader(reader)
 		if err != io.EOF {
-			return nil, fmt.Errorf("wal pages should only have one object: %w", err)
+			warning = err
+			break
 		}
 
 		// make a copy so we don't hold onto the iterator buffer
@@ -129,7 +133,7 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error) 
 
 	b.appender = encoding.NewRecordAppender(records)
 
-	return b, nil
+	return b, warning, nil
 }
 
 func (h *AppendBlock) Write(id common.ID, b []byte) error {
