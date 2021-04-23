@@ -1,8 +1,14 @@
 package wal
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -13,11 +19,15 @@ import (
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
 // in the order it was received and an in memory sorted index.
 type AppendBlock struct {
-	block
+	meta     *backend.BlockMeta
 	encoding encoding.VersionedEncoding
 
 	appendFile *os.File
 	appender   encoding.Appender
+
+	filepath string
+	readFile *os.File
+	once     sync.Once
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding) (*AppendBlock, error) {
@@ -28,10 +38,8 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 
 	h := &AppendBlock{
 		encoding: v,
-		block: block{
-			meta:     backend.NewBlockMeta(tenantID, id, v.Version(), e),
-			filepath: filepath,
-		},
+		meta:     backend.NewBlockMeta(tenantID, id, v.Version(), e),
+		filepath: filepath,
 	}
 
 	name := h.fullFilename()
@@ -52,48 +60,124 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 	return h, nil
 }
 
-func (h *AppendBlock) Write(id common.ID, b []byte) error {
-	err := h.appender.Append(id, b)
+// newAppendBlockFromFile returns an AppendBlock that can not be appended to, but can
+// be completed. It can return a warning or a fatal error
+func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, error) {
+	var warning error
+	blockID, tenantID, version, e, err := parseFilename(filename)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	v, err := encoding.FromVersion(version)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	b := &AppendBlock{
+		meta:     backend.NewBlockMeta(tenantID, blockID, version, e),
+		filepath: path,
+		encoding: v,
+	}
+
+	// replay file to extract records
+	f, err := b.file()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dataReader, err := b.encoding.NewDataReader(backend.NewContextReaderWithAllReader(f), b.meta.Encoding)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer dataReader.Close()
+
+	var buffer []byte
+	var records []*common.Record
+	objectReader := b.encoding.NewObjectReaderWriter()
+	currentOffset := uint64(0)
+	for {
+		buffer, pageLen, err := dataReader.NextPage(buffer)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			warning = err
+			break
+		}
+
+		reader := bytes.NewReader(buffer)
+		id, _, err := objectReader.UnmarshalObjectFromReader(reader)
+		if err != nil {
+			warning = err
+			break
+		}
+		// wal should only ever have one object per page, test that here
+		_, _, err = objectReader.UnmarshalObjectFromReader(reader)
+		if err != io.EOF {
+			warning = err
+			break
+		}
+
+		// make a copy so we don't hold onto the iterator buffer
+		recordID := append([]byte(nil), id...)
+		records = append(records, &common.Record{
+			ID:     recordID,
+			Start:  currentOffset,
+			Length: pageLen,
+		})
+		currentOffset += uint64(pageLen)
+	}
+
+	common.SortRecords(records)
+
+	b.appender = encoding.NewRecordAppender(records)
+
+	return b, warning, nil
+}
+
+func (a *AppendBlock) Write(id common.ID, b []byte) error {
+	err := a.appender.Append(id, b)
 	if err != nil {
 		return err
 	}
-	h.meta.ObjectAdded(id)
+	a.meta.ObjectAdded(id)
 	return nil
 }
 
-func (h *AppendBlock) BlockID() uuid.UUID {
-	return h.block.meta.BlockID
+func (a *AppendBlock) BlockID() uuid.UUID {
+	return a.meta.BlockID
 }
 
-func (h *AppendBlock) DataLength() uint64 {
-	return h.appender.DataLength()
+func (a *AppendBlock) DataLength() uint64 {
+	return a.appender.DataLength()
 }
 
-func (h *AppendBlock) Meta() *backend.BlockMeta {
-	return h.meta
+func (a *AppendBlock) Meta() *backend.BlockMeta {
+	return a.meta
 }
 
-func (h *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
-	if h.appendFile != nil {
-		err := h.appendFile.Close()
+func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
+	if a.appendFile != nil {
+		err := a.appendFile.Close()
 		if err != nil {
 			return nil, err
 		}
-		h.appendFile = nil
+		a.appendFile = nil
 	}
 
-	records := h.appender.Records()
-	readFile, err := h.file()
+	records := a.appender.Records()
+	readFile, err := a.file()
 	if err != nil {
 		return nil, err
 	}
 
-	dataReader, err := h.encoding.NewDataReader(backend.NewContextReaderWithAllReader(readFile), h.meta.Encoding)
+	dataReader, err := a.encoding.NewDataReader(backend.NewContextReaderWithAllReader(readFile), a.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
 
-	iterator := encoding.NewRecordIterator(records, dataReader, h.encoding.NewObjectReaderWriter())
+	iterator := encoding.NewRecordIterator(records, dataReader, a.encoding.NewObjectReaderWriter())
 	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
 		return nil, err
@@ -102,34 +186,89 @@ func (h *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iter
 	return iterator, nil
 }
 
-func (h *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
-	records := h.appender.Records()
-	file, err := h.file()
+func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
+	records := a.appender.Records()
+	file, err := a.file()
 	if err != nil {
 		return nil, err
 	}
 
-	dataReader, err := h.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), h.meta.Encoding)
+	dataReader, err := a.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	defer dataReader.Close()
-	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, h.encoding.NewObjectReaderWriter())
+	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, a.encoding.NewObjectReaderWriter())
 
 	return finder.Find(context.Background(), id)
 }
 
-func (h *AppendBlock) Clear() error {
-	if h.readFile != nil {
-		_ = h.readFile.Close()
-		h.readFile = nil
+func (a *AppendBlock) Clear() error {
+	if a.readFile != nil {
+		_ = a.readFile.Close()
+		a.readFile = nil
 	}
 
-	if h.appendFile != nil {
-		_ = h.appendFile.Close()
-		h.appendFile = nil
+	if a.appendFile != nil {
+		_ = a.appendFile.Close()
+		a.appendFile = nil
 	}
 
-	name := h.fullFilename()
+	name := a.fullFilename()
 	return os.Remove(name)
+}
+
+func (a *AppendBlock) fullFilename() string {
+	if a.meta.Version == "v0" {
+		return filepath.Join(a.filepath, fmt.Sprintf("%v:%v", a.meta.BlockID, a.meta.TenantID))
+	}
+
+	return filepath.Join(a.filepath, fmt.Sprintf("%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding))
+}
+
+func (a *AppendBlock) file() (*os.File, error) {
+	var err error
+	a.once.Do(func() {
+		if a.readFile == nil {
+			name := a.fullFilename()
+
+			a.readFile, err = os.OpenFile(name, os.O_RDONLY, 0644)
+		}
+	})
+
+	return a.readFile, err
+}
+
+func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, error) {
+	splits := strings.Split(name, ":")
+
+	if len(splits) != 2 && len(splits) != 4 {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. unexpected number of segments", name)
+	}
+
+	blockIDString := splits[0]
+	tenantID := splits[1]
+
+	version := "v0"
+	encodingString := backend.EncNone.String()
+	if len(splits) == 4 {
+		version = splits[2]
+		encodingString = splits[3]
+	}
+
+	blockID, err := uuid.Parse(blockIDString)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. error parsing uuid: %w", name, err)
+	}
+
+	encoding, err := backend.ParseEncoding(encodingString)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. error parsing encoding: %w", name, err)
+	}
+
+	if len(tenantID) == 0 || len(version) == 0 {
+		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. missing fields", name)
+	}
+
+	return blockID, tenantID, version, encoding, nil
 }

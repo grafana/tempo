@@ -109,14 +109,6 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	return nil
 }
 
-// PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushBytes(ctx context.Context, id []byte, object []byte) error {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
-	return i.headBlock.Write(id, object)
-}
-
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	tracesToCut := i.tracesToCut(cutoff, immediate)
@@ -319,6 +311,16 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	}
 
 	return nil, nil
+}
+
+// AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
+// This is used during wal replay. It is expected that calling code will add the appropriate
+// jobs to the queue to eventually flush these.
+func (i *instance) AddCompletingBlock(b *wal.AppendBlock) {
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
+	i.completingBlocks = append(i.completingBlocks, b)
 }
 
 // getOrCreateTrace will return a new trace object for the given request

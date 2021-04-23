@@ -62,17 +62,17 @@ func (r *dataReader) Close() {
 }
 
 // NextPage implements common.DataReader
-func (r *dataReader) NextPage(buffer []byte) ([]byte, error) {
+func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 	reader, err := r.contextReader.Reader()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	page, err := unmarshalPageFromReader(reader, constDataHeader, r.pageBuffer)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	r.pageBuffer = page.data
 
-	return page.data, nil
+	return page.data, page.totalLength, nil
 }

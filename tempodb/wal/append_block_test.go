@@ -11,12 +11,12 @@ import (
 func TestFullFilename(t *testing.T) {
 	tests := []struct {
 		name     string
-		b        *block
+		b        *AppendBlock
 		expected string
 	}{
 		{
 			name: "legacy",
-			b: &block{
+			b: &AppendBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v0", backend.EncNone),
 				filepath: "/blerg",
 			},
@@ -24,7 +24,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "ez-mode",
-			b: &block{
+			b: &AppendBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone),
 				filepath: "/blerg",
 			},
@@ -32,7 +32,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "nopath",
-			b: &block{
+			b: &AppendBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone),
 				filepath: "",
 			},
@@ -40,7 +40,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "gzip",
-			b: &block{
+			b: &AppendBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncGZIP),
 				filepath: "",
 			},
@@ -48,7 +48,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "lz41M",
-			b: &block{
+			b: &AppendBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_1M),
 				filepath: "",
 			},
@@ -56,7 +56,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "lz4256k",
-			b: &block{
+			b: &AppendBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_256k),
 				filepath: "",
 			},
@@ -64,7 +64,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "lz4M",
-			b: &block{
+			b: &AppendBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_4M),
 				filepath: "",
 			},
@@ -72,7 +72,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "lz64k",
-			b: &block{
+			b: &AppendBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_64k),
 				filepath: "",
 			},
@@ -80,7 +80,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "snappy",
-			b: &block{
+			b: &AppendBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncSnappy),
 				filepath: "",
 			},
@@ -88,7 +88,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "zstd",
-			b: &block{
+			b: &AppendBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncZstd),
 				filepath: "",
 			},

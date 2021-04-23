@@ -83,7 +83,7 @@ func randomOrderedRecords(t *testing.T, num int) []*common.Record {
 		randomRecords = append(randomRecords, rec)
 	}
 
-	sortRecords(randomRecords)
+	common.SortRecords(randomRecords)
 
 	return randomRecords
 }

@@ -21,7 +21,7 @@ func TestSortRecord(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	sortRecords(expected)
+	common.SortRecords(expected)
 
 	for i := range expected {
 		if i == 0 {

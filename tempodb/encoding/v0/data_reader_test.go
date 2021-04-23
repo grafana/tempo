@@ -145,15 +145,17 @@ func TestWriterReaderNextPage(t *testing.T) {
 
 	pageCount := 10
 	pages := make([][]byte, 0, pageCount)
+	written := make([]uint32, 0, pageCount)
 	for i := 0; i < pageCount; i++ {
 		data := make([]byte, 200)
 		rand.Read(data)
 		pages = append(pages, data)
 
-		_, err := writer.Write([]byte{0x01}, data)
+		bytesWritten, err := writer.Write([]byte{0x01}, data)
 		require.NoError(t, err)
 		_, err = writer.CutPage()
 		require.NoError(t, err)
+		written = append(written, uint32(bytesWritten))
 	}
 	err := writer.Complete()
 	require.NoError(t, err)
@@ -161,7 +163,7 @@ func TestWriterReaderNextPage(t *testing.T) {
 	reader := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buff.Bytes())))
 	i := 0
 	for {
-		page, err := reader.NextPage(nil) // jpe test this (i.e. various sizes being passed in here)
+		page, totalLength, err := reader.NextPage(nil)
 		if err == io.EOF {
 			break
 		}
@@ -171,7 +173,9 @@ func TestWriterReaderNextPage(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, pages[i], obj)
+		assert.Equal(t, written[i], totalLength)
 		assert.Equal(t, []byte{0x01}, []byte(id))
 		i++
 	}
+	assert.Equal(t, pageCount, i)
 }
