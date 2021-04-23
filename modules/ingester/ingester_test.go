@@ -145,6 +145,26 @@ func TestWal(t *testing.T) {
 		equal := proto.Equal(traces[i], foundTrace.Trace)
 		assert.True(t, equal)
 	}
+
+	// a block that has been replayed should have a flush queue entry to complete it
+	// wait for the flush queues to be empty and then confirm there is a complete block
+	time.Sleep(flushJitter)
+	for !ingester.flushQueues.IsEmpty() {
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	assert.Len(t, ingester.instances["test"].completingBlocks, 0)
+	assert.Len(t, ingester.instances["test"].completeBlocks, 1)
+
+	// should be able to find old traces that were replayed
+	for i, traceID := range traceIDs {
+		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+			TraceID: traceID,
+		})
+		assert.NoError(t, err, "unexpected error querying")
+		equal := proto.Equal(traces[i], foundTrace.Trace)
+		assert.True(t, equal)
+	}
 }
 
 func TestFlush(t *testing.T) {
