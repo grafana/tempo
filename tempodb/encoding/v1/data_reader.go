@@ -75,20 +75,20 @@ func (r *dataReader) Close() {
 }
 
 // NextPage implements common.DataReader (kind of)
-func (r *dataReader) NextPage(buffer []byte) ([]byte, error) {
-	page, err := r.dataReader.NextPage(buffer)
+func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
+	page, pageLen, err := r.dataReader.NextPage(buffer)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	reader, err := r.getCompressedReader(page)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	r.buffer, err = tempo_io.ReadAllWithBuffer(reader, len(page)+1, r.buffer)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return r.buffer, nil
+	return r.buffer, pageLen, nil
 }
 
 func (r *dataReader) getCompressedReader(page []byte) (io.Reader, error) {
