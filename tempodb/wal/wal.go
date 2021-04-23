@@ -73,7 +73,9 @@ func New(c *Config) (*WAL, error) {
 	}, nil
 }
 
-func (w *WAL) AllBlocks() ([]*AppendBlock, []error, error) { // jpe test failure modes. delete file, warnings
+// AllBlocks returns a slice of append blocks from the wal folder, a list of warnings encountered while
+// rebuilding and an error if there was a fatal issue. It is meant for wal replay.
+func (w *WAL) AllBlocks() ([]*AppendBlock, []error, error) {
 	var warnings []error
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
