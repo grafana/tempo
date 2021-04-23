@@ -7,6 +7,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// jpe remove this, we don't need it anymore
 type recordlessIterator struct {
 	o common.ObjectReaderWriter
 	d common.DataReader
@@ -30,7 +31,7 @@ func (i *recordlessIterator) Next(_ context.Context) (common.ID, []byte, error) 
 	)
 	i.currentPage, id, obj, err = i.o.UnmarshalAndAdvanceBuffer(i.currentPage)
 	if err == io.EOF {
-		i.currentPage, err = i.d.NextPage(i.currentPage)
+		i.currentPage, _, err = i.d.NextPage(i.currentPage)
 		if err != nil {
 			return nil, nil, err
 		}

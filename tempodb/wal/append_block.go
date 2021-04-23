@@ -1,8 +1,12 @@
 package wal
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -50,6 +54,80 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 	h.appender = encoding.NewAppender(dataWriter)
 
 	return h, nil
+}
+
+// newAppendBlockFromFile returns an AppendBlock that can not be appended to, but can
+// be completed. It is meant for wal replay
+func newAppendBlockFromFile(filename string) (*AppendBlock, error) { // jpe test
+	blockID, tenantID, version, e, err := parseFilename(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	v, err := encoding.FromVersion(version)
+	if err != nil {
+		return nil, err
+	}
+
+	b := &AppendBlock{
+		block: block{
+			meta:     backend.NewBlockMeta(tenantID, blockID, version, e),
+			filepath: filepath.Dir(filename),
+		},
+		encoding: v,
+	}
+
+	// append all records. data is being discarded, but already exists in the replayed file
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	dataReader, err := b.encoding.NewDataReader(backend.NewContextReaderWithAllReader(f), b.meta.Encoding)
+	if err != nil {
+		return nil, err
+	}
+	defer dataReader.Close()
+
+	var buffer []byte
+	var records []*common.Record
+	objectReader := b.encoding.NewObjectReaderWriter()
+	currentOffset := uint64(0)
+	for {
+		buffer, pageLen, err := dataReader.NextPage(buffer)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		id, _, err := objectReader.UnmarshalObjectFromReader(bytes.NewReader(buffer))
+		if err != nil {
+			return nil, err
+		}
+		// wal should only ever have one object per page, test that here
+		_, _, err = objectReader.UnmarshalObjectFromReader(bytes.NewReader(buffer))
+		if err != io.EOF {
+			return nil, fmt.Errorf("wal pages should only have one object: %w", err)
+		}
+
+		// make a copy so we don't hold onto the iterator buffer
+		recordID := append([]byte(nil), id...)
+		records = append(records, &common.Record{
+			ID:     recordID,
+			Start:  currentOffset,
+			Length: pageLen,
+		})
+		currentOffset += uint64(pageLen)
+	}
+
+	common.SortRecords(records)
+
+	b.appender = encoding.NewRecordAppender(records)
+
+	return b, nil
 }
 
 func (h *AppendBlock) Write(id common.ID, b []byte) error {
