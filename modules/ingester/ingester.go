@@ -287,14 +287,9 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 func (i *Ingester) replayWal() error {
 	level.Info(log.Logger).Log("msg", "beginning wal replay") // jpe increase logging so we can see blocks as they are replayed
 
-	blocks, warnings, err := i.store.WAL().AllBlocks()
+	blocks, err := i.store.WAL().RescanBlocks(log.Logger)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error beginning wal replay", "err", err)
-		return nil
-	}
-
-	for _, w := range warnings {
-		level.Warn(log.Logger).Log("msg", "replay warning", "err", w)
+		return fmt.Errorf("fatal error replaying wal %w", err)
 	}
 
 	for _, b := range blocks {

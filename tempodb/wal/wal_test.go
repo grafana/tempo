@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -52,10 +53,9 @@ func TestCreateBlock(t *testing.T) {
 	block, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
-	blocks, warnings, err := wal.AllBlocks()
+	blocks, err := wal.RescanBlocks(log.NewNopLogger())
 	assert.NoError(t, err, "unexpected error getting blocks")
 	assert.Len(t, blocks, 1)
-	require.Len(t, warnings, 0)
 
 	assert.Equal(t, block.fullFilename(), blocks[0].fullFilename())
 }
@@ -201,10 +201,9 @@ func TestSkipBadBlock(t *testing.T) {
 	// create stupid block
 	os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"), []byte{0x01}, 0644)
 
-	blocks, warnings, err := wal.AllBlocks()
+	blocks, err := wal.RescanBlocks(log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
-	require.Len(t, warnings, 1)
 
 	// confirm block has been removed
 	assert.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
@@ -256,10 +255,9 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		assert.Equal(t, objs[i], obj)
 	}
 
-	blocks, warnings, err := wal.AllBlocks()
+	blocks, err := wal.RescanBlocks(log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
-	require.Len(t, warnings, 0)
 
 	iterator, err := blocks[0].GetIterator(&mockCombiner{})
 	require.NoError(t, err)
@@ -358,9 +356,8 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 		}
 
 		// replay
-		_, warnings, err := wal.AllBlocks()
+		_, err = wal.RescanBlocks(log.NewNopLogger())
 		require.NoError(b, err)
-		require.Len(b, warnings, 0)
 
 		os.RemoveAll(tempDir)
 	}

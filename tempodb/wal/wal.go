@@ -5,7 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -73,13 +76,11 @@ func New(c *Config) (*WAL, error) {
 	}, nil
 }
 
-// AllBlocks returns a slice of append blocks from the wal folder, a list of warnings encountered while
-// rebuilding and an error if there was a fatal issue. It is meant for wal replay.
-func (w *WAL) AllBlocks() ([]*AppendBlock, []error, error) {
-	var warnings []error
+// RescanBlocks returns a slice of append blocks from the wal folder
+func (w *WAL) RescanBlocks(log log.Logger) ([]*AppendBlock, error) {
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	blocks := make([]*AppendBlock, 0, len(files))
@@ -88,22 +89,26 @@ func (w *WAL) AllBlocks() ([]*AppendBlock, []error, error) {
 			continue
 		}
 
+		start := time.Now()
+		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", f.Size())
 		r, err := newAppendBlockFromFile(f.Name(), w.c.Filepath)
+
 		if err != nil {
 			// wal replay failed, clear and warn
-			warnings = append(warnings, fmt.Errorf("failed to replay block. removing %s: %w", f.Name(), err))
+			level.Warn(log).Log("msg", "failed to replay block. removing.", "file", f.Name(), "err", err)
 			err = os.Remove(filepath.Join(w.c.Filepath, f.Name()))
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 
 			continue
 		}
+		level.Info(log).Log("msg", "replay complete", "file", f.Name(), "duration", time.Since(start))
 
 		blocks = append(blocks, r)
 	}
 
-	return blocks, warnings, nil
+	return blocks, nil
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
