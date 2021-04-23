@@ -23,7 +23,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 // ErrReadOnly is returned when the ingester is shutting down and a push was
@@ -286,76 +285,36 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 }
 
 func (i *Ingester) replayWal() error {
-	blocks, err := i.store.WAL().AllBlocks()
-	// todo: should this fail startup?
+	level.Info(log.Logger).Log("msg", "beginning wal replay") // jpe increase logging so we can see blocks as they are replayed
+
+	blocks, warnings, err := i.store.WAL().AllBlocks()
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "error beginning wal replay", "err", err)
 		return nil
 	}
 
-	level.Info(log.Logger).Log("msg", "beginning wal replay", "numBlocks", len(blocks))
+	for _, w := range warnings {
+		level.Warn(log.Logger).Log("msg", "replay warning", "err", w)
+	}
 
 	for _, b := range blocks {
-		tenantID := b.TenantID()
-		level.Info(log.Logger).Log("msg", "beginning block replay", "tenantID", tenantID, "block", b.BlockID())
+		tenantID := b.Meta().TenantID
 
-		err = i.replayBlock(b)
-		if err != nil {
-			// there was an error, log and keep on keeping on
-			level.Error(log.Logger).Log("msg", "error replaying block.  removing", "error", err)
-		}
-		err = b.Clear()
+		instance, err := i.getOrCreateInstance(tenantID)
 		if err != nil {
 			return err
 		}
+
+		instance.AddCompletingBlock(b)
+
+		i.enqueue(&flushOp{ // jpe add tests to confirm queue is correct
+			kind:    opKindComplete,
+			userID:  tenantID,
+			blockID: b.Meta().BlockID,
+		}, true)
 	}
 
 	level.Info(log.Logger).Log("msg", "wal replay complete")
-
-	return nil
-}
-
-func (i *Ingester) replayBlock(b *tempodb_wal.ReplayBlock) error {
-	iterator, err := b.Iterator()
-	if err != nil {
-		return err
-	}
-	defer iterator.Close()
-
-	ctx := context.Background()
-
-	// Pull first entry to see if block has any data
-	id, obj, err := iterator.Next(ctx)
-	if err != nil {
-		return err
-	}
-	if id == nil {
-		// Block is empty
-		return nil
-	}
-
-	// Only create instance for tenant now that we know data exists
-	instance, err := i.getOrCreateInstance(b.TenantID())
-	if err != nil {
-		return err
-	}
-
-	for {
-		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
-		writeID := append([]byte(nil), id...)
-		err = instance.PushBytes(context.Background(), writeID, obj)
-		if err != nil {
-			return err
-		}
-
-		id, obj, err = iterator.Next(ctx)
-		if id == nil {
-			break
-		}
-		if err != nil {
-			return err
-		}
-	}
 
 	return nil
 }

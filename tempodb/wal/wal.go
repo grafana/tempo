@@ -73,10 +73,11 @@ func New(c *Config) (*WAL, error) {
 	}, nil
 }
 
-func (w *WAL) AllBlocks() ([]*AppendBlock, error) {
+func (w *WAL) AllBlocks() ([]*AppendBlock, []error, error) { // jpe test failure modes. delete file, warnings
+	var warnings []error
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	blocks := make([]*AppendBlock, 0, len(files))
@@ -87,13 +88,20 @@ func (w *WAL) AllBlocks() ([]*AppendBlock, error) {
 
 		r, err := newAppendBlockFromFile(f.Name(), w.c.Filepath)
 		if err != nil {
-			return nil, err
+			// wal replay failed, clear and warn
+			warnings = append(warnings, fmt.Errorf("failed to replay block. removing %s: %w", f.Name(), err))
+			err = os.Remove(filepath.Join(w.c.Filepath, f.Name()))
+			if err != nil {
+				return nil, nil, err
+			}
+
+			continue
 		}
 
 		blocks = append(blocks, r)
 	}
 
-	return blocks, nil
+	return blocks, warnings, nil
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {

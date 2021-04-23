@@ -51,9 +51,10 @@ func TestCreateBlock(t *testing.T) {
 	block, err := wal.NewBlock(blockID, testTenantID)
 	assert.NoError(t, err, "unexpected error creating block")
 
-	blocks, err := wal.AllBlocks()
+	blocks, warnings, err := wal.AllBlocks()
 	assert.NoError(t, err, "unexpected error getting blocks")
 	assert.Len(t, blocks, 1)
+	require.Len(t, warnings, 0)
 
 	assert.Equal(t, block.fullFilename(), blocks[0].fullFilename())
 }
@@ -209,9 +210,10 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		assert.Equal(t, objs[i], obj)
 	}
 
-	blocks, err := wal.AllBlocks()
+	blocks, warnings, err := wal.AllBlocks()
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
+	require.Len(t, warnings, 0)
 
 	iterator, err := blocks[0].GetIterator(&mockCombiner{})
 	require.NoError(t, err)
@@ -310,8 +312,9 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 		}
 
 		// replay
-		_, err = wal.AllBlocks()
+		_, warnings, err := wal.AllBlocks()
 		require.NoError(b, err)
+		require.Len(b, warnings, 0)
 
 		os.RemoveAll(tempDir)
 	}
