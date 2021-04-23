@@ -109,14 +109,6 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	return nil
 }
 
-// PushBytes is used by the wal replay code and so it can push directly into the head block with 0 shenanigans
-func (i *instance) PushBytes(ctx context.Context, id []byte, object []byte) error { // jpe remove?
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
-	return i.headBlock.Write(id, object)
-}
-
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	tracesToCut := i.tracesToCut(cutoff, immediate)
