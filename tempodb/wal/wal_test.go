@@ -310,22 +310,9 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 		}
 
 		// replay
-		j := 0
-		blocks, err := wal.AllBlocks()
+		_, err = wal.AllBlocks()
 		require.NoError(b, err)
-		iter, err := blocks[0].GetIterator(mockCombiner)
-		require.NoError(b, err)
-		for {
-			_, _, err := iter.Next(context.Background())
-			if err == io.EOF {
-				break
-			}
-			require.NoError(b, err)
-			j++
-		}
 
-		err = block.Clear()
-		require.NoError(b, err)
 		os.RemoveAll(tempDir)
 	}
 }
