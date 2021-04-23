@@ -91,21 +91,31 @@ func (w *WAL) RescanBlocks(log log.Logger) ([]*AppendBlock, error) {
 
 		start := time.Now()
 		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", f.Size())
-		r, err := newAppendBlockFromFile(f.Name(), w.c.Filepath)
+		b, err := newAppendBlockFromFile(f.Name(), w.c.Filepath)
 
+		remove := false
 		if err != nil {
 			// wal replay failed, clear and warn
 			level.Warn(log).Log("msg", "failed to replay block. removing.", "file", f.Name(), "err", err)
+			remove = true
+		}
+
+		if b != nil && b.appender.Length() == 0 {
+			level.Warn(log).Log("msg", "empty wal file. ignoring.", "file", f.Name(), "err", err)
+			remove = true
+		}
+
+		if remove {
 			err = os.Remove(filepath.Join(w.c.Filepath, f.Name()))
 			if err != nil {
 				return nil, err
 			}
-
 			continue
 		}
+
 		level.Info(log).Log("msg", "replay complete", "file", f.Name(), "duration", time.Since(start))
 
-		blocks = append(blocks, r)
+		blocks = append(blocks, b)
 	}
 
 	return blocks, nil

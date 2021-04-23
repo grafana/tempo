@@ -38,58 +38,6 @@ func (m *mockCombiner) Combine(objA []byte, objB []byte) []byte {
 	return objB
 }
 
-func TestCreateBlock(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	wal, err := New(&Config{
-		Filepath: tempDir,
-	})
-	assert.NoError(t, err, "unexpected error creating temp wal")
-
-	blockID := uuid.New()
-
-	block, err := wal.NewBlock(blockID, testTenantID)
-	assert.NoError(t, err, "unexpected error creating block")
-
-	blocks, err := wal.RescanBlocks(log.NewNopLogger())
-	assert.NoError(t, err, "unexpected error getting blocks")
-	assert.Len(t, blocks, 1)
-
-	assert.Equal(t, block.fullFilename(), blocks[0].fullFilename())
-}
-
-func TestReadWrite(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	wal, err := New(&Config{
-		Filepath: tempDir,
-	})
-	assert.NoError(t, err, "unexpected error creating temp wal")
-
-	blockID := uuid.New()
-
-	block, err := wal.NewBlock(blockID, testTenantID)
-	assert.NoError(t, err, "unexpected error creating block")
-
-	req := test.MakeRequest(10, []byte{0x00, 0x01})
-	bReq, err := proto.Marshal(req)
-	assert.NoError(t, err)
-	err = block.Write([]byte{0x00, 0x01}, bReq)
-	assert.NoError(t, err, "unexpected error creating writing req")
-
-	foundBytes, err := block.Find([]byte{0x00, 0x01}, &mockCombiner{})
-	assert.NoError(t, err, "unexpected error creating reading req")
-
-	outReq := &tempopb.PushRequest{}
-	err = proto.Unmarshal(foundBytes, outReq)
-	assert.NoError(t, err)
-	assert.True(t, proto.Equal(req, outReq))
-}
-
 func TestAppend(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -201,12 +149,16 @@ func TestSkipBadBlock(t *testing.T) {
 	// create stupid block
 	os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"), []byte{0x01}, 0644)
 
+	// create empty block
+	os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
+
 	blocks, err := wal.RescanBlocks(log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
 	// confirm block has been removed
 	assert.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
+	assert.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
 }
 
 func TestAppendReplayFind(t *testing.T) {
