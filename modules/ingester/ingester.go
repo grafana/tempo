@@ -45,9 +45,10 @@ type Ingester struct {
 	instances    map[string]*instance
 	readonly     bool
 
-	lifecycler *ring.Lifecycler
-	store      storage.Store
-	local      *local.Backend
+	lifecycler   *ring.Lifecycler
+	store        storage.Store
+	local        *local.Backend
+	replayJitter bool // this var exists so tests can remove jitter
 
 	flushQueues     *flushqueues.ExclusiveQueues
 	flushQueuesDone sync.WaitGroup
@@ -60,10 +61,11 @@ type Ingester struct {
 // New makes a new Ingester.
 func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingester, error) {
 	i := &Ingester{
-		cfg:         cfg,
-		instances:   map[string]*instance{},
-		store:       store,
-		flushQueues: flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
+		cfg:          cfg,
+		instances:    map[string]*instance{},
+		store:        store,
+		flushQueues:  flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
+		replayJitter: true,
 	}
 
 	i.local = store.WAL().LocalBackend()
@@ -306,7 +308,7 @@ func (i *Ingester) replayWal() error {
 			kind:    opKindComplete,
 			userID:  tenantID,
 			blockID: b.Meta().BlockID,
-		}, true)
+		}, i.replayJitter)
 	}
 
 	level.Info(log.Logger).Log("msg", "wal replay complete")
@@ -342,7 +344,7 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 					kind:    opKindFlush,
 					userID:  t,
 					blockID: b.BlockMeta().BlockID,
-				}, true)
+				}, i.replayJitter)
 			}
 		}
 	}

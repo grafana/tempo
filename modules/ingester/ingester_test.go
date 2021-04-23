@@ -148,7 +148,6 @@ func TestWal(t *testing.T) {
 
 	// a block that has been replayed should have a flush queue entry to complete it
 	// wait for the flush queues to be empty and then confirm there is a complete block
-	time.Sleep(flushJitter)
 	for !ingester.flushQueues.IsEmpty() {
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -227,6 +226,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 
 	ingester, err := New(ingesterConfig, s, limits)
 	require.NoError(t, err, "unexpected error creating ingester")
+	ingester.replayJitter = false
 
 	err = ingester.starting(context.Background())
 	require.NoError(t, err, "unexpected error starting ingester")
