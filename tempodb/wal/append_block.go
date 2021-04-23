@@ -62,7 +62,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 
 // newAppendBlockFromFile returns an AppendBlock that can not be appended to, but can
 // be completed. It is meant for wal replay
-func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error) { // jpe test
+func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error) {
 	blockID, tenantID, version, e, err := parseFilename(filename)
 	if err != nil {
 		return nil, err

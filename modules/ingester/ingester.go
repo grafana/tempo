@@ -307,7 +307,7 @@ func (i *Ingester) replayWal() error {
 
 		instance.AddCompletingBlock(b)
 
-		i.enqueue(&flushOp{ // jpe add tests to confirm queue is correct
+		i.enqueue(&flushOp{ // jpe add tests to confirm queue is correct and blocks are actually completed
 			kind:    opKindComplete,
 			userID:  tenantID,
 			blockID: b.Meta().BlockID,

@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -162,6 +163,51 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 
 	_, err = os.Stat(path.Join(tempDir, completedDir))
 	assert.Error(t, err, "completedDir should not exist")
+}
+
+func TestSkipBadBlock(t *testing.T) {
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	defer os.RemoveAll(tempDir)
+	require.NoError(t, err, "unexpected error creating temp dir")
+
+	wal, err := New(&Config{
+		Filepath: tempDir,
+		Encoding: backend.EncGZIP,
+	})
+	require.NoError(t, err, "unexpected error creating temp wal")
+
+	blockID := uuid.New()
+
+	// create good block
+	block, err := wal.NewBlock(blockID, testTenantID)
+	require.NoError(t, err, "unexpected error creating block")
+
+	objects := 10
+	objs := make([][]byte, 0, objects)
+	ids := make([][]byte, 0, objects)
+	for i := 0; i < objects; i++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+		obj := test.MakeRequest(rand.Int()%10, id)
+		ids = append(ids, id)
+		bObj, err := proto.Marshal(obj)
+		require.NoError(t, err)
+		objs = append(objs, bObj)
+
+		err = block.Write(id, bObj)
+		require.NoError(t, err, "unexpected error writing req")
+	}
+
+	// create stupid block
+	os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"), []byte{0x01}, 0644)
+
+	blocks, warnings, err := wal.AllBlocks()
+	require.NoError(t, err, "unexpected error getting blocks")
+	require.Len(t, blocks, 1)
+	require.Len(t, warnings, 1)
+
+	// confirm block has been removed
+	assert.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
 }
 
 func TestAppendReplayFind(t *testing.T) {
