@@ -11,8 +11,6 @@ pushing spans with http/json from a Bash script using the [Zipkin](https://zipki
 Let's first start Tempo with the Zipkin receiver configured.  In order to do this create a config file like so:
 
 ```yaml
-auth_enabled: false
-
 server:
   http_listen_port: 3100
 

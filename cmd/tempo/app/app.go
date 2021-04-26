@@ -41,9 +41,10 @@ const metricsNamespace = "tempo"
 
 // Config is the root config for App.
 type Config struct {
-	Target        string `yaml:"target,omitempty"`
-	AuthEnabled   bool   `yaml:"auth_enabled,omitempty"`
-	HTTPAPIPrefix string `yaml:"http_api_prefix"`
+	Target              string `yaml:"target,omitempty"`
+	AuthEnabled         bool   `yaml:"auth_enabled,omitempty"`
+	MultitenancyEnabled bool   `yaml:"multitenancy_enabled,omitempty"`
+	HTTPAPIPrefix       string `yaml:"http_api_prefix"`
 
 	Server         server.Config          `yaml:"server,omitempty"`
 	Distributor    distributor.Config     `yaml:"distributor,omitempty"`
@@ -62,7 +63,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = All
 	// global settings
 	f.StringVar(&c.Target, "target", All, "target module")
-	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
+	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
+	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 
 	// Server settings
@@ -90,6 +92,11 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Compactor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "storage"), f)
 
+}
+
+// MultitenancyIsEnabled checks if multitenancy is enabled
+func (c *Config) MultitenancyIsEnabled() bool {
+	return c.MultitenancyEnabled || c.AuthEnabled
 }
 
 // CheckConfig checks if config values are suspect.
@@ -154,7 +161,7 @@ func New(cfg Config) (*App, error) {
 }
 
 func (t *App) setupAuthMiddleware() {
-	if t.cfg.AuthEnabled {
+	if t.cfg.MultitenancyIsEnabled() {
 
 		// don't check auth for these gRPC methods, since single call is used for multiple users
 		noGRPCAuthOn := []string{
