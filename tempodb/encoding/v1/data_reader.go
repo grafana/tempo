@@ -17,7 +17,8 @@ type dataReader struct {
 	pool             ReaderPool
 	compressedReader io.Reader
 
-	buffer []byte
+	buffer                []byte
+	compressedPagesBuffer [][]byte
 }
 
 // NewDataReader creates a datareader that supports compression
@@ -47,23 +48,28 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record, buffer 
 		return nil, nil, err
 	}
 
+	if cap(r.compressedPagesBuffer) < len(compressedPages) {
+		// extend r.compressedPagesBuffer
+		diff := len(compressedPages) - cap(r.compressedPagesBuffer)
+		r.compressedPagesBuffer = append(r.compressedPagesBuffer, make([][]byte, diff)...)
+	} else {
+		r.compressedPagesBuffer = r.compressedPagesBuffer[:len(compressedPages)]
+	}
+
 	// now decompress
-	decompressedPages := make([][]byte, 0, len(compressedPages))
-	for _, page := range compressedPages {
+	for i, page := range compressedPages {
 		reader, err := r.getCompressedReader(page)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		page, err := tempo_io.ReadAllWithEstimate(reader, len(page)+1) // +1 prevents an extra alloc on when encoding=None
+		r.compressedPagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page), r.compressedPagesBuffer[i])
 		if err != nil {
 			return nil, nil, err
 		}
-
-		decompressedPages = append(decompressedPages, page)
 	}
 
-	return decompressedPages, buffer, nil
+	return r.compressedPagesBuffer, buffer, nil
 }
 
 func (r *dataReader) Close() {
@@ -84,7 +90,7 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	r.buffer, err = tempo_io.ReadAllWithBuffer(reader, len(page)+1, r.buffer)
+	r.buffer, err = tempo_io.ReadAllWithBuffer(reader, len(page), r.buffer)
 	if err != nil {
 		return nil, 0, err
 	}
