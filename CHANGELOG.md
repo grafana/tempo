@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Improve WAL Replay by not rebuilding the WAL. [#668](https://github.com/grafana/tempo/pull/668)
+
 ## v0.7.0
 
 **License Change** v0.7.0 and future versions are licensed under AGPLv3 [#660](https://github.com/grafana/tempo/pull/660)
