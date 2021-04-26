@@ -51,7 +51,7 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record, buffer 
 	if cap(r.compressedPagesBuffer) < len(compressedPages) {
 		// extend r.compressedPagesBuffer
 		diff := len(compressedPages) - cap(r.compressedPagesBuffer)
-		r.compressedPagesBuffer = append(r.compressedPagesBuffer, make([][]byte, diff)...)
+		r.compressedPagesBuffer = append(r.compressedPagesBuffer[:cap(r.compressedPagesBuffer)], make([][]byte, diff)...)
 	} else {
 		r.compressedPagesBuffer = r.compressedPagesBuffer[:len(compressedPages)]
 	}
