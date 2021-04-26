@@ -48,7 +48,6 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record, buffer 
 		return nil, nil, err
 	}
 
-	// now decompress
 	if cap(r.compressedPagesBuffer) < len(compressedPages) {
 		// extend r.compressedPagesBuffer
 		diff := len(compressedPages) - cap(r.compressedPagesBuffer)
@@ -57,7 +56,7 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record, buffer 
 		r.compressedPagesBuffer = r.compressedPagesBuffer[:len(compressedPages)]
 	}
 
-	r.compressedPagesBuffer = r.compressedPagesBuffer[:]
+	// now decompress
 	for i, page := range compressedPages {
 		reader, err := r.getCompressedReader(page)
 		if err != nil {

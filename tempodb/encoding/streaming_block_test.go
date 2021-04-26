@@ -173,7 +173,7 @@ func testStreamingBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 	}
 	sort.Slice(ids, func(i int, j int) bool { return bytes.Compare(ids[i], ids[j]) == -1 })
 
-	iterator, err := backendBlock.Iterator(10 * 1024 * 1024)
+	iterator, err := backendBlock.Iterator(50 * 1024)
 	require.NoError(t, err, "error getting iterator")
 	i := 0
 	for {
