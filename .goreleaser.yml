@@ -14,9 +14,9 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X main.version={{ .Version }}
-      - -X main.commit={{ .Commit }}
-      - -X main.date={{ .CommitDate }}
+      - -X main.Branch={{ .Branch }}
+      - -X main.Revision={{ .ShortCommit }}
+      - -X main.Version={{ .Version }}
     mod_timestamp: '{{ .CommitTimestamp }}'
   - id: "tempo-query"
     main: ./cmd/tempo-query
@@ -33,9 +33,9 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X main.version={{ .Version }}
-      - -X main.commit={{ .Commit }}
-      - -X main.date={{ .CommitDate }}
+      - -X main.Branch={{ .Branch }}
+      - -X main.Revision={{ .ShortCommit }}
+      - -X main.Version={{ .Version }}
     mod_timestamp: '{{ .CommitTimestamp }}'
 changelog:
   skip: true
