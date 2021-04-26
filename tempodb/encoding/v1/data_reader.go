@@ -63,7 +63,7 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record, buffer 
 			return nil, nil, err
 		}
 
-		r.compressedPagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page)+1, r.compressedPagesBuffer[i])
+		r.compressedPagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page), r.compressedPagesBuffer[i])
 		if err != nil {
 			return nil, nil, err
 		}
@@ -90,7 +90,7 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	r.buffer, err = tempo_io.ReadAllWithBuffer(reader, len(page)+1, r.buffer)
+	r.buffer, err = tempo_io.ReadAllWithBuffer(reader, len(page), r.buffer)
 	if err != nil {
 		return nil, 0, err
 	}
