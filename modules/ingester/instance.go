@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -53,8 +54,9 @@ var (
 )
 
 type instance struct {
-	tracesMtx sync.Mutex
-	traces    map[uint32]*trace
+	tracesMtx  sync.Mutex
+	traces     map[uint32]*trace
+	traceCount atomic.Int32
 
 	blocksMtx        sync.RWMutex
 	headBlock        *wal.AppendBlock
@@ -94,6 +96,12 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 }
 
 func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
+	// check for max traces before grabbing the lock to better load shed
+	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
+	if err != nil {
+		return status.Errorf(codes.FailedPrecondition, "%s max live traces per tenant exceeded: %v", overrides.ErrorPrefixLiveTracesExceeded, err)
+	}
+
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -337,15 +345,11 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 		return trace, nil
 	}
 
-	err = i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
-	if err != nil {
-		return nil, status.Errorf(codes.FailedPrecondition, "%s max live traces per tenant exceeded: %v", overrides.ErrorPrefixLiveTracesExceeded, err)
-	}
-
 	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
 	trace = newTrace(maxBytes, fp, traceID)
 	i.traces[fp] = trace
 	i.tracesCreatedTotal.Inc()
+	i.traceCount.Inc()
 
 	return trace, nil
 }
@@ -378,6 +382,7 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 			delete(i.traces, key)
 		}
 	}
+	i.traceCount.Store(int32(len(i.traces)))
 
 	return tracesToCut
 }

@@ -50,9 +50,11 @@ func TestInstance(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating new instance")
 	err = i.Push(context.Background(), request)
 	assert.NoError(t, err)
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	err = i.CutCompleteTraces(0, true)
 	assert.NoError(t, err)
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	blockID, err := i.CutBlockIfReady(0, 0, false)
 	assert.NoError(t, err, "unexpected error cutting block")
@@ -79,12 +81,15 @@ func TestInstance(t *testing.T) {
 
 	err = i.resetHeadBlock()
 	assert.NoError(t, err, "unexpected error resetting block")
+
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 }
 
 func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.UUID {
 	traceID := test.MustTraceID(request)
 	err := i.Push(context.Background(), request)
 	assert.NoError(t, err)
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	trace, err := i.FindTraceByID(traceID)
 	assert.NotNil(t, trace)
@@ -92,6 +97,7 @@ func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.
 
 	err = i.CutCompleteTraces(0, true)
 	assert.NoError(t, err)
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	trace, err = i.FindTraceByID(traceID)
 	assert.NotNil(t, trace)
@@ -104,6 +110,8 @@ func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.
 	trace, err = i.FindTraceByID(traceID)
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
+
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	return blockID
 }
@@ -208,19 +216,17 @@ func TestInstanceDoesNotRace(t *testing.T) {
 
 func TestInstanceLimits(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{
-		MaxBytesPerTrace: 1000,
+		MaxBytesPerTrace:      1000,
+		MaxLocalTracesPerUser: 4,
 	})
-	assert.NoError(t, err, "unexpected error creating limits")
+	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
 	tempDir, err := ioutil.TempDir("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting temp dir")
+	require.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
-	assert.NoError(t, err, "unexpected error creating new instance")
 
 	type push struct {
 		req          *tempopb.PushRequest
@@ -232,7 +238,7 @@ func TestInstanceLimits(t *testing.T) {
 		pushes []push
 	}{
 		{
-			name: "succeeds",
+			name: "bytes - succeeds",
 			pushes: []push{
 				{
 					req: test.MakeRequestWithByteLimit(300, []byte{}),
@@ -246,7 +252,7 @@ func TestInstanceLimits(t *testing.T) {
 			},
 		},
 		{
-			name: "one fails",
+			name: "bytes - one fails",
 			pushes: []push{
 				{
 					req: test.MakeRequestWithByteLimit(300, []byte{}),
@@ -261,7 +267,7 @@ func TestInstanceLimits(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple pushes same trace",
+			name: "bytes - multiple pushes same trace",
 			pushes: []push{
 				{
 					req: test.MakeRequestWithByteLimit(500, []byte{0x01}),
@@ -272,14 +278,38 @@ func TestInstanceLimits(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "max traces - too many",
+			pushes: []push{
+				{
+					req: test.MakeRequestWithByteLimit(100, []byte{}),
+				},
+				{
+					req: test.MakeRequestWithByteLimit(100, []byte{}),
+				},
+				{
+					req: test.MakeRequestWithByteLimit(100, []byte{}),
+				},
+				{
+					req: test.MakeRequestWithByteLimit(100, []byte{}),
+				},
+				{
+					req:          test.MakeRequestWithByteLimit(100, []byte{}),
+					expectsError: true,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+			require.NoError(t, err, "unexpected error creating new instance")
+
 			for j, push := range tt.pushes {
 				err := i.Push(context.Background(), push.req)
 
-				assert.Equalf(t, push.expectsError, err != nil, "push %d failed", j)
+				assert.Equalf(t, push.expectsError, err != nil, "push %d failed: %w", j, err)
 			}
 		})
 	}
