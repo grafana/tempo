@@ -40,10 +40,9 @@ func init() {
 }
 
 func main() {
-	runtime.SetMutexProfileFraction(5)
-
 	printVersion := flag.Bool("version", false, "Print this builds version information")
 	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
+	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Enable mutex profiling.")
 
 	config, err := loadConfig()
 	if err != nil {
@@ -74,6 +73,10 @@ func main() {
 			os.Exit(1)
 		}
 	}()
+
+	if *mutexProfileFraction > 0 {
+		runtime.SetMutexProfileFraction(*mutexProfileFraction)
+	}
 
 	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
 	ballast := make([]byte, *ballastMBs*1024*1024)
