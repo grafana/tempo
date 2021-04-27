@@ -40,6 +40,8 @@ func init() {
 }
 
 func main() {
+	runtime.SetMutexProfileFraction(5)
+
 	printVersion := flag.Bool("version", false, "Print this builds version information")
 	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
 
