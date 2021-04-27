@@ -33,7 +33,10 @@ type Config struct {
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
 	Receivers       map[string]interface{} `yaml:"receivers"`
 	OverrideRingKey string                 `yaml:"override_ring_key"`
-	ExtendWrites    bool                   `yaml:"extend_writes"` // disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
+
+	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
+	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
+	ExtendWrites bool `yaml:"extend_writes"`
 
 	// For testing.
 	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
