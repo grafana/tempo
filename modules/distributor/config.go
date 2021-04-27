@@ -33,6 +33,7 @@ type Config struct {
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
 	Receivers       map[string]interface{} `yaml:"receivers"`
 	OverrideRingKey string                 `yaml:"override_ring_key"`
+	ExtendWrites    bool                   `yaml:"extend_writes"`
 
 	// For testing.
 	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
@@ -45,4 +46,5 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.DistributorRing.HeartbeatTimeout = 5 * time.Minute
 
 	cfg.OverrideRingKey = ring.DistributorRingKey
+	cfg.ExtendWrites = true
 }
