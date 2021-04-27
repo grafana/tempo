@@ -261,7 +261,12 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		rawRequests[i] = b
 	}
 
-	err := ring.DoBatch(ctx, ring.Write, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
+	op := ring.WriteNoExtend
+	if d.cfg.ExtendWrites {
+		op = ring.Write
+	}
+
+	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
 
 		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
 		defer cancel()
