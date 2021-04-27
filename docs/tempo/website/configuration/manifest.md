@@ -95,6 +95,7 @@ distributor:
         instance_addr: ""
     receivers: {}
     override_ring_key: distributor
+    extend_writes: true
 ingester_client:
     pool_config:
         checkinterval: 15s
