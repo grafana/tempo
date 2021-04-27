@@ -94,11 +94,6 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 }
 
 func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
-	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
-	if err != nil {
-		return status.Errorf(codes.FailedPrecondition, "%s max live traces per tenant exceeded: %v", overrides.ErrorPrefixLiveTracesExceeded, err)
-	}
-
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -340,6 +335,11 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	trace, ok := i.traces[fp]
 	if ok {
 		return trace, nil
+	}
+
+	err = i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%s max live traces per tenant exceeded: %v", overrides.ErrorPrefixLiveTracesExceeded, err)
 	}
 
 	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
