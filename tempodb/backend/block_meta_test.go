@@ -18,7 +18,7 @@ func TestBlockMeta(t *testing.T) {
 	testEncoding := EncLZ4_256k
 
 	id := uuid.New()
-	b := NewBlockMeta(testTenantID, id, testVersion, testEncoding)
+	b := NewBlockMeta(testTenantID, id, testVersion, testEncoding, "") // jpe test
 
 	assert.Equal(t, id, b.BlockID)
 	assert.Equal(t, testTenantID, b.TenantID)

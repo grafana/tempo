@@ -18,6 +18,7 @@ import (
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/querier"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -172,7 +173,7 @@ func mergeResponses(ctx context.Context, marshallingFormat string, rrs []Request
 			if len(combinedTrace) == 0 {
 				combinedTrace = body
 			} else {
-				combinedTrace, _, err = util.CombineTraces(combinedTrace, body)
+				combinedTrace, _, err = model.CombineTraces(combinedTrace, body)
 				if err != nil {
 					// will result in a 500 internal server error
 					return nil, errors.Wrap(err, "error combining traces at query frontend")

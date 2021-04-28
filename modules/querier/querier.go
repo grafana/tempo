@@ -23,8 +23,8 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 )
 
@@ -167,7 +167,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		for _, r := range responses {
 			trace := r.response.Trace
 			if trace != nil {
-				completeTrace, _, _, spanCount = tempo_util.CombineTraceProtos(completeTrace, trace)
+				completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, trace)
 				if spanCount > 0 {
 					spanCountTotal = spanCount
 				}
@@ -180,7 +180,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
-		partialTraces, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+		partialTraces, _, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd) // jpe add support for dataEncodings
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}
@@ -194,7 +194,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			if err != nil {
 				return nil, err
 			}
-			completeTrace, _, _, spanCount = tempo_util.CombineTraceProtos(completeTrace, storeTrace)
+			completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, storeTrace)
 			if spanCount > 0 {
 				spanCountTotal = spanCount
 			}

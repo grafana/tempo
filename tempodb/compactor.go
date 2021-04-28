@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/prometheus/client_golang/prometheus"
@@ -187,7 +187,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			}
 
 			if bytes.Equal(currentID, lowestID) {
-				newObj, wasCombined, err := util.CombineTraces(currentObject, lowestObject)
+				newObj, wasCombined, err := model.CombineTraces(currentObject, lowestObject) // jpe sad face
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "error combining trace protos", "err", err.Error())
 				} else {

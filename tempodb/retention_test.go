@@ -52,7 +52,7 @@ func TestRetention(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	head, err := wal.NewBlock(blockID, testTenantID)
+	head, err := wal.NewBlock(blockID, testTenantID, "")
 	assert.NoError(t, err)
 
 	complete, err := w.CompleteBlock(head, &mockSharder{})

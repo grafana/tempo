@@ -11,6 +11,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -63,7 +64,7 @@ func TestMergeResponses(t *testing.T) {
 	b2, err := proto.Marshal(t2)
 	assert.NoError(t, err)
 
-	combinedTrace, _, err := util.CombineTraces(b1, b2)
+	combinedTrace, _, err := model.CombineTraces(b1, b2)
 	assert.NoError(t, err)
 
 	traceObject := &tempopb.Trace{}

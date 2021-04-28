@@ -225,7 +225,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	err = writer.Flush()
 	require.NoError(t, err, "unexpected error flushing writer")
 
-	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP)
+	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP, "")
 	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
 
@@ -339,7 +339,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	})
 	require.NoError(b, err, "error creating backend")
 
-	backendBlock, err := NewBackendBlock(backend.NewBlockMeta("fake", uuid.MustParse("9f15417a-1242-40e4-9de3-a057d3b176c1"), "v0", backend.EncNone), r)
+	backendBlock, err := NewBackendBlock(backend.NewBlockMeta("fake", uuid.MustParse("9f15417a-1242-40e4-9de3-a057d3b176c1"), "v0", backend.EncNone, ""), r)
 	require.NoError(b, err, "error creating backend block")
 
 	iter, err := backendBlock.Iterator(10 * 1024 * 1024)
@@ -358,7 +358,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		b.ResetTimer()
 	}
 
-	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", encoding)
+	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", encoding, "")
 	block, err := NewStreamingBlock(&BlockConfig{
 		IndexDownsampleBytes: indexDownsample,
 		BloomFP:              .05,

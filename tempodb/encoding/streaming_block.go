@@ -31,9 +31,16 @@ func NewStreamingBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 		return nil, fmt.Errorf("empty block meta list")
 	}
 
+	dataEncoding := metas[0].DataEncoding
+	for _, meta := range metas {
+		if meta.DataEncoding != dataEncoding {
+			return nil, fmt.Errorf("two blocks of different data encodings can not be streamed together: %s: %s", dataEncoding, meta.DataEncoding) // jpe test
+		}
+	}
+
 	c := &StreamingBlock{
 		encoding:      LatestEncoding(),
-		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding),
+		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding, dataEncoding),
 		bloom:         common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
 		inMetas:       metas,
 		cfg:           cfg,

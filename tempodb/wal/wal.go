@@ -125,8 +125,8 @@ func (w *WAL) RescanBlocks(log log.Logger) ([]*AppendBlock, error) {
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
-	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding)
+func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*AppendBlock, error) {
+	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding)
 }
 
 func (w *WAL) LocalBackend() *local.Backend {

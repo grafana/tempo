@@ -29,7 +29,12 @@ var (
 	})
 )
 
-type JobFunc func(ctx context.Context, payload interface{}) ([]byte, error)
+type JobFunc func(ctx context.Context, payload interface{}) ([]byte, string, error)
+
+type result struct {
+	data []byte
+	enc  string
+}
 
 type job struct {
 	ctx     context.Context
@@ -38,7 +43,7 @@ type job struct {
 	fn      JobFunc
 
 	wg        *sync.WaitGroup
-	resultsCh chan []byte
+	resultsCh chan result
 	stop      *atomic.Bool
 	err       *atomic.Error
 }
@@ -75,7 +80,7 @@ func NewPool(cfg *Config) *Pool {
 	return p
 }
 
-func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([][]byte, error) {
+func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([][]byte, []string, error) { // jpe test encoding
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -83,10 +88,10 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 
 	// sanity check before we even attempt to start adding jobs
 	if int(p.size.Load())+totalJobs > p.cfg.QueueDepth {
-		return nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
+		return nil, nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
-	resultsCh := make(chan []byte, totalJobs) // way for jobs to send back results
+	resultsCh := make(chan result, totalJobs) // way for jobs to send back results
 	err := atomic.NewError(nil)               // way for jobs to send back an error
 	stop := atomic.NewBool(false)             // way to signal to the jobs to quit
 	wg := &sync.WaitGroup{}                   // way to wait for all jobs to complete
@@ -111,7 +116,7 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 		default:
 			wg.Done()
 			stop.Store(true)
-			return nil, fmt.Errorf("failed to add a job to work queue")
+			return nil, nil, fmt.Errorf("failed to add a job to work queue")
 		}
 	}
 
@@ -122,16 +127,18 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	close(resultsCh)
 
 	// read all from results channel
-	var msg [][]byte
+	var data [][]byte
+	var enc []string
 	for res := range resultsCh {
-		msg = append(msg, res)
+		data = append(data, res.data)
+		enc = append(enc, res.enc)
 	}
 
 	if err := err.Load(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return msg, nil
+	return data, enc, nil
 }
 
 func (p *Pool) Shutdown() {
@@ -177,13 +184,16 @@ func runJob(job *job) {
 		return
 	}
 
-	msg, err := job.fn(job.ctx, job.payload)
-	if msg != nil {
+	data, enc, err := job.fn(job.ctx, job.payload)
+	if data != nil {
 		// Commenting out job cancellations for now because of a resource leak suspected in the GCS golang client.
 		// Issue logged here: https://github.com/googleapis/google-cloud-go/issues/3018
 		// job.cancel()
 		select {
-		case job.resultsCh <- msg:
+		case job.resultsCh <- result{
+			data: data,
+			enc:  enc,
+		}:
 		default: // if we hit default it means that something else already returned a good result.  /shrug
 		}
 	}

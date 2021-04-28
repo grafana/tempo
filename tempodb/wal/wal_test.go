@@ -30,7 +30,7 @@ const (
 type mockCombiner struct {
 }
 
-func (m *mockCombiner) Combine(objA []byte, objB []byte) []byte {
+func (m *mockCombiner) Combine(objA []byte, objB []byte, encoding string) []byte {
 	if len(objA) > len(objB) {
 		return objA
 	}
@@ -50,7 +50,7 @@ func TestAppend(t *testing.T) {
 
 	blockID := uuid.New()
 
-	block, err := wal.NewBlock(blockID, testTenantID)
+	block, err := wal.NewBlock(blockID, testTenantID, "")
 	assert.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 100
@@ -127,7 +127,7 @@ func TestErrorConditions(t *testing.T) {
 	blockID := uuid.New()
 
 	// create partially corrupt block
-	block, err := wal.NewBlock(blockID, testTenantID)
+	block, err := wal.NewBlock(blockID, testTenantID, "")
 	require.NoError(t, err, "unexpected error creating block")
 
 	objects := 10
@@ -188,7 +188,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 
 	blockID := uuid.New()
 
-	block, err := wal.NewBlock(blockID, testTenantID)
+	block, err := wal.NewBlock(blockID, testTenantID, "")
 	require.NoError(t, err, "unexpected error creating block")
 
 	objects := 1000
@@ -306,7 +306,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 		})
 
 		blockID := uuid.New()
-		block, err := wal.NewBlock(blockID, testTenantID)
+		block, err := wal.NewBlock(blockID, testTenantID, "")
 		require.NoError(b, err)
 
 		// write
