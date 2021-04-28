@@ -25,7 +25,7 @@ func (r *PreallocRequest) Unmarshal(dAtA []byte) error {
 // MarshalTo implements proto.Marshaller.
 func (r *PreallocRequest) MarshalTo(dAtA []byte) (int, error) {
 	copy(dAtA[:], r.Request[:])
-	return 0, nil  // returned int is not used
+	return 0, nil // returned int is not used
 }
 
 // Size implements proto.Sizer.
@@ -38,7 +38,7 @@ func (r *PreallocRequest) Size() (n int) {
 
 // ReuseRequest puts the byte slice back into bytePool for reuse.
 func ReuseRequest(req *PushBytesRequest) {
-	for i, _ := range req.Requests {
+	for i := range req.Requests {
 		// We want to preserve the underlying allocated memory, [:0] helps us retains the cap() of the slice
 		bytePool.Put(req.Requests[i].Request[:0])
 	}
