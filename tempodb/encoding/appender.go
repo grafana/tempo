@@ -11,14 +11,14 @@ import (
 type Appender interface {
 	Append(common.ID, []byte) error
 	Complete() error
-	Records() []*common.Record
+	Records() []common.Record
 	Length() int
 	DataLength() uint64
 }
 
 type appender struct {
 	dataWriter    common.DataWriter
-	records       []*common.Record
+	records       []common.Record
 	currentOffset uint64
 }
 
@@ -46,9 +46,9 @@ func (a *appender) Append(id common.ID, b []byte) error {
 	i := sort.Search(len(a.records), func(idx int) bool {
 		return bytes.Compare(a.records[idx].ID, id) == 1
 	})
-	a.records = append(a.records, nil)
+	a.records = append(a.records, common.Record{})
 	copy(a.records[i+1:], a.records[i:])
-	a.records[i] = &common.Record{
+	a.records[i] = common.Record{
 		ID:     id,
 		Start:  a.currentOffset,
 		Length: uint32(bytesWritten),
@@ -59,7 +59,7 @@ func (a *appender) Append(id common.ID, b []byte) error {
 	return nil
 }
 
-func (a *appender) Records() []*common.Record {
+func (a *appender) Records() []common.Record {
 	return a.records
 }
 

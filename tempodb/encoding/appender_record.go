@@ -5,11 +5,11 @@ import (
 )
 
 type recordAppender struct {
-	records []*common.Record
+	records []common.Record
 }
 
 // NewRecordAppender returns an appender that stores records only.
-func NewRecordAppender(records []*common.Record) Appender {
+func NewRecordAppender(records []common.Record) Appender {
 	return &recordAppender{
 		records: records,
 	}
@@ -21,7 +21,7 @@ func (a *recordAppender) Append(id common.ID, b []byte) error {
 	return common.ErrUnsupported
 }
 
-func (a *recordAppender) Records() []*common.Record {
+func (a *recordAppender) Records() []common.Record {
 	return a.records
 }
 
