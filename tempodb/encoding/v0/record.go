@@ -1,7 +1,6 @@
 package v0
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -22,10 +21,10 @@ func NewRecordReaderWriter() common.RecordReaderWriter {
 }
 
 // MarshalRecords converts a slice of records into a byte slice
-func (r record) MarshalRecords(indexReader common.IndexReader) ([]byte, error) {
-	recordBytes := make([]byte, indexReader.Len()*recordLength)
+func (r record) MarshalRecords(records []common.Record) ([]byte, error) {
+	recordBytes := make([]byte, len(records)*recordLength)
 
-	err := r.MarshalRecordsToBuffer(indexReader, recordBytes, 0, indexReader.Len())
+	err := r.MarshalRecordsToBuffer(records, recordBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -34,30 +33,19 @@ func (r record) MarshalRecords(indexReader common.IndexReader) ([]byte, error) {
 }
 
 // MarshalRecordsToBuffer converts a slice of records and marshals them to an existing byte slice
-func (record) MarshalRecordsToBuffer(indexReader common.IndexReader, buffer []byte, start int, end int) error {
-	length := end - start
-	if length*recordLength > len(buffer) {
-		return fmt.Errorf("buffer %d is not big enough for records %d", len(buffer), length*recordLength)
+func (record) MarshalRecordsToBuffer(records []common.Record, buffer []byte) error {
+	if len(records)*recordLength > len(buffer) {
+		return fmt.Errorf("buffer %d is not big enough for records %d", len(buffer), len(records)*recordLength)
 	}
 
-	ctx := context.Background()
-	for i := start; i < end; i++ {
-		r, err := indexReader.At(ctx, i)
-		if err != nil {
-			return err
-		}
-		if r == nil {
-			return fmt.Errorf("unexpected nil marshaling records at position %d of %d:%d:%d", i, start, end, indexReader.Len())
-		}
-
-		bufferPos := i - start
-		buff := buffer[bufferPos*recordLength : (bufferPos+1)*recordLength]
+	for i, r := range records {
+		buff := buffer[i*recordLength : (i+1)*recordLength]
 
 		if !validation.ValidTraceID(r.ID) { // todo: remove this check.  maybe have a max id size of 128 bits?
 			return errors.New("ids must be 128 bit")
 		}
 
-		marshalRecord(*r, buff)
+		marshalRecord(r, buff)
 	}
 
 	return nil

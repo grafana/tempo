@@ -30,7 +30,3 @@ func (r Records) Find(_ context.Context, id ID) (*Record, int, error) {
 
 	return &r[i], i, nil
 }
-
-func (r Records) Len() int {
-	return len(r)
-}

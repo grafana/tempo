@@ -11,9 +11,9 @@ import (
 type Appender interface {
 	Append(common.ID, []byte) error
 	Complete() error
+	Records() []common.Record
 	Length() int
 	DataLength() uint64
-	IndexReader() common.IndexReader
 }
 
 type appender struct {
@@ -30,7 +30,6 @@ func NewAppender(dataWriter common.DataWriter) Appender {
 	}
 }
 
-// jpe - fix me
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 //   Copies should be made and passed in if this is a problem
 func (a *appender) Append(id common.ID, b []byte) error {
@@ -60,8 +59,8 @@ func (a *appender) Append(id common.ID, b []byte) error {
 	return nil
 }
 
-func (a *appender) IndexReader() common.IndexReader {
-	return common.Records(a.records)
+func (a *appender) Records() []common.Record {
+	return a.records
 }
 
 func (a *appender) Length() int {

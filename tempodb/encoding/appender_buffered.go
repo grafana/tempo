@@ -59,8 +59,8 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 }
 
 // Records returns a slice of the current records
-func (a *bufferedAppender) IndexReader() common.IndexReader {
-	return common.Records(a.records)
+func (a *bufferedAppender) Records() []common.Record {
+	return a.records
 }
 
 // Length returns the number of written objects

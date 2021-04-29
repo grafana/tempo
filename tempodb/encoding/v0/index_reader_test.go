@@ -29,7 +29,7 @@ func TestIndexReader(t *testing.T) {
 	}
 
 	rw := NewRecordReaderWriter()
-	recordBytes, err := rw.MarshalRecords(common.Records([]common.Record{*record1, *record2, *record3}))
+	recordBytes, err := rw.MarshalRecords([]common.Record{*record1, *record2, *record3})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -40,7 +40,6 @@ func TestIndexReader(t *testing.T) {
 		find              common.ID
 		expectedFind      *common.Record
 		expectedFindIndex int
-		expectedLength    int
 	}{
 		{
 			recordBytes:       []byte{},
@@ -56,12 +55,11 @@ func TestIndexReader(t *testing.T) {
 			expectedFindIndex: -1,
 		},
 		{
-			recordBytes:    recordBytes,
-			at:             0,
-			expectedAt:     record1,
-			find:           []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-			expectedFind:   record1,
-			expectedLength: 3,
+			recordBytes:  recordBytes,
+			at:           0,
+			expectedAt:   record1,
+			find:         []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			expectedFind: record1,
 		},
 		{
 			recordBytes:       recordBytes,
@@ -70,7 +68,6 @@ func TestIndexReader(t *testing.T) {
 			find:              []byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 			expectedFind:      record2,
 			expectedFindIndex: 1,
-			expectedLength:    3,
 		},
 		{
 			recordBytes:       recordBytes,
@@ -79,7 +76,6 @@ func TestIndexReader(t *testing.T) {
 			find:              []byte{0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 			expectedFind:      record3,
 			expectedFindIndex: 2,
-			expectedLength:    3,
 		},
 	}
 
@@ -97,6 +93,5 @@ func TestIndexReader(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, tc.expectedFind, actualFind)
 		assert.Equal(t, tc.expectedFindIndex, actualIndex)
-		assert.Equal(t, tc.expectedLength, reader.Len())
 	}
 }

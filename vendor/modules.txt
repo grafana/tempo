@@ -25,8 +25,6 @@ github.com/Azure/azure-pipeline-go/pipeline
 github.com/Azure/azure-storage-blob-go/azblob
 # github.com/Masterminds/squirrel v0.0.0-20161115235646-20f192218cf5
 github.com/Masterminds/squirrel
-# github.com/MauriceGit/skiplist v0.0.0-20191117202105-643e379adb62
-## explicit
 # github.com/NYTimes/gziphandler v1.1.1
 github.com/NYTimes/gziphandler
 # github.com/PuerkitoBio/purell v1.1.1
@@ -474,8 +472,6 @@ github.com/hashicorp/memberlist
 github.com/hashicorp/serf/coordinate
 # github.com/hashicorp/yamux v0.0.0-20190923154419-df201c70410d
 github.com/hashicorp/yamux
-# github.com/huandu/skiplist v1.1.0
-## explicit
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
 # github.com/jaegertracing/jaeger v1.21.0

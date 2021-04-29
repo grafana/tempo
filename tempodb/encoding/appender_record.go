@@ -21,8 +21,8 @@ func (a *recordAppender) Append(id common.ID, b []byte) error {
 	return common.ErrUnsupported
 }
 
-func (a *recordAppender) IndexReader() common.IndexReader {
-	return common.Records(a.records)
+func (a *recordAppender) Records() []common.Record {
+	return a.records
 }
 
 func (a *recordAppender) Length() int {
