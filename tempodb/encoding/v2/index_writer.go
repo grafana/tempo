@@ -22,11 +22,11 @@ func NewIndexWriter(pageSizeBytes int) common.IndexWriter {
 }
 
 // Write implements common.IndexWriter
-func (w *indexWriter) Write(records []common.Record) ([]byte, error) {
+func (w *indexWriter) Write(indexReader common.IndexReader) ([]byte, error) {
 	// we need to write a page at a time to an output byte slice
 	//  first let's calculate how many pages we need
 	recordsPerPage := objectsPerPage(w.recordRW.RecordLength(), w.pageSizeBytes, IndexHeaderLength)
-	totalPages := totalPages(len(records), recordsPerPage)
+	totalPages := totalPages(indexReader.Len(), recordsPerPage)
 
 	if recordsPerPage == 0 {
 		return nil, fmt.Errorf("pageSize %d too small for one record", w.pageSizeBytes)
@@ -36,17 +36,15 @@ func (w *indexWriter) Write(records []common.Record) ([]byte, error) {
 	indexBuffer := make([]byte, totalBytes)
 
 	for currentPage := 0; currentPage < totalPages; currentPage++ {
-		var pageRecords []common.Record
-
-		if len(records) > recordsPerPage {
-			pageRecords = records[:recordsPerPage]
-			records = records[recordsPerPage:]
+		startOfCurrentPage := currentPage * recordsPerPage
+		endOfCurrentPage := 0
+		if startOfCurrentPage+recordsPerPage < indexReader.Len() {
+			endOfCurrentPage = startOfCurrentPage + recordsPerPage
 		} else {
-			pageRecords = records[:]
-			records = []common.Record{}
+			endOfCurrentPage = indexReader.Len()
 		}
 
-		if len(pageRecords) == 0 {
+		if endOfCurrentPage <= startOfCurrentPage {
 			return nil, fmt.Errorf("unexpected 0 length records %d,%d,%d,%d", currentPage, recordsPerPage, w.pageSizeBytes, totalPages)
 		}
 
@@ -58,7 +56,7 @@ func (w *indexWriter) Write(records []common.Record) ([]byte, error) {
 
 		// write records and calculate crc
 		pageData := pageBuffer[header.headerLength()+int(baseHeaderSize):]
-		err := w.recordRW.MarshalRecordsToBuffer(pageRecords, pageData)
+		err := w.recordRW.MarshalRecordsToBuffer(indexReader, pageData, startOfCurrentPage, endOfCurrentPage)
 		if err != nil {
 			return nil, err
 		}

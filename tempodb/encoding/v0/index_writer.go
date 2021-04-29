@@ -16,6 +16,6 @@ func NewIndexWriter() common.IndexWriter {
 }
 
 // Write implements common.IndexWriter
-func (w *indexWriter) Write(records []common.Record) ([]byte, error) {
-	return w.r.MarshalRecords(records)
+func (w *indexWriter) Write(indexReader common.IndexReader) ([]byte, error) {
+	return w.r.MarshalRecords(indexReader)
 }

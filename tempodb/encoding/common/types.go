@@ -51,6 +51,7 @@ type DataReader interface {
 type IndexReader interface {
 	At(ctx context.Context, i int) (*Record, error)
 	Find(ctx context.Context, id ID) (*Record, int, error)
+	Len() int
 }
 
 // DataWriter is used to write paged data to the backend
@@ -67,7 +68,7 @@ type DataWriter interface {
 // IndexWriter is used to write paged indexes
 type IndexWriter interface {
 	// Write returns a byte representation of the provided Records
-	Write([]Record) ([]byte, error)
+	Write(IndexReader) ([]byte, error)
 }
 
 // ObjectReaderWriter represents a library of methods to read and write
@@ -81,8 +82,8 @@ type ObjectReaderWriter interface {
 // RecordReaderWriter represents a library of methods to read and write
 // records
 type RecordReaderWriter interface {
-	MarshalRecords(records []Record) ([]byte, error)
-	MarshalRecordsToBuffer(records []Record, buffer []byte) error
+	MarshalRecords(IndexReader) ([]byte, error)
+	MarshalRecordsToBuffer(indexReader IndexReader, buffer []byte, start int, end int) error
 	RecordCount(b []byte) int
 	UnmarshalRecord(buff []byte) Record
 	RecordLength() int

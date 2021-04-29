@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/storage v1.12.0
 	contrib.go.opencensus.io/exporter/prometheus v0.2.0
 	github.com/Azure/azure-storage-blob-go v0.8.0
+	github.com/MauriceGit/skiplist v0.0.0-20191117202105-643e379adb62 // indirect
 	github.com/alecthomas/kong v0.2.11
 	github.com/cespare/xxhash v1.1.0
 	github.com/cortexproject/cortex v1.8.1-0.20210422151339-cf1c444e0905
@@ -22,6 +23,7 @@ require (
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/hashicorp/go-plugin v1.3.0 // indirect
+	github.com/huandu/skiplist v1.1.0 // indirect
 	github.com/jaegertracing/jaeger v1.21.0
 	github.com/jsternberg/zap-logfmt v1.0.0
 	github.com/klauspost/compress v1.11.7

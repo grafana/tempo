@@ -64,3 +64,7 @@ func (r *readerBytes) Find(_ context.Context, id common.ID) (*common.Record, int
 
 	return nil, -1, nil
 }
+
+func (r *readerBytes) Len() int {
+	return len(r.index) / recordLength
+}

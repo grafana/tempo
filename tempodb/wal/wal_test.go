@@ -64,13 +64,13 @@ func TestAppend(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	records := block.appender.Records()
+	indexReader := block.appender.IndexReader()
 	file, err := block.file()
 	assert.NoError(t, err)
 
 	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
 	assert.NoError(t, err)
-	iterator := encoding.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
+	iterator := encoding.NewRecordIterator(indexReader, dataReader, block.encoding.NewObjectReaderWriter())
 	defer iterator.Close()
 	i := 0
 

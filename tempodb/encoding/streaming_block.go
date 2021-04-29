@@ -114,16 +114,16 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 		return 0, err
 	}
 
-	records := c.appender.Records()
+	indexReader := c.appender.IndexReader()
 	meta := c.BlockMeta()
 
 	indexWriter := c.encoding.NewIndexWriter(c.cfg.IndexPageSizeBytes)
-	indexBytes, err := indexWriter.Write(records)
+	indexBytes, err := indexWriter.Write(indexReader)
 	if err != nil {
 		return 0, err
 	}
 
-	meta.TotalRecords = uint32(len(records)) // casting
+	meta.TotalRecords = uint32(indexReader.Len())
 	meta.IndexPageSize = uint32(c.cfg.IndexPageSizeBytes)
 
 	return bytesFlushed, writeBlockMeta(ctx, w, meta, indexBytes, c.bloom)

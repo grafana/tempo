@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -116,8 +115,8 @@ func TestCompactorBlockAddObject(t *testing.T) {
 		assert.True(t, has)
 	}
 
-	records := cb.appender.Records()
-	assert.Equal(t, expectedRecords, len(records))
+	indexReader := cb.appender.IndexReader()
+	assert.Equal(t, expectedRecords, indexReader.Len())
 	assert.Equal(t, numObjects, cb.CurrentBufferedObjects())
 }
 
@@ -232,7 +231,11 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	// calc expected records
 	byteCounter := 0
 	expectedRecords := 0
-	for _, rec := range appender.Records() {
+	indexReader := appender.IndexReader()
+	for i := 0; i < indexReader.Len(); i++ {
+		rec, err := indexReader.At(context.Background(), i)
+		require.NotNil(t, rec)
+		require.NoError(t, err)
 		byteCounter += int(rec.Length)
 		if byteCounter > cfg.IndexDownsampleBytes {
 			byteCounter = 0
@@ -243,7 +246,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 		expectedRecords++
 	}
 
-	iter := NewRecordIterator(appender.Records(),
+	iter := NewRecordIterator(appender.IndexReader(),
 		v0.NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes()))),
 		v0.NewObjectReaderWriter())
 
@@ -271,7 +274,8 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	require.NoError(t, err)
 
 	// test downsample config
-	require.Equal(t, expectedRecords, len(block.appender.Records()))
+	indexReader = block.appender.IndexReader()
+	require.Equal(t, expectedRecords, indexReader.Len())
 	require.True(t, bytes.Equal(block.BlockMeta().MinID, minID))
 	require.True(t, bytes.Equal(block.BlockMeta().MaxID, maxID))
 	require.Equal(t, originatingMeta.StartTime, block.BlockMeta().StartTime)
@@ -386,9 +390,6 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	require.NoError(b, err)
 	_, err = block.Complete(ctx, tracker, w)
 	require.NoError(b, err)
-
-	lastRecord := block.appender.Records()[len(block.appender.Records())-1]
-	fmt.Println("size: ", lastRecord.Start+uint64(lastRecord.Length))
 
 	if !benchRead {
 		return

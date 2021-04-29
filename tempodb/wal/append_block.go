@@ -166,7 +166,7 @@ func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iter
 		a.appendFile = nil
 	}
 
-	records := a.appender.Records()
+	indexReader := a.appender.IndexReader()
 	readFile, err := a.file()
 	if err != nil {
 		return nil, err
@@ -177,7 +177,7 @@ func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iter
 		return nil, err
 	}
 
-	iterator := encoding.NewRecordIterator(records, dataReader, a.encoding.NewObjectReaderWriter())
+	iterator := encoding.NewRecordIterator(indexReader, dataReader, a.encoding.NewObjectReaderWriter())
 	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
 	if err != nil {
 		return nil, err
@@ -187,7 +187,7 @@ func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iter
 }
 
 func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
-	records := a.appender.Records()
+	indexReader := a.appender.IndexReader()
 	file, err := a.file()
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 	defer dataReader.Close()
-	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, a.encoding.NewObjectReaderWriter())
+	finder := encoding.NewPagedFinder(indexReader, dataReader, combiner, a.encoding.NewObjectReaderWriter())
 
 	return finder.Find(context.Background(), id)
 }

@@ -4,13 +4,15 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type recordIterator struct {
-	records []common.Record
+	indexReader common.IndexReader
+	index       int
 
 	objectRW common.ObjectReaderWriter
 	dataR    common.DataReader
@@ -22,11 +24,12 @@ type recordIterator struct {
 
 // NewRecordIterator returns a recordIterator.  This iterator is used for iterating through
 //  a series of objects by reading them one at a time from Records.
-func NewRecordIterator(r []common.Record, dataR common.DataReader, objectRW common.ObjectReaderWriter) Iterator {
+func NewRecordIterator(indexReader common.IndexReader, dataR common.DataReader, objectRW common.ObjectReaderWriter) Iterator {
 	return &recordIterator{
-		records:  r,
-		objectRW: objectRW,
-		dataR:    dataR,
+		indexReader: indexReader,
+		index:       0,
+		objectRW:    objectRW,
+		dataR:       dataR,
 	}
 }
 
@@ -42,10 +45,18 @@ func (i *recordIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	}
 
 	// read the next record and create an iterator
-	if len(i.records) > 0 {
+	if i.index < i.indexReader.Len() {
 		var pages [][]byte
 		var err error
-		pages, i.buffer, err = i.dataR.Read(ctx, i.records[:1], i.buffer)
+		record, err := i.indexReader.At(ctx, i.index)
+		if err != nil {
+			return nil, nil, err
+		}
+		if record == nil {
+			return nil, nil, fmt.Errorf("unexpected nil record at %d, %d", i, i.indexReader.Len())
+		}
+
+		pages, i.buffer, err = i.dataR.Read(ctx, []common.Record{*record}, i.buffer)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -55,7 +66,7 @@ func (i *recordIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 
 		buff := pages[0]
 		i.currentIterator = NewIterator(bytes.NewReader(buff), i.objectRW)
-		i.records = i.records[1:]
+		i.index++
 
 		return i.currentIterator.Next(ctx)
 	}

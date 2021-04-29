@@ -113,6 +113,10 @@ func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, i
 	return nil, -1, nil
 }
 
+func (r *indexReader) Len() int {
+	return r.totalRecords
+}
+
 func (r *indexReader) getPage(ctx context.Context, pageIdx int) (*page, error) {
 	page, ok := r.pageCache[pageIdx]
 	if ok {
