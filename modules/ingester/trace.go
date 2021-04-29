@@ -1,7 +1,6 @@
 package ingester
 
 import (
-	"context"
 	"time"
 
 	"github.com/gogo/status"
@@ -19,8 +18,8 @@ type trace struct {
 	currentBytes int
 }
 
-func newTrace(maxBytes int, token uint32, traceID []byte) *trace {
-	return &trace{
+func newTrace(maxBytes int, token uint32, traceID []byte) trace {
+	return trace{
 		token:      token,
 		trace:      &tempopb.Trace{},
 		lastAppend: time.Now(),
@@ -29,7 +28,7 @@ func newTrace(maxBytes int, token uint32, traceID []byte) *trace {
 	}
 }
 
-func (t *trace) Push(_ context.Context, req *tempopb.PushRequest) error {
+func (t *trace) Push(req *tempopb.PushRequest) error {
 	t.lastAppend = time.Now()
 	if t.maxBytes != 0 {
 		reqSize := req.Size()
