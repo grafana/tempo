@@ -25,6 +25,13 @@ func BenchmarkAppender1000(b *testing.B) {
 func BenchmarkAppender10000(b *testing.B) {
 	benchmarkAppender(b, 10000)
 }
+func BenchmarkAppender200000(b *testing.B) {
+	benchmarkAppender(b, 200000)
+}
+
+func BenchmarkAppender500000(b *testing.B) {
+	benchmarkAppender(b, 500000)
+}
 
 func benchmarkAppender(b *testing.B, appendRecords int) {
 	for i := 0; i < b.N; i++ {
@@ -39,6 +46,6 @@ func benchmarkAppender(b *testing.B, appendRecords int) {
 			require.NoError(b, err)
 		}
 
-		//_ = appender.Records()
+		_ = appender.Records()
 	}
 }
