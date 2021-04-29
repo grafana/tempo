@@ -33,7 +33,7 @@ func NewPagedFinder(index common.IndexReader, r common.DataReader, combiner comm
 	}
 }
 
-func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
+func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) { // jpe - test find on multiple records with the same ID
 	var bytesFound []byte
 	record, i, err := f.index.Find(ctx, id)
 	if err != nil {

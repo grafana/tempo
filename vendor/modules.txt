@@ -472,6 +472,9 @@ github.com/hashicorp/memberlist
 github.com/hashicorp/serf/coordinate
 # github.com/hashicorp/yamux v0.0.0-20190923154419-df201c70410d
 github.com/hashicorp/yamux
+# github.com/huandu/skiplist v1.1.0
+## explicit
+github.com/huandu/skiplist
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
 # github.com/jaegertracing/jaeger v1.21.0
