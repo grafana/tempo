@@ -12,6 +12,7 @@ type Appender interface {
 	Append(common.ID, []byte) error
 	Complete() error
 	Records() []common.Record
+	RecordsForID(common.ID) []common.Record
 	Length() int
 	DataLength() uint64
 }
@@ -70,6 +71,13 @@ func (a *appender) Records() []common.Record {
 
 	common.SortRecords(sliceRecords)
 	return sliceRecords
+}
+
+func (a *appender) RecordsForID(id common.ID) []common.Record {
+	a.hash.Reset()
+	_, _ = a.hash.Write(id)
+	hash := a.hash.Sum64()
+	return a.records[hash]
 }
 
 func (a *appender) Length() int {

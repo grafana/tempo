@@ -1,6 +1,8 @@
 package encoding
 
 import (
+	"bytes"
+
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -23,6 +25,24 @@ func (a *recordAppender) Append(id common.ID, b []byte) error {
 
 func (a *recordAppender) Records() []common.Record {
 	return a.records
+}
+
+func (a *recordAppender) RecordsForID(id common.ID) []common.Record {
+	_, i, _ := common.Records(a.records).Find(nil, id)
+	if i >= len(a.records) || i < 0 {
+		return nil
+	}
+
+	sliceRecords := make([]common.Record, 0, 1)
+	for bytes.Equal(a.records[i].ID, id) {
+		sliceRecords = append(sliceRecords, a.records[i])
+
+		if i >= len(a.records) {
+			break
+		}
+	}
+
+	return sliceRecords
 }
 
 func (a *recordAppender) Length() int {

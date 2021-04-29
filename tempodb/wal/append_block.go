@@ -187,10 +187,13 @@ func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iter
 }
 
 func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
-	records := a.appender.Records()
+	records := a.appender.RecordsForID(id)
 	file, err := a.file()
 	if err != nil {
 		return nil, err
+	}
+	if records == nil {
+		return nil, nil
 	}
 
 	dataReader, err := a.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding)
