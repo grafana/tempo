@@ -3,10 +3,8 @@ package encoding
 import (
 	"hash"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
-
 	"github.com/cespare/xxhash"
-	"github.com/huandu/skiplist"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // Appender is capable of tracking objects and ids that are added to it
@@ -20,7 +18,7 @@ type Appender interface {
 
 type appender struct {
 	dataWriter    common.DataWriter
-	records       *skiplist.SkipList
+	records       map[uint64][]common.Record
 	hash          hash.Hash64
 	currentOffset uint64
 }
@@ -30,7 +28,7 @@ type appender struct {
 func NewAppender(dataWriter common.DataWriter) Appender {
 	return &appender{
 		dataWriter: dataWriter,
-		records:    skiplist.New(skiplist.Bytes),
+		records:    map[uint64][]common.Record{},
 		hash:       xxhash.New(),
 	}
 }
@@ -48,38 +46,34 @@ func (a *appender) Append(id common.ID, b []byte) error {
 		return err
 	}
 
-	var sliceRecords []common.Record
-	element := a.records.Get(id)
-	if element != nil {
-		sliceRecords = element.Value.([]common.Record)
-	}
-	sliceRecords = append(sliceRecords, common.Record{
+	a.hash.Reset()
+	_, _ = a.hash.Write(id)
+	hash := a.hash.Sum64()
+
+	records := a.records[hash]
+	records = append(records, common.Record{
 		ID:     id,
 		Start:  a.currentOffset,
 		Length: uint32(bytesWritten),
 	})
-	a.records.Set(id, sliceRecords)
-
+	a.records[hash] = records
 	a.currentOffset += uint64(bytesWritten)
 
 	return nil
 }
 
 func (a *appender) Records() []common.Record {
-	sliceRecords := make([]common.Record, 0, a.records.Len())
-
-	elem := a.records.Front()
-	for elem != nil {
-		r := elem.Value.([]common.Record)
+	sliceRecords := make([]common.Record, 0, len(a.records))
+	for _, r := range a.records {
 		sliceRecords = append(sliceRecords, r...)
-		elem = elem.Next()
 	}
 
+	common.SortRecords(sliceRecords)
 	return sliceRecords
 }
 
 func (a *appender) Length() int {
-	return a.records.Len()
+	return len(a.records)
 }
 
 func (a *appender) DataLength() uint64 {
