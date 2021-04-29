@@ -37,6 +37,7 @@ func (a *recordAppender) RecordsForID(id common.ID) []common.Record {
 	for bytes.Equal(a.records[i].ID, id) {
 		sliceRecords = append(sliceRecords, a.records[i])
 
+		i++
 		if i >= len(a.records) {
 			break
 		}
