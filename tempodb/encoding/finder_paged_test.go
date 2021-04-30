@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"context"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -31,7 +32,7 @@ func TestCommonRecordsFind(t *testing.T) {
 		},
 	}
 
-	rec, i, err := common.Records(recs).Find(nil, id)
+	rec, i, err := common.Records(recs).Find(context.Background(), id)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(0), rec.Start)
 	assert.Equal(t, 0, i)

@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"bytes"
+	"context"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -66,7 +67,7 @@ func (a *bufferedAppender) Records() []*common.Record {
 }
 
 func (a *bufferedAppender) RecordsForID(id common.ID) []*common.Record {
-	_, i, _ := common.Records(a.records).Find(nil, id)
+	_, i, _ := common.Records(a.records).Find(context.Background(), id)
 	if i >= len(a.records) || i < 0 {
 		return nil
 	}
