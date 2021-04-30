@@ -273,11 +273,11 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := tempopb.PushBytesRequest{
-			Requests: make([][]byte, len(indexes)),
+			Requests: make([]tempopb.PreallocRequest, len(indexes)),
 		}
 
 		for i, j := range indexes {
-			req.Requests[i] = rawRequests[j][0:]
+			req.Requests[i].Request = rawRequests[j][0:]
 		}
 
 		c, err := d.pool.GetClientFor(ingester.Addr)

@@ -182,7 +182,7 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 	// Unmarshal and push each request
 	for _, v := range req.Requests {
 		r := tempopb.PushRequest{}
-		err := r.Unmarshal(v)
+		err := r.Unmarshal(v.Request)
 		if err != nil {
 			return nil, err
 		}
@@ -192,6 +192,10 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 			return nil, err
 		}
 	}
+
+	// Reuse request instead of handing over to GC
+	tempopb.ReuseRequest(req)
+
 	return &tempopb.PushResponse{}, nil
 }
 

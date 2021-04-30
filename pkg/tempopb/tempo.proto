@@ -3,6 +3,7 @@ syntax="proto3";
 package tempopb;
 
 import "trace/v1/trace.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 service Pusher {
   rpc Push(PushRequest) returns (PushResponse) {};
@@ -37,5 +38,5 @@ message PushResponse {
 
 message PushBytesRequest {
   // pre-serialized PushRequests
-  repeated bytes requests = 1;
+  repeated bytes requests = 1 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocRequest"];
 }
