@@ -10,15 +10,14 @@ This section explains the configuration options for Tempo as well as the details
   - [Authentication/Server](#authenticationserver)
   - [Distributor](#distributor)
   - [Ingester](#ingester)
-  - [Query Frontend](#queryfrontend)
+  - [Query Frontend](#query-frontend)
   - [Querier](#querier)
   - [Compactor](#compactor)
   - [Storage](#storage)
   - [Memberlist](#memberlist)
-  - [Compression](#compression)
 
 ## Authentication/Server
-Tempo uses the Weaveworks/common server.  See [here](https://github.com/weaveworks/common/blob/main/server/server.go#L45) for all configuration options.
+Tempo uses the Weaveworks/common server. See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.
 
 ```
 multitenancy_enabled: true            # Optional. Require X-Scope-OrgID. By default, it's set to false.
