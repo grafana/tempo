@@ -1,9 +1,9 @@
 package encoding
 
 import (
-	"bytes"
-	"sort"
+	"hash"
 
+	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -11,14 +11,16 @@ import (
 type Appender interface {
 	Append(common.ID, []byte) error
 	Complete() error
-	Records() []*common.Record
+	Records() []common.Record
+	RecordsForID(common.ID) []common.Record
 	Length() int
 	DataLength() uint64
 }
 
 type appender struct {
 	dataWriter    common.DataWriter
-	records       []*common.Record
+	records       map[uint64][]common.Record
+	hash          hash.Hash64
 	currentOffset uint64
 }
 
@@ -27,6 +29,8 @@ type appender struct {
 func NewAppender(dataWriter common.DataWriter) Appender {
 	return &appender{
 		dataWriter: dataWriter,
+		records:    map[uint64][]common.Record{},
+		hash:       xxhash.New(),
 	}
 }
 
@@ -43,24 +47,37 @@ func (a *appender) Append(id common.ID, b []byte) error {
 		return err
 	}
 
-	i := sort.Search(len(a.records), func(idx int) bool {
-		return bytes.Compare(a.records[idx].ID, id) == 1
-	})
-	a.records = append(a.records, nil)
-	copy(a.records[i+1:], a.records[i:])
-	a.records[i] = &common.Record{
+	a.hash.Reset()
+	_, _ = a.hash.Write(id)
+	hash := a.hash.Sum64()
+
+	records := a.records[hash]
+	records = append(records, common.Record{
 		ID:     id,
 		Start:  a.currentOffset,
 		Length: uint32(bytesWritten),
-	}
-
+	})
+	a.records[hash] = records
 	a.currentOffset += uint64(bytesWritten)
 
 	return nil
 }
 
-func (a *appender) Records() []*common.Record {
-	return a.records
+func (a *appender) Records() []common.Record {
+	sliceRecords := make([]common.Record, 0, len(a.records))
+	for _, r := range a.records {
+		sliceRecords = append(sliceRecords, r...)
+	}
+
+	common.SortRecords(sliceRecords)
+	return sliceRecords
+}
+
+func (a *appender) RecordsForID(id common.ID) []common.Record {
+	a.hash.Reset()
+	_, _ = a.hash.Write(id)
+	hash := a.hash.Sum64()
+	return a.records[hash]
 }
 
 func (a *appender) Length() int {

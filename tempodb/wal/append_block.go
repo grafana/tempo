@@ -100,7 +100,7 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 	defer dataReader.Close()
 
 	var buffer []byte
-	var records []*common.Record
+	var records []common.Record
 	objectReader := b.encoding.NewObjectReaderWriter()
 	currentOffset := uint64(0)
 	for {
@@ -128,7 +128,7 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 
 		// make a copy so we don't hold onto the iterator buffer
 		recordID := append([]byte(nil), id...)
-		records = append(records, &common.Record{
+		records = append(records, common.Record{
 			ID:     recordID,
 			Start:  currentOffset,
 			Length: pageLen,
@@ -194,10 +194,13 @@ func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iter
 }
 
 func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
-	records := a.appender.Records()
+	records := a.appender.RecordsForID(id)
 	file, err := a.file()
 	if err != nil {
 		return nil, err
+	}
+	if records == nil {
+		return nil, nil
 	}
 
 	dataReader, err := a.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding)

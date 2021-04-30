@@ -11,7 +11,7 @@ import (
 
 func TestSortRecord(t *testing.T) {
 	numRecords := 10
-	expected := make([]*common.Record, 0, numRecords)
+	expected := make([]common.Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
 		r, err := makeRecord(t)
@@ -35,17 +35,17 @@ func TestSortRecord(t *testing.T) {
 	}
 }
 
-func makeRecord(t *testing.T) (*common.Record, error) {
+func makeRecord(t *testing.T) (common.Record, error) {
 	t.Helper()
 
-	r := &common.Record{
+	r := common.Record{
 		Start:  rand.Uint64(),
 		Length: rand.Uint32(),
 	}
 
 	_, err := rand.Read(r.ID)
 	if err != nil {
-		return nil, err
+		return common.Record{}, err
 	}
 
 	return r, nil

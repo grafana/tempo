@@ -19,3 +19,4 @@ scrape_configs:
       - distributor:3100
       - ingester-0:3100
       - ingester-1:3100
+      - ingester-2:3100
