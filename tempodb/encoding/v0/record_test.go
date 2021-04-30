@@ -21,18 +21,13 @@ func TestEncodeDecodeRecord(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func makeRecord(t *testing.T) (common.Record, error) {
+func makeRecord(t *testing.T) (*common.Record, error) {
 	t.Helper()
 
-	r := common.Record{
-		ID:     make([]byte, 16), // 128 bits
-		Start:  0,
-		Length: 0,
-	}
-
+	r := newRecord()
 	_, err := rand.Read(r.ID)
 	if err != nil {
-		return common.Record{}, err
+		return nil, err
 	}
 
 	return r, nil

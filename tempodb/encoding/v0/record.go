@@ -21,7 +21,7 @@ func NewRecordReaderWriter() common.RecordReaderWriter {
 }
 
 // MarshalRecords converts a slice of records into a byte slice
-func (r record) MarshalRecords(records []common.Record) ([]byte, error) {
+func (r record) MarshalRecords(records []*common.Record) ([]byte, error) {
 	recordBytes := make([]byte, len(records)*recordLength)
 
 	err := r.MarshalRecordsToBuffer(records, recordBytes)
@@ -33,7 +33,7 @@ func (r record) MarshalRecords(records []common.Record) ([]byte, error) {
 }
 
 // MarshalRecordsToBuffer converts a slice of records and marshals them to an existing byte slice
-func (record) MarshalRecordsToBuffer(records []common.Record, buffer []byte) error {
+func (record) MarshalRecordsToBuffer(records []*common.Record, buffer []byte) error {
 	if len(records)*recordLength > len(buffer) {
 		return fmt.Errorf("buffer %d is not big enough for records %d", len(buffer), len(records)*recordLength)
 	}
@@ -61,12 +61,8 @@ func (record) RecordLength() int {
 }
 
 // UnmarshalRecord creates a new record from the contents ofa byte slice
-func (record) UnmarshalRecord(buff []byte) common.Record {
-	r := common.Record{
-		ID:     make([]byte, 16), // 128 bits
-		Start:  0,
-		Length: 0,
-	}
+func (record) UnmarshalRecord(buff []byte) *common.Record {
+	r := newRecord()
 
 	copy(r.ID, buff[:16])
 	r.Start = binary.LittleEndian.Uint64(buff[16:24])
@@ -76,9 +72,17 @@ func (record) UnmarshalRecord(buff []byte) common.Record {
 }
 
 // marshalRecord writes a record to an existing byte slice
-func marshalRecord(r common.Record, buff []byte) {
+func marshalRecord(r *common.Record, buff []byte) {
 	copy(buff, r.ID)
 
 	binary.LittleEndian.PutUint64(buff[16:24], r.Start)
 	binary.LittleEndian.PutUint32(buff[24:], r.Length)
+}
+
+func newRecord() *common.Record {
+	return &common.Record{
+		ID:     make([]byte, 16), // 128 bits
+		Start:  0,
+		Length: 0,
+	}
 }

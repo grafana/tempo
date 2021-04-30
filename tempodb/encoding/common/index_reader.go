@@ -7,7 +7,7 @@ import (
 )
 
 // Records is a slice of *Record
-type Records []Record
+type Records []*Record
 
 // At implements IndexReader
 func (r Records) At(_ context.Context, i int) (*Record, error) {
@@ -15,7 +15,7 @@ func (r Records) At(_ context.Context, i int) (*Record, error) {
 		return nil, nil
 	}
 
-	return &r[i], nil
+	return r[i], nil
 }
 
 // Find implements IndexReader
@@ -28,5 +28,5 @@ func (r Records) Find(_ context.Context, id ID) (*Record, int, error) {
 		return nil, -1, nil
 	}
 
-	return &r[i], i, nil
+	return r[i], i, nil
 }

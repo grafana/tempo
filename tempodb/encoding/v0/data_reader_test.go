@@ -16,13 +16,13 @@ import (
 func TestDataReader(t *testing.T) {
 	tests := []struct {
 		readerBytes   []byte
-		records       []common.Record
+		records       []*common.Record
 		expectedBytes [][]byte
 		expectedError bool
 	}{
 		{},
 		{
-			records: []common.Record{
+			records: []*common.Record{
 				{
 					Start:  0,
 					Length: 1,
@@ -32,7 +32,7 @@ func TestDataReader(t *testing.T) {
 		},
 		{
 			readerBytes: []byte{0x01, 0x02},
-			records: []common.Record{
+			records: []*common.Record{
 				{
 					Start:  0,
 					Length: 1,
@@ -44,7 +44,7 @@ func TestDataReader(t *testing.T) {
 		},
 		{
 			readerBytes: []byte{0x01, 0x02},
-			records: []common.Record{
+			records: []*common.Record{
 				{
 					Start:  1,
 					Length: 1,
@@ -56,7 +56,7 @@ func TestDataReader(t *testing.T) {
 		},
 		{
 			readerBytes: []byte{0x01, 0x02},
-			records: []common.Record{
+			records: []*common.Record{
 				{
 					Start:  0,
 					Length: 1,
@@ -73,7 +73,7 @@ func TestDataReader(t *testing.T) {
 		},
 		{
 			readerBytes: []byte{0x01, 0x02},
-			records: []common.Record{
+			records: []*common.Record{
 				{
 					Start:  0,
 					Length: 5,
@@ -83,7 +83,7 @@ func TestDataReader(t *testing.T) {
 		},
 		{
 			readerBytes: []byte{0x01, 0x02},
-			records: []common.Record{
+			records: []*common.Record{
 				{
 					Start:  5,
 					Length: 5,
@@ -93,7 +93,7 @@ func TestDataReader(t *testing.T) {
 		},
 		{
 			readerBytes: []byte{0x01, 0x02, 0x03},
-			records: []common.Record{
+			records: []*common.Record{
 				{
 					Start:  1,
 					Length: 1,
@@ -110,7 +110,7 @@ func TestDataReader(t *testing.T) {
 		},
 		{
 			readerBytes: []byte{0x01, 0x02, 0x03},
-			records: []common.Record{
+			records: []*common.Record{
 				{
 					Start:  0,
 					Length: 1,

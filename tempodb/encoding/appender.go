@@ -11,15 +11,15 @@ import (
 type Appender interface {
 	Append(common.ID, []byte) error
 	Complete() error
-	Records() []common.Record
-	RecordsForID(common.ID) []common.Record
+	Records() []*common.Record
+	RecordsForID(common.ID) []*common.Record
 	Length() int
 	DataLength() uint64
 }
 
 type appender struct {
 	dataWriter    common.DataWriter
-	records       map[uint64][]common.Record
+	records       map[uint64][]*common.Record
 	hash          hash.Hash64
 	currentOffset uint64
 }
@@ -29,7 +29,7 @@ type appender struct {
 func NewAppender(dataWriter common.DataWriter) Appender {
 	return &appender{
 		dataWriter: dataWriter,
-		records:    map[uint64][]common.Record{},
+		records:    map[uint64][]*common.Record{},
 		hash:       xxhash.New(),
 	}
 }
@@ -52,7 +52,7 @@ func (a *appender) Append(id common.ID, b []byte) error {
 	hash := a.hash.Sum64()
 
 	records := a.records[hash]
-	records = append(records, common.Record{
+	records = append(records, &common.Record{
 		ID:     id,
 		Start:  a.currentOffset,
 		Length: uint32(bytesWritten),
@@ -63,8 +63,8 @@ func (a *appender) Append(id common.ID, b []byte) error {
 	return nil
 }
 
-func (a *appender) Records() []common.Record {
-	sliceRecords := make([]common.Record, 0, len(a.records))
+func (a *appender) Records() []*common.Record {
+	sliceRecords := make([]*common.Record, 0, len(a.records))
 	for _, r := range a.records {
 		sliceRecords = append(sliceRecords, r...)
 	}
@@ -73,7 +73,7 @@ func (a *appender) Records() []common.Record {
 	return sliceRecords
 }
 
-func (a *appender) RecordsForID(id common.ID) []common.Record {
+func (a *appender) RecordsForID(id common.ID) []*common.Record {
 	a.hash.Reset()
 	_, _ = a.hash.Write(id)
 	hash := a.hash.Sum64()

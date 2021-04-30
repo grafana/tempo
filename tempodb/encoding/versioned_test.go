@@ -61,7 +61,7 @@ func testDataWriterReader(t *testing.T, v VersionedEncoding, e backend.Encoding)
 		require.NoError(t, err)
 		defer dataReader.Close()
 
-		actual, _, err := dataReader.Read(context.Background(), []common.Record{
+		actual, _, err := dataReader.Read(context.Background(), []*common.Record{
 			{
 				Start:  0,
 				Length: uint32(bytesWritten),

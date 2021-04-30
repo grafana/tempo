@@ -38,7 +38,7 @@ func NewDataReader(r backend.ContextReader, encoding backend.Encoding) (common.D
 }
 
 // Read implements common.DataReader
-func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer []byte) ([][]byte, []byte, error) {
+func (r *dataReader) Read(ctx context.Context, records []*common.Record, buffer []byte) ([][]byte, []byte, error) {
 	v0Pages, buffer, err := r.dataReader.Read(ctx, records, buffer)
 	if err != nil {
 		return nil, nil, err

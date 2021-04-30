@@ -27,7 +27,7 @@ func NewDataReader(r backend.ContextReader) common.DataReader {
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
-func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer []byte) ([][]byte, []byte, error) {
+func (r *dataReader) Read(ctx context.Context, records []*common.Record, buffer []byte) ([][]byte, []byte, error) {
 	if len(records) == 0 {
 		return nil, buffer, nil
 	}
