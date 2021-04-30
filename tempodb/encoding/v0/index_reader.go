@@ -40,12 +40,13 @@ func (r *readerBytes) At(_ context.Context, i int) (*common.Record, error) {
 	}
 
 	buff := r.index[i*recordLength : (i+1)*recordLength]
-	return r.r.UnmarshalRecord(buff), nil
+	record := r.r.UnmarshalRecord(buff)
+	return &record, nil
 }
 
 func (r *readerBytes) Find(_ context.Context, id common.ID) (*common.Record, int, error) {
 	numRecords := r.r.RecordCount(r.index)
-	var record *common.Record
+	var record common.Record
 
 	i := sort.Search(numRecords, func(i int) bool {
 		buff := r.index[i*recordLength : (i+1)*recordLength]
@@ -58,7 +59,7 @@ func (r *readerBytes) Find(_ context.Context, id common.ID) (*common.Record, int
 		buff := r.index[i*recordLength : (i+1)*recordLength]
 		record = r.r.UnmarshalRecord(buff)
 
-		return record, i, nil
+		return &record, i, nil
 	}
 
 	return nil, -1, nil

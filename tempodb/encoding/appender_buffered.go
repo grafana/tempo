@@ -2,7 +2,6 @@ package encoding
 
 import (
 	"bytes"
-	"context"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -14,7 +13,7 @@ type bufferedAppender struct {
 	writer common.DataWriter
 
 	// record keeping
-	records             []*common.Record
+	records             []common.Record
 	totalObjects        int
 	currentOffset       uint64
 	currentRecord       *common.Record
@@ -30,7 +29,7 @@ func NewBufferedAppender(writer common.DataWriter, indexDownsample int, totalObj
 	return &bufferedAppender{
 		writer:               writer,
 		indexDownsampleBytes: indexDownsample,
-		records:              make([]*common.Record, 0, totalObjectsEstimate/indexDownsample+1),
+		records:              make([]common.Record, 0, totalObjectsEstimate/indexDownsample+1),
 	}, nil
 }
 
@@ -62,17 +61,17 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 }
 
 // Records returns a slice of the current records
-func (a *bufferedAppender) Records() []*common.Record {
+func (a *bufferedAppender) Records() []common.Record {
 	return a.records
 }
 
-func (a *bufferedAppender) RecordsForID(id common.ID) []*common.Record {
-	_, i, _ := common.Records(a.records).Find(context.Background(), id)
+func (a *bufferedAppender) RecordsForID(id common.ID) []common.Record {
+	_, i, _ := common.Records(a.records).Find(nil, id)
 	if i >= len(a.records) || i < 0 {
 		return nil
 	}
 
-	sliceRecords := make([]*common.Record, 0, 1)
+	sliceRecords := make([]common.Record, 0, 1)
 	for bytes.Equal(a.records[i].ID, id) {
 		sliceRecords = append(sliceRecords, a.records[i])
 
@@ -120,7 +119,7 @@ func (a *bufferedAppender) flush() error {
 	a.currentRecord.Length += uint32(bytesWritten)
 
 	// update index
-	a.records = append(a.records, a.currentRecord)
+	a.records = append(a.records, *a.currentRecord)
 	a.currentRecord = nil
 
 	return nil

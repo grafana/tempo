@@ -33,7 +33,7 @@ type ObjectCombiner interface {
 // DataReader is the primary abstraction point for supporting multiple data
 // formats.
 type DataReader interface {
-	Read(context.Context, []*Record, []byte) ([][]byte, []byte, error)
+	Read(context.Context, []Record, []byte) ([][]byte, []byte, error)
 	Close()
 
 	// NextPage can be used to iterate at a page at a time. May return ErrUnsupported for older formats
@@ -67,7 +67,7 @@ type DataWriter interface {
 // IndexWriter is used to write paged indexes
 type IndexWriter interface {
 	// Write returns a byte representation of the provided Records
-	Write([]*Record) ([]byte, error)
+	Write([]Record) ([]byte, error)
 }
 
 // ObjectReaderWriter represents a library of methods to read and write
@@ -81,9 +81,9 @@ type ObjectReaderWriter interface {
 // RecordReaderWriter represents a library of methods to read and write
 // records
 type RecordReaderWriter interface {
-	MarshalRecords(records []*Record) ([]byte, error)
-	MarshalRecordsToBuffer(records []*Record, buffer []byte) error
+	MarshalRecords(records []Record) ([]byte, error)
+	MarshalRecordsToBuffer(records []Record, buffer []byte) error
 	RecordCount(b []byte) int
-	UnmarshalRecord(buff []byte) *Record
+	UnmarshalRecord(buff []byte) Record
 	RecordLength() int
 }

@@ -77,7 +77,8 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 		return nil, fmt.Errorf("unexpected zero value record %d, %d, %d, %d", i, pageIdx, recordIdx, len(page.data))
 	}
 
-	return r.recordRW.UnmarshalRecord(recordBytes), nil
+	record := r.recordRW.UnmarshalRecord(recordBytes)
+	return &record, nil
 }
 
 // Find implements common.indexReader

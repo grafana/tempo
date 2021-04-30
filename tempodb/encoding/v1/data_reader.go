@@ -42,7 +42,7 @@ func NewNestedDataReader(r common.DataReader, encoding backend.Encoding) (common
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
-func (r *dataReader) Read(ctx context.Context, records []*common.Record, buffer []byte) ([][]byte, []byte, error) {
+func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer []byte) ([][]byte, []byte, error) {
 	compressedPages, buffer, err := r.dataReader.Read(ctx, records, buffer)
 	if err != nil {
 		return nil, nil, err

@@ -30,12 +30,12 @@ func TestIndexWriterReader(t *testing.T) {
 
 		actualRecord, err := indexReader.At(context.Background(), i)
 		assert.NoError(t, err)
-		assert.Equal(t, expectedRecord, actualRecord)
+		assert.Equal(t, &expectedRecord, actualRecord)
 
 		actualRecord, actualIdx, err := indexReader.Find(context.Background(), expectedRecord.ID)
 		assert.NoError(t, err)
 		assert.Equal(t, i, actualIdx)
-		assert.Equal(t, expectedRecord, actualRecord)
+		assert.Equal(t, &expectedRecord, actualRecord)
 	}
 
 	// next read should return nil, nil to indicate end
@@ -66,15 +66,15 @@ func TestIndexHeaderChecksum(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func randomOrderedRecords(t *testing.T, num int) []*common.Record {
-	randomRecords := []*common.Record{}
+func randomOrderedRecords(t *testing.T, num int) []common.Record {
+	randomRecords := []common.Record{}
 
 	for i := 0; i < num; i++ {
 		id := make([]byte, 16)
 		_, err := rand.Read(id)
 		require.NoError(t, err)
 
-		rec := &common.Record{
+		rec := common.Record{
 			Start:  rand.Uint64(),
 			Length: rand.Uint32(),
 			ID:     id,

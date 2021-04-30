@@ -13,7 +13,7 @@ import (
 // with the same id
 func TestCommonRecordsFind(t *testing.T) {
 	id := []byte{0x01}
-	recs := []*common.Record{
+	recs := []common.Record{
 		{
 			ID:    id,
 			Start: 0,
