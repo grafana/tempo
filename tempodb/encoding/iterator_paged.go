@@ -66,7 +66,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 
 	// pull next n bytes into objects
 	var length uint32
-	records := make([]*common.Record, 0, 5) // 5?  why not?
+	records := make([]common.Record, 0, 5) // 5?  why not?
 	for currentRecord != nil {
 		// see if we can fit this record in.  we have to get at least one record in
 		if length+currentRecord.Length > i.chunkSizeBytes && len(records) != 0 {
@@ -74,7 +74,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		}
 
 		// add currentRecord to the batch
-		records = append(records, currentRecord)
+		records = append(records, *currentRecord)
 		length += currentRecord.Length
 
 		// get next

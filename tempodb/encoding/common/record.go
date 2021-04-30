@@ -6,11 +6,11 @@ import (
 )
 
 type recordSorter struct {
-	records []*Record
+	records []Record
 }
 
 // SortRecords sorts a slice of record pointers
-func SortRecords(records []*Record) {
+func SortRecords(records []Record) {
 	sort.Sort(&recordSorter{
 		records: records,
 	})
