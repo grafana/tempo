@@ -34,7 +34,7 @@ type AppendBlock struct {
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string) (*AppendBlock, error) { // jpe test that encoding flows through append -> complete correctly
 	if strings.ContainsRune(dataEncoding, ':') ||
-		len([]rune(dataEncoding)) > maxDataEncodingLength { // jpe test
+		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
 	}
 
@@ -233,7 +233,14 @@ func (a *AppendBlock) fullFilename() string {
 		return filepath.Join(a.filepath, fmt.Sprintf("%v:%v", a.meta.BlockID, a.meta.TenantID))
 	}
 
-	return filepath.Join(a.filepath, fmt.Sprintf("%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding))
+	var filename string
+	if a.meta.DataEncoding == "" {
+		filename = fmt.Sprintf("%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding)
+	} else {
+		filename = fmt.Sprintf("%v:%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding, a.meta.DataEncoding)
+	}
+
+	return filepath.Join(a.filepath, filename)
 }
 
 func (a *AppendBlock) file() (*os.File, error) {
@@ -249,7 +256,7 @@ func (a *AppendBlock) file() (*os.File, error) {
 	return a.readFile, err
 }
 
-func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, string, error) { // jpe just return a meta?, tests on new data encoding thing
+func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, string, error) { // jpe just return a meta?
 	splits := strings.Split(name, ":")
 
 	if len(splits) != 2 && len(splits) != 4 && len(splits) != 5 {
@@ -262,12 +269,12 @@ func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, st
 	version := "v0"
 	encodingString := backend.EncNone.String()
 	dataEncoding := ""
-	if len(splits) == 4 {
+	if len(splits) >= 4 {
 		version = splits[2]
 		encodingString = splits[3]
 	}
 
-	if len(splits) == 5 {
+	if len(splits) >= 5 {
 		dataEncoding = splits[4]
 	}
 

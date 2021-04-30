@@ -8,6 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestAppendBlockBadFile(t *testing.T) {
+
+}
+
 func TestFullFilename(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -94,6 +98,14 @@ func TestFullFilename(t *testing.T) {
 			},
 			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:zstd",
 		},
+		{
+			name: "data encoding",
+			b: &AppendBlock{
+				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone, "dataencoding"),
+				filepath: "/blerg",
+			},
+			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000:foo:v1:none:dataencoding",
+		},
 	}
 
 	for _, tc := range tests {
@@ -106,13 +118,14 @@ func TestFullFilename(t *testing.T) {
 
 func TestParseFilename(t *testing.T) {
 	tests := []struct {
-		name             string
-		filename         string
-		expectUUID       uuid.UUID
-		expectTenant     string
-		expectedVersion  string
-		expectedEncoding backend.Encoding
-		expectError      bool
+		name                 string
+		filename             string
+		expectUUID           uuid.UUID
+		expectTenant         string
+		expectedVersion      string
+		expectedEncoding     backend.Encoding
+		expectedDataEncoding string
+		expectError          bool
 	}{
 		{
 			name:             "ez-mode",
@@ -129,6 +142,15 @@ func TestParseFilename(t *testing.T) {
 			expectTenant:     "foo",
 			expectedVersion:  "v1",
 			expectedEncoding: backend.EncSnappy,
+		},
+		{
+			name:                 "version, encoding and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy:dataencoding",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v1",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "dataencoding",
 		},
 		{
 			name:        "path fails",
@@ -184,7 +206,7 @@ func TestParseFilename(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actualUUID, actualTenant, actualVersion, actualEncoding, _, err := parseFilename(tc.filename)
+			actualUUID, actualTenant, actualVersion, actualEncoding, actualDataEncoding, err := parseFilename(tc.filename)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -196,6 +218,7 @@ func TestParseFilename(t *testing.T) {
 			assert.Equal(t, tc.expectTenant, actualTenant)
 			assert.Equal(t, tc.expectedEncoding, actualEncoding)
 			assert.Equal(t, tc.expectedVersion, actualVersion)
+			assert.Equal(t, tc.expectedDataEncoding, actualDataEncoding)
 		})
 	}
 }
