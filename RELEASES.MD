@@ -15,3 +15,4 @@ This document details release procedures for Tempo.  Currently it's pretty dang 
   - Call out breaking changes!
 - Submit a PR cleaning up the changelog and moving everything under "main/unreleased" to be under
   the newly minted version.
+- If any changes were made to the manifest, update [the docs as well](https://grafana.com/docs/tempo/latest/configuration/manifest/).

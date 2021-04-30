@@ -34,7 +34,7 @@ file an issue if you stumble upon any problems!
 ## WAL (Experimental)
 
 The WAL also supports compression. By default this is turned off because it comes with a small performance penalty.
-However, it does reduce disk i/o and add checksums to the WAL which are valuable in higher volume installations.
+However, it does reduce disk i/o and adds checksums to the WAL which are valuable in higher volume installations.
 
 ```
 storage:
