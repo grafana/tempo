@@ -23,9 +23,10 @@ func (r *PreallocRequest) Unmarshal(dAtA []byte) error {
 }
 
 // MarshalTo implements proto.Marshaller.
+// returned int is not used
 func (r *PreallocRequest) MarshalTo(dAtA []byte) (int, error) {
 	copy(dAtA[:], r.Request[:])
-	return 0, nil // returned int is not used
+	return len(r.Request), nil
 }
 
 // Size implements proto.Sizer.

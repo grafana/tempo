@@ -1,13 +1,15 @@
 # tempo-load-test
-This repo aims to make it easier to measure and analyze tempo performance in micro-services mode.  There are already many examples for running tempo under load, but they use the single-binary approach and are not representative of what is occuring in larger installations.  Here tempo is run with separate containers for distributor and ingesters, and replication factor = 2, meaning that the distributor will mirror all incoming traces to 2 ingesters.  
+This repo aims to make it easier to measure and analyze tempo performance in micro-services mode.
+There are already many examples for running tempo under load, but they use the single-binary approach and are not representative of what is occuring in larger installations.
+Here tempo is run with separate containers for distributor and ingesters, and replication factor = 3, meaning that the distributor will mirror all incoming traces to 3 ingesters.
 
-![dashboard](/dashboard.png)
+![dashboard](./dashboard.png)
 
 # What this repo contains
 1. Tempo in micro-services mode
     1. 1x distributor
-    1. 2x ingesters
-    1. ReplicationFactor=2 meaning that the distributor mirrors incoming traces
+    1. 3x ingesters
+    1. ReplicationFactor=3 meaning that the distributor mirrors incoming traces
 1. S3/Min.IO virtual storage
 1. Dashboard and metrics using
     1. Prometheus
@@ -28,10 +30,12 @@ This repo is expected to be used in conjuction with tempo development in a rapid
 *Repeat steps 1-2 to see how code changes affect performance.*
 
 ## Controlling load
-The synthetic-load-generator is included and configured to issue 1000 spans/s per instance.  By default 2 instances are ran which will issue 2000 spans/s.  Change the `scale:` value in `docker-compose.yaml` to increase or decrease the load as desired.
+The synthetic-load-generator is included and configured to issue 1000 spans/s per instance.
+To increase load, use the `--scale` flag as shown below:
 
-1. Edit docker-compose.yaml
-1. Run `docker-compose up -d` to dynamically add or remove load generator instances.
+```
+docker-compose up -d --scale synthetic-load-generator=4
+```
 
 # Key Metrics
 As tempo is designed to be very horizontally scaleable, the key metrics are _per volume unit_, i.e. spans / s / cpu core.  
