@@ -5,8 +5,8 @@ import (
 )
 
 var (
-	// buckets: [1KiB, 2KiB, 4KiB, 8KiB, 16KiB]
-	bytePool = pool.New(1_000, 16_000, 2, func(size int) interface{} { return make([]byte, 0, size) })
+	// buckets: [0.5KiB, 1KiB, 2KiB, 4KiB, 8KiB, 16KiB]
+	bytePool = pool.New(500, 16_000, 2, func(size int) interface{} { return make([]byte, 0, size) })
 )
 
 // PreallocRequest is a (repeated bytes requests) which preallocs slices on Unmarshal.
