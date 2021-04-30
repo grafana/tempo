@@ -55,7 +55,7 @@ var (
 
 type instance struct {
 	tracesMtx  sync.Mutex
-	traces     map[uint32]trace
+	traces     map[uint32]*trace
 	traceCount atomic.Int32
 
 	blocksMtx        sync.RWMutex
@@ -77,7 +77,7 @@ type instance struct {
 
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
-		traces: map[uint32]trace{},
+		traces: map[uint32]*trace{},
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -105,8 +105,12 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
-	err = i.updateTrace(req)
+	trace, err := i.getOrCreateTrace(req)
 	if err != nil {
+		return err
+	}
+
+	if err := trace.Push(ctx, req); err != nil {
 		return err
 	}
 
@@ -327,29 +331,27 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock) {
 	i.completingBlocks = append(i.completingBlocks, b)
 }
 
-// updateTrace updates the trace with the provided PushRequest
-func (i *instance) updateTrace(req *tempopb.PushRequest) error {
+// getOrCreateTrace will return a new trace object for the given request
+//  It must be called under the i.tracesMtx lock
+func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	traceID, err := pushRequestTraceID(req)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "unable to extract traceID: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to extract traceID: %v", err)
 	}
 
 	fp := i.tokenForTraceID(traceID)
 	trace, ok := i.traces[fp]
-	if !ok {
-		maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
-		trace = newTrace(maxBytes, fp, traceID)
-		i.tracesCreatedTotal.Inc()
-		i.traceCount.Inc()
+	if ok {
+		return trace, nil
 	}
 
-	if err := trace.Push(req); err != nil {
-		return err
-	}
-
+	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
+	trace = newTrace(maxBytes, fp, traceID)
 	i.traces[fp] = trace
+	i.tracesCreatedTotal.Inc()
+	i.traceCount.Inc()
 
-	return nil
+	return trace, nil
 }
 
 // tokenForTraceID hash trace ID, should be called under lock
@@ -367,12 +369,12 @@ func (i *instance) resetHeadBlock() error {
 	return err
 }
 
-func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []trace {
+func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
 	cutoffTime := time.Now().Add(cutoff)
-	tracesToCut := make([]trace, 0, len(i.traces))
+	tracesToCut := make([]*trace, 0, len(i.traces))
 
 	for key, trace := range i.traces {
 		if cutoffTime.After(trace.lastAppend) || immediate {

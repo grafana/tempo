@@ -322,7 +322,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 	id := make([]byte, 16)
 	rand.Read(id)
 	tracepb := test.MakeTrace(10, id)
-	pastTrace := trace{
+	pastTrace := &trace{
 		traceID:    id,
 		trace:      tracepb,
 		lastAppend: time.Now().Add(-time.Hour),
@@ -330,7 +330,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 
 	id = make([]byte, 16)
 	rand.Read(id)
-	nowTrace := trace{
+	nowTrace := &trace{
 		traceID:    id,
 		trace:      tracepb,
 		lastAppend: time.Now().Add(time.Hour),
@@ -340,9 +340,9 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 		name             string
 		cutoff           time.Duration
 		immediate        bool
-		input            []trace
-		expectedExist    []trace
-		expectedNotExist []trace
+		input            []*trace
+		expectedExist    []*trace
+		expectedNotExist []*trace
 	}{
 		{
 			name:      "empty",
@@ -353,23 +353,23 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 			name:             "cut immediate",
 			cutoff:           0,
 			immediate:        true,
-			input:            []trace{pastTrace, nowTrace},
-			expectedNotExist: []trace{pastTrace, nowTrace},
+			input:            []*trace{pastTrace, nowTrace},
+			expectedNotExist: []*trace{pastTrace, nowTrace},
 		},
 		{
 			name:             "cut recent",
 			cutoff:           0,
 			immediate:        false,
-			input:            []trace{pastTrace, nowTrace},
-			expectedExist:    []trace{nowTrace},
-			expectedNotExist: []trace{pastTrace},
+			input:            []*trace{pastTrace, nowTrace},
+			expectedExist:    []*trace{nowTrace},
+			expectedNotExist: []*trace{pastTrace},
 		},
 		{
 			name:             "cut all time",
 			cutoff:           2 * time.Hour,
 			immediate:        false,
-			input:            []trace{pastTrace, nowTrace},
-			expectedNotExist: []trace{pastTrace, nowTrace},
+			input:            []*trace{pastTrace, nowTrace},
+			expectedNotExist: []*trace{pastTrace, nowTrace},
 		},
 	}
 
