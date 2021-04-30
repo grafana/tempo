@@ -20,7 +20,7 @@ services:
   # To eventually offload to Tempo...
   tempo:
     image: grafana/tempo:latest
-    command: ["--target=all", "--storage.trace.backend=local", "--storage.trace.local.path=/var/tempo"]
+    command: ["--target=all","--multitenancy.enabled=true","--storage.trace.backend=local", "--storage.trace.local.path=/var/tempo"]
     ports:
     - 8081:80
 

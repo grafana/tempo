@@ -35,7 +35,7 @@ func ReadAllWithBuffer(r io.Reader, estimatedBytes int, b []byte) ([]byte, error
 	}
 
 	if cap(b) < estimatedBytes {
-		b = make([]byte, 0, estimatedBytes)
+		b = make([]byte, 0, estimatedBytes+1) // if the calling code knows the exact bytes needed the below logic will do one extra allocation unless we add 1
 	} else {
 		b = b[0:0]
 	}

@@ -44,18 +44,18 @@ const (
 type receiversShim struct {
 	services.Service
 
-	authEnabled bool
-	receivers   []component.Receiver
-	pusher      tempopb.PusherServer
-	logger      *tempo_util.RateLimitedLogger
-	metricViews []*view.View
+	multitenancyEnabled bool
+	receivers           []component.Receiver
+	pusher              tempopb.PusherServer
+	logger              *tempo_util.RateLimitedLogger
+	metricViews         []*view.View
 }
 
-func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, authEnabled bool, logLevel logging.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, multitenancyEnabled bool, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
-		authEnabled: authEnabled,
-		pusher:      pusher,
-		logger:      tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
+		multitenancyEnabled: multitenancyEnabled,
+		pusher:              pusher,
+		logger:              tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
 	}
 
 	v := viper.New()
@@ -165,7 +165,7 @@ func (r *receiversShim) stopping(_ error) error {
 
 // implements consumer.TraceConsumer
 func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) error {
-	if !r.authEnabled {
+	if !r.multitenancyEnabled {
 		ctx = user.InjectOrgID(ctx, tempo_util.FakeTenantID)
 	} else {
 		var err error

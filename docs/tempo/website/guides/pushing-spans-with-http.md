@@ -11,8 +11,6 @@ pushing spans with http/json from a Bash script using the [Zipkin](https://zipki
 Let's first start Tempo with the Zipkin receiver configured.  In order to do this create a config file like so:
 
 ```yaml
-auth_enabled: false
-
 server:
   http_listen_port: 3100
 
@@ -61,7 +59,7 @@ Note that the `timestamp` field is in microseconds and was obtained by running `
 The easiest way to get the trace is to execute a simple curl command to Tempo.  The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
 
 ```bash
-curl http://localhost:3100/tempo/api/traces/0123456789abcdef
+curl http://localhost:3100/api/traces/0123456789abcdef
 
 {"batches":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"shell script"}}]},"instrumentationLibrarySpans":[{"spans":[{"traceId":"AAAAAAAAAAABI0VniavN7w==","spanId":"AAAAAAAAEjQ=","name":"span from bash!","startTimeUnixNano":"1608239395286533000","endTimeUnixNano":"1608239395386533000","attributes":[{"key":"http.path","value":{"stringValue":"/api"}},{"key":"http.method","value":{"stringValue":"GET"}}]}]}]}]}
 ```

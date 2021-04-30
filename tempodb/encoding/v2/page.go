@@ -14,8 +14,9 @@ const (
 )
 
 type page struct {
-	data   []byte
-	header pageHeader
+	data        []byte
+	totalLength uint32
+	header      pageHeader
 }
 
 /*
@@ -46,8 +47,9 @@ func unmarshalPageFromBytes(b []byte, header pageHeader) (*page, error) {
 	}
 
 	return &page{
-		data:   b,
-		header: header,
+		data:        b,
+		totalLength: totalLength,
+		header:      header,
 	}, nil
 }
 
@@ -88,8 +90,9 @@ func unmarshalPageFromReader(r io.Reader, header pageHeader, buffer []byte) (*pa
 	}
 
 	return &page{
-		data:   buffer,
-		header: header,
+		data:        buffer,
+		totalLength: totalLength,
+		header:      header,
 	}, nil
 }
 

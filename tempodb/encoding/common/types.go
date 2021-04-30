@@ -38,7 +38,9 @@ type DataReader interface {
 
 	// NextPage can be used to iterate at a page at a time. May return ErrUnsupported for older formats
 	//  NextPage takes a reusable buffer to read the page into and returns it in case it needs to resize
-	NextPage([]byte) ([]byte, error)
+	//  NextPage returns the uncompressed page buffer ready for object iteration and the length of the
+	//    original page from the page header. len(page) might not equal page len!
+	NextPage([]byte) ([]byte, uint32, error)
 }
 
 // IndexReader is used to abstract away the details of an index.  Currently

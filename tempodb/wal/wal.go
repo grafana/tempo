@@ -5,7 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -73,24 +76,50 @@ func New(c *Config) (*WAL, error) {
 	}, nil
 }
 
-func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
+// RescanBlocks returns a slice of append blocks from the wal folder
+func (w *WAL) RescanBlocks(log log.Logger) ([]*AppendBlock, error) {
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]*ReplayBlock, 0, len(files))
+	blocks := make([]*AppendBlock, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() {
 			continue
 		}
 
-		r, err := NewReplayBlock(f.Name(), w.c.Filepath)
+		start := time.Now()
+		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", f.Size())
+		b, warning, err := newAppendBlockFromFile(f.Name(), w.c.Filepath)
+
+		remove := false
 		if err != nil {
-			return nil, err
+			// wal replay failed, clear and warn
+			level.Warn(log).Log("msg", "failed to replay block. removing.", "file", f.Name(), "err", err)
+			remove = true
 		}
 
-		blocks = append(blocks, r)
+		if b != nil && b.appender.Length() == 0 {
+			level.Warn(log).Log("msg", "empty wal file. ignoring.", "file", f.Name(), "err", err)
+			remove = true
+		}
+
+		if warning != nil {
+			level.Warn(log).Log("msg", "received warning while replaying block. partial replay likely.", "file", f.Name(), "warning", warning, "records", b.appender.Length())
+		}
+
+		if remove {
+			err = os.Remove(filepath.Join(w.c.Filepath, f.Name()))
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		level.Info(log).Log("msg", "replay complete", "file", f.Name(), "duration", time.Since(start))
+
+		blocks = append(blocks, b)
 	}
 
 	return blocks, nil

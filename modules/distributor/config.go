@@ -34,6 +34,10 @@ type Config struct {
 	Receivers       map[string]interface{} `yaml:"receivers"`
 	OverrideRingKey string                 `yaml:"override_ring_key"`
 
+	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
+	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
+	ExtendWrites bool `yaml:"extend_writes"`
+
 	// For testing.
 	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
 }
@@ -45,4 +49,5 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.DistributorRing.HeartbeatTimeout = 5 * time.Minute
 
 	cfg.OverrideRingKey = ring.DistributorRingKey
+	cfg.ExtendWrites = true
 }

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
@@ -19,6 +18,11 @@ import (
 
 	ot_pdata "go.opentelemetry.io/collector/consumer/pdata"
 	ot_jaeger "go.opentelemetry.io/collector/translator/trace/jaeger"
+)
+
+const (
+	AcceptHeaderKey         = "Accept"
+	ProtobufTypeHeaderValue = "application/protobuf"
 )
 
 type Backend struct {
@@ -58,7 +62,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	}
 
 	// Set content type to grpc
-	req.Header.Set(util.AcceptHeaderKey, util.ProtobufTypeHeaderValue)
+	req.Header.Set(AcceptHeaderKey, ProtobufTypeHeaderValue)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

@@ -2,7 +2,6 @@
   local configMap = $.core.v1.configMap,
 
   tempo_config:: {
-    auth_enabled: false,
     server: {
       http_listen_port: $._config.port
     },

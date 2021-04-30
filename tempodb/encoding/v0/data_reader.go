@@ -70,17 +70,17 @@ func (r *dataReader) Close() {
 }
 
 // NextPage implements common.DataReader
-func (r *dataReader) NextPage(buffer []byte) ([]byte, error) {
+func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 	reader, err := r.r.Reader()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// v0 pages are just single objects. this method will return one object at a time from the encapsulated reader
 	var totalLength uint32
 	err = binary.Read(reader, binary.LittleEndian, &totalLength)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	if cap(buffer) < int(totalLength) {
@@ -92,8 +92,8 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, error) {
 
 	_, err = reader.Read(buffer[uint32Size:])
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return buffer, nil
+	return buffer, totalLength, nil
 }

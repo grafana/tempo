@@ -18,7 +18,6 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ```yaml
 target: all
-auth_enabled: true
 http_api_prefix: ""
 server:
     http_listen_address: ""
@@ -95,6 +94,7 @@ distributor:
         instance_addr: ""
     receivers: {}
     override_ring_key: distributor
+    extend_writes: true
 ingester_client:
     pool_config:
         checkinterval: 15s
@@ -150,6 +150,7 @@ query_frontend:
     max_body_size: 0
     query_stats_enabled: false
     max_outstanding_per_tenant: 100
+    querier_forget_delay: 0s
     scheduler_address: ""
     scheduler_dns_lookup_period: 0s
     scheduler_worker_concurrency: 0
@@ -286,6 +287,7 @@ storage:
             path: /tmp/tempo/wal
             completedfilepath: /tmp/tempo/wal/completed
             blocksfilepath: /tmp/tempo/wal/blocks
+            encoding: none
         block:
             index_downsample_bytes: 1048576
             index_page_size_bytes: 256000
@@ -319,6 +321,9 @@ storage:
             max-buffers: 4
             buffer-size: 3145728
         cache: ""
+        background_cache:
+            writeback_goroutines: 10
+            writeback_buffer: 10000
         memcached: null
         redis: null
 overrides:
@@ -354,4 +359,11 @@ memberlist:
     bind_port: 7946
     packet_dial_timeout: 5s
     packet_write_timeout: 5s
+    tls_enabled: false
+    tls_cert_path: ""
+    tls_key_path: ""
+    tls_ca_path: ""
+    tls_server_name: ""
+    tls_insecure_skip_verify: false
+
 ```
