@@ -307,7 +307,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 
 	// now marshal it all
 	if allBytes != nil {
-		out, err := model.Unmarshal(allBytes)
+		out, err := model.Unmarshal(allBytes, model.BaseEncoding) // queriers always communicate using the base encoding
 		if err != nil {
 			return nil, err
 		}

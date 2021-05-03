@@ -281,7 +281,7 @@ func TestUnmarshal(t *testing.T) {
 	bytes, err := proto.Marshal(trace)
 	require.NoError(t, err)
 
-	actual, err := Unmarshal(bytes)
+	actual, err := Unmarshal(bytes, CurrentEncoding)
 	require.NoError(t, err)
 
 	assert.True(t, proto.Equal(trace, actual))

@@ -19,6 +19,8 @@ func (o objectCombiner) Combine(objA []byte, objB []byte, dataEncoding string) [
 	return combinedTrace
 }
 
+// CombineAcrossEncodings combines the two objects in the passed data encodings. It returns the objects
+//  in dataEncodingA
 func CombineAcrossEncodings(objA []byte, objB []byte, dataEncodingA string, dataEncodingB string) []byte {
 	if dataEncodingA == dataEncodingB {
 		return ObjectCombiner.Combine(objA, objB, dataEncodingA)

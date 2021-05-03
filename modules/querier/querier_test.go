@@ -40,7 +40,7 @@ func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) []b
 	return combined
 }
 
-func TestReturnAllHits(t *testing.T) { // jpe test mixed dataEncodings
+func TestReturnAllHits(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
