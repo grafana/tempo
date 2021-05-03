@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -149,6 +150,11 @@ func (c *Compactor) Owns(hash string) bool {
 	level.Debug(log.Logger).Log("msg", "checking addresses", "owning_addr", rs.Instances[0].Addr, "this_addr", c.ringLifecycler.Addr)
 
 	return rs.Instances[0].Addr == c.ringLifecycler.Addr
+}
+
+// Combine implements common.ObjectCombiner
+func (c *Compactor) Combine(objA []byte, objB []byte, dataEncoding string) []byte {
+	return model.ObjectCombiner.Combine(objA, objB, dataEncoding) // jpe include me in combine thoughts
 }
 
 // BlockRetentionForTenant implements CompactorOverrides
