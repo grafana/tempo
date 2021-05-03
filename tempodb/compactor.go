@@ -188,17 +188,11 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			}
 
 			if bytes.Equal(currentID, lowestID) {
-				lowestObject = rw.compactorSharder.Combine(currentObject, lowestObject, dataEncoding)
-
-				// newObj, wasCombined, err := model.CombineTraceBytes(currentObject, lowestObject) jpe restore?
-				// if err != nil {
-				// 	level.Error(rw.logger).Log("msg", "error combining trace protos", "err", err.Error())
-				// } else {
-				// 	lowestObject = newObj
-				// }
-				// if wasCombined {
-				// 	metricCompactionObjectsCombined.WithLabelValues(compactionLevelLabel).Inc()
-				// }
+				var wasCombined bool
+				lowestObject, wasCombined = rw.compactorSharder.Combine(currentObject, lowestObject, dataEncoding)
+				if wasCombined {
+					metricCompactionObjectsCombined.WithLabelValues(compactionLevelLabel).Inc()
+				}
 				b.clear()
 			} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
 				lowestID = currentID

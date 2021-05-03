@@ -64,7 +64,7 @@ func TestMergeResponses(t *testing.T) {
 	b2, err := proto.Marshal(t2)
 	assert.NoError(t, err)
 
-	combinedTrace, _, err := model.CombineTraceBytes(b1, b2)
+	combinedTrace, _, err := model.CombineTraceBytes(b1, b2, model.TracePBEncoding, model.TracePBEncoding)
 	assert.NoError(t, err)
 
 	traceObject := &tempopb.Trace{}

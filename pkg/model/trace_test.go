@@ -84,7 +84,7 @@ func TestCombine(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		actual, _, err := CombineTraceBytes(tt.trace1, tt.trace2)
+		actual, _, err := CombineTraceBytes(tt.trace1, tt.trace2, "", "")
 		if len(tt.errString) > 0 {
 			assert.EqualError(t, err, tt.errString)
 		} else {
@@ -167,7 +167,7 @@ func BenchmarkCombineTraces(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// nolint:errcheck
-		CombineTraceBytes(b1, b2)
+		CombineTraceBytes(b1, b2, "", "")
 	}
 }
 
@@ -183,7 +183,7 @@ func BenchmarkCombineTracesIdentical(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// nolint:errcheck
-		CombineTraceBytes(b1, b2)
+		CombineTraceBytes(b1, b2, "", "")
 	}
 }
 

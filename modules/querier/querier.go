@@ -184,24 +184,30 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 		span.LogFields(ot_log.String("msg", "done searching store"))
 
-		// combine partialTraces
-		var allBytes []byte
-		for i, partialTrace := range partialTraces {
-			dataEncoding := dataEncodings[i]
-			allBytes = model.CombineAcrossEncodings(allBytes, partialTrace, model.BaseEncoding, dataEncoding)
+		if len(partialTraces) != 0 {
+			// combine partialTraces
+			var allBytes []byte
+			baseEncoding := dataEncodings[0] // just arbitrarily choose an encoding. generally they will all be the same
+			for i, partialTrace := range partialTraces {
+				dataEncoding := dataEncodings[i]
+				allBytes, _, err = model.CombineTraceBytes(allBytes, partialTrace, baseEncoding, dataEncoding)
+				if err != nil {
+					return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
+				}
+			}
+
+			// marshal to proto and add to completeTrace
+			storeTrace, err := model.Unmarshal(allBytes, baseEncoding)
+			if err != nil {
+				return nil, errors.Wrap(err, "error unmarshaling combined trace in Querier.FindTraceByID")
+			}
+
+			completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, storeTrace)
+			spanCountTotal += spanCount
+
+			span.LogFields(ot_log.String("msg", "combined trace protos from store"),
+				ot_log.Int("combinedSpans", spanCountTotal))
 		}
-
-		// marshal to proto and add to completeTrace
-		storeTrace, err := model.Unmarshal(allBytes, model.BaseEncoding)
-		if err != nil {
-			return nil, errors.Wrap(err, "error unmarshaling combined trace in Querier.FindTraceByID")
-		}
-
-		completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, storeTrace)
-		spanCountTotal += spanCount
-
-		span.LogFields(ot_log.String("msg", "combined trace protos from store"),
-			ot_log.Int("combinedSpans", spanCountTotal))
 	}
 
 	return &tempopb.TraceByIDResponse{

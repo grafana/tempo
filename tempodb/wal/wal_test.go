@@ -30,12 +30,12 @@ const (
 type mockCombiner struct {
 }
 
-func (m *mockCombiner) Combine(objA []byte, objB []byte, encoding string) []byte {
+func (m *mockCombiner) Combine(objA []byte, objB []byte, encoding string) ([]byte, bool) {
 	if len(objA) > len(objB) {
-		return objA
+		return objA, false
 	}
 
-	return objB
+	return objB, false
 }
 
 func TestAppend(t *testing.T) {

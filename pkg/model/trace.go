@@ -15,15 +15,18 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
-func CombineTraceBytes(objA []byte, objB []byte) (_ []byte, wasCombined bool, _ error) {
+// todo(jpe):
+// - add cross data encoding tests
+
+func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncodingB string) (_ []byte, wasCombined bool, _ error) {
 	// if the byte arrays are the same, we can return quickly
 	if bytes.Equal(objA, objB) {
 		return objA, false, nil
 	}
 
 	// bytes differ.  unmarshal and combine traces
-	traceA, errA := Unmarshal(objA, BaseEncoding) // jpe thing again about combinetracebytes and other combines
-	traceB, errB := Unmarshal(objB, BaseEncoding)
+	traceA, errA := Unmarshal(objA, dataEncodingA)
+	traceB, errB := Unmarshal(objB, dataEncodingB)
 
 	// if we had problems unmarshaling one or the other, return the one that marshalled successfully
 	if errA != nil && errB == nil {

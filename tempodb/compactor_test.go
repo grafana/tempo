@@ -31,12 +31,12 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) []byte {
+func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
 	if len(objA) > len(objB) {
-		return objA
+		return objA, true
 	}
 
-	return objB
+	return objB, true
 }
 
 type mockOverrides struct {
@@ -259,7 +259,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 	combinedFinish, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	assert.NoError(t, err)
-	assert.Equal(t, float64(0), combinedFinish-combinedStart) // jpe - restore? float64(1)
+	assert.Equal(t, float64(1), combinedFinish-combinedStart)
 }
 
 func TestCompactionUpdatesBlocklist(t *testing.T) {

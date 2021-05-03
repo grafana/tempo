@@ -57,7 +57,7 @@ func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
 			break
 		}
 
-		bytesFound = f.combiner.Combine(bytesFound, bytesOne, f.dataEncoding)
+		bytesFound, _ = f.combiner.Combine(bytesFound, bytesOne, f.dataEncoding)
 
 		// we need to check the next record to see if it also matches our id
 		i++

@@ -35,9 +35,9 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) []byte {
-	combined, _, _ := model.CombineTraceBytes(objA, objB)
-	return combined
+func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
+	combined, wasCombined, _ := model.CombineTraceBytes(objA, objB, dataEncoding, dataEncoding)
+	return combined, wasCombined
 }
 
 func TestReturnAllHits(t *testing.T) {
@@ -109,7 +109,7 @@ func TestReturnAllHits(t *testing.T) {
 	model.SortTrace(expectedTrace)
 
 	// actual trace
-	actualTraceBytes, _, err := model.CombineTraceBytes(foundBytes[1], foundBytes[0])
+	actualTraceBytes, _, err := model.CombineTraceBytes(foundBytes[1], foundBytes[0], "", "")
 	assert.NoError(t, err)
 	actualTrace := &tempopb.Trace{}
 	err = proto.Unmarshal(actualTraceBytes, actualTrace)

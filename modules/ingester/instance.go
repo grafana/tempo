@@ -262,18 +262,17 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 }
 
 func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
+	var err error
 	var allBytes []byte
 
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
-		foundBytes, err := proto.Marshal(liveTrace.trace)
+		allBytes, err = proto.Marshal(liveTrace.trace) // todo(jpe) : handle this when marshalling the new format
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
 		}
-
-		allBytes = model.ObjectCombiner.Combine(allBytes, foundBytes, model.CurrentEncoding)
 	}
 	i.tracesMtx.Unlock()
 
@@ -285,7 +284,10 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
 	}
-	allBytes = model.CombineAcrossEncodings(allBytes, foundBytes, model.CurrentEncoding, i.headBlock.Meta().DataEncoding)
+	allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, i.headBlock.Meta().DataEncoding)
+	if err != nil {
+		return nil, fmt.Errorf("post headBlock combine failed: %w", err)
+	}
 
 	// completingBlock
 	for _, c := range i.completingBlocks {
@@ -293,7 +295,10 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
 		}
-		allBytes = model.CombineAcrossEncodings(allBytes, foundBytes, model.CurrentEncoding, c.Meta().DataEncoding)
+		allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, c.Meta().DataEncoding)
+		if err != nil {
+			return nil, fmt.Errorf("post completingBlocks combine failed: %w", err)
+		}
 	}
 
 	// completeBlock
@@ -302,12 +307,15 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
 		}
-		allBytes = model.CombineAcrossEncodings(allBytes, foundBytes, model.CurrentEncoding, c.BlockMeta().DataEncoding)
+		allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, c.BlockMeta().DataEncoding)
+		if err != nil {
+			return nil, fmt.Errorf("post completeBlocks combine failed: %w", err)
+		}
 	}
 
 	// now marshal it all
 	if allBytes != nil {
-		out, err := model.Unmarshal(allBytes, model.BaseEncoding) // queriers always communicate using the base encoding
+		out, err := model.Unmarshal(allBytes, model.CurrentEncoding) // queriers always communicate using the base encoding
 		if err != nil {
 			return nil, err
 		}

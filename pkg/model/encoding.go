@@ -8,7 +8,10 @@ import (
 
 // CurrentEncoding is a string representing the encoding that all new blocks should be created with
 const CurrentEncoding = ""
-const BaseEncoding = ""
+
+// TracePBEncoding is a string that represents the original TracePBEncoding. Pass this if you know that the
+// bytes are encoded *tracepb.Trace
+const TracePBEncoding = ""
 
 // Unmarshal converts a byte slice of the passed encoding into a *tempopb.Trace
 func Unmarshal(obj []byte, dataEncoding string) (*tempopb.Trace, error) {

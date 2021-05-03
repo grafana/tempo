@@ -25,8 +25,9 @@ type Record struct {
 // ObjectCombiner is used to combine two objects in the backend
 type ObjectCombiner interface {
 	// Combine objA and objB encoded using dataEncoding. The returned object must
-	// use the same dataEncoding
-	Combine(objA []byte, objB []byte, dataEncoding string) []byte
+	// use the same dataEncoding. Returns a bool indicating if it the objects required combining and
+	// the combined slice
+	Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool)
 }
 
 // DataReader returns a slice of pages in the encoding/v0 format referenced by
