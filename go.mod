@@ -23,7 +23,7 @@ require (
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/hashicorp/go-plugin v1.3.0 // indirect
 	github.com/jaegertracing/jaeger v1.21.0
-	github.com/jsternberg/zap-logfmt v1.0.0
+	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/klauspost/compress v1.11.7
 	github.com/minio/minio-go/v7 v7.0.10
 	github.com/olekukonko/tablewriter v0.0.2
