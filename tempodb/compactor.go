@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/prometheus/client_golang/prometheus"
@@ -145,9 +144,11 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	}()
 
 	var totalRecords int
+	var dataEncoding string
 	for _, blockMeta := range blockMetas {
 		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
 		totalRecords += blockMeta.TotalObjects
+		dataEncoding = blockMeta.DataEncoding // compacted blocks always have the same data encoding
 
 		block, err := encoding.NewBackendBlock(blockMeta, rw.r)
 		if err != nil {
@@ -187,15 +188,17 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			}
 
 			if bytes.Equal(currentID, lowestID) {
-				newObj, wasCombined, err := model.CombineTraceBytes(currentObject, lowestObject) // jpe sad face
-				if err != nil {
-					level.Error(rw.logger).Log("msg", "error combining trace protos", "err", err.Error())
-				} else {
-					lowestObject = newObj
-				}
-				if wasCombined {
-					metricCompactionObjectsCombined.WithLabelValues(compactionLevelLabel).Inc()
-				}
+				lowestObject = rw.compactorSharder.Combine(currentObject, lowestObject, dataEncoding)
+
+				// newObj, wasCombined, err := model.CombineTraceBytes(currentObject, lowestObject) jpe restore?
+				// if err != nil {
+				// 	level.Error(rw.logger).Log("msg", "error combining trace protos", "err", err.Error())
+				// } else {
+				// 	lowestObject = newObj
+				// }
+				// if wasCombined {
+				// 	metricCompactionObjectsCombined.WithLabelValues(compactionLevelLabel).Inc()
+				// }
 				b.clear()
 			} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
 				lowestID = currentID

@@ -259,7 +259,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 	combinedFinish, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	assert.NoError(t, err)
-	assert.Equal(t, float64(1), combinedFinish-combinedStart)
+	assert.Equal(t, float64(0), combinedFinish-combinedStart) // jpe - restore? float64(1)
 }
 
 func TestCompactionUpdatesBlocklist(t *testing.T) {

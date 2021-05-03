@@ -100,6 +100,7 @@ type Compactor interface {
 }
 
 type CompactorSharder interface {
+	common.ObjectCombiner
 	Owns(hash string) bool
 }
 
