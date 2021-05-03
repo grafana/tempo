@@ -34,7 +34,7 @@ func NewStreamingBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 	dataEncoding := metas[0].DataEncoding
 	for _, meta := range metas {
 		if meta.DataEncoding != dataEncoding {
-			return nil, fmt.Errorf("two blocks of different data encodings can not be streamed together: %s: %s", dataEncoding, meta.DataEncoding) // jpe test
+			return nil, fmt.Errorf("two blocks of different data encodings can not be streamed together: %s: %s", dataEncoding, meta.DataEncoding)
 		}
 	}
 

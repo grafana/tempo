@@ -30,12 +30,20 @@ const (
 	testTenantID = "fake"
 )
 
-func TestCompactorBlockError(t *testing.T) {
+func TestStreamingBlockError(t *testing.T) {
+	// no block metas
 	_, err := NewStreamingBlock(nil, uuid.New(), "", nil, 0)
+	assert.Error(t, err)
+
+	// mixed data encodings
+	_, err = NewStreamingBlock(nil, uuid.New(), "", []*backend.BlockMeta{
+		backend.NewBlockMeta("", uuid.New(), "", backend.EncNone, "foo"),
+		backend.NewBlockMeta("", uuid.New(), "", backend.EncNone, "bar"),
+	}, 0)
 	assert.Error(t, err)
 }
 
-func TestCompactorBlockAddObject(t *testing.T) {
+func TestStreamingBlockAddObject(t *testing.T) {
 	indexDownsample := 500
 
 	metas := []*backend.BlockMeta{

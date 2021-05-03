@@ -256,7 +256,7 @@ func (a *AppendBlock) file() (*os.File, error) {
 	return a.readFile, err
 }
 
-func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, string, error) { // jpe just return a meta?
+func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, string, error) {
 	splits := strings.Split(name, ":")
 
 	if len(splits) != 2 && len(splits) != 4 && len(splits) != 5 {

@@ -123,7 +123,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 			for j := i + 1; j < len(twbs.entries); j++ {
 				stripe := twbs.entries[i : j+1]
 				if twbs.entries[i].group == twbs.entries[j].group &&
-					twbs.entries[i].meta.DataEncoding == twbs.entries[j].meta.DataEncoding && // jpe test
+					twbs.entries[i].meta.DataEncoding == twbs.entries[j].meta.DataEncoding &&
 					len(stripe) <= twbs.MaxInputBlocks &&
 					totalObjects(stripe) <= twbs.MaxCompactionObjects &&
 					totalSize(stripe) <= twbs.MaxBlockBytes {
