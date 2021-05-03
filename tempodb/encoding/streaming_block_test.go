@@ -236,6 +236,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP, "")
 	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
+	originatingMeta.DataEncoding = "foo"
 
 	// calc expected records
 	byteCounter := 0
@@ -285,6 +286,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	require.Equal(t, originatingMeta.StartTime, block.BlockMeta().StartTime)
 	require.Equal(t, originatingMeta.EndTime, block.BlockMeta().EndTime)
 	require.Equal(t, originatingMeta.TenantID, block.BlockMeta().TenantID)
+	require.Equal(t, originatingMeta.DataEncoding, block.BlockMeta().DataEncoding)
 
 	// Verify block size was written
 	require.Greater(t, block.BlockMeta().Size, uint64(0))

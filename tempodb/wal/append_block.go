@@ -32,7 +32,7 @@ type AppendBlock struct {
 	once     sync.Once
 }
 
-func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string) (*AppendBlock, error) { // jpe test that encoding flows through append -> complete correctly
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string) (*AppendBlock, error) {
 	if strings.ContainsRune(dataEncoding, ':') ||
 		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
