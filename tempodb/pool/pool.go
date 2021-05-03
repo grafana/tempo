@@ -80,7 +80,7 @@ func NewPool(cfg *Config) *Pool {
 	return p
 }
 
-func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([][]byte, []string, error) { // jpe test encoding
+func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([][]byte, []string, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

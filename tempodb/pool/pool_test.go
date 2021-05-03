@@ -2,6 +2,7 @@ package pool
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -27,16 +28,18 @@ func TestResults(t *testing.T) {
 		i := payload.(int)
 
 		if i == 3 {
-			return ret, "", nil
+			return ret, "foo", nil
 		}
 		return nil, "", nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, dataEncoding, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.NoError(t, err)
 	require.Len(t, msg, 1)
 	assert.Equal(t, ret, msg[0])
+	require.Len(t, dataEncoding, 1)
+	assert.Equal(t, "foo", dataEncoding[0])
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
@@ -298,4 +301,34 @@ func TestShutdown(t *testing.T) {
 	assert.Nil(t, msg)
 	assert.Error(t, err)
 	goleak.VerifyNone(t, opts)
+}
+
+func TestDataEncodings(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
+	p := NewPool(&Config{
+		MaxWorkers: 10,
+		QueueDepth: 10,
+	})
+	opts := goleak.IgnoreCurrent()
+
+	ret := []byte{0x01, 0x02}
+	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
+		return ret, hex.EncodeToString(ret), nil
+	}
+	payloads := []interface{}{1, 2, 3, 4, 5}
+
+	msg, dataEncodings, err := p.RunJobs(context.Background(), payloads, fn)
+	require.Len(t, msg, 5)
+	for i := range payloads {
+		assert.Equal(t, ret, msg[i])
+	}
+	for i := range dataEncodings {
+		assert.Equal(t, hex.EncodeToString(ret), dataEncodings[i])
+	}
+	assert.Nil(t, err)
+	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }
