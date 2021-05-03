@@ -273,7 +273,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
 		}
 
-		allBytes = model.ObjectCombiner.Combine(allBytes, foundBytes, model.CurrentEncoding) // jpe ??
+		allBytes = model.ObjectCombiner.Combine(allBytes, foundBytes, model.CurrentEncoding)
 	}
 	i.tracesMtx.Unlock()
 
@@ -285,15 +285,15 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
 	}
-	allBytes = model.ObjectCombiner.CombineAcrossEncodings(allBytes, foundBytes, model.CurrentEncoding, i.headBlock.Meta().DataEncoding)
+	allBytes = model.CombineAcrossEncodings(allBytes, foundBytes, model.CurrentEncoding, i.headBlock.Meta().DataEncoding)
 
 	// completingBlock
 	for _, c := range i.completingBlocks {
-		foundBytes, err = c.Find(id, model.ObjectCombiner) // jpe remove object combiner from find and do it externally?
+		foundBytes, err = c.Find(id, model.ObjectCombiner)
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
 		}
-		allBytes = model.ObjectCombiner.CombineAcrossEncodings(allBytes, foundBytes, model.CurrentEncoding, c.Meta().DataEncoding) // jpe test this crazy combine stuff :(
+		allBytes = model.CombineAcrossEncodings(allBytes, foundBytes, model.CurrentEncoding, c.Meta().DataEncoding)
 	}
 
 	// completeBlock
@@ -302,14 +302,12 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
 		}
-		allBytes = model.ObjectCombiner.CombineAcrossEncodings(allBytes, foundBytes, model.CurrentEncoding, c.BlockMeta().DataEncoding) // jpe test this crazy combine stuff :(
+		allBytes = model.CombineAcrossEncodings(allBytes, foundBytes, model.CurrentEncoding, c.BlockMeta().DataEncoding)
 	}
 
 	// now marshal it all
-	if allBytes != nil { // jpe move this into model
-		out := &tempopb.Trace{}
-
-		err = proto.Unmarshal(allBytes, out)
+	if allBytes != nil {
+		out, err := model.Unmarshal(allBytes)
 		if err != nil {
 			return nil, err
 		}

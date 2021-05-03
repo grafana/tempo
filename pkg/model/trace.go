@@ -15,18 +15,21 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
-func CombineTraces(objA []byte, objB []byte) (_ []byte, wasCombined bool, _ error) {
+func Unmarshal(obj []byte) (*tempopb.Trace, error) {
+	trace := &tempopb.Trace{}
+	err := proto.Unmarshal(obj, trace)
+	return trace, err
+}
+
+func CombineTraceBytes(objA []byte, objB []byte) (_ []byte, wasCombined bool, _ error) {
 	// if the byte arrays are the same, we can return quickly
 	if bytes.Equal(objA, objB) {
 		return objA, false, nil
 	}
 
 	// bytes differ.  unmarshal and combine traces
-	traceA := &tempopb.Trace{}
-	traceB := &tempopb.Trace{}
-
-	errA := proto.Unmarshal(objA, traceA)
-	errB := proto.Unmarshal(objB, traceB)
+	traceA, errA := Unmarshal(objA)
+	traceB, errB := Unmarshal(objB)
 
 	// if we had problems unmarshaling one or the other, return the one that marshalled successfully
 	if errA != nil && errB == nil {

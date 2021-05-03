@@ -10,16 +10,25 @@ type objectCombiner struct{}
 
 var ObjectCombiner = objectCombiner{}
 
+// Combine implements tempodb/encoding/common.ObjectCombiner
 func (o objectCombiner) Combine(objA []byte, objB []byte, dataEncoding string) []byte {
-	combinedTrace, _, err := CombineTraces(objA, objB)
+	combinedTrace, _, err := CombineTraceBytes(objA, objB)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
 	}
 	return combinedTrace
 }
 
-func (o objectCombiner) CombineAcrossEncodings(objA []byte, objB []byte, dataEncodingA string, dataEncodingB string) []byte { // jpe actually support this
-	combinedTrace, _, err := CombineTraces(objA, objB)
+func CombineAcrossEncodings(objA []byte, objB []byte, dataEncodingA string, dataEncodingB string) []byte {
+	if dataEncodingA == dataEncodingB {
+		return ObjectCombiner.Combine(objA, objB, dataEncodingA)
+	}
+
+	// todo(jpe):
+	// - marshal both traces to *tempopb.Trace and combine at the proto level
+	// - add cross data encoding tests
+
+	combinedTrace, _, err := CombineTraceBytes(objA, objB)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
 	}

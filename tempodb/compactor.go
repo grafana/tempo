@@ -187,7 +187,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			}
 
 			if bytes.Equal(currentID, lowestID) {
-				newObj, wasCombined, err := model.CombineTraces(currentObject, lowestObject) // jpe sad face
+				newObj, wasCombined, err := model.CombineTraceBytes(currentObject, lowestObject) // jpe sad face
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "error combining trace protos", "err", err.Error())
 				} else {
