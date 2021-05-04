@@ -147,7 +147,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	defer span.Finish()
 
 	var completeTrace *tempopb.Trace
-	var spanCount, spanCountTotal int
+	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 		if err != nil {
@@ -168,11 +168,13 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			if trace != nil {
 				completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, trace)
 				spanCountTotal += spanCount
+				traceCountTotal++
 			}
 		}
 		span.LogFields(ot_log.String("msg", "done searching ingesters"),
 			ot_log.Bool("found", completeTrace != nil),
-			ot_log.Int("combinedSpans", spanCountTotal))
+			ot_log.Int("combinedSpans", spanCountTotal),
+			ot_log.Int("combinedTraces", traceCountTotal))
 	}
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
@@ -185,6 +187,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		span.LogFields(ot_log.String("msg", "done searching store"))
 
 		if len(partialTraces) != 0 {
+			traceCountTotal = 0
+			spanCountTotal = 0
 			// combine partialTraces
 			var allBytes []byte
 			baseEncoding := dataEncodings[0] // just arbitrarily choose an encoding. generally they will all be the same
@@ -204,9 +208,11 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 			completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, storeTrace)
 			spanCountTotal += spanCount
+			traceCountTotal++
 
 			span.LogFields(ot_log.String("msg", "combined trace protos from store"),
-				ot_log.Int("combinedSpans", spanCountTotal))
+				ot_log.Int("combinedSpans", spanCountTotal),
+				ot_log.Int("combinedTraces", traceCountTotal))
 		}
 	}
 
