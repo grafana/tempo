@@ -3,7 +3,6 @@ package distributor
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -249,16 +248,15 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.PushRequest, keys []uint32) error {
-
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, keys []uint32) error {
 	// Marshal to bytes once
-	rawRequests := make([][]byte, len(traces))
+	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
 		b, err := t.Marshal()
 		if err != nil {
 			return errors.Wrap(err, "failed to marshal PushRequest")
 		}
-		rawRequests[i] = b
+		marshalledTraces[i] = b
 	}
 
 	op := ring.WriteNoExtend
@@ -267,17 +265,16 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	}
 
 	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
-
 		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
 		defer cancel()
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := tempopb.PushBytesRequest{
-			Requests: make([]tempopb.PreallocRequest, len(indexes)),
+			Traces: make([]tempopb.PreallocBytes, len(indexes)),
 		}
 
 		for i, j := range indexes {
-			req.Requests[i].Request = rawRequests[j][0:]
+			req.Traces[i].Slice = marshalledTraces[j][0:]
 		}
 
 		c, err := d.pool.GetClientFor(ingester.Addr)
@@ -306,64 +303,49 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
 }
 
-func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.PushRequest, error) {
-	const expectedTracesPerBatch = 10 // roughly what we're seeing through metrics
-	expectedSpansPerTrace := spanCount / expectedTracesPerBatch
-
-	requestsByTrace := make(map[uint32]*tempopb.PushRequest)
-	spansByILS := make(map[string]*v1.InstrumentationLibrarySpans)
+// todo(jpe): full e2e correctness testing
+func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.Trace, error) {
+	tracesByID := make(map[uint32]*tempopb.Trace, 50) // 50, why not?
 
 	for _, ils := range req.Batch.InstrumentationLibrarySpans {
-		for _, span := range ils.Spans {
-			if !validation.ValidTraceID(span.TraceId) {
-				return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
-			}
-
-			traceKey := util.TokenFor(userID, span.TraceId)
-			ilsKey := strconv.Itoa(int(traceKey))
-			if ils.InstrumentationLibrary != nil {
-				ilsKey = ilsKey + ils.InstrumentationLibrary.Name + ils.InstrumentationLibrary.Version
-			}
-			existingILS, ok := spansByILS[ilsKey]
-			if !ok {
-				existingILS = &v1.InstrumentationLibrarySpans{
-					InstrumentationLibrary: ils.InstrumentationLibrary,
-					Spans:                  make([]*v1.Span, 0, expectedSpansPerTrace),
-				}
-				spansByILS[ilsKey] = existingILS
-			}
-			existingILS.Spans = append(existingILS.Spans, span)
-
-			// if we found an ILS we assume its already part of a request and can go to the next span
-			if ok {
-				continue
-			}
-
-			existingReq, ok := requestsByTrace[traceKey]
-			if !ok {
-				existingReq = &tempopb.PushRequest{
-					Batch: &v1.ResourceSpans{
-						InstrumentationLibrarySpans: make([]*v1.InstrumentationLibrarySpans, 0, len(req.Batch.InstrumentationLibrarySpans)), // assume most spans belong to the same trace
-						Resource:                    req.Batch.Resource,
-					},
-				}
-				requestsByTrace[traceKey] = existingReq
-			}
-			existingReq.Batch.InstrumentationLibrarySpans = append(existingReq.Batch.InstrumentationLibrarySpans, existingILS)
+		// get trace id
+		if len(ils.Spans) == 0 {
+			continue
 		}
+		traceID := ils.Spans[0].TraceId
+		if !validation.ValidTraceID(traceID) {
+			return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
+		}
+
+		traceKey := util.TokenFor(userID, traceID)
+		existingTrace, ok := tracesByID[traceKey]
+		if !ok {
+			existingTrace = &tempopb.Trace{
+				ID:      traceID,
+				Batches: make([]*v1.ResourceSpans, 0, 50), // 50, why not? todo(jpe): why?
+			}
+			tracesByID[traceKey] = existingTrace
+		}
+
+		existingTrace.Batches = append(existingTrace.Batches, &v1.ResourceSpans{
+			Resource: req.Batch.Resource,
+			InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+				ils,
+			},
+		})
 	}
 
-	metricTracesPerBatch.Observe(float64(len(requestsByTrace)))
+	metricTracesPerBatch.Observe(float64(len(tracesByID)))
 
-	keys := make([]uint32, 0, len(requestsByTrace))
-	pushRequests := make([]*tempopb.PushRequest, 0, len(requestsByTrace))
+	keys := make([]uint32, 0, len(tracesByID))
+	traces := make([]*tempopb.Trace, 0, len(tracesByID))
 
-	for k, r := range requestsByTrace {
+	for k, r := range tracesByID {
 		keys = append(keys, k)
-		pushRequests = append(pushRequests, r)
+		traces = append(traces, r)
 	}
 
-	return keys, pushRequests, nil
+	return keys, traces, nil
 }
 
 func recordDiscaredSpans(err error, userID string, spanCount int) {

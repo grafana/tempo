@@ -27,6 +27,7 @@ message TraceByIDResponse {
 
 message Trace {
   repeated tempopb.trace.v1.ResourceSpans batches = 1;
+  bytes ID = 2;
 }
 
 message PushRequest {
@@ -38,5 +39,7 @@ message PushResponse {
 
 message PushBytesRequest {
   // pre-serialized PushRequests
-  repeated bytes requests = 1 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocRequest"];
+  repeated bytes requests = 1 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes", deprecated=true];
+  // pre-serialized Traces
+  repeated bytes traces = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
 }

@@ -182,7 +182,7 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 	// Unmarshal and push each request
 	for _, v := range req.Requests {
 		r := tempopb.PushRequest{}
-		err := r.Unmarshal(v.Request)
+		err := r.Unmarshal(v.Slice)
 		if err != nil {
 			return nil, err
 		}

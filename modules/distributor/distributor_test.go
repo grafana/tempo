@@ -13,8 +13,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring/kv"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/gogo/status"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 
 	"github.com/golang/protobuf/proto"
@@ -43,23 +41,23 @@ var (
 )
 
 func TestRequestsByTraceID(t *testing.T) {
-	traceIDA := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-	traceIDB := []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	// traceIDA := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	// traceIDB := []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
 	tests := []struct {
-		name         string
-		request      *tempopb.PushRequest
-		expectedKeys []uint32
-		expectedReqs []*tempopb.PushRequest
-		expectedErr  error
+		name           string
+		request        *tempopb.PushRequest
+		expectedKeys   []uint32
+		expectedTraces []*tempopb.Trace
+		expectedErr    error
 	}{
 		{
 			name: "empty",
 			request: &tempopb.PushRequest{
 				Batch: &v1.ResourceSpans{},
 			},
-			expectedKeys: []uint32{},
-			expectedReqs: []*tempopb.PushRequest{},
+			expectedKeys:   []uint32{},
+			expectedTraces: []*tempopb.Trace{},
 		},
 		{
 			name: "bad trace id",
@@ -78,198 +76,198 @@ func TestRequestsByTraceID(t *testing.T) {
 			},
 			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit"),
 		},
-		{
-			name: "one span",
-			request: &tempopb.PushRequest{
-				Batch: &v1.ResourceSpans{
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-						{
-							Spans: []*v1.Span{
-								{
-									TraceId: traceIDA,
-								}}}}},
-			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
-			expectedReqs: []*tempopb.PushRequest{
-				{
-					Batch: &v1.ResourceSpans{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-							{
-								Spans: []*v1.Span{
-									{
-										TraceId: traceIDA,
-									}}}}}},
-			},
-		},
-		{
-			name: "two traces",
-			request: &tempopb.PushRequest{
-				Batch: &v1.ResourceSpans{
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-						{
-							Spans: []*v1.Span{
-								{
-									TraceId: traceIDA,
-								},
-								{
-									TraceId: traceIDB,
-								}}}}},
-			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
-			expectedReqs: []*tempopb.PushRequest{
-				{
-					Batch: &v1.ResourceSpans{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-							{
-								Spans: []*v1.Span{
-									{
-										TraceId: traceIDA,
-									}}}}},
-				},
-				{
-					Batch: &v1.ResourceSpans{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-							{
-								Spans: []*v1.Span{
-									{
-										TraceId: traceIDB,
-									}}}}}},
-			},
-		},
-		{
-			name: "resource copied",
-			request: &tempopb.PushRequest{
-				Batch: &v1.ResourceSpans{
-					Resource: &v1_resource.Resource{
-						DroppedAttributesCount: 1,
-					},
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-						{
-							Spans: []*v1.Span{
-								{
-									TraceId: traceIDA,
-								},
-								{
-									TraceId: traceIDB,
-								}}}}},
-			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
-			expectedReqs: []*tempopb.PushRequest{
-				{
-					Batch: &v1.ResourceSpans{
-						Resource: &v1_resource.Resource{
-							DroppedAttributesCount: 1,
-						},
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-							{
-								Spans: []*v1.Span{
-									{
-										TraceId: traceIDA,
-									}}}}},
-				},
-				{
-					Batch: &v1.ResourceSpans{
-						Resource: &v1_resource.Resource{
-							DroppedAttributesCount: 1,
-						},
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-							{
-								Spans: []*v1.Span{
-									{
-										TraceId: traceIDB,
-									}}}}}},
-			},
-		},
-		{
-			name: "ils copied",
-			request: &tempopb.PushRequest{
-				Batch: &v1.ResourceSpans{
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-						{
-							InstrumentationLibrary: &v1_common.InstrumentationLibrary{
-								Name: "test",
-							},
-							Spans: []*v1.Span{
-								{
-									TraceId: traceIDA,
-								},
-								{
-									TraceId: traceIDB,
-								}}}}},
-			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
-			expectedReqs: []*tempopb.PushRequest{
-				{
-					Batch: &v1.ResourceSpans{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-							{
-								InstrumentationLibrary: &v1_common.InstrumentationLibrary{
-									Name: "test",
-								},
-								Spans: []*v1.Span{
-									{
-										TraceId: traceIDA,
-									}}}}},
-				},
-				{
-					Batch: &v1.ResourceSpans{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-							{
-								InstrumentationLibrary: &v1_common.InstrumentationLibrary{
-									Name: "test",
-								},
-								Spans: []*v1.Span{
-									{
-										TraceId: traceIDB,
-									}}}}}},
-			},
-		},
-		{
-			name: "one trace",
-			request: &tempopb.PushRequest{
-				Batch: &v1.ResourceSpans{
-					Resource: &v1_resource.Resource{
-						DroppedAttributesCount: 3,
-					},
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-						{
-							InstrumentationLibrary: &v1_common.InstrumentationLibrary{
-								Name: "test",
-							},
-							Spans: []*v1.Span{
-								{
-									TraceId: traceIDB,
-									Name:    "spanA",
-								},
-								{
-									TraceId: traceIDB,
-									Name:    "spanB",
-								}}}}},
-			},
-			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDB)},
-			expectedReqs: []*tempopb.PushRequest{
-				{
-					Batch: &v1.ResourceSpans{
-						Resource: &v1_resource.Resource{
-							DroppedAttributesCount: 3,
-						},
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-							{
-								InstrumentationLibrary: &v1_common.InstrumentationLibrary{
-									Name: "test",
-								},
-								Spans: []*v1.Span{
-									{
-										TraceId: traceIDB,
-										Name:    "spanA",
-									},
-									{
-										TraceId: traceIDB,
-										Name:    "spanB",
-									}}}}},
-				},
-			},
-		},
+		// {
+		// 	name: "one span",
+		// 	request: &tempopb.PushRequest{
+		// 		Batch: &v1.ResourceSpans{
+		// 			InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 				{
+		// 					Spans: []*v1.Span{
+		// 						{
+		// 							TraceId: traceIDA,
+		// 						}}}}},
+		// 	},
+		// 	expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
+		// 	expectedReqs: []*tempopb.PushRequest{
+		// 		{
+		// 			Batch: &v1.ResourceSpans{
+		// 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 					{
+		// 						Spans: []*v1.Span{
+		// 							{
+		// 								TraceId: traceIDA,
+		// 							}}}}}},
+		// 	},
+		// },
+		// {
+		// 	name: "two traces",
+		// 	request: &tempopb.PushRequest{
+		// 		Batch: &v1.ResourceSpans{
+		// 			InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 				{
+		// 					Spans: []*v1.Span{
+		// 						{
+		// 							TraceId: traceIDA,
+		// 						},
+		// 						{
+		// 							TraceId: traceIDB,
+		// 						}}}}},
+		// 	},
+		// 	expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
+		// 	expectedReqs: []*tempopb.PushRequest{
+		// 		{
+		// 			Batch: &v1.ResourceSpans{
+		// 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 					{
+		// 						Spans: []*v1.Span{
+		// 							{
+		// 								TraceId: traceIDA,
+		// 							}}}}},
+		// 		},
+		// 		{
+		// 			Batch: &v1.ResourceSpans{
+		// 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 					{
+		// 						Spans: []*v1.Span{
+		// 							{
+		// 								TraceId: traceIDB,
+		// 							}}}}}},
+		// 	},
+		// },
+		// {
+		// 	name: "resource copied",
+		// 	request: &tempopb.PushRequest{
+		// 		Batch: &v1.ResourceSpans{
+		// 			Resource: &v1_resource.Resource{
+		// 				DroppedAttributesCount: 1,
+		// 			},
+		// 			InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 				{
+		// 					Spans: []*v1.Span{
+		// 						{
+		// 							TraceId: traceIDA,
+		// 						},
+		// 						{
+		// 							TraceId: traceIDB,
+		// 						}}}}},
+		// 	},
+		// 	expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
+		// 	expectedReqs: []*tempopb.PushRequest{
+		// 		{
+		// 			Batch: &v1.ResourceSpans{
+		// 				Resource: &v1_resource.Resource{
+		// 					DroppedAttributesCount: 1,
+		// 				},
+		// 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 					{
+		// 						Spans: []*v1.Span{
+		// 							{
+		// 								TraceId: traceIDA,
+		// 							}}}}},
+		// 		},
+		// 		{
+		// 			Batch: &v1.ResourceSpans{
+		// 				Resource: &v1_resource.Resource{
+		// 					DroppedAttributesCount: 1,
+		// 				},
+		// 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 					{
+		// 						Spans: []*v1.Span{
+		// 							{
+		// 								TraceId: traceIDB,
+		// 							}}}}}},
+		// 	},
+		// },
+		// {
+		// 	name: "ils copied",
+		// 	request: &tempopb.PushRequest{
+		// 		Batch: &v1.ResourceSpans{
+		// 			InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 				{
+		// 					InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+		// 						Name: "test",
+		// 					},
+		// 					Spans: []*v1.Span{
+		// 						{
+		// 							TraceId: traceIDA,
+		// 						},
+		// 						{
+		// 							TraceId: traceIDB,
+		// 						}}}}},
+		// 	},
+		// 	expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
+		// 	expectedReqs: []*tempopb.PushRequest{
+		// 		{
+		// 			Batch: &v1.ResourceSpans{
+		// 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 					{
+		// 						InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+		// 							Name: "test",
+		// 						},
+		// 						Spans: []*v1.Span{
+		// 							{
+		// 								TraceId: traceIDA,
+		// 							}}}}},
+		// 		},
+		// 		{
+		// 			Batch: &v1.ResourceSpans{
+		// 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 					{
+		// 						InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+		// 							Name: "test",
+		// 						},
+		// 						Spans: []*v1.Span{
+		// 							{
+		// 								TraceId: traceIDB,
+		// 							}}}}}},
+		// 	},
+		// },
+		// {
+		// 	name: "one trace",
+		// 	request: &tempopb.PushRequest{
+		// 		Batch: &v1.ResourceSpans{
+		// 			Resource: &v1_resource.Resource{
+		// 				DroppedAttributesCount: 3,
+		// 			},
+		// 			InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 				{
+		// 					InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+		// 						Name: "test",
+		// 					},
+		// 					Spans: []*v1.Span{
+		// 						{
+		// 							TraceId: traceIDB,
+		// 							Name:    "spanA",
+		// 						},
+		// 						{
+		// 							TraceId: traceIDB,
+		// 							Name:    "spanB",
+		// 						}}}}},
+		// 	},
+		// 	expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDB)},
+		// 	expectedReqs: []*tempopb.PushRequest{
+		// 		{
+		// 			Batch: &v1.ResourceSpans{
+		// 				Resource: &v1_resource.Resource{
+		// 					DroppedAttributesCount: 3,
+		// 				},
+		// 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+		// 					{
+		// 						InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+		// 							Name: "test",
+		// 						},
+		// 						Spans: []*v1.Span{
+		// 							{
+		// 								TraceId: traceIDB,
+		// 								Name:    "spanA",
+		// 							},
+		// 							{
+		// 								TraceId: traceIDB,
+		// 								Name:    "spanB",
+		// 							}}}}},
+		// 		},
+		// 	},
+		// },
 	}
 
 	for _, tt := range tests {
@@ -287,7 +285,7 @@ func TestRequestsByTraceID(t *testing.T) {
 				require.NotEqual(t, -1, foundIndex, "expected key %d not found", foundIndex)
 
 				// now confirm that the request at this position is the expected one
-				expectedReq := tt.expectedReqs[i]
+				expectedReq := tt.expectedTraces[i]
 				actualReq := reqs[foundIndex]
 				assert.Equal(t, expectedReq, actualReq)
 			}

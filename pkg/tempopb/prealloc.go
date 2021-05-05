@@ -9,38 +9,41 @@ var (
 	bytePool = pool.New(500, 16_000, 2, func(size int) interface{} { return make([]byte, 0, size) })
 )
 
-// PreallocRequest is a (repeated bytes requests) which preallocs slices on Unmarshal.
-type PreallocRequest struct {
-	Request []byte
+// PreallocBytes is a (repeated bytes slices) which preallocs slices on Unmarshal.
+type PreallocBytes struct {
+	Slice []byte
 }
 
 // Unmarshal implements proto.Message.
-func (r *PreallocRequest) Unmarshal(dAtA []byte) error {
-	r.Request = bytePool.Get(len(dAtA)).([]byte)
-	r.Request = r.Request[:len(dAtA)]
-	copy(r.Request, dAtA)
+func (r *PreallocBytes) Unmarshal(dAtA []byte) error {
+	r.Slice = bytePool.Get(len(dAtA)).([]byte)
+	r.Slice = r.Slice[:len(dAtA)]
+	copy(r.Slice, dAtA)
 	return nil
 }
 
 // MarshalTo implements proto.Marshaller.
 // returned int is not used
-func (r *PreallocRequest) MarshalTo(dAtA []byte) (int, error) {
-	copy(dAtA[:], r.Request[:])
-	return len(r.Request), nil
+func (r *PreallocBytes) MarshalTo(dAtA []byte) (int, error) {
+	copy(dAtA[:], r.Slice[:])
+	return len(r.Slice), nil
 }
 
 // Size implements proto.Sizer.
-func (r *PreallocRequest) Size() (n int) {
+func (r *PreallocBytes) Size() (n int) {
 	if r == nil {
 		return 0
 	}
-	return len(r.Request)
+	return len(r.Slice)
 }
 
 // ReuseRequest puts the byte slice back into bytePool for reuse.
 func ReuseRequest(req *PushBytesRequest) {
-	for i := range req.Requests {
+	for i := range req.Requests { // deprecated
 		// We want to preserve the underlying allocated memory, [:0] helps us retains the cap() of the slice
-		bytePool.Put(req.Requests[i].Request[:0])
+		bytePool.Put(req.Requests[i].Slice[:0])
+	}
+	for i := range req.Traces { // current
+		bytePool.Put(req.Traces[i].Slice[:0])
 	}
 }
