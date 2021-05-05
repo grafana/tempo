@@ -21,6 +21,7 @@ func Unmarshal(obj []byte, dataEncoding string) (*tempopb.Trace, error) {
 }
 
 // Marshal converts a tempopb.Trace into a byte slice encoded using dataEncoding
+// nolint: interfacer
 func Marshal(trace *tempopb.Trace, dataEncoding string) ([]byte, error) {
 	return proto.Marshal(trace)
 }
