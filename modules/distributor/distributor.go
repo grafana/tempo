@@ -3,6 +3,7 @@ package distributor
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -305,34 +306,51 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 
 // todo(jpe): full e2e correctness testing
 func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.Trace, error) {
-	tracesByID := make(map[uint32]*tempopb.Trace, 50) // 50, why not?
+	tracesByID := make(map[uint32]*tempopb.Trace, 50)              // 50, why not?
+	spansByILS := make(map[string]*v1.InstrumentationLibrarySpans) // todo(jpe):benchmark string vs uint32
 
 	for _, ils := range req.Batch.InstrumentationLibrarySpans {
-		// get trace id
-		if len(ils.Spans) == 0 {
-			continue
-		}
-		traceID := ils.Spans[0].TraceId
-		if !validation.ValidTraceID(traceID) {
-			return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
-		}
-
-		traceKey := util.TokenFor(userID, traceID)
-		existingTrace, ok := tracesByID[traceKey]
-		if !ok {
-			existingTrace = &tempopb.Trace{
-				ID:      traceID,
-				Batches: make([]*v1.ResourceSpans, 0, 50), // 50, why not? todo(jpe): why?
+		for _, span := range ils.Spans {
+			traceID := span.TraceId
+			if !validation.ValidTraceID(traceID) {
+				return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
 			}
-			tracesByID[traceKey] = existingTrace
-		}
 
-		existingTrace.Batches = append(existingTrace.Batches, &v1.ResourceSpans{
-			Resource: req.Batch.Resource,
-			InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-				ils,
-			},
-		})
+			traceKey := util.TokenFor(userID, traceID)
+			ilsKey := strconv.Itoa(int(traceKey))
+			if ils.InstrumentationLibrary != nil {
+				ilsKey = ilsKey + ils.InstrumentationLibrary.Name + ils.InstrumentationLibrary.Version
+			}
+
+			existingILS, ok := spansByILS[ilsKey]
+			if !ok {
+				existingILS = &v1.InstrumentationLibrarySpans{
+					InstrumentationLibrary: ils.InstrumentationLibrary,
+					Spans:                  make([]*v1.Span, 0, 10), // todo(jpe): 10
+				}
+				spansByILS[ilsKey] = existingILS
+			}
+			existingILS.Spans = append(existingILS.Spans, span)
+
+			// if we found an ILS we assume its already part of a request and can go to the next span
+			if ok {
+				continue
+			}
+
+			existingTrace, ok := tracesByID[traceKey]
+			if !ok {
+				existingTrace = &tempopb.Trace{
+					ID:      traceID,
+					Batches: make([]*v1.ResourceSpans, 0, 50), // 50, why not? todo(jpe): why?
+				}
+				tracesByID[traceKey] = existingTrace
+			}
+
+			existingTrace.Batches = append(existingTrace.Batches, &v1.ResourceSpans{
+				Resource:                    req.Batch.Resource,
+				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{existingILS},
+			})
+		}
 	}
 
 	metricTracesPerBatch.Observe(float64(len(tracesByID)))
