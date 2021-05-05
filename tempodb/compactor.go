@@ -148,7 +148,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	for _, blockMeta := range blockMetas {
 		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
 		totalRecords += blockMeta.TotalObjects
-		dataEncoding = blockMeta.DataEncoding // compacted blocks always have the same data encoding
+		dataEncoding = blockMeta.DataEncoding // blocks chosen for compaction always have the same data encoding
 
 		block, err := encoding.NewBackendBlock(blockMeta, rw.r)
 		if err != nil {
