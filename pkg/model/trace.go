@@ -8,16 +8,15 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/go-kit/kit/log/level"
-	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 // todo(jpe):
 // - add cross data encoding tests
+// - extend benchmarks
 
+// CombineTraceBytes combines objA and objB encoded using dataEncodingA and dataEncodingB in dataEncodingA
 func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncodingB string) (_ []byte, wasCombined bool, _ error) {
 	// if the byte arrays are the same, we can return quickly
 	if bytes.Equal(objA, objB) {
@@ -35,14 +34,13 @@ func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncod
 		return objA, false, errors.Wrap(errB, "error unsmarshaling objB")
 	} else if errA != nil && errB != nil {
 		// if both failed let's send back an empty trace
-		level.Error(log.Logger).Log("msg", "both A and B failed to unmarshal.  returning an empty trace")
-		bytes, _ := proto.Marshal(&tempopb.Trace{})
+		bytes, _ := Marshal(&tempopb.Trace{}, dataEncodingA)
 		return bytes, false, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
 	}
 
 	traceComplete, _, _, _ := CombineTraceProtos(traceA, traceB)
 
-	bytes, err := proto.Marshal(traceComplete)
+	bytes, err := Marshal(traceComplete, dataEncodingA)
 	if err != nil {
 		return objA, true, errors.Wrap(err, "marshalling the combine trace threw an error")
 	}

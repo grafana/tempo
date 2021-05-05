@@ -19,3 +19,8 @@ func Unmarshal(obj []byte, dataEncoding string) (*tempopb.Trace, error) {
 	err := proto.Unmarshal(obj, trace)
 	return trace, err
 }
+
+// Marshal converts a tempopb.Trace into a byte slice encoded using dataEncoding
+func Marshal(trace *tempopb.Trace, dataEncoding string) ([]byte, error) {
+	return proto.Marshal(trace)
+}
