@@ -78,11 +78,7 @@ func TestFullTraceReturned(t *testing.T) {
 	model.SortTrace(trace)
 
 	// push the first batch
-	_, err = ingester.Push(ctx,
-		&tempopb.PushRequest{
-			Batch: trace.Batches[0],
-		})
-	assert.NoError(t, err, "unexpected error pushing")
+	pushBatch(t, ingester, trace.Batches[0])
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -91,11 +87,7 @@ func TestFullTraceReturned(t *testing.T) {
 	}
 
 	// push the 2nd batch
-	_, err = ingester.Push(ctx,
-		&tempopb.PushRequest{
-			Batch: trace.Batches[1],
-		})
-	assert.NoError(t, err, "unexpected error pushing")
+	pushBatch(t, ingester, trace.Batches[1])
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -248,24 +240,9 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 		traceIDs = append(traceIDs, id)
 	}
 
-	ctx := user.InjectOrgID(context.Background(), "test")
 	for _, trace := range traces {
 		for _, batch := range trace.Batches {
-			pbTrace := &tempopb.Trace{
-				Batches: []*v1.ResourceSpans{batch},
-			}
-
-			bytesTrace, err := proto.Marshal(pbTrace)
-			require.NoError(t, err)
-
-			ingester.PushBytes(ctx, &tempopb.PushBytesRequest{
-				Traces: []tempopb.PreallocBytes{
-					{
-						Slice: bytesTrace,
-					},
-				},
-			})
-			require.NoError(t, err)
+			pushBatch(t, ingester, batch)
 		}
 	}
 
@@ -294,4 +271,24 @@ func defaultLimitsTestConfig() overrides.Limits {
 	limits := overrides.Limits{}
 	flagext.DefaultValues(&limits)
 	return limits
+}
+
+func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans) {
+	ctx := user.InjectOrgID(context.Background(), "test")
+
+	pbTrace := &tempopb.Trace{
+		Batches: []*v1.ResourceSpans{batch},
+	}
+
+	bytesTrace, err := proto.Marshal(pbTrace)
+	require.NoError(t, err)
+
+	i.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{
+				Slice: bytesTrace,
+			},
+		},
+	})
+	require.NoError(t, err)
 }
