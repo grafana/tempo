@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"github.com/grafana/tempo/pkg/util/test"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -87,4 +88,30 @@ func TestDedupeSpanIDs(t *testing.T) {
 		})
 	}
 
+}
+
+func BenchmarkDeduper100(b *testing.B) {
+	benchmarkDeduper(b, 100)
+}
+
+func BenchmarkDeduper1000(b *testing.B) {
+	benchmarkDeduper(b, 1000)
+}
+func BenchmarkDeduper10000(b *testing.B) {
+	benchmarkDeduper(b, 10000)
+}
+
+func BenchmarkDeduper100000(b *testing.B) {
+	benchmarkDeduper(b, 100000)
+}
+
+func benchmarkDeduper(b *testing.B, traceSpanCount int) {
+	s := &spanIDDeduper{
+		trace: test.MakeTraceWithSpanCount(1, traceSpanCount, []byte{0x00}),
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s.dedupe()
+	}
 }

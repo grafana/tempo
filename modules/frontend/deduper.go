@@ -94,9 +94,9 @@ func (s *spanIDDeduper) dedupe() {
 }
 
 // groupSpansByID groups spans with the same ID returning a map id -> []Span
-func (d *spanIDDeduper) groupSpansByID() {
+func (s *spanIDDeduper) groupSpansByID() {
 	spansByID := make(map[uint64][]*v1.Span)
-	for _, batch := range d.trace.Batches {
+	for _, batch := range s.trace.Batches {
 		for _, ils := range batch.InstrumentationLibrarySpans {
 			for _, span := range ils.Spans {
 				id := binary.BigEndian.Uint64(span.SpanId)
@@ -109,11 +109,11 @@ func (d *spanIDDeduper) groupSpansByID() {
 			}
 		}
 	}
-	d.spansByID = spansByID
+	s.spansByID = spansByID
 }
 
-func (d *spanIDDeduper) isSharedWithClientSpan(spanID uint64) bool {
-	for _, span := range d.spansByID[spanID] {
+func (s *spanIDDeduper) isSharedWithClientSpan(spanID uint64) bool {
+	for _, span := range s.spansByID[spanID] {
 		if span.GetKind() == v1.Span_SPAN_KIND_CLIENT {
 			return true
 		}
@@ -121,15 +121,15 @@ func (d *spanIDDeduper) isSharedWithClientSpan(spanID uint64) bool {
 	return false
 }
 
-func (d *spanIDDeduper) dedupeSpanIDs() {
+func (s *spanIDDeduper) dedupeSpanIDs() {
 	oldToNewSpanIDs := make(map[uint64]uint64)
-	for _, batch := range d.trace.Batches {
+	for _, batch := range s.trace.Batches {
 		for _, ils := range batch.InstrumentationLibrarySpans {
 			for _, span := range ils.Spans {
 				id := binary.BigEndian.Uint64(span.SpanId)
 				// only replace span IDs for server-side spans that share the ID with something else
-				if span.GetKind() == v1.Span_SPAN_KIND_SERVER && d.isSharedWithClientSpan(id) {
-					newID, err := d.makeUniqueSpanID()
+				if span.GetKind() == v1.Span_SPAN_KIND_SERVER && s.isSharedWithClientSpan(id) {
+					newID, err := s.makeUniqueSpanID()
 					if err != nil {
 						// ignore this error condition where we have more than 2^64 unique span IDs
 						continue
@@ -144,18 +144,18 @@ func (d *spanIDDeduper) dedupeSpanIDs() {
 			}
 		}
 	}
-	d.swapParentIDs(oldToNewSpanIDs)
+	s.swapParentIDs(oldToNewSpanIDs)
 }
 
 // swapParentIDs corrects ParentSpanID of all spans that are children of the server
 // spans whose IDs we deduped.
-func (d *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[uint64]uint64) {
-	for _, batch := range d.trace.Batches {
+func (s *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[uint64]uint64) {
+	for _, batch := range s.trace.Batches {
 		for _, ils := range batch.InstrumentationLibrarySpans {
 			for _, span := range ils.Spans {
 				if len(span.GetParentSpanId()) > 0 {
-					parentSpanId := binary.BigEndian.Uint64(span.GetParentSpanId())
-					if parentID, ok := oldToNewSpanIDs[parentSpanId]; ok {
+					parentSpanID := binary.BigEndian.Uint64(span.GetParentSpanId())
+					if parentID, ok := oldToNewSpanIDs[parentSpanID]; ok {
 						if binary.BigEndian.Uint64(span.SpanId) != parentID {
 							binary.BigEndian.PutUint64(span.SpanId, parentID)
 						}
@@ -169,10 +169,10 @@ func (d *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[uint64]uint64) {
 // makeUniqueSpanID returns a new ID that is not used in the trace,
 // or an error if such ID cannot be generated, which is unlikely,
 // given that the whole space of span IDs is 2^64.
-func (d *spanIDDeduper) makeUniqueSpanID() (uint64, error) {
-	for id := d.maxUsedID + 1; id < maxSpanID; id++ {
-		if _, ok := d.spansByID[id]; !ok {
-			d.maxUsedID = id
+func (s *spanIDDeduper) makeUniqueSpanID() (uint64, error) {
+	for id := s.maxUsedID + 1; id < maxSpanID; id++ {
+		if _, ok := s.spansByID[id]; !ok {
+			s.maxUsedID = id
 			return id, nil
 		}
 	}
