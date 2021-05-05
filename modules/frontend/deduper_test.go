@@ -1,13 +1,13 @@
 package frontend
 
 import (
-	"github.com/grafana/tempo/pkg/util/test"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 func TestDedupeSpanIDs(t *testing.T) {
