@@ -351,7 +351,7 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	}
 
 	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
-	trace = newTrace(maxBytes, fp, traceID)
+	trace = newTrace(maxBytes, traceID)
 	i.traces[fp] = trace
 	i.tracesCreatedTotal.Inc()
 	i.traceCount.Inc()

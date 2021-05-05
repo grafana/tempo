@@ -12,16 +12,14 @@ import (
 
 type trace struct {
 	trace        *tempopb.Trace
-	token        uint32
 	lastAppend   time.Time
 	traceID      []byte
 	maxBytes     int
 	currentBytes int
 }
 
-func newTrace(maxBytes int, token uint32, traceID []byte) *trace {
+func newTrace(maxBytes int, traceID []byte) *trace {
 	return &trace{
-		token:      token,
 		trace:      &tempopb.Trace{},
 		lastAppend: time.Now(),
 		traceID:    traceID,
