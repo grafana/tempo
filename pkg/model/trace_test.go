@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"math/rand"
 	"testing"
 
@@ -285,4 +286,15 @@ func TestUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, proto.Equal(trace, actual))
+}
+
+func BenchmarkTokenForID(b *testing.B) {
+	h := fnv.New32()
+	id := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	buffer := make([]byte, 4)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = tokenForID(h, buffer, 0, id)
+	}
 }

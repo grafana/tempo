@@ -576,7 +576,7 @@ github.com/json-iterator/go
 github.com/jstemmer/go-junit-report
 github.com/jstemmer/go-junit-report/formatter
 github.com/jstemmer/go-junit-report/parser
-# github.com/jsternberg/zap-logfmt v1.0.0
+# github.com/jsternberg/zap-logfmt v1.2.0
 ## explicit
 github.com/jsternberg/zap-logfmt
 # github.com/julienschmidt/httprouter v1.3.0
