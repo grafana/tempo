@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	testTenantID  = "fake"
-	testTenantID2 = "fake2"
+	testTenantID     = "fake"
+	testTenantID2    = "fake2"
+	testDataEncoding = "blerg"
 )
 
 func TestDB(t *testing.T) {
@@ -63,7 +64,7 @@ func TestDB(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID, "")
+	head, err := wal.NewBlock(blockID, testTenantID, testDataEncoding)
 	assert.NoError(t, err)
 
 	// write
@@ -91,8 +92,9 @@ func TestDB(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, _, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		bFound, actualDataEncoding, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
+		assert.Equal(t, []string{testDataEncoding}, actualDataEncoding)
 
 		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(bFound[0], out)
