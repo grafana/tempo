@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"encoding/binary"
 	"hash"
 	"hash/fnv"
 	"sort"
@@ -68,12 +69,13 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int
 	spanCountTotal := 0
 
 	h := fnv.New32()
+	buffer := make([]byte, 4)
 
 	spansInA := make(map[uint32]struct{})
 	for _, batchA := range traceA.Batches {
 		for _, ilsA := range batchA.InstrumentationLibrarySpans {
 			for _, spanA := range ilsA.Spans {
-				spansInA[tokenForID(h, spanA.SpanId)] = struct{}{}
+				spansInA[tokenForID(h, buffer, int32(spanA.Kind), spanA.SpanId)] = struct{}{}
 			}
 			spanCountA += len(ilsA.Spans)
 			spanCountTotal += len(ilsA.Spans)
@@ -88,7 +90,7 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int
 			notFoundSpans := ilsB.Spans[:0]
 			for _, spanB := range ilsB.Spans {
 				// if found in A, remove from the batch
-				_, ok := spansInA[tokenForID(h, spanB.SpanId)]
+				_, ok := spansInA[tokenForID(h, buffer, int32(spanB.Kind), spanB.SpanId)]
 				if !ok {
 					notFoundSpans = append(notFoundSpans, spanB)
 				}
@@ -155,8 +157,15 @@ func compareSpans(a *v1.Span, b *v1.Span) bool {
 	return a.StartTimeUnixNano < b.StartTimeUnixNano
 }
 
-func tokenForID(h hash.Hash32, b []byte) uint32 {
+// tokenForID returns a uint32 token for use in a hash map given a span id and span kind
+//  buffer must be a 4 byte slice and is reused for writing the span kind to the hashing function
+//  kind is used along with the actual id b/c in zipkin traces span id is not guaranteed to be unique
+//  as it is shared between client and server spans.
+func tokenForID(h hash.Hash32, buffer []byte, kind int32, b []byte) uint32 {
+	binary.LittleEndian.PutUint32(buffer, uint32(kind))
+
 	h.Reset()
 	_, _ = h.Write(b)
+	_, _ = h.Write(buffer)
 	return h.Sum32()
 }
