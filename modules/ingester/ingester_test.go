@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -250,11 +251,21 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 	ctx := user.InjectOrgID(context.Background(), "test")
 	for _, trace := range traces {
 		for _, batch := range trace.Batches {
-			_, err := ingester.Push(ctx,
-				&tempopb.PushRequest{
-					Batch: batch,
-				})
-			require.NoError(t, err, "unexpected error pushing")
+			pbTrace := &tempopb.Trace{
+				Batches: []*v1.ResourceSpans{batch},
+			}
+
+			bytesTrace, err := proto.Marshal(pbTrace)
+			require.NoError(t, err)
+
+			ingester.PushBytes(ctx, &tempopb.PushBytesRequest{
+				Traces: []tempopb.PreallocBytes{
+					{
+						Slice: bytesTrace,
+					},
+				},
+			})
+			require.NoError(t, err)
 		}
 	}
 

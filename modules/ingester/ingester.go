@@ -178,8 +178,7 @@ func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb
 
 // PushBytes implements tempopb.Pusher.PushBytes
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
-
-	// Unmarshal and push each request
+	// Unmarshal and push each request (deprecated)
 	for _, v := range req.Requests {
 		r := tempopb.PushRequest{}
 		err := r.Unmarshal(v.Slice)
@@ -190,6 +189,26 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 		_, err = i.Push(ctx, &r)
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	// Unmarshal and push each trace
+	// todo(jpe): propagate this to the backend
+	for _, t := range req.Traces {
+		trace := tempopb.Trace{}
+		err := trace.Unmarshal(t.Slice)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, b := range trace.Batches {
+			_, err := i.Push(ctx, &tempopb.PushRequest{
+				Batch: b,
+			})
+
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
