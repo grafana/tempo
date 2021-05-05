@@ -16,6 +16,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+const maxDataEncodingLength = 32
+
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
 // in the order it was received and an in memory sorted index.
 type AppendBlock struct {
@@ -30,7 +32,12 @@ type AppendBlock struct {
 	once     sync.Once
 }
 
-func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding) (*AppendBlock, error) {
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string) (*AppendBlock, error) {
+	if strings.ContainsRune(dataEncoding, ':') ||
+		len([]rune(dataEncoding)) > maxDataEncodingLength {
+		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
+	}
+
 	v, err := encoding.FromVersion("v2") // let's pin wal files instead of tracking latest for safety
 	if err != nil {
 		return nil, err
@@ -38,7 +45,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 
 	h := &AppendBlock{
 		encoding: v,
-		meta:     backend.NewBlockMeta(tenantID, id, v.Version(), e),
+		meta:     backend.NewBlockMeta(tenantID, id, v.Version(), e, dataEncoding),
 		filepath: filepath,
 	}
 
@@ -64,7 +71,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 // be completed. It can return a warning or a fatal error
 func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, error) {
 	var warning error
-	blockID, tenantID, version, e, err := parseFilename(filename)
+	blockID, tenantID, version, e, dataEncoding, err := parseFilename(filename)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -75,7 +82,7 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 	}
 
 	b := &AppendBlock{
-		meta:     backend.NewBlockMeta(tenantID, blockID, version, e),
+		meta:     backend.NewBlockMeta(tenantID, blockID, version, e, dataEncoding),
 		filepath: path,
 		encoding: v,
 	}
@@ -178,7 +185,7 @@ func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iter
 	}
 
 	iterator := encoding.NewRecordIterator(records, dataReader, a.encoding.NewObjectReaderWriter())
-	iterator, err = encoding.NewDedupingIterator(iterator, combiner)
+	iterator, err = encoding.NewDedupingIterator(iterator, combiner, a.meta.DataEncoding)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +208,7 @@ func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, err
 	}
 	defer dataReader.Close()
-	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, a.encoding.NewObjectReaderWriter())
+	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, a.encoding.NewObjectReaderWriter(), a.meta.DataEncoding)
 
 	return finder.Find(context.Background(), id)
 }
@@ -226,7 +233,14 @@ func (a *AppendBlock) fullFilename() string {
 		return filepath.Join(a.filepath, fmt.Sprintf("%v:%v", a.meta.BlockID, a.meta.TenantID))
 	}
 
-	return filepath.Join(a.filepath, fmt.Sprintf("%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding))
+	var filename string
+	if a.meta.DataEncoding == "" {
+		filename = fmt.Sprintf("%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding)
+	} else {
+		filename = fmt.Sprintf("%v:%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding, a.meta.DataEncoding)
+	}
+
+	return filepath.Join(a.filepath, filename)
 }
 
 func (a *AppendBlock) file() (*os.File, error) {
@@ -242,11 +256,11 @@ func (a *AppendBlock) file() (*os.File, error) {
 	return a.readFile, err
 }
 
-func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, error) {
+func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, string, error) {
 	splits := strings.Split(name, ":")
 
-	if len(splits) != 2 && len(splits) != 4 {
-		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. unexpected number of segments", name)
+	if len(splits) != 2 && len(splits) != 4 && len(splits) != 5 {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. unexpected number of segments", name)
 	}
 
 	blockIDString := splits[0]
@@ -254,24 +268,29 @@ func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, er
 
 	version := "v0"
 	encodingString := backend.EncNone.String()
-	if len(splits) == 4 {
+	dataEncoding := ""
+	if len(splits) >= 4 {
 		version = splits[2]
 		encodingString = splits[3]
 	}
 
+	if len(splits) >= 5 {
+		dataEncoding = splits[4]
+	}
+
 	blockID, err := uuid.Parse(blockIDString)
 	if err != nil {
-		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. error parsing uuid: %w", name, err)
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing uuid: %w", name, err)
 	}
 
 	encoding, err := backend.ParseEncoding(encodingString)
 	if err != nil {
-		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. error parsing encoding: %w", name, err)
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing encoding: %w", name, err)
 	}
 
 	if len(tenantID) == 0 || len(version) == 0 {
-		return uuid.UUID{}, "", "", backend.EncNone, fmt.Errorf("unable to parse %s. missing fields", name)
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. missing fields", name)
 	}
 
-	return blockID, tenantID, version, encoding, nil
+	return blockID, tenantID, version, encoding, dataEncoding, nil
 }

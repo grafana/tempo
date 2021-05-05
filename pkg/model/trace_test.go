@@ -1,4 +1,4 @@
-package util
+package model
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCombine(t *testing.T) {
@@ -84,7 +85,7 @@ func TestCombine(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		actual, _, err := CombineTraces(tt.trace1, tt.trace2)
+		actual, _, err := CombineTraceBytes(tt.trace1, tt.trace2, "", "")
 		if len(tt.errString) > 0 {
 			assert.EqualError(t, err, tt.errString)
 		} else {
@@ -167,7 +168,7 @@ func BenchmarkCombineTraces(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// nolint:errcheck
-		CombineTraces(b1, b2)
+		CombineTraceBytes(b1, b2, "", "")
 	}
 }
 
@@ -183,7 +184,7 @@ func BenchmarkCombineTracesIdentical(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// nolint:errcheck
-		CombineTraces(b1, b2)
+		CombineTraceBytes(b1, b2, "", "")
 	}
 }
 
@@ -274,6 +275,17 @@ func TestSortTrace(t *testing.T) {
 
 		assert.Equal(t, tt.expected, tt.input)
 	}
+}
+
+func TestUnmarshal(t *testing.T) {
+	trace := test.MakeTrace(100, nil)
+	bytes, err := proto.Marshal(trace)
+	require.NoError(t, err)
+
+	actual, err := Unmarshal(bytes, CurrentEncoding)
+	require.NoError(t, err)
+
+	assert.True(t, proto.Equal(trace, actual))
 }
 
 func BenchmarkTokenForID(b *testing.B) {

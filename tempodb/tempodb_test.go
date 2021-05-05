@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	testTenantID  = "fake"
-	testTenantID2 = "fake2"
+	testTenantID     = "fake"
+	testTenantID2    = "fake2"
+	testDataEncoding = "blerg"
 )
 
 func TestDB(t *testing.T) {
@@ -63,7 +64,7 @@ func TestDB(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID)
+	head, err := wal.NewBlock(blockID, testTenantID, testDataEncoding)
 	assert.NoError(t, err)
 
 	// write
@@ -91,8 +92,9 @@ func TestDB(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		bFound, actualDataEncoding, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
+		assert.Equal(t, []string{testDataEncoding}, actualDataEncoding)
 
 		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(bFound[0], out)
@@ -133,7 +135,7 @@ func TestBlockSharding(t *testing.T) {
 	blockID := uuid.New()
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID)
+	head, err := wal.NewBlock(blockID, testTenantID, "")
 	assert.NoError(t, err)
 
 	// add a trace to the block
@@ -162,7 +164,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case1: hit
 	blockStart := uuid.MustParse(BlockIDMin).String()
 	blockEnd := uuid.MustParse(BlockIDMax).String()
-	bFound, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
+	bFound, _, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
 	assert.Greater(t, len(bFound), 0)
 
@@ -174,7 +176,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case2: miss
 	blockStart = uuid.MustParse(BlockIDMin).String()
 	blockEnd = uuid.MustParse(BlockIDMin).String()
-	bFound, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
+	bFound, _, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
 	assert.Len(t, bFound, 0)
 }
@@ -202,7 +204,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	buff, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
+	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
 }
@@ -242,7 +244,7 @@ func TestBlockCleanup(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	head, err := wal.NewBlock(blockID, testTenantID)
+	head, err := wal.NewBlock(blockID, testTenantID, "")
 	assert.NoError(t, err)
 
 	_, err = w.CompleteBlock(head, &mockSharder{})
@@ -891,7 +893,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	head, err := wal.NewBlock(uuid.New(), testTenantID)
+	head, err := wal.NewBlock(uuid.New(), testTenantID, "")
 	assert.NoError(t, err)
 
 	// write
@@ -923,7 +925,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
+		bFound, _, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
@@ -953,7 +955,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// find should succeed with old block range
 	for i, id := range ids {
-		bFound, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
+		bFound, _, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
@@ -991,7 +993,7 @@ func TestCompleteBlock(t *testing.T) {
 
 	blockID := uuid.New()
 
-	block, err := wal.NewBlock(blockID, testTenantID)
+	block, err := wal.NewBlock(blockID, testTenantID, "")
 	assert.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 100

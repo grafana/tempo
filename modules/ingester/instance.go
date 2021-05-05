@@ -20,8 +20,8 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -122,8 +122,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 
 	for _, t := range tracesToCut {
-
-		util.SortTrace(t.trace)
+		model.SortTrace(t.trace)
 
 		out, err := proto.Marshal(t.trace)
 		if err != nil {
@@ -186,7 +185,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	ctx := context.Background()
 
-	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, i, i.local, i.local)
+	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, model.ObjectCombiner, i.local, i.local)
 	if err != nil {
 		return errors.Wrap(err, "error completing wal block with local backend")
 	}
@@ -263,18 +262,17 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 }
 
 func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
+	var err error
 	var allBytes []byte
 
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
-		foundBytes, err := proto.Marshal(liveTrace.trace)
+		allBytes, err = proto.Marshal(liveTrace.trace) // todo(jpe) : handle this when marshalling the new format
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
 		}
-
-		allBytes = i.Combine(foundBytes, allBytes)
 	}
 	i.tracesMtx.Unlock()
 
@@ -282,19 +280,25 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	defer i.blocksMtx.Unlock()
 
 	// headBlock
-	foundBytes, err := i.headBlock.Find(id, i)
+	foundBytes, err := i.headBlock.Find(id, model.ObjectCombiner)
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
 	}
-	allBytes = i.Combine(foundBytes, allBytes)
+	allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, i.headBlock.Meta().DataEncoding)
+	if err != nil {
+		return nil, fmt.Errorf("post headBlock combine failed: %w", err)
+	}
 
 	// completingBlock
 	for _, c := range i.completingBlocks {
-		foundBytes, err = c.Find(id, i)
+		foundBytes, err = c.Find(id, model.ObjectCombiner)
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
 		}
-		allBytes = i.Combine(foundBytes, allBytes)
+		allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, c.Meta().DataEncoding)
+		if err != nil {
+			return nil, fmt.Errorf("post completingBlocks combine failed: %w", err)
+		}
 	}
 
 	// completeBlock
@@ -303,14 +307,15 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
 		}
-		allBytes = i.Combine(foundBytes, allBytes)
+		allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, c.BlockMeta().DataEncoding)
+		if err != nil {
+			return nil, fmt.Errorf("post completeBlocks combine failed: %w", err)
+		}
 	}
 
 	// now marshal it all
 	if allBytes != nil {
-		out := &tempopb.Trace{}
-
-		err = proto.Unmarshal(allBytes, out)
+		out, err := model.Unmarshal(allBytes, model.CurrentEncoding)
 		if err != nil {
 			return nil, err
 		}
@@ -364,7 +369,7 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 // resetHeadBlock() should be called under lock
 func (i *instance) resetHeadBlock() error {
 	var err error
-	i.headBlock, err = i.writer.WAL().NewBlock(uuid.New(), i.instanceID)
+	i.headBlock, err = i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
 	i.lastBlockCut = time.Now()
 	return err
 }
@@ -392,14 +397,6 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte) error {
 	defer i.blocksMtx.Unlock()
 
 	return i.headBlock.Write(id, b)
-}
-
-func (i *instance) Combine(objA []byte, objB []byte) []byte {
-	combinedTrace, _, err := util.CombineTraces(objA, objB)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
-	}
-	return combinedTrace
 }
 
 // pushRequestTraceID gets the TraceID of the first span in the batch and assumes its the trace ID throughout
