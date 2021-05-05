@@ -78,7 +78,7 @@ func TestFullTraceReturned(t *testing.T) {
 	model.SortTrace(trace)
 
 	// push the first batch
-	pushBatch(t, ingester, trace.Batches[0])
+	pushBatch(t, ingester, trace.Batches[0], traceID)
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -87,7 +87,7 @@ func TestFullTraceReturned(t *testing.T) {
 	}
 
 	// push the 2nd batch
-	pushBatch(t, ingester, trace.Batches[1])
+	pushBatch(t, ingester, trace.Batches[1], traceID)
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -240,9 +240,9 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 		traceIDs = append(traceIDs, id)
 	}
 
-	for _, trace := range traces {
+	for i, trace := range traces {
 		for _, batch := range trace.Batches {
-			pushBatch(t, ingester, batch)
+			pushBatch(t, ingester, batch, traceIDs[i])
 		}
 	}
 
@@ -273,7 +273,7 @@ func defaultLimitsTestConfig() overrides.Limits {
 	return limits
 }
 
-func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans) {
+func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 
 	pbTrace := &tempopb.Trace{
@@ -284,9 +284,14 @@ func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans) {
 	require.NoError(t, err)
 
 	i.PushBytes(ctx, &tempopb.PushBytesRequest{
-		Traces: []tempopb.PreallocBytes{
+		Batches: []tempopb.PreallocBytes{
 			{
 				Slice: bytesTrace,
+			},
+		},
+		Ids: []tempopb.PreallocBytes{
+			{
+				Slice: id,
 			},
 		},
 	})

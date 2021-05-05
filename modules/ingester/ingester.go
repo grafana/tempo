@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log/level"
+	"github.com/gogo/status"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
+	"google.golang.org/grpc/codes"
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/log"
@@ -192,9 +194,13 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 		}
 	}
 
+	if len(req.Batches) != len(req.Ids) {
+		return nil, status.Errorf(codes.InvalidArgument, "mismatched batches/ids length: %d, %d", len(req.Batches), len(req.Ids))
+	}
+
 	// Unmarshal and push each trace
 	// todo(jpe): propagate this to the backend
-	for _, t := range req.Traces {
+	for _, t := range req.Batches {
 		trace := tempopb.Trace{}
 		err := trace.Unmarshal(t.Slice)
 		if err != nil {

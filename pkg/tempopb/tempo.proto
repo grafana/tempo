@@ -14,6 +14,7 @@ service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
 }
 
+// Read
 message TraceByIDRequest {
   bytes traceID = 1;
   string blockStart = 2;
@@ -30,6 +31,7 @@ message Trace {
   bytes ID = 2;  // todo:(jpe) remove trace id here and put it in PushBytesRequest?
 }
 
+// Write
 message PushRequest {
   tempopb.trace.v1.ResourceSpans batch = 1;
 }
@@ -38,8 +40,11 @@ message PushResponse {
 }
 
 message PushBytesRequest {
-  // pre-serialized PushRequests
+  // pre-marshalled PushRequests
   repeated bytes requests = 1 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes", deprecated=true];
-  // pre-serialized Traces
-  repeated bytes traces = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+
+  // pre-marshalled tempopb.trace.v1.ResourceSpans. length must match ids
+  repeated bytes batches = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+  // trace ids. length must match traces
+  repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
 }
