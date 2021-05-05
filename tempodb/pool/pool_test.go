@@ -2,6 +2,7 @@ package pool
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -23,20 +24,22 @@ func TestResults(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02}
-	fn := func(ctx context.Context, payload interface{}) ([]byte, error) {
+	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 		i := payload.(int)
 
 		if i == 3 {
-			return ret, nil
+			return ret, "foo", nil
 		}
-		return nil, nil
+		return nil, "", nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, dataEncoding, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.NoError(t, err)
 	require.Len(t, msg, 1)
 	assert.Equal(t, ret, msg[0])
+	require.Len(t, dataEncoding, 1)
+	assert.Equal(t, "foo", dataEncoding[0])
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
@@ -52,12 +55,12 @@ func TestNoResults(t *testing.T) {
 	})
 	opts := goleak.IgnoreCurrent()
 
-	fn := func(ctx context.Context, payload interface{}) ([]byte, error) {
-		return nil, nil
+	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
+		return nil, "", nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
 	assert.Nil(t, err)
 	goleak.VerifyNone(t, opts)
@@ -76,12 +79,12 @@ func TestMultipleHits(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02}
-	fn := func(ctx context.Context, payload interface{}) ([]byte, error) {
-		return ret, nil
+	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
+		return ret, "", nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
 	require.Len(t, msg, 5)
 	for i := range payloads {
 		assert.Equal(t, ret, msg[i])
@@ -103,17 +106,17 @@ func TestError(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := fmt.Errorf("blerg")
-	fn := func(ctx context.Context, payload interface{}) ([]byte, error) {
+	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 		i := payload.(int)
 
 		if i == 3 {
-			return nil, ret
+			return nil, "", ret
 		}
-		return nil, nil
+		return nil, "", nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
 	assert.Equal(t, ret, err)
 	goleak.VerifyNone(t, opts)
@@ -132,12 +135,12 @@ func TestMultipleErrors(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := fmt.Errorf("blerg")
-	fn := func(ctx context.Context, payload interface{}) ([]byte, error) {
-		return nil, ret
+	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
+		return nil, "", ret
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
 	assert.Equal(t, ret, err)
 	goleak.VerifyNone(t, opts)
@@ -155,12 +158,12 @@ func TestTooManyJobs(t *testing.T) {
 	})
 	opts := goleak.IgnoreCurrent()
 
-	fn := func(ctx context.Context, payload interface{}) ([]byte, error) {
-		return nil, nil
+	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
+		return nil, "", nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
 	assert.Error(t, err)
 	goleak.VerifyNone(t, opts)
@@ -179,17 +182,17 @@ func TestOneWorker(t *testing.T) {
 	opts := goleak.IgnoreCurrent()
 
 	ret := []byte{0x01, 0x02, 0x03}
-	fn := func(ctx context.Context, payload interface{}) ([]byte, error) {
+	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 		i := payload.(int)
 
 		if i == 3 {
-			return ret, nil
+			return ret, "", nil
 		}
-		return nil, nil
+		return nil, "", nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.NoError(t, err)
 	require.Len(t, msg, 1)
 	assert.Equal(t, ret, msg[0])
@@ -214,18 +217,18 @@ func TestGoingHam(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			ret := []byte{0x01, 0x03, 0x04}
-			fn := func(ctx context.Context, payload interface{}) ([]byte, error) {
+			fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 				i := payload.(int)
 
 				time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
 				if i == 5 {
-					return ret, nil
+					return ret, "", nil
 				}
-				return nil, nil
+				return nil, "", nil
 			}
 			payloads := []interface{}{1, 2, 3, 4, 5}
 
-			msg, err := p.RunJobs(context.Background(), payloads, fn)
+			msg, _, err := p.RunJobs(context.Background(), payloads, fn)
 			assert.NoError(t, err)
 			require.Len(t, msg, 1)
 			assert.Equal(t, ret, msg[0])
@@ -254,12 +257,12 @@ func TestOverloadingASmallPool(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
 		go func() {
-			fn := func(ctx context.Context, payload interface{}) ([]byte, error) {
+			fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 				time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
-				return nil, nil
+				return nil, "", nil
 			}
 			payloads := []interface{}{1, 2}
-			_, _ = p.RunJobs(context.Background(), payloads, fn)
+			_, _, _ = p.RunJobs(context.Background(), payloads, fn)
 
 			wg.Done()
 		}()
@@ -280,22 +283,52 @@ func TestShutdown(t *testing.T) {
 	})
 
 	ret := []byte{0x01, 0x03, 0x04}
-	fn := func(ctx context.Context, payload interface{}) ([]byte, error) {
+	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 		i := payload.(int)
 
 		if i == 3 {
-			return ret, nil
+			return ret, "", nil
 		}
-		return nil, nil
+		return nil, "", nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5}
-	_, _ = p.RunJobs(context.Background(), payloads, fn)
+	_, _, _ = p.RunJobs(context.Background(), payloads, fn)
 	p.Shutdown()
 	goleak.VerifyNone(t, prePoolOpts)
 
 	opts := goleak.IgnoreCurrent()
-	msg, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
 	assert.Error(t, err)
 	goleak.VerifyNone(t, opts)
+}
+
+func TestDataEncodings(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+
+	p := NewPool(&Config{
+		MaxWorkers: 10,
+		QueueDepth: 10,
+	})
+	opts := goleak.IgnoreCurrent()
+
+	ret := []byte{0x01, 0x02}
+	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
+		return ret, hex.EncodeToString(ret), nil
+	}
+	payloads := []interface{}{1, 2, 3, 4, 5}
+
+	msg, dataEncodings, err := p.RunJobs(context.Background(), payloads, fn)
+	require.Len(t, msg, 5)
+	for i := range payloads {
+		assert.Equal(t, ret, msg[i])
+	}
+	for i := range dataEncodings {
+		assert.Equal(t, hex.EncodeToString(ret), dataEncodings[i])
+	}
+	assert.Nil(t, err)
+	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
 }

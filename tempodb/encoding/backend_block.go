@@ -81,7 +81,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	defer dataReader.Close()
 
 	// passing nil for objectCombiner here.  this is fine b/c a backend block should never have dupes
-	finder := NewPagedFinder(indexReader, dataReader, nil, b.encoding.NewObjectReaderWriter())
+	finder := NewPagedFinder(indexReader, dataReader, nil, b.encoding.NewObjectReaderWriter(), b.meta.DataEncoding)
 	objectBytes, err := finder.Find(ctx, id)
 
 	if err != nil {

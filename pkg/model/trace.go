@@ -1,32 +1,32 @@
-package util
+package model
 
 import (
 	"bytes"
+	"encoding/binary"
 	"hash"
 	"hash/fnv"
 	"sort"
 
 	"github.com/pkg/errors"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/go-kit/kit/log/level"
-	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
-func CombineTraces(objA []byte, objB []byte) (_ []byte, wasCombined bool, _ error) {
+// todo(jpe):
+// - add cross data encoding tests
+// - extend benchmarks
+
+// CombineTraceBytes combines objA and objB encoded using dataEncodingA and dataEncodingB in dataEncodingA
+func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncodingB string) (_ []byte, wasCombined bool, _ error) {
 	// if the byte arrays are the same, we can return quickly
 	if bytes.Equal(objA, objB) {
 		return objA, false, nil
 	}
 
 	// bytes differ.  unmarshal and combine traces
-	traceA := &tempopb.Trace{}
-	traceB := &tempopb.Trace{}
-
-	errA := proto.Unmarshal(objA, traceA)
-	errB := proto.Unmarshal(objB, traceB)
+	traceA, errA := Unmarshal(objA, dataEncodingA)
+	traceB, errB := Unmarshal(objB, dataEncodingB)
 
 	// if we had problems unmarshaling one or the other, return the one that marshalled successfully
 	if errA != nil && errB == nil {
@@ -35,14 +35,13 @@ func CombineTraces(objA []byte, objB []byte) (_ []byte, wasCombined bool, _ erro
 		return objA, false, errors.Wrap(errB, "error unsmarshaling objB")
 	} else if errA != nil && errB != nil {
 		// if both failed let's send back an empty trace
-		level.Error(log.Logger).Log("msg", "both A and B failed to unmarshal.  returning an empty trace")
-		bytes, _ := proto.Marshal(&tempopb.Trace{})
+		bytes, _ := Marshal(&tempopb.Trace{}, dataEncodingA)
 		return bytes, false, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
 	}
 
 	traceComplete, _, _, _ := CombineTraceProtos(traceA, traceB)
 
-	bytes, err := proto.Marshal(traceComplete)
+	bytes, err := Marshal(traceComplete, dataEncodingA)
 	if err != nil {
 		return objA, true, errors.Wrap(err, "marshalling the combine trace threw an error")
 	}
@@ -68,12 +67,13 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int
 	spanCountTotal := 0
 
 	h := fnv.New32()
+	buffer := make([]byte, 4)
 
 	spansInA := make(map[uint32]struct{})
 	for _, batchA := range traceA.Batches {
 		for _, ilsA := range batchA.InstrumentationLibrarySpans {
 			for _, spanA := range ilsA.Spans {
-				spansInA[tokenForID(h, spanA.SpanId)] = struct{}{}
+				spansInA[tokenForID(h, buffer, int32(spanA.Kind), spanA.SpanId)] = struct{}{}
 			}
 			spanCountA += len(ilsA.Spans)
 			spanCountTotal += len(ilsA.Spans)
@@ -88,7 +88,7 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int
 			notFoundSpans := ilsB.Spans[:0]
 			for _, spanB := range ilsB.Spans {
 				// if found in A, remove from the batch
-				_, ok := spansInA[tokenForID(h, spanB.SpanId)]
+				_, ok := spansInA[tokenForID(h, buffer, int32(spanB.Kind), spanB.SpanId)]
 				if !ok {
 					notFoundSpans = append(notFoundSpans, spanB)
 				}
@@ -155,8 +155,15 @@ func compareSpans(a *v1.Span, b *v1.Span) bool {
 	return a.StartTimeUnixNano < b.StartTimeUnixNano
 }
 
-func tokenForID(h hash.Hash32, b []byte) uint32 {
+// tokenForID returns a uint32 token for use in a hash map given a span id and span kind
+//  buffer must be a 4 byte slice and is reused for writing the span kind to the hashing function
+//  kind is used along with the actual id b/c in zipkin traces span id is not guaranteed to be unique
+//  as it is shared between client and server spans.
+func tokenForID(h hash.Hash32, buffer []byte, kind int32, b []byte) uint32 {
+	binary.LittleEndian.PutUint32(buffer, uint32(kind))
+
 	h.Reset()
 	_, _ = h.Write(b)
+	_, _ = h.Write(buffer)
 	return h.Sum32()
 }

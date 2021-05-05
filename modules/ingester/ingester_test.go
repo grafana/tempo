@@ -19,8 +19,8 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -74,7 +74,7 @@ func TestFullTraceReturned(t *testing.T) {
 	_, err = rand.Read(traceID)
 	assert.NoError(t, err)
 	trace := test.MakeTrace(2, traceID) // 2 batches
-	util.SortTrace(trace)
+	model.SortTrace(trace)
 
 	// push the first batch
 	_, err = ingester.Push(ctx,
@@ -241,7 +241,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 		require.NoError(t, err)
 
 		trace := test.MakeTrace(10, id)
-		util.SortTrace(trace)
+		model.SortTrace(trace)
 
 		traces = append(traces, trace)
 		traceIDs = append(traceIDs, id)

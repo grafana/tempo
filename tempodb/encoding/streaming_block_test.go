@@ -30,12 +30,20 @@ const (
 	testTenantID = "fake"
 )
 
-func TestCompactorBlockError(t *testing.T) {
+func TestStreamingBlockError(t *testing.T) {
+	// no block metas
 	_, err := NewStreamingBlock(nil, uuid.New(), "", nil, 0)
+	assert.Error(t, err)
+
+	// mixed data encodings
+	_, err = NewStreamingBlock(nil, uuid.New(), "", []*backend.BlockMeta{
+		backend.NewBlockMeta("", uuid.New(), "", backend.EncNone, "foo"),
+		backend.NewBlockMeta("", uuid.New(), "", backend.EncNone, "bar"),
+	}, 0)
 	assert.Error(t, err)
 }
 
-func TestCompactorBlockAddObject(t *testing.T) {
+func TestStreamingBlockAddObject(t *testing.T) {
 	indexDownsample := 500
 
 	metas := []*backend.BlockMeta{
@@ -225,9 +233,10 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	err = writer.Flush()
 	require.NoError(t, err, "unexpected error flushing writer")
 
-	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP)
+	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", backend.EncGZIP, "")
 	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
+	originatingMeta.DataEncoding = "foo"
 
 	// calc expected records
 	byteCounter := 0
@@ -277,6 +286,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	require.Equal(t, originatingMeta.StartTime, block.BlockMeta().StartTime)
 	require.Equal(t, originatingMeta.EndTime, block.BlockMeta().EndTime)
 	require.Equal(t, originatingMeta.TenantID, block.BlockMeta().TenantID)
+	require.Equal(t, originatingMeta.DataEncoding, block.BlockMeta().DataEncoding)
 
 	// Verify block size was written
 	require.Greater(t, block.BlockMeta().Size, uint64(0))
@@ -339,7 +349,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	})
 	require.NoError(b, err, "error creating backend")
 
-	backendBlock, err := NewBackendBlock(backend.NewBlockMeta("fake", uuid.MustParse("9f15417a-1242-40e4-9de3-a057d3b176c1"), "v0", backend.EncNone), r)
+	backendBlock, err := NewBackendBlock(backend.NewBlockMeta("fake", uuid.MustParse("9f15417a-1242-40e4-9de3-a057d3b176c1"), "v0", backend.EncNone, ""), r)
 	require.NoError(b, err, "error creating backend block")
 
 	iter, err := backendBlock.Iterator(10 * 1024 * 1024)
@@ -358,7 +368,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		b.ResetTimer()
 	}
 
-	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", encoding)
+	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", encoding, "")
 	block, err := NewStreamingBlock(&BlockConfig{
 		IndexDownsampleBytes: indexDownsample,
 		BloomFP:              .05,

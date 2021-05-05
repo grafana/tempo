@@ -19,37 +19,6 @@ const (
 	defaultMaxInputBlocks = 8
 )
 
-/*************************** Simple Block Selector **************************/
-
-type simpleBlockSelector struct {
-	cursor             int
-	blocklist          []*backend.BlockMeta
-	MaxCompactionRange time.Duration
-}
-
-var _ (CompactionBlockSelector) = (*simpleBlockSelector)(nil)
-
-func (sbs *simpleBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
-	// should never happen
-	if inputBlocks > len(sbs.blocklist) {
-		return nil, ""
-	}
-
-	for sbs.cursor < len(sbs.blocklist)-inputBlocks+1 {
-		cursorEnd := sbs.cursor + inputBlocks - 1
-		if sbs.blocklist[cursorEnd].EndTime.Sub(sbs.blocklist[sbs.cursor].StartTime) < sbs.MaxCompactionRange {
-			startPos := sbs.cursor
-			sbs.cursor = startPos + inputBlocks
-			hashString := sbs.blocklist[startPos].TenantID
-
-			return sbs.blocklist[startPos : startPos+inputBlocks], hashString
-		}
-		sbs.cursor++
-	}
-
-	return nil, ""
-}
-
 /*************************** Time Window Block Selector **************************/
 
 // Sharding will be based on time slot - not level. Since each compactor works on two levels.
@@ -154,6 +123,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 			for j := i + 1; j < len(twbs.entries); j++ {
 				stripe := twbs.entries[i : j+1]
 				if twbs.entries[i].group == twbs.entries[j].group &&
+					twbs.entries[i].meta.DataEncoding == twbs.entries[j].meta.DataEncoding &&
 					len(stripe) <= twbs.MaxInputBlocks &&
 					totalObjects(stripe) <= twbs.MaxCompactionObjects &&
 					totalSize(stripe) <= twbs.MaxBlockBytes {

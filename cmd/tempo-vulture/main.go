@@ -9,15 +9,18 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 )
 
@@ -56,11 +59,12 @@ func init() {
 func main() {
 	flag.Parse()
 
-	var err error
-	logger, err = zap.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
+	config := zap.NewDevelopmentEncoderConfig()
+	logger = zap.New(zapcore.NewCore(
+		zaplogfmt.NewEncoder(config),
+		os.Stdout,
+		zapcore.DebugLevel,
+	))
 
 	startTime := time.Now().Unix()
 	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
@@ -81,9 +85,11 @@ func main() {
 			traceIDHigh := rand.Int63()
 			traceIDLow := rand.Int63()
 
-			logger.Info("sending trace",
+			logger := logger.With(
+				zap.String("org_id", tempoOrgID),
 				zap.String("write_trace_id", fmt.Sprintf("%016x%016x", traceIDLow, traceIDHigh)),
 			)
+			logger.Info("sending trace")
 
 			for i := int64(0); i < generateRandomInt(1, 100); i++ {
 				ctx := user.InjectOrgID(context.Background(), tempoOrgID)

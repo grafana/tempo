@@ -31,12 +31,12 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(objA []byte, objB []byte) []byte {
+func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
 	if len(objA) > len(objB) {
-		return objA
+		return objA, true
 	}
 
-	return objB
+	return objB, true
 }
 
 type mockOverrides struct {
@@ -92,7 +92,7 @@ func TestCompaction(t *testing.T) {
 
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
-		head, err := wal.NewBlock(blockID, testTenantID)
+		head, err := wal.NewBlock(blockID, testTenantID, "")
 		assert.NoError(t, err)
 
 		reqs := make([]*tempopb.PushRequest, 0, recordCount)
@@ -164,7 +164,7 @@ func TestCompaction(t *testing.T) {
 
 	// now see if we can find our ids
 	for i, id := range allIds {
-		b, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		b, _, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
@@ -217,7 +217,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
-		head, err := wal.NewBlock(blockID, testTenantID)
+		head, err := wal.NewBlock(blockID, testTenantID, "")
 		assert.NoError(t, err)
 		id := []byte{0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02}
 
@@ -320,7 +320,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	// Make sure all expected traces are found.
 	for i := 0; i < blockCount; i++ {
 		for j := 0; j < recordCount; j++ {
-			trace, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax)
+			trace, _, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax)
 			assert.NotNil(t, trace)
 			assert.Greater(t, len(trace), 0)
 			assert.NoError(t, err)
@@ -459,7 +459,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 func cutTestBlocks(t *testing.T, w Writer, tenantID string, blockCount int, recordCount int) {
 	wal := w.WAL()
 	for i := 0; i < blockCount; i++ {
-		head, err := wal.NewBlock(uuid.New(), tenantID)
+		head, err := wal.NewBlock(uuid.New(), tenantID, "")
 		assert.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {
