@@ -29,8 +29,10 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 	}, []string{"tenant"})
 
 	return func(next http.RoundTripper) http.RoundTripper {
-		// Get the http request, add custom parameters to it, split it, and call downstream roundtripper
-		rt := NewRoundTripper(next, ShardingWare(cfg.QueryShards, logger))
+		// We're constructing middleware in this statement. There are two at the moment -
+		// - the rightmost one (executed first) is ShardingWare which helps to shard queries by splitting the block ID space
+		// - the leftmost one (executed last) is Deduper which dedupe Span IDs for Zipkin support
+		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger))
 		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
 			start := time.Now()
 			// tracing instrumentation

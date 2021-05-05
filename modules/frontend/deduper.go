@@ -1,10 +1,14 @@
 package frontend
 
 import (
-	"context"
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 
+	"github.com/go-kit/kit/log"
+	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -19,23 +23,74 @@ var (
 	maxSpanID uint64 = 0xffffffffffffffff
 )
 
+func Deduper(logger log.Logger) Middleware {
+	return MiddlewareFunc(func(next Handler) Handler {
+		return spanIDDeduper{
+			next:   next,
+			logger: logger,
+		}
+	})
+}
+
 // This is copied over from Jaeger and modified to work for OpenTelemetry Trace data structure
 // https://github.com/jaegertracing/jaeger/blob/12bba8c9b91cf4a29d314934bc08f4a80e43c042/model/adjuster/span_id_deduper.go
 type spanIDDeduper struct {
+	next      Handler
+	logger    log.Logger
 	trace     *tempopb.Trace
 	spansByID map[uint64][]*v1.Span
 	maxUsedID uint64
 }
 
-
-func DedupeSpanIDs(ctx context.Context, trace *tempopb.Trace) (*tempopb.Trace, error) {
+// Do implements Handler
+func (s spanIDDeduper) Do(req *http.Request) (*http.Response, error) {
+	ctx := req.Context()
 	span, _ := opentracing.StartSpanFromContext(ctx, "frontend.DedupeSpanIDs")
 	defer span.Finish()
 
-	deduper := &spanIDDeduper{trace: trace}
-	deduper.groupSpansByID()
-	deduper.dedupeSpanIDs()
-	return deduper.trace, nil
+	resp, err := s.next.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		traceObject := &tempopb.Trace{}
+		err = proto.Unmarshal(body, traceObject)
+		if err != nil {
+			return nil, err
+		}
+
+		s.trace = traceObject
+		s.dedupe()
+
+		traceBytes, err := proto.Marshal(s.trace)
+		if err != nil {
+			return nil, err
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       ioutil.NopCloser(bytes.NewReader(traceBytes)),
+			Header:     http.Header{},
+		}, nil
+	}
+
+	return &http.Response{
+		StatusCode: resp.StatusCode,
+		Body:       ioutil.NopCloser(bytes.NewReader(body)),
+		Header:     http.Header{},
+	}, nil
+}
+
+func (s *spanIDDeduper) dedupe() {
+	s.groupSpansByID()
+	s.dedupeSpanIDs()
 }
 
 // groupSpansByID groups spans with the same ID returning a map id -> []Span
@@ -80,7 +135,10 @@ func (d *spanIDDeduper) dedupeSpanIDs() {
 						continue
 					}
 					oldToNewSpanIDs[id] = newID
-					span.ParentSpanId = span.SpanId // previously shared ID is the new parent
+					if len(span.ParentSpanId) == 0 {
+						span.ParentSpanId = make([]byte, 8)
+					}
+					binary.BigEndian.PutUint64(span.ParentSpanId, id) // previously shared ID is the new parent
 					binary.BigEndian.PutUint64(span.SpanId, newID)
 				}
 			}

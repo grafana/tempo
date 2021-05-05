@@ -194,16 +194,6 @@ func mergeResponses(ctx context.Context, marshallingFormat string, rrs []Request
 		}, nil
 	}
 
-	traceObject := &tempopb.Trace{}
-	err := proto.Unmarshal(combinedTrace, traceObject)
-	if err != nil {
-		return nil, err
-	}
-	traceObject, err = DedupeSpanIDs(ctx, traceObject)
-	if err != nil {
-		return nil, err
-	}
-
 	if errCode == http.StatusOK {
 		if marshallingFormat == util.JSONTypeHeaderValue {
 			// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
