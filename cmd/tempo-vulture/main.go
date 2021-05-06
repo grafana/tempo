@@ -39,9 +39,10 @@ var (
 )
 
 type traceMetrics struct {
-	requested    int
-	notfound     int
-	missingSpans int
+	requested     int
+	requestFailed int
+	notFound      int
+	missingSpans  int
 }
 
 func init() {
@@ -95,13 +96,13 @@ func main() {
 				ctx := user.InjectOrgID(context.Background(), tempoOrgID)
 				ctx, err := user.InjectIntoGRPCRequest(ctx)
 				if err != nil {
-					logger.Info("error injecting org id", zap.Error(err))
+					logger.Error("error injecting org id", zap.Error(err))
 					metricErrorTotal.Inc()
 					continue
 				}
 				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow))
 				if err != nil {
-					logger.Info("error pushing batch to Tempo", zap.Error(err))
+					logger.Error("error pushing batch to Tempo", zap.Error(err))
 					metricErrorTotal.Inc()
 					continue
 				}
@@ -129,12 +130,11 @@ func main() {
 			metrics, err := queryTempoAndAnalyze(tempoQueryURL, hexID)
 			if err != nil {
 				metricErrorTotal.Inc()
-				metricTracesErrors.WithLabelValues("notfound").Inc()
-				continue
 			}
 
 			metricTracesInspected.Add(float64(metrics.requested))
-			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notfound))
+			metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
+			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
 			metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
 		}
 	}()
@@ -233,22 +233,24 @@ func queryTempoAndAnalyze(baseURL string, traceID string) (*traceMetrics, error)
 	logger.Info("querying Tempo")
 
 	trace, err := util.QueryTrace(baseURL, traceID, tempoOrgID)
-	if err == util.ErrTraceNotFound {
-		tm.notfound++
-	}
 	if err != nil {
-		logger.Info("error querying Tempo", zap.Error(err))
+		if err == util.ErrTraceNotFound {
+			tm.notFound++
+		} else {
+			tm.requestFailed++
+		}
+		logger.Error("error querying Tempo", zap.Error(err))
 		return nil, err
 	}
 
 	if len(trace.Batches) == 0 {
-		logger.Info("trace contains 0 batches")
-		tm.notfound++
+		logger.Error("trace contains 0 batches")
+		tm.notFound++
 	}
 
 	// iterate through
 	if hasMissingSpans(trace) {
-		logger.Info("trace has missing spans")
+		logger.Error("trace has missing spans")
 		tm.missingSpans++
 	}
 
