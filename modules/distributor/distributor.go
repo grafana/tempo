@@ -308,7 +308,8 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 
 // todo(jpe): full e2e correctness testing
 func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.Trace, error) {
-	tracesByID := make(map[uint32]*tempopb.Trace, 50) // 50, why not?
+	const tracesPerBatch = 20 // p50 of internal env
+	tracesByID := make(map[uint32]*tempopb.Trace, tracesPerBatch)
 	spansByILS := make(map[uint32]*v1.InstrumentationLibrarySpans)
 
 	for _, ils := range req.Batch.InstrumentationLibrarySpans {
@@ -329,7 +330,7 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 			if !ok {
 				existingILS = &v1.InstrumentationLibrarySpans{
 					InstrumentationLibrary: ils.InstrumentationLibrary,
-					Spans:                  make([]*v1.Span, 0, 10), // todo(jpe): 10
+					Spans:                  make([]*v1.Span, 0, spanCount/tracesPerBatch),
 				}
 				spansByILS[ilsKey] = existingILS
 			}
@@ -344,7 +345,7 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 			if !ok {
 				existingTrace = &tempopb.Trace{
 					ID:      traceID,
-					Batches: make([]*v1.ResourceSpans, 0, 50), // 50, why not? todo(jpe): why?
+					Batches: make([]*v1.ResourceSpans, 0, spanCount/tracesPerBatch),
 				}
 				tracesByID[traceKey] = existingTrace
 			}
