@@ -53,13 +53,13 @@ func (s spanIDDeduper) Do(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-
 	if resp.StatusCode == http.StatusOK {
+		body, err := ioutil.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+
 		traceObject := &tempopb.Trace{}
 		err = proto.Unmarshal(body, traceObject)
 		if err != nil {
@@ -81,11 +81,7 @@ func (s spanIDDeduper) Do(req *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	return &http.Response{
-		StatusCode: resp.StatusCode,
-		Body:       ioutil.NopCloser(bytes.NewReader(body)),
-		Header:     http.Header{},
-	}, nil
+	return resp, nil
 }
 
 func (s *spanIDDeduper) dedupe() {
