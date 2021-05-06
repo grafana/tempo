@@ -189,8 +189,8 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 		return nil, ErrReadOnly
 	}
 
-	if len(req.Batches) != len(req.Ids) {
-		return nil, status.Errorf(codes.InvalidArgument, "mismatched batches/ids length: %d, %d", len(req.Batches), len(req.Ids))
+	if len(req.Traces) != len(req.Ids) {
+		return nil, status.Errorf(codes.InvalidArgument, "mismatched traces/ids length: %d, %d", len(req.Traces), len(req.Ids))
 	}
 
 	instanceID, err := user.ExtractOrgID(ctx)
@@ -218,8 +218,8 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 	}
 
 	// Unmarshal and push each trace
-	for i := range req.Batches {
-		instance.PushBytes(ctx, req.Ids[i].Slice, req.Batches[i].Slice)
+	for i := range req.Traces {
+		instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice)
 	}
 
 	return &tempopb.PushResponse{}, nil

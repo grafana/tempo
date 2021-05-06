@@ -43,7 +43,7 @@ func ReuseRequest(req *PushBytesRequest) {
 		// We want to preserve the underlying allocated memory, [:0] helps us retains the cap() of the slice
 		bytePool.Put(r.Slice[:0])
 	}
-	for _, t := range req.Batches { // current
+	for _, t := range req.Traces { // current
 		bytePool.Put(t.Slice[:0])
 	}
 	for _, i := range req.Ids {

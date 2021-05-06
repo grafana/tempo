@@ -44,7 +44,7 @@ message PushBytesRequest {
   repeated bytes requests = 1 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes", deprecated=true];
 
   // pre-marshalled Traces. length must match ids
-  repeated bytes batches = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"]; // todo(jpe): rename to Traces
+  repeated bytes traces = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
   // trace ids. length must match traces
   repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
 }

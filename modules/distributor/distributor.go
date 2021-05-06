@@ -271,12 +271,12 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := tempopb.PushBytesRequest{
-			Batches: make([]tempopb.PreallocBytes, len(indexes)),
-			Ids:     make([]tempopb.PreallocBytes, len(indexes)),
+			Traces: make([]tempopb.PreallocBytes, len(indexes)),
+			Ids:    make([]tempopb.PreallocBytes, len(indexes)),
 		}
 
 		for i, j := range indexes {
-			req.Batches[i].Slice = marshalledTraces[j][0:]
+			req.Traces[i].Slice = marshalledTraces[j][0:]
 			req.Ids[i].Slice = traces[j].ID
 		}
 

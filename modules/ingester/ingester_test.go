@@ -284,7 +284,7 @@ func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	require.NoError(t, err)
 
 	i.PushBytes(ctx, &tempopb.PushBytesRequest{
-		Batches: []tempopb.PreallocBytes{
+		Traces: []tempopb.PreallocBytes{
 			{
 				Slice: bytesTrace,
 			},
