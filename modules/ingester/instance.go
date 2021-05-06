@@ -292,7 +292,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
-		allBytes, err = proto.Marshal(liveTrace.traceBytes) // todo(jpe) : handle this when marshalling the new format
+		allBytes, err = proto.Marshal(liveTrace.traceBytes)
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)

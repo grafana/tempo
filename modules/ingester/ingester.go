@@ -218,7 +218,6 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 	}
 
 	// Unmarshal and push each trace
-	// todo(jpe): propagate this to the backend
 	for i := range req.Batches {
 		instance.PushBytes(ctx, req.Ids[i].Slice, req.Batches[i].Slice)
 	}

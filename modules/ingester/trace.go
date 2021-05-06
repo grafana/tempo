@@ -20,7 +20,9 @@ type trace struct {
 
 func newTrace(maxBytes int, traceID []byte) *trace {
 	return &trace{
-		traceBytes: &tempopb.TraceBytes{}, // todo (jpe): init with size?
+		traceBytes: &tempopb.TraceBytes{
+			Traces: make([][]byte, 0, 10), // 10 for luck
+		},
 		lastAppend: time.Now(),
 		traceID:    traceID,
 		maxBytes:   maxBytes,
