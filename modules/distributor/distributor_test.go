@@ -318,6 +318,37 @@ func TestRequestsByTraceID(t *testing.T) {
 	}
 }
 
+func BenchmarkTestsByRequestID(b *testing.B) {
+	spansPer := 100
+	batches := 10
+	traces := []*tempopb.Trace{
+		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
+		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
+		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0C, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
+		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0D, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
+	}
+	ils := make([][]*v1.InstrumentationLibrarySpans, batches)
+
+	for i := 0; i < batches; i++ {
+		for _, t := range traces {
+			ils[i] = append(ils[i], t.Batches[i].InstrumentationLibrarySpans...)
+		}
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for _, blerg := range ils {
+			_, _, err := requestsByTraceID(&tempopb.PushRequest{
+				Batch: &v1.ResourceSpans{
+					InstrumentationLibrarySpans: blerg,
+				},
+			}, "test", spansPer*len(traces))
+			require.NoError(b, err)
+		}
+	}
+}
+
 func TestDistributor(t *testing.T) {
 	for i, tc := range []struct {
 		lines            int

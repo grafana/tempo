@@ -3,7 +3,6 @@ package distributor
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/gogo/status"
+	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -308,8 +308,8 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 
 // todo(jpe): full e2e correctness testing
 func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.Trace, error) {
-	tracesByID := make(map[uint32]*tempopb.Trace, 50)              // 50, why not?
-	spansByILS := make(map[string]*v1.InstrumentationLibrarySpans) // todo(jpe):benchmark string vs uint32
+	tracesByID := make(map[uint32]*tempopb.Trace, 50) // 50, why not?
+	spansByILS := make(map[uint32]*v1.InstrumentationLibrarySpans)
 
 	for _, ils := range req.Batch.InstrumentationLibrarySpans {
 		for _, span := range ils.Spans {
@@ -319,9 +319,10 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 			}
 
 			traceKey := util.TokenFor(userID, traceID)
-			ilsKey := strconv.Itoa(int(traceKey))
+			ilsKey := traceKey
 			if ils.InstrumentationLibrary != nil {
-				ilsKey = ilsKey + ils.InstrumentationLibrary.Name + ils.InstrumentationLibrary.Version
+				ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Name)
+				ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Version)
 			}
 
 			existingILS, ok := spansByILS[ilsKey]
