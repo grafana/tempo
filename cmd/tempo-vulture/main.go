@@ -67,6 +67,8 @@ func main() {
 		zapcore.DebugLevel,
 	))
 
+	logger.Info("Tempo Vulture starting")
+
 	startTime := time.Now().Unix()
 	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
 	tickerRead := time.NewTicker(tempoReadBackoffDuration)
@@ -221,8 +223,8 @@ func generateRandomInt(min int64, max int64) int64 {
 	return number
 }
 
-func queryTempoAndAnalyze(baseURL string, traceID string) (*traceMetrics, error) {
-	tm := &traceMetrics{
+func queryTempoAndAnalyze(baseURL string, traceID string) (traceMetrics, error) {
+	tm := traceMetrics{
 		requested: 1,
 	}
 
@@ -240,7 +242,7 @@ func queryTempoAndAnalyze(baseURL string, traceID string) (*traceMetrics, error)
 			tm.requestFailed++
 		}
 		logger.Error("error querying Tempo", zap.Error(err))
-		return nil, err
+		return tm, err
 	}
 
 	if len(trace.Batches) == 0 {
