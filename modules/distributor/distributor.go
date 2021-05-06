@@ -306,7 +306,7 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
 }
 
-// todo(jpe): full e2e correctness testing
+// todo(jpe): full e2e correctness testing (and unit testing in ingester/instance)
 func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.Trace, error) {
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint32]*tempopb.Trace, tracesPerBatch)

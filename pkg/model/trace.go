@@ -35,13 +35,13 @@ func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncod
 		return objA, false, errors.Wrap(errB, "error unsmarshaling objB")
 	} else if errA != nil && errB != nil {
 		// if both failed let's send back an empty trace
-		bytes, _ := Marshal(&tempopb.Trace{}, dataEncodingA)
+		bytes, _ := marshal(&tempopb.Trace{}, dataEncodingA)
 		return bytes, false, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
 	}
 
 	traceComplete, _, _, _ := CombineTraceProtos(traceA, traceB)
 
-	bytes, err := Marshal(traceComplete, dataEncodingA)
+	bytes, err := marshal(traceComplete, dataEncodingA)
 	if err != nil {
 		return objA, true, errors.Wrap(err, "marshalling the combine trace threw an error")
 	}
