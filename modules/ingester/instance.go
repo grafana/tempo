@@ -22,6 +22,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -95,6 +96,8 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 	return i, nil
 }
 
+// Push is used to push an entire tempopb.PushRequest. It is depecrecated and only required
+// for older protocols.
 func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	// check for max traces before grabbing the lock to better load shed
 	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
@@ -105,16 +108,37 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
-	trace, err := i.getOrCreateTrace(req)
+	id, err := pushRequestTraceID(req)
 	if err != nil {
 		return err
 	}
 
-	if err := trace.Push(ctx, req); err != nil {
+	t := &tempopb.Trace{
+		Batches: []*v1.ResourceSpans{req.Batch},
+	}
+
+	bytes, err := proto.Marshal(t)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	trace := i.getOrCreateTrace(id)
+	return trace.Push(ctx, bytes)
+}
+
+// PushBytes is used to push an unmarshalled trace to the
+func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) error {
+	// check for max traces before grabbing the lock to better load shed
+	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
+	if err != nil {
+		return status.Errorf(codes.FailedPrecondition, "%s max live traces per tenant exceeded: %v", overrides.ErrorPrefixLiveTracesExceeded, err)
+	}
+
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
+
+	trace := i.getOrCreateTrace(id)
+	return trace.Push(ctx, traceBytes)
 }
 
 // Moves any complete traces out of the map to complete traces
@@ -122,9 +146,9 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 
 	for _, t := range tracesToCut {
-		model.SortTrace(t.trace)
+		// model.SortTrace(t.trace) todo(jpe) - restore
 
-		out, err := proto.Marshal(t.trace)
+		out, err := proto.Marshal(t.traceBytes)
 		if err != nil {
 			return err
 		}
@@ -268,7 +292,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
-		allBytes, err = proto.Marshal(liveTrace.trace) // todo(jpe) : handle this when marshalling the new format
+		allBytes, err = proto.Marshal(liveTrace.traceBytes) // todo(jpe) : handle this when marshalling the new format
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
@@ -338,16 +362,11 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock) {
 
 // getOrCreateTrace will return a new trace object for the given request
 //  It must be called under the i.tracesMtx lock
-func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
-	traceID, err := pushRequestTraceID(req)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to extract traceID: %v", err)
-	}
-
+func (i *instance) getOrCreateTrace(traceID []byte) *trace {
 	fp := i.tokenForTraceID(traceID)
 	trace, ok := i.traces[fp]
 	if ok {
-		return trace, nil
+		return trace
 	}
 
 	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
@@ -356,7 +375,7 @@ func (i *instance) getOrCreateTrace(req *tempopb.PushRequest) (*trace, error) {
 	i.tracesCreatedTotal.Inc()
 	i.traceCount.Inc()
 
-	return trace, nil
+	return trace
 }
 
 // tokenForTraceID hash trace ID, should be called under lock

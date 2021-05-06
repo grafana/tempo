@@ -321,10 +321,10 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 
 	id := make([]byte, 16)
 	rand.Read(id)
-	tracepb := test.MakeTrace(10, id)
+	tracepb := test.MakeTraceBytes(10, id)
 	pastTrace := &trace{
 		traceID:    id,
-		trace:      tracepb,
+		traceBytes: tracepb,
 		lastAppend: time.Now().Add(-time.Hour),
 	}
 
@@ -332,7 +332,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 	rand.Read(id)
 	nowTrace := &trace{
 		traceID:    id,
-		trace:      tracepb,
+		traceBytes: tracepb,
 		lastAppend: time.Now().Add(time.Hour),
 	}
 

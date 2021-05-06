@@ -279,7 +279,7 @@ func TestSortTrace(t *testing.T) {
 
 func TestUnmarshal(t *testing.T) {
 	trace := test.MakeTrace(100, nil)
-	bytes, err := proto.Marshal(trace)
+	bytes, err := Marshal(trace, CurrentEncoding)
 	require.NoError(t, err)
 
 	actual, err := Unmarshal(bytes, CurrentEncoding)

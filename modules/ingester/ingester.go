@@ -160,13 +160,15 @@ func (i *Ingester) markUnavailable() {
 	i.stopIncomingRequests()
 }
 
-// Push implements tempopb.Pusher.Push
+// Push implements tempopb.Pusher.Push (super deprecated)
 func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
+	if i.readonly {
+		return nil, ErrReadOnly
+	}
+
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
-	} else if i.readonly {
-		return nil, ErrReadOnly
 	}
 
 	instance, err := i.getOrCreateInstance(instanceID)
@@ -180,6 +182,27 @@ func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb
 
 // PushBytes implements tempopb.Pusher.PushBytes
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+	// Reuse request instead of handing over to GC
+	defer tempopb.ReuseRequest(req)
+
+	if i.readonly {
+		return nil, ErrReadOnly
+	}
+
+	if len(req.Batches) != len(req.Ids) {
+		return nil, status.Errorf(codes.InvalidArgument, "mismatched batches/ids length: %d, %d", len(req.Batches), len(req.Ids))
+	}
+
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	instance, err := i.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
 	// Unmarshal and push each request (deprecated)
 	for _, v := range req.Requests {
 		r := tempopb.PushRequest{}
@@ -188,38 +211,17 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 			return nil, err
 		}
 
-		_, err = i.Push(ctx, &r)
+		err = instance.Push(ctx, &r)
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	if len(req.Batches) != len(req.Ids) {
-		return nil, status.Errorf(codes.InvalidArgument, "mismatched batches/ids length: %d, %d", len(req.Batches), len(req.Ids))
 	}
 
 	// Unmarshal and push each trace
 	// todo(jpe): propagate this to the backend
-	for _, t := range req.Batches {
-		trace := tempopb.Trace{}
-		err := trace.Unmarshal(t.Slice)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, b := range trace.Batches {
-			_, err := i.Push(ctx, &tempopb.PushRequest{
-				Batch: b,
-			})
-
-			if err != nil {
-				return nil, err
-			}
-		}
+	for i := range req.Batches {
+		instance.PushBytes(ctx, req.Ids[i].Slice, req.Batches[i].Slice)
 	}
-
-	// Reuse request instead of handing over to GC
-	tempopb.ReuseRequest(req)
 
 	return &tempopb.PushResponse{}, nil
 }
