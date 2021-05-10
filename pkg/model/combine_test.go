@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCombine(t *testing.T) {
@@ -19,11 +20,6 @@ func TestCombine(t *testing.T) {
 
 	SortTrace(t1)
 	SortTrace(t2)
-
-	b1, err := proto.Marshal(t1)
-	assert.NoError(t, err)
-	b2, err := proto.Marshal(t2)
-	assert.NoError(t, err)
 
 	// split t2 into two traces
 	t2a := &tempopb.Trace{}
@@ -36,91 +32,86 @@ func TestCombine(t *testing.T) {
 		}
 	}
 
-	b2a, err := proto.Marshal(t2a)
-	assert.NoError(t, err)
-	b2b, err := proto.Marshal(t2b)
-	assert.NoError(t, err)
-
 	tests := []struct {
-		trace1    []byte
-		encoding1 string
-		trace2    []byte
-		encoding2 string
-		expected  []byte
-		errString string
+		name        string
+		trace1      *tempopb.Trace
+		trace2      *tempopb.Trace
+		expected    *tempopb.Trace
+		expectError bool
 	}{
 		{
-			trace1:    b1,
-			encoding1: TracePBEncoding,
-			trace2:    b1,
-			encoding2: TracePBEncoding,
-			expected:  b1,
+			name:     "same trace",
+			trace1:   t1,
+			trace2:   t1,
+			expected: t1,
 		},
 		{
-			trace1:    b1,
-			encoding1: TracePBEncoding,
-			trace2:    []byte{0x01},
-			encoding2: TracePBEncoding,
-			expected:  b1,
-			errString: "error unsmarshaling objB: proto: Trace: illegal tag 0 (wire type 1)",
+			name:        "t2 is bad",
+			trace1:      t1,
+			trace2:      nil,
+			expected:    t1,
+			expectError: true,
 		},
 		{
-			trace1:    []byte{0x01},
-			encoding1: TracePBEncoding,
-			trace2:    b2,
-			encoding2: TracePBEncoding,
-			expected:  b2,
-			errString: "error unsmarshaling objA: proto: Trace: illegal tag 0 (wire type 1)",
+			name:        "t1 is bad",
+			trace1:      nil,
+			trace2:      t2,
+			expected:    t2,
+			expectError: true,
 		},
 		{
-			// exactly matching byte slices are not unmarshalled
-			trace1:    []byte{0x01, 0x02, 0x03},
-			encoding1: TracePBEncoding,
-			trace2:    []byte{0x01, 0x02, 0x03},
-			encoding2: TracePBEncoding,
-			expected:  []byte{0x01, 0x02, 0x03},
+			name:     "combine trace",
+			trace1:   t2a,
+			trace2:   t2b,
+			expected: t2,
 		},
 		{
-			trace1:    b2a,
-			encoding1: TracePBEncoding,
-			trace2:    b2b,
-			encoding2: TracePBEncoding,
-			expected:  b2,
-		},
-		{
-			trace1:    []byte{0x01},
-			encoding1: TracePBEncoding,
-			trace2:    []byte{0x02},
-			encoding2: TracePBEncoding,
-			expected:  nil,
-			errString: "both A and B failed to unmarshal.  returning an empty trace: proto: Trace: illegal tag 0 (wire type 1)",
-		},
-		{
-			// bytes encoding
-		},
-		{
-			// trace/tracebytes encoding
+			name:        "both bad",
+			trace1:      nil,
+			trace2:      nil,
+			expected:    nil,
+			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
-		actual, _, err := CombineTraceBytes(tt.trace1, tt.trace2, tt.encoding1, tt.encoding2)
-		if len(tt.errString) > 0 {
-			assert.EqualError(t, err, tt.errString)
-		} else {
-			assert.NoError(t, err)
-		}
+		for _, enc1 := range allEncodings {
+			for _, enc2 := range allEncodings {
+				t.Run(fmt.Sprintf("%s:%s:%s", tt.name, enc1, enc2), func(t *testing.T) {
+					var b1 []byte
+					var b2 []byte
+					if tt.trace1 != nil { // nil means substitute garbage data
+						b1 = mustMarshal(tt.trace1, enc1)
+					} else {
+						b1 = []byte{0x01, 0x02}
+					}
+					if tt.trace2 != nil { // nil means substitute garbage data
+						b2 = mustMarshal(tt.trace2, enc2)
+					} else {
+						b2 = []byte{0x01, 0x02, 0x03}
+					}
 
-		if !bytes.Equal(tt.expected, actual) {
-			actualTrace := &tempopb.Trace{}
-			expectedTrace := &tempopb.Trace{}
+					actual, _, err := CombineTraceBytes(b1, b2, enc1, enc2)
+					if tt.expectError {
+						require.Error(t, err)
+					} else {
+						require.NoError(t, err)
+					}
 
-			err = proto.Unmarshal(tt.expected, expectedTrace)
-			assert.NoError(t, err)
-			err = proto.Unmarshal(actual, actualTrace)
-			assert.NoError(t, err)
+					if tt.expected != nil {
+						expected := mustMarshal(tt.expected, enc1)
 
-			assert.Equal(t, expectedTrace, actualTrace)
+						if !bytes.Equal(expected, actual) {
+							expectedTrace, err := Unmarshal(expected, enc1)
+							assert.NoError(t, err)
+							actualTrace, err := Unmarshal(expected, enc1)
+							assert.NoError(t, err)
+
+							assert.Equal(t, expectedTrace, actualTrace)
+						}
+					}
+				})
+			}
 		}
 	}
 }
@@ -232,4 +223,13 @@ func BenchmarkTokenForID(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = tokenForID(h, buffer, 0, id)
 	}
+}
+
+func mustMarshal(trace *tempopb.Trace, encoding string) []byte {
+	b, err := marshal(trace, encoding)
+	if err != nil {
+		panic(err)
+	}
+
+	return b
 }

@@ -26,10 +26,6 @@ func (o objectCombiner) Combine(objA []byte, objB []byte, dataEncoding string) (
 	return combinedTrace, wasCombined
 }
 
-// todo(jpe):
-// - add cross data encoding tests
-// - extend benchmarks
-
 // CombineTraceBytes combines objA and objB encoded using dataEncodingA and dataEncodingB and returns a trace encoded with dataEncodingA
 func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncodingB string) (_ []byte, wasCombined bool, _ error) {
 	// if the byte arrays are the same, we can return quickly
