@@ -73,28 +73,26 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 
 			resp, err := rt.RoundTrip(r)
 
-			if resp.StatusCode == http.StatusOK {
-				if marshallingFormat == util.JSONTypeHeaderValue {
-					// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
-					body, err := ioutil.ReadAll(resp.Body)
-					resp.Body.Close()
-					if err != nil {
-						return nil, errors.Wrap(err, "error reading response body at query frontend")
-					}
-					traceObject := &tempopb.Trace{}
-					err = proto.Unmarshal(body, traceObject)
-					if err != nil {
-						return nil, err
-					}
-
-					var jsonTrace bytes.Buffer
-					marshaller := &jsonpb.Marshaler{}
-					err = marshaller.Marshal(&jsonTrace, traceObject)
-					if err != nil {
-						return nil, err
-					}
-					resp.Body = ioutil.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
+			if resp.StatusCode == http.StatusOK && marshallingFormat == util.JSONTypeHeaderValue {
+				// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
+				body, err := ioutil.ReadAll(resp.Body)
+				resp.Body.Close()
+				if err != nil {
+					return nil, errors.Wrap(err, "error reading response body at query frontend")
 				}
+				traceObject := &tempopb.Trace{}
+				err = proto.Unmarshal(body, traceObject)
+				if err != nil {
+					return nil, err
+				}
+
+				var jsonTrace bytes.Buffer
+				marshaller := &jsonpb.Marshaler{}
+				err = marshaller.Marshal(&jsonTrace, traceObject)
+				if err != nil {
+					return nil, err
+				}
+				resp.Body = ioutil.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
 			}
 
 			span.SetTag("response marshalling format", marshallingFormat)

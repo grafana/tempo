@@ -146,6 +146,9 @@ func (s *spanIDDeduper) dedupeSpanIDs() {
 // swapParentIDs corrects ParentSpanID of all spans that are children of the server
 // spans whose IDs we deduped.
 func (s *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[uint64]uint64) {
+	if len(oldToNewSpanIDs) == 0 {
+		return
+	}
 	for _, batch := range s.trace.Batches {
 		for _, ils := range batch.InstrumentationLibrarySpans {
 			for _, span := range ils.Spans {

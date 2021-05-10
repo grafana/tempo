@@ -14,11 +14,34 @@ func TestDedupeSpanIDs(t *testing.T) {
 	tests := []struct {
 		name        string
 		trace       *tempopb.Trace
-		checkParent bool
+		expectedRes *tempopb.Trace
 	}{
 		{
 			name: "no duplicates",
 			trace: &tempopb.Trace{
+				Batches: []*v1.ResourceSpans{
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										Kind:   v1.Span_SPAN_KIND_CLIENT,
+									},
+									{
+										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+									},
+									{
+										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+										Kind:   v1.Span_SPAN_KIND_SERVER,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRes: &tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
 						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -67,7 +90,30 @@ func TestDedupeSpanIDs(t *testing.T) {
 					},
 				},
 			},
-			checkParent: true,
+			expectedRes: &tempopb.Trace{
+				Batches: []*v1.ResourceSpans{
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										Kind:   v1.Span_SPAN_KIND_CLIENT,
+									},
+									{
+										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+									},
+									{
+										SpanId:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+										Kind:         v1.Span_SPAN_KIND_SERVER,
+										ParentSpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -76,15 +122,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 				trace: tt.trace,
 			}
 			s.dedupe()
-			assert.Equal(t, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}, s.trace.Batches[0].InstrumentationLibrarySpans[0].Spans[0].SpanId)
-			assert.Equal(t, v1.Span_SPAN_KIND_CLIENT, s.trace.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Kind)
-			assert.Equal(t, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, s.trace.Batches[0].InstrumentationLibrarySpans[0].Spans[1].SpanId)
-			assert.Equal(t, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03}, s.trace.Batches[0].InstrumentationLibrarySpans[0].Spans[2].SpanId)
-			assert.Equal(t, v1.Span_SPAN_KIND_SERVER, s.trace.Batches[0].InstrumentationLibrarySpans[0].Spans[2].Kind)
-
-			if tt.checkParent {
-				assert.EqualValues(t, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}, s.trace.Batches[0].InstrumentationLibrarySpans[0].Spans[2].ParentSpanId)
-			}
+			assert.Equal(t, tt.expectedRes, s.trace)
 		})
 	}
 
