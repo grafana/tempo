@@ -89,6 +89,13 @@ func TestFullTraceReturned(t *testing.T) {
 	// push the 2nd batch
 	pushBatch(t, ingester, trace.Batches[1], traceID)
 
+	// make sure the trace comes back whole
+	foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+		TraceID: traceID,
+	})
+	assert.NoError(t, err, "unexpected error querying")
+	assert.True(t, proto.Equal(trace, foundTrace.Trace))
+
 	// force cut all traces
 	for _, instance := range ingester.instances {
 		err = instance.CutCompleteTraces(0, true)
@@ -96,12 +103,58 @@ func TestFullTraceReturned(t *testing.T) {
 	}
 
 	// make sure the trace comes back whole
+	foundTrace, err = ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+		TraceID: traceID,
+	})
+	assert.NoError(t, err, "unexpected error querying")
+	assert.True(t, proto.Equal(trace, foundTrace.Trace))
+}
+
+func TestDeprecatedPush(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting tempdir")
+	defer os.RemoveAll(tmpDir)
+
+	ctx := user.InjectOrgID(context.Background(), "test")
+	ingester, _, _ := defaultIngester(t, tmpDir)
+
+	traceID := make([]byte, 16)
+	_, err = rand.Read(traceID)
+	assert.NoError(t, err)
+	trace := test.MakeTrace(2, traceID) // 2 batches
+	model.SortTrace(trace)
+
+	// push the first batch using the deprecated method
+	pushDeprecatedBatch(t, ingester, trace.Batches[0], traceID)
+
+	// force cut all traces
+	for _, instance := range ingester.instances {
+		err = instance.CutCompleteTraces(0, true)
+		assert.NoError(t, err, "unexpected error cutting traces")
+	}
+
+	// push the 2nd batch
+	pushBatch(t, ingester, trace.Batches[1], traceID)
+
+	// make sure the trace comes back whole
 	foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID: traceID,
 	})
 	assert.NoError(t, err, "unexpected error querying")
-	equal := proto.Equal(trace, foundTrace.Trace)
-	assert.True(t, equal)
+	assert.True(t, proto.Equal(trace, foundTrace.Trace))
+
+	// force cut all traces
+	for _, instance := range ingester.instances {
+		err = instance.CutCompleteTraces(0, true)
+		assert.NoError(t, err, "unexpected error cutting traces")
+	}
+
+	// make sure the trace comes back whole
+	foundTrace, err = ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+		TraceID: traceID,
+	})
+	assert.NoError(t, err, "unexpected error querying")
+	assert.True(t, proto.Equal(trace, foundTrace.Trace))
 }
 
 func TestWal(t *testing.T) {
@@ -283,7 +336,7 @@ func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	bytesTrace, err := proto.Marshal(pbTrace)
 	require.NoError(t, err)
 
-	i.PushBytes(ctx, &tempopb.PushBytesRequest{
+	_, err = i.PushBytes(ctx, &tempopb.PushBytesRequest{
 		Traces: []tempopb.PreallocBytes{
 			{
 				Slice: bytesTrace,
@@ -292,6 +345,26 @@ func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 		Ids: []tempopb.PreallocBytes{
 			{
 				Slice: id,
+			},
+		},
+	})
+	require.NoError(t, err)
+}
+
+func pushDeprecatedBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
+	ctx := user.InjectOrgID(context.Background(), "test")
+
+	pbTrace := &tempopb.PushRequest{
+		Batch: batch,
+	}
+
+	bytesTrace, err := proto.Marshal(pbTrace)
+	require.NoError(t, err)
+
+	_, err = i.PushBytes(ctx, &tempopb.PushBytesRequest{
+		Requests: []tempopb.PreallocBytes{
+			{
+				Slice: bytesTrace,
 			},
 		},
 	})

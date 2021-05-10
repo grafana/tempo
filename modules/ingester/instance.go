@@ -146,7 +146,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 
 	for _, t := range tracesToCut {
-		// model.SortTrace(t.trace) todo(jpe) - restore
+		model.SortTraceBytes(t.traceBytes)
 
 		out, err := proto.Marshal(t.traceBytes)
 		if err != nil {

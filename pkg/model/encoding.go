@@ -17,6 +17,12 @@ const CurrentEncoding = "v1"
 // bytes are encoded *tracepb.Trace
 const TracePBEncoding = ""
 
+// allEncodings is used for testing
+var allEncodings = []string{
+	CurrentEncoding,
+	TracePBEncoding,
+}
+
 // Unmarshal converts a byte slice of the passed encoding into a *tempopb.Trace
 func Unmarshal(obj []byte, dataEncoding string) (*tempopb.Trace, error) {
 	trace := &tempopb.Trace{}
