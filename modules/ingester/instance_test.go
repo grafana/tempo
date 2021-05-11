@@ -129,6 +129,11 @@ func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.
 	assert.Equal(t, expectedTrace, trace)
 	assert.NoError(t, err)
 
+	err = i.ClearCompletingBlock(blockID)
+	trace, err = i.FindTraceByID(traceID)
+	assert.Equal(t, expectedTrace, trace)
+	assert.NoError(t, err)
+
 	return blockID
 }
 
@@ -151,7 +156,6 @@ func TestInstanceFind(t *testing.T) {
 	// make another completingBlock
 	request2 := test.MakeRequest(10, []byte{})
 	pushAndQuery(t, i, request2)
-	assert.Len(t, i.completingBlocks, 2)
 }
 
 func TestInstanceDoesNotRace(t *testing.T) {
