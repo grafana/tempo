@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -279,7 +278,11 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	}
 	defer r.Close()
 
-	return ioutil.ReadAll(r)
+	buf := bytes.NewBuffer(make([]byte, 0, r.Attrs.Size+bytes.MinRead))
+	if _, err := buf.ReadFrom(r); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
@@ -289,12 +292,12 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 	}
 	defer r.Close()
 
-	bytes, err := ioutil.ReadAll(r)
-	if err != nil {
+	buf := bytes.NewBuffer(make([]byte, 0, r.Attrs.Size+bytes.MinRead))
+	if _, err := buf.ReadFrom(r); err != nil {
 		return nil, time.Time{}, err
 	}
 
-	return bytes, r.Attrs.LastModified, nil
+	return buf.Bytes(), r.Attrs.LastModified, nil
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, buffer []byte) error {
