@@ -2,6 +2,7 @@ package ingester
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"hash"
 	"hash/fnv"
@@ -23,6 +24,7 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -128,6 +130,10 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 
 // PushBytes is used to push an unmarshalled trace to the
 func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) error {
+	if !validation.ValidTraceID(id) {
+		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
+	}
+
 	// check for max traces before grabbing the lock to better load shed
 	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
 	if err != nil {

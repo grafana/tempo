@@ -16,7 +16,6 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -87,56 +86,6 @@ func TestInstance(t *testing.T) {
 	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 }
 
-func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.UUID {
-	traceID := test.MustTraceID(request)
-	err := i.Push(context.Background(), request)
-	assert.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-	expectedTrace := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			request.Batch,
-		},
-	}
-	model.SortTrace(expectedTrace)
-
-	trace, err := i.FindTraceByID(traceID)
-	assert.Equal(t, expectedTrace, trace)
-	assert.NoError(t, err)
-
-	err = i.CutCompleteTraces(0, true)
-	assert.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-	trace, err = i.FindTraceByID(traceID)
-	assert.Equal(t, expectedTrace, trace)
-	assert.NoError(t, err)
-
-	blockID, err := i.CutBlockIfReady(0, 0, true)
-	assert.NoError(t, err, "unexpected error cutting block")
-	assert.NotEqual(t, blockID, uuid.Nil)
-
-	trace, err = i.FindTraceByID(traceID)
-	assert.Equal(t, expectedTrace, trace)
-	assert.NoError(t, err)
-
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-	err = i.CompleteBlock(blockID)
-	assert.NoError(t, err, "unexpected error completing block")
-
-	trace, err = i.FindTraceByID(traceID)
-	assert.Equal(t, expectedTrace, trace)
-	assert.NoError(t, err)
-
-	err = i.ClearCompletingBlock(blockID)
-	trace, err = i.FindTraceByID(traceID)
-	assert.Equal(t, expectedTrace, trace)
-	assert.NoError(t, err)
-
-	return blockID
-}
-
 func TestInstanceFind(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
@@ -150,12 +99,57 @@ func TestInstanceFind(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
-	request := test.MakeRequest(10, []byte{})
-	pushAndQuery(t, i, request)
+	numTraces := 100
+	ids := [][]byte{}
+	traces := []*tempopb.Trace{}
+	for j := 0; j < numTraces; j++ {
+		id := make([]byte, 16)
+		rand.Read(id)
 
-	// make another completingBlock
-	request2 := test.MakeRequest(10, []byte{})
-	pushAndQuery(t, i, request2)
+		trace := test.MakeTrace(10, id)
+		model.SortTrace(trace)
+		traceBytes, err := trace.Marshal()
+		require.NoError(t, err)
+
+		err = i.PushBytes(context.Background(), id, traceBytes)
+		require.NoError(t, err)
+		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+		ids = append(ids, id)
+		traces = append(traces, trace)
+	}
+
+	queryAll(t, i, ids, traces)
+
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+	queryAll(t, i, ids, traces)
+
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err, "unexpected error cutting block")
+	assert.NotEqual(t, blockID, uuid.Nil)
+
+	queryAll(t, i, ids, traces)
+
+	err = i.CompleteBlock(blockID)
+	require.NoError(t, err, "unexpected error completing block")
+
+	queryAll(t, i, ids, traces)
+
+	err = i.ClearCompletingBlock(blockID)
+	require.NoError(t, err, "unexpected error completing block")
+
+	queryAll(t, i, ids, traces)
+}
+
+func queryAll(t *testing.T, i *instance, ids [][]byte, traces []*tempopb.Trace) {
+	for j, id := range ids {
+		trace, err := i.FindTraceByID(id)
+		assert.NoError(t, err)
+		assert.Equal(t, traces[j], trace)
+	}
 }
 
 func TestInstanceDoesNotRace(t *testing.T) {
