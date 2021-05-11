@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"time"
 
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -70,6 +71,13 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// Server settings
 	flagext.DefaultValues(&c.Server)
 	c.Server.LogLevel.RegisterFlags(f)
+
+	// The following GRPC server settings are added to address this issue - https://github.com/grafana/tempo/issues/493
+	// The settings prevent the grpc server from sending a GOAWAY message if a client sends heartbeat messages
+	// too frequently (due to lack of real traffic).
+	c.Server.GRPCServerMinTimeBetweenPings = 10 * time.Second
+	c.Server.GRPCServerPingWithoutStreamAllowed = true
+
 	f.IntVar(&c.Server.HTTPListenPort, "server.http-listen-port", 80, "HTTP server listen port.")
 	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
 
