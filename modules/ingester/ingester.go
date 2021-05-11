@@ -182,9 +182,6 @@ func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb
 
 // PushBytes implements tempopb.Pusher.PushBytes
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
-	// Reuse request instead of handing over to GC
-	defer tempopb.ReuseRequest(req)
-
 	if i.readonly {
 		return nil, ErrReadOnly
 	}
@@ -219,7 +216,10 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 
 	// Unmarshal and push each trace
 	for i := range req.Traces {
-		instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice)
+		err := instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &tempopb.PushResponse{}, nil

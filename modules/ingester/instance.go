@@ -158,6 +158,10 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 			return err
 		}
 		i.bytesWrittenTotal.Add(float64(len(out)))
+
+		// return trace byte slices to be reused by proto marshalling
+		tempopb.ReuseTraceBytes(t.traceBytes)
+		tempopb.ReuseByteSlice(t.traceID)
 	}
 
 	return nil

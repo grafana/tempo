@@ -37,16 +37,14 @@ func (r *PreallocBytes) Size() (n int) {
 	return len(r.Slice)
 }
 
-// ReuseRequest puts the byte slice back into bytePool for reuse.
-func ReuseRequest(req *PushBytesRequest) {
-	for _, r := range req.Requests { // deprecated
-		// We want to preserve the underlying allocated memory, [:0] helps us retains the cap() of the slice
-		bytePool.Put(r.Slice[:0])
+// ReuseTraceBytes puts the byte slice back into bytePool for reuse.
+func ReuseTraceBytes(trace *TraceBytes) {
+	for _, t := range trace.Traces {
+		bytePool.Put(t[:0])
 	}
-	for _, t := range req.Traces { // current
-		bytePool.Put(t.Slice[:0])
-	}
-	for _, i := range req.Ids {
-		bytePool.Put(i.Slice[:0])
-	}
+}
+
+// ReuseByteSlice reuses a random byte slice
+func ReuseByteSlice(b []byte) {
+	bytePool.Put(b[:0])
 }
