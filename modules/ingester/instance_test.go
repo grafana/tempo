@@ -109,7 +109,7 @@ func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.
 	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	trace, err = i.FindTraceByID(traceID)
-	assert.NotNil(t, trace)
+	assert.Equal(t, expectedTrace, trace)
 	assert.NoError(t, err)
 
 	blockID, err := i.CutBlockIfReady(0, 0, true)
@@ -117,7 +117,7 @@ func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.
 	assert.NotEqual(t, blockID, uuid.Nil)
 
 	trace, err = i.FindTraceByID(traceID)
-	assert.NotNil(t, trace)
+	assert.Equal(t, expectedTrace, trace)
 	assert.NoError(t, err)
 
 	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
