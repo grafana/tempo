@@ -114,16 +114,17 @@ func TestCombineNils(t *testing.T) {
 	for _, enc1 := range allEncodings {
 		for _, enc2 := range allEncodings {
 			t.Run(fmt.Sprintf("%s:%s", enc1, enc2), func(t *testing.T) {
+				// both nil
 				actualBytes, _, err := CombineTraceBytes(nil, nil, enc1, enc2)
 				require.NoError(t, err)
 				assert.Equal(t, []byte(nil), actualBytes)
 
 				testBytes1, err := marshal(test, enc1)
 				require.NoError(t, err)
-
 				testBytes2, err := marshal(test, enc2)
 				require.NoError(t, err)
 
+				// objB nil
 				actualBytes, _, err = CombineTraceBytes(testBytes1, nil, enc1, enc2)
 				require.NoError(t, err)
 
@@ -131,6 +132,7 @@ func TestCombineNils(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, test, actual)
 
+				// objA nil
 				actualBytes, _, err = CombineTraceBytes(nil, testBytes2, enc1, enc2)
 				require.NoError(t, err)
 

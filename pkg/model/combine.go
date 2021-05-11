@@ -3,6 +3,7 @@ package model
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"hash"
 	"hash/fnv"
 
@@ -42,16 +43,16 @@ func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncod
 		if dataEncodingA != dataEncodingB {
 			// have to convert objB to dataEncodingA
 			bytes, _ := marshal(traceB, dataEncodingA)
-			return bytes, false, errA
+			return bytes, false, fmt.Errorf("error unsmarshaling objA (%s): %w", dataEncodingA, errA)
 		} else {
-			return objB, false, errors.Wrap(errA, "error unsmarshaling objA")
+			return objB, false, fmt.Errorf("error unsmarshaling objA (%s): %w", dataEncodingA, errA)
 		}
 	} else if errB != nil && errA == nil {
-		return objA, false, errors.Wrap(errB, "error unsmarshaling objB")
+		return objA, false, fmt.Errorf("error unsmarshaling objB (%s): %w", dataEncodingB, errB)
 	} else if errA != nil && errB != nil {
 		// if both failed let's send back an empty trace
 		bytes, _ := marshal(&tempopb.Trace{}, dataEncodingA)
-		return bytes, false, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
+		return bytes, false, fmt.Errorf("both A (%s) and B (%s) failed to unmarshal. returning an empty trace", dataEncodingA, dataEncodingB)
 	}
 
 	traceComplete, _, _, _ := CombineTraceProtos(traceA, traceB)

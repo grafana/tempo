@@ -122,6 +122,13 @@ func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.
 
 	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
+	err = i.CompleteBlock(blockID)
+	assert.NoError(t, err, "unexpected error completing block")
+
+	trace, err = i.FindTraceByID(traceID)
+	assert.Equal(t, expectedTrace, trace)
+	assert.NoError(t, err)
+
 	return blockID
 }
 
@@ -139,22 +146,12 @@ func TestInstanceFind(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	request := test.MakeRequest(10, []byte{})
-	blockID := pushAndQuery(t, i, request)
+	pushAndQuery(t, i, request)
 
 	// make another completingBlock
 	request2 := test.MakeRequest(10, []byte{})
 	pushAndQuery(t, i, request2)
 	assert.Len(t, i.completingBlocks, 2)
-
-	err = i.CompleteBlock(blockID)
-	assert.NoError(t, err, "unexpected error completing block")
-
-	assert.Len(t, i.completingBlocks, 2)
-
-	traceID := test.MustTraceID(request)
-	trace, err := i.FindTraceByID(traceID)
-	assert.NotNil(t, trace)
-	assert.NoError(t, err)
 }
 
 func TestInstanceDoesNotRace(t *testing.T) {
