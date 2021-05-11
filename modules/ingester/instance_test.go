@@ -14,7 +14,9 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -91,8 +93,15 @@ func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.
 	assert.NoError(t, err)
 	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
+	expectedTrace := &tempopb.Trace{
+		Batches: []*v1.ResourceSpans{
+			request.Batch,
+		},
+	}
+	model.SortTrace(expectedTrace)
+
 	trace, err := i.FindTraceByID(traceID)
-	assert.NotNil(t, trace)
+	assert.Equal(t, expectedTrace, trace)
 	assert.NoError(t, err)
 
 	err = i.CutCompleteTraces(0, true)
@@ -103,7 +112,7 @@ func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.
 	assert.NotNil(t, trace)
 	assert.NoError(t, err)
 
-	blockID, err := i.CutBlockIfReady(0, 0, false)
+	blockID, err := i.CutBlockIfReady(0, 0, true)
 	assert.NoError(t, err, "unexpected error cutting block")
 	assert.NotEqual(t, blockID, uuid.Nil)
 
