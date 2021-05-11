@@ -2,7 +2,7 @@ version: "2"
 services:
 
   distributor:
-    image: grafana/tempo:dbe2f5a4
+    image: tempo:latest
     command: "-target=distributor -config.file=/etc/tempo.yaml"
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
@@ -14,7 +14,7 @@ services:
       - minio
 
   ingester-0:
-    image: grafana/tempo:dbe2f5a4
+    image: tempo:latest
     command: "-target=ingester -config.file=/etc/tempo.yaml"
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
@@ -26,7 +26,7 @@ services:
       - distributor # inverted relationship here to add delay for minio
 
   ingester-1:
-    image: grafana/tempo:dbe2f5a4
+    image: tempo:latest
     command: "-target=ingester -config.file=/etc/tempo.yaml"
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
@@ -38,7 +38,7 @@ services:
       - distributor # inverted relationship here to add delay for minio
 
   ingester-2:
-    image: grafana/tempo:dbe2f5a4
+    image: tempo:latest
     command: "-target=ingester -config.file=/etc/tempo.yaml"
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml

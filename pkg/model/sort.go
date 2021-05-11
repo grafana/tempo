@@ -52,7 +52,7 @@ func compareSpans(a *v1.Span, b *v1.Span) bool {
 
 // SortTraceBytes sorts a *tempopb.TraceBytes
 func SortTraceBytes(t *tempopb.TraceBytes) {
-	hash := xxhash.New() // todo(jpe) bench/test
+	hash := xxhash.New()
 
 	sort.Slice(t.Traces, func(i, j int) bool {
 		traceI := t.Traces[i]

@@ -1,7 +1,6 @@
 package model
 
 import (
-	"bytes"
 	"fmt"
 	"hash/fnv"
 	"math/rand"
@@ -100,18 +99,45 @@ func TestCombine(t *testing.T) {
 
 					if tt.expected != nil {
 						expected := mustMarshal(tt.expected, enc1)
-
-						if !bytes.Equal(expected, actual) {
-							expectedTrace, err := Unmarshal(expected, enc1)
-							assert.NoError(t, err)
-							actualTrace, err := Unmarshal(expected, enc1)
-							assert.NoError(t, err)
-
-							assert.Equal(t, expectedTrace, actualTrace)
-						}
+						assert.Equal(t, expected, actual)
 					}
 				})
 			}
+		}
+	}
+}
+
+func TestCombineNils(t *testing.T) {
+	test := test.MakeTrace(1, nil)
+	SortTrace(test)
+
+	for _, enc1 := range allEncodings {
+		for _, enc2 := range allEncodings {
+			t.Run(fmt.Sprintf("%s:%s", enc1, enc2), func(t *testing.T) {
+				actualBytes, _, err := CombineTraceBytes(nil, nil, enc1, enc2)
+				require.NoError(t, err)
+				assert.Equal(t, []byte(nil), actualBytes)
+
+				testBytes1, err := marshal(test, enc1)
+				require.NoError(t, err)
+
+				testBytes2, err := marshal(test, enc2)
+				require.NoError(t, err)
+
+				actualBytes, _, err = CombineTraceBytes(testBytes1, nil, enc1, enc2)
+				require.NoError(t, err)
+
+				actual, err := Unmarshal(actualBytes, enc1)
+				require.NoError(t, err)
+				assert.Equal(t, test, actual)
+
+				actualBytes, _, err = CombineTraceBytes(nil, testBytes2, enc1, enc2)
+				require.NoError(t, err)
+
+				actual, err = Unmarshal(actualBytes, enc1)
+				require.NoError(t, err)
+				assert.Equal(t, test, actual)
+			})
 		}
 	}
 }
