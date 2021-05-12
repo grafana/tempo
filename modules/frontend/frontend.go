@@ -73,7 +73,7 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 
 			resp, err := rt.RoundTrip(r)
 
-			if resp.StatusCode == http.StatusOK && marshallingFormat == util.JSONTypeHeaderValue {
+			if resp != nil && resp.StatusCode == http.StatusOK && marshallingFormat == util.JSONTypeHeaderValue {
 				// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
 				body, err := ioutil.ReadAll(resp.Body)
 				resp.Body.Close()
