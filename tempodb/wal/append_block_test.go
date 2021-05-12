@@ -8,10 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAppendBlockBadFile(t *testing.T) {
-
-}
-
 func TestFullFilename(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -3,7 +3,6 @@ package distributor
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/gogo/status"
+	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -235,13 +235,13 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 			req.Size())
 	}
 
-	keys, traces, err := requestsByTraceID(req, userID, spanCount)
+	keys, traces, ids, err := requestsByTraceID(req, userID, spanCount)
 	if err != nil {
 		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
 		return nil, err
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, traces, keys)
+	err = d.sendToIngestersViaBytes(ctx, userID, traces, keys, ids)
 	if err != nil {
 		recordDiscaredSpans(err, userID, spanCount)
 	}
@@ -249,16 +249,15 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.PushRequest, keys []uint32) error {
-
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, keys []uint32, ids [][]byte) error {
 	// Marshal to bytes once
-	rawRequests := make([][]byte, len(traces))
+	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
 		b, err := t.Marshal()
 		if err != nil {
 			return errors.Wrap(err, "failed to marshal PushRequest")
 		}
-		rawRequests[i] = b
+		marshalledTraces[i] = b
 	}
 
 	op := ring.WriteNoExtend
@@ -267,17 +266,18 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	}
 
 	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
-
 		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
 		defer cancel()
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := tempopb.PushBytesRequest{
-			Requests: make([]tempopb.PreallocRequest, len(indexes)),
+			Traces: make([]tempopb.PreallocBytes, len(indexes)),
+			Ids:    make([]tempopb.PreallocBytes, len(indexes)),
 		}
 
 		for i, j := range indexes {
-			req.Requests[i].Request = rawRequests[j][0:]
+			req.Traces[i].Slice = marshalledTraces[j][0:]
+			req.Ids[i].Slice = ids[j]
 		}
 
 		c, err := d.pool.GetClientFor(ingester.Addr)
@@ -306,29 +306,37 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
 }
 
-func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.PushRequest, error) {
-	const expectedTracesPerBatch = 10 // roughly what we're seeing through metrics
-	expectedSpansPerTrace := spanCount / expectedTracesPerBatch
+// requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
+// and traces to pass onto the ingesters.
+func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.Trace, [][]byte, error) {
+	type traceAndID struct {
+		id    []byte
+		trace *tempopb.Trace
+	}
 
-	requestsByTrace := make(map[uint32]*tempopb.PushRequest)
-	spansByILS := make(map[string]*v1.InstrumentationLibrarySpans)
+	const tracesPerBatch = 20 // p50 of internal env
+	tracesByID := make(map[uint32]*traceAndID, tracesPerBatch)
+	spansByILS := make(map[uint32]*v1.InstrumentationLibrarySpans)
 
 	for _, ils := range req.Batch.InstrumentationLibrarySpans {
 		for _, span := range ils.Spans {
-			if !validation.ValidTraceID(span.TraceId) {
-				return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
+			traceID := span.TraceId
+			if !validation.ValidTraceID(traceID) {
+				return nil, nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
 			}
 
-			traceKey := util.TokenFor(userID, span.TraceId)
-			ilsKey := strconv.Itoa(int(traceKey))
+			traceKey := util.TokenFor(userID, traceID)
+			ilsKey := traceKey
 			if ils.InstrumentationLibrary != nil {
-				ilsKey = ilsKey + ils.InstrumentationLibrary.Name + ils.InstrumentationLibrary.Version
+				ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Name)
+				ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Version)
 			}
+
 			existingILS, ok := spansByILS[ilsKey]
 			if !ok {
 				existingILS = &v1.InstrumentationLibrarySpans{
 					InstrumentationLibrary: ils.InstrumentationLibrary,
-					Spans:                  make([]*v1.Span, 0, expectedSpansPerTrace),
+					Spans:                  make([]*v1.Span, 0, spanCount/tracesPerBatch),
 				}
 				spansByILS[ilsKey] = existingILS
 			}
@@ -339,31 +347,38 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 				continue
 			}
 
-			existingReq, ok := requestsByTrace[traceKey]
+			existingTrace, ok := tracesByID[traceKey]
 			if !ok {
-				existingReq = &tempopb.PushRequest{
-					Batch: &v1.ResourceSpans{
-						InstrumentationLibrarySpans: make([]*v1.InstrumentationLibrarySpans, 0, len(req.Batch.InstrumentationLibrarySpans)), // assume most spans belong to the same trace
-						Resource:                    req.Batch.Resource,
+				existingTrace = &traceAndID{
+					id: traceID,
+					trace: &tempopb.Trace{
+						Batches: make([]*v1.ResourceSpans, 0, spanCount/tracesPerBatch),
 					},
 				}
-				requestsByTrace[traceKey] = existingReq
+
+				tracesByID[traceKey] = existingTrace
 			}
-			existingReq.Batch.InstrumentationLibrarySpans = append(existingReq.Batch.InstrumentationLibrarySpans, existingILS)
+
+			existingTrace.trace.Batches = append(existingTrace.trace.Batches, &v1.ResourceSpans{
+				Resource:                    req.Batch.Resource,
+				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{existingILS},
+			})
 		}
 	}
 
-	metricTracesPerBatch.Observe(float64(len(requestsByTrace)))
+	metricTracesPerBatch.Observe(float64(len(tracesByID)))
 
-	keys := make([]uint32, 0, len(requestsByTrace))
-	pushRequests := make([]*tempopb.PushRequest, 0, len(requestsByTrace))
+	keys := make([]uint32, 0, len(tracesByID))
+	traces := make([]*tempopb.Trace, 0, len(tracesByID))
+	ids := make([][]byte, 0, len(tracesByID))
 
-	for k, r := range requestsByTrace {
+	for k, r := range tracesByID {
 		keys = append(keys, k)
-		pushRequests = append(pushRequests, r)
+		traces = append(traces, r.trace)
+		ids = append(ids, r.id)
 	}
 
-	return keys, pushRequests, nil
+	return keys, traces, ids, nil
 }
 
 func recordDiscaredSpans(err error, userID string, spanCount int) {

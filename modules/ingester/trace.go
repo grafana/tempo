@@ -11,28 +11,28 @@ import (
 )
 
 type trace struct {
-	trace        *tempopb.Trace
-	token        uint32
+	traceBytes   *tempopb.TraceBytes
 	lastAppend   time.Time
 	traceID      []byte
 	maxBytes     int
 	currentBytes int
 }
 
-func newTrace(maxBytes int, token uint32, traceID []byte) *trace {
+func newTrace(maxBytes int, traceID []byte) *trace {
 	return &trace{
-		token:      token,
-		trace:      &tempopb.Trace{},
+		traceBytes: &tempopb.TraceBytes{
+			Traces: make([][]byte, 0, 10), // 10 for luck
+		},
 		lastAppend: time.Now(),
 		traceID:    traceID,
 		maxBytes:   maxBytes,
 	}
 }
 
-func (t *trace) Push(_ context.Context, req *tempopb.PushRequest) error {
+func (t *trace) Push(_ context.Context, trace []byte) error {
 	t.lastAppend = time.Now()
 	if t.maxBytes != 0 {
-		reqSize := req.Size()
+		reqSize := len(trace)
 		if t.currentBytes+reqSize > t.maxBytes {
 			return status.Errorf(codes.FailedPrecondition, "%s max size of trace (%d) exceeded while adding %d bytes", overrides.ErrorPrefixTraceTooLarge, t.maxBytes, reqSize)
 		}
@@ -40,7 +40,7 @@ func (t *trace) Push(_ context.Context, req *tempopb.PushRequest) error {
 		t.currentBytes += reqSize
 	}
 
-	t.trace.Batches = append(t.trace.Batches, req.Batch)
+	t.traceBytes.Traces = append(t.traceBytes.Traces, trace)
 
 	return nil
 }
