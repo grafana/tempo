@@ -36,10 +36,3 @@ func (r *PreallocBytes) Size() (n int) {
 	}
 	return len(r.Slice)
 }
-
-// ReuseTraceBytes puts the byte slice back into bytePool for reuse.
-func ReuseTraceBytes(trace *TraceBytes) {
-	for _, t := range trace.Traces {
-		bytePool.Put(t[:0])
-	}
-}
