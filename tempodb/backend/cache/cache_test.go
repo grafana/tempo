@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/util"
@@ -14,23 +15,26 @@ type mockClient struct {
 	client map[string][]byte
 }
 
-func (m *mockClient) Store(_ context.Context, key string, val []byte) {
-	m.client[key] = val
+func (m *mockClient) Store(_ context.Context, key []string, val [][]byte) {
+	m.client[key[0]] = val[0]
 }
 
-func (m *mockClient) Fetch(_ context.Context, key string) (val []byte) {
-	val, ok := m.client[key]
+func (m *mockClient) Fetch(_ context.Context, key []string) (found []string, bufs [][]byte, missing []string) {
+	val, ok := m.client[key[0]]
 	if ok {
-		return val
+		found = append(found, key[0])
+		bufs = append(bufs, val)
+	} else {
+		missing = append(missing, key[0])
 	}
-	return nil
+	return
 }
 
-func (m *mockClient) Shutdown() {
+func (m *mockClient) Stop() {
 }
 
 // NewMockClient makes a new mockClient.
-func NewMockClient() Client {
+func NewMockClient() cortex_cache.Cache {
 	return &mockClient{
 		client: map[string][]byte{},
 	}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
@@ -23,8 +22,8 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 )
 
@@ -148,7 +147,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	defer span.Finish()
 
 	var completeTrace *tempopb.Trace
-	var spanCount, spanCountTotal int
+	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 		if err != nil {
@@ -167,40 +166,54 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		for _, r := range responses {
 			trace := r.response.Trace
 			if trace != nil {
-				completeTrace, _, _, spanCount = tempo_util.CombineTraceProtos(completeTrace, trace)
-				if spanCount > 0 {
-					spanCountTotal = spanCount
-				}
+				completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, trace)
+				spanCountTotal += spanCount
+				traceCountTotal++
 			}
 		}
 		span.LogFields(ot_log.String("msg", "done searching ingesters"),
 			ot_log.Bool("found", completeTrace != nil),
-			ot_log.Int("spanCountTotal", spanCountTotal))
+			ot_log.Int("combinedSpans", spanCountTotal),
+			ot_log.Int("combinedTraces", traceCountTotal))
 	}
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
-		partialTraces, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+		partialTraces, dataEncodings, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}
 
 		span.LogFields(ot_log.String("msg", "done searching store"))
 
-		// combine partialTraces
-		for _, partialTrace := range partialTraces {
-			storeTrace := &tempopb.Trace{}
-			err = proto.Unmarshal(partialTrace, storeTrace)
+		if len(partialTraces) != 0 {
+			traceCountTotal = 0
+			spanCountTotal = 0
+			// combine partialTraces
+			var allBytes []byte
+			baseEncoding := dataEncodings[0] // just arbitrarily choose an encoding. generally they will all be the same
+			for i, partialTrace := range partialTraces {
+				dataEncoding := dataEncodings[i]
+				allBytes, _, err = model.CombineTraceBytes(allBytes, partialTrace, baseEncoding, dataEncoding)
+				if err != nil {
+					return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
+				}
+			}
+
+			// marshal to proto and add to completeTrace
+			storeTrace, err := model.Unmarshal(allBytes, baseEncoding)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "error unmarshaling combined trace in Querier.FindTraceByID")
 			}
-			completeTrace, _, _, spanCount = tempo_util.CombineTraceProtos(completeTrace, storeTrace)
-			if spanCount > 0 {
-				spanCountTotal = spanCount
-			}
+
+			completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, storeTrace)
+			spanCountTotal += spanCount
+			traceCountTotal++
+
+			span.LogFields(ot_log.String("msg", "combined trace protos from store"),
+				ot_log.Int("combinedSpans", spanCountTotal),
+				ot_log.Int("combinedTraces", traceCountTotal))
 		}
-		span.LogFields(ot_log.String("msg", "combined trace protos from store"),
-			ot_log.Int("spanCountTotal", spanCountTotal))
 	}
 
 	return &tempopb.TraceByIDResponse{

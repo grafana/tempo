@@ -2,7 +2,8 @@ package overrides
 
 import (
 	"flag"
-	"time"
+
+	"github.com/prometheus/common/model"
 )
 
 const (
@@ -23,21 +24,21 @@ const (
 // limits via flags, or per-user limits via yaml config.
 type Limits struct {
 	// Distributor enforced limits.
-	IngestionRateStrategy   string `yaml:"ingestion_rate_strategy"`
-	IngestionRateLimitBytes int    `yaml:"ingestion_rate_limit_bytes"`
-	IngestionBurstSizeBytes int    `yaml:"ingestion_burst_size_bytes"`
+	IngestionRateStrategy   string `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
+	IngestionRateLimitBytes int    `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
+	IngestionBurstSizeBytes int    `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
 
 	// Ingester enforced limits.
-	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user"`
-	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user"`
-	MaxBytesPerTrace       int `yaml:"max_bytes_per_trace"`
+	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
+	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user" json:"max_global_traces_per_user"`
+	MaxBytesPerTrace       int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
 
 	// Compactor enforced limits.
-	BlockRetention time.Duration `yaml:"block_retention"`
+	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
 
 	// Config for overrides, convenient if it goes here.
-	PerTenantOverrideConfig string        `yaml:"per_tenant_override_config"`
-	PerTenantOverridePeriod time.Duration `yaml:"per_tenant_override_period"`
+	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
+	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet
@@ -53,5 +54,6 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&l.MaxBytesPerTrace, "ingester.max-bytes-per-trace", 50e5, "Maximum size of a trace in bytes.  0 to disable.")
 
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
-	f.DurationVar(&l.PerTenantOverridePeriod, "limits.per-user-override-period", 10*time.Second, "Period with this to reload the overrides.")
+	_ = l.PerTenantOverridePeriod.Set("10s")
+	f.Var(&l.PerTenantOverridePeriod, "limits.per-user-override-period", "Period with this to reload the overrides.")
 }

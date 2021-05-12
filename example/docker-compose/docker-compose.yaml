@@ -10,6 +10,7 @@ services:
     ports:
       - "14268"  # jaeger ingest
       - "3100"   # tempo
+      - "9411"   # zipkin
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25

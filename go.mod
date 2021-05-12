@@ -8,14 +8,14 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/alecthomas/kong v0.2.11
 	github.com/cespare/xxhash v1.1.0
-	github.com/cortexproject/cortex v1.6.1-0.20210205171041-527f9b58b93c
+	github.com/cortexproject/cortex v1.8.1-0.20210422151339-cf1c444e0905
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-kit/kit v0.10.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/gogo/status v1.0.3
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/protobuf v1.4.3
-	github.com/golang/snappy v0.0.3-0.20201103224600-674baa8c7fc3
+	github.com/golang/snappy v0.0.3
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340 // indirect
@@ -23,33 +23,33 @@ require (
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/hashicorp/go-plugin v1.3.0 // indirect
 	github.com/jaegertracing/jaeger v1.21.0
-	github.com/jsternberg/zap-logfmt v1.0.0
+	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/klauspost/compress v1.11.7
-	github.com/minio/minio-go/v7 v7.0.5
+	github.com/minio/minio-go/v7 v7.0.10
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.3
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.9.0
+	github.com/prometheus/client_golang v1.10.0
 	github.com/prometheus/client_model v0.2.0
-	github.com/prometheus/common v0.17.0
-	github.com/prometheus/prometheus v1.8.2-0.20210124145330-b5dfa2414b9e
-	github.com/sirupsen/logrus v1.6.0
+	github.com/prometheus/common v0.20.0
+	github.com/prometheus/prometheus v1.8.2-0.20210324152458-c7a62b95cea0
+	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
-	github.com/weaveworks/common v0.0.0-20210112142934-23c8d7fa6120
+	github.com/weaveworks/common v0.0.0-20210419092856-009d1eebd624
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
-	go.opencensus.io v0.22.6
+	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.21.0
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
-	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324
-	google.golang.org/api v0.36.0
-	google.golang.org/grpc v1.35.0
+	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
+	google.golang.org/api v0.42.0
+	google.golang.org/grpc v1.36.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )

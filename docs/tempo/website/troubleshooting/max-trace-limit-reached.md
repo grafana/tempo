@@ -1,5 +1,6 @@
 ---
 title: Maximum trace limit reached
+weight: 474
 ---
 
 # I am seeing the error: max live traces per tenant exceeded
@@ -9,7 +10,7 @@ In high volume tracing environments the default trace limits are sometimes not s
 ### Solutions
 
 - Check if you have the `overrides` parameter in your configuration file.
-- If it is missing, add overrides using instructions in [Ingestion limits](../configuration/ingestion-limit). You can override the default values of the following parameters:
+- If it is missing, add overrides using instructions in [Ingestion limits](../../configuration/ingestion-limit). You can override the default values of the following parameters:
 
    - `ingestion_burst_size_bytes` : Burst size (bytes) used in ingestion. Default is `20,000,000` (~20MB).
    - `ingestion_rate_limit_bytes` : Per-user ingestion rate limit (bytes) used in ingestion. Default is `15,000,000` (~15MB).

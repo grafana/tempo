@@ -14,33 +14,35 @@ type CompactedBlockMeta struct {
 }
 
 type BlockMeta struct {
-	Version         string    `json:"format"`
-	BlockID         uuid.UUID `json:"blockID"`
-	MinID           []byte    `json:"minID"`
-	MaxID           []byte    `json:"maxID"`
-	TenantID        string    `json:"tenantID"`
-	StartTime       time.Time `json:"startTime"`
-	EndTime         time.Time `json:"endTime"`
-	TotalObjects    int       `json:"totalObjects"`
-	Size            uint64    `json:"size"`
-	CompactionLevel uint8     `json:"compactionLevel"`
-	Encoding        Encoding  `json:"encoding"`
-	IndexPageSize   uint32    `json:"indexPageSize"`
-	TotalRecords    uint32    `json:"totalRecords"`
-	BloomShardCount uint8     `json:"bloomShardCount"`
+	Version         string    `json:"format"`          // Version indicates the block format version. This includes specifics of how the indexes and data is stored
+	BlockID         uuid.UUID `json:"blockID"`         // Unique block id
+	MinID           []byte    `json:"minID"`           // Minimum object id stored in this block
+	MaxID           []byte    `json:"maxID"`           // Maximum object id stored in this block
+	TenantID        string    `json:"tenantID"`        // ID of tehant to which this block belongs
+	StartTime       time.Time `json:"startTime"`       // Currently mostly meaningless but roughly matches to the time the first obj was written to this block
+	EndTime         time.Time `json:"endTime"`         // Currently mostly meaningless but roughly matches to the time the last obj was written to this block
+	TotalObjects    int       `json:"totalObjects"`    // Total objects in this block
+	Size            uint64    `json:"size"`            // Total size in bytes of the data object
+	CompactionLevel uint8     `json:"compactionLevel"` // Kind of the number of times this block has been compacted
+	Encoding        Encoding  `json:"encoding"`        // Encoding/compression format
+	IndexPageSize   uint32    `json:"indexPageSize"`   // Size of each index page in bytes
+	TotalRecords    uint32    `json:"totalRecords"`    // Total Records stored in the index file
+	DataEncoding    string    `json:"dataEncoding"`    // DataEncoding is a string provided externally, but tracked by tempodb that indicates the way the bytes are encoded
+	BloomShardCount uint8     `json:"bloomShardCount"` //
 }
 
-func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding) *BlockMeta {
+func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
 	now := time.Now()
 	b := &BlockMeta{
-		Version:   version,
-		BlockID:   blockID,
-		MinID:     []byte{},
-		MaxID:     []byte{},
-		TenantID:  tenantID,
-		StartTime: now,
-		EndTime:   now,
-		Encoding:  encoding,
+		Version:      version,
+		BlockID:      blockID,
+		MinID:        []byte{},
+		MaxID:        []byte{},
+		TenantID:     tenantID,
+		StartTime:    now,
+		EndTime:      now,
+		Encoding:     encoding,
+		DataEncoding: dataEncoding,
 	}
 
 	return b

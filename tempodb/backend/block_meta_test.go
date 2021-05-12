@@ -16,14 +16,16 @@ const (
 func TestBlockMeta(t *testing.T) {
 	testVersion := "blerg"
 	testEncoding := EncLZ4_256k
+	testDataEncoding := "blarg"
 
 	id := uuid.New()
-	b := NewBlockMeta(testTenantID, id, testVersion, testEncoding)
+	b := NewBlockMeta(testTenantID, id, testVersion, testEncoding, testDataEncoding)
 
 	assert.Equal(t, id, b.BlockID)
 	assert.Equal(t, testTenantID, b.TenantID)
 	assert.Equal(t, testVersion, b.Version)
 	assert.Equal(t, testEncoding, b.Encoding)
+	assert.Equal(t, testDataEncoding, b.DataEncoding)
 
 	randID1 := make([]byte, 10)
 	randID2 := make([]byte, 10)

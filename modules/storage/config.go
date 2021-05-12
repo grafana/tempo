@@ -4,6 +4,7 @@ import (
 	"flag"
 	"time"
 
+	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -33,6 +34,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Trace.WAL = &wal.Config{}
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")
+	cfg.Trace.WAL.Encoding = backend.EncNone
 
 	cfg.Trace.Block = &encoding.BlockConfig{
 		BloomFilterShardCount: 10,
@@ -62,6 +64,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Trace.Local = &local.Config{}
 	f.StringVar(&cfg.Trace.Local.Path, util.PrefixConfig(prefix, "trace.local.path"), "", "path to store traces at.")
+
+	cfg.Trace.BackgroundCache = &cortex_cache.BackgroundConfig{}
+	cfg.Trace.BackgroundCache.WriteBackBuffer = 10000
+	cfg.Trace.BackgroundCache.WriteBackGoroutines = 10
 
 	cfg.Trace.Pool = &pool.Config{}
 	f.IntVar(&cfg.Trace.Pool.MaxWorkers, util.PrefixConfig(prefix, "trace.pool.max-workers"), 50, "Workers in the worker pool.")

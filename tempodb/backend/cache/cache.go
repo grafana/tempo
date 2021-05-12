@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -11,18 +12,12 @@ import (
 type readerWriter struct {
 	nextReader backend.Reader
 	nextWriter backend.Writer
-	client     Client
+	cache      cortex_cache.Cache
 }
 
-type Client interface {
-	Fetch(ctx context.Context, key string) []byte
-	Store(ctx context.Context, key string, val []byte)
-	Shutdown()
-}
-
-func NewCache(nextReader backend.Reader, nextWriter backend.Writer, client Client) (backend.Reader, backend.Writer, error) {
+func NewCache(nextReader backend.Reader, nextWriter backend.Writer, cache cortex_cache.Cache) (backend.Reader, backend.Writer, error) {
 	rw := &readerWriter{
-		client:     client,
+		cache:      cache,
 		nextReader: nextReader,
 		nextWriter: nextWriter,
 	}
@@ -48,14 +43,14 @@ func (r *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantI
 // Read implements backend.Reader
 func (r *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
 	key := key(blockID, tenantID, name)
-	val := r.client.Fetch(ctx, key)
-	if val != nil {
-		return val, nil
+	found, vals, _ := r.cache.Fetch(ctx, []string{key})
+	if len(found) > 0 {
+		return vals[0], nil
 	}
 
 	val, err := r.nextReader.Read(ctx, name, blockID, tenantID)
 	if err == nil {
-		r.client.Store(ctx, key, val)
+		r.cache.Store(ctx, []string{key}, [][]byte{val})
 	}
 
 	return val, err
@@ -73,12 +68,12 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.
 // Shutdown implements backend.Reader
 func (r *readerWriter) Shutdown() {
 	r.nextReader.Shutdown()
-	r.client.Shutdown()
+	r.cache.Stop()
 }
 
 // Write implements backend.Writer
 func (r *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
-	r.client.Store(ctx, key(blockID, tenantID, name), buffer)
+	r.cache.Store(ctx, []string{key(blockID, tenantID, name)}, [][]byte{buffer})
 
 	return r.nextWriter.Write(ctx, name, blockID, tenantID, buffer)
 }

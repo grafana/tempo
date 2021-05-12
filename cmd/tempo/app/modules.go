@@ -98,7 +98,7 @@ func (t *App) initOverrides() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	// todo: make ingester client a module instead of passing the config everywhere
-	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides, t.cfg.AuthEnabled, t.cfg.Server.LogLevel)
+	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides, t.cfg.MultitenancyIsEnabled(), t.cfg.Server.LogLevel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
 	}
@@ -185,10 +185,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http query endpoint
 	t.server.HTTP.Handle(queryEndpoint(&t.cfg), tracesHandler)
 
-	return services.NewIdleService(nil, func(_ error) error {
-		t.frontend.Close()
-		return nil
-	}), nil
+	return t.frontend, nil
 }
 
 func (t *App) initCompactor() (services.Service, error) {

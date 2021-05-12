@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"time"
 
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -41,9 +42,10 @@ const metricsNamespace = "tempo"
 
 // Config is the root config for App.
 type Config struct {
-	Target        string `yaml:"target,omitempty"`
-	AuthEnabled   bool   `yaml:"auth_enabled,omitempty"`
-	HTTPAPIPrefix string `yaml:"http_api_prefix"`
+	Target              string `yaml:"target,omitempty"`
+	AuthEnabled         bool   `yaml:"auth_enabled,omitempty"`
+	MultitenancyEnabled bool   `yaml:"multitenancy_enabled,omitempty"`
+	HTTPAPIPrefix       string `yaml:"http_api_prefix"`
 
 	Server         server.Config          `yaml:"server,omitempty"`
 	Distributor    distributor.Config     `yaml:"distributor,omitempty"`
@@ -62,12 +64,20 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = All
 	// global settings
 	f.StringVar(&c.Target, "target", All, "target module")
-	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
+	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
+	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 
 	// Server settings
 	flagext.DefaultValues(&c.Server)
 	c.Server.LogLevel.RegisterFlags(f)
+
+	// The following GRPC server settings are added to address this issue - https://github.com/grafana/tempo/issues/493
+	// The settings prevent the grpc server from sending a GOAWAY message if a client sends heartbeat messages
+	// too frequently (due to lack of real traffic).
+	c.Server.GRPCServerMinTimeBetweenPings = 10 * time.Second
+	c.Server.GRPCServerPingWithoutStreamAllowed = true
+
 	f.IntVar(&c.Server.HTTPListenPort, "server.http-listen-port", 80, "HTTP server listen port.")
 	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
 
@@ -90,6 +100,11 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Compactor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "storage"), f)
 
+}
+
+// MultitenancyIsEnabled checks if multitenancy is enabled
+func (c *Config) MultitenancyIsEnabled() bool {
+	return c.MultitenancyEnabled || c.AuthEnabled
 }
 
 // CheckConfig checks if config values are suspect.
@@ -154,7 +169,7 @@ func New(cfg Config) (*App, error) {
 }
 
 func (t *App) setupAuthMiddleware() {
-	if t.cfg.AuthEnabled {
+	if t.cfg.MultitenancyIsEnabled() {
 
 		// don't check auth for these gRPC methods, since single call is used for multiple users
 		noGRPCAuthOn := []string{

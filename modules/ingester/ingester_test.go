@@ -19,8 +19,8 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -74,7 +74,7 @@ func TestFullTraceReturned(t *testing.T) {
 	_, err = rand.Read(traceID)
 	assert.NoError(t, err)
 	trace := test.MakeTrace(2, traceID) // 2 batches
-	util.SortTrace(trace)
+	model.SortTrace(trace)
 
 	// push the first batch
 	_, err = ingester.Push(ctx,
@@ -135,6 +135,25 @@ func TestWal(t *testing.T) {
 
 	// create new ingester.  this should replay wal!
 	ingester, _, _ = defaultIngester(t, tmpDir)
+
+	// should be able to find old traces that were replayed
+	for i, traceID := range traceIDs {
+		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+			TraceID: traceID,
+		})
+		assert.NoError(t, err, "unexpected error querying")
+		equal := proto.Equal(traces[i], foundTrace.Trace)
+		assert.True(t, equal)
+	}
+
+	// a block that has been replayed should have a flush queue entry to complete it
+	// wait for the flush queues to be empty and then confirm there is a complete block
+	for !ingester.flushQueues.IsEmpty() {
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	assert.Len(t, ingester.instances["test"].completingBlocks, 0)
+	assert.Len(t, ingester.instances["test"].completeBlocks, 1)
 
 	// should be able to find old traces that were replayed
 	for i, traceID := range traceIDs {
@@ -208,6 +227,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 
 	ingester, err := New(ingesterConfig, s, limits)
 	require.NoError(t, err, "unexpected error creating ingester")
+	ingester.replayJitter = false
 
 	err = ingester.starting(context.Background())
 	require.NoError(t, err, "unexpected error starting ingester")
@@ -222,7 +242,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 		require.NoError(t, err)
 
 		trace := test.MakeTrace(10, id)
-		util.SortTrace(trace)
+		model.SortTrace(trace)
 
 		traces = append(traces, trace)
 		traceIDs = append(traceIDs, id)

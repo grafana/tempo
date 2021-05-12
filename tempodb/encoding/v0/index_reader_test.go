@@ -29,7 +29,7 @@ func TestIndexReader(t *testing.T) {
 	}
 
 	rw := NewRecordReaderWriter()
-	recordBytes, err := rw.MarshalRecords([]*common.Record{record1, record2, record3})
+	recordBytes, err := rw.MarshalRecords([]common.Record{*record1, *record2, *record3})
 	require.NoError(t, err)
 
 	tests := []struct {

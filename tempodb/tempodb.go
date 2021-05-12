@@ -17,10 +17,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	log_util "github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
-
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -34,6 +32,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/opentracing/opentracing-go"
+	ot_log "github.com/opentracing/opentracing-go/log"
 )
 
 const (
@@ -53,7 +53,7 @@ var (
 		Namespace: "tempodb",
 		Name:      "blocklist_poll_duration_seconds",
 		Help:      "Records the amount of time to poll and update the blocklist.",
-		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+		Buckets:   prometheus.LinearBuckets(0, 60, 5),
 	})
 	metricBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
@@ -91,7 +91,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error)
 	Shutdown()
 }
 
@@ -100,6 +100,7 @@ type Compactor interface {
 }
 
 type CompactorSharder interface {
+	common.ObjectCombiner
 	Owns(hash string) bool
 }
 
@@ -159,13 +160,13 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		return nil, nil, nil, err
 	}
 
-	var cacheBackend cache.Client
+	var cacheBackend cortex_cache.Cache
 
 	switch cfg.Cache {
 	case "redis":
-		cacheBackend = redis.NewClient(cfg.Redis, logger)
+		cacheBackend = redis.NewClient(cfg.Redis, cfg.BackgroundCache, logger)
 	case "memcached":
-		cacheBackend = memcached.NewClient(cfg.Memcached, logger)
+		cacheBackend = memcached.NewClient(cfg.Memcached, cfg.BackgroundCache, logger)
 	}
 
 	if cacheBackend != nil {
@@ -274,7 +275,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error) {
 	// tracing instrumentation
 	logger := log_util.WithContext(ctx, log_util.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
@@ -282,19 +283,19 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 	blockStartUUID, err := uuid.Parse(blockStart)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	blockStartBytes, err := blockStartUUID.MarshalBinary()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	blockEndUUID, err := uuid.Parse(blockEnd)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	blockEndBytes, err := blockEndUUID.MarshalBinary()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	rw.blockListsMtx.Lock()
@@ -317,19 +318,19 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 	// deliberately placed outside the blocklist mtx unlock
 	if !found {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	partialTraces, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, error) {
+	partialTraces, dataEncodings, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 		meta := payload.(*backend.BlockMeta)
 		block, err := encoding.NewBackendBlock(meta, rw.r)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 
 		foundObject, err := block.Find(ctx, id)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 
 		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
@@ -339,10 +340,10 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 			ot_log.Bool("found", foundObject != nil),
 			ot_log.Int("bytes", len(foundObject)))
 
-		return foundObject, nil
+		return foundObject, meta.DataEncoding, nil
 	})
 
-	return partialTraces, err
+	return partialTraces, dataEncodings, err
 }
 
 func (rw *readerWriter) Shutdown() {

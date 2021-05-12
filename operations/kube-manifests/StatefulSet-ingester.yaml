@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ingester
+  namespace: tracing
+spec:
+  podManagementPolicy: Parallel
+  replicas: 10
+  selector:
+    matchLabels:
+      app: ingester
+      name: ingester
+      tempo-gossip-member: "true"
+  serviceName: ingester
+  template:
+    metadata:
+      labels:
+        app: ingester
+        name: ingester
+        tempo-gossip-member: "true"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                name: ingester
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - args:
+        - -target=ingester
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        image: grafana/tempo:latest
+        imagePullPolicy: IfNotPresent
+        name: ingester
+        ports:
+        - containerPort: 3100
+          name: prom-metrics
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3100
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+        - mountPath: /var/tempo
+          name: ingester-data
+      volumes:
+      - configMap:
+          name: tempo
+        name: tempo-conf
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      labels:
+        app: ingester
+      name: ingester-data
+      namespace: tracing
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+      storageClassName: fast

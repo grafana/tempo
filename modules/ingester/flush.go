@@ -214,13 +214,15 @@ func (i *Ingester) handleComplete(op *flushOp) (retry bool, err error) {
 		return false, nil
 	}
 
-	level.Debug(log.Logger).Log("msg", "completing block", "userid", op.userID)
+	start := time.Now()
+	level.Info(log.Logger).Log("msg", "completing block", "userid", op.userID, "blockID", op.blockID)
 	instance, err := i.getOrCreateInstance(op.userID)
 	if err != nil {
 		return false, err
 	}
 
 	err = instance.CompleteBlock(op.blockID)
+	level.Info(log.Logger).Log("msg", "block completed", "userid", op.userID, "blockID", op.blockID, "duration", time.Since(start))
 	if err != nil {
 		handleFailedOp(op, err)
 

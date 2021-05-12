@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
@@ -63,23 +61,13 @@ func TestMergeResponses(t *testing.T) {
 	b2, err := proto.Marshal(t2)
 	assert.NoError(t, err)
 
-	combinedTrace, _, err := util.CombineTraces(b1, b2)
-	assert.NoError(t, err)
-
-	traceObject := &tempopb.Trace{}
-	err = proto.Unmarshal(combinedTrace, traceObject)
-	assert.NoError(t, err)
-
-	var combinedTraceJSON bytes.Buffer
-	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(&combinedTraceJSON, traceObject)
+	combinedTrace, _, err := model.CombineTraceBytes(b1, b2, model.TracePBEncoding, model.TracePBEncoding)
 	assert.NoError(t, err)
 
 	tests := []struct {
-		name              string
-		requestResponse   []RequestResponse
-		marshallingFormat string
-		expected          *http.Response
+		name            string
+		requestResponse []RequestResponse
+		expected        *http.Response
 	}{
 		{
 			name: "combine status ok responses",
@@ -104,9 +92,9 @@ func TestMergeResponses(t *testing.T) {
 				},
 			},
 			expected: &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
-				Header:     http.Header{},
+				StatusCode:    http.StatusOK,
+				Body:          ioutil.NopCloser(bytes.NewReader(combinedTrace)),
+				ContentLength: int64(len(combinedTrace)),
 			},
 		},
 		{
@@ -128,7 +116,6 @@ func TestMergeResponses(t *testing.T) {
 			expected: &http.Response{
 				StatusCode: http.StatusInternalServerError,
 				Body:       ioutil.NopCloser(bytes.NewReader([]byte("bar"))),
-				Header:     http.Header{},
 			},
 		},
 		{
@@ -150,7 +137,6 @@ func TestMergeResponses(t *testing.T) {
 			expected: &http.Response{
 				StatusCode: http.StatusInternalServerError,
 				Body:       ioutil.NopCloser(bytes.NewReader([]byte("bar"))),
-				Header:     http.Header{},
 			},
 		},
 		{
@@ -172,42 +158,22 @@ func TestMergeResponses(t *testing.T) {
 			expected: &http.Response{
 				StatusCode: http.StatusInternalServerError,
 				Body:       ioutil.NopCloser(bytes.NewReader([]byte("foo"))),
-				Header:     http.Header{},
-			},
-		},
-		{
-			name: "accept application/json",
-			requestResponse: []RequestResponse{
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(b1)),
-					},
-				},
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(b2)),
-					},
-				},
-			},
-			marshallingFormat: util.JSONTypeHeaderValue,
-			expected: &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       ioutil.NopCloser(bytes.NewReader(combinedTraceJSON.Bytes())),
-				Header:     http.Header{},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			marshallingFormat := util.ProtobufTypeHeaderValue
-			if len(tt.marshallingFormat) > 0 {
-				marshallingFormat = tt.marshallingFormat
-			}
-			merged, err := mergeResponses(context.Background(), marshallingFormat, tt.requestResponse)
+			merged, err := mergeResponses(context.Background(), tt.requestResponse)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, merged)
+			assert.Equal(t, tt.expected.StatusCode, merged.StatusCode)
+			expectedBody, err := ioutil.ReadAll(tt.expected.Body)
+			assert.NoError(t, err)
+			actualBody, err := ioutil.ReadAll(merged.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedBody, actualBody)
+			if tt.expected.ContentLength > 0 {
+				assert.Equal(t, tt.expected.ContentLength, merged.ContentLength)
+			}
 		})
 	}
 

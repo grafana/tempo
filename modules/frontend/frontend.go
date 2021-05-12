@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -9,13 +10,17 @@ import (
 	"github.com/cortexproject/cortex/pkg/querier/queryrange"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/user"
 
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -29,12 +34,14 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 	}, []string{"tenant"})
 
 	return func(next http.RoundTripper) http.RoundTripper {
-		// Get the http request, add custom parameters to it, split it, and call downstream roundtripper
-		rt := NewRoundTripper(next, ShardingWare(cfg.QueryShards, logger))
+		// We're constructing middleware in this statement. There are two at the moment -
+		// - the rightmost one (executed first) is ShardingWare which helps to shard queries by splitting the block ID space
+		// - the leftmost one (executed last) is Deduper which dedupe Span IDs for Zipkin support
+		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger))
 		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
 			start := time.Now()
 			// tracing instrumentation
-			span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.ShardingTripper")
+			span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.Tripperware")
 			defer span.Finish()
 
 			orgID, _ := user.ExtractOrgID(r.Context())
@@ -52,15 +59,61 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 			}
 			span.LogFields(ot_log.String("msg", "validated traceID"))
 
+			// check marshalling format
+			marshallingFormat := util.JSONTypeHeaderValue
+			if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
+				marshallingFormat = util.ProtobufTypeHeaderValue
+			}
+
+			// for context propagation with traceID set
 			r = r.WithContext(ctx)
+
+			// Enforce all communication internal to Tempo to be in protobuf bytes
+			r.Header.Set(util.AcceptHeaderKey, util.ProtobufTypeHeaderValue)
+
 			resp, err := rt.RoundTrip(r)
+
+			if resp.StatusCode == http.StatusOK && marshallingFormat == util.JSONTypeHeaderValue {
+				// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
+				body, err := ioutil.ReadAll(resp.Body)
+				resp.Body.Close()
+				if err != nil {
+					return nil, errors.Wrap(err, "error reading response body at query frontend")
+				}
+				traceObject := &tempopb.Trace{}
+				err = proto.Unmarshal(body, traceObject)
+				if err != nil {
+					return nil, err
+				}
+
+				var jsonTrace bytes.Buffer
+				marshaller := &jsonpb.Marshaler{}
+				err = marshaller.Marshal(&jsonTrace, traceObject)
+				if err != nil {
+					return nil, err
+				}
+				resp.Body = ioutil.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
+			}
+
+			span.SetTag("response marshalling format", marshallingFormat)
 
 			traceID, _ := middleware.ExtractTraceID(ctx)
 			statusCode := 500
+			var contentLength int64 = 0
 			if resp != nil {
 				statusCode = resp.StatusCode
+				contentLength = resp.ContentLength
 			}
-			level.Info(logger).Log("method", r.Method, "traceID", traceID, "url", r.URL.RequestURI(), "duration", time.Since(start).String(), "status", statusCode)
+
+			level.Info(logger).Log(
+				"tenant", orgID,
+				"method", r.Method,
+				"traceID", traceID,
+				"url", r.URL.RequestURI(),
+				"duration", time.Since(start).String(),
+				"response_size", contentLength,
+				"status", statusCode,
+			)
 
 			return resp, err
 		})

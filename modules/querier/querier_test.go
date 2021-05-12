@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/model"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,9 +35,9 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(objA []byte, objB []byte) []byte {
-	combined, _, _ := util.CombineTraces(objA, objB)
-	return combined
+func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
+	combined, wasCombined, _ := model.CombineTraceBytes(objA, objB, dataEncoding, dataEncoding)
+	return combined, wasCombined
 }
 
 func TestReturnAllHits(t *testing.T) {
@@ -81,7 +82,7 @@ func TestReturnAllHits(t *testing.T) {
 	// split the same trace across multiple blocks
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
-		head, err := wal.NewBlock(blockID, util.FakeTenantID)
+		head, err := wal.NewBlock(blockID, util.FakeTenantID, "")
 		assert.NoError(t, err)
 
 		req := test.MakeRequest(10, testTraceID)
@@ -100,21 +101,21 @@ func TestReturnAllHits(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// find should return both now
-	foundBytes, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
+	foundBytes, _, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
 	assert.NoError(t, err)
 	require.Len(t, foundBytes, 2)
 
 	// expected trace
-	expectedTrace, _, _, _ := util.CombineTraceProtos(testTraces[0], testTraces[1])
-	util.SortTrace(expectedTrace)
+	expectedTrace, _, _, _ := model.CombineTraceProtos(testTraces[0], testTraces[1])
+	model.SortTrace(expectedTrace)
 
 	// actual trace
-	actualTraceBytes, _, err := util.CombineTraces(foundBytes[1], foundBytes[0])
+	actualTraceBytes, _, err := model.CombineTraceBytes(foundBytes[1], foundBytes[0], "", "")
 	assert.NoError(t, err)
 	actualTrace := &tempopb.Trace{}
 	err = proto.Unmarshal(actualTraceBytes, actualTrace)
 	assert.NoError(t, err)
 
-	util.SortTrace(actualTrace)
+	model.SortTrace(actualTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }

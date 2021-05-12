@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: query-frontend
+  namespace: tracing
+spec:
+  minReadySeconds: 10
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: query-frontend
+      name: query-frontend
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      annotations:
+        config_hash: 76b3caf721a80349e206778e56d41a66
+      labels:
+        app: query-frontend
+        name: query-frontend
+    spec:
+      containers:
+      - args:
+        - -target=query-frontend
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        image: grafana/tempo:latest
+        imagePullPolicy: IfNotPresent
+        name: query-frontend
+        ports:
+        - containerPort: 3100
+          name: prom-metrics
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3100
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+      - args:
+        - --query.base-path=/tempo
+        - --grpc-storage-plugin.configuration-file=/conf/tempo-query.yaml
+        - --query.bearer-token-propagation=true
+        env:
+        - name: JAEGER_DISABLED
+          value: "true"
+        image: grafana/tempo-query:latest
+        imagePullPolicy: IfNotPresent
+        name: tempo-query
+        ports:
+        - containerPort: 16686
+          name: jaeger-ui
+        - containerPort: 16687
+          name: jaeger-metrics
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-query-conf
+      volumes:
+      - configMap:
+          name: tempo-query
+        name: tempo-query-conf
+      - configMap:
+          name: tempo-query-frontend
+        name: tempo-conf

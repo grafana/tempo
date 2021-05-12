@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  tempo-query.yaml: |
+    backend: localhost:3100
+kind: ConfigMap
+metadata:
+  name: tempo-query
+  namespace: tracing

@@ -11,15 +11,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFromVersionErrors(t *testing.T) {
+	encoding, err := FromVersion("definitely-not-a-real-version")
+	assert.Error(t, err)
+	assert.Nil(t, encoding)
+}
+
 func TestAllVersions(t *testing.T) {
 	for _, v := range allEncodings() {
+		encoding, err := FromVersion(v.Version())
+
+		require.Equal(t, v.Version(), encoding.Version())
+		require.NoError(t, err)
+
 		for _, e := range backend.SupportedEncoding {
 			testDataWriterReader(t, v, e)
 		}
 	}
 }
 
-func testDataWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding) {
+func testDataWriterReader(t *testing.T, v VersionedEncoding, e backend.Encoding) {
 	tests := []struct {
 		readerBytes []byte
 	}{
@@ -33,7 +44,7 @@ func testDataWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding)
 
 	for _, tc := range tests {
 		buff := bytes.NewBuffer([]byte{})
-		dataWriter, err := v.newDataWriter(buff, e)
+		dataWriter, err := v.NewDataWriter(buff, e)
 		require.NoError(t, err)
 
 		_, err = dataWriter.Write([]byte{0x01}, tc.readerBytes)
@@ -46,20 +57,20 @@ func testDataWriterReader(t *testing.T, v versionedEncoding, e backend.Encoding)
 		require.NoError(t, err)
 
 		reader := bytes.NewReader(buff.Bytes())
-		dataReader, err := v.newDataReader(backend.NewContextReaderWithAllReader(reader), e)
+		dataReader, err := v.NewDataReader(backend.NewContextReaderWithAllReader(reader), e)
 		require.NoError(t, err)
 		defer dataReader.Close()
 
-		actual, err := dataReader.Read(context.Background(), []*common.Record{
+		actual, _, err := dataReader.Read(context.Background(), []common.Record{
 			{
 				Start:  0,
 				Length: uint32(bytesWritten),
 			},
-		})
+		}, nil)
 		require.NoError(t, err)
 		require.Len(t, actual, 1)
 
-		i := NewIterator(bytes.NewReader(actual[0]), v.newObjectReaderWriter())
+		i := NewIterator(bytes.NewReader(actual[0]), v.NewObjectReaderWriter())
 		defer i.Close()
 
 		id, obj, err := i.Next(context.Background())

@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -141,14 +142,19 @@ func (c *Compactor) Owns(hash string) bool {
 		return false
 	}
 
-	if len(rs.Ingesters) != 1 {
-		level.Error(log.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Ingesters))
+	if len(rs.Instances) != 1 {
+		level.Error(log.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Instances))
 		return false
 	}
 
-	level.Debug(log.Logger).Log("msg", "checking addresses", "owning_addr", rs.Ingesters[0].Addr, "this_addr", c.ringLifecycler.Addr)
+	level.Debug(log.Logger).Log("msg", "checking addresses", "owning_addr", rs.Instances[0].Addr, "this_addr", c.ringLifecycler.Addr)
 
-	return rs.Ingesters[0].Addr == c.ringLifecycler.Addr
+	return rs.Instances[0].Addr == c.ringLifecycler.Addr
+}
+
+// Combine implements common.ObjectCombiner
+func (c *Compactor) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
+	return model.ObjectCombiner.Combine(objA, objB, dataEncoding)
 }
 
 // BlockRetentionForTenant implements CompactorOverrides
@@ -161,7 +167,7 @@ func (c *Compactor) waitRingActive(ctx context.Context) error {
 		// Check if the ingester is ACTIVE in the ring and our ring client
 		// has detected it.
 		if rs, err := c.Ring.GetAllHealthy(ring.Reporting); err == nil {
-			for _, i := range rs.Ingesters {
+			for _, i := range rs.Instances {
 				if i.GetAddr() == c.ringLifecycler.Addr && i.GetState() == ring.ACTIVE {
 					return nil
 				}

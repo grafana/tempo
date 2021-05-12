@@ -17,6 +17,8 @@ type pagedIterator struct {
 	chunkSizeBytes uint32
 	pages          [][]byte
 	activePage     []byte
+
+	buffer []byte
 }
 
 // newPagedIterator returns a backendIterator.  This iterator is used to iterate
@@ -64,7 +66,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 
 	// pull next n bytes into objects
 	var length uint32
-	records := make([]*common.Record, 0, 5) // 5?  why not?
+	records := make([]common.Record, 0, 5) // 5?  why not?
 	for currentRecord != nil {
 		// see if we can fit this record in.  we have to get at least one record in
 		if length+currentRecord.Length > i.chunkSizeBytes && len(records) != 0 {
@@ -72,7 +74,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		}
 
 		// add currentRecord to the batch
-		records = append(records, currentRecord)
+		records = append(records, *currentRecord)
 		length += currentRecord.Length
 
 		// get next
@@ -83,7 +85,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		}
 	}
 
-	i.pages, err = i.dataReader.Read(ctx, records)
+	i.pages, i.buffer, err = i.dataReader.Read(ctx, records, i.buffer)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
 	}

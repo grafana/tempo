@@ -10,27 +10,26 @@ This section explains the configuration options for Tempo as well as the details
   - [Authentication/Server](#authenticationserver)
   - [Distributor](#distributor)
   - [Ingester](#ingester)
-  - [Query Frontend](#queryfrontend)
+  - [Query Frontend](#query-frontend)
   - [Querier](#querier)
   - [Compactor](#compactor)
   - [Storage](#storage)
   - [Memberlist](#memberlist)
-  - [Compression](#compression)
 
 ## Authentication/Server
-Tempo uses the Weaveworks/common server.  See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.
+Tempo uses the Weaveworks/common server. See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.
 
 ```
-auth_enabled: false            # do not require X-Scope-OrgID
+multitenancy_enabled: true            # Optional. Require X-Scope-OrgID. By default, it's set to false.
 server:
   http_listen_port: 3100
 ```
 
 ## Distributor
-See [here](https://github.com/grafana/tempo/blob/master/modules/distributor/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go) for all configuration options.
 
 Distributors are responsible for receiving spans and forwarding them to the appropriate ingesters.  The below configuration
-exposes the otlp receiver on port 0.0.0.0:5680.  [This configuration](https://github.com/grafana/tempo/blob/master/example/docker-compose/etc/tempo-s3-minio.yaml) shows how to
+exposes the otlp receiver on port 0.0.0.0:5680.  [This configuration](https://github.com/grafana/tempo/blob/main/example/docker-compose/etc/tempo-s3-minio.yaml) shows how to
 configure all available receiver options.
 
 ```
@@ -43,7 +42,7 @@ distributor:
 ```
 
 ## Ingester
-See [here](https://github.com/grafana/tempo/blob/master/modules/ingester/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go) for all configuration options.
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
 
@@ -58,7 +57,7 @@ ingester:
 ```
 
 ## Query Frontend
-See [here](https://github.com/grafana/tempo/blob/master/modules/frontend/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go) for all configuration options.
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
@@ -68,7 +67,7 @@ query_frontend:
 ```
 
 ## Querier
-See [here](https://github.com/grafana/tempo/blob/master/modules/querier/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go) for all configuration options.
 
 The Querier is responsible for querying the backends/cache for the traceID.
 
@@ -82,7 +81,7 @@ It also queries compacted blocks that fall within the (2 * BlocklistPoll) range 
 is defined in the storage section below.
 
 ## Compactor
-See [here](https://github.com/grafana/tempo/blob/master/modules/compactor/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go) for all configuration options.
 
 Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
 
@@ -104,7 +103,7 @@ compactor:
 ```
 
 ## Storage
-See [here](https://github.com/grafana/tempo/blob/master/tempodb/config.go) for all configuration options.
+See [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go) for all configuration options.
 
 The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.  
 
@@ -121,16 +120,18 @@ storage:
         backend: gcs                             # store traces in gcs
         gcs:
             bucket_name: ops-tools-tracing-ops   # store traces in this bucket
-
         blocklist_poll: 5m                       # how often to repoll the backend for new blocks
         blocklist_poll_concurrency: 50           # optional. Number of blocks to process in parallel during polling. Default is 50.
-        cache: memcached                         # optional cache configuration
-        memcached:                               # optional memcached configuration
+        cache: memcached                         # optional. Cache configuration
+        background_cache:                        # optional. Background cache configuration. Requires having a cache configured.
+            writeback_goroutines: 10             # at what concurrency to write back to cache. Default is 10.
+            writeback_buffer: 10000              # how many key batches to buffer for background write-back. Default is 10000.
+        memcached:                               # optional. Memcached configuration
             consistent_hash: true
             host: memcached
             service: memcached-client
             timeout: 500ms
-        redis:                                   # optional redis configuration 
+        redis:                                   # optional. Redis configuration 
             endpoint: redis
             timeout: 500ms
         pool:                                    # the worker pool is used primarily when finding traces by id, but is also used by other
@@ -138,6 +139,11 @@ storage:
             queue_depth: 2000                    # length of job queue
         wal:
             path: /var/tempo/wal                 # where to store the head blocks while they are being appended to
+            encoding: none                       # (experimental) wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd   
+        block:
+            bloom_filter_false_positive: .05     # bloom filter false positive rate.  lower values create larger filters but fewer false positives
+            index_downsample_bytes: 1_000_000    # number of bytes per index record 
+            encoding: zstd                       # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd
 ```
 
 ## Memberlist

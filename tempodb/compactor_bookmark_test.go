@@ -58,7 +58,7 @@ func TestCurrentClear(t *testing.T) {
 
 	recordCount := 10
 	blockID := uuid.New()
-	head, err := wal.NewBlock(blockID, testTenantID)
+	head, err := wal.NewBlock(blockID, testTenantID, "")
 	require.NoError(t, err)
 
 	for i := 0; i < recordCount; i++ {

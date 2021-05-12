@@ -23,7 +23,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 // ErrReadOnly is returned when the ingester is shutting down and a push was
@@ -46,9 +45,10 @@ type Ingester struct {
 	instances    map[string]*instance
 	readonly     bool
 
-	lifecycler *ring.Lifecycler
-	store      storage.Store
-	local      *local.Backend
+	lifecycler   *ring.Lifecycler
+	store        storage.Store
+	local        *local.Backend
+	replayJitter bool // this var exists so tests can remove jitter
 
 	flushQueues     *flushqueues.ExclusiveQueues
 	flushQueuesDone sync.WaitGroup
@@ -61,10 +61,11 @@ type Ingester struct {
 // New makes a new Ingester.
 func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingester, error) {
 	i := &Ingester{
-		cfg:         cfg,
-		instances:   map[string]*instance{},
-		store:       store,
-		flushQueues: flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
+		cfg:          cfg,
+		instances:    map[string]*instance{},
+		store:        store,
+		flushQueues:  flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
+		replayJitter: true,
 	}
 
 	i.local = store.WAL().LocalBackend()
@@ -181,7 +182,7 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 	// Unmarshal and push each request
 	for _, v := range req.Requests {
 		r := tempopb.PushRequest{}
-		err := r.Unmarshal(v)
+		err := r.Unmarshal(v.Request)
 		if err != nil {
 			return nil, err
 		}
@@ -191,6 +192,10 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 			return nil, err
 		}
 	}
+
+	// Reuse request instead of handing over to GC
+	tempopb.ReuseRequest(req)
+
 	return &tempopb.PushResponse{}, nil
 }
 
@@ -286,76 +291,31 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 }
 
 func (i *Ingester) replayWal() error {
-	blocks, err := i.store.WAL().AllBlocks()
-	// todo: should this fail startup?
+	level.Info(log.Logger).Log("msg", "beginning wal replay")
+
+	blocks, err := i.store.WAL().RescanBlocks(log.Logger)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error beginning wal replay", "err", err)
-		return nil
+		return fmt.Errorf("fatal error replaying wal %w", err)
 	}
 
-	level.Info(log.Logger).Log("msg", "beginning wal replay", "numBlocks", len(blocks))
-
 	for _, b := range blocks {
-		tenantID := b.TenantID()
-		level.Info(log.Logger).Log("msg", "beginning block replay", "tenantID", tenantID, "block", b.BlockID())
+		tenantID := b.Meta().TenantID
 
-		err = i.replayBlock(b)
-		if err != nil {
-			// there was an error, log and keep on keeping on
-			level.Error(log.Logger).Log("msg", "error replaying block.  removing", "error", err)
-		}
-		err = b.Clear()
+		instance, err := i.getOrCreateInstance(tenantID)
 		if err != nil {
 			return err
 		}
+
+		instance.AddCompletingBlock(b)
+
+		i.enqueue(&flushOp{
+			kind:    opKindComplete,
+			userID:  tenantID,
+			blockID: b.Meta().BlockID,
+		}, i.replayJitter)
 	}
 
 	level.Info(log.Logger).Log("msg", "wal replay complete")
-
-	return nil
-}
-
-func (i *Ingester) replayBlock(b *tempodb_wal.ReplayBlock) error {
-	iterator, err := b.Iterator()
-	if err != nil {
-		return err
-	}
-	defer iterator.Close()
-
-	ctx := context.Background()
-
-	// Pull first entry to see if block has any data
-	id, obj, err := iterator.Next(ctx)
-	if err != nil {
-		return err
-	}
-	if id == nil {
-		// Block is empty
-		return nil
-	}
-
-	// Only create instance for tenant now that we know data exists
-	instance, err := i.getOrCreateInstance(b.TenantID())
-	if err != nil {
-		return err
-	}
-
-	for {
-		// obj gets written to disk immediately but the id escapes the iterator and needs to be copied
-		writeID := append([]byte(nil), id...)
-		err = instance.PushBytes(context.Background(), writeID, obj)
-		if err != nil {
-			return err
-		}
-
-		id, obj, err = iterator.Next(ctx)
-		if id == nil {
-			break
-		}
-		if err != nil {
-			return err
-		}
-	}
 
 	return nil
 }
@@ -388,7 +348,7 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 					kind:    opKindFlush,
 					userID:  t,
 					blockID: b.BlockMeta().BlockID,
-				}, true)
+				}, i.replayJitter)
 			}
 		}
 	}

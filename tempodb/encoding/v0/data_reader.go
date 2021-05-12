@@ -2,6 +2,7 @@ package v0
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -26,9 +27,9 @@ func NewDataReader(r backend.ContextReader) common.DataReader {
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
-func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
+func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer []byte) ([][]byte, []byte, error) {
 	if len(records) == 0 {
-		return nil, nil
+		return nil, buffer, nil
 	}
 
 	start := records[0].Start
@@ -37,10 +38,10 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]by
 		length += record.Length
 	}
 
-	contiguousPages := make([]byte, length)
-	_, err := r.r.ReadAt(ctx, contiguousPages, int64(start))
+	buffer = make([]byte, length)
+	_, err := r.r.ReadAt(ctx, buffer, int64(start))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	slicePages := make([][]byte, 0, len(records))
@@ -48,21 +49,51 @@ func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]by
 	previousEnd := uint64(0)
 	for _, record := range records {
 		end := cursor + record.Length
-		if end > uint32(len(contiguousPages)) {
-			return nil, fmt.Errorf("record out of bounds while reading pages: %d, %d, %d, %d", cursor, record.Length, end, len(contiguousPages))
+		if end > uint32(len(buffer)) {
+			return nil, nil, fmt.Errorf("record out of bounds while reading pages: %d, %d, %d, %d", cursor, record.Length, end, len(buffer))
 		}
 
 		if previousEnd != record.Start && previousEnd != 0 {
-			return nil, fmt.Errorf("non-contiguous pages requested from dataReader: %d, %+v", previousEnd, record)
+			return nil, nil, fmt.Errorf("non-contiguous pages requested from dataReader: %d, %+v", previousEnd, record)
 		}
 
-		slicePages = append(slicePages, contiguousPages[cursor:end])
+		slicePages = append(slicePages, buffer[cursor:end])
 		cursor += record.Length
 		previousEnd = record.Start + uint64(record.Length)
 	}
 
-	return slicePages, nil
+	return slicePages, buffer, nil
 }
 
+// Close implements common.DataReader
 func (r *dataReader) Close() {
+}
+
+// NextPage implements common.DataReader
+func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
+	reader, err := r.r.Reader()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// v0 pages are just single objects. this method will return one object at a time from the encapsulated reader
+	var totalLength uint32
+	err = binary.Read(reader, binary.LittleEndian, &totalLength)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if cap(buffer) < int(totalLength) {
+		buffer = make([]byte, totalLength)
+	} else {
+		buffer = buffer[:totalLength]
+	}
+	binary.LittleEndian.PutUint32(buffer, totalLength)
+
+	_, err = reader.Read(buffer[uint32Size:])
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return buffer, totalLength, nil
 }

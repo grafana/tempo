@@ -2,11 +2,15 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"io"
 )
 
 // This file contains types that need to be referenced by both the ./encoding and ./encoding/vX packages.
 // It primarily exists here to break dependency loops.
+var (
+	ErrUnsupported = fmt.Errorf("unsupported")
+)
 
 // ID in TempoDB
 type ID []byte
@@ -20,7 +24,10 @@ type Record struct {
 
 // ObjectCombiner is used to combine two objects in the backend
 type ObjectCombiner interface {
-	Combine(objA []byte, objB []byte) []byte
+	// Combine objA and objB encoded using dataEncoding. The returned object must
+	// use the same dataEncoding. Returns a bool indicating if it the objects required combining and
+	// the combined slice
+	Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool)
 }
 
 // DataReader returns a slice of pages in the encoding/v0 format referenced by
@@ -29,8 +36,14 @@ type ObjectCombiner interface {
 // DataReader is the primary abstraction point for supporting multiple data
 // formats.
 type DataReader interface {
-	Read(context.Context, []*Record) ([][]byte, error)
+	Read(context.Context, []Record, []byte) ([][]byte, []byte, error)
 	Close()
+
+	// NextPage can be used to iterate at a page at a time. May return ErrUnsupported for older formats
+	//  NextPage takes a reusable buffer to read the page into and returns it in case it needs to resize
+	//  NextPage returns the uncompressed page buffer ready for object iteration and the length of the
+	//    original page from the page header. len(page) might not equal page len!
+	NextPage([]byte) ([]byte, uint32, error)
 }
 
 // IndexReader is used to abstract away the details of an index.  Currently
@@ -57,7 +70,7 @@ type DataWriter interface {
 // IndexWriter is used to write paged indexes
 type IndexWriter interface {
 	// Write returns a byte representation of the provided Records
-	Write([]*Record) ([]byte, error)
+	Write([]Record) ([]byte, error)
 }
 
 // ObjectReaderWriter represents a library of methods to read and write
@@ -71,9 +84,9 @@ type ObjectReaderWriter interface {
 // RecordReaderWriter represents a library of methods to read and write
 // records
 type RecordReaderWriter interface {
-	MarshalRecords(records []*Record) ([]byte, error)
-	MarshalRecordsToBuffer(records []*Record, buffer []byte) error
+	MarshalRecords(records []Record) ([]byte, error)
+	MarshalRecordsToBuffer(records []Record, buffer []byte) error
 	RecordCount(b []byte) int
-	UnmarshalRecord(buff []byte) *Record
+	UnmarshalRecord(buff []byte) Record
 	RecordLength() int
 }

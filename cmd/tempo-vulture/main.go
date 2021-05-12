@@ -9,16 +9,18 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 )
 
@@ -32,12 +34,15 @@ var (
 	tempoWriteBackoffDuration time.Duration
 	tempoReadBackoffDuration  time.Duration
 	tempoRetentionDuration    time.Duration
+
+	logger *zap.Logger
 )
 
 type traceMetrics struct {
-	requested    int
-	notfound     int
-	missingSpans int
+	requested     int
+	requestFailed int
+	notFound      int
+	missingSpans  int
 }
 
 func init() {
@@ -55,7 +60,14 @@ func init() {
 func main() {
 	flag.Parse()
 
-	glog.Error("Tempo Vulture Starting")
+	config := zap.NewDevelopmentEncoderConfig()
+	logger = zap.New(zapcore.NewCore(
+		zaplogfmt.NewEncoder(config),
+		os.Stdout,
+		zapcore.DebugLevel,
+	))
+
+	logger.Info("Tempo Vulture starting")
 
 	startTime := time.Now().Unix()
 	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
@@ -75,17 +87,24 @@ func main() {
 			rand.Seed((time.Now().Unix() / interval) * interval)
 			traceIDHigh := rand.Int63()
 			traceIDLow := rand.Int63()
+
+			logger := logger.With(
+				zap.String("org_id", tempoOrgID),
+				zap.String("write_trace_id", fmt.Sprintf("%016x%016x", traceIDLow, traceIDHigh)),
+			)
+			logger.Info("sending trace")
+
 			for i := int64(0); i < generateRandomInt(1, 100); i++ {
 				ctx := user.InjectOrgID(context.Background(), tempoOrgID)
 				ctx, err := user.InjectIntoGRPCRequest(ctx)
 				if err != nil {
-					glog.Error("error injecting org id ", err)
+					logger.Error("error injecting org id", zap.Error(err))
 					metricErrorTotal.Inc()
 					continue
 				}
 				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow))
 				if err != nil {
-					glog.Error("error pushing batch to Tempo ", err)
+					logger.Error("error pushing batch to Tempo", zap.Error(err))
 					metricErrorTotal.Inc()
 					continue
 				}
@@ -112,14 +131,12 @@ func main() {
 			// query the trace
 			metrics, err := queryTempoAndAnalyze(tempoQueryURL, hexID)
 			if err != nil {
-				glog.Error("error querying Tempo ", err)
 				metricErrorTotal.Inc()
-				metricTracesErrors.WithLabelValues("notfound").Inc()
-				continue
 			}
 
 			metricTracesInspected.Add(float64(metrics.requested))
-			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notfound))
+			metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
+			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
 			metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
 		}
 	}()
@@ -136,10 +153,6 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	}
 	// new jaeger grpc exporter
 	conn, err := grpc.Dial(u.Host+":14250", grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	logger, err := zap.NewDevelopment()
 	if err != nil {
 		return nil, err
 	}
@@ -210,28 +223,36 @@ func generateRandomInt(min int64, max int64) int64 {
 	return number
 }
 
-func queryTempoAndAnalyze(baseURL string, traceID string) (*traceMetrics, error) {
-	tm := &traceMetrics{
+func queryTempoAndAnalyze(baseURL string, traceID string) (traceMetrics, error) {
+	tm := traceMetrics{
 		requested: 1,
 	}
-	glog.Error("tempo url ", baseURL+"/api/traces/"+traceID)
+
+	logger := logger.With(
+		zap.String("query_trace_id", traceID),
+		zap.String("tempo_query_url", baseURL+"/api/traces/"+traceID),
+	)
+	logger.Info("querying Tempo")
+
 	trace, err := util.QueryTrace(baseURL, traceID, tempoOrgID)
-	if err == util.ErrTraceNotFound {
-		glog.Error("trace not found ", traceID)
-		tm.notfound++
-	}
 	if err != nil {
-		return nil, err
+		if err == util.ErrTraceNotFound {
+			tm.notFound++
+		} else {
+			tm.requestFailed++
+		}
+		logger.Error("error querying Tempo", zap.Error(err))
+		return tm, err
 	}
 
 	if len(trace.Batches) == 0 {
-		glog.Error("trace not found", traceID)
-		tm.notfound++
+		logger.Error("trace contains 0 batches")
+		tm.notFound++
 	}
 
 	// iterate through
 	if hasMissingSpans(trace) {
-		glog.Error("has missing spans", traceID)
+		logger.Error("trace has missing spans")
 		tm.missingSpans++
 	}
 

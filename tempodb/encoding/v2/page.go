@@ -14,8 +14,9 @@ const (
 )
 
 type page struct {
-	data   []byte
-	header pageHeader
+	data        []byte
+	totalLength uint32
+	header      pageHeader
 }
 
 /*
@@ -46,8 +47,52 @@ func unmarshalPageFromBytes(b []byte, header pageHeader) (*page, error) {
 	}
 
 	return &page{
-		data:   b,
-		header: header,
+		data:        b,
+		totalLength: totalLength,
+		header:      header,
+	}, nil
+}
+
+func unmarshalPageFromReader(r io.Reader, header pageHeader, buffer []byte) (*page, error) {
+	totalHeaderSize := baseHeaderSize + header.headerLength()
+
+	var totalLength uint32
+	var headerLength uint16
+
+	err := binary.Read(r, binary.LittleEndian, &totalLength)
+	if err != nil {
+		return nil, err
+	}
+	err = binary.Read(r, binary.LittleEndian, &headerLength)
+	if err != nil {
+		return nil, err
+	}
+	headerBytes := make([]byte, headerLength)
+	_, err = r.Read(headerBytes)
+	if err != nil {
+		return nil, err
+	}
+	err = header.unmarshalHeader(headerBytes)
+	if err != nil {
+		return nil, err
+	}
+	dataLength := int(totalLength) - totalHeaderSize
+
+	if cap(buffer) < dataLength {
+		buffer = make([]byte, dataLength)
+	} else {
+		buffer = buffer[:dataLength]
+	}
+
+	_, err = r.Read(buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	return &page{
+		data:        buffer,
+		totalLength: totalLength,
+		header:      header,
 	}, nil
 }
 

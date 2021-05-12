@@ -2,7 +2,7 @@
 
 This document details release procedures for Tempo.  Currently it's pretty dang easy.
 
-- Push a semver tag to master.  Something like:
+- Push a semver tag to main.  Something like:
   - `git tag -a v0.3.0`
   - `git push origin v0.3.0`
 - This will initiate the build process in Github Actions and Drone.  The tagged docker image should
@@ -13,5 +13,6 @@ This document details release procedures for Tempo.  Currently it's pretty dang 
   - Call out contributors for their work
   - Cull unnecessary changes that don't impact the Tempo binary or deployment
   - Call out breaking changes!
-- Submit a PR cleaning up the changelog and moving everything under "master/unreleased" to be under
+- Submit a PR cleaning up the changelog and moving everything under "main/unreleased" to be under
   the newly minted version.
+- If any changes were made to the manifest, update [the docs as well](https://grafana.com/docs/tempo/latest/configuration/manifest/).

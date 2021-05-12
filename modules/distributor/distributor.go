@@ -102,7 +102,7 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, authEnabled bool, level logging.Level) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, multitenancyEnabled bool, level logging.Level) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -158,7 +158,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		cfgReceivers = defaultReceivers
 	}
 
-	receivers, err := receiver.New(cfgReceivers, d, authEnabled, level)
+	receivers, err := receiver.New(cfgReceivers, d, multitenancyEnabled, level)
 	if err != nil {
 		return nil, err
 	}
@@ -261,18 +261,23 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		rawRequests[i] = b
 	}
 
-	err := ring.DoBatch(ctx, ring.Write, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
+	op := ring.WriteNoExtend
+	if d.cfg.ExtendWrites {
+		op = ring.Write
+	}
+
+	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
 
 		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
 		defer cancel()
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := tempopb.PushBytesRequest{
-			Requests: make([][]byte, len(indexes)),
+			Requests: make([]tempopb.PreallocRequest, len(indexes)),
 		}
 
 		for i, j := range indexes {
-			req.Requests[i] = rawRequests[j][0:]
+			req.Requests[i].Request = rawRequests[j][0:]
 		}
 
 		c, err := d.pool.GetClientFor(ingester.Addr)

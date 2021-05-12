@@ -610,6 +610,22 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "don't compact across dataEncodings",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime:      now,
+					DataEncoding: "bar",
+				},
+				{
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:      now,
+					DataEncoding: "foo",
+				},
+			},
+			expected: nil,
+		},
 	}
 
 	for _, tt := range tests {

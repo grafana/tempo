@@ -5,8 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
+	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -26,6 +28,7 @@ type Config struct {
 	Filepath          string `yaml:"path"`
 	CompletedFilepath string
 	BlocksFilepath    string
+	Encoding          backend.Encoding `yaml:"encoding"`
 }
 
 func New(c *Config) (*WAL, error) {
@@ -73,57 +76,59 @@ func New(c *Config) (*WAL, error) {
 	}, nil
 }
 
-func (w *WAL) AllBlocks() ([]*ReplayBlock, error) {
+// RescanBlocks returns a slice of append blocks from the wal folder
+func (w *WAL) RescanBlocks(log log.Logger) ([]*AppendBlock, error) {
 	files, err := ioutil.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]*ReplayBlock, 0, len(files))
+	blocks := make([]*AppendBlock, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() {
 			continue
 		}
 
-		name := f.Name()
-		blockID, tenantID, err := parseFilename(name)
+		start := time.Now()
+		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", f.Size())
+		b, warning, err := newAppendBlockFromFile(f.Name(), w.c.Filepath)
+
+		remove := false
 		if err != nil {
-			return nil, err
+			// wal replay failed, clear and warn
+			level.Warn(log).Log("msg", "failed to replay block. removing.", "file", f.Name(), "err", err)
+			remove = true
 		}
 
-		blocks = append(blocks, &ReplayBlock{
-			block: block{
-				meta:     backend.NewBlockMeta(tenantID, blockID, appendBlockVersion, appendBlockEncoding),
-				filepath: w.c.Filepath,
-			},
-		})
+		if b != nil && b.appender.Length() == 0 {
+			level.Warn(log).Log("msg", "empty wal file. ignoring.", "file", f.Name(), "err", err)
+			remove = true
+		}
+
+		if warning != nil {
+			level.Warn(log).Log("msg", "received warning while replaying block. partial replay likely.", "file", f.Name(), "warning", warning, "records", b.appender.Length())
+		}
+
+		if remove {
+			err = os.Remove(filepath.Join(w.c.Filepath, f.Name()))
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		level.Info(log).Log("msg", "replay complete", "file", f.Name(), "duration", time.Since(start))
+
+		blocks = append(blocks, b)
 	}
 
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(id uuid.UUID, tenantID string) (*AppendBlock, error) {
-	return newAppendBlock(id, tenantID, w.c.Filepath)
+func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*AppendBlock, error) {
+	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding)
 }
 
 func (w *WAL) LocalBackend() *local.Backend {
 	return w.l
-}
-
-func parseFilename(name string) (uuid.UUID, string, error) {
-	i := strings.Index(name, ":")
-
-	if i < 0 {
-		return uuid.UUID{}, "", fmt.Errorf("unable to parse %s", name)
-	}
-
-	blockIDString := name[:i]
-	tenantID := name[i+1:]
-
-	blockID, err := uuid.Parse(blockIDString)
-	if err != nil {
-		return uuid.UUID{}, "", err
-	}
-
-	return blockID, tenantID, nil
 }

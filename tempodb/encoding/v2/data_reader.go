@@ -5,11 +5,15 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
 	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
 )
 
 type dataReader struct {
-	dataReader common.DataReader
+	contextReader backend.ContextReader
+	dataReader    common.DataReader
+
+	pageBuffer []byte
 }
 
 // constDataHeader is a singleton data header.  the data header is
@@ -18,13 +22,14 @@ type dataReader struct {
 var constDataHeader = &dataHeader{}
 
 // NewDataReader constructs a v2 DataReader that handles paged...reading
-func NewDataReader(r common.DataReader, encoding backend.Encoding) (common.DataReader, error) {
+func NewDataReader(r backend.ContextReader, encoding backend.Encoding) (common.DataReader, error) {
 	v2DataReader := &dataReader{
-		dataReader: r,
+		contextReader: r,
+		dataReader:    v0.NewDataReader(r),
 	}
 
 	// wrap the paged reader in a compressed/v1 reader and return that
-	v1DataReader, err := v1.NewDataReader(v2DataReader, encoding)
+	v1DataReader, err := v1.NewNestedDataReader(v2DataReader, encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -32,25 +37,42 @@ func NewDataReader(r common.DataReader, encoding backend.Encoding) (common.DataR
 	return v1DataReader, nil
 }
 
-func (r *dataReader) Read(ctx context.Context, records []*common.Record) ([][]byte, error) {
-	v0Pages, err := r.dataReader.Read(ctx, records)
+// Read implements common.DataReader
+func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer []byte) ([][]byte, []byte, error) {
+	v0Pages, buffer, err := r.dataReader.Read(ctx, records, buffer)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pages := make([][]byte, 0, len(v0Pages))
 	for _, v0Page := range v0Pages {
 		page, err := unmarshalPageFromBytes(v0Page, constDataHeader)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		pages = append(pages, page.data)
 	}
 
-	return pages, nil
+	return pages, buffer, nil
 }
 
 func (r *dataReader) Close() {
 	r.dataReader.Close()
+}
+
+// NextPage implements common.DataReader
+func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
+	reader, err := r.contextReader.Reader()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	page, err := unmarshalPageFromReader(reader, constDataHeader, r.pageBuffer)
+	if err != nil {
+		return nil, 0, err
+	}
+	r.pageBuffer = page.data
+
+	return page.data, page.totalLength, nil
 }

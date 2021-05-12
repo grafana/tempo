@@ -11,15 +11,12 @@ import (
 	"strings"
 
 	"github.com/go-kit/kit/log"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/querier"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/model"
 )
 
 const (
@@ -50,15 +47,13 @@ type shardQuery struct {
 
 // Do implements Handler
 func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
-	userID, err := user.ExtractOrgID(r.Context())
+	ctx := r.Context()
+	span, _ := opentracing.StartSpanFromContext(ctx, "frontend.ShardQuery")
+	defer span.Finish()
+
+	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	// check marshalling format
-	marshallingFormat := util.JSONTypeHeaderValue
-	if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
-		marshallingFormat = util.ProtobufTypeHeaderValue
 	}
 
 	reqs := make([]*http.Request, s.queryShards)
@@ -76,9 +71,6 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 
 		reqs[i].Header.Set(user.OrgIDHeaderName, userID)
 
-		// Enforce frontend <> querier communication to be in protobuf bytes
-		reqs[i].Header.Set(util.AcceptHeaderKey, util.ProtobufTypeHeaderValue)
-
 		// adding to RequestURI only because weaveworks/common uses the RequestURI field to
 		// translate from http.Request to httpgrpc.Request
 		// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
@@ -90,7 +82,7 @@ func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	return mergeResponses(r.Context(), marshallingFormat, rrs)
+	return mergeResponses(ctx, rrs)
 }
 
 // createBlockBoundaries splits the range of blockIDs into queryShards parts
@@ -152,7 +144,7 @@ func doRequests(reqs []*http.Request, downstream Handler) ([]RequestResponse, er
 	return resps, firstErr
 }
 
-func mergeResponses(ctx context.Context, marshallingFormat string, rrs []RequestResponse) (*http.Response, error) {
+func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response, error) {
 	// tracing instrumentation
 	span, _ := opentracing.StartSpanFromContext(ctx, "frontend.mergeResponses")
 	defer span.Finish()
@@ -172,7 +164,7 @@ func mergeResponses(ctx context.Context, marshallingFormat string, rrs []Request
 			if len(combinedTrace) == 0 {
 				combinedTrace = body
 			} else {
-				combinedTrace, _, err = util.CombineTraces(combinedTrace, body)
+				combinedTrace, _, err = model.CombineTraceBytes(combinedTrace, body, model.TracePBEncoding, model.TracePBEncoding)
 				if err != nil {
 					// will result in a 500 internal server error
 					return nil, errors.Wrap(err, "error combining traces at query frontend")
@@ -195,28 +187,13 @@ func mergeResponses(ctx context.Context, marshallingFormat string, rrs []Request
 	}
 
 	if errCode == http.StatusOK {
-		if marshallingFormat == util.JSONTypeHeaderValue {
-			// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
-			traceObject := &tempopb.Trace{}
-			err := proto.Unmarshal(combinedTrace, traceObject)
-			if err != nil {
-				return nil, err
-			}
-
-			var jsonTrace bytes.Buffer
-			marshaller := &jsonpb.Marshaler{}
-			err = marshaller.Marshal(&jsonTrace, traceObject)
-			if err != nil {
-				return nil, err
-			}
-			combinedTrace = jsonTrace.Bytes()
-		}
-
-		span.SetTag("response marshalling format", marshallingFormat)
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
-			Header:     http.Header{},
+			// ContentLength header is added to log the size of response in the Tripperware in frontend.go
+			// This could be overwritten if the query client and Tempo negotiate compression
+			ContentLength: int64(len(combinedTrace)),
+			Header:        http.Header{},
 		}, nil
 	}
 

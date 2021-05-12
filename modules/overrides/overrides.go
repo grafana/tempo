@@ -60,7 +60,7 @@ func NewOverrides(defaults Limits) (*Overrides, error) {
 	if defaults.PerTenantOverrideConfig != "" {
 		runtimeCfg := runtimeconfig.ManagerConfig{
 			LoadPath:     defaults.PerTenantOverrideConfig,
-			ReloadPeriod: defaults.PerTenantOverridePeriod,
+			ReloadPeriod: time.Duration(defaults.PerTenantOverridePeriod),
 			Loader:       loadPerTenantOverrides,
 		}
 		runtimeCfgMgr, err := runtimeconfig.NewRuntimeConfigManager(runtimeCfg, prometheus.DefaultRegisterer)
@@ -158,7 +158,7 @@ func (o *Overrides) IngestionBurstSizeBytes(userID string) int {
 }
 
 func (o *Overrides) BlockRetention(userID string) time.Duration {
-	return o.getOverridesForUser(userID).BlockRetention
+	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
 }
 
 func (o *Overrides) getOverridesForUser(userID string) *Limits {

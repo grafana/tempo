@@ -26,14 +26,14 @@ Before submitting please run the following to verify that all dependencies and p
 make vendor-check
 ```
 
-### Project Structure
+# Project Structure
 
 ```
 cmd/
   tempo/              - main tempo binary
   tempo-cli/          - cli tool for directly inspecting blocks in the backend
   tempo-vulture/      - bird-themed consistency checker.  optional.
-  tempo-query/        - jaeger-query GRPC plugin
+  tempo-query/        - jaeger-query GRPC plugin (Apache2 licensed)
 docs/
 example/              - great place to get started running Tempo
   docker-compose/
@@ -45,12 +45,14 @@ modules/              - top level Tempo components
   ingester/
   overrides/
   querier/
+  frontend/
   storage/
 opentelemetry-proto/  - git submodule.  necessary for proto vendoring
-operations/           - Tempo deployment and monitoring resources
+operations/           - Tempo deployment and monitoring resources (Apache2 licensed)
   jsonnet/
   tempo-mixin/
 pkg/
+  tempopb/            - proto for interacting with various Tempo services (Apache2 licensed)
 tempodb/              - object storage key/value database
 vendor/
 ```
@@ -78,7 +80,7 @@ import (
 ## Documentation
 
 Tempo uses a CI action to sync documentation to the [Grafana website](https://grafana.com/docs/tempo/latest). The CI is
-triggered on every merge to master in the `docs` subfolder.
+triggered on every merge to main in the `docs` subfolder.
 
 To get a preview of the documentation locally, run `make docs` from the root folder of the Tempo repository. This uses
 the `grafana/docs` image which internally uses Hugo to generate the static site.

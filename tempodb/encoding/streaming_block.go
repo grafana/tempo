@@ -11,7 +11,7 @@ import (
 )
 
 type StreamingBlock struct {
-	encoding versionedEncoding
+	encoding VersionedEncoding
 
 	compactedMeta *backend.BlockMeta
 	inMetas       []*backend.BlockMeta
@@ -31,16 +31,29 @@ func NewStreamingBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 		return nil, fmt.Errorf("empty block meta list")
 	}
 
+	dataEncoding := metas[0].DataEncoding
+	for _, meta := range metas {
+		if meta.DataEncoding != dataEncoding {
+			return nil, fmt.Errorf("two blocks of different data encodings can not be streamed together: %s: %s", dataEncoding, meta.DataEncoding)
+		}
+	}
+
 	c := &StreamingBlock{
+<<<<<<< HEAD
 		encoding:      latestEncoding(),
 		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding),
 		bloom:         common.NewBloom(cfg.BloomFilterShardSize, int(cfg.BloomFilterShardCount), estimatedObjects),
+=======
+		encoding:      LatestEncoding(),
+		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding, dataEncoding),
+		bloom:         common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
+>>>>>>> main
 		inMetas:       metas,
 		cfg:           cfg,
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
-	dataWriter, err := c.encoding.newDataWriter(c.appendBuffer, cfg.Encoding)
+	dataWriter, err := c.encoding.NewDataWriter(c.appendBuffer, cfg.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create page writer: %w", err)
 	}
@@ -117,7 +130,7 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	records := c.appender.Records()
 	meta := c.BlockMeta()
 
-	indexWriter := c.encoding.newIndexWriter(c.cfg.IndexPageSizeBytes)
+	indexWriter := c.encoding.NewIndexWriter(c.cfg.IndexPageSizeBytes)
 	indexBytes, err := indexWriter.Write(records)
 	if err != nil {
 		return 0, err

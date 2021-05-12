@@ -67,6 +67,12 @@ func TestPageMarshalToWriter(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, tc.expected, page.data)
 		assert.Equal(t, tc.field, page.header.(*testHeader).field)
+
+		page, err = unmarshalPageFromReader(buff, &testHeader{}, []byte{})
+		require.NoError(t, err)
+		assert.Equal(t, tc.expected, page.data)
+		assert.Equal(t, uint32(bytesWritten), page.totalLength)
+		assert.Equal(t, tc.field, page.header.(*testHeader).field)
 	}
 }
 
@@ -98,6 +104,7 @@ func TestPageMarshalToBuffer(t *testing.T) {
 		page, err := unmarshalPageFromBytes(outputBuffer, &testHeader{})
 		require.NoError(t, err)
 		assert.Equal(t, tc.expected, page.data)
+		assert.Equal(t, uint32(len(outputBuffer)), page.totalLength)
 		assert.Equal(t, tc.field, page.header.(*testHeader).field)
 	}
 }

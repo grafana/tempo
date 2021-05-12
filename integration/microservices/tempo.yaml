@@ -1,4 +1,3 @@
-auth_enabled: false
 compactor: null
 distributor:
     receivers:
@@ -22,7 +21,7 @@ memberlist:
   - ingester-2:7946
 
 overrides:
-  ingestion_burst_size: 100000
+  ingestion_burst_size_bytes: 10_000_000
   max_traces_per_user: 1000000
 
 server:
