@@ -99,7 +99,7 @@ func TestInstanceFind(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
-	numTraces := 100
+	numTraces := 500
 	ids := [][]byte{}
 	traces := []*tempopb.Trace{}
 	for j := 0; j < numTraces; j++ {

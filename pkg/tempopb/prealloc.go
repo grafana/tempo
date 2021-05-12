@@ -43,8 +43,3 @@ func ReuseTraceBytes(trace *TraceBytes) {
 		bytePool.Put(t[:0])
 	}
 }
-
-// ReuseByteSlice reuses a random byte slice
-func ReuseByteSlice(b []byte) {
-	bytePool.Put(b[:0])
-}

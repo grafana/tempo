@@ -166,8 +166,8 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		i.bytesWrittenTotal.Add(float64(len(out)))
 
 		// return trace byte slices to be reused by proto marshalling
+		//  WARNING: can't reuse traceid's b/c the appender takes ownership of byte slices that are passed to it
 		tempopb.ReuseTraceBytes(t.traceBytes)
-		tempopb.ReuseByteSlice(t.traceID)
 	}
 
 	return nil

@@ -199,7 +199,7 @@ func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	if records == nil {
+	if len(records) == 0 {
 		return nil, nil
 	}
 
