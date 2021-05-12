@@ -125,6 +125,14 @@ func TestInstanceFind(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
+	for j := 0; j < numTraces; j++ {
+		traceBytes, err := traces[j].Marshal()
+		require.NoError(t, err)
+
+		err = i.PushBytes(context.Background(), ids[j], traceBytes)
+		require.NoError(t, err)
+	}
+
 	queryAll(t, i, ids, traces)
 
 	blockID, err := i.CutBlockIfReady(0, 0, true)

@@ -33,6 +33,9 @@ func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncod
 	if bytes.Equal(objA, objB) {
 		return objA, false, nil
 	}
+	if objB == nil {
+		return objA, false, nil
+	}
 
 	// bytes differ.  unmarshal and combine traces
 	traceA, errA := Unmarshal(objA, dataEncodingA)
