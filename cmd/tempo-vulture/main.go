@@ -84,13 +84,15 @@ func main() {
 		for {
 			<-tickerWrite.C
 
-			rand.Seed((time.Now().Unix() / interval) * interval)
+			seed := (time.Now().Unix() / interval) * interval
+			rand.Seed(seed)
 			traceIDHigh := rand.Int63()
 			traceIDLow := rand.Int63()
 
 			logger := logger.With(
 				zap.String("org_id", tempoOrgID),
 				zap.String("write_trace_id", fmt.Sprintf("%016x%016x", traceIDLow, traceIDHigh)),
+				zap.Int64("seed", seed),
 			)
 			logger.Info("sending trace")
 
@@ -125,11 +127,12 @@ func main() {
 			}
 
 			// pick past interval and re-generate trace
-			rand.Seed((generateRandomInt(startTime, currentTime) / interval) * interval)
+			seed := (generateRandomInt(startTime, currentTime) / interval) * interval
+			rand.Seed(seed)
 			hexID := fmt.Sprintf("%016x%016x", rand.Int63(), rand.Int63())
 
 			// query the trace
-			metrics, err := queryTempoAndAnalyze(tempoQueryURL, hexID)
+			metrics, err := queryTempoAndAnalyze(tempoQueryURL, seed, hexID)
 			if err != nil {
 				metricErrorTotal.Inc()
 			}
@@ -223,7 +226,7 @@ func generateRandomInt(min int64, max int64) int64 {
 	return number
 }
 
-func queryTempoAndAnalyze(baseURL string, traceID string) (traceMetrics, error) {
+func queryTempoAndAnalyze(baseURL string, seed int64, traceID string) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -231,6 +234,7 @@ func queryTempoAndAnalyze(baseURL string, traceID string) (traceMetrics, error) 
 	logger := logger.With(
 		zap.String("query_trace_id", traceID),
 		zap.String("tempo_query_url", baseURL+"/api/traces/"+traceID),
+		zap.Int64("seed", seed),
 	)
 	logger.Info("querying Tempo")
 
