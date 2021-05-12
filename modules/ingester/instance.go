@@ -128,7 +128,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	return trace.Push(ctx, bytes)
 }
 
-// PushBytes is used to push an unmarshalled trace to the
+// PushBytes is used to push an unmarshalled tempopb.Trace to the instance
 func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) error {
 	if !validation.ValidTraceID(id) {
 		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
