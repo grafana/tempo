@@ -244,7 +244,7 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 		return &tempopb.TraceByIDResponse{}, nil
 	}
 
-	trace, err := inst.FindTraceByID(req.TraceID)
+	trace, err := inst.FindTraceByID(ctx, req.TraceID)
 	if err != nil {
 		return nil, err
 	}

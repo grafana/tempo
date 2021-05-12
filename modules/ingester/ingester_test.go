@@ -125,7 +125,7 @@ func TestDeprecatedPush(t *testing.T) {
 	model.SortTrace(trace)
 
 	// push the first batch using the deprecated method
-	pushDeprecatedBatch(t, ingester, trace.Batches[0], traceID)
+	pushDeprecatedBatch(t, ingester, trace.Batches[0])
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -351,7 +351,7 @@ func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	require.NoError(t, err)
 }
 
-func pushDeprecatedBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
+func pushDeprecatedBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 
 	pbTrace := &tempopb.PushRequest{

@@ -295,7 +295,7 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 	return err
 }
 
-func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
+func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace, error) {
 	var err error
 	var allBytes []byte
 
@@ -337,7 +337,7 @@ func (i *instance) FindTraceByID(id []byte) (*tempopb.Trace, error) {
 
 	// completeBlock
 	for _, c := range i.completeBlocks {
-		foundBytes, err = c.Find(context.TODO(), id)
+		foundBytes, err = c.Find(ctx, id)
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
 		}

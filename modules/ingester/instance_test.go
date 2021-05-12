@@ -128,25 +128,33 @@ func TestInstanceFind(t *testing.T) {
 	queryAll(t, i, ids, traces)
 
 	blockID, err := i.CutBlockIfReady(0, 0, true)
-	require.NoError(t, err, "unexpected error cutting block")
+	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
 	queryAll(t, i, ids, traces)
 
 	err = i.CompleteBlock(blockID)
-	require.NoError(t, err, "unexpected error completing block")
+	require.NoError(t, err)
 
 	queryAll(t, i, ids, traces)
 
 	err = i.ClearCompletingBlock(blockID)
-	require.NoError(t, err, "unexpected error completing block")
+	require.NoError(t, err)
+
+	queryAll(t, i, ids, traces)
+
+	localBlock := i.GetBlockToBeFlushed(blockID)
+	require.NotNil(t, localBlock)
+
+	err = ingester.store.WriteBlock(context.Background(), localBlock)
+	require.NoError(t, err)
 
 	queryAll(t, i, ids, traces)
 }
 
 func queryAll(t *testing.T, i *instance, ids [][]byte, traces []*tempopb.Trace) {
 	for j, id := range ids {
-		trace, err := i.FindTraceByID(id)
+		trace, err := i.FindTraceByID(context.Background(), id)
 		assert.NoError(t, err)
 		assert.Equal(t, traces[j], trace)
 	}
@@ -207,7 +215,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := i.FindTraceByID([]byte{0x01})
+		_, err := i.FindTraceByID(context.Background(), []byte{0x01})
 		assert.NoError(t, err, "error finding trace by id")
 	})
 
@@ -566,7 +574,7 @@ func BenchmarkInstanceFindTraceByID(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		trace, err := instance.FindTraceByID(traceID)
+		trace, err := instance.FindTraceByID(context.Background(), traceID)
 		assert.NotNil(b, trace)
 		assert.NoError(b, err)
 	}

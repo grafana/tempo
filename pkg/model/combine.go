@@ -44,9 +44,8 @@ func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncod
 			// have to convert objB to dataEncodingA
 			bytes, _ := marshal(traceB, dataEncodingA)
 			return bytes, false, fmt.Errorf("error unsmarshaling objA (%s): %w", dataEncodingA, errA)
-		} else {
-			return objB, false, fmt.Errorf("error unsmarshaling objA (%s): %w", dataEncodingA, errA)
 		}
+		return objB, false, fmt.Errorf("error unsmarshaling objA (%s): %w", dataEncodingA, errA)
 	} else if errB != nil && errA == nil {
 		return objA, false, fmt.Errorf("error unsmarshaling objB (%s): %w", dataEncodingB, errB)
 	} else if errA != nil && errB != nil {
