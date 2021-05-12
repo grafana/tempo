@@ -118,3 +118,23 @@ func TestSortTraceBytes(t *testing.T) {
 
 	assert.Equal(t, traceBytes, traceBytes2)
 }
+
+func BenchmarkSortTraceBytes(b *testing.B) {
+	numTraces := 100
+
+	traceBytes := &tempopb.TraceBytes{
+		Traces: make([][]byte, numTraces),
+	}
+	for i := range traceBytes.Traces {
+		traceBytes.Traces[i] = make([]byte, rand.Intn(10))
+		_, err := rand.Read(traceBytes.Traces[i])
+		require.NoError(b, err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		rand.Shuffle(len(traceBytes.Traces), func(i, j int) {
+			traceBytes.Traces[i], traceBytes.Traces[j] = traceBytes.Traces[j], traceBytes.Traces[i]
+		})
+		SortTraceBytes(traceBytes)
+	}
+}

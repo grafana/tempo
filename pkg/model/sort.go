@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
@@ -52,24 +51,10 @@ func compareSpans(a *v1.Span, b *v1.Span) bool {
 
 // SortTraceBytes sorts a *tempopb.TraceBytes
 func SortTraceBytes(t *tempopb.TraceBytes) {
-	hash := xxhash.New()
-
 	sort.Slice(t.Traces, func(i, j int) bool {
 		traceI := t.Traces[i]
 		traceJ := t.Traces[j]
 
-		if len(traceI) != len(traceJ) {
-			return len(traceI) > len(traceJ)
-		}
-
-		hash.Reset()
-		_, _ = hash.Write(traceI)
-		hashI := hash.Sum64()
-
-		hash.Reset()
-		_, _ = hash.Write(traceJ)
-		hashJ := hash.Sum64()
-
-		return hashI > hashJ
+		return bytes.Compare(traceI, traceJ) == -1
 	})
 }
