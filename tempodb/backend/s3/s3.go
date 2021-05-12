@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -341,7 +340,7 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
-	reader, _, _, err := rw.core.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
+	reader, info, _, err := rw.core.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
 	if err != nil {
 		// do not change or wrap this error
 		// we need to compare the specific err message
@@ -349,11 +348,15 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	}
 	defer reader.Close()
 
-	body, err := ioutil.ReadAll(reader)
-	if err != nil {
+	// Preallocate the buffer with the exact size so we don't waste allocations
+	// while progressively growing an initial small buffer. The buffer capacity
+	// is increased by MinRead to avoid extra allocations due to how ReadFrom()
+	// internally works.
+	buf := bytes.NewBuffer(make([]byte, 0, info.Size+bytes.MinRead))
+	if _, err := buf.ReadFrom(reader); err != nil {
 		return nil, err
 	}
-	return body, nil
+	return buf.Bytes(), nil
 }
 
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
@@ -365,11 +368,15 @@ func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]
 	}
 	defer reader.Close()
 
-	body, err := ioutil.ReadAll(reader)
-	if err != nil {
+	// Preallocate the buffer with the exact size so we don't waste allocations
+	// while progressively growing an initial small buffer. The buffer capacity
+	// is increased by MinRead to avoid extra allocations due to how ReadFrom()
+	// internally works.
+	buf := bytes.NewBuffer(make([]byte, 0, info.Size+bytes.MinRead))
+	if _, err := buf.ReadFrom(reader); err != nil {
 		return nil, minio.ObjectInfo{}, errors.Wrap(err, "error reading response from s3 backend")
 	}
-	return body, info, nil
+	return buf.Bytes(), info, nil
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, objName string, offset int64, buffer []byte) error {

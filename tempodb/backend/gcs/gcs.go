@@ -278,6 +278,10 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	}
 	defer r.Close()
 
+	// Preallocate the buffer with the exact size so we don't waste allocations
+	// while progressively growing an initial small buffer. The buffer capacity
+	// is increased by MinRead to avoid extra allocations due to how ReadFrom()
+	// internally works.
 	buf := bytes.NewBuffer(make([]byte, 0, r.Attrs.Size+bytes.MinRead))
 	if _, err := buf.ReadFrom(r); err != nil {
 		return nil, err
@@ -292,6 +296,10 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 	}
 	defer r.Close()
 
+	// Preallocate the buffer with the exact size so we don't waste allocations
+	// while progressively growing an initial small buffer. The buffer capacity
+	// is increased by MinRead to avoid extra allocations due to how ReadFrom()
+	// internally works.
 	buf := bytes.NewBuffer(make([]byte, 0, r.Attrs.Size+bytes.MinRead))
 	if _, err := buf.ReadFrom(r); err != nil {
 		return nil, time.Time{}, err
