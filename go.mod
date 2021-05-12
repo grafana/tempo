@@ -34,6 +34,7 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.20.0
 	github.com/prometheus/prometheus v1.8.2-0.20210324152458-c7a62b95cea0
+	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
