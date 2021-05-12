@@ -47,7 +47,7 @@ func Unmarshal(obj []byte, dataEncoding string) (*tempopb.Trace, error) {
 				return nil, err
 			}
 
-			trace.Batches = append(trace.Batches, innerTrace.Batches...) // todo(jpe) set trace.ID?
+			trace.Batches = append(trace.Batches, innerTrace.Batches...)
 		}
 	default:
 		return nil, fmt.Errorf("unrecognized dataEncoding in Unmarshal %s", dataEncoding)

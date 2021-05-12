@@ -51,6 +51,7 @@ func TestRequestsByTraceID(t *testing.T) {
 		request        *tempopb.PushRequest
 		expectedKeys   []uint32
 		expectedTraces []*tempopb.Trace
+		expectedIDs    [][]byte
 		expectedErr    error
 	}{
 		{
@@ -60,6 +61,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			},
 			expectedKeys:   []uint32{},
 			expectedTraces: []*tempopb.Trace{},
+			expectedIDs:    [][]byte{},
 		},
 		{
 			name: "bad trace id",
@@ -92,7 +94,6 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ID: traceIDA,
 					Batches: []*v1.ResourceSpans{
 						{
 							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -102,6 +103,9 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId: traceIDA,
 										}}}}}},
 				},
+			},
+			expectedIDs: [][]byte{
+				traceIDA,
 			},
 		},
 		{
@@ -121,7 +125,6 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ID: traceIDA,
 					Batches: []*v1.ResourceSpans{
 						{
 							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -132,7 +135,6 @@ func TestRequestsByTraceID(t *testing.T) {
 										}}}}}},
 				},
 				{
-					ID: traceIDB,
 					Batches: []*v1.ResourceSpans{
 						{
 							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -142,6 +144,10 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId: traceIDB,
 										}}}}}},
 				},
+			},
+			expectedIDs: [][]byte{
+				traceIDA,
+				traceIDB,
 			},
 		},
 		{
@@ -164,7 +170,6 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ID: traceIDA,
 					Batches: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
@@ -178,7 +183,6 @@ func TestRequestsByTraceID(t *testing.T) {
 										}}}}}},
 				},
 				{
-					ID: traceIDB,
 					Batches: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
@@ -191,6 +195,10 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId: traceIDB,
 										}}}}}},
 				},
+			},
+			expectedIDs: [][]byte{
+				traceIDA,
+				traceIDB,
 			},
 		},
 		{
@@ -213,7 +221,6 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ID: traceIDA,
 					Batches: []*v1.ResourceSpans{
 						{
 							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -227,7 +234,6 @@ func TestRequestsByTraceID(t *testing.T) {
 										}}}}}},
 				},
 				{
-					ID: traceIDB,
 					Batches: []*v1.ResourceSpans{
 						{
 							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -240,6 +246,10 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId: traceIDB,
 										}}}}}},
 				},
+			},
+			expectedIDs: [][]byte{
+				traceIDA,
+				traceIDB,
 			},
 		},
 		{
@@ -267,7 +277,6 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					ID: traceIDB,
 					Batches: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
@@ -289,12 +298,15 @@ func TestRequestsByTraceID(t *testing.T) {
 										}}}}}},
 				},
 			},
+			expectedIDs: [][]byte{
+				traceIDB,
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keys, reqs, err := requestsByTraceID(tt.request, util.FakeTenantID, 1)
+			keys, reqs, ids, err := requestsByTraceID(tt.request, util.FakeTenantID, 1)
 			require.Equal(t, len(keys), len(reqs))
 
 			for i, expectedKey := range tt.expectedKeys {
@@ -311,6 +323,7 @@ func TestRequestsByTraceID(t *testing.T) {
 				expectedReq := tt.expectedTraces[i]
 				actualReq := reqs[foundIndex]
 				assert.Equal(t, expectedReq, actualReq)
+				assert.Equal(t, tt.expectedIDs[i], ids[foundIndex])
 			}
 
 			assert.Equal(t, tt.expectedErr, err)
@@ -339,7 +352,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, blerg := range ils {
-			_, _, err := requestsByTraceID(&tempopb.PushRequest{
+			_, _, _, err := requestsByTraceID(&tempopb.PushRequest{
 				Batch: &v1.ResourceSpans{
 					InstrumentationLibrarySpans: blerg,
 				},

@@ -28,7 +28,6 @@ message TraceByIDResponse {
 
 message Trace {
   repeated tempopb.trace.v1.ResourceSpans batches = 1;
-  bytes ID = 2;  // todo:(jpe) remove trace id here and put it in PushBytesRequest?
 }
 
 // Write
@@ -51,5 +50,5 @@ message PushBytesRequest {
 
 message TraceBytes {
   // pre-marshalled Traces
-  repeated bytes traces = 1; // todo(jpe): try again to put directly into PushBytesRequest?
+  repeated bytes traces = 1;
 }
