@@ -333,13 +333,14 @@ func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 		Batches: []*v1.ResourceSpans{batch},
 	}
 
-	bytesTrace, err := proto.Marshal(pbTrace)
+	buffer := tempopb.SliceFromBytePool(pbTrace.Size())
+	_, err := pbTrace.MarshalToSizedBuffer(buffer)
 	require.NoError(t, err)
 
 	_, err = i.PushBytes(ctx, &tempopb.PushBytesRequest{
 		Traces: []tempopb.PreallocBytes{
 			{
-				Slice: bytesTrace,
+				Slice: buffer,
 			},
 		},
 		Ids: []tempopb.PreallocBytes{

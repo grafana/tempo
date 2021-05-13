@@ -122,8 +122,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	// traceBytes eventually end up back into the bytepool
 	// allocating like this prevents panics by only putting slices into the bytepool
 	// that were retrieved from there
-	size := t.Size()
-	buffer := tempopb.SliceFromBytePool(size)[:size]
+	buffer := tempopb.SliceFromBytePool(t.Size())
 	_, err = t.MarshalToSizedBuffer(buffer)
 	if err != nil {
 		return err

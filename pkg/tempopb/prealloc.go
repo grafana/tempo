@@ -46,5 +46,5 @@ func ReuseTraceBytes(trace *TraceBytes) {
 
 // SliceFromBytePool gets a slice from the byte pool
 func SliceFromBytePool(size int) []byte {
-	return bytePool.Get(size).([]byte)
+	return bytePool.Get(size).([]byte)[:size]
 }
