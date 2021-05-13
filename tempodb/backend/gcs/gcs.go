@@ -11,17 +11,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
 
-	"github.com/grafana/tempo/tempodb/backend/util"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/util"
 )
 
 type readerWriter struct {
