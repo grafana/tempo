@@ -4,12 +4,12 @@ import "io"
 
 // ReadAllWithEstimate is a fork of https://go.googlesource.com/go/+/go1.16.3/src/io/io.go#626
 //  with a starting buffer size. if none is provided it uses the existing default of 512
-func ReadAllWithEstimate(r io.Reader, estimatedBytes int) ([]byte, error) {
+func ReadAllWithEstimate(r io.Reader, estimatedBytes int64) ([]byte, error) {
 	if estimatedBytes == 0 {
 		estimatedBytes = 512
 	}
 
-	b := make([]byte, 0, estimatedBytes)
+	b := make([]byte, 0, estimatedBytes+1) // if the calling code knows the exact bytes needed the below logic will do one extra allocation unless we add 1
 	for {
 		if len(b) == cap(b) {
 			// Add more capacity (let append pick how much).

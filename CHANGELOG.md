@@ -9,6 +9,7 @@
 * [ENHANCEMENT] Reduce marshalling in the ingesters to improve performance. [#694](https://github.com/grafana/tempo/pull/694)
   This is kind of a **breaking change**. Rollout all ingesters before any other component to prevent dropped spans.
 * [CHANGE] Fix Query Frontend grpc settings to avoid noisy error log. [#690](https://github.com/grafana/tempo/pull/690)
+* [CHANGE] GCS SDK update v1.12.0 => v.15.0, ReadAllWithEstimate used in GCS/S3 backends. [#693](https://github.com/grafana/tempo/pull/693)
 
 ## v0.7.0
 

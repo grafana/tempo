@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -20,6 +19,8 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
 )
 
 const (
@@ -341,7 +342,7 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
-	reader, _, _, err := rw.core.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
+	reader, info, _, err := rw.core.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
 	if err != nil {
 		// do not change or wrap this error
 		// we need to compare the specific err message
@@ -349,11 +350,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	}
 	defer reader.Close()
 
-	body, err := ioutil.ReadAll(reader)
-	if err != nil {
-		return nil, err
-	}
-	return body, nil
+	return tempo_io.ReadAllWithEstimate(reader, info.Size)
 }
 
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
@@ -365,11 +362,11 @@ func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]
 	}
 	defer reader.Close()
 
-	body, err := ioutil.ReadAll(reader)
+	buf, err := tempo_io.ReadAllWithEstimate(reader, info.Size)
 	if err != nil {
 		return nil, minio.ObjectInfo{}, errors.Wrap(err, "error reading response from s3 backend")
 	}
-	return body, info, nil
+	return buf, info, nil
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, objName string, offset int64, buffer []byte) error {
