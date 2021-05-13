@@ -123,7 +123,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	// allocating like this prevents panics by only putting slices into the bytepool
 	// that were retrieved from there
 	size := t.Size()
-	buffer := tempopb.SliceFromBytePool(size)
+	buffer := tempopb.SliceFromBytePool(size)[:size]
 	_, err = t.MarshalToSizedBuffer(buffer)
 	if err != nil {
 		return err
