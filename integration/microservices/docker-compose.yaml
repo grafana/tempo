@@ -2,7 +2,7 @@ version: "2"
 services:
 
   distributor:
-    image: grafana/tempo:5b62411c
+    image: tempo:latest
     command: "-target=distributor -config.file=/etc/tempo.yaml"
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
