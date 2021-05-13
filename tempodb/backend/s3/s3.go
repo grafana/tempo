@@ -19,6 +19,8 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
 )
 
 const (
@@ -348,15 +350,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	}
 	defer reader.Close()
 
-	// Preallocate the buffer with the exact size so we don't waste allocations
-	// while progressively growing an initial small buffer. The buffer capacity
-	// is increased by MinRead to avoid extra allocations due to how ReadFrom()
-	// internally works.
-	buf := bytes.NewBuffer(make([]byte, 0, info.Size+bytes.MinRead))
-	if _, err := buf.ReadFrom(reader); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return tempo_io.ReadAllWithEstimate(reader, info.Size)
 }
 
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
@@ -368,15 +362,11 @@ func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]
 	}
 	defer reader.Close()
 
-	// Preallocate the buffer with the exact size so we don't waste allocations
-	// while progressively growing an initial small buffer. The buffer capacity
-	// is increased by MinRead to avoid extra allocations due to how ReadFrom()
-	// internally works.
-	buf := bytes.NewBuffer(make([]byte, 0, info.Size+bytes.MinRead))
-	if _, err := buf.ReadFrom(reader); err != nil {
+	buf, err := tempo_io.ReadAllWithEstimate(reader, info.Size)
+	if err != nil {
 		return nil, minio.ObjectInfo{}, errors.Wrap(err, "error reading response from s3 backend")
 	}
-	return buf.Bytes(), info, nil
+	return buf, info, nil
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, objName string, offset int64, buffer []byte) error {

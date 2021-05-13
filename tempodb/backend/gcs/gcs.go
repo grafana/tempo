@@ -11,16 +11,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/pkg/errors"
-
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
+
+	"github.com/grafana/tempo/tempodb/backend/util"
+	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type readerWriter struct {
@@ -278,15 +279,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	}
 	defer r.Close()
 
-	// Preallocate the buffer with the exact size so we don't waste allocations
-	// while progressively growing an initial small buffer. The buffer capacity
-	// is increased by MinRead to avoid extra allocations due to how ReadFrom()
-	// internally works.
-	buf := bytes.NewBuffer(make([]byte, 0, r.Attrs.Size+bytes.MinRead))
-	if _, err := buf.ReadFrom(r); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return tempo_io.ReadAllWithEstimate(r, r.Attrs.Size)
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
@@ -296,16 +289,12 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 	}
 	defer r.Close()
 
-	// Preallocate the buffer with the exact size so we don't waste allocations
-	// while progressively growing an initial small buffer. The buffer capacity
-	// is increased by MinRead to avoid extra allocations due to how ReadFrom()
-	// internally works.
-	buf := bytes.NewBuffer(make([]byte, 0, r.Attrs.Size+bytes.MinRead))
-	if _, err := buf.ReadFrom(r); err != nil {
+	buf, err := tempo_io.ReadAllWithEstimate(r, r.Attrs.Size)
+	if err != nil {
 		return nil, time.Time{}, err
 	}
 
-	return buf.Bytes(), r.Attrs.LastModified, nil
+	return buf, r.Attrs.LastModified, nil
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, buffer []byte) error {
