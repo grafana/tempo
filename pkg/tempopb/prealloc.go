@@ -43,3 +43,8 @@ func ReuseTraceBytes(trace *TraceBytes) {
 		bytePool.Put(t[:0])
 	}
 }
+
+// SliceFromBytePool gets a slice from the byte pool
+func SliceFromBytePool(size int) []byte {
+	return bytePool.Get(size).([]byte)[:size]
+}

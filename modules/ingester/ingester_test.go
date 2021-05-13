@@ -12,7 +12,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring/kv/consul"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/go-kit/kit/log"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
@@ -333,13 +333,14 @@ func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 		Batches: []*v1.ResourceSpans{batch},
 	}
 
-	bytesTrace, err := proto.Marshal(pbTrace)
+	buffer := tempopb.SliceFromBytePool(pbTrace.Size())
+	_, err := pbTrace.MarshalToSizedBuffer(buffer)
 	require.NoError(t, err)
 
 	_, err = i.PushBytes(ctx, &tempopb.PushBytesRequest{
 		Traces: []tempopb.PreallocBytes{
 			{
-				Slice: bytesTrace,
+				Slice: buffer,
 			},
 		},
 		Ids: []tempopb.PreallocBytes{

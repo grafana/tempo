@@ -119,13 +119,17 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 		Batches: []*v1.ResourceSpans{req.Batch},
 	}
 
-	bytes, err := proto.Marshal(t)
+	// traceBytes eventually end up back into the bytepool
+	// allocating like this prevents panics by only putting slices into the bytepool
+	// that were retrieved from there
+	buffer := tempopb.SliceFromBytePool(t.Size())
+	_, err = t.MarshalToSizedBuffer(buffer)
 	if err != nil {
 		return err
 	}
 
 	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, bytes)
+	return trace.Push(ctx, buffer)
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
