@@ -3,7 +3,6 @@ syntax="proto3";
 package tempopb;
 
 import "trace/v1/trace.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 service Pusher {
   rpc Push(PushRequest) returns (PushResponse) {};
@@ -40,12 +39,12 @@ message PushResponse {
 
 message PushBytesRequest {
   // pre-marshalled PushRequests
-  repeated bytes requests = 1 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes", deprecated=true];
+  repeated bytes requests = 1 [deprecated=true];
 
   // pre-marshalled Traces. length must match ids
-  repeated bytes traces = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+  repeated bytes traces = 2;
   // trace ids. length must match traces
-  repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+  repeated bytes ids = 3;
 }
 
 message TraceBytes {

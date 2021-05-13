@@ -337,15 +337,11 @@ func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	require.NoError(t, err)
 
 	_, err = i.PushBytes(ctx, &tempopb.PushBytesRequest{
-		Traces: []tempopb.PreallocBytes{
-			{
-				Slice: bytesTrace,
-			},
+		Traces: [][]byte{
+			bytesTrace,
 		},
-		Ids: []tempopb.PreallocBytes{
-			{
-				Slice: id,
-			},
+		Ids: [][]byte{
+			id,
 		},
 	})
 	require.NoError(t, err)
@@ -362,10 +358,8 @@ func pushDeprecatedBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans) {
 	require.NoError(t, err)
 
 	_, err = i.PushBytes(ctx, &tempopb.PushBytesRequest{
-		Requests: []tempopb.PreallocBytes{
-			{
-				Slice: bytesTrace,
-			},
+		Requests: [][]byte{
+			bytesTrace,
 		},
 	})
 	require.NoError(t, err)
