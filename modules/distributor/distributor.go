@@ -2,6 +2,7 @@ package distributor
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -9,8 +10,10 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/limiter"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
+	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/status"
 	"github.com/segmentio/fasthash/fnv1a"
 
@@ -239,6 +242,12 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	if err != nil {
 		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
 		return nil, err
+	}
+
+	if d.cfg.LogReceivedTraces {
+		for _, id := range ids {
+			level.Info(log.Logger).Log("msg", "received trace", "traceid", hex.EncodeToString(id))
+		}
 	}
 
 	err = d.sendToIngestersViaBytes(ctx, userID, traces, keys, ids)
