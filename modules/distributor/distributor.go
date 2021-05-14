@@ -403,7 +403,7 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 	}
 }
 
-func logTraces(batch v1.ResourceSpans) {
+func logTraces(batch *v1.ResourceSpans) {
 	for _, ils := range batch.InstrumentationLibrarySpans {
 		for _, s := range ils.Spans {
 			level.Info(cortex_util.Logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
