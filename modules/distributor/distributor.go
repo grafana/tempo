@@ -2,6 +2,7 @@ package distributor
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/limiter"
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
+	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/status"
 	"github.com/segmentio/fasthash/fnv1a"
 
@@ -207,6 +209,10 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
+	if d.cfg.LogReceivedTraces {
+		logTraces(req.Batch)
+	}
+
 	// metric size
 	size := req.Size()
 	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
@@ -394,5 +400,13 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 		metricDiscardedSpans.WithLabelValues(reasonTraceTooLarge, userID).Add(float64(spanCount))
 	} else {
 		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
+	}
+}
+
+func logTraces(batch *v1.ResourceSpans) {
+	for _, ils := range batch.InstrumentationLibrarySpans {
+		for _, s := range ils.Spans {
+			level.Info(cortex_util.Logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+		}
 	}
 }

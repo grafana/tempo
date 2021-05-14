@@ -95,6 +95,7 @@ distributor:
     receivers: {}
     override_ring_key: distributor
     extend_writes: true
+    log_received_traces: false
 ingester_client:
     pool_config:
         checkinterval: 15s
