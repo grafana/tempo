@@ -10,7 +10,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/limiter"
-	"github.com/cortexproject/cortex/pkg/util/log"
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
@@ -210,6 +209,10 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
+	if d.cfg.LogReceivedTraces {
+		logTraces(req.Batch)
+	}
+
 	// metric size
 	size := req.Size()
 	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
@@ -242,12 +245,6 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	if err != nil {
 		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
 		return nil, err
-	}
-
-	if d.cfg.LogReceivedTraces {
-		for _, id := range ids {
-			level.Info(log.Logger).Log("msg", "received trace", "traceid", hex.EncodeToString(id))
-		}
 	}
 
 	err = d.sendToIngestersViaBytes(ctx, userID, traces, keys, ids)
@@ -403,5 +400,13 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 		metricDiscardedSpans.WithLabelValues(reasonTraceTooLarge, userID).Add(float64(spanCount))
 	} else {
 		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
+	}
+}
+
+func logTraces(batch v1.ResourceSpans) {
+	for _, ils := range batch.InstrumentationLibrarySpans {
+		for _, s := range ils.Spans {
+			level.Info(cortex_util.Logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+		}
 	}
 }
