@@ -7,21 +7,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend/util"
-	"github.com/pkg/errors"
-
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/util"
 )
 
 type readerWriter struct {
@@ -279,7 +279,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	}
 	defer r.Close()
 
-	return ioutil.ReadAll(r)
+	return tempo_io.ReadAllWithEstimate(r, r.Attrs.Size)
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
@@ -289,12 +289,12 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 	}
 	defer r.Close()
 
-	bytes, err := ioutil.ReadAll(r)
+	buf, err := tempo_io.ReadAllWithEstimate(r, r.Attrs.Size)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
 
-	return bytes, r.Attrs.LastModified, nil
+	return buf, r.Attrs.LastModified, nil
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, buffer []byte) error {

@@ -14,6 +14,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
@@ -85,37 +86,6 @@ func TestInstance(t *testing.T) {
 	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 }
 
-func pushAndQuery(t *testing.T, i *instance, request *tempopb.PushRequest) uuid.UUID {
-	traceID := test.MustTraceID(request)
-	err := i.Push(context.Background(), request)
-	assert.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-	trace, err := i.FindTraceByID(traceID)
-	assert.NotNil(t, trace)
-	assert.NoError(t, err)
-
-	err = i.CutCompleteTraces(0, true)
-	assert.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-	trace, err = i.FindTraceByID(traceID)
-	assert.NotNil(t, trace)
-	assert.NoError(t, err)
-
-	blockID, err := i.CutBlockIfReady(0, 0, false)
-	assert.NoError(t, err, "unexpected error cutting block")
-	assert.NotEqual(t, blockID, uuid.Nil)
-
-	trace, err = i.FindTraceByID(traceID)
-	assert.NotNil(t, trace)
-	assert.NoError(t, err)
-
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-	return blockID
-}
-
 func TestInstanceFind(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
@@ -129,23 +99,73 @@ func TestInstanceFind(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
-	request := test.MakeRequest(10, []byte{})
-	blockID := pushAndQuery(t, i, request)
+	numTraces := 500
+	ids := [][]byte{}
+	traces := []*tempopb.Trace{}
+	for j := 0; j < numTraces; j++ {
+		id := make([]byte, 16)
+		rand.Read(id)
 
-	// make another completingBlock
-	request2 := test.MakeRequest(10, []byte{})
-	pushAndQuery(t, i, request2)
-	assert.Len(t, i.completingBlocks, 2)
+		trace := test.MakeTrace(10, id)
+		model.SortTrace(trace)
+		traceBytes, err := trace.Marshal()
+		require.NoError(t, err)
+
+		err = i.PushBytes(context.Background(), id, traceBytes)
+		require.NoError(t, err)
+		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+		ids = append(ids, id)
+		traces = append(traces, trace)
+	}
+
+	queryAll(t, i, ids, traces)
+
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+	for j := 0; j < numTraces; j++ {
+		traceBytes, err := traces[j].Marshal()
+		require.NoError(t, err)
+
+		err = i.PushBytes(context.Background(), ids[j], traceBytes)
+		require.NoError(t, err)
+	}
+
+	queryAll(t, i, ids, traces)
+
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	assert.NotEqual(t, blockID, uuid.Nil)
+
+	queryAll(t, i, ids, traces)
 
 	err = i.CompleteBlock(blockID)
-	assert.NoError(t, err, "unexpected error completing block")
+	require.NoError(t, err)
 
-	assert.Len(t, i.completingBlocks, 2)
+	queryAll(t, i, ids, traces)
 
-	traceID := test.MustTraceID(request)
-	trace, err := i.FindTraceByID(traceID)
-	assert.NotNil(t, trace)
-	assert.NoError(t, err)
+	err = i.ClearCompletingBlock(blockID)
+	require.NoError(t, err)
+
+	queryAll(t, i, ids, traces)
+
+	localBlock := i.GetBlockToBeFlushed(blockID)
+	require.NotNil(t, localBlock)
+
+	err = ingester.store.WriteBlock(context.Background(), localBlock)
+	require.NoError(t, err)
+
+	queryAll(t, i, ids, traces)
+}
+
+func queryAll(t *testing.T, i *instance, ids [][]byte, traces []*tempopb.Trace) {
+	for j, id := range ids {
+		trace, err := i.FindTraceByID(context.Background(), id)
+		assert.NoError(t, err)
+		assert.Equal(t, traces[j], trace)
+	}
 }
 
 func TestInstanceDoesNotRace(t *testing.T) {
@@ -203,7 +223,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := i.FindTraceByID([]byte{0x01})
+		_, err := i.FindTraceByID(context.Background(), []byte{0x01})
 		assert.NoError(t, err, "error finding trace by id")
 	})
 
@@ -321,10 +341,10 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 
 	id := make([]byte, 16)
 	rand.Read(id)
-	tracepb := test.MakeTrace(10, id)
+	tracepb := test.MakeTraceBytes(10, id)
 	pastTrace := &trace{
 		traceID:    id,
-		trace:      tracepb,
+		traceBytes: tracepb,
 		lastAppend: time.Now().Add(-time.Hour),
 	}
 
@@ -332,7 +352,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 	rand.Read(id)
 	nowTrace := &trace{
 		traceID:    id,
-		trace:      tracepb,
+		traceBytes: tracepb,
 		lastAppend: time.Now().Add(time.Hour),
 	}
 
@@ -563,7 +583,7 @@ func BenchmarkInstanceFindTraceByID(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		trace, err := instance.FindTraceByID(traceID)
+		trace, err := instance.FindTraceByID(context.Background(), traceID)
 		assert.NotNil(b, trace)
 		assert.NoError(b, err)
 	}

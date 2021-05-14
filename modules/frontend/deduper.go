@@ -75,9 +75,10 @@ func (s spanIDDeduper) Do(req *http.Request) (*http.Response, error) {
 		}
 
 		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       ioutil.NopCloser(bytes.NewReader(traceBytes)),
-			Header:     http.Header{},
+			StatusCode:    http.StatusOK,
+			Body:          ioutil.NopCloser(bytes.NewReader(traceBytes)),
+			Header:        http.Header{},
+			ContentLength: resp.ContentLength,
 		}, nil
 	}
 

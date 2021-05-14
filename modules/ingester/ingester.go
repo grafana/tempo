@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log/level"
+	"github.com/gogo/status"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
+	"google.golang.org/grpc/codes"
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/log"
@@ -158,13 +160,15 @@ func (i *Ingester) markUnavailable() {
 	i.stopIncomingRequests()
 }
 
-// Push implements tempopb.Pusher.Push
+// Push implements tempopb.Pusher.Push (super deprecated)
 func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
+	if i.readonly {
+		return nil, ErrReadOnly
+	}
+
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
-	} else if i.readonly {
-		return nil, ErrReadOnly
 	}
 
 	instance, err := i.getOrCreateInstance(instanceID)
@@ -178,23 +182,45 @@ func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb
 
 // PushBytes implements tempopb.Pusher.PushBytes
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+	if i.readonly {
+		return nil, ErrReadOnly
+	}
 
-	// Unmarshal and push each request
+	if len(req.Traces) != len(req.Ids) {
+		return nil, status.Errorf(codes.InvalidArgument, "mismatched traces/ids length: %d, %d", len(req.Traces), len(req.Ids))
+	}
+
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	instance, err := i.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal and push each request (deprecated)
 	for _, v := range req.Requests {
 		r := tempopb.PushRequest{}
-		err := r.Unmarshal(v.Request)
+		err := r.Unmarshal(v.Slice)
 		if err != nil {
 			return nil, err
 		}
 
-		_, err = i.Push(ctx, &r)
+		err = instance.Push(ctx, &r)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// Reuse request instead of handing over to GC
-	tempopb.ReuseRequest(req)
+	// Unmarshal and push each trace
+	for i := range req.Traces {
+		err := instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return &tempopb.PushResponse{}, nil
 }
@@ -218,7 +244,7 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 		return &tempopb.TraceByIDResponse{}, nil
 	}
 
-	trace, err := inst.FindTraceByID(req.TraceID)
+	trace, err := inst.FindTraceByID(ctx, req.TraceID)
 	if err != nil {
 		return nil, err
 	}

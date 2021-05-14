@@ -3,24 +3,37 @@ package model
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"hash"
 	"hash/fnv"
-	"sort"
 
+	"github.com/go-kit/kit/log/level"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/pkg/errors"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/cortexproject/cortex/pkg/util/log"
 )
 
-// todo(jpe):
-// - add cross data encoding tests
-// - extend benchmarks
+type objectCombiner struct{}
 
-// CombineTraceBytes combines objA and objB encoded using dataEncodingA and dataEncodingB in dataEncodingA
+var ObjectCombiner = objectCombiner{}
+
+// Combine implements tempodb/encoding/common.ObjectCombiner
+func (o objectCombiner) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
+	combinedTrace, wasCombined, err := CombineTraceBytes(objA, objB, dataEncoding, dataEncoding)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
+	}
+	return combinedTrace, wasCombined
+}
+
+// CombineTraceBytes combines objA and objB encoded using dataEncodingA and dataEncodingB and returns a trace encoded with dataEncodingA
 func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncodingB string) (_ []byte, wasCombined bool, _ error) {
 	// if the byte arrays are the same, we can return quickly
 	if bytes.Equal(objA, objB) {
+		return objA, false, nil
+	}
+	if objB == nil {
 		return objA, false, nil
 	}
 
@@ -30,18 +43,23 @@ func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncod
 
 	// if we had problems unmarshaling one or the other, return the one that marshalled successfully
 	if errA != nil && errB == nil {
-		return objB, false, errors.Wrap(errA, "error unsmarshaling objA")
+		if dataEncodingA != dataEncodingB {
+			// have to convert objB to dataEncodingA
+			bytes, _ := marshal(traceB, dataEncodingA)
+			return bytes, false, fmt.Errorf("error unsmarshaling objA (%s): %w", dataEncodingA, errA)
+		}
+		return objB, false, fmt.Errorf("error unsmarshaling objA (%s): %w", dataEncodingA, errA)
 	} else if errB != nil && errA == nil {
-		return objA, false, errors.Wrap(errB, "error unsmarshaling objB")
+		return objA, false, fmt.Errorf("error unsmarshaling objB (%s): %w", dataEncodingB, errB)
 	} else if errA != nil && errB != nil {
 		// if both failed let's send back an empty trace
-		bytes, _ := Marshal(&tempopb.Trace{}, dataEncodingA)
-		return bytes, false, errors.Wrap(errA, "both A and B failed to unmarshal.  returning an empty trace")
+		bytes, _ := marshal(&tempopb.Trace{}, dataEncodingA)
+		return bytes, false, fmt.Errorf("both A (%s) and B (%s) failed to unmarshal. returning an empty trace", dataEncodingA, dataEncodingB)
 	}
 
 	traceComplete, _, _, _ := CombineTraceProtos(traceA, traceB)
 
-	bytes, err := Marshal(traceComplete, dataEncodingA)
+	bytes, err := marshal(traceComplete, dataEncodingA)
 	if err != nil {
 		return objA, true, errors.Wrap(err, "marshalling the combine trace threw an error")
 	}
@@ -112,47 +130,6 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int, int
 	SortTrace(traceA)
 
 	return traceA, spanCountA, spanCountB, spanCountTotal
-}
-
-func SortTrace(t *tempopb.Trace) {
-	// Sort bottom up by span start times
-	for _, b := range t.Batches {
-		for _, ils := range b.InstrumentationLibrarySpans {
-			sort.Slice(ils.Spans, func(i, j int) bool {
-				return compareSpans(ils.Spans[i], ils.Spans[j])
-			})
-		}
-		sort.Slice(b.InstrumentationLibrarySpans, func(i, j int) bool {
-			return compareIls(b.InstrumentationLibrarySpans[i], b.InstrumentationLibrarySpans[j])
-		})
-	}
-	sort.Slice(t.Batches, func(i, j int) bool {
-		return compareBatches(t.Batches[i], t.Batches[j])
-	})
-}
-
-func compareBatches(a *v1.ResourceSpans, b *v1.ResourceSpans) bool {
-	if len(a.InstrumentationLibrarySpans) > 0 && len(b.InstrumentationLibrarySpans) > 0 {
-		return compareIls(a.InstrumentationLibrarySpans[0], b.InstrumentationLibrarySpans[0])
-	}
-	return false
-}
-
-func compareIls(a *v1.InstrumentationLibrarySpans, b *v1.InstrumentationLibrarySpans) bool {
-	if len(a.Spans) > 0 && len(b.Spans) > 0 {
-		return compareSpans(a.Spans[0], b.Spans[0])
-	}
-	return false
-}
-
-func compareSpans(a *v1.Span, b *v1.Span) bool {
-	// Sort by start time, then id
-
-	if a.StartTimeUnixNano == b.StartTimeUnixNano {
-		return bytes.Compare(a.SpanId, b.SpanId) == -1
-	}
-
-	return a.StartTimeUnixNano < b.StartTimeUnixNano
 }
 
 // tokenForID returns a uint32 token for use in a hash map given a span id and span kind
