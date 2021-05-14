@@ -25,9 +25,9 @@ import (
 )
 
 const (
-	testTenantID  = "fake"
-	testTenantID2 = "fake2"
-	tmpdir        = "/tmp"
+	testTenantID     = "fake"
+	testTenantID2    = "fake2"
+	tmpdir           = "/tmp"
 	testDataEncoding = "blerg"
 )
 
@@ -45,11 +45,11 @@ func testConfig(enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writ
 			Path: path.Join(tempDir, "traces"),
 		},
 		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes:  17,
-			BloomFilterShardSize:  100_000,
-			BloomFilterShardCount: 10,
-			Encoding:              enc,
-			IndexPageSizeBytes:    1000,
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			BloomFilterShardSize: 100_000,
+			Encoding:             enc,
+			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

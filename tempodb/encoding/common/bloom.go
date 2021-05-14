@@ -4,24 +4,12 @@ import (
 	"bytes"
 	"math"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/willf/bloom"
 
 	"github.com/grafana/tempo/pkg/util"
 )
 
 const legacyShardCount = 10
-
-var (
-	metricBloomFP = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "bloom_filter_false_positive",
-		Help:      "False positive values for bloom filters created",
-		// 0.005, 0.020, 0.080, 0.32
-		Buckets: prometheus.ExponentialBuckets(0.005, 4, 4),
-	})
-)
 
 type ShardedBloomFilter struct {
 	blooms []*bloom.BloomFilter
@@ -39,25 +27,27 @@ func evaluateK(shardSizeInBits, itemsPerBloom int) (k int) {
 }
 
 // NewBloom creates a ShardedBloomFilter
-func NewBloom(shardSize, shardCount, estimatedObjects int) *ShardedBloomFilter {
-	itemsPerBloom := estimatedObjects / shardCount
-	if itemsPerBloom == 0 {
-		itemsPerBloom = 1
+func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter {
+	// estimate the number of shards needed. an approximate value is enough
+	var shardCount uint
+	var kPerBloom uint
+	for {
+		shardCount++
+		b := bloom.New(shardSize*8, uint(evaluateK(int(shardSize*8), int(estimatedObjects/shardCount))))
+		if b.EstimateFalsePositiveRate(estimatedObjects/shardCount) < fp {
+			kPerBloom = b.K()
+			break
+		}
 	}
-
-	shardSizeInBits := 8 * shardSize
-	k := evaluateK(shardSizeInBits, itemsPerBloom)
 
 	b := &ShardedBloomFilter{
 		blooms: make([]*bloom.BloomFilter, shardCount),
 	}
-	for i := 0; i < shardCount; i++ {
-		// New(m uint, k uint) creates a new Bloom filter with _m_ bits and _k_ hashing functions
-		b.blooms[i] = bloom.New(uint(shardSizeInBits), uint(k))
-	}
 
-	// metric the false positive rate so we can track if we're making bad blooms
-	metricBloomFP.Observe(b.blooms[0].EstimateFalsePositiveRate(uint(itemsPerBloom)))
+	for i := 0; i < int(shardCount); i++ {
+		// New(m uint, k uint) creates a new Bloom filter with _m_ bits and _k_ hashing functions
+		b.blooms[i] = bloom.New(shardSize*8, kPerBloom)
+	}
 
 	return b
 }
@@ -79,6 +69,10 @@ func (b *ShardedBloomFilter) Write() ([][]byte, error) {
 		bloomBytes[i] = bloomBuffer.Bytes()
 	}
 	return bloomBytes, nil
+}
+
+func (b *ShardedBloomFilter) GetShardCount() int {
+	return len(b.blooms)
 }
 
 // Test implements bloom.Test -> required only for testing

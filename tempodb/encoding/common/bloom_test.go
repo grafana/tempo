@@ -2,7 +2,6 @@ package common
 
 import (
 	"bytes"
-	"math"
 	"math/rand"
 	"testing"
 
@@ -13,7 +12,7 @@ import (
 func TestShardedBloom(t *testing.T) {
 	// create a bunch of traceIDs
 	var err error
-	const numTraces = 1000
+	const numTraces = 10000
 	traceIDs := make([][]byte, 0)
 	for i := 0; i < numTraces; i++ {
 		id := make([]byte, 16)
@@ -23,10 +22,10 @@ func TestShardedBloom(t *testing.T) {
 	}
 
 	// create sharded bloom filter
-	shardSize := 1000
-	shardCount := 5
-	estimatedObjects := 1000
-	b := NewBloom(shardSize, shardCount, estimatedObjects)
+	const bloomFP = .01
+	shardSize := uint(100)
+	estimatedObjects := uint(numTraces)
+	b := NewBloom(bloomFP, shardSize, estimatedObjects)
 
 	// add traceIDs to sharded bloom filter
 	for _, traceID := range traceIDs {
@@ -36,20 +35,18 @@ func TestShardedBloom(t *testing.T) {
 	// get byte representation
 	bloomBytes, err := b.Write()
 	assert.NoError(t, err)
-	assert.Len(t, bloomBytes, shardCount)
 
 	// parse byte representation into willf_bloom.Bloomfilter
 	var filters []*willf_bloom.BloomFilter
-	for i := 0; i < shardCount; i++ {
+	for i := 0; i < b.GetShardCount(); i++ {
 		filters = append(filters, &willf_bloom.BloomFilter{})
 	}
 	for i, singleBloom := range bloomBytes {
 		_, err = filters[i].ReadFrom(bytes.NewReader(singleBloom))
 		assert.NoError(t, err)
 
-		// assert that parsed form has the expected _m_ and _k_
-		assert.Equal(t, filters[i].Cap(), uint(shardSize*8))                                       // * 8 because need bits from bytes
-		assert.Equal(t, filters[i].K(), uint(evaluateK(shardSize*8, estimatedObjects/shardCount))) // * 8 because need bits from bytes
+		// assert that parsed form has the expected size and atleast the fp specified
+		assert.Equal(t, shardSize*8, filters[i].Cap()) // * 8 because need bits from bytes
 	}
 
 	// confirm that the sharded bloom and parsed form give the same result
@@ -59,15 +56,60 @@ func TestShardedBloom(t *testing.T) {
 		if !found {
 			missingCount++
 		}
-		assert.Equal(t, found, filters[ShardKeyForTraceID(traceID, shardCount)].Test(traceID))
+		assert.Equal(t, found, filters[ShardKeyForTraceID(traceID, b.GetShardCount())].Test(traceID))
 	}
 
-	// get estimated bloom filter false positive
-	estimatedBloomFP := filters[0].EstimateFalsePositiveRate(uint(numTraces / shardCount))
-	// check that missingCount is less than estimatedBloomFP
-	assert.LessOrEqual(t, float64(missingCount), estimatedBloomFP*numTraces)
+	// check that missingCount is less than bloomFP
+	assert.LessOrEqual(t, float64(missingCount), bloomFP*numTraces)
 }
 
-func TestEvaluateK(t *testing.T) {
-	assert.Equal(t, int(math.Ceil(math.Ln2*float64(100))), evaluateK(1000, 10))
+func TestShardedBloomFalsePositive(t *testing.T) {
+	tests := []struct {
+		name             string
+		bloomFP          float64
+		shardSize        uint
+		estimatedObjects uint
+	}{
+		{
+			name:             "regular",
+			bloomFP:          0.01,
+			shardSize:        100,
+			estimatedObjects: 1000,
+		},
+		{
+			name:             "large estimated objects",
+			bloomFP:          0.01,
+			shardSize:        100,
+			estimatedObjects: 10000,
+		},
+		{
+			name:             "large shard size",
+			bloomFP:          0.01,
+			shardSize:        100000,
+			estimatedObjects: 10,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			b := NewBloom(tt.bloomFP, tt.shardSize, tt.estimatedObjects)
+
+			// get byte representation
+			bloomBytes, err := b.Write()
+			assert.NoError(t, err)
+
+			// parse byte representation into willf_bloom.Bloomfilter
+			var filters []*willf_bloom.BloomFilter
+			for i := 0; i < b.GetShardCount(); i++ {
+				filters = append(filters, &willf_bloom.BloomFilter{})
+			}
+
+			for i, singleBloom := range bloomBytes {
+				_, err = filters[i].ReadFrom(bytes.NewReader(singleBloom))
+				assert.NoError(t, err)
+				assert.LessOrEqual(t, filters[i].EstimateFalsePositiveRate(tt.estimatedObjects/uint(b.GetShardCount())), tt.bloomFP)
+			}
+		})
+	}
 }

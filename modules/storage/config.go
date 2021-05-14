@@ -5,6 +5,7 @@ import (
 	"time"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
+
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -36,10 +37,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")
 	cfg.Trace.WAL.Encoding = backend.EncNone
 
-	cfg.Trace.Block = &encoding.BlockConfig{
-		BloomFilterShardCount: 10,
-		BloomFilterShardSize:  100_000, // 100KiB
-	}
+	cfg.Trace.Block = &encoding.BlockConfig{}
+	f.Float64Var(&cfg.Trace.Block.BloomFP, util.PrefixConfig(prefix, "trace.block.bloom-filter-false-positive"), .05, "Bloom Filter False Positive.")
+	f.IntVar(&cfg.Trace.Block.BloomFilterShardSize, util.PrefixConfig(prefix, "trace.block.bloom-filter-shard-size"), 250*1024, "Bloom Filter Shard Size.")
 	f.IntVar(&cfg.Trace.Block.IndexDownsampleBytes, util.PrefixConfig(prefix, "trace.block.index-downsample-bytes"), 1024*1024, "Number of bytes (before compression) per index record.")
 	f.IntVar(&cfg.Trace.Block.IndexPageSizeBytes, util.PrefixConfig(prefix, "trace.block.index-page-size-bytes"), 250*1024, "Number of bytes per index page.")
 	cfg.Trace.Block.Encoding = backend.EncZstd

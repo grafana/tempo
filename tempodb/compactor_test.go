@@ -2,14 +2,10 @@ package tempodb
 
 import (
 	"context"
-	"io/ioutil"
 	"math/rand"
-	"os"
-	"path"
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -18,10 +14,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/pool"
-	"github.com/grafana/tempo/tempodb/wal"
 )
 
 type mockSharder struct {
@@ -48,32 +40,8 @@ func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 }
 
 func TestCompaction(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, w, c, err := New(&Config{
-		Backend: "local",
-		Pool: &pool.Config{
-			MaxWorkers: 10,
-			QueueDepth: 100,
-		},
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes:  11,
-			BloomFilterShardSize:  100_000,
-			BloomFilterShardCount: 10,
-			Encoding:              backend.EncLZ4_4M,
-			IndexPageSizeBytes:    1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
-	require.NoError(t, err)
+	r, w, c, err := testConfig(backend.EncLZ4_4M, 0)
+	assert.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -177,31 +145,7 @@ func TestCompaction(t *testing.T) {
 }
 
 func TestSameIDCompaction(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, w, c, err := New(&Config{
-		Backend: "local",
-		Pool: &pool.Config{
-			MaxWorkers: 10,
-			QueueDepth: 100,
-		},
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes:  11,
-			BloomFilterShardSize:  100_000,
-			BloomFilterShardCount: 10,
-			Encoding:              backend.EncSnappy,
-			IndexPageSizeBytes:    1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	r, w, c, err := testConfig(backend.EncSnappy, 0)
 	assert.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
@@ -265,31 +209,7 @@ func TestSameIDCompaction(t *testing.T) {
 }
 
 func TestCompactionUpdatesBlocklist(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, w, c, err := New(&Config{
-		Backend: "local",
-		Pool: &pool.Config{
-			MaxWorkers: 10,
-			QueueDepth: 100,
-		},
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes:  11,
-			BloomFilterShardSize:  100_000,
-			BloomFilterShardCount: 10,
-			Encoding:              backend.EncNone,
-			IndexPageSizeBytes:    1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	r, w, c, err := testConfig(backend.EncNone, 0)
 	assert.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
@@ -332,31 +252,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 }
 
 func TestCompactionMetrics(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, w, c, err := New(&Config{
-		Backend: "local",
-		Pool: &pool.Config{
-			MaxWorkers: 10,
-			QueueDepth: 100,
-		},
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes:  11,
-			BloomFilterShardSize:  100_000,
-			BloomFilterShardCount: 10,
-			Encoding:              backend.EncNone,
-			IndexPageSizeBytes:    1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	r, w, c, err := testConfig(backend.EncNone, 0)
 	assert.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
@@ -403,31 +299,7 @@ func TestCompactionMetrics(t *testing.T) {
 }
 
 func TestCompactionIteratesThroughTenants(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
-	r, w, c, err := New(&Config{
-		Backend: "local",
-		Pool: &pool.Config{
-			MaxWorkers: 10,
-			QueueDepth: 100,
-		},
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes:  11,
-			BloomFilterShardSize:  100_000,
-			BloomFilterShardCount: 10,
-			Encoding:              backend.EncLZ4_64k,
-			IndexPageSizeBytes:    1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	r, w, c, err := testConfig(backend.EncLZ4_64k, 0)
 	assert.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
