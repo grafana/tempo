@@ -33,9 +33,9 @@ func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter 
 	var kPerBloom uint
 	for {
 		shardCount++
-		b := bloom.New(shardSize*8, uint(evaluateK(int(shardSize*8), int(estimatedObjects/shardCount))))
-		if b.EstimateFalsePositiveRate(estimatedObjects/shardCount) < fp {
-			kPerBloom = b.K()
+		var m, k uint
+		if m, k = bloom.EstimateParameters(estimatedObjects/shardCount, fp); m < shardSize {
+			kPerBloom = k
 			break
 		}
 	}

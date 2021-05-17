@@ -35,6 +35,7 @@ func TestShardedBloom(t *testing.T) {
 	// get byte representation
 	bloomBytes, err := b.Write()
 	assert.NoError(t, err)
+	assert.Len(t, bloomBytes, b.GetShardCount())
 
 	// parse byte representation into willf_bloom.Bloomfilter
 	var filters []*willf_bloom.BloomFilter
@@ -45,7 +46,7 @@ func TestShardedBloom(t *testing.T) {
 		_, err = filters[i].ReadFrom(bytes.NewReader(singleBloom))
 		assert.NoError(t, err)
 
-		// assert that parsed form has the expected size and atleast the fp specified
+		// assert that parsed form has the expected size
 		assert.Equal(t, shardSize*8, filters[i].Cap()) // * 8 because need bits from bytes
 	}
 
@@ -91,7 +92,9 @@ func TestShardedBloomFalsePositive(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt  // capture range variable, needed for running test cases in parallel
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
 			b := NewBloom(tt.bloomFP, tt.shardSize, tt.estimatedObjects)
 
