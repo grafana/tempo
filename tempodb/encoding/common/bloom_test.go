@@ -89,6 +89,12 @@ func TestShardedBloomFalsePositive(t *testing.T) {
 			shardSize:        100000,
 			estimatedObjects: 10,
 		},
+		{
+			name:             "current scale",
+			bloomFP:          0.05,
+			shardSize:        250 * 1024,
+			estimatedObjects: 10_000_000,
+		},
 	}
 
 	for _, tt := range tests {
