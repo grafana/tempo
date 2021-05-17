@@ -2,7 +2,6 @@ package common
 
 import (
 	"bytes"
-	"math"
 
 	"github.com/willf/bloom"
 
@@ -15,17 +14,6 @@ type ShardedBloomFilter struct {
 	blooms []*bloom.BloomFilter
 }
 
-func evaluateK(shardSizeInBits, itemsPerBloom int) (k int) {
-	// Per https://llimllib.github.io/bloomfilter-tutorial/ under "How many hash functions should I use?"
-	// the optimal value of k: (m/n)ln(2)
-	// m: number of bits in the filter
-	// n: estimated number of objects
-	// k: number of hash functions
-	k = int(math.Ceil((float64(shardSizeInBits) / float64(itemsPerBloom)) * (math.Ln2)))
-
-	return
-}
-
 // NewBloom creates a ShardedBloomFilter
 func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter {
 	// estimate the number of shards needed. an approximate value is enough
@@ -34,6 +22,8 @@ func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter 
 	for {
 		shardCount++
 		var m, k uint
+		// m: number of bits in the filter
+		// k: number of hash functions
 		if m, k = bloom.EstimateParameters(estimatedObjects/shardCount, fp); m < shardSize {
 			kPerBloom = k
 			break
