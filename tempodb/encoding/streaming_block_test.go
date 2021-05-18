@@ -60,7 +60,7 @@ func TestStreamingBlockAddObject(t *testing.T) {
 	numObjects := (rand.Int() % 20) + 1
 	cb, err := NewStreamingBlock(&BlockConfig{
 		BloomFP:              0.01,
-		BloomFilterShardSize: 100_000,
+		BloomFilterShardSize: 100,
 		IndexDownsampleBytes: indexDownsample,
 		Encoding:             backend.EncGZIP,
 	}, uuid.New(), testTenantID, metas, numObjects)
@@ -118,6 +118,7 @@ func TestStreamingBlockAddObject(t *testing.T) {
 	assert.Equal(t, testTenantID, meta.TenantID)
 	assert.Equal(t, numObjects, meta.TotalObjects)
 	assert.Greater(t, meta.Size, uint64(0))
+	assert.Greater(t, cb.bloom.GetShardCount(), 0)
 
 	// bloom
 	for _, id := range ids {
@@ -238,6 +239,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
 	originatingMeta.DataEncoding = "foo"
+	originatingMeta.TotalObjects = numMsgs
 
 	// calc expected records
 	byteCounter := 0
@@ -259,6 +261,8 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 
 	block, err := NewStreamingBlock(cfg, originatingMeta.BlockID, originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, originatingMeta.TotalObjects)
 	require.NoError(t, err, "unexpected error completing block")
+
+	expectedBloomShards := block.bloom.GetShardCount()
 
 	ctx := context.Background()
 	for {
@@ -288,6 +292,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	require.Equal(t, originatingMeta.EndTime, block.BlockMeta().EndTime)
 	require.Equal(t, originatingMeta.TenantID, block.BlockMeta().TenantID)
 	require.Equal(t, originatingMeta.DataEncoding, block.BlockMeta().DataEncoding)
+	require.Equal(t, expectedBloomShards, int(block.BlockMeta().BloomShardCount))
 
 	// Verify block size was written
 	require.Greater(t, block.BlockMeta().Size, uint64(0))

@@ -24,7 +24,7 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
 GO_OPT= -mod vendor -ldflags "-X main.Branch=$(GIT_BRANCH) -X main.Revision=$(GIT_REVISION) -X main.Version=$(VERSION)"
-GOTEST_OPT?= -race -timeout 20m -count=1
+GOTEST_OPT?= -race -timeout 10m -count=1
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint

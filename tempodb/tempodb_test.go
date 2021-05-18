@@ -10,9 +10,12 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -20,8 +23,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -41,6 +42,10 @@ func testConfig(enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writ
 
 	return New(&Config{
 		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
