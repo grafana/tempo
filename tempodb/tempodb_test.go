@@ -205,7 +205,7 @@ func TestBlockCleanup(t *testing.T) {
 
 	assert.Len(t, rw.blockLists[testTenantID], 1)
 
-	os.RemoveAll(tmpdir + "/traces/" + testTenantID)
+	os.RemoveAll(tempDir + "/traces/" + testTenantID)
 
 	// poll
 	rw.pollBlocklist()
