@@ -138,6 +138,7 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 
 	common.SortRecords(records)
 
+	b.meta.TotalObjects = len(records)
 	b.appender = encoding.NewRecordAppender(records)
 
 	return b, warning, nil
