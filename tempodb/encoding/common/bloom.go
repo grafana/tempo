@@ -28,7 +28,7 @@ func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter 
 	// k: number of hash functions
 	var shardCount uint
 	m, k := bloom.EstimateParameters(estimatedObjects, fp)
-	shardCount = uint(math.Ceil(float64(m)/(float64(shardSize)*8.0)))
+	shardCount = uint(math.Ceil(float64(m) / (float64(shardSize) * 8.0)))
 
 	if shardCount < minShardCount {
 		shardCount = minShardCount
