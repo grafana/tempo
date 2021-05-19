@@ -115,6 +115,76 @@ func TestDedupeSpanIDs(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "duplicate multi level",
+			trace: &tempopb.Trace{
+				Batches: []*v1.ResourceSpans{
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										Kind:   v1.Span_SPAN_KIND_CLIENT,
+									},
+									{
+										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+									},
+									{
+										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										Kind:   v1.Span_SPAN_KIND_SERVER,
+									},
+									{
+										SpanId:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+										Kind:         v1.Span_SPAN_KIND_CLIENT,
+										ParentSpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+									},
+									{
+										SpanId:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+										Kind:         v1.Span_SPAN_KIND_SERVER,
+										ParentSpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRes: &tempopb.Trace{
+				Batches: []*v1.ResourceSpans{
+					{
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							{
+								Spans: []*v1.Span{
+									{
+										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										Kind:   v1.Span_SPAN_KIND_CLIENT,
+									},
+									{
+										SpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+									},
+									{
+										SpanId:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04},
+										Kind:         v1.Span_SPAN_KIND_SERVER,
+										ParentSpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+									},
+									{
+										SpanId:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+										Kind:         v1.Span_SPAN_KIND_CLIENT,
+										ParentSpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04},
+									},
+									{
+										SpanId:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05},
+										Kind:         v1.Span_SPAN_KIND_SERVER,
+										ParentSpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

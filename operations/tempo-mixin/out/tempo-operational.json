@@ -4758,7 +4758,7 @@
    "fieldConfig": {
     "defaults": {
      "color": {
-      "mode": "thresholds"
+      "mode": "palette-classic"
      },
      "mappings": [
 
@@ -4766,91 +4766,13 @@
      "thresholds": {
       "mode": "absolute",
       "steps": [
-       {
-        "color": "green",
-        "value": null
-       },
-       {
-        "color": "red",
-        "value": 0.050000000000000003
-       }
+
       ]
      },
      "unit": "percentunit"
     },
     "overrides": [
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "1800"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": ".5h"
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "3600"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": "1h"
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "10800"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": "3h"
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "21600"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": "6h"
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "43200"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": "12h"
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "86400"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": "24h"
-       }
-      ]
-     }
+
     ]
    },
    "gridPos": {
@@ -4861,33 +4783,33 @@
    },
    "id": 77,
    "options": {
-    "displayMode": "gradient",
-    "orientation": "auto",
-    "reduceOptions": {
-     "calcs": [
-      "mean"
-     ],
-     "fields": "",
-     "values": false
-    },
-    "showUnfilled": true,
-    "text": {
+    "graph": {
 
+    },
+    "legend": {
+     "calcs": [
+
+     ],
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltipOptions": {
+     "mode": "single"
     }
    },
    "pluginVersion": "7.5.0-14141pre",
    "targets": [
     {
-     "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\", error=\"notfound\"}[1h])) / sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
+     "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
      "interval": "",
-     "legendFormat": "{{secondsago}}",
+     "legendFormat": "{{error}}",
      "refId": "A"
     }
    ],
    "timeFrom": null,
    "timeShift": null,
-   "title": "Traces Not Found",
-   "type": "bargauge"
+   "title": "Vulture Query Errors",
+   "type": "timeseries"
   },
   {
    "datasource": "$ds",
@@ -4905,88 +4827,13 @@
        {
         "color": "green",
         "value": null
-       },
-       {
-        "color": "red",
-        "value": 0.050000000000000003
        }
       ]
      },
      "unit": "percentunit"
     },
     "overrides": [
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "1800"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": ".5h"
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "3600"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": "1h"
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "10800"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": "3h"
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "21600"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": "6h"
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "43200"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": "12h"
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "86400"
-      },
-      "properties": [
-       {
-        "id": "displayName",
-        "value": "24h"
-       }
-      ]
-     }
+
     ]
    },
    "gridPos": {
@@ -5014,7 +4861,7 @@
    "pluginVersion": "7.5.0-14141pre",
    "targets": [
     {
-     "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\", error=\"missingspans\"}[1h])) by (secondsago) / sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])) by (secondsago)",
+     "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
      "interval": "",
      "legendFormat": "{{secondsago}}",
      "refId": "A"
@@ -5022,7 +4869,7 @@
    ],
    "timeFrom": null,
    "timeShift": null,
-   "title": "Traces Missing Spans",
+   "title": "Average Vulture Query Errors",
    "type": "bargauge"
   },
   {
