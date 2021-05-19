@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"math"
 
+	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/willf/bloom"
 
 	"github.com/grafana/tempo/pkg/util"
@@ -38,6 +40,7 @@ func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter 
 
 	if shardCount > maxShardCount {
 		shardCount = maxShardCount
+		level.Warn(cortex_util.Logger).Log("msg", "required bloom filter shard count exceeded max. consider increasing bloom_filter_shard_size_bytes")
 	}
 
 	b := &ShardedBloomFilter{
