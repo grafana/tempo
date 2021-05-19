@@ -2,13 +2,17 @@ package common
 
 import (
 	"bytes"
+	"math"
 
 	"github.com/willf/bloom"
 
 	"github.com/grafana/tempo/pkg/util"
 )
 
-const legacyShardCount = 10
+const (
+	legacyShardCount = 10
+	maxShardCount = math.MaxUint16
+)
 
 type ShardedBloomFilter struct {
 	blooms []*bloom.BloomFilter
@@ -29,6 +33,10 @@ func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter 
 
 	if shardCount == 0 {
 		shardCount = 1
+	}
+
+	if shardCount > maxShardCount {
+		shardCount = maxShardCount
 	}
 
 	b := &ShardedBloomFilter{

@@ -21,7 +21,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -42,10 +41,6 @@ func testConfig(enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writ
 
 	return New(&Config{
 		Backend: "local",
-		Pool: &pool.Config{
-			MaxWorkers: 10,
-			QueueDepth: 100,
-		},
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
