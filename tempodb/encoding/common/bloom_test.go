@@ -122,3 +122,39 @@ func TestShardedBloomFalsePositive(t *testing.T) {
 		})
 	}
 }
+
+func TestBloomShardCount(t *testing.T) {
+	tests := []struct {
+		name             string
+		bloomFP          float64
+		shardSize        uint
+		estimatedObjects uint
+		expectedShards   uint
+	}{
+		{
+			name:             "too many shards",
+			bloomFP:          0.01,
+			shardSize:        1,
+			estimatedObjects: 100000,
+			expectedShards:   maxShardCount,
+		},
+		{
+			name:             "too few shards",
+			bloomFP:          0.01,
+			shardSize:        10,
+			estimatedObjects: 1,
+			expectedShards:   minShardCount,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt // capture range variable, needed for running test cases in parallel
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			b := NewBloom(tt.bloomFP, tt.shardSize, tt.estimatedObjects)
+			assert.Equal(t, int(tt.expectedShards), b.GetShardCount())
+		})
+	}
+
+}

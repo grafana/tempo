@@ -11,7 +11,8 @@ import (
 
 const (
 	legacyShardCount = 10
-	maxShardCount = math.MaxUint16
+	minShardCount    = 1
+	maxShardCount    = math.MaxUint16
 )
 
 type ShardedBloomFilter struct {
@@ -31,8 +32,8 @@ func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter 
 		shardCount = (m / (shardSize * 8)) + 1
 	}
 
-	if shardCount == 0 {
-		shardCount = 1
+	if shardCount < minShardCount {
+		shardCount = minShardCount
 	}
 
 	if shardCount > maxShardCount {
