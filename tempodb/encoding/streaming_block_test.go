@@ -138,6 +138,7 @@ func TestStreamingBlockAll(t *testing.T) {
 				&BlockConfig{
 					IndexDownsampleBytes: 1000,
 					BloomFP:              .01,
+					BloomShardSizeBytes:  10_000,
 					Encoding:             enc,
 					IndexPageSizeBytes:   1000,
 				},

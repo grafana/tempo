@@ -27,6 +27,10 @@ func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter 
 		shardCount = (m / (shardSize * 8)) + 1
 	}
 
+	if shardCount == 0 {
+		shardCount = 1
+	}
+
 	b := &ShardedBloomFilter{
 		blooms: make([]*bloom.BloomFilter, shardCount),
 	}
