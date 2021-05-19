@@ -31,15 +31,11 @@ const (
 	testDataEncoding = "blerg"
 )
 
-func testConfig(enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writer, Compactor, error) {
+func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writer, Compactor, string) {
 	tempDir, err := ioutil.TempDir(tmpdir, "")
-	defer os.RemoveAll(tempDir)
+	require.NoError(t, err)
 
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return New(&Config{
+	r, w, c, err := New(&Config{
 		Backend: "local",
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
@@ -56,11 +52,13 @@ func testConfig(enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writ
 		},
 		BlocklistPoll: blocklistPoll,
 	}, log.NewNopLogger())
+	require.NoError(t, err)
+	return r, w, c, tempDir
 }
 
 func TestDB(t *testing.T) {
-	r, w, c, err := testConfig(backend.EncGZIP, 0)
-	assert.NoError(t, err)
+	r, w, c, tempDir := testConfig(t, backend.EncGZIP, 0)
+	defer os.RemoveAll(tempDir)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -117,8 +115,8 @@ func TestBlockSharding(t *testing.T) {
 	// push a req with some traceID
 	// cut headblock & write to backend
 	// search with different shards and check if its respecting the params
-	r, w, _, err := testConfig(backend.EncLZ4_256k, 0)
-	assert.NoError(t, err)
+	r, w, _, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
+	defer os.RemoveAll(tempDir)
 
 	// create block with known ID
 	blockID := uuid.New()
@@ -171,8 +169,8 @@ func TestBlockSharding(t *testing.T) {
 }
 
 func TestNilOnUnknownTenantID(t *testing.T) {
-	r, _, _, err := testConfig(backend.EncLZ4_256k, 0)
-	assert.NoError(t, err)
+	r, _, _, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
+	defer os.RemoveAll(tempDir)
 
 	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
 	assert.Nil(t, buff)
@@ -180,8 +178,8 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 }
 
 func TestBlockCleanup(t *testing.T) {
-	r, w, c, err := testConfig(backend.EncLZ4_256k, 0)
-	assert.NoError(t, err)
+	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
+	defer os.RemoveAll(tempDir)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -193,7 +191,6 @@ func TestBlockCleanup(t *testing.T) {
 	blockID := uuid.New()
 
 	wal := w.WAL()
-	assert.NoError(t, err)
 
 	head, err := wal.NewBlock(blockID, testTenantID, "")
 	assert.NoError(t, err)
@@ -245,8 +242,8 @@ func TestCleanMissingTenants(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, _, _, err := testConfig(backend.EncLZ4_256k, 0)
-			assert.NoError(t, err)
+			r, _, _, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
+			defer os.RemoveAll(tempDir)
 
 			rw := r.(*readerWriter)
 
@@ -287,8 +284,8 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 }
 
 func TestUpdateBlocklist(t *testing.T) {
-	r, _, _, err := testConfig(backend.EncLZ4_256k, 0)
-	assert.NoError(t, err)
+	r, _, _, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
+	defer os.RemoveAll(tempDir)
 
 	rw := r.(*readerWriter)
 
@@ -456,8 +453,8 @@ func TestUpdateBlocklist(t *testing.T) {
 }
 
 func TestUpdateBlocklistCompacted(t *testing.T) {
-	r, _, _, err := testConfig(backend.EncLZ4_256k, 0)
-	assert.NoError(t, err)
+	r, _, _, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
+	defer os.RemoveAll(tempDir)
 
 	rw := r.(*readerWriter)
 
@@ -759,8 +756,8 @@ func TestIncludeCompactedBlock(t *testing.T) {
 }
 
 func TestSearchCompactedBlocks(t *testing.T) {
-	r, w, c, err := testConfig(backend.EncLZ4_256k, time.Minute)
-	assert.NoError(t, err)
+	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, time.Minute)
+	defer os.RemoveAll(tempDir)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -770,7 +767,6 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 
 	wal := w.WAL()
-	assert.NoError(t, err)
 
 	head, err := wal.NewBlock(uuid.New(), testTenantID, "")
 	assert.NoError(t, err)
@@ -846,8 +842,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 }
 
 func TestCompleteBlock(t *testing.T) {
-	_, w, _, err := testConfig(backend.EncLZ4_256k, time.Minute)
-	assert.NoError(t, err)
+	_, w, _, tempDir := testConfig(t, backend.EncLZ4_256k, time.Minute)
+	defer os.RemoveAll(tempDir)
 
 	wal := w.WAL()
 
