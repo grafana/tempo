@@ -41,7 +41,7 @@ func NewStreamingBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 	c := &StreamingBlock{
 		encoding:      LatestEncoding(),
 		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding, dataEncoding),
-		bloom:         common.NewBloom(cfg.BloomFP, uint(cfg.BloomFilterShardSize), uint(estimatedObjects)),
+		bloom:         common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(estimatedObjects)),
 		inMetas:       metas,
 		cfg:           cfg,
 	}

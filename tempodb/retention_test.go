@@ -30,7 +30,7 @@ func TestRetention(t *testing.T) {
 		Block: &encoding.BlockConfig{
 			IndexDownsampleBytes: 17,
 			BloomFP:              0.01,
-			BloomFilterShardSize: 100_000,
+			BloomShardSizeBytes:  100_000,
 			Encoding:             backend.EncLZ4_256k,
 			IndexPageSizeBytes:   1000,
 		},
@@ -86,7 +86,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 		Block: &encoding.BlockConfig{
 			IndexDownsampleBytes: 17,
 			BloomFP:              0.01,
-			BloomFilterShardSize: 100_000,
+			BloomShardSizeBytes:  100_000,
 			Encoding:             backend.EncLZ4_256k,
 			IndexPageSizeBytes:   1000,
 		},

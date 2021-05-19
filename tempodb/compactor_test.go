@@ -64,7 +64,7 @@ func TestCompaction(t *testing.T) {
 		Block: &encoding.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
-			BloomFilterShardSize: 100_000,
+			BloomShardSizeBytes:  100_000,
 			Encoding:             backend.EncLZ4_4M,
 			IndexPageSizeBytes:   1000,
 		},
@@ -193,7 +193,7 @@ func TestSameIDCompaction(t *testing.T) {
 		Block: &encoding.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
-			BloomFilterShardSize: 100_000,
+			BloomShardSizeBytes:  100_000,
 			Encoding:             backend.EncSnappy,
 			IndexPageSizeBytes:   1000,
 		},
@@ -281,7 +281,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 		Block: &encoding.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
-			BloomFilterShardSize: 100_000,
+			BloomShardSizeBytes:  100_000,
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
 		},
@@ -348,7 +348,7 @@ func TestCompactionMetrics(t *testing.T) {
 		Block: &encoding.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
-			BloomFilterShardSize: 100_000,
+			BloomShardSizeBytes:  100_000,
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
 		},
@@ -419,7 +419,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 		Block: &encoding.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
-			BloomFilterShardSize: 100_000,
+			BloomShardSizeBytes:  100_000,
 			Encoding:             backend.EncLZ4_64k,
 			IndexPageSizeBytes:   1000,
 		},

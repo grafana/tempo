@@ -16,18 +16,15 @@ type ShardedBloomFilter struct {
 
 // NewBloom creates a ShardedBloomFilter
 func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter {
-	// estimate the number of shards needed. an approximate value is enough
+	// estimate the number of shards needed
+	// m: number of bits in the filter
+	// k: number of hash functions
 	var shardCount uint
-	var kPerBloom uint
-	for {
-		shardCount++
-		var m, k uint
-		// m: number of bits in the filter
-		// k: number of hash functions
-		if m, k = bloom.EstimateParameters(estimatedObjects/shardCount, fp); m < shardSize {
-			kPerBloom = k
-			break
-		}
+	m, k := bloom.EstimateParameters(estimatedObjects, fp)
+	if m%(shardSize*8) == 0 {
+		shardCount = m / (shardSize * 8)
+	} else {
+		shardCount = (m / (shardSize * 8)) + 1
 	}
 
 	b := &ShardedBloomFilter{
@@ -36,7 +33,7 @@ func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter 
 
 	for i := 0; i < int(shardCount); i++ {
 		// New(m uint, k uint) creates a new Bloom filter with _m_ bits and _k_ hashing functions
-		b.blooms[i] = bloom.New(shardSize*8, kPerBloom)
+		b.blooms[i] = bloom.New(shardSize*8, k)
 	}
 
 	return b
@@ -47,8 +44,8 @@ func (b *ShardedBloomFilter) Add(traceID []byte) {
 	b.blooms[shardKey].Add(traceID)
 }
 
-// Write is a wrapper around bloom.WriteTo
-func (b *ShardedBloomFilter) Write() ([][]byte, error) {
+// Marshal is a wrapper around bloom.WriteTo
+func (b *ShardedBloomFilter) Marshal() ([][]byte, error) {
 	bloomBytes := make([][]byte, len(b.blooms))
 	for i, f := range b.blooms {
 		bloomBuffer := &bytes.Buffer{}

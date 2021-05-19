@@ -521,7 +521,7 @@ func defaultInstance(t require.TestingT, tmpDir string) *instance {
 			Block: &encoding.BlockConfig{
 				IndexDownsampleBytes: 2,
 				BloomFP:              0.01,
-				BloomFilterShardSize: 100_000,
+				BloomShardSizeBytes:  100_000,
 				Encoding:             backend.EncLZ4_1M,
 				IndexPageSizeBytes:   1000,
 			},

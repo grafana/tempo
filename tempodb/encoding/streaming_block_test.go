@@ -60,7 +60,7 @@ func TestStreamingBlockAddObject(t *testing.T) {
 	numObjects := (rand.Int() % 20) + 1
 	cb, err := NewStreamingBlock(&BlockConfig{
 		BloomFP:              0.01,
-		BloomFilterShardSize: 100,
+		BloomShardSizeBytes:  100,
 		IndexDownsampleBytes: indexDownsample,
 		Encoding:             backend.EncGZIP,
 	}, uuid.New(), testTenantID, metas, numObjects)

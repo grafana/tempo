@@ -39,7 +39,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Trace.Block = &encoding.BlockConfig{}
 	f.Float64Var(&cfg.Trace.Block.BloomFP, util.PrefixConfig(prefix, "trace.block.bloom-filter-false-positive"), .05, "Bloom Filter False Positive.")
-	f.IntVar(&cfg.Trace.Block.BloomFilterShardSize, util.PrefixConfig(prefix, "trace.block.bloom-filter-shard-size"), 250*1024, "Bloom Filter Shard Size.")
+	f.IntVar(&cfg.Trace.Block.BloomShardSizeBytes, util.PrefixConfig(prefix, "trace.block.bloom-filter-shard-size-bytes"), 250*1024, "Bloom Filter Shard Size in bytes.")
 	f.IntVar(&cfg.Trace.Block.IndexDownsampleBytes, util.PrefixConfig(prefix, "trace.block.index-downsample-bytes"), 1024*1024, "Number of bytes (before compression) per index record.")
 	f.IntVar(&cfg.Trace.Block.IndexPageSizeBytes, util.PrefixConfig(prefix, "trace.block.index-page-size-bytes"), 250*1024, "Number of bytes per index page.")
 	cfg.Trace.Block.Encoding = backend.EncZstd

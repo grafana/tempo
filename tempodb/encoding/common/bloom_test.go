@@ -33,7 +33,7 @@ func TestShardedBloom(t *testing.T) {
 	}
 
 	// get byte representation
-	bloomBytes, err := b.Write()
+	bloomBytes, err := b.Marshal()
 	assert.NoError(t, err)
 	assert.Len(t, bloomBytes, b.GetShardCount())
 
@@ -105,7 +105,7 @@ func TestShardedBloomFalsePositive(t *testing.T) {
 			b := NewBloom(tt.bloomFP, tt.shardSize, tt.estimatedObjects)
 
 			// get byte representation
-			bloomBytes, err := b.Write()
+			bloomBytes, err := b.Marshal()
 			assert.NoError(t, err)
 
 			// parse byte representation into willf_bloom.Bloomfilter

@@ -15,13 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -52,7 +52,7 @@ func testConfig(enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writ
 		Block: &encoding.BlockConfig{
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
-			BloomFilterShardSize: 100_000,
+			BloomShardSizeBytes:  100_000,
 			Encoding:             enc,
 			IndexPageSizeBytes:   1000,
 		},

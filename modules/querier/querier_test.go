@@ -58,7 +58,7 @@ func TestReturnAllHits(t *testing.T) {
 			Encoding:             backend.EncNone,
 			IndexDownsampleBytes: 10,
 			BloomFP:              0.01,
-			BloomFilterShardSize: 100_000,
+			BloomShardSizeBytes:  100_000,
 			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
