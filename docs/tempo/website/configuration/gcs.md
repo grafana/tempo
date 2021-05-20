@@ -1,21 +1,9 @@
 ---
-title: Google Cloud Storage (GCS)
+title: Google Cloud Storage (GCS) Permissions
 ---
 
-# Google Cloud Storage (GCS) configuration
-GCS backend is configured in the storage block. Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support a custom prefix to nest within a shared bucket.
+For configuration, check the storage section on the [configuration](../configuration) page.
 
-```
-storage:
-    trace:
-        backend: gcs                                              # store traces in gcs
-        gcs:
-            bucket_name: tempo                                    # store traces in this bucket
-            chunk_buffer_size: 10485760                           # optional. buffer size for reads. default = 10MiB
-            endpoint: https://storage.googleapis.com/storage/v1/  # optional. api endpoint override
-            insecure: false                                       # optional. Set to true to disable authentication 
-                                                                  #   and certificate checks.
-```
 ## Permissions
 The following authentication methods are supported:
 - GCP environment variable GOOGLE_APPLICATION_CREDENTIALS
