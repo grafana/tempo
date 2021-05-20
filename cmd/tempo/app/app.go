@@ -174,6 +174,7 @@ func (t *App) setupAuthMiddleware() {
 		// don't check auth for these gRPC methods, since single call is used for multiple users
 		noGRPCAuthOn := []string{
 			"/frontend.Frontend/Process",
+			"/frontend.Frontend/NotifyClientShutdown",
 		}
 		ignoredMethods := map[string]bool{}
 		for _, m := range noGRPCAuthOn {
