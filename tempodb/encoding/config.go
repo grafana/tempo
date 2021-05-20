@@ -11,6 +11,7 @@ type BlockConfig struct {
 	IndexDownsampleBytes int              `yaml:"index_downsample_bytes"`
 	IndexPageSizeBytes   int              `yaml:"index_page_size_bytes"`
 	BloomFP              float64          `yaml:"bloom_filter_false_positive"`
+	BloomShardSizeBytes  int              `yaml:"bloom_filter_shard_size_bytes"`
 	Encoding             backend.Encoding `yaml:"encoding"`
 }
 
@@ -26,6 +27,10 @@ func ValidateConfig(b *BlockConfig) error {
 
 	if b.BloomFP <= 0.0 {
 		return fmt.Errorf("invalid bloom filter fp rate %v", b.BloomFP)
+	}
+
+	if b.BloomShardSizeBytes <= 0 {
+		return fmt.Errorf("Positive value required for bloom-filter shard size")
 	}
 
 	return nil

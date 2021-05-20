@@ -28,6 +28,7 @@ type BlockMeta struct {
 	IndexPageSize   uint32    `json:"indexPageSize"`   // Size of each index page in bytes
 	TotalRecords    uint32    `json:"totalRecords"`    // Total Records stored in the index file
 	DataEncoding    string    `json:"dataEncoding"`    // DataEncoding is a string provided externally, but tracked by tempodb that indicates the way the bytes are encoded
+	BloomShardCount uint16    `json:"bloomShards"`     // Number of bloom filter shards
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {

@@ -26,7 +26,7 @@ func bloomName(shard int) string {
 
 // writeBlockMeta writes the bloom filter, meta and index to the passed in backend.Writer
 func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, indexBytes []byte, b *common.ShardedBloomFilter) error {
-	blooms, err := b.WriteTo()
+	blooms, err := b.Marshal()
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader,
 	}
 
 	// Bloom
-	for i := 0; i < common.GetShardNum(); i++ {
+	for i := 0; i < common.ValidateShardCount(int(meta.BloomShardCount)); i++ {
 		err = copy(bloomName(i))
 		if err != nil {
 			return err

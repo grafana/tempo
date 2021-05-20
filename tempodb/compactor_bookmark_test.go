@@ -35,6 +35,7 @@ func TestCurrentClear(t *testing.T) {
 		Block: &encoding.BlockConfig{
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
 			Encoding:             backend.EncGZIP,
 			IndexPageSizeBytes:   1000,
 		},

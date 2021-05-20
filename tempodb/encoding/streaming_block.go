@@ -41,7 +41,7 @@ func NewStreamingBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 	c := &StreamingBlock{
 		encoding:      LatestEncoding(),
 		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding, dataEncoding),
-		bloom:         common.NewWithEstimates(uint(estimatedObjects), cfg.BloomFP),
+		bloom:         common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(estimatedObjects)),
 		inMetas:       metas,
 		cfg:           cfg,
 	}
@@ -132,6 +132,7 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 
 	meta.TotalRecords = uint32(len(records)) // casting
 	meta.IndexPageSize = uint32(c.cfg.IndexPageSizeBytes)
+	meta.BloomShardCount = uint16(c.bloom.GetShardCount())
 
 	return bytesFlushed, writeBlockMeta(ctx, w, meta, indexBytes, c.bloom)
 }

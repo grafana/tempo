@@ -10,9 +10,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/stretchr/testify/assert"
 )
 
 const objectName = "test"
@@ -107,7 +108,7 @@ func TestCompaction(t *testing.T) {
 		BlockID: blockID,
 	}
 
-	shardNum := common.GetShardNum()
+	shardNum := common.ValidateShardCount(int(fakeMeta.BloomShardCount))
 	fakeBloom := make([][]byte, shardNum)
 	fakeIndex := make([]byte, 20)
 	fakeTraces := make([]byte, 200)

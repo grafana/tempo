@@ -48,7 +48,7 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 
 	span.SetTag("block", b.meta.BlockID.String())
 
-	shardKey := common.ShardKeyForTraceID(id)
+	shardKey := common.ShardKeyForTraceID(id, int(b.meta.BloomShardCount))
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
 

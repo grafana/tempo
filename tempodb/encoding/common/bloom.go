@@ -2,41 +2,63 @@ package common
 
 import (
 	"bytes"
+	"math"
+
+	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/go-kit/kit/log/level"
+	"github.com/willf/bloom"
 
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/willf/bloom"
 )
 
-const shardNum = 10
+const (
+	legacyShardCount = 10
+	minShardCount    = 1
+	maxShardCount    = 1000
+)
 
 type ShardedBloomFilter struct {
 	blooms []*bloom.BloomFilter
 }
 
-func NewWithEstimates(n uint, fp float64) *ShardedBloomFilter {
-	b := &ShardedBloomFilter{
-		blooms: make([]*bloom.BloomFilter, shardNum),
+// NewBloom creates a ShardedBloomFilter
+func NewBloom(fp float64, shardSize, estimatedObjects uint) *ShardedBloomFilter {
+	// estimate the number of shards needed
+	// m: number of bits in the filter
+	// k: number of hash functions
+	var shardCount uint
+	m, k := bloom.EstimateParameters(estimatedObjects, fp)
+	shardCount = uint(math.Ceil(float64(m) / (float64(shardSize) * 8.0)))
+
+	if shardCount < minShardCount {
+		shardCount = minShardCount
 	}
 
-	itemsPerBloom := n / shardNum
-	if itemsPerBloom == 0 {
-		itemsPerBloom = 1
+	if shardCount > maxShardCount {
+		shardCount = maxShardCount
+		level.Warn(cortex_util.Logger).Log("msg", "required bloom filter shard count exceeded max. consider increasing bloom_filter_shard_size_bytes")
 	}
-	for i := 0; i < shardNum; i++ {
-		b.blooms[i] = bloom.NewWithEstimates(itemsPerBloom, fp)
+
+	b := &ShardedBloomFilter{
+		blooms: make([]*bloom.BloomFilter, shardCount),
+	}
+
+	for i := 0; i < int(shardCount); i++ {
+		// New(m uint, k uint) creates a new Bloom filter with _m_ bits and _k_ hashing functions
+		b.blooms[i] = bloom.New(shardSize*8, k)
 	}
 
 	return b
 }
 
 func (b *ShardedBloomFilter) Add(traceID []byte) {
-	shardKey := ShardKeyForTraceID(traceID)
+	shardKey := ShardKeyForTraceID(traceID, len(b.blooms))
 	b.blooms[shardKey].Add(traceID)
 }
 
-// WriteTo is a wrapper around bloom.WriteTo
-func (b *ShardedBloomFilter) WriteTo() ([][]byte, error) {
-	bloomBytes := make([][]byte, shardNum)
+// Marshal is a wrapper around bloom.WriteTo
+func (b *ShardedBloomFilter) Marshal() ([][]byte, error) {
+	bloomBytes := make([][]byte, len(b.blooms))
 	for i, f := range b.blooms {
 		bloomBuffer := &bytes.Buffer{}
 		_, err := f.WriteTo(bloomBuffer)
@@ -48,16 +70,24 @@ func (b *ShardedBloomFilter) WriteTo() ([][]byte, error) {
 	return bloomBytes, nil
 }
 
-func ShardKeyForTraceID(traceID []byte) int {
-	return int(util.TokenForTraceID(traceID)) % shardNum
+func (b *ShardedBloomFilter) GetShardCount() int {
+	return len(b.blooms)
 }
 
 // Test implements bloom.Test -> required only for testing
 func (b *ShardedBloomFilter) Test(traceID []byte) bool {
-	shardKey := ShardKeyForTraceID(traceID)
+	shardKey := ShardKeyForTraceID(traceID, len(b.blooms))
 	return b.blooms[shardKey].Test(traceID)
 }
 
-func GetShardNum() int {
-	return shardNum
+func ShardKeyForTraceID(traceID []byte, shardCount int) int {
+	return int(util.TokenForTraceID(traceID)) % ValidateShardCount(shardCount)
+}
+
+// For backward compatibility
+func ValidateShardCount(shardCount int) int {
+	if shardCount == 0 {
+		return legacyShardCount
+	}
+	return shardCount
 }
