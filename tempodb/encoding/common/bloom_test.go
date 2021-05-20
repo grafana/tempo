@@ -73,9 +73,9 @@ func TestShardedBloomFalsePositive(t *testing.T) {
 	}{
 		{
 			name:             "regular",
-			bloomFP:          0.01,
-			shardSize:        100,
-			estimatedObjects: 1000,
+			bloomFP:          0.05,
+			shardSize:        250 * 1024,
+			estimatedObjects: 10_000_000,
 		},
 		{
 			name:             "large estimated objects",
@@ -88,12 +88,6 @@ func TestShardedBloomFalsePositive(t *testing.T) {
 			bloomFP:          0.01,
 			shardSize:        100000,
 			estimatedObjects: 10,
-		},
-		{
-			name:             "current scale",
-			bloomFP:          0.05,
-			shardSize:        250 * 1024,
-			estimatedObjects: 10_000_000,
 		},
 	}
 

@@ -14,7 +14,7 @@ import (
 const (
 	legacyShardCount = 10
 	minShardCount    = 1
-	maxShardCount    = math.MaxUint16
+	maxShardCount    = 1000
 )
 
 type ShardedBloomFilter struct {
