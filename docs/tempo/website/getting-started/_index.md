@@ -5,9 +5,9 @@ weight: 100
 
 # Getting started with Tempo
 
-Distributed tracing is used to visualise the lifecycle of a request as it passes through
+Distributed tracing is used to visualize the lifecycle of a request as it passes through
 an application. There are a few components that need to be set up in order to get a
-working distributed tracing visualisation.
+working distributed tracing visualization.
 
 ## 1. Client instrumentation
 
@@ -36,7 +36,7 @@ in this step. Commonly used SDKs are listed below -
 #### OpenTelemetry Auto Instrumentation
 
 Some languages have support for auto-instrumentation. These libraries capture telemetry
-information from client application with minimal manual instrumentation of the codebase.
+information from a client application with minimal manual instrumentation of the codebase.
 
 * [OpenTemeletry Java Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)
 * [OpenTemeletry .NET Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation)
@@ -48,7 +48,7 @@ information from client application with minimal manual instrumentation of the c
 ## 2. Grafana Agent
 
 Once your application is instrumented for tracing, the next step is to send these traces
-to a backend for storage and visualisation. The Grafana Agent is a service that is
+to a backend for storage and visualization. The Grafana Agent is a service that is
 deployed close to the application, either on the same node or within the same cluster
 (in kubernetes) to quickly offload traces from the application and forward them to a storage
 backend. It also abstracts features like trace batching and backend routing
@@ -75,7 +75,7 @@ Getting started with Tempo is easy.
 > **Note:** The Grafana Agent is already set up to use Tempo. Refer to the [configuration](https://github.com/grafana/agent/blob/main/docs/configuration-reference.md#tempo_config) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
 
 
-## 4. Visualisation with Grafana
+## 4. Visualization with Grafana
 
 Grafana has a built in Tempo datasource that can be used to query Tempo and visualize traces.
 Click [here](https://grafana.com/docs/grafana/latest/datasources/tempo/) to read more about it.
