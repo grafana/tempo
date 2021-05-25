@@ -30,6 +30,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 			MaxSendMsgSize:  16 << 20,
 			GRPCCompression: "gzip",
 		},
+		DNSLookupPeriod: 10 * time.Second,
 	}
 
 	f.StringVar(&cfg.Worker.FrontendAddress, prefix+".frontend-address", "", "Address of query frontend service, in host:port format.")
