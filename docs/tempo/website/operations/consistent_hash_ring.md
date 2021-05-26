@@ -8,11 +8,8 @@ Tempo uses the [Consistent Hash Ring](https://cortexmetrics.io/docs/architecture
 
 ### Accessing the rings
 
-#### Distributor ring
-Accessible at `/distributor/ring` on connecting to the distributor's http endpoint
+- Distributor ring: accessible at `/distributor/ring` on connecting to the distributor's http endpoint
 
-#### Ingester ring
-Accessible at `/ingester/ring` on connecting to the distributor's http endpoint
+- Ingester ring: accessible at `/ingester/ring` on connecting to the distributor's http endpoint
 
-#### Compactor ring
-Accessible at `/compactor/ring` on connecting to the compactor's http endpoint
+- Compactor ring: accessible at `/compactor/ring` on connecting to the compactor's http endpoint

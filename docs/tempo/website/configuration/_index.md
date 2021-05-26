@@ -5,27 +5,57 @@ weight: 200
 
 # Configuration
 
-This section explains the configuration options for Tempo as well as the details of what they impact. It includes:
+This document explains the configuration options for Tempo as well as the details of what they impact. It includes:
 
-  - [Authentication/Server](#authenticationserver)
-  - [Distributor](#distributor)
-  - [Ingester](#ingester)
-  - [Query Frontend](#query-frontend)
-  - [Querier](#querier)
-  - [Compactor](#compactor)
-  - [Storage](#storage)
-  - [Memberlist](#memberlist)
+  - [server](#server)
+  - [distributor](#distributor)
+  - [ingester](#ingester)
+  - [query-frontend](#query-frontend)
+  - [querier](#querier)
+  - [compactor](#compactor)
+  - [storage](#storage)
+  - [memberlist](#memberlist)
 
-## Authentication/Server
+## server
 Tempo uses the Weaveworks/common server. See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.
 
 ```
-multitenancy_enabled: true            # Optional. Require X-Scope-OrgID. By default, it's set to false.
+# Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
+[multitenancy_enabled: <bool> | default = false]
+
 server:
-  http_listen_port: 3100
+    # HTTP server listen host
+    [http_listen_address: <string>]
+    
+    # HTTP server listen port
+    [http_listen_port: <int> | default = 80]
+    
+    # gRPC server listen host
+    [grpc_listen_address: <string>]
+    
+    # gRPC server listen port
+    [grpc_listen_port: <int> | default = 9095]
+    
+    # Register instrumentation handlers (/metrics, etc.)
+    [register_instrumentation: <boolean> | default = true]
+    
+    # Timeout for graceful shutdowns
+    [graceful_shutdown_timeout: <duration> | default = 30s]
+    
+    # Read timeout for HTTP server
+    [http_server_read_timeout: <duration> | default = 30s]
+    
+    # Write timeout for HTTP server
+    [http_server_write_timeout: <duration> | default = 30s]
+    
+    # Idle timeout for HTTP server
+    [http_server_idle_timeout: <duration> | default = 120s]
+    
+    # Max gRPC message size that can be received
+    [grpc_server_max_recv_msg_size: <int> | default = 4194304]
 ```
 
-## Distributor
+## distributor
 See [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go) for all configuration options.
 
 Distributors are responsible for receiving spans and forwarding them to the appropriate ingesters.  The below configuration
@@ -33,48 +63,97 @@ exposes the otlp receiver on port 0.0.0.0:5680.  [This configuration](https://gi
 configure all available receiver options.
 
 ```
+# Distributor config block
 distributor:
+
+    # receiver configuration for different protocols
+    # config is passed down to opentelemetry receivers
+    # for a production deployment you should only enable the receivers you need!
     receivers:
         otlp:
             protocols:
                 grpc:
-                    endpoint: 0.0.0.0:55680
+                http:
+        jaeger:
+            protocols:
+                thrift_http:
+                grpc:
+                thrift_binary:
+                thrift_compact:
+        zipkin:
+        opencensus:
+        kafka:
+
+    # Optional.
+    # Enable to log every received trace id to help debug ingestion
+    [log_received_traces: <bool>]
+
+    # Optional.
+    # disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
+    #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
+    [extend_writes: <bool>]
+
 ```
 
-## Ingester
+## ingester
 See [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go) for all configuration options.
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
 
 ```
+# Ingester configuration block
 ingester:
+
+    # Lifecycler is responsible for managing the lifecycle of entries in the ring.
+    # For a complete list of config options check the lifecycler section under the ingester config at the following link - 
+    # https://cortexmetrics.io/docs/configuration/configuration-file/#ingester_config 
     lifecycler:
         ring:
-            replication_factor: 3   # number of replicas of each span to make while pushing to the backend
-    trace_idle_period: 20s          # amount of time before considering a trace complete and flushing it to a block
-    max_block_bytes: 1_000_000_000  # maximum size of a block before cutting it
-    max_block_duration: 1h          # maximum length of time before cutting a block
+            # number of replicas of each span to make while pushing to the backend
+            replication_factor: 3
+
+    # amount of time before considering a trace complete and flushing it to a block
+    # (default: 30s)
+    [trace_idle_period: <duration>]
+
+    # maximum size of a block before cutting it
+    # (default: 1073741824 = 1GB)
+    [max_block_bytes: <int>]
+
+    # maximum length of time before cutting a block
+    # (default: 1h)
+    [max_block_duration: <duration>]
 ```
 
-## Query Frontend
+## query-frontend
 See [here](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go) for all configuration options.
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
 ```
+# Query Frontend configuration block
 query_frontend:
-    query_shards: 10    # number of shards to split the query into
+
+    # number of shards to split the query into
+    # (default: 2)
+    [query_shards: <int>]
 ```
 
-## Querier
+## querier
 See [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go) for all configuration options.
 
 The Querier is responsible for querying the backends/cache for the traceID.
 
 ```
+# querier config block
 querier:
+
+    # config of the worker that connects to the query frontend
     frontend_worker:
-        frontend_address: query-frontend-discovery.default.svc.cluster.local:9095   # the address of the query frontend to connect to, and process queries
+
+        # the address of the query frontend to connect to, and process queries
+        # Example: "frontend_address: query-frontend-discovery.default.svc.cluster.local:9095"
+        [frontend_address: <string>]
 ```
 
 It also queries compacted blocks that fall within the (2 * BlocklistPoll) range where the value of Blocklist poll duration
@@ -87,19 +166,42 @@ Compactors stream blocks from the storage backend, combine them and write them b
 
 ```
 compactor:
-    compaction:
-        block_retention: 336h               # Optional. Duration to keep blocks.  Default is 14 days (336h).
-        compacted_block_retention: 1h       # Optional. Duration to keep blocks that have been compacted elsewhere
-        compaction_window: 4h               # Optional. Blocks in this time window will be compacted together
-        chunk_size_bytes: 10485760          # Optional. Amount of data to buffer from input blocks. Default is 10 MiB
-        flush_size_bytes: 31457280          # Optional. Flush data to backend when buffer is this large. Default is 30 MiB
-        max_compaction_objects: 6000000     # Optional. Maximum number of traces in a compacted block. Default is 6 million. Deprecated.
-        max_block_bytes: 107374182400       # Optional. Maximum size of a compacted block in bytes.  Default is 100 GiB
-        retention_concurrency: 10           # Optional. Number of tenants to process in parallel during retention. Default is 10.
+
     ring:
+
         kvstore:
-            store: memberlist       # in a high volume environment multiple compactors need to work together to keep up with incoming blocks.
-                                    # this tells the compactors to use a ring stored in memberlist to coordinate.
+
+            # in a high volume environment multiple compactors need to work together to keep up with incoming blocks.
+            # this tells the compactors to use a ring stored in memberlist to coordinate.
+            # Example: "store: memberlist"
+            [store: <string>]
+
+    compaction:
+
+        # Optional. Duration to keep blocks.  Default is 14 days (336h).
+        [block_retention: <duration>]
+
+        # Optional. Duration to keep blocks that have been compacted elsewhere. Default is 1h.
+        [compacted_block_retention: <duration>]
+
+        # Optional. Blocks in this time window will be compacted together. Default is 4h.
+        [compaction_window: <duration>]
+
+        # Optional. Amount of data to buffer from input blocks. Default is 10 MB
+        [chunk_size_bytes: <int>]
+
+        # Optional. Flush data to backend when buffer is this large. Default is 30 MB
+        [flush_size_bytes: <int>]
+
+        # Optional. Maximum number of traces in a compacted block. Default is 6 million.
+        # WARNING: Deprecated. Use max_block_bytes instead.
+        [max_compaction_objects: <int>]
+
+        # Optional. Maximum size of a compacted block in bytes.  Default is 100 GB
+        [max_block_bytes: <int>]
+
+        # Optional. Number of tenants to process in parallel during retention. Default is 10.
+        [retention_concurrency: <int>]
 ```
 
 ## Storage
@@ -107,43 +209,256 @@ See [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go) for all
 
 The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.  
 
-The following example shows common options.  For platform-specific options refer to the following:
-* [Azure](azure/)
+The following example shows common options.  For further platform-specific information refer to the following:
 * [GCS](gcs/)
 * [S3](s3/)
-* [Memcached](memcached/)
-* [Redis](redis/) (experimental)
 
 ```
+# Storage configuration for traces
 storage:
+
     trace:
-        backend: gcs                             # store traces in gcs
+
+        # The storage backend to use
+        # Should be one of "gcs", "s3", "azure" or "local"
+        # CLI flag -storage.trace.backend
+        [backend: <string>]
+
+        # GCS configuration. Will be used only if value of backend is "gcs"
+        # Check the GCS doc within this folder for information on GCS specific permissions.
         gcs:
-            bucket_name: ops-tools-tracing-ops   # store traces in this bucket
-        blocklist_poll: 5m                       # how often to repoll the backend for new blocks
-        blocklist_poll_concurrency: 50           # optional. Number of blocks to process in parallel during polling. Default is 50.
-        cache: memcached                         # optional. Cache configuration
-        background_cache:                        # optional. Background cache configuration. Requires having a cache configured.
-            writeback_goroutines: 10             # at what concurrency to write back to cache. Default is 10.
-            writeback_buffer: 10000              # how many key batches to buffer for background write-back. Default is 10000.
-        memcached:                               # optional. Memcached configuration
-            consistent_hash: true
-            host: memcached
-            service: memcached-client
-            timeout: 500ms
-        redis:                                   # optional. Redis configuration 
-            endpoint: redis
-            timeout: 500ms
-        pool:                                    # the worker pool is used primarily when finding traces by id, but is also used by other
-            max_workers: 50                      # total number of workers pulling jobs from the queue
-            queue_depth: 2000                    # length of job queue
+
+            # Bucket name in gcs
+            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
+            # a custom prefix to nest within a shared bucket.
+            # Example: "bucket_name: tempo"
+            [bucket_name: <string>]
+
+            # Buffer size for reads. Default is 10MB
+            # Example: "chunk_buffer_size: 5_000_000"
+            [chunk_buffer_size: <int>] 
+
+            # Optional
+            # Api endpoint override
+            # Example: "endpoint: https://storage.googleapis.com/storage/v1/"
+            [endpoint: <string>]
+
+            # Optional. Default is false.
+            # Example: "insecure: true"
+            # Set to true to enable authentication and certificate checks on gcs requests
+            [insecure: <bool>] 
+
+        # S3 configuration. Will be used only if value of backend is "s3"
+        # Check the S3 doc within this folder for information on s3 specific permissions.
+        s3:
+
+            # Bucket name in s3
+            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
+            # a custom prefix to nest within a shared bucket.
+            [bucket: <string>]
+
+            # api endpoint to connect to. use AWS S3 or any S3 compatible object storage endpoint.
+            # Example: "endpoint: s3.dualstack.us-east-2.amazonaws.com"
+            [endpoint: <string>]
+
+            # optional.
+            # By default the region is inferred from the endpoint,
+            # but is required for some S3-compatible storage engines.
+            # Example: "region: us-east-2"
+            [region: <string>]
+
+            # optional.
+            # access key when using static credentials.
+            [access_key: <string>] 
+
+            # optional.
+            # secret key when using static credentials.
+            [secret_key: <string>]
+
+            # optional.
+            # enable if endpoint is http
+            [insecure: <bool>]          
+
+            # optional.
+            # enable to use path-style requests.
+            [forcepathstyle: <bool>]
+
+        # azure configuration. Will be used only if value of backend is "azure"
+        # EXPERIMENTAL
+        azure:
+
+            # store traces in this container.
+            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
+            # a custom prefix to nest within a shared bucket.
+            [container-name: <string>]
+
+            # optional.
+            # Azure endpoint to use, defaults to Azure global(core.windows.net) for other
+            # regions this needs to be changed e.g Azure China(blob.core.chinacloudapi.cn),
+            # Azure German(blob.core.cloudapi.de), Azure US Government(blob.core.usgovcloudapi.net).
+            [endpoint-suffix: <string>]  
+
+            # Name of the azure storage account
+            [storage-account-name: <string>]
+
+            # optional.
+            # access key when using access key credentials.
+            [storage-account-key: <string>]
+
+        # How often to repoll the backend for new blocks. Default is 5m
+        [blocklist_poll: <duration>] 
+
+        # Number of blocks to process in parallel during polling. Default is 50.
+        [blocklist_poll_concurrency: <int>]
+
+        # Cache type to use. Should be one of "redis", "memcached"
+        # Example: "cache: memcached"
+        [cache: <string>]
+
+        # Cortex Background cache configuration. Requires having a cache configured.
+        background_cache:
+
+            # at what concurrency to write back to cache. Default is 10.
+            [writeback_goroutines: <int>]
+
+            # how many key batches to buffer for background write-back. Default is 10000.
+            [writeback_buffer: <int>]
+
+        # Memcached caching configuration block
+        memcached:
+
+            # hostname for memcached service to use. If empty and if addresses is unset, no memcached will be used.
+            # Example: "host: memcached"
+            [host: <string>]
+
+            # Optional
+            # SRV service used to discover memcache servers. (default: memcached)
+            # Example: "service: memcached-client"
+            [service: <string>]
+
+            # Optional
+            # comma separated addresses list in DNS Service Discovery format. Refer - https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery.
+            # (default: "")
+            # Example: "addresses: memcached"
+            [addresses: <comma separated strings>]
+
+            # Optional
+            # Maximum time to wait before giving up on memcached requests.
+            # (default: 100ms)
+            [timeout: <duration>]
+
+            # Optional
+            # Maximum number of idle connections in pool.
+            # (default: 16)
+            [max_idle_conns: <int>]
+
+            # Optional
+            # period with which to poll DNS for memcache servers.
+            # (default: 1m)
+            [update_interval: <duration>] 
+
+            # Optional
+            # use consistent hashing to distribute keys to memcache servers.
+            # (default: true)
+            [consistent_hash: <bool>]
+
+            # Optional
+            # trip circuit-breaker after this number of consecutive dial failures.
+            # (default: 10)
+            [circuit_breaker_consecutive_failures: 10] 
+
+            # Optional
+            # duration circuit-breaker remains open after tripping.
+            # (default: 10s)
+            [circuit_breaker_timeout: 10s] 
+
+            # Optional
+            # reset circuit-breaker counts after this long.
+            # (default: 10s)
+            [circuit_breaker_interval: 10s] 
+
+        # Redis configuration block
+        # EXPERIMENTAL
+        redis:
+
+            # redis endpoint to use when caching.
+            [endpoint: <string>]
+
+            # optional.
+            # maximum time to wait before giving up on redis requests. (default 100ms)
+            [timeout: 500ms] 
+
+            # optional.
+            # redis Sentinel master name. (default "")
+            # Example: "master-name: redis-master"
+            [master-name: <string>]
+
+            # optional.
+            # database index. (default 0)
+            [db: <int>]
+
+            # optional.
+            # how long keys stay in the redis. (default 0)
+            [expiration: <duration>] 
+
+            # optional.
+            # enable connecting to redis with TLS. (default false)
+            [tls-enabled: <bool>]
+
+            # optional.
+            # skip validating server certificate. (default false)
+            [tls-insecure-skip-verify: <bool>]
+
+            # optional.
+            # maximum number of connections in the pool. (default 0)
+            [pool-size: <int>]
+
+            # optional.
+            # password to use when connecting to redis. (default "")
+            [password: <string>]
+
+            # optional.
+            # close connections after remaining idle for this duration. (default 0s)
+            {idle-timeout: <duration>}
+
+            # optional.
+            # close connections older than this duration. (default 0s)
+            [max-connection-age: <duration>]
+
+        # the worker pool is used primarily when finding traces by id, but is also used by other
+        pool:
+
+            # total number of workers pulling jobs from the queue (default: 30)
+            [max_workers: <int>] 
+
+            # length of job queue. imporatant for querier as it queues a job for every block it has to search
+            # (default: 10000)
+            [queue_depth: <int>]
+
+        # Configuration block for the Write Ahead Log (WAL)
         wal:
-            path: /var/tempo/wal                 # where to store the head blocks while they are being appended to
-            encoding: none                       # (experimental) wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd   
+
+            # where to store the head blocks while they are being appended to
+            # Example: "wal: /var/tempo/wal"
+            [path: <string>] 
+
+            # (experimental) wal encoding/compression.
+            # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd
+            [encoding: <string>]
+
+        # block configuration
         block:
-            bloom_filter_false_positive: .05     # bloom filter false positive rate.  lower values create larger filters but fewer false positives
-            index_downsample_bytes: 1_000_000    # number of bytes per index record 
-            encoding: zstd                       # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd
+
+            # bloom filter false positive rate.  lower values create larger filters but fewer false positives
+            # (default: .05)
+            [bloom_filter_false_positive: <float>]
+
+            # number of bytes per index record
+            # (defaultL 1MB)
+            [index_downsample_bytes: <uint64>]
+
+            # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd
+            [encoding: <string>]
 ```
 
 ## Memberlist
@@ -151,7 +466,82 @@ storage:
 
 ```
 memberlist:
-    bind_port: 7946
-    join_members:
-      - gossip-ring.tracing-ops.svc.cluster.local:7946  # A DNS entry that lists all tempo components.  A "Headless" Cluster IP service in Kubernetes
+    # Name of the node in memberlist cluster. Defaults to hostname.
+    [node_name: <string> | default = ""]
+    
+    # Add random suffix to the node name.
+    [randomize_node_name: <boolean> | default = true]
+    
+    # The timeout for establishing a connection with a remote node, and for
+    # read/write operations. Uses memberlist LAN defaults if 0.
+    [stream_timeout: <duration> | default = 0s]
+    
+    # Multiplication factor used when sending out messages (factor * log(N+1)).
+    [retransmit_factor: <int> | default = 0]
+    
+    # How often to use pull/push sync. Uses memberlist LAN defaults if 0.
+    [pull_push_interval: <duration> | default = 0s]
+    
+    # How often to gossip. Uses memberlist LAN defaults if 0.
+    [gossip_interval: <duration> | default = 0s]
+    
+    # How many nodes to gossip to. Uses memberlist LAN defaults if 0.
+    [gossip_nodes: <int> | default = 0]
+    
+    # How long to keep gossiping to dead nodes, to give them chance to refute their
+    # death. Uses memberlist LAN defaults if 0.
+    [gossip_to_dead_nodes_time: <duration> | default = 0s]
+    
+    # How soon can dead node's name be reclaimed with new address. Defaults to 0,
+    # which is disabled.
+    [dead_node_reclaim_time: <duration> | default = 0s]
+    
+    # Other cluster members to join. Can be specified multiple times. It can be an
+    # IP, hostname or an entry specified in the DNS Service Discovery format (see
+    # https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery
+    # for more details).
+    # A "Headless" Cluster IP service in Kubernetes.
+    # Example: 
+    #   - gossip-ring.tracing.svc.cluster.local:7946
+    [join_members: <list of string> | default = ]
+    
+    # Min backoff duration to join other cluster members.
+    [min_join_backoff: <duration> | default = 1s]
+    
+    # Max backoff duration to join other cluster members.
+    [max_join_backoff: <duration> | default = 1m]
+    
+    # Max number of retries to join other cluster members.
+    [max_join_retries: <int> | default = 10]
+    
+    # If this node fails to join memberlist cluster, abort.
+    [abort_if_cluster_join_fails: <boolean> | default = true]
+    
+    # If not 0, how often to rejoin the cluster. Occasional rejoin can help to fix
+    # the cluster split issue, and is harmless otherwise. For example when using
+    # only few components as a seed nodes (via -memberlist.join), then it's
+    # recommended to use rejoin. If -memberlist.join points to dynamic service that
+    # resolves to all gossiping nodes (eg. Kubernetes headless service), then rejoin
+    # is not needed.
+    [rejoin_interval: <duration> | default = 0s]
+    
+    # How long to keep LEFT ingesters in the ring.
+    [left_ingesters_timeout: <duration> | default = 5m]
+    
+    # Timeout for leaving memberlist cluster.
+    [leave_timeout: <duration> | default = 5s]
+    
+    # IP address to listen on for gossip messages. Multiple addresses may be
+    # specified. Defaults to 0.0.0.0
+    [bind_addr: <list of string> | default = ]
+    
+    # Port to listen on for gossip messages.
+    [bind_port: <int> | default = 7946]
+    
+    # Timeout used when connecting to other nodes to send packet.
+    [packet_dial_timeout: <duration> | default = 5s]
+    
+    # Timeout for writing 'packet' data.
+    [packet_write_timeout: <duration> | default = 5s]
+
 ```

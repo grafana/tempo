@@ -7,5 +7,4 @@ Because Tempo is a trace id only lookup it relies on integrations for trace disc
 
 - [Loki Derived Fields](loki-derived-fields/)
 - [Pushing Spans with HTTP](pushing-spans-with-http/)
-- [Multitenancy](multitenancy/)
 - [Instrumentation Examples](instrumentation/)
