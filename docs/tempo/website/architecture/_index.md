@@ -7,16 +7,16 @@ A collection of documents that detail Tempo architectural decisions and operatio
 
 # Architecture
 
-This document provides an overview of the major components that comprise Tempo.  Please refer to [the examples](https://github.com/grafana/tempo/tree/main/example) to see some deployment options.
+This topic provides an overview of the major components of Tempo.  Refer to the [examples] (https://github.com/grafana/tempo/tree/main/example) topic for deployment options.
 
 <p align="center"><img src="tempo_arch.png" alt="Tempo Architecture"></p>
 
 ## Tempo
+Tempo comprises of the following components.
 
 ### Distributor
 
-Accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin.
-Routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring]({{< relref "consistent-hash-ring" >}}).
+The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring]({{< relref "consistent-hash-ring" >}}).
 
 The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
 For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto).  For this reason
@@ -24,7 +24,7 @@ the [Grafana Agent](https://github.com/grafana/agent) uses the otlp exporter/rec
 
 ### Ingester
 
-Batches traces into blocks, blooms, indexes and flushes to backend.  Blocks in the backend are generated in the following layout.
+The Ingester batches trace into blocks, blooms, indexes, and flushes to the backend.  Blocks in the backend are generated in the following layout.
 
 ```
 <bucketname> / <tenantID> / <blockID> / <meta.json>
@@ -35,7 +35,7 @@ Batches traces into blocks, blooms, indexes and flushes to backend.  Blocks in t
 
 ### Query Frontend
 
-Responsible for sharding the search space for an incoming query.
+The Query Frontend is responsible for sharding the search space for an incoming query.
 
 Traces are exposed via a simple HTTP endpoint:
 `GET /api/traces/<traceID>`
@@ -54,10 +54,10 @@ Queries should be sent to the Query Frontend.
 
 ### Compactor
 
-Compactors stream blocks to and from the backend storage to reduce the total number of blocks.
+The Compactors stream blocks to and from the backend storage to reduce the total number of blocks.
 
-## Grafana 7.4.x
+### Using older versions of Grafana ```
 
-When using older versions of Grafana you must also use `tempo-query` in order to visualize traces.
+When using older versions of Grafana (7.4.x), you must also use `tempo-query` in order to visualize traces. The 
 `tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo.
-See [this example](https://github.com/grafana/tempo/tree/main/example/docker-compose#grafana-74x) and [these docs](../../configuration/querying) for help.
+For more information, refer to [these example](https://github.com/grafana/tempo/tree/main/example/docker-compose#grafana-74x) and [these docs](../../configuration/querying).

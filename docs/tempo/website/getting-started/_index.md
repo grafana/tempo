@@ -5,8 +5,8 @@ weight: 100
 
 # Getting started with Tempo
 
-Distributed tracing is used to visualize the lifecycle of a request as it passes through
-an application. There are a few components that need to be set up in order to get a
+Distributed tracing visualizes the lifecycle of a request as it passes through
+an application. There are a few components that must be configured in order to get a
 working distributed tracing visualization.
 
 ## 1. Client instrumentation
@@ -14,11 +14,9 @@ working distributed tracing visualization.
 #### OpenTelemetry Instrumentation SDKs
 
 The first building block to a functioning distributed tracing visualization pipeline
-is client instrumentation, which is the process of adding instrumentation points in the
-application that collect telemetry information. 
+is client instrumentation, which is the process of adding instrumentation points in the application that collects telemetry information. 
 
-There are SDKs available in most commonly used programming languages that can be used
-in this step. Commonly used SDKs are listed below -
+SDKs that are available in the most commonly used programming languages are listed below -
 
 * [OpenTemeletry CPP](https://github.com/open-telemetry/opentelemetry-cpp)
 * [OpenTemeletry Java](https://github.com/open-telemetry/opentelemetry-java)
@@ -54,7 +52,7 @@ deployed close to the application, either on the same node or within the same cl
 backend. It also abstracts features like trace batching and backend routing
 away from the client. 
 
-To read more about the features of the Grafana Agent and how to set it up for tracing with Tempo,
+To learn more about the Grafana Agent and how to set it up for tracing with Tempo,
 refer to [this blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-agent-and-grafana-tempo/).
 
 > **Note**: OpenTelemetry Collector / Jaeger Agent can also be used at the agent layer.
@@ -78,6 +76,6 @@ Getting started with Tempo is easy.
 ## 4. Visualization with Grafana
 
 Grafana has a built in Tempo datasource that can be used to query Tempo and visualize traces.
-Click [here](https://grafana.com/docs/grafana/latest/datasources/tempo/) to read more about it.
+For more information refer to the [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/) topic.
 
 For Grafana configuration

@@ -4,9 +4,8 @@ title: Examples with demo app
 
 # Examples with demo app
 
-If you don't have an application to instrument at the moment, fret not!
-A number of [examples](https://github.com/grafana/tempo/tree/main/example) have been provided
-which show off various deployment and [configuration]({{< relref "../configuration" >}}) options.
+If you don't have an application to instrument at the moment, then refer to the [examples](https://github.com/grafana/tempo/tree/main/example) 
+which show various deployment and [configuration]({{< relref "../configuration" >}}) options.
 
 The linked folders contain example deployments of Tempo.  They are a good resource for getting some basic configurations together.
 
@@ -16,7 +15,7 @@ The [docker-compose](https://github.com/grafana/tempo/tree/main/example/docker-c
 to get started with Tempo and learn about various trace discovery flows.
 
 - [local storage](https://github.com/grafana/tempo/tree/main/example/docker-compose/readme.md#local-storage)
-  - At its simplest Tempo only requires a few parameters that identify where to store traces.
+- At its simplest, Tempo only requires a few parameters that identify where to store traces.
 - [s3/minio storage](https://github.com/grafana/tempo/tree/main/example/docker-compose/readme.md#s3)
   - To reduce complexity not all config options are exposed on the command line.  This example uses the minio/s3 backend with a config file.
 - [Trace discovery with Loki](https://github.com/grafana/tempo/tree/main/example/docker-compose/readme.md#loki-derived-fields)
@@ -25,7 +24,7 @@ to get started with Tempo and learn about various trace discovery flows.
 
 ## Tanka
 
-The jsonnet based [example](https://github.com/grafana/tempo/tree/main/example/tk) shows a complete microservice based deployment.
+The Jsonnet based [example](https://github.com/grafana/tempo/tree/main/example/tk) shows a complete microservice based deployment.
 
 - [single binary](https://github.com/grafana/tempo/tree/main/example/tk/readme.md#single-binary)
   - A single binary jsonnet deployment.  Valuable for getting started with advanced configuration.
