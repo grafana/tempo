@@ -2,7 +2,7 @@
 title: Google Cloud Storage (GCS) Permissions
 ---
 
-For configuration options, check the storage section on the [configuration](../configuration) page.
+For configuration options, check the storage section on the [configuration](..) page.
 
 ## Permissions
 The following authentication methods are supported:
