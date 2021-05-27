@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/cortexproject/cortex/pkg/cortex"
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend"
@@ -43,6 +44,11 @@ const (
 	Store         string = "store"
 	MemberlistKV  string = "memberlist-kv"
 	All           string = "all"
+)
+
+const (
+	apiPathTraces string = "/api/traces/{traceID}"
+	apiPathEcho   string = "/api/echo"
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -151,7 +157,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.httpAuthMiddleware,
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 
-	t.server.HTTP.Handle("/querier"+queryEndpoint(&t.cfg), tracesHandler)
+	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathTraces)), tracesHandler)
 	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTPServer.Handler)
 }
 
@@ -183,7 +189,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
 	// http query endpoint
-	t.server.HTTP.Handle(queryEndpoint(&t.cfg), tracesHandler)
+	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathTraces), tracesHandler)
+
+	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathEcho), echoHandler())
 
 	return t.frontend, nil
 }
@@ -271,6 +279,12 @@ func (t *App) setupModuleManager() error {
 	return nil
 }
 
-func queryEndpoint(cfg *Config) string {
-	return cfg.HTTPAPIPrefix + "/api/traces/{traceID}"
+func addHTTPAPIPrefix(cfg *Config, apiPath string) string {
+	return path.Join(cfg.HTTPAPIPrefix, apiPath)
+}
+
+func echoHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "echo", http.StatusOK)
+	}
 }

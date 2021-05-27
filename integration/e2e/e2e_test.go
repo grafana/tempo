@@ -58,6 +58,9 @@ func TestAllInOne(t *testing.T) {
 
 	hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
 
+	// test echo
+	assertEcho(t, "http://"+tempo.Endpoint(3100)+"/api/echo")
+
 	// ensure trace is created in ingester (trace_idle_time has passed)
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
@@ -116,6 +119,9 @@ func TestAzuriteAllInOne(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_distributor_spans_received_total"))
 
 	hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+
+	// test echo
+	assertEcho(t, "http://"+tempo.Endpoint(3100)+"/api/echo")
 
 	// ensure trace is created in ingester (trace_idle_time has passed)
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
@@ -185,6 +191,9 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, tempoDistributor.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_distributor_spans_received_total"))
 
 	hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+
+	// test echo
+	assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3100)+"/api/echo")
 
 	// ensure trace is created in ingester (trace_idle_time has passed)
 	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
@@ -263,6 +272,13 @@ func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
 		})
 	}
 	return &thrift.Batch{Spans: spans}
+}
+
+func assertEcho(t *testing.T, url string) {
+	res, err := cortex_e2e.GetRequest(url)
+	require.NoError(t, err)
+	require.Equal(t, 200, res.StatusCode)
+	defer res.Body.Close()
 }
 
 //nolint:unparam

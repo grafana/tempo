@@ -10,6 +10,7 @@
   This change requires a specific rollout process to prevent dropped spans. First, rollout everything except distributors. After all ingesters have updated
   you can then rollout distributors to the latest version. This is due to changes in the communication between ingesters <-> distributors.
 * [ENHANCEMENT] Allow setting the bloom filter shard size with support dynamic shard count.[#644](https://github.com/grafana/tempo/pull/644)
+* [ENHANCEMENT] Add a new endpoint `/api/echo` to test the query frontend is reachable. [#714](https://github.com/grafana/tempo/pull/714)
 * [CHANGE] Fix Query Frontend grpc settings to avoid noisy error log. [#690](https://github.com/grafana/tempo/pull/690)
 * [CHANGE] GCS SDK update v1.12.0 => v.15.0, ReadAllWithEstimate used in GCS/S3 backends. [#693](https://github.com/grafana/tempo/pull/693)
 
