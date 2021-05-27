@@ -35,7 +35,7 @@
     },
     vulture: {
       replicas: 0,
-      tempoPushUrl: 'http://distributor:14250',
+      tempoPushUrl: 'http://distributor',
       tempoQueryUrl: 'http://query-frontend:3100',
       tempoOrgId: '',
     },
