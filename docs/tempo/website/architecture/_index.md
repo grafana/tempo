@@ -16,7 +16,7 @@ Tempo comprises of the following components.
 
 ### Distributor
 
-The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring]({{< relref "consistent-hash-ring" >}}).
+The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring]({{< relref "consistent_hash_ring" >}}).
 
 The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
 For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto).  For this reason
@@ -58,6 +58,6 @@ The Compactors stream blocks to and from the backend storage to reduce the total
 
 ### Using older versions of Grafana ```
 
-When using older versions of Grafana (7.4.x), you must also use `tempo-query` in order to visualize traces. The 
+When using older versions of Grafana (7.4.x), you must also use `tempo-query` in order to visualize traces. The
 `tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo.
 For more information, refer to [these example](https://github.com/grafana/tempo/tree/main/example/docker-compose#grafana-74x) and [these docs](../../configuration/querying).
