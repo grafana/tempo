@@ -2,4 +2,4 @@
 title: Architecture
 ---
 
-This page has been moved. Click [here](../architecture) to go to the new location.
+This page has been moved. Click [here](..) to go to the new location.
