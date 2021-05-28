@@ -124,7 +124,6 @@ func (q *Querier) running(ctx context.Context) error {
 	return nil
 }
 
-// Called after distributor is asked to stop via StopAsync.
 func (q *Querier) stopping(_ error) error {
 	if q.subservices != nil {
 		return services.StopManagerAndAwaitStopped(context.Background(), q.subservices)
