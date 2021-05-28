@@ -5,7 +5,7 @@
   local deployment = $.apps.v1.deployment,
 
   minio_container::
-    container.new('minio', 'minio/minio:RELEASE.2020-07-27T18-37-02Z') +
+    container.new('minio', 'minio/minio:RELEASE.2021-05-26T00-22-46Z') +
     container.withPorts([
       containerPort.new('minio', 9000),
     ]) +
