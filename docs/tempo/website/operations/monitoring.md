@@ -9,7 +9,7 @@ set of dashboards, rules and alerts. Together, these can be used to monitor Temp
 
 ## Dashboards
 
-The Tempo mixin has four Grafana dashboards in the `out` folder that can be downloaded and imported into your Grafana UI.
+The Tempo mixin has four Grafana dashboards in the `yamls` folder that can be downloaded and imported into your Grafana UI.
 Note that at the moment, these work well when Tempo is run in a k8s environment and metrics scraped have the
 `cluster` and `namespace` labels!
 
@@ -59,7 +59,7 @@ This dashboard is included in this repo for two reasons:
 
 ## Rules and Alerts
 
-The Rules and Alerts are available as [yaml files in the mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/out) on the repository.
+The Rules and Alerts are available as [yaml files in the mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/yamls) on the repository.
 
 To set up alerting, download the provided json files and configure them for use on your Prometheus monitoring server.
 
