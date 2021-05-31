@@ -10,7 +10,12 @@ weight: 471
 - There could be issues querying for traces that have been received by Tempo.
 
 ## Section 1: Diagnosing and fixing ingestion issues
-Check whether the application spans are actually reaching Tempo. The following metrics help determine this
+The first step is to check whether the application spans are actually reaching Tempo.
+
+Add the following flag to the distributor container - [`distributor.log-received-traces`](https://github.com/grafana/tempo/blob/57da4f3fd5d2966e13a39d27dbed4342af6a857a/modules/distributor/config.go#L55).
+This enables debug logging of all the traces received by the distributor, and is useful to check if Tempo is receiving any traces at all.
+
+Or, check the following metrics -
 - `tempo_distributor_spans_received_total`
 - `tempo_ingester_traces_created_total`
 
@@ -52,7 +57,36 @@ This can also be confirmed by checking the metric `tempo_request_duration_second
 - Check logs of distributors for a message like `msg="pusher failed to consume trace data" err="DoBatch: IngesterCount <= 0"`.
   This is likely because no ingester is joining the gossip ring, make sure the same gossip ring address is supplied to the distributors and ingesters.
 
-## Section 2: Diagnosing and fixing issues with querying traces
+## Section 2: Diagnosing and fixing sampling & limits issues
+
+If you are able to query some traces in Tempo but not others, you have come to the right section!
+
+This could happen because of a number of reasons and some have been detailed in this blog post -
+[Where did all my spans go? A guide to diagnosing dropped spans in Jaeger distributed tracing](https://grafana.com/blog/2020/07/09/where-did-all-my-spans-go-a-guide-to-diagnosing-dropped-spans-in-jaeger-distributed-tracing/).
+This is useful if you are using the Jaeger Agent.
+
+If you are using the Grafana Agent, continue reading the following section for metrics to monitor.
+
+### Diagnosing the issue
+Check if the pipeline is dropping spans. The following metrics on the Grafana Agent help determine this -
+- `tempo_exporter_send_failed_spans`. The value of this metric should be 0.
+- `tempo_receiver_refused_spans`. This value of this metric should be 0.
+- `tempo_processor_dropped_spans`. The value of this metric should be 0.
+
+If the pipeline is not reporting any dropped spans, check whether application spans are being dropped by Tempo. The following metrics help determine this -
+- `tempo_receiver_refused_spans`. The value of `tempo_receiver_refused_spans` should be 0.
+  If the value of `tempo_receiver_refused_spans` is greater than 0, then the possible reason is the application spans are being dropped due to rate limiting.
+
+#### Solution
+- If the pipeline (Grafana Agent) is found to be dropping spans, the deployment may need to be scaled up.
+  Check the logs of the agent for any obvious errors related to connectivity to Tempo backend.
+- If Tempo is found to be dropping spans, then the possible reason is the application spans are being dropped due to rate limiting.
+  The rate limiting may be appropriate and does not need to be fixed. The metric simply explained the cause of the missing spans, and there is nothing more to be done.
+- If more ingestion volume is needed, increase the configuration for the rate limiting, by adding this CLI flag to Tempo at startup - https://github.com/grafana/tempo/blob/78f3554ca30bd5a4dec01629b8b7b2b0b2b489be/modules/overrides/limits.go#L42
+
+> **Note**: Check the [ingestion limits page](../../configuration/ingestion-limit) for further information on limits.
+
+## Section 3: Diagnosing and fixing issues with querying traces
 If you have determined that data has been ingested correctly into Tempo, then it is time to investigate possible issues with querying the data. A quick thing to check is your version of Grafana. The way Tempo is queried differs from 7.4.x to 7.5.x. Please refer to [the querying documentation](https://grafana.com/docs/tempo/latest/configuration/querying/) for help. If this is not a Grafana version issue, proceed!
 
 Check the logs of the Tempo Query Frontend. The Query Frontend pod runs with two containers (Query Frontend & Tempo Query), so lets use the following command to view Query Frontend logs -
