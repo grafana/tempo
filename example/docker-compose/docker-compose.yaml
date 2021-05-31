@@ -10,6 +10,8 @@ services:
     ports:
       - "14268"  # jaeger ingest
       - "3100"   # tempo
+      - "55680"  # otlp grpc
+      - "55681"  # otlp http
       - "9411"   # zipkin
 
   synthetic-load-generator:
