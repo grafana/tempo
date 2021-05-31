@@ -8,16 +8,21 @@ better at demonstrating trace discovery flows using Loki and other tools.
 If you're convinced this is the place for you then keep reading!
 
 ### Initial Steps
-
 The Jsonnet is meant to be applied to with [tanka](https://github.com/grafana/tanka).  To test the jsonnet locally requires:
 
 - k3d > v3.2.0
 - tanka > v0.12.0
 
-Create a cluster
+Create a cluster with 3 nodes
 
 ```console
 k3d cluster create tempo --api-port 6443 --port "16686:80@loadbalancer"
+```
+
+If you wish to use a local image, you can import these into k3d
+
+```console
+k3d image import grafana/tempo:latest --cluster tempo
 ```
 
 Next either deploy the microservices or the single binary.
@@ -42,9 +47,12 @@ tk apply tempo-single-binary
 
 ### View a trace
 After the applications are running check the load generators logs
+
 ```console
-kc logs synthetic-load-generator-???
-...
+# you can find the exact pod name using `kubectl get pods`
+kubectl logs synthetic-load-generator-???
+```
+```
 20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId e9f4add3ac7c7115 for service frontend route /product
 20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId 3890ea9c4d7fab00 for service frontend route /cart
 20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId c36fc5169bf0693d for service frontend route /cart
@@ -55,6 +63,7 @@ kc logs synthetic-load-generator-???
 Extract a trace id and view it in your browser at `http://localhost:16686/trace/<traceid>`
 
 ### Clean up
+
 ```console
 k3d cluster delete tempo
 ```

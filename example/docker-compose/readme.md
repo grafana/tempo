@@ -30,25 +30,26 @@ Tempo can be run with local storage, S3, Azure, or GCS backends. See below for e
 In this example all data is stored locally in the example-data/tempo folder.
 
 1. First start up the local stack. 
-```
+```console
 docker-compose up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-$ docker-compose -f docker-compose.local.yaml ps
+docker-compose ps
+```
+```
                   Name                                 Command               State                         Ports
 --------------------------------------------------------------------------------------------------------------------------------------
 docker-compose_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp
 docker-compose_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp
 docker-compose_synthetic-load-generator_1   ./start.sh                       Up
-docker-compose_tempo-query_1                /go/bin/query-linux --grpc ...   Up      0.0.0.0:16686->16686/tcp
 docker-compose_tempo_1                      /tempo -storage.trace.back ...   Up      0.0.0.0:32772->14268/tcp, 0.0.0.0:32773->3100/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.
-```
+```console
 ls ./example-data/tempo
 ```
 
@@ -56,18 +57,19 @@ ls ./example-data/tempo
 
 ```console
 docker-compose logs -f synthetic-load-generator
-.
-.
+```
+```
 synthetic-load-generator_1  | 20/10/24 08:27:09 INFO ScheduledTraceGenerator: Emitted traceId 57aedb829f352625 for service frontend route /product
 synthetic-load-generator_1  | 20/10/24 08:27:09 INFO ScheduledTraceGenerator: Emitted traceId 25fa96b9da24b23f for service frontend route /cart
 synthetic-load-generator_1  | 20/10/24 08:27:09 INFO ScheduledTraceGenerator: Emitted traceId 15b3ad814b77b779 for service frontend route /shipping
 synthetic-load-generator_1  | 20/10/24 08:27:09 INFO ScheduledTraceGenerator: Emitted traceId 3803db7d7d848a1a for service frontend route /checkout
-.
 ```
 
 Logs are in the form
 
-`Emitted traceId <traceid> for service frontend route /cart`
+```
+Emitted traceId <traceid> for service frontend route /cart
+```
 
 Copy one of these trace ids.
 
@@ -84,45 +86,46 @@ docker-compose down -v
 In this example tempo is configured to write data to S3 via MinIO which presents an S3 compatible API.
 
 1. First start up the s3 stack.
-```
+```console
 docker-compose -f docker-compose.s3.minio.yaml up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-$ docker-compose ps
+docker-compose ps
+```
+```
                   Name                                 Command               State                        Ports
 -------------------------------------------------------------------------------------------------------------------------------------
 docker-compose_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp
 docker-compose_minio_1                      sh -euc mkdir -p /data/tem ...   Up      0.0.0.0:9000->9000/tcp
 docker-compose_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp
 docker-compose_synthetic-load-generator_1   ./start.sh                       Up
-docker-compose_tempo-query_1                /go/bin/query-linux --grpc ...   Up      0.0.0.0:16686->16686/tcp
 docker-compose_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:32770->14268/tcp, 0.0.0.0:3100->3100/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.  Navigate to minio at
 http://localhost:9000 and use the username/password of `tempo`/`supersecret`.
 
-
 3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
 
 ```console
 docker-compose logs -f synthetic-load-generator
-.
-.
+```
+```
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 48367daf25266daa for service frontend route /currency
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 10e50d2aca58d5e7 for service frontend route /cart
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 51a4ac1638ee4c63 for service frontend route /shipping
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 1219370c6a796a6d for service frontend route /product
-.
 ```
 
 Logs are in the form
+
 ```
 Emitted traceId <traceid> for service frontend route /cart
 ```
+
 Copy one of these trace ids.
 
 4. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%7D%5D) and paste the trace id to request it from Tempo.
@@ -138,14 +141,17 @@ docker-compose -f docker-compose.s3.minio.yaml down -v
 In this example tempo is configured to write data to Azure via Azurite which presents an Azure compatible API.
 
 1. First start up the azure stack.
-```
+
+```console
 docker-compose -f docker-compose.azure.azurite.yaml up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-$ docker-compose -f docker-compose.azure.azurite.yaml ps
+docker-compose -f docker-compose.azure.azurite.yaml ps
+```
+```
                   Name                                 Command               State                         Ports
 --------------------------------------------------------------------------------------------------------------------------------------
 docker-compose_azure-cli_1                  az storage container creat ...   Exit 0
@@ -153,30 +159,29 @@ docker-compose_azurite_1                    docker-entrypoint.sh azuri ...   Up 
 docker-compose_grafana_1                    /run.sh                          Up       0.0.0.0:3000->3000/tcp
 docker-compose_prometheus_1                 /bin/prometheus --config.f ...   Up       0.0.0.0:9090->9090/tcp
 docker-compose_synthetic-load-generator_1   ./start.sh                       Up
-docker-compose_tempo-query_1                /go/bin/query-linux --grpc ...   Up       0.0.0.0:16686->16686/tcp
 docker-compose_tempo_1                      /tempo -config.file=/etc/t ...   Up       0.0.0.0:32768->14268/tcp, 0.0.0.0:3100->3100/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.  Check [Azure Storage Explorer](https://azure.microsoft.com/en-us/features/storage-explorer/) and [Azurite docs](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite).
 
-
 3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
 
 ```console
 docker-compose logs -f synthetic-load-generator
-.
-.
+```
+```
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 48367daf25266daa for service frontend route /currency
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 10e50d2aca58d5e7 for service frontend route /cart
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 51a4ac1638ee4c63 for service frontend route /shipping
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 1219370c6a796a6d for service frontend route /product
-.
 ```
 
 Logs are in the form
+
 ```
 Emitted traceId <traceid> for service frontend route /cart
 ```
+
 Copy one of these trace ids.
 
 4. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%7D%5D) and paste the trace id to request it from Tempo.
@@ -194,30 +199,33 @@ This example presents a complete setup using Loki to process all container logs,
 1. First we have to install the Loki docker driver.  This allows applications in our docker-compose to ship their logs
 to Loki.
 
-```
+```console
 docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
 ```
 
 2. Next start up the Loki stack.
-```
+
+```console
 docker-compose -f docker-compose.loki.yaml up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-$ docker-compose -f docker-compose.loki.yaml ps
+docker-compose -f docker-compose.loki.yaml ps
+```
+```
             Name                          Command               State            Ports
 ------------------------------------------------------------------------------------------------
 docker-compose_grafana_1       /run.sh                          Up      0.0.0.0:3000->3000/tcp
 docker-compose_loki_1          /usr/bin/loki -config.file ...   Up      0.0.0.0:3100->3100/tcp
 docker-compose_prometheus_1    /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp
-docker-compose_tempo-query_1   /go/bin/query-linux --grpc ...   Up      0.0.0.0:16686->16686/tcp
 docker-compose_tempo_1         /tempo -storage.trace.back ...   Up      0.0.0.0:32774->14268/tcp
 ```
 
 3. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Loki%22,%7B%7D%5D) and **query Loki a few times to generate some traces** (this setup does not use the synthetic load generator and all traces are generated from Loki).
 Something like the below works, but feel free to explore other options!
+
 ```
 {container_name="dockercompose_loki_1"}
 ```
