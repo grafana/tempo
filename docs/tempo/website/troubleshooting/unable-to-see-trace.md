@@ -68,18 +68,19 @@ This is useful if you are using the Jaeger Agent.
 If you are using the Grafana Agent, continue reading the following section for metrics to monitor.
 
 ### Diagnosing the issue
-Check if the pipeline is dropping spans. The following metrics on the Grafana Agent help determine this -
+Check if the pipeline is dropping spans. The following metrics on the _Grafana Agent_ help determine this -
 - `tempo_exporter_send_failed_spans`. The value of this metric should be 0.
 - `tempo_receiver_refused_spans`. This value of this metric should be 0.
 - `tempo_processor_dropped_spans`. The value of this metric should be 0.
 
 If the pipeline is not reporting any dropped spans, check whether application spans are being dropped by Tempo. The following metrics help determine this -
 - `tempo_receiver_refused_spans`. The value of `tempo_receiver_refused_spans` should be 0.
+  Note that the Grafana Agent and Tempo share the same metric. Make sure to check the value of the metric from both services.
   If the value of `tempo_receiver_refused_spans` is greater than 0, then the possible reason is the application spans are being dropped due to rate limiting.
 
 #### Solution
-- If the pipeline (Grafana Agent) is found to be dropping spans, the deployment may need to be scaled up.
-  Check the logs of the agent for any obvious errors related to connectivity to Tempo backend.
+- If the pipeline (Grafana Agent) is found to be dropping spans, the deployment may need to be scaled up. Look for a message like `too few agents compared to the ingestion rate` in the agent logs.
+- There might also be issues with connectivity to Tempo backend, check the agent for logs like `error sending batch, will retry` and make sure the Tempo endpoint and credentials are correctly configured.
 - If Tempo is found to be dropping spans, then the possible reason is the application spans are being dropped due to rate limiting.
   The rate limiting may be appropriate and does not need to be fixed. The metric simply explained the cause of the missing spans, and there is nothing more to be done.
 - If more ingestion volume is needed, increase the configuration for the rate limiting, by adding this CLI flag to Tempo at startup - https://github.com/grafana/tempo/blob/78f3554ca30bd5a4dec01629b8b7b2b0b2b489be/modules/overrides/limits.go#L42
