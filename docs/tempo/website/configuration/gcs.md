@@ -13,3 +13,4 @@ The (service-)account that will communicate towards GCS should be assigned to th
 - `storage.objects.create`
 - `storage.objects.delete`
 - `storage.objects.get`
+- `storage.buckets.get`
