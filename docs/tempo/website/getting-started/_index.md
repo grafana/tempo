@@ -6,18 +6,31 @@ weight: 100
 # Getting started with Tempo
 
 Distributed tracing visualizes the lifecycle of a request as it passes through
-an application. There are a few components that must be configured in order to get a
+a set of applications. There are a few components that must be configured in order to get a
 working distributed tracing visualization.
+
+An example trace visualized in Grafana:
+
+<p align="center"><img src="../example-trace.png" alt="Example Trace"></p>
+
+This document discusses the four major pieces necessary to build out a tracing system: 
+Instrumentation, Tracing Pipeline, Tracing Backend and Visualization. If one were to build a diagram laying 
+out these pieces it may look something like this:
+
+<p align="center"><img src="../getting-started.png" alt="Tracing Overview"></p>
 
 ## 1. Client instrumentation
 
-#### OpenTelemetry Instrumentation SDKs
+#### Instrumentation SDKs
 
 The first building block to a functioning distributed tracing visualization pipeline
-is client instrumentation, which is the process of adding instrumentation points in the application that collects telemetry information. 
+is client instrumentation, which is the process of adding instrumentation points in the application that 
+creates and offloads spans. 
 
 SDKs that are available in the most commonly used programming languages are listed below -
 
+* [Jaeger](https://www.jaegertracing.io/docs/latest/client-libraries/)
+* [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
 * [OpenTemeletry CPP](https://github.com/open-telemetry/opentelemetry-cpp)
 * [OpenTemeletry Java](https://github.com/open-telemetry/opentelemetry-java)
 * [OpenTemeletry JS](https://github.com/open-telemetry/opentelemetry-js)
@@ -40,29 +53,32 @@ information from a client application with minimal manual instrumentation of the
 * [OpenTemeletry .NET Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation)
 * [OpenTemeletry Python Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-python-contrib)
 
-> Note: Check out our [instrumentation examples]() to learn how to instrument your
+> Note: Check out our [instrumentation examples]({{< relref "../guides/instrumentation" >}}) to learn how to instrument your
 > favourite language for distributed tracing.
 
-## 2. Grafana Agent
+## 2. Grafana Agent (Tracing pipeline)
 
 Once your application is instrumented for tracing, the next step is to send these traces
-to a backend for storage and visualization. The Grafana Agent is a service that is
-deployed close to the application, either on the same node or within the same cluster
-(in kubernetes) to quickly offload traces from the application and forward them to a storage
-backend. It also abstracts features like trace batching and backend routing
-away from the client. 
+to a backend for storage and visualization. It is common to build a tracing pipeline that 
+offloads spans from your application, buffers them and eventually forwards them to a backend. Tracing
+pipelines are optional (most clients can send directly to Tempo), but you will find that
+they become more critical the larger and more robust your tracing system is.
+
+The Grafana Agent is a service that is deployed close to the application, either on the same node or 
+within the same cluster (in kubernetes) to quickly offload traces from the application and forward them to 
+a storage backend. It also abstracts features like trace batching and backend routing away from the client. 
 
 To learn more about the Grafana Agent and how to set it up for tracing with Tempo,
 refer to [this blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-agent-and-grafana-tempo/).
 
-> **Note**: OpenTelemetry Collector / Jaeger Agent can also be used at the agent layer.
+> **Note**: The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.
 > Refer to [this blog post](https://grafana.com/blog/2021/04/13/how-to-send-traces-to-grafana-clouds-tempo-service-with-opentelemetry-collector/)
 > to see how the OpenTelemetry Collector can be used with Grafana Cloud Tempo.
 
+## 3. Tempo (Tracing Backend)
 
-## 3. Setting up Tempo Backend
-
-Grafana Tempo is an easy-to-use and high-scale distributed tracing backend used to store and query traces.
+Grafana Tempo is an easy-to-use and high-scale distributed tracing backend used to store and query traces. The purpose of 
+the tracing backend is to store and retrieve traces on demand.
 
 Getting started with Tempo is easy.
 
@@ -78,4 +94,4 @@ Getting started with Tempo is easy.
 Grafana has a built in Tempo datasource that can be used to query Tempo and visualize traces.
 For more information refer to the [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/) topic.
 
-For Grafana configuration
+See [here]({{< relref "../configuration/querying" >}}) for details about Grafana configuration.
