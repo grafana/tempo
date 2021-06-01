@@ -5,6 +5,7 @@ import (
 	"time"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
+	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/grpcclient"
 )
 
@@ -29,6 +30,11 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 			MaxRecvMsgSize:  100 << 20,
 			MaxSendMsgSize:  16 << 20,
 			GRPCCompression: "gzip",
+			BackoffConfig: util.BackoffConfig{ // the max possible backoff should be lesser than QueryTimeout, with room for actual query response time
+				MinBackoff: 100 * time.Millisecond,
+				MaxBackoff: 1 * time.Second,
+				MaxRetries: 5,
+			},
 		},
 		DNSLookupPeriod: 10 * time.Second,
 	}
