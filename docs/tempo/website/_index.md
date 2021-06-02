@@ -10,13 +10,10 @@ aliases:
 
 Grafana Tempo is an open source, easy-to-use and high-volume distributed tracing backend. Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki. To learn more about Grafana, refer to [What is Grafana?](https://grafana.com/docs/grafana/latest/getting-started/)
 
-
 - [Getting Started](getting-started/)
 - [Configuration](configuration/)
-- [Deployment](deployment/)
 - [Operations](operations/)
 - [API](api_docs/) 
 - [Integration Guides/Trace Discovery](guides/)
-- [Architecture](architecture/)
 - [Troubleshooting](troubleshooting/)
 - [Community](community/)
