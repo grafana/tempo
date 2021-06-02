@@ -27,7 +27,8 @@ The first building block to a functioning distributed tracing visualization pipe
 is client instrumentation, which is the process of adding instrumentation points in the application that 
 creates and offloads spans. 
 
-SDKs that are available in the most commonly used programming languages are listed below.
+Below is a list of the most popular frameworks used for client instrumentation. Each of these have SDKs 
+in most commonly used programming languages and you should pick one according to your application needs.
 
 * [OpenTracing/Jaeger](https://www.jaegertracing.io/docs/latest/client-libraries/)
 * [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
