@@ -9,15 +9,11 @@ Distributed tracing visualizes the lifecycle of a request as it passes through
 a set of applications. There are a few components that must be configured in order to get a
 working distributed tracing visualization.
 
-An example trace visualized in Grafana:
-
-<p align="center"><img src="../example-trace.png" alt="Example Trace"></p>
-
 This document discusses the four major pieces necessary to build out a tracing system: 
 Instrumentation, Pipeline, Backend and Visualization. If one were to build a diagram laying 
 out these pieces it may look something like this:
 
-<p align="center"><img src="../getting-started.png" alt="Tracing Overview"></p>
+<p align="center"><img src="getting-started.png" alt="Tracing Overview"></p>
 
 ## 1. Instrumentation
 
