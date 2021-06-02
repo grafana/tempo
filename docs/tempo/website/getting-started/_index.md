@@ -14,12 +14,12 @@ An example trace visualized in Grafana:
 <p align="center"><img src="../example-trace.png" alt="Example Trace"></p>
 
 This document discusses the four major pieces necessary to build out a tracing system: 
-Instrumentation, Tracing Pipeline, Tracing Backend and Visualization. If one were to build a diagram laying 
+Instrumentation, Pipeline, Backend and Visualization. If one were to build a diagram laying 
 out these pieces it may look something like this:
 
 <p align="center"><img src="../getting-started.png" alt="Tracing Overview"></p>
 
-## 1. Client instrumentation
+## 1. Instrumentation
 
 #### Instrumentation SDKs
 
@@ -27,22 +27,11 @@ The first building block to a functioning distributed tracing visualization pipe
 is client instrumentation, which is the process of adding instrumentation points in the application that 
 creates and offloads spans. 
 
-SDKs that are available in the most commonly used programming languages are listed below -
+SDKs that are available in the most commonly used programming languages are listed below.
 
-* [Jaeger](https://www.jaegertracing.io/docs/latest/client-libraries/)
+* [OpenTracing/Jaeger](https://www.jaegertracing.io/docs/latest/client-libraries/)
 * [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
-* [OpenTemeletry CPP](https://github.com/open-telemetry/opentelemetry-cpp)
-* [OpenTemeletry Java](https://github.com/open-telemetry/opentelemetry-java)
-* [OpenTemeletry JS](https://github.com/open-telemetry/opentelemetry-js)
-* [OpenTemeletry .NET](https://github.com/open-telemetry/opentelemetry-dotnet)
-* [OpenTemeletry Lambda](https://github.com/open-telemetry/opentelemetry-lambda)
-* [OpenTemeletry Go](https://github.com/open-telemetry/opentelemetry-go)
-* [OpenTemeletry Python](https://github.com/open-telemetry/opentelemetry-python)
-* [OpenTemeletry Ruby](https://github.com/open-telemetry/opentelemetry-ruby)
-* [OpenTemeletry Swift](https://github.com/open-telemetry/opentelemetry-swift)
-* [OpenTemeletry Ruby](https://github.com/open-telemetry/opentelemetry-ruby)
-* [OpenTemeletry PHP](https://github.com/open-telemetry/opentelemetry-php)
-* [OpenTemeletry Rust](https://github.com/open-telemetry/opentelemetry-rust)
+* [OpenTemeletry](https://opentelemetry.io/docs/concepts/instrumenting/)
 
 #### OpenTelemetry Auto Instrumentation
 
@@ -56,7 +45,7 @@ information from a client application with minimal manual instrumentation of the
 > Note: Check out our [instrumentation examples]({{< relref "../guides/instrumentation" >}}) to learn how to instrument your
 > favourite language for distributed tracing.
 
-## 2. Grafana Agent (Tracing pipeline)
+## 2. Pipeline (Grafana Agent)
 
 Once your application is instrumented for tracing, the next step is to send these traces
 to a backend for storage and visualization. It is common to build a tracing pipeline that 
@@ -75,7 +64,7 @@ refer to [this blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-g
 > Refer to [this blog post](https://grafana.com/blog/2021/04/13/how-to-send-traces-to-grafana-clouds-tempo-service-with-opentelemetry-collector/)
 > to see how the OpenTelemetry Collector can be used with Grafana Cloud Tempo.
 
-## 3. Tempo (Tracing Backend)
+## 3. Backend (Tempo)
 
 Grafana Tempo is an easy-to-use and high-scale distributed tracing backend used to store and query traces. The purpose of 
 the tracing backend is to store and retrieve traces on demand.
@@ -89,7 +78,7 @@ Getting started with Tempo is easy.
 > **Note:** The Grafana Agent is already set up to use Tempo. Refer to the [configuration](https://github.com/grafana/agent/blob/main/docs/configuration-reference.md#tempo_config) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
 
 
-## 4. Visualization with Grafana
+## 4. Visualization (Grafana)
 
 Grafana has a built in Tempo datasource that can be used to query Tempo and visualize traces.
 For more information refer to the [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/) topic.
