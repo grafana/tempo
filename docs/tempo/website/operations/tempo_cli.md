@@ -2,7 +2,6 @@
 title: "Tempo CLI"
 description: "Guide to using tempo-cli"
 keywords: ["tempo", "cli", "tempo-cli", "command line interface"]
-weight: 450
 ---
 
 # Tempo CLI
@@ -24,7 +23,7 @@ tempo-cli command [subcommand] -h
 ```
 
 ## Running Tempo CLI
-Tempo CLI is currently available as source code. A working Go installation is required to build it. It can be compiled to a native binary and executed normally, or it can be executed using the `go run` command. 
+Tempo CLI is currently available as source code. A working Go installation is required to build it. It can be compiled to a native binary and executed normally, or it can be executed using the `go run` command.
 
 **Example:**
 ```bash
@@ -88,7 +87,7 @@ Explanation of output:
 - `Age` The age of the block.
 - `Duration`Duration between the start and end time.
 - `Idx` Number of records stored in the index (present when --load-index is specified).
-- `Dupe` Number of duplicate entries in the index (present when --load-index is specified). Should be zero. 
+- `Dupe` Number of duplicate entries in the index (present when --load-index is specified). Should be zero.
 - `Cmp` Whether the block has been compacted (present when --include-compacted is specified).
 
 **Example:**
