@@ -7,22 +7,29 @@ services:
       - ./etc/load-generator.json:/etc/load-generator.json
     environment:
       - TOPOLOGY_FILE=/etc/load-generator.json
-      - JAEGER_COLLECTOR_URL=http://otel-collector:14268
+      - JAEGER_COLLECTOR_URL=http://agent:14268
 
-  # And put them in an OTEL collector pipeline...
-  otel-collector:
-    image: otel/opentelemetry-collector:0.16.0
+  # And put them in a Grafana Agent pipeline...
+  agent:
+    image: grafana/agent:v0.14.0
     volumes:
-      - ./etc/otel-collector.multitenant.yaml:/etc/otel-collector.yaml
+      - ./etc/agent.yaml:/etc/agent.yaml
     command:
-      - --config=/etc/otel-collector.yaml
+      - -config.file=/etc/agent.yaml
 
   # To eventually offload to Tempo...
   tempo:
     image: grafana/tempo:latest
-    command: ["--target=all","--multitenancy.enabled=true","--storage.trace.backend=local", "--storage.trace.local.path=/var/tempo"]
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./etc/tempo-local.yaml:/etc/tempo.yaml
+      - ./example-data/tempo:/tmp/tempo
     ports:
-    - 8081:80
+      - "14268"  # jaeger ingest
+      - "3100"   # tempo
+      - "55680"  # otlp grpc
+      - "55681"  # otlp http
+      - "9411"   # zipkin
 
   grafana:
     image: grafana/grafana:7.5.1

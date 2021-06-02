@@ -1,0 +1,16 @@
+server:
+  http_listen_port: 12345
+
+tempo:
+  configs:
+  - name: default
+    receivers:
+      jaeger:
+        protocols:
+          thrift_http:
+    remote_write:
+      - endpoint: tempo:55680
+        insecure: true
+    batch:
+      timeout: 5s
+      send_batch_size: 100
