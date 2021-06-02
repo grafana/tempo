@@ -6,7 +6,10 @@ weight: 600
 ## Communicate
 
 - [Grafana Slack](https://slack.grafana.com/) #tempo channel
-- [Grafana Tempo Community Forum](https://community.grafana.com/c/grafana-tempo/40)
+- [Community Forum](https://community.grafana.com/c/grafana-tempo/40) - for questions/feedback.
+- [Community Call](https://docs.google.com/document/d/1yGsI6ywU-PxZBjmq3p3vAXr9g5yBXSDk4NU8LGo8qeY/edit#) - Monthly
+  on the second thursday at 1630 UTC.
+  Recordings available [online](https://www.youtube.com/playlist?list=PLDGkOdUX1Ujqe8WZ8T1h2pNjpll0t-KLw).
 - [Google Groups](https://groups.google.com/forum/#!forum/tempo-users)
 
 ## Contribute

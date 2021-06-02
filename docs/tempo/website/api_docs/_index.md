@@ -21,9 +21,13 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 | [Pprof](#pprof) | _All services_ |  HTTP | `GET /debug/pprof` |
 | [Ingest traces](#ingest) | Distributor |  - | See section for details |
 | [Querying traces](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
+| [Query Path Readiness Check](#query-path-readiness-check) | Query-frontend |  HTTP | `GET /api/echo` |
 | [Memberlist](#memberlist) | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
-| [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /ingester/shutdown` |
+| [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
+| [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
+| [Distributor ring status](#distributor-ring-status) | Distributor |  HTTP | `GET /distributor/ring` |
 | [Ingesters ring status](#ingesters-ring-status) | Distributor, Querier |  HTTP | `GET /ingester/ring` |
+| [Compactor ring status](#compactor-ring-status) | Compactor |  HTTP | `GET /compactor/ring` |
 
 
 ### Configuration
@@ -116,6 +120,25 @@ Parameters:
 Note that this API is not meant to be used directly unless for debugging the sharding functionality of the query 
 frontend.
 
+### Query Path Readiness Check
+
+```
+GET /api/echo
+```
+
+Returns status code 200 and body `echo` when the query frontend is up and ready to receive requests.
+
+**Note**: Meant to be used in a Query Visualization UI like Grafana to test that the Tempo datasource is working.
+
+
+### Flush
+
+```
+GET,POST /flush
+```
+
+Triggers a flush of all in-memory traces to the WAL. Useful at the time of rollout restarts and unexpected crashes.
+
 ### Shutdown
 
 ```
@@ -127,6 +150,17 @@ ingester service.
 
 **Note**: This is usually used at the time of scaling down a cluster.
 
+### Distributor ring status
+
+```
+GET /distributor/ring
+```
+
+Displays a web page with the distributor hash ring status, including the state, healthy and last heartbeat time of each
+distributor.
+
+_For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
+
 ### Ingesters ring status
 
 ```
@@ -134,6 +168,19 @@ GET /ingester/ring
 ```
 
 Displays a web page with the ingesters hash ring status, including the state, healthy and last heartbeat time of each ingester.
+
+_For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
+
+
+
+### Compactor ring status
+
+```
+GET /compactor/ring
+```
+
+Displays a web page with the compactor hash ring status, including the state, healthy and last heartbeat time of each
+compactor.
 
 _For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
 
