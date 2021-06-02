@@ -27,7 +27,7 @@ minio + load + tempo {
                 },
             },
         },
-        vulture+:{
+        vulture+: {
             replicas: 0,
         },
         backend: 's3',
@@ -68,11 +68,35 @@ minio + load + tempo {
     tempo_ingester_container+::
         $.util.resourcesRequests('500m', '500Mi'),
 
+    // clear affinity so we can run multiple ingesters on a single node
+    tempo_ingester_statefulset+: {
+        spec+: {
+            template+: {
+                spec+: {
+                    affinity: {}
+                }
+            }
+        }
+    },
+
     tempo_querier_container+::
         $.util.resourcesRequests('500m', '500Mi'),
 
     tempo_query_frontend_container+::
         $.util.resourcesRequests('300m', '500Mi'),
+
+    // clear affinity so we can run multiple instances of memcached on a single node
+    memcached_all+: {
+        statefulSet+: {
+            spec+: {
+                template+: {
+                    spec+: {
+                        affinity: {}
+                    }
+                }
+            }
+        }
+    },
 
     local ingress = $.extensions.v1beta1.ingress,
     ingress:
