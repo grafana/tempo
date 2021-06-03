@@ -5,7 +5,7 @@ weight: 474
 
 # Distributors Refusing Spans
 
-The two most likely causes of refused spans are unhealthy ingesters or trace limits are being exceeded.
+The two most likely causes of refused spans are unhealthy ingesters or trace limits being exceeded.
 
 ## Unhealthy ingesters
 
