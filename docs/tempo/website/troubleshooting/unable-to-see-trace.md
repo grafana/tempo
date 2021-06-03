@@ -5,7 +5,7 @@ aliases:
 - /docs/tempo/latest/troubleshooting/missing-trace
 ---
 
-# I am unable to see any of my traces in Tempo
+# I am unable to find my traces in Tempo
 
 **Potential causes**
 - There could be issues in ingestion of the data into Tempo, that is, spans are either not being sent correctly to Tempo or they are not getting sampled.
