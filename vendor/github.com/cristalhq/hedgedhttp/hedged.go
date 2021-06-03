@@ -1,7 +1,6 @@
 package hedgedhttp
 
 import (
-	"context"
 	"net/http"
 	"time"
 )
@@ -49,9 +48,10 @@ type hedgedTransport struct {
 }
 
 func (ht *hedgedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx, cancel := context.WithCancel(req.Context())
-	defer cancel()
-	req = req.WithContext(ctx)
+	// ctx, cancel := context.WithCancel(req.Context())
+	// defer cancel()
+	// req = req.WithContext(ctx)
+	ctx := req.Context()
 
 	var res interface{}
 	resultCh := make(chan interface{}, ht.upto)

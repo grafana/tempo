@@ -67,7 +67,7 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	bucket := client.Bucket(cfg.BucketName)
 
 	// hedged client
-	hedgedTransport := hedgedhttp.NewRoundTripper(2*time.Second, 2, transport)
+	hedgedTransport := hedgedhttp.NewRoundTripper(500*time.Millisecond, 2, transport)
 	hedgedClientOptions := []option.ClientOption{
 		option.WithHTTPClient(&http.Client{
 			Transport: hedgedTransport,
