@@ -42,9 +42,6 @@ Check out the [Integration Guides](https://grafana.com/docs/tempo/latest/guides/
 
 ## Other Components
 
-### tempo-query
-tempo-query is jaeger-query with a [hashicorp go-plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) to support querying Tempo. Please note that tempo only looks up a trace by ID.  Searching for traces is not supported, and the service and operation lists will not populate.
-
 ### tempo-vulture
 tempo-vulture is tempo's bird themed consistency checking tool.  It pushes traces and queries Tempo.  It metrics 404s and traces with missing spans.
 
