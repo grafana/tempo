@@ -1,7 +1,8 @@
 ---
-title: Running Tempo
+title: Backend
 aliases:
 - /docs/tempo/latest/getting-started/quickstart-tempo/
+weight: 200
 ---
 
 # Examples

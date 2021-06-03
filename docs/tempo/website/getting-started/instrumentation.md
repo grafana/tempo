@@ -2,6 +2,7 @@
 title: Instrumentation
 aliases:
 - /docs/tempo/latest/guides/instrumentation/
+weight: 100
 ---
 
 # OpenTelemetry
