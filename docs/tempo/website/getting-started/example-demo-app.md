@@ -5,7 +5,7 @@ aliases:
 weight: 200
 ---
 
-# Examples
+# Running the Tempo Backend
 
 These examples show various deployment and [configuration]({{< relref "../configuration" >}}) options. They include trace
 generators so an existing application is not necessary to get started experimenting with Tempo. If you are interested in
