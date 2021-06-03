@@ -16,7 +16,7 @@ The Jsonnet is meant to be applied to with [tanka](https://github.com/grafana/ta
 Create a cluster with 3 nodes
 
 ```console
-k3d cluster create tempo --api-port 6443 --port "16686:80@loadbalancer"
+k3d cluster create tempo --api-port 6443 --port "3000:80@loadbalancer"
 ```
 
 If you wish to use a local image, you can import these into k3d
@@ -60,7 +60,7 @@ kubectl logs synthetic-load-generator-???
 20/03/03 21:30:02 INFO ScheduledTraceGenerator: Emitted traceId 23a09a0efd0d1ef0 for service frontend route /cart
 ```
 
-Extract a trace id and view it in your browser at `http://localhost:16686/trace/<traceid>`
+Extract a trace id and view it in Grafana at http://localhost:3000/explore
 
 ### Clean up
 
