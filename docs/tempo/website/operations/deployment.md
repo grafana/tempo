@@ -1,6 +1,8 @@
 ---
 title: Deployment
-weight: 250
+aliases:
+ - /docs/tempo/latest/deployment
+ - /docs/tempo/latest/deployment/deployment
 ---
 
 # Deploying Tempo

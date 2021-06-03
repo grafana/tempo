@@ -1,6 +1,9 @@
 ---
 title: Architecture
 weight: 500
+aliases:
+ - /docs/tempo/latest/architecture/architecture
+ - /docs/tempo/latest/architecture
 ---
 
 A collection of documents that detail Tempo architectural decisions and operational implications.
@@ -24,13 +27,17 @@ the [Grafana Agent](https://github.com/grafana/agent) uses the otlp exporter/rec
 
 ### Ingester
 
-The Ingester batches trace into blocks, blooms, indexes, and flushes to the backend.  Blocks in the backend are generated in the following layout.
+The Ingester batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend. 
+Blocks in the backend are generated in the following layout.
 
 ```
 <bucketname> / <tenantID> / <blockID> / <meta.json>
-.                                     / <bloom>
-.                                     / <index>
-.                                     / <data>
+                                      / <index>
+                                      / <data>
+                                      / <bloom_0>
+                                      / <bloom_1>
+                                        ...
+                                      / <bloom_n>
 ```
 
 ### Query Frontend
@@ -45,7 +52,9 @@ Queriers connect to the Query Frontend via a streaming gRPC connection to proces
 
 ### Querier
 
-The querier is responsible for finding the requested trace id in either the ingesters or the backend storage.  It begins by querying the ingesters to see if the id is currently stored there, if not it proceeds to use the bloom and indexes to find the trace in the storage backend.
+The querier is responsible for finding the requested trace id in either the ingesters or the backend storage. Depending on
+parameters it will query both the ingesters and pull bloom/indexes from the backend to search blocks in object
+storage.
 
 The querier exposes an HTTP endpoint at:
 `GET /querier/api/traces/<traceID>`, but its not expected to be used directly.
@@ -56,7 +65,7 @@ Queries should be sent to the Query Frontend.
 
 The Compactors stream blocks to and from the backend storage to reduce the total number of blocks.
 
-### Using older versions of Grafana ```
+### Using older versions of Grafana
 
 When using older versions of Grafana (7.4.x), you must also use `tempo-query` in order to visualize traces. The
 `tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo.
