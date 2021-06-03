@@ -52,7 +52,9 @@ Queriers connect to the Query Frontend via a streaming gRPC connection to proces
 
 ### Querier
 
-The querier is responsible for finding the requested trace id in either the ingesters or the backend storage.  It begins by querying the ingesters to see if the id is currently stored there, if not it proceeds to use the bloom and indexes to find the trace in the storage backend.
+The querier is responsible for finding the requested trace id in either the ingesters or the backend storage. Depending on
+parameters it will query both the ingesters and pull bloom/indexes from the backend to search blocks in object
+storage.
 
 The querier exposes an HTTP endpoint at:
 `GET /querier/api/traces/<traceID>`, but its not expected to be used directly.
