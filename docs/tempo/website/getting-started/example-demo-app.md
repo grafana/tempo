@@ -1,5 +1,5 @@
 ---
-title: Backend
+title: Example Setups
 aliases:
 - /docs/tempo/latest/getting-started/quickstart-tempo/
 - /docs/tempo/latest/guides/loki-derived-fields/
