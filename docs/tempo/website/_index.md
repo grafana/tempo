@@ -12,7 +12,7 @@ Grafana Tempo is an open source, easy-to-use and high-volume distributed tracing
 
 - [Getting Started](getting-started/)
 - [Configuration](configuration/)
-- [Operations](operations/)
+- [Deployment and Operations](operations/)
 - [API](api_docs/) 
 - [Integration Guides/Trace Discovery](guides/)
 - [Troubleshooting](troubleshooting/)
