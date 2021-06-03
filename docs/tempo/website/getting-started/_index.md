@@ -39,7 +39,7 @@ information from a client application with minimal manual instrumentation of the
 * [OpenTemeletry .NET Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation)
 * [OpenTemeletry Python Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-python-contrib)
 
-> Note: Check out our [instrumentation examples]({{< relref "../guides/instrumentation" >}}) to learn how to instrument your
+> Note: Check out our [instrumentation examples]({{< relref "./instrumentation" >}}) to learn how to instrument your
 > favourite language for distributed tracing.
 
 ## 2. Pipeline (Grafana Agent)

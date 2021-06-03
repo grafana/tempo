@@ -10,9 +10,7 @@ weight: 200
 
 These examples show various deployment and [configuration]({{< relref "../configuration" >}}) options. They include trace
 generators so an existing application is not necessary to get started experimenting with Tempo. If you are interested in
-instrumentation please check out these [examples]({{< relref "../guides/instrumentation" >}}).
-
-The linked folders contain example deployments of Tempo.  They are a good resource for getting some basic configurations together.
+instrumentation please check out these [examples]({{< relref "./instrumentation" >}}).
 
 ## Docker Compose
 
