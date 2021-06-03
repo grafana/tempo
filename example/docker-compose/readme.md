@@ -28,10 +28,9 @@ These examples show off configuration of different storage backends.
 ### Build Images (Optional)
 
 This step is not necessary, but it can be nice for local testing.  For any of the above examples rebuilding these
-images will cause docker-compose to use whatever local code you have in the examples.
+images will cause docker-compose to use your local code when running the examples.
 
-Run the following from the project root folder to build `tempo:latest` and `tempo-query:latest` images
-that will be used in the test environment:
+Run the following from the project root folder to build the`grafana/tempo:latest` image that is used in all the examples:
 
 ```console
 make docker-images
