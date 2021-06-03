@@ -12,10 +12,10 @@ A collection of documents that detail Tempo architectural decisions and operatio
 
 This topic provides an overview of the major components of Tempo.  Refer to the [examples] (https://github.com/grafana/tempo/tree/main/example) topic for deployment options.
 
-<p align="center"><img src="tempo_arch.png" alt="Tempo Architecture"></p>
+<p align="center"><img src="../tempo_arch.png" alt="Tempo Architecture"></p>
 
 ## Tempo
-Tempo comprises of the following components.
+Tempo comprises of the following top-level components.
 
 ### Distributor
 
