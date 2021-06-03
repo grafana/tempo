@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"strings"
@@ -223,14 +225,37 @@ func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) err
 }
 
 func (rw *readerWriter) append(ctx context.Context, src []byte, name string) (string, error) {
-	appendBlobURL := rw.containerURL.NewAppendBlobURL(name)
+	appendBlobURL := rw.containerURL.NewBlockBlobURL(name)
+	
+	// These helper functions convert a binary block ID to a base-64 string and vice versa
+	// NOTE: The blockID must be <= 64 bytes and ALL blockIDs for the block must be the same length
+	blockIDBinaryToBase64 := func(blockID []byte) string { return base64.StdEncoding.EncodeToString(blockID) }
+	l, err := appendBlobURL.GetBlockList(ctx, blob.BlockListAll, blob.LeaseAccessConditions{})
+	lenth := len(l.CommittedBlocks[0].Name)
+	blockIDIntToBase64 := func(blockID int) string {
+		binaryBlockID := (&[64]byte{})[:] // All block IDs are 4 bytes long
+		binary.LittleEndian.PutUint32(binaryBlockID, uint32(blockID))
+		return blockIDBinaryToBase64(binaryBlockID)
+	}
 
-	resp, err := appendBlobURL.AppendBlock(ctx, bytes.NewReader(src), blob.AppendBlobAccessConditions{}, nil)
-
+	_, err = appendBlobURL.StageBlock(ctx, blockIDIntToBase64(lenth+1), bytes.NewReader(src), blob.LeaseAccessConditions{}, nil)
 	if err != nil {
 		return "", err
 	}
-	return resp.RequestID(), nil
+
+	base64BlockIDs := make([]string, len(l.CommittedBlocks)+1)
+	for i := 0; i < len(l.CommittedBlocks); i++ {
+		base64BlockIDs[i] = l.CommittedBlocks[i].Name
+	}
+	
+	base64BlockIDs[len(l.CommittedBlocks)] = blockIDIntToBase64(lenth + 1)
+
+	// After all the blocks are uploaded, atomically commit them to the blob.
+	_, err = appendBlobURL.CommitBlockList(ctx, base64BlockIDs, blob.BlobHTTPHeaders{}, blob.Metadata{}, blob.BlobAccessConditions{})
+	if err != nil {
+		return "", err
+	}
+	return "", nil
 
 }
 
