@@ -15,6 +15,7 @@
 * [BUGFIX] Fix Query Frontend grpc settings to avoid noisy error log. [#690](https://github.com/grafana/tempo/pull/690)
 * [BUGFIX] Zipkin Support - CombineTraces. [#688](https://github.com/grafana/tempo/pull/688)
 * [BUGFIX] Zipkin support - Dedupe span IDs based on span.Kind (client/server) in Query Frontend. [#687](https://github.com/grafana/tempo/pull/687)
+* [BUGFIX] Azure Backend - Fix an issue with the append method on the Azure backend. [#736](https://github.com/grafana/tempo/pull/736)
 
 ## v0.7.0
 
