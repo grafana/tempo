@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/cristalhq/hedgedhttp"
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -25,9 +26,9 @@ import (
 )
 
 type readerWriter struct {
-	cfg    *Config
-	client *storage.Client
-	bucket *storage.BucketHandle
+	cfg          *Config
+	bucket       *storage.BucketHandle
+	hedgedBucket *storage.BucketHandle
 }
 
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
@@ -65,15 +66,33 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 
 	bucket := client.Bucket(cfg.BucketName)
 
+	// hedged client
+	hedgedTransport := hedgedhttp.NewRoundTripper(500*time.Millisecond, 2, transport)
+	hedgedClientOptions := []option.ClientOption{
+		option.WithHTTPClient(&http.Client{
+			Transport: hedgedTransport,
+		}),
+		option.WithScopes(storage.ScopeReadWrite),
+	}
+	if cfg.Endpoint != "" {
+		hedgedClientOptions = append(hedgedClientOptions, option.WithEndpoint(cfg.Endpoint))
+	}
+
+	hedgedClient, err := storage.NewClient(ctx, hedgedClientOptions...)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "creating hedged storage client")
+	}
+	hedgedBucket := hedgedClient.Bucket(cfg.BucketName)
+
 	// Check bucket exists by getting attrs
 	if _, err = bucket.Attrs(ctx); err != nil {
 		return nil, nil, nil, errors.Wrap(err, "getting bucket attrs")
 	}
 
 	rw := &readerWriter{
-		cfg:    cfg,
-		client: client,
-		bucket: bucket,
+		cfg:          cfg,
+		bucket:       bucket,
+		hedgedBucket: hedgedBucket,
 	}
 
 	return rw, rw, rw, nil
@@ -273,7 +292,7 @@ func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
-	r, err := rw.bucket.Object(name).NewReader(ctx)
+	r, err := rw.hedgedBucket.Object(name).NewReader(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +302,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
-	r, err := rw.bucket.Object(name).NewReader(ctx)
+	r, err := rw.hedgedBucket.Object(name).NewReader(ctx)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -298,7 +317,7 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, buffer []byte) error {
-	r, err := rw.bucket.Object(name).NewRangeReader(ctx, offset, int64(len(buffer)))
+	r, err := rw.hedgedBucket.Object(name).NewRangeReader(ctx, offset, int64(len(buffer)))
 	if err != nil {
 		return err
 	}
