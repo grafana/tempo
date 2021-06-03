@@ -1,7 +1,8 @@
 local tempo = import '../../../operations/jsonnet/single-binary/tempo.libsonnet';
 local load = import 'synthetic-load-generator/main.libsonnet';
+local grafana = import 'grafana/main.libsonnet';
 
-load + tempo {
+grafana + load + tempo {
     _images+:: {
         // override images here if desired
     },
@@ -26,7 +27,7 @@ load + tempo {
             containerPort.new('jaeger-http', 14268),
         ]),
 
-    local ingress = $.extensions.v1beta1.ingress,
+    local ingress = $.networking.v1beta1.ingress,
     ingress:
         ingress.new() +
         ingress.mixin.metadata
@@ -37,8 +38,8 @@ load + tempo {
         ingress.mixin.spec.withRules(
             ingress.mixin.specType.rulesType.mixin.http.withPaths(
                 ingress.mixin.spec.rulesType.mixin.httpType.pathsType.withPath('/') +
-                ingress.mixin.specType.mixin.backend.withServiceName('tempo') +
-                ingress.mixin.specType.mixin.backend.withServicePort(16686)
+                ingress.mixin.specType.mixin.backend.withServiceName('grafana') +
+                ingress.mixin.specType.mixin.backend.withServicePort(3000)
             ),
         ),
 }
