@@ -112,8 +112,6 @@ persists consider killing the block that's failing to upload in `/var/tempo/wal`
 ## TempoPollsFailing
 
 If polls are failing check the component that is raising this metric and look for any obvious logs that may indicate a quick fix.
-If you see logs about the number of blocks being too long for the job queue then raise the `storage.traces.pool.max_workers` value
-to compensate.
 
 Generally, failure to poll just means that the component is not aware of the current state of the backend but will continue working 
 otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale.
