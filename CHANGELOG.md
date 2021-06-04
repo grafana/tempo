@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] Azure Backend - Fix an issue with the append method on the Azure backend. [#736](https://github.com/grafana/tempo/pull/736)
+
 ## v1.0.0-rc.0
 
 * [CHANGE] Mark `-auth.enabled` as deprecated. New flag is `-multitenancy.enabled` and is set to false by default.
