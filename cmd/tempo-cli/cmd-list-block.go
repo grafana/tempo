@@ -108,7 +108,6 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 		for {
 			objID, obj, err := iter.Next(ctx)
 			if err == io.EOF {
-				fmt.Println("got eof")
 				break
 			} else if err != nil {
 				return err
