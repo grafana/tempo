@@ -68,9 +68,8 @@ the tracing backend is to store and retrieve traces on demand.
 
 Getting started with Tempo is easy.
 
-- If you're looking for a demo application to play around with Tempo, check the [examples with demo app]({{< relref "example-demo-app.md" >}}) topic.
-- For an application already instrumented for tracing, [this guide]({{< relref "quickstart-tempo.md" >}}) can help quickly set it up with Tempo.
-- For production workloads, refer to the [deployment]({{< relref "../deployment" >}}) section.
+- If you're looking for examples of how to get started with Tempo, check out the [examples]({{< relref "example-demo-app.md" >}}) topic.
+- For production workloads, refer to the [deployment]({{< relref "../operations/deployment" >}}) section.
 
 > **Note:** The Grafana Agent is already set up to use Tempo. Refer to the [configuration](https://github.com/grafana/agent/blob/main/docs/configuration-reference.md#tempo_config) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
 
