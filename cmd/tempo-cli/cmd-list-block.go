@@ -53,32 +53,22 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 
 	unifiedMeta := getMeta(meta, compactedMeta, windowRange)
 
-	fmt.Println("ID            : ", unifiedMeta.id)
-	fmt.Println("Version       : ", unifiedMeta.version)
-	fmt.Println("Total Objects : ", unifiedMeta.objects)
-	fmt.Println("Data Size     : ", humanize.Bytes(unifiedMeta.size))
-	fmt.Println("Encoding      : ", unifiedMeta.encoding)
-	fmt.Println("Level         : ", unifiedMeta.compactionLevel)
+	fmt.Println("ID            : ", unifiedMeta.BlockID)
+	fmt.Println("Version       : ", unifiedMeta.Version)
+	fmt.Println("Total Objects : ", unifiedMeta.TotalObjects)
+	fmt.Println("Data Size     : ", humanize.Bytes(unifiedMeta.Size))
+	fmt.Println("Encoding      : ", unifiedMeta.Encoding)
+	fmt.Println("Level         : ", unifiedMeta.CompactionLevel)
 	fmt.Println("Window        : ", unifiedMeta.window)
-	fmt.Println("Start         : ", unifiedMeta.start)
-	fmt.Println("End           : ", unifiedMeta.end)
-	fmt.Println("Duration      : ", fmt.Sprint(unifiedMeta.end.Sub(unifiedMeta.start).Round(time.Second)))
-	fmt.Println("Age           : ", fmt.Sprint(time.Since(unifiedMeta.end).Round(time.Second)))
+	fmt.Println("Start         : ", unifiedMeta.StartTime)
+	fmt.Println("End           : ", unifiedMeta.EndTime)
+	fmt.Println("Duration      : ", fmt.Sprint(unifiedMeta.EndTime.Sub(unifiedMeta.StartTime).Round(time.Second)))
+	fmt.Println("Age           : ", fmt.Sprint(time.Since(unifiedMeta.EndTime).Round(time.Second)))
 
 	if scan {
 		fmt.Println("Scanning block contents.  Press CRTL+C to quit ...")
 
-		en, err := tempodb_backend.ParseEncoding(unifiedMeta.encoding)
-		if err != nil {
-			return err
-		}
-
-		block, err := encoding.NewBackendBlock(&tempodb_backend.BlockMeta{
-			Encoding: en,
-			Version:  unifiedMeta.version,
-			TenantID: tenantID,
-			BlockID:  id,
-		}, r)
+		block, err := encoding.NewBackendBlock(&unifiedMeta.BlockMeta, r)
 		if err != nil {
 			return err
 		}
@@ -118,6 +108,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 		for {
 			objID, obj, err := iter.Next(ctx)
 			if err == io.EOF {
+				fmt.Println("got eof")
 				break
 			} else if err != nil {
 				return err

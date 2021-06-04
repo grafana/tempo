@@ -40,7 +40,7 @@ func displayCompactionSummary(results []blockStats) {
 	resultsByLevel := make(map[int][]blockStats)
 	var levels []int
 	for _, r := range results {
-		l := int(r.compactionLevel)
+		l := int(r.CompactionLevel)
 
 		s, ok := resultsByLevel[l]
 		if !ok {
@@ -68,26 +68,26 @@ func displayCompactionSummary(results []blockStats) {
 		var newest time.Time
 		var oldest time.Time
 		for _, r := range resultsByLevel[l] {
-			sizeSum += r.size
-			countSum += r.objects
+			sizeSum += r.Size
+			countSum += r.TotalObjects
 
-			if r.size < sizeMin || sizeMin == 0 {
-				sizeMin = r.size
+			if r.Size < sizeMin || sizeMin == 0 {
+				sizeMin = r.Size
 			}
-			if r.size > sizeMax {
-				sizeMax = r.size
+			if r.Size > sizeMax {
+				sizeMax = r.Size
 			}
-			if r.objects < countMin || countMin == 0 {
-				countMin = r.objects
+			if r.TotalObjects < countMin || countMin == 0 {
+				countMin = r.TotalObjects
 			}
-			if r.objects > countMax {
-				countMax = r.objects
+			if r.TotalObjects > countMax {
+				countMax = r.TotalObjects
 			}
-			if r.start.Before(oldest) || oldest.IsZero() {
-				oldest = r.start
+			if r.StartTime.Before(oldest) || oldest.IsZero() {
+				oldest = r.StartTime
 			}
-			if r.end.After(newest) {
-				newest = r.end
+			if r.EndTime.After(newest) {
+				newest = r.EndTime
 			}
 		}
 
