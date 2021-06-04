@@ -30,7 +30,7 @@ For a quick start, refer to this [blog post](https://grafana.com/blog/2020/11/17
 
 <p align="center"><img src="https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/images/design-pipelines.png" alt="Tracing pipeline architecture"></p>
 
-Having multiple Tempo instances allows you to configure multiple distinct 
+Having multiple tracing pipelines allows you to configure multiple distinct 
 pipelines, each of which collects separate spans and sends them to different 
 backends.
 
@@ -39,8 +39,8 @@ backends.
 The Grafana Agent supports multiple ingestion methods: 
 OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus and Kafka.
 
-Each Tempo instance can be configured to receive traces in all these formats.
-Traces that arrive to a Tempo instance will enter the same tracing 
+Each tracing pipelines can be configured to receive traces in all these formats.
+Traces that arrive to a pipeline will enter the same tracing 
 pipeline, and will be processed equally.
 
 ### Pipeline processing
