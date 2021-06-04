@@ -1,6 +1,5 @@
 ---
 title: Architecture
-weight: 500
 aliases:
  - /docs/tempo/latest/architecture/architecture
  - /docs/tempo/latest/architecture
