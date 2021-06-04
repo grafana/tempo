@@ -6,6 +6,7 @@
 .vscode
 /dist
 /cmd/tempo-cli/tempo-cli
-/example/docker-compose/example-data/tempo
+/example/docker-compose/**/tempo-data/
+/example/docker-compose/**/gcs-data/
 .DS_Store
 /tempodb/encoding/benchmark_block
