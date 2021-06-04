@@ -28,7 +28,7 @@ The following options are supported:
 - zstd
 
 It is important to note that although all of these compression formats are supported in Tempo, at Grafana
-we use  zstd and it's possible/probable that the other compression algorithms may have issue at scale.  Please 
+we use zstd and it's possible/probable that the other compression algorithms may have issue at scale.  Please 
 file an issue if you stumble upon any problems!
 
 ## WAL (Experimental)

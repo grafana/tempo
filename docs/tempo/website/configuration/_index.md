@@ -16,7 +16,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [storage](#storage)
   - [memberlist](#memberlist)
 
-## server
+## Server
 Tempo uses the Weaveworks/common server. See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.
 
 ```
@@ -55,7 +55,7 @@ server:
     [grpc_server_max_recv_msg_size: <int> | default = 4194304]
 ```
 
-## distributor
+## Distributor
 See [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go) for all configuration options.
 
 Distributors are responsible for receiving spans and forwarding them to the appropriate ingesters.  The below configuration
@@ -95,7 +95,7 @@ distributor:
 
 ```
 
-## ingester
+## Ingester
 See [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go) for all configuration options.
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
@@ -125,7 +125,7 @@ ingester:
     [max_block_duration: <duration>]
 ```
 
-## query-frontend
+## Query-frontend
 See [here](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go) for all configuration options.
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
@@ -139,7 +139,7 @@ query_frontend:
     [query_shards: <int>]
 ```
 
-## querier
+## Querier
 See [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go) for all configuration options.
 
 The Querier is responsible for querying the backends/cache for the traceID.
