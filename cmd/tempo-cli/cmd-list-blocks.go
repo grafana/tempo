@@ -53,30 +53,30 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 			s := ""
 			switch c {
 			case "id":
-				s = r.id.String()
+				s = r.BlockID.String()
 			case "lvl":
-				s = strconv.Itoa(int(r.compactionLevel))
+				s = strconv.Itoa(int(r.CompactionLevel))
 			case "objects":
-				s = strconv.Itoa(r.objects)
+				s = strconv.Itoa(r.TotalObjects)
 			case "size":
-				s = fmt.Sprintf("%v", humanize.Bytes(r.size))
+				s = fmt.Sprintf("%v", humanize.Bytes(r.Size))
 			case "encoding":
-				s = r.encoding
+				s = r.Encoding.String()
 			case "vers":
-				s = r.version
+				s = r.Version
 			case "window":
 				// Display compaction window in human-readable format
 				window := time.Unix(r.window*int64(windowDuration.Seconds()), 0).UTC()
 				s = window.Format(time.RFC3339)
 			case "start":
-				s = r.start.Format(time.RFC3339)
+				s = r.StartTime.Format(time.RFC3339)
 			case "end":
-				s = r.end.Format(time.RFC3339)
+				s = r.EndTime.Format(time.RFC3339)
 			case "duration":
 				// Time range included in bucket
-				s = fmt.Sprint(r.end.Sub(r.start).Round(time.Second))
+				s = fmt.Sprint(r.EndTime.Sub(r.StartTime).Round(time.Second))
 			case "age":
-				s = fmt.Sprint(time.Since(r.end).Round(time.Second))
+				s = fmt.Sprint(time.Since(r.EndTime).Round(time.Second))
 			case "cmp":
 				// Compacted?
 				if r.compacted {
@@ -90,8 +90,8 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 		}
 
 		out = append(out, line)
-		totalObjects += r.objects
-		totalBytes += r.size
+		totalObjects += r.TotalObjects
+		totalBytes += r.Size
 	}
 
 	footer := make([]string, 0)

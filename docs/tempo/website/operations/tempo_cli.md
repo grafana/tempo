@@ -74,20 +74,20 @@ Arguments:
 
 Options:
 - `--include-compacted` Include blocks that have been compacted. Default behavior is to display only active blocks.
-- `--load-index` Also load the block indexes and perform integrity checks for duplicates. **Note:** This can be a resource intensive process.
 
 **Output:**
 Explanation of output:
 - `ID` Block ID.
 - `Lvl` Compaction level of the block.
-- `Count` Number of objects stored in the block.
+- `Objects` Number of objects stored in the block.
+- `Size` Data size of the block after any compression.
+- `Encoding` Block encoding (compression algorithm).
+- `Vers` Block version.
 - `Window` The window of time that was considered for compaction purposes.
 - `Start` The earliest timestamp stored in the block.
 - `End` The latest timestamp stored in the block.
-- `Age` The age of the block.
 - `Duration`Duration between the start and end time.
-- `Idx` Number of records stored in the index (present when --load-index is specified).
-- `Dupe` Number of duplicate entries in the index (present when --load-index is specified). Should be zero.
+- `Age` The age of the block.
 - `Cmp` Whether the block has been compacted (present when --include-compacted is specified).
 
 **Example:**
@@ -112,4 +112,51 @@ Options:
 **Example:**
 ```bash
 tempo-cli list block -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
+```
+
+## List Compaction Summary
+Summarizes information about all blocks for the given tenant based on compaction level. This command is useful to analyze or troubleshoot compactor behavior.
+
+```bash
+tempo-cli list compaction-summary <tenant-id>
+```
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+
+**Example:**
+```bash
+tempo-cli list compaction-summary -c ./tempo.yaml single-tenant
+```
+
+## List Index
+Lists basic index info for the given block.
+
+```bash
+tempo-cli list index <tenant-id> <block-id>
+```
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `block-id` The block ID as UUID string.
+
+**Example:**
+```bash
+tempo-cli list index -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
+```
+
+## View Index
+View the index contents for the given block.
+
+```bash
+tempo-cli view index <tenant-id> <block-id>
+```
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `block-id` The block ID as UUID string.
+
+**Example:**
+```bash
+tempo-cli view index -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```
