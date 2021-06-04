@@ -10,7 +10,7 @@ collector for sending metrics, logs, and trace data to the opinionated
 Grafana observability stack.
 
 It is commonly used as a tracing pipeline, offloading traces from the 
-application and forward them to a storage backend.
+application and forwarding them to a storage backend.
 The Grafana Agent tracing stack is built using OpenTelemetry.
 
 The Grafana Agent supports receiving traces in multiple formats:
@@ -52,7 +52,7 @@ Such as trace discovery, tail-based sampling, and generating metrics.
 #### Batch
 
 The Agent supports batching of traces.
-Batching helps better compress the data and reduce the number of outgoing connections required to transmit the data.
+Batching helps better compress the data, reduce the number of outgoing connections, and is a recommended best practice.
 To configure it, refer to the `batch` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration-reference.md#tempo_instance_config).
 
 #### Attributes manipulation
