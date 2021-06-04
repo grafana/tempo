@@ -4,7 +4,7 @@ title: Generating metrics from spans
 
 # Generating metrics from spans
 
-Span metrics allows you to generate metrics from your tracing data automatically.
+Span metrics allow you to generate metrics from your tracing data automatically.
 Span metrics aggregates request, error and duration (RED) metrics from span data.
 Metrics are exported in Prometheus format.
 
@@ -19,7 +19,6 @@ but it has distributed tracing implemented.
 You get out-of-the-box metrics from your tracing pipeline.
 
 Even if you already have metrics, span metrics can provide in-depth monitoring of your system.
-The generated metrics will show application level insight into your monitoring.
-For instance, if your tracing propagates down to an application’s persistence,
-your span metrics do too!
+The generated metrics will show application level insight into your monitoring,
+as far as tracing gets propagated through your applications.
 

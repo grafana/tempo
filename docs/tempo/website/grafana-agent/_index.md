@@ -14,8 +14,7 @@ application and forwarding them to a storage backend.
 The Grafana Agent tracing stack is built using OpenTelemetry.
 
 The Grafana Agent supports receiving traces in multiple formats:
-OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus and Kafka.
-It sends traces in OTLP format via gRPC.
+OTLP (OpenTelemetry), Jaeger, Zipkin and OpenCensus.
 
 On top of receiving and exporting traces, the Grafana Agent contains many 
 features that make your distributed tracing system more robust, and 
@@ -23,9 +22,9 @@ leverages all the data that is processed in the pipeline.
 
 ## Architecture
 
-The Grafana Agent can run a set of Tempo instances, each of which configures its own tracing pipeline.
+The Grafana Agent can run a set of tracing instances, each of which configures its own pipeline.
 Each pipeline is built using OpenTelemetry,
-and it's architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
+and its architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
 See the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration-reference.md#tempo_instance_config) for all available config options. 
 For a quick start, refer to this [blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-agent-and-grafana-tempo/).
 
@@ -37,7 +36,7 @@ backends.
 
 ### Receiving traces
 
-The Grafana Agent supports receiving traces in multiple different formats: 
+The Grafana Agent supports multiple ingestion methods: 
 OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus and Kafka.
 
 Each Tempo instance can be configured to receive traces in all these formats.
@@ -49,7 +48,7 @@ pipeline, and will be processed equally.
 The Grafana Agent processes tracing data as it flows through the pipeline to make the distributed tracing system more reliable and leverage the data for other purposes.
 Such as trace discovery, tail-based sampling, and generating metrics.
 
-#### Batch
+#### Batching
 
 The Agent supports batching of traces.
 Batching helps better compress the data, reduce the number of outgoing connections, and is a recommended best practice.
@@ -57,14 +56,14 @@ To configure it, refer to the `batch` block in the [config reference](https://gi
 
 #### Attributes manipulation
 
-The Grafana Agent allows for general manipulation of tags on spans that pass through this agent.
+The Grafana Agent allows for general manipulation of attributes on spans that pass through this agent.
 A common use may be to add an environment or cluster variable.
 To configure it, refer to the `attributes` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration-reference.md#tempo_instance_config).
 
 #### Attaching metadata with Prometheus Service Discovery
 
 Prometheus Service Discovery mechanisms enable you to attach the same metadata to your traces as your metrics.
-For example, for Kubernetes users this means that you can dynamically attach metadata for namespace, pod, and container name of the container sending spans.
+For example, for Kubernetes users this means that you can dynamically attach metadata for namespace, pod, and name of the container sending spans.
 
 ```
 tempo:
@@ -95,14 +94,13 @@ To configure it, refer to the `scrape_configs` block in the [config reference](h
 
 #### Trace discovery through automatic logging
 
-Automatic logging provides an easy and fast way of getting trace discovery through logs.
-Automatic logging writes a well formatted log line to a Loki instance for each span that is processed in the pipeline.
+Automatic logging writes well formatted log lines to help with trace discovery.
 
 For a closer look into the feature, visit [Automatic logging](./automatic-logging.md).
 
 #### Tail-based sampling
 
-The Agent implement tail-based sampling for distributed tracing systems and multi-instance Agent deployments.
+The Agent implements tail-based sampling for distributed tracing systems and multi-instance Agent deployments.
 With this feature, sampling decisions can be made based on data from a trace, rather than exclusively with probabilistic methods.
 
 For a detailed description, go to [Tail-based sampling](./tail-based-sampling.md).
