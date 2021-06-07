@@ -20,7 +20,7 @@ In such cases, logging per root span or process is recommended.
 <p align="center"><img src="../automatic-logging.png" alt="Automatic logging overview"></p>
 
 Automatic logging searches for a given set of attributes in the spans and logs them as key-value pairs.
-This allows to search by those key-value pairs in Loki.
+This allows searching by those key-value pairs in Loki.
 
 ## Quickstart
 

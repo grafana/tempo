@@ -39,7 +39,7 @@ backends.
 The Grafana Agent supports multiple ingestion methods: 
 OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus and Kafka.
 
-Each tracing pipelines can be configured to receive traces in all these formats.
+Each tracing pipeline can be configured to receive traces in all these formats.
 Traces that arrive to a pipeline will enter the same tracing 
 pipeline, and will be processed equally.
 
@@ -51,7 +51,7 @@ Such as trace discovery, tail-based sampling, and generating metrics.
 #### Batching
 
 The Agent supports batching of traces.
-Batching helps better compress the data, reduce the number of outgoing connections, and is a recommended best practice.
+Batching helps better compress the data, reduces the number of outgoing connections, and is a recommended best practice.
 To configure it, refer to the `batch` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration-reference.md#tempo_instance_config).
 
 #### Attributes manipulation
