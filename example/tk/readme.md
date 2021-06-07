@@ -13,7 +13,7 @@ The Jsonnet is meant to be applied to with [tanka](https://github.com/grafana/ta
 - k3d > v3.2.0
 - tanka > v0.12.0
 
-Create a cluster with 3 nodes
+Create a cluster
 
 ```console
 k3d cluster create tempo --api-port 6443 --port "3000:80@loadbalancer"
