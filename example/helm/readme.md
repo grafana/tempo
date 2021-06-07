@@ -16,7 +16,7 @@ To test the Helm example locally requires:
 Create a cluster
 
 ```console
-k3d cluster create tempo --api-port 6443 --port "16686:80@loadbalancer"
+k3d cluster create tempo --api-port 6443 --port "3000:80@loadbalancer"
 ```
 
 If you wish to use a local image, you can import these into k3d
@@ -30,11 +30,18 @@ Next either deploy the microservices or the single binary.
 ### Microservices
 The microservices deploy of Tempo is fault tolerant, high volume, independently scalable.
 
+> Note: double check you're applying to your local k3d before running this!
+
 ```console
-# double check you're applying to your local k3d before running this!
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
+```
+
+Install Tempo, Grafana and synthetic-load-generator
+
+```console
 helm upgrade --set traces.jaeger.thriftHttp=true --install tempo grafana/tempo-distributed
+helm upgrade -f microservices-grafana-values.yaml --install grafana grafana/grafana
 kubectl create -f microservices-extras.yaml
 ```
 
@@ -42,11 +49,18 @@ kubectl create -f microservices-extras.yaml
 The Tempo single binary configuration is currently setup to store traces locally on disk, but can easily be configured to
 store them in an S3 or GCS bucket.  See configuration docs or some of the other examples for help.
 
+> Note: double check you're applying to your local k3d before running this!
+
 ```console
-# double check you're applying to your local k3d before running this!
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
+```
+
+Install Tempo, Grafand and synthetic-load-generator
+
+```console
 helm upgrade --install tempo grafana/tempo
+helm upgrade -f single-binary-grafana-values.yaml --install grafana grafana/grafana
 kubectl create -f single-binary-extras.yaml
 ```
 
@@ -68,6 +82,7 @@ kubectl logs synthetic-load-generator-???
 Extract a trace id and view it in your browser at `http://localhost:16686/trace/<traceid>`
 
 ### Clean up
+
 ```console
 k3d cluster delete tempo
 ```
