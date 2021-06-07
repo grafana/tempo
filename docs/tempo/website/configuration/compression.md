@@ -1,6 +1,9 @@
 ---
 title: Compression/Encoding
+weight: 5
 ---
+
+# Compression/Encoding
 
 Tempo has the ability to compress traces that it pushes into the backend. This requires a bit extra
 memory and cpu but seriously reduces the amount of stored data.  Anecdotal tests suggest that zstd will

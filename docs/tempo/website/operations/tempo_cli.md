@@ -2,6 +2,7 @@
 title: "Tempo CLI"
 description: "Guide to using tempo-cli"
 keywords: ["tempo", "cli", "tempo-cli", "command line interface"]
+weight: 6
 ---
 
 # Tempo CLI
@@ -33,14 +34,17 @@ go run ./cmd/tempo-cli [arguments...]
 
 ## Backend options
 
-Tempo CLI connects directly to the storage backend for some commands, meaning that it requires the ability to read from S3, GCS, Azure or file-system storage.  The backend can be configured in a few ways:
+Tempo CLI connects directly to the storage backend for some commands, meaning that it requires the ability to read from S3, GCS, Azure or file-system storage.
+The backend can be configured in a few ways:
 
-* Load an existing tempo configuration file using the `--config-file` (`-c`) option. This is the recommended option for frequent usage. Refer to [Configuration](../configuration/) documentation for more information.
+* Load an existing tempo configuration file using the `--config-file` (`-c`) option. This is the recommended option
+  for frequent usage. Refer to [Configuration](../../configuration/) documentation for more information.
 * Specify individual settings:
     * `--backend <value>` The storage backend type, one of `s3`, `gcs`, `azure`, and `local`.
-    * `--bucket <value>` The bucket name. The meaning of this value is backend-specific. Refer to [Configuration](../configuration/) documentation for more information.
+    * `--bucket <value>` The bucket name. The meaning of this value is backend-specific. Refer to [Configuration](../../configuration/) documentation for more information.
     * `--s3-endpoint <value>` The S3 API endpoint (i.e. s3.dualstack.us-east-2.amazonaws.com).
-    * `--s3-user <value>`, `--s3-password <value>` The S3 user name and password (or access key and secret key). Optional, as Tempo CLI supports the same authentication mechanisms as Tempo. See [S3 permissions documentation](../configuration/s3/#permissions) for more information.
+    * `--s3-user <value>`, `--s3-password <value>` The S3 user name and password (or access key and secret key).
+      Optional, as Tempo CLI supports the same authentication mechanisms as Tempo. See [S3 permissions documentation](../../configuration/s3/#permissions) for more information.
 
 Each option applies only to the command in which it is used. For example, `--backend <value>` does not permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 

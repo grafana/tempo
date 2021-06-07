@@ -3,6 +3,7 @@ title: Architecture
 aliases:
  - /docs/tempo/latest/architecture/architecture
  - /docs/tempo/latest/architecture
+weight: 1
 ---
 
 A collection of documents that detail Tempo architectural decisions and operational implications.
