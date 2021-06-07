@@ -14,10 +14,10 @@ In tail-based sampling, sampling decisions are made at the end of the workflow.
 The Grafana Agent groups spans by trace ID and makes a sampling decision based on the data contained in the trace.
 For instance, inspecting if a trace contains an error.
 
-To group spans by trace ID, the Agent buffers spans for a given time,
+To group spans by trace ID, the Agent buffers spans for a configurable amount of time,
 after which it will consider the trace complete.
 Longer running traces will be split into more than one.
-Waiting longer times will increase the memory overhead of buffering.
+However, waiting longer times will increase the memory overhead of buffering.
 
 One particular challenge of grouping trace data is for multi-instance Agent deployments,
 where spans that belong to the same trace can arrive to different Agents.
@@ -28,7 +28,7 @@ The Agent must be able to discover and connect to other Agent instances where sp
 For kubernetes users, that can be done with a [headless service](https://kubernetes.io/docs/concepts/services-networking/service/#headless-services).
 
 Redistributing spans by trace ID means that spans are sent and receive twice,
-which can suppose a significant increase in CPU usage.
+which can cause a significant increase in CPU usage.
 This overhead will increase with the number of Agent instances that share the same traces.
 
 <p align="center"><img src="../tail-based-sampling.png" alt="Tail-based sampling overview"></p>
@@ -54,4 +54,3 @@ tempo:
             dns:
               hostname: host.namespace.svc.cluster.local
 ```
-

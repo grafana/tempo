@@ -24,28 +24,27 @@ leverages all the data that is processed in the pipeline.
 
 The Grafana Agent can be configured to run a set of tracing pipelines to collect data from your applications and write it to Tempo.
 Pipelines are built using OpenTelemetry,
-and its architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
+and consist of `receivers`, `processors` and `exporters`. The architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
 See the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration-reference.md#tempo_instance_config) for all available config options. 
 For a quick start, refer to this [blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-agent-and-grafana-tempo/).
 
 <p align="center"><img src="https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/images/design-pipelines.png" alt="Tracing pipeline architecture"></p>
 
-Having multiple tracing pipelines allows you to configure multiple distinct 
+This allows you to configure multiple distinct tracing
 pipelines, each of which collects separate spans and sends them to different 
 backends.
 
 ### Receiving traces
 
-The Grafana Agent supports multiple ingestion methods: 
+The Grafana Agent supports multiple ingestion receivers: 
 OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus and Kafka.
 
 Each tracing pipeline can be configured to receive traces in all these formats.
-Traces that arrive to a pipeline will enter the same tracing pipeline.
+Traces that arrive to a pipeline will go through the receivers/processors/exporters defined in it.
 
 ### Pipeline processing
 
-The Grafana Agent processes tracing data as it flows through the pipeline to make the distributed tracing system more reliable and leverage the data for other purposes.
-Such as trace discovery, tail-based sampling, and generating metrics.
+The Grafana Agent processes tracing data as it flows through the pipeline to make the distributed tracing system more reliable and leverage the data for other purposes such as trace discovery, tail-based sampling, and generating metrics.
 
 #### Batching
 
