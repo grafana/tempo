@@ -22,8 +22,8 @@ leverages all the data that is processed in the pipeline.
 
 ## Architecture
 
-The Grafana Agent can run a set of tracing instances, each of which configures its own pipeline.
-Each pipeline is built using OpenTelemetry,
+The Grafana Agent can be configured to run a set of tracing pipelines to collect data from your applications and write it to Tempo.
+Pipelines are built using OpenTelemetry,
 and its architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
 See the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration-reference.md#tempo_instance_config) for all available config options. 
 For a quick start, refer to this [blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-agent-and-grafana-tempo/).
@@ -40,8 +40,7 @@ The Grafana Agent supports multiple ingestion methods:
 OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus and Kafka.
 
 Each tracing pipeline can be configured to receive traces in all these formats.
-Traces that arrive to a pipeline will enter the same tracing 
-pipeline, and will be processed equally.
+Traces that arrive to a pipeline will enter the same tracing pipeline.
 
 ### Pipeline processing
 
