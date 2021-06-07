@@ -4,26 +4,26 @@ This example highlights setting up the Grafana Agent in a simple tracing pipelin
 1. First start up the stack.
 
 ```console
-docker-compose -f docker-compose.agent.yaml up -d
+docker-compose up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-docker-compose -f docker-compose.agent.yaml ps
+docker-compose ps
 ```
 ```
                   Name                                Command               State           Ports         
 ----------------------------------------------------------------------------------------------------------
-dockercompose_agent_1                      /bin/agent -config.file=/e ...   Up                            
-dockercompose_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp
-dockercompose_synthetic-load-generator_1   ./start.sh                       Up                            
-dockercompose_tempo_1                      /tempo --target=all --mult ...   Up      0.0.0.0:8081->80/tcp  
+agent_agent_1                      /bin/agent -config.file=/e ...   Up                            
+agent_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp
+agent_synthetic-load-generator_1   ./start.sh                       Up                            
+agent_tempo_1                      /tempo --target=all --mult ...   Up      0.0.0.0:8081->80/tcp  
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.
 ```console
-ls ./example-data/tempo
+ls tempo-data/
 ```
 
 3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
@@ -46,10 +46,10 @@ Emitted traceId <traceid> for service frontend route /cart
 
 Copy one of these trace ids.
 
-4. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%7D%5D) and paste the trace id to request it from Tempo.
+4. Navigate to [Grafana](http://localhost:3000/explore) and paste the trace id to request it from Tempo.
 
 5. To stop the setup use -
 
 ```console
-docker-compose -f docker-compose.agent.yaml down -v
+docker-compose down -v
 ```

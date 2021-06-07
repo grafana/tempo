@@ -1,15 +1,12 @@
-version: "2"
+version: "3"
 services:
 
   tempo:
     image: grafana/tempo:latest
-    entrypoint:
-      - sh
-      - -euc
-      - sleep 5 && /tempo -config.file=/etc/tempo.yaml
+    command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
-      - ./etc/tempo-s3-minio.yaml:/etc/tempo.yaml
-      - ./example-data/tempo:/tmp/tempo
+      - ./tempo-s3.yaml:/etc/tempo.yaml
+      - ./tempo-data:/tmp/tempo
     ports:
       - "14268"      # jaeger
       - "3100:3100"  # tempo
@@ -31,7 +28,7 @@ services:
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
     volumes:
-      - ./etc/load-generator.json:/etc/load-generator.json
+      - ../shared/load-generator.json:/etc/load-generator.json
     environment:
       - TOPOLOGY_FILE=/etc/load-generator.json
       - JAEGER_COLLECTOR_URL=http://tempo:14268
@@ -40,20 +37,16 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
+    command: [ "--config.file=/etc/prometheus.yaml" ]
     volumes:
-      - ./etc/prometheus.yaml:/etc/prometheus.yaml
-    entrypoint:
-      - /bin/prometheus
-      - --config.file=/etc/prometheus.yaml
+      - ../shared/prometheus.yaml:/etc/prometheus.yaml
     ports:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:7.5.1
+    image: grafana/grafana:7.5.7
     volumes:
-      - ./example-data/datasources:/etc/grafana/provisioning/datasources
-      - ./example-data/dashboards-provisioning:/etc/grafana/provisioning/dashboards
-      - ../../operations/tempo-mixin/out:/var/lib/grafana/dashboards
+      - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin

@@ -1,8 +1,9 @@
 ## Local Storage
-In this example all data is stored locally in the example-data/tempo folder. Local storage is fine for experimenting with Tempo
+In this example all data is stored locally in the `tempo-data` folder. Local storage is fine for experimenting with Tempo
 or when using the single binary, but does not work in a distributed/microservices scenario.
 
 1. First start up the local stack. 
+
 ```console
 docker-compose up -d
 ```
@@ -22,8 +23,9 @@ docker-compose_tempo_1                      /tempo -storage.trace.back ...   Up 
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.
+
 ```console
-ls ./example-data/tempo
+ls tempo-data/
 ```
 
 3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
@@ -46,7 +48,7 @@ Emitted traceId <traceid> for service frontend route /cart
 
 Copy one of these trace ids.
 
-4. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%7D%5D) and paste the trace id to request it from Tempo.
+4. Navigate to [Grafana](http://localhost:3000/explore) and paste the trace id to request it from Tempo.
 Also notice that you can query Tempo metrics from the Prometheus data source setup in Grafana.
 
 5. To stop the setup use -

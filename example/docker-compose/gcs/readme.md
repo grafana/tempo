@@ -4,22 +4,22 @@ In this example Tempo is configured to write data to GCS via [fake-gcs-server](h
 1. First start up the azure stack.
 
 ```console
-docker-compose -f docker-compose.gcs.fake.yaml up -d
+docker-compose up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-docker-compose -f docker-compose.gcs.fake.yaml ps
+docker-compose ps
 ```
 ```
                   Name                                Command               State                        Ports                      
 ------------------------------------------------------------------------------------------------------------------------------------
-dockercompose_gcs_1                        /bin/fake-gcs-server -data ...   Up      0.0.0.0:4443->4443/tcp                          
-dockercompose_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp                          
-dockercompose_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp                          
-dockercompose_synthetic-load-generator_1   ./start.sh                       Up                                                      
-dockercompose_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:59543->14268/tcp, 0.0.0.0:3100->3100/tcp
+gcs_gcs_1                        /bin/fake-gcs-server -data ...   Up      0.0.0.0:4443->4443/tcp                          
+gcs_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp                          
+gcs_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp                          
+gcs_synthetic-load-generator_1   ./start.sh                       Up                                                      
+gcs_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:59543->14268/tcp, 0.0.0.0:3100->3100/tcp
 ```
 
 2. If you're interested you can kind of see the wal/blocks as they are being created. Navigate to https://localhost:4443/storage/v1/b/tempo/o
@@ -45,11 +45,11 @@ Emitted traceId <traceid> for service frontend route /cart
 
 Copy one of these trace ids.
 
-4. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%7D%5D) and paste the trace id to request it from Tempo.
+4. Navigate to [Grafana](http://localhost:3000/explore) and paste the trace id to request it from Tempo.
 Also notice that you can query Tempo metrics from the Prometheus data source setup in Grafana.
 
 5. To stop the setup use -
 
 ```console
-docker-compose -f docker-compose.gcs.fake.yaml down -v
+docker-compose down -v
 ```

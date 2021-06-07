@@ -4,23 +4,23 @@ In this example tempo is configured to write data to Azure via [Azurite](https:/
 1. First start up the azure stack.
 
 ```console
-docker-compose -f docker-compose.azure.azurite.yaml up -d
+docker-compose up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-docker-compose -f docker-compose.azure.azurite.yaml ps
+docker-compose ps
 ```
 ```
                   Name                                 Command               State                         Ports
 --------------------------------------------------------------------------------------------------------------------------------------
-docker-compose_azure-cli_1                  az storage container creat ...   Exit 0
-docker-compose_azurite_1                    docker-entrypoint.sh azuri ...   Up       0.0.0.0:10000->10000/tcp, 10001/tcp
-docker-compose_grafana_1                    /run.sh                          Up       0.0.0.0:3000->3000/tcp
-docker-compose_prometheus_1                 /bin/prometheus --config.f ...   Up       0.0.0.0:9090->9090/tcp
-docker-compose_synthetic-load-generator_1   ./start.sh                       Up
-docker-compose_tempo_1                      /tempo -config.file=/etc/t ...   Up       0.0.0.0:32768->14268/tcp, 0.0.0.0:3100->3100/tcp
+azure_azure-cli_1                  az storage container creat ...   Exit 0
+azure_azurite_1                    docker-entrypoint.sh azuri ...   Up       0.0.0.0:10000->10000/tcp, 10001/tcp
+azure_grafana_1                    /run.sh                          Up       0.0.0.0:3000->3000/tcp
+azure_prometheus_1                 /bin/prometheus --config.f ...   Up       0.0.0.0:9090->9090/tcp
+azure_synthetic-load-generator_1   ./start.sh                       Up
+azure_tempo_1                      /tempo -config.file=/etc/t ...   Up       0.0.0.0:32768->14268/tcp, 0.0.0.0:3100->3100/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.  Check [Azure Storage Explorer](https://azure.microsoft.com/en-us/features/storage-explorer/) and [Azurite docs](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite).
@@ -45,11 +45,11 @@ Emitted traceId <traceid> for service frontend route /cart
 
 Copy one of these trace ids.
 
-4. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%7D%5D) and paste the trace id to request it from Tempo.
+4. Navigate to [Grafana](http://localhost:3000/explore) and paste the trace id to request it from Tempo.
 Also notice that you can query Tempo metrics from the Prometheus data source setup in Grafana.
 
 5. To stop the setup use -
 
 ```console
-docker-compose -f docker-compose.azure.azurite.yaml down -v
+docker-compose down -v
 ```
