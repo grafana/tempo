@@ -94,20 +94,20 @@ To configure it, refer to the `scrape_configs` block in the [config reference](h
 
 Automatic logging writes well formatted log lines to help with trace discovery.
 
-For a closer look into the feature, visit [Automatic logging](./automatic-logging.md).
+For a closer look into the feature, visit [Automatic logging](automatic-logging).
 
 #### Tail-based sampling
 
 The Agent implements tail-based sampling for distributed tracing systems and multi-instance Agent deployments.
 With this feature, sampling decisions can be made based on data from a trace, rather than exclusively with probabilistic methods.
 
-For a detailed description, go to [Tail-based sampling](./tail-based-sampling.md).
+For a detailed description, go to [Tail-based sampling](tail-based-sampling).
 
 #### Generating metrics from spans
 
 The Agent can take advantage of the span data flowing through the pipeline to generate Prometheus metrics.
 
-Go to [Span metrics](./span-metrics.md) for a more detailed explanation of the feature.
+Go to [Span metrics](span-metrics) for a more detailed explanation of the feature.
 
 ### Exporting spans
 
