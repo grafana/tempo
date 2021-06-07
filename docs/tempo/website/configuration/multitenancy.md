@@ -1,5 +1,6 @@
 ---
 title: Multitenancy
+weight: 6
 ---
 
 Tempo is a multitenant distributed tracing backend. It supports multitenancy through the use

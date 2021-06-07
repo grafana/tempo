@@ -1,5 +1,6 @@
 ---
 title: Consistent Hash Ring
+weight: 2
 ---
 
 ## Consistent Hash Ring
