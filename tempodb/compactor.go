@@ -99,7 +99,7 @@ func (rw *readerWriter) doCompaction() {
 			continue
 		}
 		level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
-		err := rw.compact(toBeCompacted, tenantID)
+		err := rw.compact2(toBeCompacted, tenantID)
 
 		if err == backend.ErrMetaDoesNotExist {
 			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
@@ -240,6 +240,171 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			currentBlock = nil
 			tracker = nil
 		}
+	}
+
+	// ship final block to backend
+	if currentBlock != nil {
+		err = finishBlock(rw, tracker, currentBlock)
+		if err != nil {
+			return errors.Wrap(err, "error shipping block to backend")
+		}
+	}
+
+	// mark old blocks compacted so they don't show up in polling
+	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
+
+	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
+
+	return nil
+}
+
+func (rw *readerWriter) compact2(blockMetas []*backend.BlockMeta, tenantID string) error {
+	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
+
+	// todo - add timeout?
+	ctx := context.Background()
+
+	if len(blockMetas) == 0 {
+		return nil
+	}
+
+	compactionLevel := compactionLevelForBlocks(blockMetas)
+	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
+	nextCompactionLevel := compactionLevel + 1
+
+	var err error
+	bookmarks := make([]*bookmark, 0, len(blockMetas))
+
+	// cleanup compaction
+	defer func() {
+		level.Info(rw.logger).Log("msg", "compaction complete")
+		for _, bm := range bookmarks {
+			bm.iter.Close()
+		}
+	}()
+
+	var totalRecords int
+	var dataEncoding string
+	for _, blockMeta := range blockMetas {
+		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
+		totalRecords += blockMeta.TotalObjects
+		dataEncoding = blockMeta.DataEncoding // blocks chosen for compaction always have the same data encoding
+
+		block, err := encoding.NewBackendBlock(blockMeta, rw.r)
+		if err != nil {
+			return err
+		}
+
+		iter, err := block.Iterator(rw.compactorCfg.ChunkSizeBytes)
+		if err != nil {
+			return err
+		}
+
+		bookmarks = append(bookmarks, newBookmark(iter))
+
+		_, err = rw.r.BlockMeta(ctx, blockMeta.BlockID, tenantID)
+		if err != nil {
+			return err
+		}
+	}
+
+	recordsPerBlock := (totalRecords / outputBlocks)
+	var newCompactedBlocks []*backend.BlockMeta
+	var currentBlock *encoding.StreamingBlock
+	var tracker backend.AppendTracker
+
+	var bookmarkErr error
+
+	bookmarkChan := make(chan struct {
+		id   []byte
+		body []byte
+	}, 1000)
+
+	go func() {
+		defer close(bookmarkChan)
+
+		for !allDone(ctx, bookmarks) {
+			var lowestID []byte
+			var lowestObject []byte
+			var lowestBookmark *bookmark
+
+			// find lowest ID of the new object
+			for _, b := range bookmarks {
+				currentID, currentObject, err := b.current(ctx)
+				if err == io.EOF {
+					continue
+				} else if err != nil {
+					//return err
+					bookmarkErr = err
+					break
+				}
+
+				if bytes.Equal(currentID, lowestID) {
+					var wasCombined bool
+					lowestObject, wasCombined = rw.compactorSharder.Combine(currentObject, lowestObject, dataEncoding)
+					if wasCombined {
+						metricCompactionObjectsCombined.WithLabelValues(compactionLevelLabel).Inc()
+					}
+					b.clear()
+				} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
+					lowestID = currentID
+					lowestObject = currentObject
+					lowestBookmark = b
+				}
+			}
+
+			if len(lowestID) == 0 || len(lowestObject) == 0 || lowestBookmark == nil {
+				bookmarkErr = fmt.Errorf("failed to find a lowest object in compaction")
+				break
+			}
+
+			bookmarkChan <- struct {
+				id   []byte
+				body []byte
+			}{append([]byte(nil), lowestID...), append([]byte(nil), lowestObject...)}
+
+			lowestBookmark.clear()
+		}
+	}()
+
+	for bookmark := range bookmarkChan {
+
+		// make a new block if necessary
+		if currentBlock == nil {
+			currentBlock, err = encoding.NewStreamingBlock(rw.cfg.Block, uuid.New(), tenantID, blockMetas, recordsPerBlock)
+			if err != nil {
+				return errors.Wrap(err, "error making new compacted block")
+			}
+			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
+			newCompactedBlocks = append(newCompactedBlocks, currentBlock.BlockMeta())
+		}
+
+		err = currentBlock.AddObject(bookmark.id, bookmark.body)
+		if err != nil {
+			return err
+		}
+
+		// write partial block
+		if currentBlock.CurrentBufferLength() >= int(rw.compactorCfg.FlushSizeBytes) {
+			tracker, err = appendBlock(rw, tracker, currentBlock)
+			if err != nil {
+				return errors.Wrap(err, "error writing partial block")
+			}
+		}
+
+		// ship block to backend if done
+		if currentBlock.Length() >= recordsPerBlock {
+			err = finishBlock(rw, tracker, currentBlock)
+			if err != nil {
+				return errors.Wrap(err, "error shipping block to backend")
+			}
+			currentBlock = nil
+			tracker = nil
+		}
+	}
+
+	if bookmarkErr != nil {
+		return errors.Wrap(bookmarkErr, "error iterating block bookmarks")
 	}
 
 	// ship final block to backend

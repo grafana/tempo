@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"encoding/binary"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -146,7 +147,7 @@ func TestCompaction(t *testing.T) {
 		assert.Len(t, blocks, inputBlocks)
 
 		compactions++
-		err := rw.compact(blocks, testTenantID)
+		err := rw.compact2(blocks, testTenantID)
 		assert.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
@@ -461,7 +462,9 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	assert.Equal(t, 1, len(rw.blockLists[testTenantID2]))
 }
 
-func cutTestBlocks(t *testing.T, w Writer, tenantID string, blockCount int, recordCount int) {
+func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []*encoding.BackendBlock {
+	blocks := make([]*encoding.BackendBlock, 0)
+
 	wal := w.WAL()
 	for i := 0; i < blockCount; i++ {
 		head, err := wal.NewBlock(uuid.New(), tenantID, "")
@@ -469,17 +472,123 @@ func cutTestBlocks(t *testing.T, w Writer, tenantID string, blockCount int, reco
 
 		for j := 0; j < recordCount; j++ {
 			// Use i and j to ensure unique ids
+			body := make([]byte, 1024)
+			rand.Read(body)
+
 			err = head.Write(
 				makeTraceID(i, j),
-				[]byte{0x01, 0x02, 0x03})
+				body)
+			//[]byte{0x01, 0x02, 0x03})
 			assert.NoError(t, err, "unexpected error writing rec")
 		}
 
-		_, err = w.CompleteBlock(head, &mockSharder{})
+		b, err := w.CompleteBlock(head, &mockSharder{})
 		assert.NoError(t, err)
+		blocks = append(blocks, b)
 	}
+
+	return blocks
 }
 
 func makeTraceID(i int, j int) []byte {
-	return []byte{byte(i), byte(j), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	id := make([]byte, 16)
+	binary.LittleEndian.PutUint64(id, uint64(i))
+	binary.LittleEndian.PutUint64(id[8:], uint64(j))
+	return id
+}
+
+func BenchmarkCompaction(b *testing.B) {
+	tempDir := b.TempDir()
+
+	_, w, c, err := New(&Config{
+		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &encoding.BlockConfig{
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Encoding:             backend.EncZstd,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	require.NoError(b, err)
+
+	rw := c.(*readerWriter)
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes: 1_000_000,
+		FlushSizeBytes: 1_000_000,
+	}, &mockSharder{}, &mockOverrides{})
+
+	n := b.N
+
+	// Cut input blocks
+	blocks := cutTestBlocks(b, w, testTenantID, 8, n)
+	metas := make([]*backend.BlockMeta, 0)
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	b.ResetTimer()
+
+	err = rw.compact(metas, testTenantID)
+	require.NoError(b, err)
+}
+
+func BenchmarkCompaction2(b *testing.B) {
+	tempDir := b.TempDir()
+
+	_, w, c, err := New(&Config{
+		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &encoding.BlockConfig{
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Encoding:             backend.EncZstd,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	require.NoError(b, err)
+
+	rw := c.(*readerWriter)
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes: 1_000_000,
+		FlushSizeBytes: 1_000_000,
+	}, &mockSharder{}, &mockOverrides{})
+
+	n := b.N
+
+	// Cut input blocks
+	blocks := cutTestBlocks(b, w, testTenantID, 8, n)
+	metas := make([]*backend.BlockMeta, 0)
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	b.ResetTimer()
+
+	err = rw.compact2(metas, testTenantID)
+	require.NoError(b, err)
 }
