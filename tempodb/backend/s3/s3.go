@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	log_util "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/cristalhq/hedgedhttp"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
@@ -29,9 +30,10 @@ const (
 
 // readerWriter can read/write from an s3 backend
 type readerWriter struct {
-	logger log.Logger
-	cfg    *Config
-	core   *minio.Core
+	logger     log.Logger
+	cfg        *Config
+	core       *minio.Core
+	hedgedCore *minio.Core
 }
 
 // appendTracker is a struct used to track multipart uploads
@@ -67,48 +69,15 @@ func (s *overrideSignatureVersion) IsExpired() bool {
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	l := log_util.Logger
 
-	wrapCredentialsProvider := func(p credentials.Provider) credentials.Provider {
-		if cfg.SignatureV2 {
-			return &overrideSignatureVersion{useV2: cfg.SignatureV2, upstream: p}
-		}
-		return p
-	}
-
-	creds := credentials.NewChainCredentials([]credentials.Provider{
-		wrapCredentialsProvider(&credentials.EnvAWS{}),
-		wrapCredentialsProvider(&credentials.Static{
-			Value: credentials.Value{
-				AccessKeyID:     cfg.AccessKey.String(),
-				SecretAccessKey: cfg.SecretKey.String(),
-			},
-		}),
-		wrapCredentialsProvider(&credentials.EnvMinio{}),
-		wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
-		wrapCredentialsProvider(&credentials.FileMinioClient{}),
-		wrapCredentialsProvider(&credentials.IAM{
-			Client: &http.Client{
-				Transport: http.DefaultTransport,
-			},
-		}),
-	})
-
-	opts := &minio.Options{
-		Region: cfg.Region,
-		Secure: !cfg.Insecure,
-		Creds:  creds,
-	}
-
-	if cfg.ForcePathStyle {
-		opts.BucketLookup = minio.BucketLookupPath
-	}
-
-	core, err := minio.NewCore(cfg.Endpoint, opts)
+	core, err := createCore(cfg, false)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("unexpected error creating core: %w", err)
 	}
 
-	// TODO: add custom transport with instrumentation.
-	//client.SetCustomTransport(minio.DefaultTransport(!cfg.Insecure))
+	hedgedCore, err := createCore(cfg, true)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("unexpected error creating hedgedCore: %w", err)
+	}
 
 	// try listing objects
 	_, err = core.ListObjects(cfg.Bucket, "", "", "/", 0)
@@ -117,9 +86,10 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	}
 
 	rw := &readerWriter{
-		logger: l,
-		cfg:    cfg,
-		core:   core,
+		logger:     l,
+		cfg:        cfg,
+		core:       core,
+		hedgedCore: hedgedCore,
 	}
 	return rw, rw, rw, nil
 }
@@ -342,7 +312,7 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
-	reader, info, _, err := rw.core.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
+	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
 	if err != nil {
 		// do not change or wrap this error
 		// we need to compare the specific err message
@@ -354,7 +324,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 }
 
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
-	reader, info, _, err := rw.core.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
+	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
 	if err != nil && err.Error() == s3KeyDoesNotExist {
 		return nil, minio.ObjectInfo{}, backend.ErrMetaDoesNotExist
 	} else if err != nil {
@@ -375,7 +345,7 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	if err != nil {
 		return errors.Wrap(err, "error setting headers for range read in s3")
 	}
-	reader, _, _, err := rw.core.GetObject(ctx, rw.cfg.Bucket, objName, options)
+	reader, _, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, objName, options)
 	if err != nil {
 		return errors.Wrapf(err, "error in range read from s3 backend, bucket: %s, objName: %s", rw.cfg.Bucket, objName)
 	}
@@ -395,4 +365,55 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 		}
 		totalBytes += byteCount
 	}
+}
+
+func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
+	wrapCredentialsProvider := func(p credentials.Provider) credentials.Provider {
+		if cfg.SignatureV2 {
+			return &overrideSignatureVersion{useV2: cfg.SignatureV2, upstream: p}
+		}
+		return p
+	}
+
+	creds := credentials.NewChainCredentials([]credentials.Provider{
+		wrapCredentialsProvider(&credentials.EnvAWS{}),
+		wrapCredentialsProvider(&credentials.Static{
+			Value: credentials.Value{
+				AccessKeyID:     cfg.AccessKey.String(),
+				SecretAccessKey: cfg.SecretKey.String(),
+			},
+		}),
+		wrapCredentialsProvider(&credentials.EnvMinio{}),
+		wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
+		wrapCredentialsProvider(&credentials.FileMinioClient{}),
+		wrapCredentialsProvider(&credentials.IAM{
+			Client: &http.Client{
+				Transport: http.DefaultTransport,
+			},
+		}),
+	})
+
+	transport, err := minio.DefaultTransport(!cfg.Insecure)
+	if err != nil {
+		return nil, errors.Wrap(err, "create minio.DefaultTransport")
+	}
+
+	var roundtripper http.RoundTripper
+	roundtripper = transport
+	if hedge && cfg.HedgeRequestsAt != 0 {
+		roundtripper = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, 2, roundtripper)
+	}
+
+	opts := &minio.Options{
+		Region:    cfg.Region,
+		Secure:    !cfg.Insecure,
+		Creds:     creds,
+		Transport: roundtripper,
+	}
+
+	if cfg.ForcePathStyle {
+		opts.BucketLookup = minio.BucketLookupPath
+	}
+
+	return minio.NewCore(cfg.Endpoint, opts)
 }
