@@ -25,7 +25,8 @@ import (
 )
 
 const (
-	s3KeyDoesNotExist = "The specified key does not exist."
+	s3KeyDoesNotExist  = "The specified key does not exist."
+	uptoHedgedRequests = 2
 )
 
 // readerWriter can read/write from an s3 backend
@@ -401,7 +402,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	var roundtripper http.RoundTripper
 	roundtripper = transport
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		roundtripper = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, 2, roundtripper)
+		roundtripper = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, uptoHedgedRequests, roundtripper)
 	}
 
 	opts := &minio.Options{

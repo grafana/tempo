@@ -25,6 +25,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/util"
 )
 
+const uptoHedgedRequests = 2
+
 type readerWriter struct {
 	cfg          *Config
 	bucket       *storage.BucketHandle
@@ -321,7 +323,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 
 	// hedge if desired (0 means disabled)
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		transport = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, 2, transport)
+		transport = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
 	}
 
 	// build client
