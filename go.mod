@@ -9,7 +9,7 @@ require (
 	github.com/alecthomas/kong v0.2.11
 	github.com/cespare/xxhash v1.1.0
 	github.com/cortexproject/cortex v1.8.1-0.20210422151339-cf1c444e0905
-	github.com/cristalhq/hedgedhttp v0.1.0
+	github.com/cristalhq/hedgedhttp v0.4.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-kit/kit v0.10.0
 	github.com/gogo/protobuf v1.3.2
@@ -49,6 +49,7 @@ require (
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
+	golang.org/x/net v0.0.0-20210324051636-2c4c8ecb7826 // indirect
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/api v0.45.0
 	google.golang.org/grpc v1.37.0
