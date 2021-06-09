@@ -248,6 +248,12 @@ storage:
             # Set to true to enable authentication and certificate checks on gcs requests
             [insecure: <bool>] 
 
+            # Optional. Default is 0 (disabled)
+            # Example: "hedge_requests_at: 500ms"
+            # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+            # be set to p99 of GCS requests to reduce long tail latency.
+            [hedge_requests_at: <duration>]
+
         # S3 configuration. Will be used only if value of backend is "s3"
         # Check the S3 doc within this folder for information on s3 specific permissions.
         s3:
@@ -282,6 +288,12 @@ storage:
             # optional.
             # enable to use path-style requests.
             [forcepathstyle: <bool>]
+
+            # Optional. Default is 0 (disabled)
+            # Example: "hedge_requests_at: 500ms"
+            # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+            # be set to p99 of S3 requests to reduce long tail latency.
+            [hedge_requests_at: <duration>]
 
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL

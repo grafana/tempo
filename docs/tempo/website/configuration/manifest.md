@@ -303,6 +303,7 @@ storage:
             bucket_name: ""
             chunk_buffer_size: 10485760
             endpoint: ""
+            hedge_requests_at: 0
             insecure: false
         s3:
             bucket: ""
@@ -311,6 +312,7 @@ storage:
             access_key: ""
             secret_key: ""
             insecure: false
+            hedge_requests_at: 0
             part_size: 0
             signature_v2: false
             forcepathstyle: false
