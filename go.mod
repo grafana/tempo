@@ -49,7 +49,6 @@ require (
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
-	golang.org/x/net v0.0.0-20210324051636-2c4c8ecb7826 // indirect
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/api v0.45.0
 	google.golang.org/grpc v1.37.0
