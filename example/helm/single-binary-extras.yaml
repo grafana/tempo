@@ -10,8 +10,8 @@ spec:
   - http:
       paths:
       - backend:
-          serviceName: tempo
-          servicePort: 16686
+          serviceName: grafana
+          servicePort: 80
         path: /
 ---
 apiVersion: v1

@@ -1,6 +1,6 @@
 ---
 title: Ingestion limits
-weight: 30
+weight: 4
 ---
 
 # Ingestion limits

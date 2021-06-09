@@ -1,9 +1,11 @@
 ---
-title: Unable to see any of my traces in Tempo
+title: Unable to Find Traces
 weight: 471
+aliases:
+- /docs/tempo/latest/troubleshooting/missing-trace
 ---
 
-# I am unable to see any of my traces in Tempo
+# I am unable to find my traces in Tempo
 
 **Potential causes**
 - There could be issues in ingestion of the data into Tempo, that is, spans are either not being sent correctly to Tempo or they are not getting sampled.
@@ -24,7 +26,7 @@ You can check both metrics using -
 - The metrics page exposed from Tempo at `http://<tempo-address>:<tempo-http-port>/metrics`, or
 - In Prometheus, if it is being used to scrape metrics
  
-### Case 1 - `tempo_distributor_spans_received_total` is 0
+### Case 1 - tempo_distributor_spans_received_total is 0
 If the value of `tempo_distributor_spans_received_total` is 0, possible reasons are:
 - Use of incorrect protocol/port combination while initializing the tracer in the application.
 - Tracing records not getting picked up to send to Tempo by the internal sampler.
@@ -47,7 +49,7 @@ Receiver specific traffic information can also be obtained using `tempo_receiver
 ##### Fixing incorrect endpoint issue
 - If the application is also running inside docker, make sure the application is sending traces to the correct endpoint (`tempo:<receiver-port>`).
 
-## Case 2 - `tempo_ingester_traces_created_total` is 0
+## Case 2 - tempo_ingester_traces_created_total is 0
 If the value of `tempo_ingester_traces_created_total` is 0, the possible reason is -
 - Network issues between distributors and ingesters.
 

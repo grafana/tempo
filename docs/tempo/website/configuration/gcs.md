@@ -1,6 +1,9 @@
 ---
-title: Google Cloud Storage (GCS) Permissions
+title: GCS Permissions
+weight: 1
 ---
+
+# Google Cloud Storage (GCS) Permissions
 
 For configuration options, check the storage section on the [configuration](..) page.
 

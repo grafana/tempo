@@ -1,26 +1,26 @@
 ---
-title: Ready to go Examples
+title: Example Setups
+aliases:
+- /docs/tempo/latest/getting-started/quickstart-tempo/
+- /docs/tempo/latest/guides/loki-derived-fields/
+weight: 200
 ---
 
-# Examples
+# Running the Tempo Backend
 
 These examples show various deployment and [configuration]({{< relref "../configuration" >}}) options. They include trace
 generators so an existing application is not necessary to get started experimenting with Tempo. If you are interested in
-instrumentation please check out these [examples]({{< relref "../guides/instrumentation" >}}).
-
-The linked folders contain example deployments of Tempo.  They are a good resource for getting some basic configurations together.
+instrumentation please check out these [examples]({{< relref "./instrumentation" >}}).
 
 ## Docker Compose
 
 The [docker-compose](https://github.com/grafana/tempo/tree/main/example/docker-compose) examples are simpler and designed to show minimal configuration.  This is a great place
 to get started with Tempo and learn about various trace discovery flows.
 
-- [Trace discovery with Loki](https://github.com/grafana/tempo/tree/main/example/docker-compose/readme.md#loki-derived-fields)
-  - This example brings in Loki and shows how to use a log flow to discover traces.
-- [Local storage](https://github.com/grafana/tempo/tree/main/example/docker-compose/readme.md#local-storage)
-  - At its simplest, Tempo only requires a few parameters that identify where to store traces.
-- [S3/Minio storage](https://github.com/grafana/tempo/tree/main/example/docker-compose/readme.md#s3)
-  - To reduce complexity not all config options are exposed on the command line.  This example uses the minio/s3 backend with a config file.
+Check the above link for all kinds of examples including:
+- Trace discovery with Loki
+- Basic Grafana Agent/OpenTelemetry Setup
+- Various Backends (S3/GCS/Azure)
 
 ## Tanka
 

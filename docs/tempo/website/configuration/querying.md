@@ -1,6 +1,6 @@
 ---
 title: Querying with Grafana
-weight: 30
+weight: 3
 ---
 
 The way Grafana queries Tempo changed from 7.4.x to 7.5.x. This document aims to explain the difference between the two
@@ -19,6 +19,6 @@ Note that the port of 3100 is a common port used in our examples. Tempo default 
 ## Grafana 7.4.x
 
 Grafana 7.4.x is *not* able to query Tempo directly and requires the tempo-query component as an intermediary. In this case 
-you need to run Tempo-Query and direct it at Tempo proper. Check out [the Grafana 7.4.x example](https://github.com/grafana/tempo/tree/main/example/docker-compose#grafana-74x) to help with configuration.
+you need to run Tempo-Query and direct it at Tempo proper. Check out [the Grafana 7.4.x example](https://github.com/grafana/tempo/tree/main/example/docker-compose/grafana7.4) to help with configuration.
 
 The url entered will be `http://<tempo-query hostname>:16686/`.

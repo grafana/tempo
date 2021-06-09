@@ -2,6 +2,7 @@
 title: "Tempo CLI"
 description: "Guide to using tempo-cli"
 keywords: ["tempo", "cli", "tempo-cli", "command line interface"]
+weight: 6
 ---
 
 # Tempo CLI
@@ -33,14 +34,17 @@ go run ./cmd/tempo-cli [arguments...]
 
 ## Backend options
 
-Tempo CLI connects directly to the storage backend for some commands, meaning that it requires the ability to read from S3, GCS, Azure or file-system storage.  The backend can be configured in a few ways:
+Tempo CLI connects directly to the storage backend for some commands, meaning that it requires the ability to read from S3, GCS, Azure or file-system storage.
+The backend can be configured in a few ways:
 
-* Load an existing tempo configuration file using the `--config-file` (`-c`) option. This is the recommended option for frequent usage. Refer to [Configuration](../configuration/) documentation for more information.
+* Load an existing tempo configuration file using the `--config-file` (`-c`) option. This is the recommended option
+  for frequent usage. Refer to [Configuration](../../configuration/) documentation for more information.
 * Specify individual settings:
     * `--backend <value>` The storage backend type, one of `s3`, `gcs`, `azure`, and `local`.
-    * `--bucket <value>` The bucket name. The meaning of this value is backend-specific. Refer to [Configuration](../configuration/) documentation for more information.
+    * `--bucket <value>` The bucket name. The meaning of this value is backend-specific. Refer to [Configuration](../../configuration/) documentation for more information.
     * `--s3-endpoint <value>` The S3 API endpoint (i.e. s3.dualstack.us-east-2.amazonaws.com).
-    * `--s3-user <value>`, `--s3-password <value>` The S3 user name and password (or access key and secret key). Optional, as Tempo CLI supports the same authentication mechanisms as Tempo. See [S3 permissions documentation](../configuration/s3/#permissions) for more information.
+    * `--s3-user <value>`, `--s3-password <value>` The S3 user name and password (or access key and secret key).
+      Optional, as Tempo CLI supports the same authentication mechanisms as Tempo. See [S3 permissions documentation](../../configuration/s3/#permissions) for more information.
 
 Each option applies only to the command in which it is used. For example, `--backend <value>` does not permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 
@@ -74,20 +78,20 @@ Arguments:
 
 Options:
 - `--include-compacted` Include blocks that have been compacted. Default behavior is to display only active blocks.
-- `--load-index` Also load the block indexes and perform integrity checks for duplicates. **Note:** This can be a resource intensive process.
 
 **Output:**
 Explanation of output:
 - `ID` Block ID.
 - `Lvl` Compaction level of the block.
-- `Count` Number of objects stored in the block.
+- `Objects` Number of objects stored in the block.
+- `Size` Data size of the block after any compression.
+- `Encoding` Block encoding (compression algorithm).
+- `Vers` Block version.
 - `Window` The window of time that was considered for compaction purposes.
 - `Start` The earliest timestamp stored in the block.
 - `End` The latest timestamp stored in the block.
-- `Age` The age of the block.
 - `Duration`Duration between the start and end time.
-- `Idx` Number of records stored in the index (present when --load-index is specified).
-- `Dupe` Number of duplicate entries in the index (present when --load-index is specified). Should be zero.
+- `Age` The age of the block.
 - `Cmp` Whether the block has been compacted (present when --include-compacted is specified).
 
 **Example:**
@@ -112,4 +116,51 @@ Options:
 **Example:**
 ```bash
 tempo-cli list block -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
+```
+
+## List Compaction Summary
+Summarizes information about all blocks for the given tenant based on compaction level. This command is useful to analyze or troubleshoot compactor behavior.
+
+```bash
+tempo-cli list compaction-summary <tenant-id>
+```
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+
+**Example:**
+```bash
+tempo-cli list compaction-summary -c ./tempo.yaml single-tenant
+```
+
+## List Index
+Lists basic index info for the given block.
+
+```bash
+tempo-cli list index <tenant-id> <block-id>
+```
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `block-id` The block ID as UUID string.
+
+**Example:**
+```bash
+tempo-cli list index -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
+```
+
+## View Index
+View the index contents for the given block.
+
+```bash
+tempo-cli view index <tenant-id> <block-id>
+```
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `block-id` The block ID as UUID string.
+
+**Example:**
+```bash
+tempo-cli view index -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```

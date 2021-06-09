@@ -1,5 +1,6 @@
 ---
 title: Ingester PVCs
+weight: 5
 ---
 
 ### Ingester Persistent Volume Operations

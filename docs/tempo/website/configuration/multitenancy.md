@@ -1,5 +1,6 @@
 ---
 title: Multitenancy
+weight: 6
 ---
 
 Tempo is a multitenant distributed tracing backend. It supports multitenancy through the use
@@ -7,7 +8,7 @@ of a header: `X-Scope-OrgID`. This guide details how to setup multitenancy.
 
 ## Multitenancy
 
-If you're interested in setting up multitenancy, please consult the [multitenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/docker-compose.multitenant.yaml)
+If you're interested in setting up multitenancy, please consult the [multitenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/otel-collector-multitenant)
 in the repo. This example uses the following settings to achieve multitenancy in Tempo:
 
 - Configure the OTEL Collector to attach the X-Scope-OrgID header on push:

@@ -46,7 +46,7 @@ Check out the [Integration Guides](https://grafana.com/docs/tempo/latest/guides/
 tempo-vulture is tempo's bird themed consistency checking tool.  It pushes traces and queries Tempo.  It metrics 404s and traces with missing spans.
 
 ### tempo-cli
-tempo-cli is the place to put any utility functionality related to tempo.  See [Documentation](https://grafana.com/docs/tempo/latest/cli/) for more info.
+tempo-cli is the place to put any utility functionality related to tempo.  See [Documentation](https://grafana.com/docs/tempo/latest/operations/tempo_cli/) for more info.
 
 
 ## TempoDB

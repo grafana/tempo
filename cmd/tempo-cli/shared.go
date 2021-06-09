@@ -12,55 +12,38 @@ import (
 )
 
 type unifiedBlockMeta struct {
-	id              uuid.UUID
-	compactionLevel uint8
-	objects         int
-	size            uint64
-	window          int64
-	start           time.Time
-	end             time.Time
-	compacted       bool
-	version         string
-	encoding        string
+	backend.BlockMeta
+	backend.CompactedBlockMeta
+
+	window    int64
+	compacted bool
 }
 
 func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta, windowRange time.Duration) unifiedBlockMeta {
 	if meta != nil {
 		return unifiedBlockMeta{
-			id:              meta.BlockID,
-			compactionLevel: meta.CompactionLevel,
-			objects:         meta.TotalObjects,
-			size:            meta.Size,
-			window:          meta.EndTime.Unix() / int64(windowRange/time.Second),
-			start:           meta.StartTime,
-			end:             meta.EndTime,
-			compacted:       false,
-			version:         meta.Version,
-			encoding:        meta.Encoding.String(),
+			BlockMeta: *meta,
+			window:    meta.EndTime.Unix() / int64(windowRange/time.Second),
+			compacted: false,
 		}
 	}
 	if compactedMeta != nil {
 		return unifiedBlockMeta{
-			id:              compactedMeta.BlockID,
-			compactionLevel: compactedMeta.CompactionLevel,
-			objects:         compactedMeta.TotalObjects,
-			size:            compactedMeta.Size,
-			window:          compactedMeta.EndTime.Unix() / int64(windowRange/time.Second),
-			start:           compactedMeta.StartTime,
-			end:             compactedMeta.EndTime,
-			compacted:       true,
-			version:         compactedMeta.Version,
-			encoding:        compactedMeta.Encoding.String(),
+			BlockMeta:          compactedMeta.BlockMeta,
+			CompactedBlockMeta: *compactedMeta,
+			window:             compactedMeta.EndTime.Unix() / int64(windowRange/time.Second),
+			compacted:          true,
 		}
 	}
+
 	return unifiedBlockMeta{
-		id:              uuid.UUID{},
-		compactionLevel: 0,
-		objects:         -1,
-		window:          -1,
-		start:           time.Unix(0, 0),
-		end:             time.Unix(0, 0),
-		compacted:       false,
+		BlockMeta: backend.BlockMeta{
+			BlockID:         uuid.UUID{},
+			CompactionLevel: 0,
+			TotalObjects:    -1,
+		},
+		window:    -1,
+		compacted: false,
 	}
 }
 
@@ -107,7 +90,7 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].end.Before(results[j].end)
+		return results[i].EndTime.Before(results[j].EndTime)
 	})
 
 	return results, nil

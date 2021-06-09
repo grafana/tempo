@@ -1,5 +1,6 @@
 ---
 title: Monitoring
+weight: 4
 ---
 
 # Monitoring Tempo

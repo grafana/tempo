@@ -3,6 +3,7 @@ title: Deployment
 aliases:
  - /docs/tempo/latest/deployment
  - /docs/tempo/latest/deployment/deployment
+weight: 3
 ---
 
 # Deploying Tempo

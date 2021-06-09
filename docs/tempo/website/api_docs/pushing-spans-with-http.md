@@ -1,5 +1,7 @@
 ---
 title: Pushing Spans with HTTP
+aliases:
+- /docs/tempo/latest/guides/pushing-spans-with-http/
 ---
 
 Sometimes using a tracing system is intimidating because it seems like you need complex application instrumentation
