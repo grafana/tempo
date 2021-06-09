@@ -1172,7 +1172,6 @@ golang.org/x/lint/golint
 golang.org/x/mod/module
 golang.org/x/mod/semver
 # golang.org/x/net v0.0.0-20210324051636-2c4c8ecb7826
-## explicit
 golang.org/x/net/bpf
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
