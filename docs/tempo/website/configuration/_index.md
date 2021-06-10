@@ -251,7 +251,8 @@ storage:
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-            # be set to p99 of GCS requests to reduce long tail latency.
+            # be set to p99 of GCS requests to reduce long tail latency. This setting is most impactful when
+            # used with queriers and has minimal to no impact on other pieces.
             [hedge_requests_at: <duration>]
 
         # S3 configuration. Will be used only if value of backend is "s3"
@@ -292,7 +293,8 @@ storage:
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-            # be set to p99 of S3 requests to reduce long tail latency.
+            # be set to p99 of S3 requests to reduce long tail latency.  This setting is most impactful when
+            # used with queriers and has minimal to no impact on other pieces.
             [hedge_requests_at: <duration>]
 
         # azure configuration. Will be used only if value of backend is "azure"
