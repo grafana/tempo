@@ -34,7 +34,7 @@ func (i *testIterator) Next(context.Context) (common.ID, []byte, error) {
 	id := i.ids[i.i]
 	data := i.data[i.i]
 	err := i.errors[i.i]
-	i.i += 1
+	i.i++
 
 	return id, data, err
 }
@@ -150,8 +150,10 @@ func TestMultiblockIteratorPropogatesErrors(t *testing.T) {
 
 	iter := NewMultiblockIterator(ctx, []Iterator{inner, inner2}, 10, nil, "")
 
-	iter.Next(ctx)
 	_, _, err := iter.Next(ctx)
+	require.NoError(t, err)
+
+	_, _, err = iter.Next(ctx)
 
 	require.Equal(t, io.ErrClosedPipe, err)
 }
