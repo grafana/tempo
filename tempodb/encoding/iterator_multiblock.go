@@ -108,7 +108,6 @@ func (i *multiblockIterator) iterate() {
 			if err == io.EOF {
 				continue
 			} else if err != nil {
-				//i.Err = err
 				i.setErr(err)
 				return
 			}
@@ -126,7 +125,6 @@ func (i *multiblockIterator) iterate() {
 		}
 
 		if len(lowestID) == 0 || len(lowestObject) == 0 || lowestBookmark == nil {
-			//i.Err = fmt.Errorf("failed to find a lowest object in compaction")
 			i.setErr(errors.New("failed to find a lowest object in compaction"))
 			return
 		}
@@ -142,7 +140,6 @@ func (i *multiblockIterator) iterate() {
 		select {
 
 		case <-i.ctx.Done():
-			//i.Err = i.ctx.Err()
 			i.setErr(i.ctx.Err())
 			return
 
