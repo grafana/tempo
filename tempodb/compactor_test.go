@@ -147,7 +147,7 @@ func TestCompaction(t *testing.T) {
 		assert.Len(t, blocks, inputBlocks)
 
 		compactions++
-		err := rw.compact2(blocks, testTenantID)
+		err := rw.compact(blocks, testTenantID)
 		assert.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
@@ -542,53 +542,5 @@ func BenchmarkCompaction(b *testing.B) {
 	b.ResetTimer()
 
 	err = rw.compact(metas, testTenantID)
-	require.NoError(b, err)
-}
-
-func BenchmarkCompaction2(b *testing.B) {
-	tempDir := b.TempDir()
-
-	_, w, c, err := New(&Config{
-		Backend: "local",
-		Pool: &pool.Config{
-			MaxWorkers: 10,
-			QueueDepth: 100,
-		},
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &encoding.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Encoding:             backend.EncZstd,
-			IndexPageSizeBytes:   1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
-	require.NoError(b, err)
-
-	rw := c.(*readerWriter)
-
-	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes: 1_000_000,
-		FlushSizeBytes: 1_000_000,
-	}, &mockSharder{}, &mockOverrides{})
-
-	n := b.N
-
-	// Cut input blocks
-	blocks := cutTestBlocks(b, w, testTenantID, 8, n)
-	metas := make([]*backend.BlockMeta, 0)
-	for _, b := range blocks {
-		metas = append(metas, b.BlockMeta())
-	}
-
-	b.ResetTimer()
-
-	err = rw.compact2(metas, testTenantID)
 	require.NoError(b, err)
 }
