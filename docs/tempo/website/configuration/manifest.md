@@ -226,6 +226,7 @@ compactor:
     block_retention: 336h0m0s
     compacted_block_retention: 1h0m0s
     retention_concurrency: 10
+    iterator_buffer_size: 1000
   override_ring_key: compactor
 ingester:
   lifecycler:
