@@ -3,7 +3,6 @@ package backend
 import (
 	"context"
 	"io"
-	"io/ioutil"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -75,7 +74,7 @@ func (r *allReader) ReadAt(ctx context.Context, p []byte, off int64) (int, error
 
 // ReadAll implements ContextReader
 func (r *allReader) ReadAll(ctx context.Context) ([]byte, error) {
-	return ioutil.ReadAll(r.r)
+	return io.ReadAll(r.r)
 }
 
 // Reader implements ContextReader

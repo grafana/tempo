@@ -3,6 +3,7 @@ package frontend
 import (
 	"bytes"
 	"context"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -166,9 +167,9 @@ func TestMergeResponses(t *testing.T) {
 			merged, err := mergeResponses(context.Background(), tt.requestResponse)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected.StatusCode, merged.StatusCode)
-			expectedBody, err := ioutil.ReadAll(tt.expected.Body)
+			expectedBody, err := io.ReadAll(tt.expected.Body)
 			assert.NoError(t, err)
-			actualBody, err := ioutil.ReadAll(merged.Body)
+			actualBody, err := io.ReadAll(merged.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedBody, actualBody)
 			if tt.expected.ContentLength > 0 {

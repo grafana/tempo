@@ -155,7 +155,7 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 	var shardMissCount = 0
 	for _, rr := range rrs {
 		if rr.Response.StatusCode == http.StatusOK {
-			body, err := ioutil.ReadAll(rr.Response.Body)
+			body, err := io.ReadAll(rr.Response.Body)
 			rr.Response.Body.Close()
 			if err != nil {
 				return nil, errors.Wrap(err, "error reading response body at query frontend")

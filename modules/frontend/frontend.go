@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"bytes"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -75,7 +76,7 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 
 			if resp != nil && resp.StatusCode == http.StatusOK && marshallingFormat == util.JSONTypeHeaderValue {
 				// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
-				body, err := ioutil.ReadAll(resp.Body)
+				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if err != nil {
 					return nil, errors.Wrap(err, "error reading response body at query frontend")
