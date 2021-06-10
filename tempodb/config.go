@@ -53,6 +53,7 @@ type CompactorConfig struct {
 	BlockRetention          time.Duration `yaml:"block_retention"`
 	CompactedBlockRetention time.Duration `yaml:"compacted_block_retention"`
 	RetentionConcurrency    uint          `yaml:"retention_concurrency"`
+	IteratorBufferSize      int           `yaml:"iterator_buffer_size"`
 }
 
 func validateConfig(cfg *Config) error {

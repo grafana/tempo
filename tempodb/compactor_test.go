@@ -526,8 +526,9 @@ func BenchmarkCompaction(b *testing.B) {
 	rw := c.(*readerWriter)
 
 	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes: 1_000_000,
-		FlushSizeBytes: 1_000_000,
+		ChunkSizeBytes:     1_000_000,
+		FlushSizeBytes:     1_000_000,
+		IteratorBufferSize: DefaultIteratorBufferSize,
 	}, &mockSharder{}, &mockOverrides{})
 
 	n := b.N

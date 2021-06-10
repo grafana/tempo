@@ -55,7 +55,7 @@ const (
 
 	DefaultFlushSizeBytes uint32 = 30 * 1024 * 1024 // 30 MiB
 
-	iteratorBufferSize = 1000
+	DefaultIteratorBufferSize = 1000
 )
 
 // todo: pass a context/chan in to cancel this cleanly
@@ -180,7 +180,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		compactionLevelLabel: compactionLevelLabel,
 	}
 
-	iter := encoding.NewMultiblockIterator(ctx, iters, iteratorBufferSize, combiner, dataEncoding)
+	iter := encoding.NewMultiblockIterator(ctx, iters, rw.compactorCfg.IteratorBufferSize, combiner, dataEncoding)
 	defer iter.Close()
 
 	for {
