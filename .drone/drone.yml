@@ -15,7 +15,7 @@ steps:
   - echo $(./tools/image-tag) > .tags
 
 - name: build-tempo-binary
-  image: golang:1.15.3-alpine
+  image: golang:1.16.0-alpine
   commands:
   - apk add make git
   - COMPONENT=tempo-query make exe
