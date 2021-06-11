@@ -62,34 +62,34 @@ func TestHedge(t *testing.T) {
 			// calls that should hedge
 			_, _ = r.Read(ctx, "object", uuid.New(), "tenant")
 			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests, count)
+			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			_ = r.ReadRange(ctx, "object", uuid.New(), "tenant", 10, []byte{})
 			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests, count)
+			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			_, _ = r.BlockMeta(ctx, uuid.New(), "tenant")
 			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests, count)
+			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			// calls that should not hedge
 			_, _ = r.Tenants(ctx)
-			assert.Equal(t, int32(1), count)
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			_, _ = r.Blocks(ctx, "tenant")
-			assert.Equal(t, int32(1), count)
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			_ = w.Write(ctx, "object", uuid.New(), "tenant", []byte{})
-			assert.Equal(t, int32(1), count)
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			_ = w.WriteBlockMeta(ctx, &backend.BlockMeta{})
-			assert.Equal(t, int32(1), count)
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 		})
 	}

@@ -63,35 +63,35 @@ func TestHedge(t *testing.T) {
 			// calls that should hedge
 			_, _ = r.Read(ctx, "object", uuid.New(), "tenant")
 			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests*2, count) // *2 b/c reads execute a HEAD and GET
+			assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count)) // *2 b/c reads execute a HEAD and GET
 			atomic.StoreInt32(&count, 0)
 
 			// this panics with the garbage test setup. todo: make it not panic
 			// _ = r.ReadRange(ctx, "object", uuid.New(), "tenant", 10, make([]byte, 100))
 			// time.Sleep(tc.returnIn)
-			// assert.Equal(t, tc.expectedHedgedRequests, count)
+			// assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			// atomic.StoreInt32(&count, 0)
 
 			_, _ = r.BlockMeta(ctx, uuid.New(), "tenant") // *2 b/c reads execute a HEAD and GET
 			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests*2, count)
+			assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			// calls that should not hedge
 			_, _ = r.Tenants(ctx)
-			assert.Equal(t, int32(1), count)
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			_, _ = r.Blocks(ctx, "tenant")
-			assert.Equal(t, int32(1), count)
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			_ = w.Write(ctx, "object", uuid.New(), "tenant", make([]byte, 10))
-			assert.Equal(t, int32(1), count)
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			_ = w.WriteBlockMeta(ctx, &backend.BlockMeta{})
-			assert.Equal(t, int32(1), count)
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 		})
 	}
