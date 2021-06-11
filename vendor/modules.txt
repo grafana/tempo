@@ -19,6 +19,7 @@ cloud.google.com/go/storage
 ## explicit
 contrib.go.opencensus.io/exporter/prometheus
 # github.com/Azure/azure-pipeline-go v0.2.2
+## explicit
 github.com/Azure/azure-pipeline-go/pipeline
 # github.com/Azure/azure-storage-blob-go v0.8.0
 ## explicit
