@@ -100,31 +100,58 @@ func TestMultiblockSorts(t *testing.T) {
 }
 
 func TestMultiblockIteratorCanBeCancelled(t *testing.T) {
-
 	recordCount := 100
 
-	inner := &testIterator{}
-	for i := 0; i < recordCount; i++ {
-		inner.Add(make([]byte, i), make([]byte, i), nil)
+	testCases := []struct {
+		name   string
+		close  bool
+		cancel bool
+	}{
+		{
+			name:  "close iterator",
+			close: true,
+		},
+		{
+			name:   "cancel context",
+			cancel: true,
+		},
 	}
 
-	// Create iterator and close it after 100ms
-	iter := NewMultiblockIterator(context.TODO(), []Iterator{inner}, recordCount/2, nil, "")
-	time.Sleep(100 * time.Millisecond)
-	iter.Close()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 
-	// Exhaust iterator and verify fewer than recordcount records are received.
-	count := 0
-	for {
-		_, _, err := iter.Next(context.TODO())
-		if err == io.EOF {
-			break
-		}
-		require.NoError(t, err)
-		count++
+			inner := &testIterator{}
+			for i := 0; i < recordCount; i++ {
+				inner.Add(make([]byte, i), make([]byte, i), nil)
+			}
+
+			ctx := context.Background()
+			ctx, cancel := context.WithCancel(ctx)
+
+			// Create iterator and cancel/close it after 100ms
+			iter := NewMultiblockIterator(ctx, []Iterator{inner}, recordCount/2, nil, "")
+			time.Sleep(100 * time.Millisecond)
+			if tc.close {
+				iter.Close()
+			}
+			if tc.cancel {
+				cancel()
+			}
+
+			// Exhaust iterator and verify fewer than recordcount records are received.
+			count := 0
+			for {
+				_, _, err := iter.Next(context.TODO())
+				if err != nil {
+					break
+				}
+				count++
+			}
+
+			require.Less(t, count, recordCount)
+			cancel()
+		})
 	}
-
-	require.Less(t, count, recordCount)
 }
 
 func TestMultiblockIteratorCanBeCancelledMultipleTimes(t *testing.T) {
