@@ -100,7 +100,7 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 		time.Sleep(returnIn)
 
 		atomic.AddInt32(counter, 1)
-		w.Write([]byte(`{}`))
+		_, _ = w.Write([]byte(`{}`))
 	}))
 	server.StartTLS()
 	t.Cleanup(server.Close)

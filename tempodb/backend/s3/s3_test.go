@@ -46,8 +46,8 @@ func TestHedge(t *testing.T) {
 
 			r, w, _, err := New(&Config{
 				Region:          "blerg",
-				AccessKey:       flagext.Secret{"test"},
-				SecretKey:       flagext.Secret{"test"},
+				AccessKey:       flagext.Secret{Value: "test"},
+				SecretKey:       flagext.Secret{Value: "test"},
 				Bucket:          "blerg",
 				Insecure:        true,
 				Endpoint:        server.URL[7:], // [7:] -> strip http://
@@ -105,7 +105,7 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 
 		atomic.AddInt32(counter, 1)
 		// return fake list response b/c it's the only call that has to succeed
-		w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 		<ListBucketResult>
 		</ListBucketResult>`))
 	}))
