@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	maxRetries        = 1
-	maxHedgedRequests = 2
+	maxRetries         = 1
+	uptoHedgedRequests = 2
 )
 
 func GetContainerURL(ctx context.Context, conf *Config, hedge bool) (blob.ContainerURL, error) {
@@ -35,7 +35,7 @@ func GetContainerURL(ctx context.Context, conf *Config, hedge bool) (blob.Contai
 	if hedge && conf.HedgeRequestsAt != 0 {
 		httpSender = pipeline.FactoryFunc(func(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.PolicyFunc {
 			return func(ctx context.Context, request pipeline.Request) (pipeline.Response, error) {
-				client := hedgedhttp.NewClient(conf.HedgeRequestsAt, maxHedgedRequests, nil)
+				client := hedgedhttp.NewClient(conf.HedgeRequestsAt, uptoHedgedRequests, nil)
 
 				// Send the request over the network
 				resp, err := client.Do(request.WithContext(ctx))

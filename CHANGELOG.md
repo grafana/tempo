@@ -1,6 +1,6 @@
 ## main / unreleased
 
-* [FEATURE] Hedged requests for S3 and GCS [#750](https://github.com/grafana/tempo/pull/750) (@joe-elliott)
+* [FEATURE] Added the ability to hedge requests with all backends [#750](https://github.com/grafana/tempo/pull/750) (@joe-elliott)
 
 ## v1.0.0
 
