@@ -25,10 +25,11 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 | [Memberlist](#memberlist) | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
 | [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
-| [Distributor ring status](#distributor-ring-status) | Distributor |  HTTP | `GET /distributor/ring` |
+| [Distributor ring status](#distributor-ring-status) (*) | Distributor |  HTTP | `GET /distributor/ring` |
 | [Ingesters ring status](#ingesters-ring-status) | Distributor, Querier |  HTTP | `GET /ingester/ring` |
 | [Compactor ring status](#compactor-ring-status) | Compactor |  HTTP | `GET /compactor/ring` |
 
+_(*) This endpoint is not always available, check the specific section for more details._
 
 ### Configuration
 
@@ -151,6 +152,8 @@ ingester service.
 **Note**: This is usually used at the time of scaling down a cluster.
 
 ### Distributor ring status
+
+> Note: this endpoint is only available when Tempo is configured with [the global override strategy](../configuration/ingestion-limit#override-strategies).
 
 ```
 GET /distributor/ring
