@@ -5,21 +5,19 @@ import (
 	"context"
 	"errors"
 	"io"
-	"sync"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
+
+	"github.com/uber-go/atomic"
 )
 
 type multiblockIterator struct {
 	combiner     common.ObjectCombiner
 	bookmarks    []*bookmark
 	dataEncoding string
-	ctx          context.Context
 	resultsCh    chan iteratorResult
-	quitCh       chan bool
-
-	errMtx sync.RWMutex
-	err    error
+	quitCh       chan struct{}
+	err          atomic.Error
 }
 
 type iteratorResult struct {
@@ -31,41 +29,45 @@ type iteratorResult struct {
 // Traces are deduped and combined using the object combiner.
 func NewMultiblockIterator(ctx context.Context, inputs []Iterator, bufferSize int, combiner common.ObjectCombiner, dataEncoding string) Iterator {
 	i := multiblockIterator{
-		ctx:          ctx,
 		combiner:     combiner,
 		dataEncoding: dataEncoding,
 		resultsCh:    make(chan iteratorResult, bufferSize),
-		quitCh:       make(chan bool, 1),
+		quitCh:       make(chan struct{}, 1),
 	}
 
 	for _, iter := range inputs {
 		i.bookmarks = append(i.bookmarks, newBookmark(iter))
 	}
 
-	go i.iterate()
+	go i.iterate(ctx)
 
 	return &i
 }
 
+// Close iterator, signals goroutine to exit if still running.
 func (i *multiblockIterator) Close() {
 	select {
-	case i.quitCh <- true:
+	// Signal goroutine to quit. Non-blocking, handles if already
+	// signalled or goroutine not listening to channel.
+	case i.quitCh <- struct{}{}:
 	default:
 		return
 	}
 }
 
+// Next returns the next values or error.  Blocking read when data not yet available.
 func (i *multiblockIterator) Next(ctx context.Context) (common.ID, []byte, error) {
-	if err := i.getErr(); err != nil {
+	if err := i.err.Load(); err != nil {
 		return nil, nil, err
 	}
 
 	select {
-	case <-i.ctx.Done():
-		return nil, nil, i.ctx.Err()
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
 
 	case res, ok := <-i.resultsCh:
 		if !ok {
+			// No more data and channel was closed
 			return nil, nil, io.EOF
 		}
 
@@ -73,42 +75,30 @@ func (i *multiblockIterator) Next(ctx context.Context) (common.ID, []byte, error
 	}
 }
 
-func (i *multiblockIterator) allDone() bool {
+func (i *multiblockIterator) allDone(ctx context.Context) bool {
 	for _, b := range i.bookmarks {
-		if !b.done(i.ctx) {
+		if !b.done(ctx) {
 			return false
 		}
 	}
 	return true
 }
 
-func (i *multiblockIterator) getErr() error {
-	i.errMtx.RLock()
-	defer i.errMtx.RUnlock()
-	return i.err
-}
-
-func (i *multiblockIterator) setErr(err error) {
-	i.errMtx.Lock()
-	defer i.errMtx.Unlock()
-	i.err = err
-}
-
-func (i *multiblockIterator) iterate() {
+func (i *multiblockIterator) iterate(ctx context.Context) {
 	defer close(i.resultsCh)
 
-	for !i.allDone() {
+	for !i.allDone(ctx) {
 		var lowestID []byte
 		var lowestObject []byte
 		var lowestBookmark *bookmark
 
 		// find lowest ID of the new object
 		for _, b := range i.bookmarks {
-			currentID, currentObject, err := b.current(i.ctx)
+			currentID, currentObject, err := b.current(ctx)
 			if err == io.EOF {
 				continue
 			} else if err != nil {
-				i.setErr(err)
+				i.err.Store(err)
 				return
 			}
 
@@ -125,7 +115,7 @@ func (i *multiblockIterator) iterate() {
 		}
 
 		if len(lowestID) == 0 || len(lowestObject) == 0 || lowestBookmark == nil {
-			i.setErr(errors.New("failed to find a lowest object in compaction"))
+			i.err.Store(errors.New("failed to find a lowest object in compaction"))
 			return
 		}
 
@@ -139,14 +129,17 @@ func (i *multiblockIterator) iterate() {
 
 		select {
 
-		case <-i.ctx.Done():
-			i.setErr(i.ctx.Err())
+		case <-ctx.Done():
+			i.err.Store(ctx.Err())
 			return
 
 		case <-i.quitCh:
+			// Signalled to quit early
 			return
 
 		case i.resultsCh <- res:
+			// Send results. Blocks until available buffer in channel
+			// created by receiving in Next()
 		}
 	}
 }
@@ -175,11 +168,7 @@ func (b *bookmark) current(ctx context.Context) ([]byte, []byte, error) {
 	}
 
 	b.currentID, b.currentObject, b.currentErr = b.iter.Next(ctx)
-	if b.currentErr != nil {
-		return nil, nil, b.currentErr
-	}
-
-	return b.currentID, b.currentObject, nil
+	return b.currentID, b.currentObject, b.currentErr
 }
 
 func (b *bookmark) done(ctx context.Context) bool {
