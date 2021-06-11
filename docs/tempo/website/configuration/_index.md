@@ -319,6 +319,13 @@ storage:
             # access key when using access key credentials.
             [storage-account-key: <string>]
 
+            # Optional. Default is 0 (disabled)
+            # Example: "hedge-requests-at: 500ms"
+            # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+            # be set to p99 of Axure Blog Storage requests to reduce long tail latency.  This setting is most impactful when
+            # used with queriers and has minimal to no impact on other pieces.
+            [hedge-requests-at: <duration>]
+
         # How often to repoll the backend for new blocks. Default is 5m
         [blocklist_poll: <duration>] 
 

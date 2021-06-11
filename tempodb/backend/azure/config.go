@@ -1,6 +1,10 @@
 package azure
 
-import "github.com/cortexproject/cortex/pkg/util/flagext"
+import (
+	"time"
+
+	"github.com/cortexproject/cortex/pkg/util/flagext"
+)
 
 type Config struct {
 	StorageAccountName flagext.Secret `yaml:"storage-account-name"`
@@ -9,4 +13,5 @@ type Config struct {
 	Endpoint           string         `yaml:"endpoint-suffix"`
 	MaxBuffers         int            `yaml:"max-buffers"`
 	BufferSize         int            `yaml:"buffer-size"`
+	HedgeRequestsAt    time.Duration  `yaml:"hedge-requests-at"`
 }

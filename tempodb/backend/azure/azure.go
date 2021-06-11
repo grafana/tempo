@@ -27,8 +27,9 @@ const (
 )
 
 type readerWriter struct {
-	cfg          *Config
-	containerURL blob.ContainerURL
+	cfg                *Config
+	containerURL       blob.ContainerURL
+	hedgedContainerURL blob.ContainerURL
 }
 
 type appendTracker struct {
@@ -39,14 +40,20 @@ type appendTracker struct {
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	ctx := context.Background()
 
-	container, err := GetContainer(ctx, cfg)
+	container, err := GetContainer(ctx, cfg, false)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "getting storage container")
 	}
 
+	hedgedContainer, err := GetContainer(ctx, cfg, true)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "getting hedged storage container")
+	}
+
 	rw := &readerWriter{
-		cfg:          cfg,
-		containerURL: container,
+		cfg:                cfg,
+		containerURL:       container,
+		hedgedContainerURL: hedgedContainer,
 	}
 
 	return rw, rw, rw, nil
@@ -280,7 +287,7 @@ func (rw *readerWriter) writer(ctx context.Context, src io.Reader, name string) 
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, destBuffer []byte) error {
-	blobURL := rw.containerURL.NewBlockBlobURL(name)
+	blobURL := rw.hedgedContainerURL.NewBlockBlobURL(name)
 
 	var props *blob.BlobGetPropertiesResponse
 	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{})
@@ -319,7 +326,7 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
-	blobURL := rw.containerURL.NewBlockBlobURL(name)
+	blobURL := rw.hedgedContainerURL.NewBlockBlobURL(name)
 
 	var props *blob.BlobGetPropertiesResponse
 	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{})

@@ -326,6 +326,7 @@ storage:
       endpoint-suffix: blob.core.windows.net
       max-buffers: 4
       buffer-size: 3145728
+      hedge-requests-at: 0
     cache: ""
     background_cache:
       writeback_goroutines: 10
