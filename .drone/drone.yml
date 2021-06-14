@@ -89,7 +89,7 @@ steps:
 trigger:
   ref:
   - refs/heads/main
-  - refs/tags/v**
+  - refs/tags/v*
 
 ---
 ##  ARM64  ##
@@ -143,7 +143,7 @@ steps:
 trigger:
   ref:
   - refs/heads/main
-  - refs/tags/v**
+  - refs/tags/v*
 
 ---
 ##  MANIFEST  ##
@@ -188,7 +188,7 @@ depends_on:
 trigger:
   ref:
   - refs/heads/main
-  - refs/tags/v**
+  - refs/tags/v*
 
 ---
 kind: secret
