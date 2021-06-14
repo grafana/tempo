@@ -20,9 +20,11 @@ type multiblockIterator struct {
 	err          atomic.Error
 }
 
+var _ Iterator = (*multiblockIterator)(nil)
+
 type iteratorResult struct {
-	ID   common.ID
-	Body []byte
+	id     common.ID
+	object []byte
 }
 
 // NewMultiblockIterator Creates a new multiblock iterator. Iterates concurrently in a separate goroutine and results are buffered.
@@ -74,7 +76,7 @@ func (i *multiblockIterator) Next(ctx context.Context) (common.ID, []byte, error
 			return nil, nil, io.EOF
 		}
 
-		return res.ID, res.Body, nil
+		return res.id, res.object, nil
 	}
 }
 
@@ -124,8 +126,8 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 
 		// Copy slices allows data to escape the iterators
 		res := iteratorResult{
-			ID:   append([]byte(nil), lowestID...),
-			Body: append([]byte(nil), lowestObject...),
+			id:     append([]byte(nil), lowestID...),
+			object: append([]byte(nil), lowestObject...),
 		}
 
 		lowestBookmark.clear()
