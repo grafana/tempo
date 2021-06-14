@@ -67,7 +67,10 @@ func (i *multiblockIterator) Next(ctx context.Context) (common.ID, []byte, error
 
 	case res, ok := <-i.resultsCh:
 		if !ok {
-			// No more data and channel was closed
+			// Closed due to error?
+			if err := i.err.Load(); err != nil {
+				return nil, nil, err
+			}
 			return nil, nil, io.EOF
 		}
 
