@@ -16,7 +16,7 @@ type testHeader struct {
 
 func (h *testHeader) unmarshalHeader(b []byte) error {
 	if len(b) != int(uint32Size) {
-		return errors.New("err")
+		return errors.New("testheader err")
 	}
 
 	h.field = binary.LittleEndian.Uint32(b[:uint32Size])
@@ -107,4 +107,27 @@ func TestPageMarshalToBuffer(t *testing.T) {
 		assert.Equal(t, uint32(len(outputBuffer)), page.totalLength)
 		assert.Equal(t, tc.field, page.header.(*testHeader).field)
 	}
+}
+
+func TestCorruptHeader(t *testing.T) {
+	data := []byte{0x01, 0x02, 0x03}
+	buff := &bytes.Buffer{}
+
+	bytesWritten, err := marshalPageToWriter(data, buff, constDataHeader)
+	require.NoError(t, err)
+	assert.Equal(t, len(data)+constDataHeader.headerLength()+int(baseHeaderSize), bytesWritten)
+
+	buffBytes := buff.Bytes()
+
+	// overwrite the base header with 0s
+	zeroHeader := bytes.Repeat([]byte{0x00}, baseHeaderSize)
+	copy(buffBytes, zeroHeader)
+
+	page, err := unmarshalPageFromBytes(buffBytes, constDataHeader)
+	assert.Nil(t, page)
+	assert.EqualError(t, err, "expected data len -6 does not match actual 3")
+
+	page, err = unmarshalPageFromReader(bytes.NewReader(buffBytes), constDataHeader, nil)
+	assert.Nil(t, page)
+	assert.EqualError(t, err, "unexpected negative dataLength unmarshalling page: -6")
 }
