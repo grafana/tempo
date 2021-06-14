@@ -29,6 +29,7 @@
     },
     memcached: {
       replicas: 3,
+      connection_limit: 4096,
     },
     jaeger_ui: {
       base_path: '/',
