@@ -369,7 +369,7 @@
           "expr": "rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}[$__rate_interval])",
           "interval": "",
           "intervalFactor": 5,
-          "legendFormat": "{{pod}}",
+          "legendFormat": "{{pod}} {{container}}",
           "refId": "A"
         }
       ],
@@ -462,7 +462,7 @@
         {
           "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}",
           "interval": "",
-          "legendFormat": "{{pod}}",
+          "legendFormat": "{{pod}} {{container}}",
           "refId": "A"
         }
       ],
