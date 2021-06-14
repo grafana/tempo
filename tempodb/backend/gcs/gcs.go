@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/cristalhq/hedgedhttp"
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -24,46 +25,26 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/util"
 )
 
+const uptoHedgedRequests = 2
+
 type readerWriter struct {
-	cfg    *Config
-	client *storage.Client
-	bucket *storage.BucketHandle
+	cfg          *Config
+	bucket       *storage.BucketHandle
+	hedgedBucket *storage.BucketHandle
 }
 
 func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	ctx := context.Background()
 
-	customTransport := http.DefaultTransport.(*http.Transport).Clone()
-	transportOptions := []option.ClientOption{
-		option.WithScopes(storage.ScopeReadWrite),
-	}
-	if cfg.Insecure {
-		transportOptions = append(transportOptions, option.WithoutAuthentication())
-		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	}
-
-	transport, err := google_http.NewTransport(ctx, customTransport, transportOptions...)
+	bucket, err := createBucket(ctx, cfg, false)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "creating transport")
-	}
-	transport = newInstrumentedTransport(transport)
-
-	storageClientOptions := []option.ClientOption{
-		option.WithHTTPClient(&http.Client{
-			Transport: transport,
-		}),
-		option.WithScopes(storage.ScopeReadWrite),
-	}
-	if cfg.Endpoint != "" {
-		storageClientOptions = append(storageClientOptions, option.WithEndpoint(cfg.Endpoint))
+		return nil, nil, nil, errors.Wrap(err, "creating bucket")
 	}
 
-	client, err := storage.NewClient(ctx, storageClientOptions...)
+	hedgedBucket, err := createBucket(ctx, cfg, true)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "creating storage client")
+		return nil, nil, nil, errors.Wrap(err, "creating hedged bucket")
 	}
-
-	bucket := client.Bucket(cfg.BucketName)
 
 	// Check bucket exists by getting attrs
 	if _, err = bucket.Attrs(ctx); err != nil {
@@ -71,9 +52,9 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 	}
 
 	rw := &readerWriter{
-		cfg:    cfg,
-		client: client,
-		bucket: bucket,
+		cfg:          cfg,
+		bucket:       bucket,
+		hedgedBucket: hedgedBucket,
 	}
 
 	return rw, rw, rw, nil
@@ -273,7 +254,7 @@ func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
-	r, err := rw.bucket.Object(name).NewReader(ctx)
+	r, err := rw.hedgedBucket.Object(name).NewReader(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +264,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
-	r, err := rw.bucket.Object(name).NewReader(ctx)
+	r, err := rw.hedgedBucket.Object(name).NewReader(ctx)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -298,7 +279,7 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, buffer []byte) error {
-	r, err := rw.bucket.Object(name).NewRangeReader(ctx, offset, int64(len(buffer)))
+	r, err := rw.hedgedBucket.Object(name).NewRangeReader(ctx, offset, int64(len(buffer)))
 	if err != nil {
 		return err
 	}
@@ -318,4 +299,48 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 		}
 		totalBytes += byteCount
 	}
+}
+
+func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.BucketHandle, error) {
+	// start with default transport
+	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+
+	// add google auth
+	transportOptions := []option.ClientOption{
+		option.WithScopes(storage.ScopeReadWrite),
+	}
+	if cfg.Insecure {
+		transportOptions = append(transportOptions, option.WithoutAuthentication())
+		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	transport, err := google_http.NewTransport(ctx, customTransport, transportOptions...)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating google http transport")
+	}
+
+	// add instrumentation
+	transport = newInstrumentedTransport(transport)
+
+	// hedge if desired (0 means disabled)
+	if hedge && cfg.HedgeRequestsAt != 0 {
+		transport = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+	}
+
+	// build client
+	storageClientOptions := []option.ClientOption{
+		option.WithHTTPClient(&http.Client{
+			Transport: transport,
+		}),
+		option.WithScopes(storage.ScopeReadWrite),
+	}
+	if cfg.Endpoint != "" {
+		storageClientOptions = append(storageClientOptions, option.WithEndpoint(cfg.Endpoint))
+	}
+	client, err := storage.NewClient(ctx, storageClientOptions...)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating storage client")
+	}
+
+	// build bucket
+	return client.Bucket(cfg.BucketName), nil
 }

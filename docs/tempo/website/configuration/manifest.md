@@ -307,6 +307,7 @@ storage:
       chunk_buffer_size: 10485760
       endpoint: ""
       insecure: false
+      hedge_requests_at: 0
     s3:
       bucket: ""
       endpoint: ""
@@ -317,6 +318,7 @@ storage:
       part_size: 0
       signature_v2: false
       forcepathstyle: false
+      hedge_requests_at: 0
     azure:
       storage-account-name: ""
       storage-account-key: ""
@@ -324,6 +326,7 @@ storage:
       endpoint-suffix: blob.core.windows.net
       max-buffers: 4
       buffer-size: 3145728
+      hedge-requests-at: 0
     cache: ""
     background_cache:
       writeback_goroutines: 10

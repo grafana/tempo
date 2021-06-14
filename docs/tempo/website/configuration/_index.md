@@ -248,6 +248,13 @@ storage:
             # Set to true to enable authentication and certificate checks on gcs requests
             [insecure: <bool>] 
 
+            # Optional. Default is 0 (disabled)
+            # Example: "hedge_requests_at: 500ms"
+            # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+            # be set to p99 of GCS requests to reduce long tail latency. This setting is most impactful when
+            # used with queriers and has minimal to no impact on other pieces.
+            [hedge_requests_at: <duration>]
+
         # S3 configuration. Will be used only if value of backend is "s3"
         # Check the S3 doc within this folder for information on s3 specific permissions.
         s3:
@@ -283,6 +290,13 @@ storage:
             # enable to use path-style requests.
             [forcepathstyle: <bool>]
 
+            # Optional. Default is 0 (disabled)
+            # Example: "hedge_requests_at: 500ms"
+            # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+            # be set to p99 of S3 requests to reduce long tail latency.  This setting is most impactful when
+            # used with queriers and has minimal to no impact on other pieces.
+            [hedge_requests_at: <duration>]
+
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL
         azure:
@@ -304,6 +318,13 @@ storage:
             # optional.
             # access key when using access key credentials.
             [storage-account-key: <string>]
+
+            # Optional. Default is 0 (disabled)
+            # Example: "hedge-requests-at: 500ms"
+            # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+            # be set to p99 of Axure Blog Storage requests to reduce long tail latency.  This setting is most impactful when
+            # used with queriers and has minimal to no impact on other pieces.
+            [hedge-requests-at: <duration>]
 
         # How often to repoll the backend for new blocks. Default is 5m
         [blocklist_poll: <duration>] 
