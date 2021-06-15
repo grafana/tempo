@@ -32,25 +32,27 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 		retryOptions.TryTimeout = time.Until(deadline)
 	}
 
-	var httpSender pipeline.Factory
-	if hedge && cfg.HedgeRequestsAt != 0 {
-		httpSender = pipeline.FactoryFunc(func(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.PolicyFunc {
-			return func(ctx context.Context, request pipeline.Request) (pipeline.Response, error) {
+	httpSender := pipeline.FactoryFunc(func(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.PolicyFunc {
+		return func(ctx context.Context, request pipeline.Request) (pipeline.Response, error) {
 
-				customTransport := http.DefaultTransport.(*http.Transport).Clone()
+			customTransport := http.DefaultTransport.(*http.Transport).Clone()
 
-				transport := newInstrumentedTransport(customTransport)
+			// add instrumentation
+			transport := newInstrumentedTransport(customTransport)
+
+			// hedge if desired (0 means disabled)
+			if hedge && cfg.HedgeRequestsAt != 0 {
 				transport = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
-
-				client := http.Client{Transport: transport}
-
-				// Send the request over the network
-				resp, err := client.Do(request.WithContext(ctx))
-
-				return pipeline.NewHTTPResponse(resp), err
 			}
-		})
-	}
+
+			client := http.Client{Transport: transport}
+
+			// Send the request over the network
+			resp, err := client.Do(request.WithContext(ctx))
+
+			return pipeline.NewHTTPResponse(resp), err
+		}
+	})
 
 	p := blob.NewPipeline(c, blob.PipelineOptions{
 		Retry:      retryOptions,
