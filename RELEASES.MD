@@ -42,4 +42,4 @@ Patches release should be cut for serious bug fixes or security issues.
   `git push origin v1.0.1`  
   This triggers the build.
 - Follow CHANGELOG procedures above.
-- Submit a PR to the helm repo as described above.
+- Submit a PR to the Helm repo as described above.
