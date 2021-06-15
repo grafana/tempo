@@ -78,6 +78,10 @@ func unmarshalPageFromReader(r io.Reader, header pageHeader, buffer []byte) (*pa
 	}
 	dataLength := int(totalLength) - totalHeaderSize
 
+	if dataLength < 0 {
+		return nil, fmt.Errorf("unexpected negative dataLength unmarshalling page: %d", dataLength)
+	}
+
 	if cap(buffer) < dataLength {
 		buffer = make([]byte, dataLength)
 	} else {

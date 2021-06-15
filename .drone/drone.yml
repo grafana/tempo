@@ -86,6 +86,11 @@ steps:
     build_args:
     - TARGETARCH=amd64
 
+trigger:
+  ref:
+  - refs/heads/main
+  - refs/tags/v*
+
 ---
 ##  ARM64  ##
 kind: pipeline
@@ -135,6 +140,11 @@ steps:
     build_args:
     - TARGETARCH=arm64
 
+trigger:
+  ref:
+  - refs/heads/main
+  - refs/tags/v*
+
 ---
 ##  MANIFEST  ##
 kind: pipeline
@@ -174,6 +184,11 @@ steps:
 depends_on:
 - docker-amd64
 - docker-arm64
+
+trigger:
+  ref:
+  - refs/heads/main
+  - refs/tags/v*
 
 ---
 kind: secret
