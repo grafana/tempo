@@ -3,6 +3,7 @@ local memcached = import 'memcached/memcached.libsonnet';
 memcached {
   memcached+:: {
     cpu_limits:: null,
+    connection_limit: $._config.memcached.connection_limit,
 
     deployment: {},
 

@@ -366,10 +366,10 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}[$__rate_interval])",
+          "expr": "rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\", container!=\"\"}[$__rate_interval])",
           "interval": "",
           "intervalFactor": 5,
-          "legendFormat": "{{pod}}",
+          "legendFormat": "{{pod}} {{container}}",
           "refId": "A"
         }
       ],
@@ -460,9 +460,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}",
+          "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\", container!=\"\"}",
           "interval": "",
-          "legendFormat": "{{pod}}",
+          "legendFormat": "{{pod}} {{container}}",
           "refId": "A"
         }
       ],
