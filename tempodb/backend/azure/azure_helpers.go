@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -17,8 +18,8 @@ const (
 	uptoHedgedRequests = 2
 )
 
-func GetContainerURL(ctx context.Context, conf *Config, hedge bool) (blob.ContainerURL, error) {
-	c, err := blob.NewSharedKeyCredential(conf.StorageAccountName.String(), conf.StorageAccountKey.String())
+func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.ContainerURL, error) {
+	c, err := blob.NewSharedKeyCredential(cfg.StorageAccountName.String(), cfg.StorageAccountKey.String())
 	if err != nil {
 		return blob.ContainerURL{}, err
 	}
@@ -32,10 +33,16 @@ func GetContainerURL(ctx context.Context, conf *Config, hedge bool) (blob.Contai
 	}
 
 	var httpSender pipeline.Factory
-	if hedge && conf.HedgeRequestsAt != 0 {
+	if hedge && cfg.HedgeRequestsAt != 0 {
 		httpSender = pipeline.FactoryFunc(func(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.PolicyFunc {
 			return func(ctx context.Context, request pipeline.Request) (pipeline.Response, error) {
-				client := hedgedhttp.NewClient(conf.HedgeRequestsAt, uptoHedgedRequests, nil)
+
+				customTransport := http.DefaultTransport.(*http.Transport).Clone()
+
+				transport := newInstrumentedTransport(customTransport)
+				transport = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+
+				client := http.Client{Transport: transport}
 
 				// Send the request over the network
 				resp, err := client.Do(request.WithContext(ctx))
@@ -51,12 +58,12 @@ func GetContainerURL(ctx context.Context, conf *Config, hedge bool) (blob.Contai
 		HTTPSender: httpSender,
 	})
 
-	u, err := url.Parse(fmt.Sprintf("https://%s.%s", conf.StorageAccountName, conf.Endpoint))
+	u, err := url.Parse(fmt.Sprintf("https://%s.%s", cfg.StorageAccountName, cfg.Endpoint))
 
 	// If the endpoint doesn't start with blob.core we can assume Azurite is being used
 	// So the endpoint should follow Azurite URL style
-	if !strings.HasPrefix(conf.Endpoint, "blob.core") {
-		u, err = url.Parse(fmt.Sprintf("http://%s/%s", conf.Endpoint, conf.StorageAccountName))
+	if !strings.HasPrefix(cfg.Endpoint, "blob.core") {
+		u, err = url.Parse(fmt.Sprintf("http://%s/%s", cfg.Endpoint, cfg.StorageAccountName))
 	}
 
 	if err != nil {
@@ -65,7 +72,7 @@ func GetContainerURL(ctx context.Context, conf *Config, hedge bool) (blob.Contai
 
 	service := blob.NewServiceURL(*u, p)
 
-	return service.NewContainerURL(conf.ContainerName), nil
+	return service.NewContainerURL(cfg.ContainerName), nil
 }
 
 func GetContainer(ctx context.Context, conf *Config, hedge bool) (blob.ContainerURL, error) {
