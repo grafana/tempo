@@ -187,21 +187,24 @@ compactor:
         # Optional. Blocks in this time window will be compacted together. Default is 4h.
         [compaction_window: <duration>]
 
-        # Optional. Amount of data to buffer from input blocks. Default is 10 MB
+        # Optional. Amount of data to buffer from input blocks. Default is 10 MB.
         [chunk_size_bytes: <int>]
 
-        # Optional. Flush data to backend when buffer is this large. Default is 30 MB
+        # Optional. Flush data to backend when buffer is this large. Default is 30 MB.
         [flush_size_bytes: <int>]
 
         # Optional. Maximum number of traces in a compacted block. Default is 6 million.
         # WARNING: Deprecated. Use max_block_bytes instead.
         [max_compaction_objects: <int>]
 
-        # Optional. Maximum size of a compacted block in bytes.  Default is 100 GB
+        # Optional. Maximum size of a compacted block in bytes.  Default is 100 GB.
         [max_block_bytes: <int>]
 
         # Optional. Number of tenants to process in parallel during retention. Default is 10.
         [retention_concurrency: <int>]
+
+        # Optional. Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
+        [iterator_buffer_size: <int>]
 ```
 
 ## Storage

@@ -1,7 +1,6 @@
 package tempodb
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -54,6 +54,8 @@ const (
 	compactionCycle = 30 * time.Second
 
 	DefaultFlushSizeBytes uint32 = 30 * 1024 * 1024 // 30 MiB
+
+	DefaultIteratorBufferSize = 1000
 )
 
 // todo: pass a context/chan in to cancel this cleanly
@@ -116,8 +118,6 @@ func (rw *readerWriter) doCompaction() {
 	}
 }
 
-// todo : this method is brittle and has weird failure conditions.  if it fails after it has written a new block then it will not clean up the old
-//   in these cases it's possible that the compact method actually will start making more blocks.
 func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
@@ -133,13 +133,13 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	nextCompactionLevel := compactionLevel + 1
 
 	var err error
-	bookmarks := make([]*bookmark, 0, len(blockMetas))
+	iters := make([]encoding.Iterator, 0, len(blockMetas))
 
 	// cleanup compaction
 	defer func() {
 		level.Info(rw.logger).Log("msg", "compaction complete")
-		for _, bm := range bookmarks {
-			bm.iter.Close()
+		for _, iter := range iters {
+			iter.Close()
 		}
 	}()
 
@@ -150,6 +150,13 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		totalRecords += blockMeta.TotalObjects
 		dataEncoding = blockMeta.DataEncoding // blocks chosen for compaction always have the same data encoding
 
+		// Make sure block still exists
+		_, err = rw.r.BlockMeta(ctx, blockMeta.BlockID, tenantID)
+		if err != nil {
+			return err
+		}
+
+		// Open iterator
 		block, err := encoding.NewBackendBlock(blockMeta, rw.r)
 		if err != nil {
 			return err
@@ -160,12 +167,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			return err
 		}
 
-		bookmarks = append(bookmarks, newBookmark(iter))
-
-		_, err = rw.r.BlockMeta(ctx, blockMeta.BlockID, tenantID)
-		if err != nil {
-			return err
-		}
+		iters = append(iters, iter)
 	}
 
 	recordsPerBlock := (totalRecords / outputBlocks)
@@ -173,36 +175,23 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	var currentBlock *encoding.StreamingBlock
 	var tracker backend.AppendTracker
 
-	for !allDone(ctx, bookmarks) {
-		var lowestID []byte
-		var lowestObject []byte
-		var lowestBookmark *bookmark
+	combiner := instrumentedObjectCombiner{
+		inner:                rw.compactorSharder,
+		compactionLevelLabel: compactionLevelLabel,
+	}
 
-		// find lowest ID of the new object
-		for _, b := range bookmarks {
-			currentID, currentObject, err := b.current(ctx)
-			if err == io.EOF {
-				continue
-			} else if err != nil {
-				return err
-			}
+	iter := encoding.NewMultiblockIterator(ctx, iters, rw.compactorCfg.IteratorBufferSize, combiner, dataEncoding)
+	defer iter.Close()
 
-			if bytes.Equal(currentID, lowestID) {
-				var wasCombined bool
-				lowestObject, wasCombined = rw.compactorSharder.Combine(currentObject, lowestObject, dataEncoding)
-				if wasCombined {
-					metricCompactionObjectsCombined.WithLabelValues(compactionLevelLabel).Inc()
-				}
-				b.clear()
-			} else if len(lowestID) == 0 || bytes.Compare(currentID, lowestID) == -1 {
-				lowestID = currentID
-				lowestObject = currentObject
-				lowestBookmark = b
-			}
+	for {
+
+		id, body, err := iter.Next(ctx)
+		if err == io.EOF {
+			break
 		}
 
-		if len(lowestID) == 0 || len(lowestObject) == 0 || lowestBookmark == nil {
-			return fmt.Errorf("failed to find a lowest object in compaction")
+		if err != nil {
+			return errors.Wrap(err, "error iterating input blocks")
 		}
 
 		// make a new block if necessary
@@ -215,13 +204,10 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.BlockMeta())
 		}
 
-		// writing to the current block will cause the id to escape the iterator so we need to make a copy of it
-		writeID := append([]byte(nil), lowestID...)
-		err = currentBlock.AddObject(writeID, lowestObject)
+		err = currentBlock.AddObject(id, body)
 		if err != nil {
 			return err
 		}
-		lowestBookmark.clear()
 
 		// write partial block
 		if currentBlock.CurrentBufferLength() >= int(rw.compactorCfg.FlushSizeBytes) {
@@ -284,15 +270,6 @@ func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encodin
 	return nil
 }
 
-func allDone(ctx context.Context, bookmarks []*bookmark) bool {
-	for _, b := range bookmarks {
-		if !b.done(ctx) {
-			return false
-		}
-	}
-	return true
-}
-
 func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
 	level := uint8(0)
 
@@ -325,4 +302,18 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.Block
 
 	// Update blocklist in memory
 	rw.updateBlocklist(tenantID, newBlocks, oldBlocks, newCompactions)
+}
+
+type instrumentedObjectCombiner struct {
+	compactionLevelLabel string
+	inner                common.ObjectCombiner
+}
+
+// Combine wraps the inner combiner with combined metrics
+func (i instrumentedObjectCombiner) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
+	b, wasCombined := i.inner.Combine(objA, objB, dataEncoding)
+	if wasCombined {
+		metricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
+	}
+	return b, wasCombined
 }
