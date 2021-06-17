@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"sort"
 	"sync"
 	"time"
 
@@ -19,7 +18,6 @@ import (
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	log_util "github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/cache"
@@ -30,6 +28,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/polling"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/opentracing/opentracing-go"
@@ -44,22 +43,6 @@ const (
 )
 
 var (
-	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempodb",
-		Name:      "blocklist_poll_errors_total",
-		Help:      "Total number of times an error occurred while polling the blocklist.",
-	}, []string{"tenant"})
-	metricBlocklistPollDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempodb",
-		Name:      "blocklist_poll_duration_seconds",
-		Help:      "Records the amount of time to poll and update the blocklist.",
-		Buckets:   prometheus.LinearBuckets(0, 60, 5),
-	})
-	metricBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempodb",
-		Name:      "blocklist_length",
-		Help:      "Total number of blocks per tenant.",
-	}, []string{"tenant"})
 	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "retention_duration_seconds",
@@ -120,13 +103,15 @@ type readerWriter struct {
 	wal  *wal.WAL
 	pool *pool.Pool
 
-	logger        log.Logger
-	cfg           *Config
-	blockLists    map[string][]*backend.BlockMeta
-	blockListsMtx sync.Mutex
+	logger log.Logger
+	cfg    *Config
+
+	blockListsMtx       sync.Mutex
+	blockLists          map[string][]*backend.BlockMeta
+	compactedBlockLists map[string][]*backend.CompactedBlockMeta
+	blocklistPoller     *polling.BlocklistPoller
 
 	compactorCfg          *CompactorConfig
-	compactedBlockLists   map[string][]*backend.CompactedBlockMeta
 	compactorSharder      CompactorSharder
 	compactorOverrides    CompactorOverrides
 	compactorTenantOffset uint
@@ -182,13 +167,14 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 
 	rw := &readerWriter{
 		c:                   c,
-		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
 		r:                   r,
 		w:                   w,
 		cfg:                 cfg,
 		logger:              logger,
 		pool:                pool.NewPool(cfg.Pool),
 		blockLists:          make(map[string][]*backend.BlockMeta),
+		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
+		blocklistPoller:     polling.NewBlocklistPoller(cfg.BlocklistPollConcurrency, r, c),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -389,101 +375,18 @@ func (rw *readerWriter) maintenanceLoop() {
 }
 
 func (rw *readerWriter) pollBlocklist() {
-	start := time.Now()
-	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
-
-	ctx := context.Background()
-	tenants, err := rw.r.Tenants(ctx)
-	if err != nil {
-		metricBlocklistErrors.WithLabelValues("").Inc()
-		level.Error(rw.logger).Log("msg", "error retrieving tenants while polling blocklist", "err", err)
-	}
-
-	rw.cleanMissingTenants(tenants)
-
-	for _, tenantID := range tenants {
-
-		newBlockList, newCompactedBlockList := rw.pollTenant(ctx, tenantID)
-
-		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
-
-		rw.blockListsMtx.Lock()
-		rw.blockLists[tenantID] = newBlockList
-		rw.compactedBlockLists[tenantID] = newCompactedBlockList
-		rw.blockListsMtx.Unlock()
-	}
-}
-
-func (rw *readerWriter) pollTenant(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta) {
-	blockIDs, err := rw.r.Blocks(ctx, tenantID)
-	if err != nil {
-		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-		level.Error(rw.logger).Log("msg", "error polling blocklist", "tenantID", tenantID, "err", err)
-		return []*backend.BlockMeta{}, []*backend.CompactedBlockMeta{}
-	}
-
-	bg := boundedwaitgroup.New(rw.cfg.BlocklistPollConcurrency)
-	chMeta := make(chan *backend.BlockMeta, len(blockIDs))
-	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(blockIDs))
-
-	for _, blockID := range blockIDs {
-		bg.Add(1)
-		go func(b uuid.UUID) {
-			defer bg.Done()
-			m, cm := rw.pollBlock(ctx, tenantID, b)
-			if m != nil {
-				chMeta <- m
-			} else if cm != nil {
-				chCompactedMeta <- cm
-			}
-		}(blockID)
-	}
-
-	bg.Wait()
-	close(chMeta)
-	close(chCompactedMeta)
-
-	newBlockList := make([]*backend.BlockMeta, 0, len(blockIDs))
-	for m := range chMeta {
-		newBlockList = append(newBlockList, m)
-	}
-	sort.Slice(newBlockList, func(i, j int) bool {
-		return newBlockList[i].StartTime.Before(newBlockList[j].StartTime)
-	})
-
-	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
-	for cm := range chCompactedMeta {
-		newCompactedBlocklist = append(newCompactedBlocklist, cm)
-	}
-	sort.Slice(newCompactedBlocklist, func(i, j int) bool {
-		return newCompactedBlocklist[i].StartTime.Before(newCompactedBlocklist[j].StartTime)
-	})
-
-	return newBlockList, newCompactedBlocklist
-}
-
-func (rw *readerWriter) pollBlock(ctx context.Context, tenantID string, blockID uuid.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta) {
-	var compactedBlockMeta *backend.CompactedBlockMeta
-	blockMeta, err := rw.r.BlockMeta(ctx, blockID, tenantID)
-	// if the normal meta doesn't exist maybe it's compacted.
-	if err == backend.ErrMetaDoesNotExist {
-		blockMeta = nil
-		compactedBlockMeta, err = rw.c.CompactedBlockMeta(blockID, tenantID)
-	}
-
-	// blocks in intermediate states may not have a compacted or normal block meta.
-	//   this is not necessarily an error, just bail out
-	if err == backend.ErrMetaDoesNotExist {
-		return nil, nil
-	}
+	blocklist, compactedBlocklist, err := rw.blocklistPoller.Poll()
 
 	if err != nil {
-		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-		level.Error(rw.logger).Log("msg", "failed to retrieve block meta", "tenantID", tenantID, "blockID", blockID, "err", err)
-		return nil, nil
+		level.Error(rw.logger).Log("msg", "failed to poll blocklist. using previously polled lists", "err", err)
+		return
 	}
 
-	return blockMeta, compactedBlockMeta
+	rw.blockListsMtx.Lock()
+	defer rw.blockListsMtx.Unlock()
+
+	rw.blockLists = blocklist
+	rw.compactedBlockLists = compactedBlocklist
 }
 
 func (rw *readerWriter) blocklistTenants() []interface{} {
@@ -524,29 +427,6 @@ func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.Compacted
 	copiedBlocklist = append(copiedBlocklist, rw.compactedBlockLists[tenantID]...)
 
 	return copiedBlocklist
-}
-
-func (rw *readerWriter) cleanMissingTenants(tenants []string) {
-	tenantSet := make(map[string]struct{})
-	for _, tenantID := range tenants {
-		tenantSet[tenantID] = struct{}{}
-	}
-
-	rw.blockListsMtx.Lock()
-	for tenantID := range rw.blockLists {
-		if _, present := tenantSet[tenantID]; !present {
-			delete(rw.blockLists, tenantID)
-			level.Info(rw.logger).Log("msg", "deleted in-memory blocklists", "tenantID", tenantID)
-		}
-	}
-
-	for tenantID := range rw.compactedBlockLists {
-		if _, present := tenantSet[tenantID]; !present {
-			delete(rw.compactedBlockLists, tenantID)
-			level.Info(rw.logger).Log("msg", "deleted in-memory compacted blocklists", "tenantID", tenantID)
-		}
-	}
-	rw.blockListsMtx.Unlock()
 }
 
 // updateBlocklist Add and remove regular or compacted blocks from the in-memory blocklist.
