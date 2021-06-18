@@ -52,6 +52,10 @@
     },
   },
 
+  tempo_distributor_config:: $.tempo_config{},
+
+  tempo_ingester_config:: $.tempo_config{},
+
   tempo_compactor_config:: $.tempo_config {
     compactor: {
       compaction: {
@@ -93,10 +97,23 @@
     }
   },
 
-  tempo_configmap:
-    configMap.new('tempo') +
+  tempo_query_frontend_config:: $.tempo_config{},
+
+  tempo_distributor_configmap:
+    configMap.new('tempo-distributor') +
     configMap.withData({
-      'tempo.yaml': $.util.manifestYaml($.tempo_config),
+      'tempo.yaml': $.util.manifestYaml($.tempo_distributor_config),
+    }) +
+    configMap.withDataMixin({
+      'overrides.yaml': $.util.manifestYaml({
+        overrides: $._config.overrides,
+      }),
+    }),
+
+  tempo_ingester_configmap:
+    configMap.new('tempo-ingester') +
+    configMap.withData({
+      'tempo.yaml': $.util.manifestYaml($.tempo_ingester_config),
     }) +
     configMap.withDataMixin({
       'overrides.yaml': $.util.manifestYaml({
@@ -114,8 +131,6 @@
         overrides: $._config.overrides,
       }),
     }),
-
-  tempo_query_frontend_config:: $.tempo_config{},
 
   tempo_querier_configmap:
     configMap.new('tempo-querier') +

@@ -4,6 +4,7 @@
 * [ENHANCEMENT] Performance: improve compaction speed with concurrent reads and writes [#754](https://github.com/grafana/tempo/pull/754) (@mdisibio)
 * [ENHANCEMENT] Improve readability of cpu and memory metrics on operational dashboard [#764](https://github.com/grafana/tempo/pull/764) (@bboreham)
 * [ENHANCEMENT] Add `azure_request_duration_seconds` metric. [#767](https://github.com/grafana/tempo/pull/767) (@JosephWoodward)
+* [ENHANCEMENT] Jsonnet: split up config map used by distributor and ingester. [#...] (@kvrhdn) 
 
 ## v1.0.1
 
