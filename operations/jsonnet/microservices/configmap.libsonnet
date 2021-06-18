@@ -36,7 +36,7 @@
         cache: 'memcached',
         memcached: {
           consistent_hash: true,
-          timeout: '500ms',
+          timeout: '200ms',
           host: 'memcached',
           service: 'memcached-client',
         },
@@ -80,9 +80,6 @@
         blocklist_poll: '5m',
         pool+: {
           max_workers: 200,
-        },
-        memcached+: {
-          timeout: '1s',
         },
       },
     },
