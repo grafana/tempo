@@ -394,22 +394,23 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		}),
 	})
 
-	transport, err := minio.DefaultTransport(!cfg.Insecure)
+	customTransport, err := minio.DefaultTransport(!cfg.Insecure)
 	if err != nil {
 		return nil, errors.Wrap(err, "create minio.DefaultTransport")
 	}
 
-	var roundtripper http.RoundTripper
-	roundtripper = transport
+	// add instrumentation
+	transport := newInstrumentedTransport(customTransport)
+
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		roundtripper = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, uptoHedgedRequests, roundtripper)
+		transport = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
 	}
 
 	opts := &minio.Options{
 		Region:    cfg.Region,
 		Secure:    !cfg.Insecure,
 		Creds:     creds,
-		Transport: roundtripper,
+		Transport: transport,
 	}
 
 	if cfg.ForcePathStyle {
