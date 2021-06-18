@@ -5,9 +5,7 @@
     server: {
       http_listen_port: $._config.port,
     },
-    distributor: {
-      receivers: $._config.distributor.receivers,
-    },
+    distributor: null,
     ingester: {
       lifecycler: {
         ring: {
@@ -52,7 +50,11 @@
     },
   },
 
-  tempo_distributor_config:: $.tempo_config{},
+  tempo_distributor_config:: $.tempo_config {
+    distributor: {
+      receivers: $._config.distributor.receivers,
+    },
+  },
 
   tempo_ingester_config:: $.tempo_config{},
 
