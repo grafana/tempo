@@ -3,7 +3,7 @@
     tempo: 'grafana/tempo:latest',
     tempo_query: 'grafana/tempo-query:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',
-    memcached: 'memcached:1.5.17-alpine',
+    memcached: 'memcached:1.6.9-alpine',
     memcachedExporter: 'prom/memcached-exporter:v0.6.0',
   },
 
