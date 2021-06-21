@@ -5,7 +5,7 @@
     server: {
       http_listen_port: $._config.port,
     },
-    distributor: null,
+    distributor: {},
     ingester: {
       lifecycler: {
         ring: {
@@ -13,7 +13,7 @@
         },
       },
     },
-    compactor: null,
+    compactor: {},
     storage: {
       trace: {
         blocklist_poll: '0',
