@@ -105,13 +105,14 @@ Make sure to run
 ```
 make lint
 ```
+
 before submitting your PR to catch any linting errors. Linting can be fixed using
 
 ```
 make fmt
 ```
 
-However, do note that the above command requires the `gofmt` and `goimports` binaries accessible via `PATH`.
+However, do note that the above command requires the `gofmt` and `goimports` binaries accessible via `$PATH`.
 
 ## Documentation
 
