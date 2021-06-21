@@ -3,14 +3,17 @@ data:
   overrides.yaml: |
     overrides: {}
   tempo.yaml: |
-    compactor:
-        compaction:
-            block_retention: 144h
-            chunk_size_bytes: 1.048576e+07
-        ring:
-            kvstore:
-                store: memberlist
-    distributor: null
+    compactor: null
+    distributor:
+        receivers:
+            jaeger:
+                protocols:
+                    grpc:
+                        endpoint: 0.0.0.0:14250
+            otlp:
+                protocols:
+                    grpc:
+                        endpoint: 0.0.0.0:55680
     ingester:
         lifecycler:
             ring:
@@ -27,7 +30,7 @@ data:
     storage:
         trace:
             backend: gcs
-            blocklist_poll: 10m
+            blocklist_poll: "0"
             cache: memcached
             gcs:
                 bucket_name: tempo
@@ -45,5 +48,5 @@ data:
                 path: /var/tempo/wal
 kind: ConfigMap
 metadata:
-  name: tempo-compactor
+  name: tempo-distributor
   namespace: tracing
