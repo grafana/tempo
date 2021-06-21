@@ -36,6 +36,12 @@ var (
 		Help:      "Records the amount of time to flush a complete block.",
 		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
 	})
+	metricFlushSize = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "ingester_flush_size_bytes",
+		Help:      "Size in bytes of blocks flushed.",
+		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
+	})
 )
 
 const (
@@ -275,6 +281,7 @@ func (i *Ingester) handleFlush(userID string, blockID uuid.UUID) (retry bool, er
 		start := time.Now()
 		err = i.store.WriteBlock(ctx, block)
 		metricFlushDuration.Observe(time.Since(start).Seconds())
+		metricFlushSize.Observe(float64(block.BlockMeta().Size))
 		if err != nil {
 			return true, err
 		}
