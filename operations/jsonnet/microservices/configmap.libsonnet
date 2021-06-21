@@ -51,7 +51,7 @@
   },
 
   tempo_distributor_config:: $.tempo_config {
-    distributor: {
+    distributor+: {
       receivers: $._config.distributor.receivers,
     },
   },
@@ -59,13 +59,13 @@
   tempo_ingester_config:: $.tempo_config{},
 
   tempo_compactor_config:: $.tempo_config {
-    compactor: {
-      compaction: {
+    compactor+: {
+      compaction+: {
         chunk_size_bytes: 10485760,
         block_retention: '144h',
       },
-      ring: {
-        kvstore: {
+      ring+: {
+        kvstore+: {
           store: 'memberlist',
         },
       },
