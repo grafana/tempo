@@ -2,16 +2,7 @@ apiVersion: v1
 data:
   tempo.yaml: |
     compactor: null
-    distributor:
-        receivers:
-            jaeger:
-                protocols:
-                    grpc:
-                        endpoint: 0.0.0.0:14250
-            otlp:
-                protocols:
-                    grpc:
-                        endpoint: 0.0.0.0:55680
+    distributor: null
     ingester:
         lifecycler:
             ring:

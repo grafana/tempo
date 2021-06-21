@@ -48,5 +48,5 @@ spec:
       terminationGracePeriodSeconds: 60
       volumes:
       - configMap:
-          name: tempo
+          name: tempo-distributor
         name: tempo-conf

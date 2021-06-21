@@ -25,7 +25,7 @@ spec:
       - args:
         - -m 1024
         - -I 5m
-        - -c 1024
+        - -c 4096
         - -v
         image: memcached:1.5.17-alpine
         imagePullPolicy: IfNotPresent
@@ -50,3 +50,4 @@ spec:
           name: http-metrics
   updateStrategy:
     type: RollingUpdate
+  volumeClaimTemplates: []
