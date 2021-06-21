@@ -10,4 +10,5 @@ Resources for deploying and running Tempo:
 - [Deployment](deployment)
 - [Monitoring](monitoring)
 - [Ingester PVCs](ingester_pvcs)
+- [Caching](caching)
 - [Tempo CLI](tempo_cli)
