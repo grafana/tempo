@@ -15,8 +15,4 @@
             base_path: '/',
         }
     },
-
-    tempo_container+::
-        $.util.resourcesRequests('3', '3Gi') +
-        $.util.resourcesLimits('5', '5Gi')
 }
