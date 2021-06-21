@@ -5,8 +5,9 @@ weight: 6
 
 # Caching
 
-Caching is used by the queriers and compactors.
-Tempo can use an external cache to improve query performance.
+Caching is mainly used to improve query performance by storing bloom filters of all backend blocks which are accessed on every query.
+
+Tempo uses an external cache to improve query performance.
 The supported implementations are [Memcached](https://memcached.org/) and [Redis](https://redis.io/). 
 
 ### Memcached
