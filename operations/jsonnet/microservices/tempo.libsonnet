@@ -1,4 +1,3 @@
-(import 'ksonnet-util/kausal.libsonnet') +
 (import 'common.libsonnet') +
 (import 'configmap.libsonnet') +
 (import 'config.libsonnet') +
@@ -10,6 +9,7 @@
 (import 'vulture.libsonnet') +
 (import 'memcached.libsonnet') +
 {
+  local k = import 'ksonnet-util/kausal.libsonnet',
   namespace:
-    $.core.v1.namespace.new($._config.namespace),
+    k.core.v1.namespace.new($._config.namespace),
 }

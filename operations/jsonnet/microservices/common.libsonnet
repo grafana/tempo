@@ -1,6 +1,7 @@
 {
   util+:: {
-    local container = $.core.v1.container,
+    local k = import 'ksonnet-util/kausal.libsonnet',
+    local container = k.core.v1.container,
 
     readinessProbe::
       container.mixin.readinessProbe.httpGet.withPath('/ready') +

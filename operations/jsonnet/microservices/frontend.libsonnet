@@ -1,11 +1,12 @@
 {
-  local container = $.core.v1.container,
-  local containerPort = $.core.v1.containerPort,
-  local volumeMount = $.core.v1.volumeMount,
-  local deployment = $.apps.v1.deployment,
-  local volume = $.core.v1.volume,
-  local service = $.core.v1.service,
-  local servicePort = $.core.v1.servicePort,
+  local k = import 'ksonnet-util/kausal.libsonnet',
+  local container = k.core.v1.container,
+  local containerPort = k.core.v1.containerPort,
+  local volumeMount = k.core.v1.volumeMount,
+  local deployment = k.apps.v1.deployment,
+  local volume = k.core.v1.volume,
+  local service = k.core.v1.service,
+  local servicePort = k.core.v1.servicePort,
 
   local target_name = 'query-frontend',
   local tempo_config_volume = 'tempo-conf',
@@ -65,7 +66,7 @@
     ]),
 
   tempo_query_frontend_service:
-    $.util.serviceFor($.tempo_query_frontend_deployment)
+    k.util.serviceFor($.tempo_query_frontend_deployment)
     + service.mixin.spec.withPortsMixin([
       servicePort.withName('http')
       + servicePort.withPort(80)
@@ -73,7 +74,7 @@
     ]),
 
   tempo_query_frontend_discovery_service:
-    $.util.serviceFor($.tempo_query_frontend_deployment)
+    k.util.serviceFor($.tempo_query_frontend_deployment)
     + service.mixin.spec.withPortsMixin([
       servicePort.withName('grpc')
       + servicePort.withPort(9095)

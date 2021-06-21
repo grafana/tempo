@@ -1,7 +1,8 @@
 {
-  local container = $.core.v1.container,
-  local containerPort = $.core.v1.containerPort,
-  local deployment = $.apps.v1.deployment,
+  local k = import 'ksonnet-util/kausal.libsonnet',
+  local container = k.core.v1.container,
+  local containerPort = k.core.v1.containerPort,
+  local deployment = k.apps.v1.deployment,
 
   local target_name = 'vulture',
   local port = 8080,
@@ -18,8 +19,8 @@
       '-logtostderr=true',
       '-tempo-org-id=' + $._config.vulture.tempoOrgId,
     ]) +
-    $.util.resourcesRequests('50m', '100Mi') +
-    $.util.resourcesLimits('100m', '500Mi'),
+    k.util.resourcesRequests('50m', '100Mi') +
+    k.util.resourcesLimits('100m', '500Mi'),
 
   tempo_vulture_deployment:
     deployment.new(target_name,

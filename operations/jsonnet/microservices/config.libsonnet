@@ -57,23 +57,25 @@
     },
   },
 
+  // TODO: Move this out of config.libsonnet into their respective libsonnet files
+  local k = import 'ksonnet-util/kausal.libsonnet',
   tempo_compactor_container+::
-    $.util.resourcesRequests('500m', '3Gi') +
-    $.util.resourcesLimits('1', '5Gi'),
+    k.util.resourcesRequests('500m', '3Gi') +
+    k.util.resourcesLimits('1', '5Gi'),
 
   tempo_distributor_container+::
-    $.util.resourcesRequests('3', '3Gi') +
-    $.util.resourcesLimits('5', '5Gi'),
+    k.util.resourcesRequests('3', '3Gi') +
+    k.util.resourcesLimits('5', '5Gi'),
 
   tempo_ingester_container+::
-    $.util.resourcesRequests('3', '3Gi') +
-    $.util.resourcesLimits('5', '5Gi'),
+    k.util.resourcesRequests('3', '3Gi') +
+    k.util.resourcesLimits('5', '5Gi'),
 
   tempo_query_frontend_container+::
-    $.util.resourcesRequests('500m', '1Gi') +
-    $.util.resourcesLimits('1', '2Gi'),
+    k.util.resourcesRequests('500m', '1Gi') +
+    k.util.resourcesLimits('1', '2Gi'),
 
   tempo_querier_container+::
-    $.util.resourcesRequests('500m', '1Gi') +
-    $.util.resourcesLimits('1', '2Gi'),
+    k.util.resourcesRequests('500m', '1Gi') +
+    k.util.resourcesLimits('1', '2Gi'),
 }
