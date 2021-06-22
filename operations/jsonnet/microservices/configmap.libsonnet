@@ -1,5 +1,6 @@
 {
-  local configMap = $.core.v1.configMap,
+  local k = import 'ksonnet-util/kausal.libsonnet',
+  local configMap = k.core.v1.configMap,
 
   tempo_config:: {
     server: {
@@ -101,10 +102,10 @@
   tempo_distributor_configmap:
     configMap.new('tempo-distributor') +
     configMap.withData({
-      'tempo.yaml': $.util.manifestYaml($.tempo_distributor_config),
+      'tempo.yaml': k.util.manifestYaml($.tempo_distributor_config),
     }) +
     configMap.withDataMixin({
-      'overrides.yaml': $.util.manifestYaml({
+      'overrides.yaml': k.util.manifestYaml({
         overrides: $._config.overrides,
       }),
     }),
@@ -112,10 +113,10 @@
   tempo_ingester_configmap:
     configMap.new('tempo-ingester') +
     configMap.withData({
-      'tempo.yaml': $.util.manifestYaml($.tempo_ingester_config),
+      'tempo.yaml': k.util.manifestYaml($.tempo_ingester_config),
     }) +
     configMap.withDataMixin({
-      'overrides.yaml': $.util.manifestYaml({
+      'overrides.yaml': k.util.manifestYaml({
         overrides: $._config.overrides,
       }),
     }),
@@ -123,10 +124,10 @@
   tempo_compactor_configmap:
     configMap.new('tempo-compactor') +
     configMap.withData({
-      'tempo.yaml': $.util.manifestYaml($.tempo_compactor_config),
+      'tempo.yaml': k.util.manifestYaml($.tempo_compactor_config),
     }) +
     configMap.withDataMixin({
-      'overrides.yaml': $.util.manifestYaml({
+      'overrides.yaml': k.util.manifestYaml({
         overrides: $._config.overrides,
       }),
     }),

@@ -7,7 +7,8 @@ memcached {
 
     deployment: {},
 
-    local statefulSet = $.apps.v1.statefulSet,
+    local k = import 'ksonnet-util/kausal.libsonnet',
+    local statefulSet = k.apps.v1.statefulSet,
 
     statefulSet:
       statefulSet.new(self.name, $._config.memcached.replicas, [
@@ -15,12 +16,12 @@ memcached {
         self.memcached_exporter,
       ], []) +
       statefulSet.mixin.spec.withServiceName(self.name) +
-      $.util.antiAffinityStatefulSet,
+      k.util.antiAffinityStatefulSet,
 
-    local service = $.core.v1.service,
+    local service = k.core.v1.service,
 
     service:
-      $.util.serviceFor(self.statefulSet) +
+      k.util.serviceFor(self.statefulSet) +
       service.mixin.spec.withClusterIp('None'),
   },
 

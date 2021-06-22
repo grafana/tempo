@@ -1,12 +1,13 @@
 {
-  local container = $.core.v1.container,
-  local containerPort = $.core.v1.containerPort,
-  local volumeMount = $.core.v1.volumeMount,
-  local pvc = $.core.v1.persistentVolumeClaim,
-  local statefulset = $.apps.v1.statefulSet,
-  local volume = $.core.v1.volume,
-  local service = $.core.v1.service,
-  local servicePort = $.core.v1.servicePort,
+  local k = import 'ksonnet-util/kausal.libsonnet',
+  local container = k.core.v1.container,
+  local containerPort = k.core.v1.containerPort,
+  local volumeMount = k.core.v1.volumeMount,
+  local pvc = k.core.v1.persistentVolumeClaim,
+  local statefulset = k.apps.v1.statefulSet,
+  local volume = k.core.v1.volume,
+  local service = k.core.v1.service,
+  local servicePort = k.core.v1.servicePort,
 
   local target_name = 'ingester',
   local tempo_config_volume = 'tempo-conf',
@@ -48,7 +49,7 @@
         [$._config.gossip_member_label]: 'true',
       },
     )
-    + $.util.antiAffinityStatefulSet
+    + k.util.antiAffinityStatefulSet
     + statefulset.mixin.spec.withServiceName(target_name)
     + statefulset.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_ingester_configmap.data['tempo.yaml'])),
@@ -58,7 +59,7 @@
     ]),
 
   tempo_ingester_service:
-    $.util.serviceFor($.tempo_ingester_statefulset),
+    k.util.serviceFor($.tempo_ingester_statefulset),
 
   gossip_ring_service:
     service.new(
