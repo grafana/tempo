@@ -26,9 +26,9 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/polling"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/opentracing/opentracing-go"
@@ -107,9 +107,9 @@ type readerWriter struct {
 	cfg    *Config
 
 	blockListsMtx       sync.Mutex
-	blockLists          map[string][]*backend.BlockMeta
-	compactedBlockLists map[string][]*backend.CompactedBlockMeta
-	blocklistPoller     *polling.BlocklistPoller
+	blockLists          blocklist.PerTenant
+	compactedBlockLists blocklist.PerTenantCompacted
+	blocklistPoller     *blocklist.Poller
 
 	compactorCfg          *CompactorConfig
 	compactorSharder      CompactorSharder
@@ -172,9 +172,9 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		cfg:                 cfg,
 		logger:              logger,
 		pool:                pool.NewPool(cfg.Pool),
-		blockLists:          make(map[string][]*backend.BlockMeta),
-		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
-		blocklistPoller:     polling.NewBlocklistPoller(cfg.BlocklistPollConcurrency, r, c),
+		blockLists:          make(blocklist.PerTenant),
+		compactedBlockLists: make(blocklist.PerTenantCompacted),
+		blocklistPoller:     blocklist.NewPoller(cfg.BlocklistPollConcurrency, r, c),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -375,7 +375,7 @@ func (rw *readerWriter) maintenanceLoop() {
 }
 
 func (rw *readerWriter) pollBlocklist() {
-	blocklist, compactedBlocklist, err := rw.blocklistPoller.Poll()
+	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do()
 
 	if err != nil {
 		level.Error(rw.logger).Log("msg", "failed to poll blocklist. using previously polled lists", "err", err)
