@@ -1,5 +1,6 @@
 {
-  local configMap = $.core.v1.configMap,
+  local k = import 'ksonnet-util/kausal.libsonnet',
+  local configMap = k.core.v1.configMap,
 
   tempo_config:: {
     server: {
@@ -31,7 +32,7 @@
   tempo_configmap:
     configMap.new('tempo') +
     configMap.withData({
-      'tempo.yaml': $.util.manifestYaml($.tempo_config),
+      'tempo.yaml': k.util.manifestYaml($.tempo_config),
     }) +
     configMap.withDataMixin({
       'overrides.yaml': |||
@@ -42,7 +43,7 @@
   tempo_query_configmap:
     configMap.new('tempo-query') +
     configMap.withData({
-      'tempo-query.yaml': $.util.manifestYaml({
+      'tempo-query.yaml': k.util.manifestYaml({
         backend: 'localhost:%d' % $._config.port
       })
     }),
