@@ -20,14 +20,15 @@ grafana + load + tempo {
         }
     },
 
-    local container = $.core.v1.container,
-    local containerPort = $.core.v1.containerPort,
+    local k = import 'ksonnet-util/kausal.libsonnet',
+    local container = k.core.v1.container,
+    local containerPort = k.core.v1.containerPort,
     tempo_container+::
         container.withPortsMixin([
             containerPort.new('jaeger-http', 14268),
         ]),
 
-    local ingress = $.networking.v1beta1.ingress,
+    local ingress = k.networking.v1beta1.ingress,
     ingress:
         ingress.new() +
         ingress.mixin.metadata
