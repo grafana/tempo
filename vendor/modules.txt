@@ -247,7 +247,7 @@ github.com/cortexproject/cortex/pkg/util/services
 github.com/cortexproject/cortex/pkg/util/spanlogger
 github.com/cortexproject/cortex/pkg/util/tls
 github.com/cortexproject/cortex/pkg/util/validation
-# github.com/cristalhq/hedgedhttp v0.4.0
+# github.com/cristalhq/hedgedhttp v0.6.0
 ## explicit
 github.com/cristalhq/hedgedhttp
 # github.com/davecgh/go-spew v1.1.1

@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Added hedged request metric `backend_hedged_roundtrips_total` and general purpose `backend_request_duration_seconds` metric that will supersede soon to be deprecated storage specific metrics (eg `request_duration_seconds`). [#790](https://github.com/grafana/tempo/pull/790) (@JosephWoodward)
 * [CHANGE] Jsonnet: use dedicated configmaps for distributors and ingesters [#775](https://github.com/grafana/tempo/pull/775) (@kvrhdn)
 * [FEATURE] Added the ability to hedge requests with all backends [#750](https://github.com/grafana/tempo/pull/750) (@joe-elliott)
 * [ENHANCEMENT] Performance: improve compaction speed with concurrent reads and writes [#754](https://github.com/grafana/tempo/pull/754) (@mdisibio)

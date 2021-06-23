@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/backend/instrumentation"
+
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
 	"github.com/google/uuid"
@@ -319,11 +321,13 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 	}
 
 	// add instrumentation
-	transport = newInstrumentedTransport(transport)
+	transport = instrumentation.NewGCSTransport(transport)
+	var stats *hedgedhttp.Stats
 
 	// hedge if desired (0 means disabled)
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		transport = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+		instrumentation.PublishHedgedMetrics(stats)
 	}
 
 	// build client

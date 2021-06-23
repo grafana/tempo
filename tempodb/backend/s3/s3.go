@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/grafana/tempo/tempodb/backend/instrumentation"
+
 	log_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cristalhq/hedgedhttp"
 	"github.com/go-kit/kit/log"
@@ -400,10 +402,12 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	}
 
 	// add instrumentation
-	transport := newInstrumentedTransport(customTransport)
+	transport := instrumentation.NewS3Transport(customTransport)
+	var stats *hedgedhttp.Stats
 
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		transport = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+		instrumentation.PublishHedgedMetrics(stats)
 	}
 
 	opts := &minio.Options{

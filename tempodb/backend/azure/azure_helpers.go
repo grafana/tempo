@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/backend/instrumentation"
+
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/cristalhq/hedgedhttp"
@@ -35,11 +37,13 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 
 	// add instrumentation
-	transport := newInstrumentedTransport(customTransport)
+	transport := instrumentation.NewAzureTransport(customTransport)
+	var stats *hedgedhttp.Stats
 
 	// hedge if desired (0 means disabled)
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		transport = hedgedhttp.NewRoundTripper(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+		instrumentation.PublishHedgedMetrics(stats)
 	}
 
 	client := http.Client{Transport: transport}
