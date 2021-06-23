@@ -239,7 +239,7 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 	return &util.MockCompactor{
 		BlockMetaFn: func(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 			if expectsError {
-				return nil, errors.New("!!")
+				return nil, errors.New("err")
 			}
 
 			l, ok := list[tenantID]
@@ -271,7 +271,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 		T: tenants,
 		BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 			if expectsError {
-				return nil, errors.New("!!")
+				return nil, errors.New("err")
 			}
 			blocks := list[tenantID]
 			uuids := []uuid.UUID{}
@@ -287,7 +287,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 		},
 		BlockMetaFn: func(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 			if expectsError {
-				return nil, errors.New("!!")
+				return nil, errors.New("err")
 			}
 
 			l, ok := list[tenantID]
