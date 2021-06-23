@@ -247,7 +247,9 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, traces, keys, ids)
+	headers := d.extractTraceHeaders(traces)
+
+	err = d.sendToIngestersViaBytes(ctx, userID, traces, headers, keys, ids)
 	if err != nil {
 		recordDiscaredSpans(err, userID, spanCount)
 	}
@@ -255,7 +257,35 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, keys []uint32, ids [][]byte) error {
+func (d *Distributor) extractTraceHeaders(traces []*tempopb.Trace) []*tempopb.TraceHeader {
+	headers := make([]*tempopb.TraceHeader, len(traces))
+
+	for i, t := range traces {
+		headers[i] = d.extractTraceHeader(t)
+	}
+
+	return headers
+}
+
+func (d *Distributor) extractTraceHeader(trace *tempopb.Trace) *tempopb.TraceHeader {
+
+	header := &tempopb.TraceHeader{}
+
+	for _, b := range trace.Batches {
+		for _, ils := range b.InstrumentationLibrarySpans {
+			for _, s := range ils.Spans {
+				if len(s.ParentSpanId) == 0 {
+					// Root span
+					header.RootSpanName = s.Name
+				}
+			}
+		}
+	}
+
+	return header
+}
+
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, headers []*tempopb.TraceHeader, keys []uint32, ids [][]byte) error {
 	// Marshal to bytes once
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
@@ -277,13 +307,15 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := tempopb.PushBytesRequest{
-			Traces: make([]tempopb.PreallocBytes, len(indexes)),
-			Ids:    make([]tempopb.PreallocBytes, len(indexes)),
+			Traces:  make([]tempopb.PreallocBytes, len(indexes)),
+			Ids:     make([]tempopb.PreallocBytes, len(indexes)),
+			Headers: make([]tempopb.TraceHeader, len(indexes)),
 		}
 
 		for i, j := range indexes {
 			req.Traces[i].Slice = marshalledTraces[j][0:]
 			req.Ids[i].Slice = ids[j]
+			req.Headers[i] = *headers[j]
 		}
 
 		c, err := d.pool.GetClientFor(ingester.Addr)

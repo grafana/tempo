@@ -158,6 +158,12 @@ func (t *App) initQuerier() (services.Service, error) {
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 
 	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathTraces)), tracesHandler)
+
+	searchHandler := middleware.Merge(
+		t.httpAuthMiddleware,
+	).Wrap(http.HandlerFunc(t.querier.SearchHandler))
+	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, "/api/search")), searchHandler)
+
 	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTPServer.Handler)
 }
 

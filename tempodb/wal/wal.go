@@ -129,6 +129,10 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*App
 	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding)
 }
 
+func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, name string) (*os.File, error) {
+	return os.OpenFile(filepath.Join(w.c.Filepath, fmt.Sprintf("%v:%v-%v", blockid, tenantid, name)), os.O_CREATE|os.O_RDWR, 0644)
+}
+
 func (w *WAL) LocalBackend() *local.Backend {
 	return w.l
 }

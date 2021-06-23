@@ -16,6 +16,8 @@ type trace struct {
 	traceID      []byte
 	maxBytes     int
 	currentBytes int
+
+	header tempopb.TraceHeader
 }
 
 func newTrace(maxBytes int, traceID []byte) *trace {
@@ -29,7 +31,7 @@ func newTrace(maxBytes int, traceID []byte) *trace {
 	}
 }
 
-func (t *trace) Push(_ context.Context, trace []byte) error {
+func (t *trace) Push(_ context.Context, trace []byte, header *tempopb.TraceHeader) error {
 	t.lastAppend = time.Now()
 	if t.maxBytes != 0 {
 		reqSize := len(trace)
@@ -42,5 +44,27 @@ func (t *trace) Push(_ context.Context, trace []byte) error {
 
 	t.traceBytes.Traces = append(t.traceBytes.Traces, trace)
 
+	// Merge new header data
+	if header != nil {
+		if header.RootSpanName != "" {
+			t.header.RootSpanName = header.RootSpanName
+		}
+	}
+
 	return nil
 }
+
+/*func (t *trace) pushHeader(trace []byte) {
+	// Unmarshal data so we can process it
+	x := &tempopb.Trace{}
+	proto.Unmarshal(trace, x)
+
+	for _, b := range x.Batches {
+		for _, i := range b.InstrumentationLibrarySpans {
+			for _, s := range i.Spans {
+
+			}
+		}
+	}
+}
+*/

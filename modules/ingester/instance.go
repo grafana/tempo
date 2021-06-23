@@ -66,6 +66,8 @@ type instance struct {
 	completingBlocks []*wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
+	headBlockSearch *searchData
+
 	lastBlockCut time.Time
 
 	instanceID         string
@@ -129,11 +131,11 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	}
 
 	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, buffer)
+	return trace.Push(ctx, buffer, nil)
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
-func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, header *tempopb.TraceHeader) error {
 	if !validation.ValidTraceID(id) {
 		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
 	}
@@ -148,7 +150,7 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) 
 	defer i.tracesMtx.Unlock()
 
 	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, traceBytes)
+	return trace.Push(ctx, traceBytes, header)
 }
 
 // Moves any complete traces out of the map to complete traces
@@ -172,6 +174,11 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		// return trace byte slices to be reused by proto marshalling
 		//  WARNING: can't reuse traceid's b/c the appender takes ownership of byte slices that are passed to it
 		tempopb.ReuseTraceBytes(t.traceBytes)
+
+		err = i.headBlockSearch.Append(context.TODO(), t.traceID, &t.header)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -403,7 +410,13 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 func (i *instance) resetHeadBlock() error {
 	var err error
 	i.headBlock, err = i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
+	if err != nil {
+		return err
+	}
+
 	i.lastBlockCut = time.Now()
+
+	i.headBlockSearch, err = NewSearchDataForAppendBlock(i, i.headBlock)
 	return err
 }
 
@@ -490,4 +503,11 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]common.ID, error) {
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
+	return i.headBlockSearch.Search(ctx, req)
 }

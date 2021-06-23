@@ -54,6 +54,11 @@ type responseFromIngesters struct {
 	response *tempopb.TraceByIDResponse
 }
 
+type searchResponseFromIngester struct {
+	addr     string
+	response *tempopb.SearchResponse
+}
+
 // New makes a new Querier.
 func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *overrides.Overrides) (*Querier, error) {
 	factory := func(addr string) (ring_client.PoolClient, error) {
@@ -242,6 +247,59 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 	responses := make([]responseFromIngesters, 0, len(results))
 	for _, result := range results {
 		responses = append(responses, result.(responseFromIngesters))
+	}
+
+	return responses, err
+}
+
+func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	//userID, err := user.ExtractOrgID(ctx)
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
+	//}
+
+	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
+	}
+
+	responses, err := q.searchGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (*tempopb.SearchResponse, error) {
+		return client.Search(ctx, req)
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.FindTraceByID")
+	}
+
+	response := &tempopb.SearchResponse{}
+
+	for _, r := range responses {
+		response.Ids = append(response.Ids, r.response.Ids...)
+	}
+
+	return response, nil
+}
+
+func (q *Querier) searchGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (*tempopb.SearchResponse, error)) ([]searchResponseFromIngester, error) {
+	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
+		client, err := q.pool.GetClientFor(ingester.Addr)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := f(client.(tempopb.QuerierClient))
+		if err != nil {
+			return nil, err
+		}
+
+		return searchResponseFromIngester{ingester.Addr, resp}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]searchResponseFromIngester, 0, len(results))
+	for _, result := range results {
+		responses = append(responses, result.(searchResponseFromIngester))
 	}
 
 	return responses, err

@@ -111,7 +111,7 @@ func TestInstanceFind(t *testing.T) {
 		traceBytes, err := trace.Marshal()
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), id, traceBytes)
+		err = i.PushBytes(context.Background(), id, traceBytes, nil)
 		require.NoError(t, err)
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
@@ -129,7 +129,7 @@ func TestInstanceFind(t *testing.T) {
 		traceBytes, err := traces[j].Marshal()
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), ids[j], traceBytes)
+		err = i.PushBytes(context.Background(), ids[j], traceBytes, nil)
 		require.NoError(t, err)
 	}
 

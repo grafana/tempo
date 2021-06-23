@@ -12,6 +12,7 @@ service Pusher {
 
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
+  rpc Search(SearchRequest) returns (SearchResponse) {};
 }
 
 // Read
@@ -24,6 +25,14 @@ message TraceByIDRequest {
 
 message TraceByIDResponse {
   Trace trace = 1;
+}
+
+message SearchRequest {
+  string rootSpanName = 1;
+}
+
+message SearchResponse {
+  repeated bytes ids = 1;
 }
 
 message Trace {
@@ -46,6 +55,13 @@ message PushBytesRequest {
   repeated bytes traces = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
   // trace ids. length must match traces
   repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+
+  repeated TraceHeader headers = 4 [(gogoproto.nullable) = false];
+}
+
+message TraceHeader {
+  string rootSpanName = 1;
+  map<string, string> rootSpanTags = 2; 
 }
 
 message TraceBytes {

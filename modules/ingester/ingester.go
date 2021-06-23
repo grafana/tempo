@@ -216,7 +216,7 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 
 	// Unmarshal and push each trace
 	for i := range req.Traces {
-		err := instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice)
+		err := instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice, &req.Headers[i])
 		if err != nil {
 			return nil, err
 		}
@@ -380,4 +380,30 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 	}
 
 	return nil
+}
+
+func (i *Ingester) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		return &tempopb.SearchResponse{}, nil
+	}
+
+	ids, err := inst.Search(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &tempopb.SearchResponse{
+		Ids: make([][]byte, len(ids)),
+	}
+
+	for i := range ids {
+		resp.Ids[i] = ids[i]
+	}
+
+	return resp, nil
 }
