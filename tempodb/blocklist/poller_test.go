@@ -58,6 +58,76 @@ func TestDo(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{},
 			},
 		},
+		{
+			name: "compacted block meta",
+			compactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+			},
+			expectedList: PerTenant{
+				"test": []*backend.BlockMeta{},
+			},
+			expectedCompactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "all",
+			list: PerTenant{
+				"test2": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					},
+				},
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+			compactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+			},
+			expectedList: PerTenant{
+				"test2": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					},
+				},
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+			expectedCompactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+				"test2": []*backend.CompactedBlockMeta{},
+			},
+		},
 	}
 
 	for _, tc := range tests {
