@@ -8,22 +8,33 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+// MockReader
 type MockReader struct {
-	T      []string
-	B      []uuid.UUID        // blocks
-	M      *backend.BlockMeta // meta
-	R      []byte             // read
-	Range  []byte             // ReadRange
-	ReadFn func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
+	T           []string
+	B           []uuid.UUID // blocks
+	BlockFn     func(ctx context.Context, tenantID string) ([]uuid.UUID, error)
+	M           *backend.BlockMeta // meta
+	BlockMetaFn func(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error)
+	R           []byte // read
+	Range       []byte // ReadRange
+	ReadFn      func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
 }
 
 func (m *MockReader) Tenants(ctx context.Context) ([]string, error) {
 	return m.T, nil
 }
 func (m *MockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
+	if m.BlockFn != nil {
+		return m.BlockFn(ctx, tenantID)
+	}
+
 	return m.B, nil
 }
 func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
+	if m.BlockMetaFn != nil {
+		return m.BlockMetaFn(ctx, blockID, tenantID)
+	}
+
 	return m.M, nil
 }
 func (m *MockReader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
@@ -45,6 +56,7 @@ func (m *MockReader) ReadRange(ctx context.Context, name string, blockID uuid.UU
 }
 func (m *MockReader) Shutdown() {}
 
+// MockWriter
 type MockWriter struct {
 }
 
@@ -62,4 +74,21 @@ func (m *MockWriter) Append(ctx context.Context, name string, blockID uuid.UUID,
 }
 func (m *MockWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
 	return nil
+}
+
+// MockCompactor
+type MockCompactor struct {
+	BlockMetaFn func(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error)
+}
+
+func (c *MockCompactor) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+	return nil
+}
+
+func (c *MockCompactor) ClearBlock(blockID uuid.UUID, tenantID string) error {
+	return nil
+}
+
+func (c *MockCompactor) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+	return c.BlockMetaFn(blockID, tenantID)
 }
