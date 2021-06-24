@@ -37,3 +37,8 @@ tempo:
       loki_name: default
       spans: true
 ```
+
+## Example
+
+<p align="center"><img src="../automatic-logging-example-query.png" alt="Automatic logging overview"></p>
+<p align="center"><img src="../automatic-logging-example-results.png" alt="Automatic logging overview"></p>
