@@ -121,7 +121,11 @@ Parameters:
 Note that this API is not meant to be used directly unless for debugging the sharding functionality of the query 
 frontend.
 
-### Query Path Readiness Check
+Returns:
+By default this endpoint returns [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON,
+but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is passed.
+
+### Query Echo Endpoint
 
 ```
 GET /api/echo
