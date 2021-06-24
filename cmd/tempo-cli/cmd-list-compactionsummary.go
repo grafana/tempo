@@ -9,6 +9,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
+	"github.com/bsipos/thist"
 )
 
 type listCompactionSummaryCmd struct {
@@ -54,7 +55,7 @@ func displayCompactionSummary(results []blockStats) {
 
 	sort.Ints(levels)
 
-	columns := []string{"lvl", "blocks", "total", "smallest block", "largest block", "earliest", "latest"}
+	columns := []string{"lvl", "blocks", "total", "smallest block", "largest block", "earliest", "latest", "bloom shard count"}
 
 	out := make([][]string, 0)
 
@@ -65,11 +66,16 @@ func displayCompactionSummary(results []blockStats) {
 		countSum := 0
 		countMin := 0
 		countMax := 0
+		countBloomShards := 0
+		hist := thist.NewHist(nil, "level " + strconv.Itoa(l), "auto", -1, true)
+
 		var newest time.Time
 		var oldest time.Time
 		for _, r := range resultsByLevel[l] {
 			sizeSum += r.Size
 			countSum += r.TotalObjects
+			countBloomShards += int(r.BloomShardCount)
+			hist.Update(float64(r.Size))
 
 			if r.Size < sizeMin || sizeMin == 0 {
 				sizeMin = r.Size
@@ -91,6 +97,8 @@ func displayCompactionSummary(results []blockStats) {
 			}
 		}
 
+		fmt.Println(hist.Draw())
+
 		line := make([]string, 0)
 
 		for _, c := range columns {
@@ -110,6 +118,8 @@ func displayCompactionSummary(results []blockStats) {
 				s = fmt.Sprint(time.Since(oldest).Round(time.Second), " ago")
 			case "latest":
 				s = fmt.Sprint(time.Since(newest).Round(time.Second), " ago")
+			case "bloom shard count":
+				s = fmt.Sprint(countBloomShards)
 			}
 			line = append(line, s)
 		}
