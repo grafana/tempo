@@ -26,6 +26,7 @@
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
     ]) +
+    $.util.withResources($._config.query_frontend.resources) +
     $.util.readinessProbe,
 
   tempo_query_container::
