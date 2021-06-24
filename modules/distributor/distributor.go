@@ -14,6 +14,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/status"
+	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/pkg/errors"
@@ -27,6 +28,7 @@ import (
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
+	tempofb "github.com/grafana/tempo/pkg/tempofb/Tempo"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
@@ -247,7 +249,7 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
-	headers := d.extractTraceHeaders(traces)
+	headers := d.extractSearchDataAll(traces)
 
 	err = d.sendToIngestersViaBytes(ctx, userID, traces, headers, keys, ids)
 	if err != nil {
@@ -257,35 +259,47 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) extractTraceHeaders(traces []*tempopb.Trace) []*tempopb.TraceHeader {
-	headers := make([]*tempopb.TraceHeader, len(traces))
+func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {
+	headers := make([][]byte, len(traces))
 
 	for i, t := range traces {
-		headers[i] = d.extractTraceHeader(t)
+		headers[i] = d.extractSearchData(t)
 	}
 
 	return headers
 }
 
-func (d *Distributor) extractTraceHeader(trace *tempopb.Trace) *tempopb.TraceHeader {
+func (d *Distributor) extractSearchData(t *tempopb.Trace) []byte {
 
-	header := &tempopb.TraceHeader{}
+	//fmt.Printf("Distributor extracting search data from trace %x\n", t.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId)
 
-	for _, b := range trace.Batches {
+	rns := ""
+
+	for _, b := range t.Batches {
 		for _, ils := range b.InstrumentationLibrarySpans {
 			for _, s := range ils.Spans {
+				//fmt.Printf("Distributor looking at span with name %s Parent: %x", s.Name, s.ParentSpanId)
+
 				if len(s.ParentSpanId) == 0 {
 					// Root span
-					header.RootSpanName = s.Name
+					rns = s.Name
+					//fmt.Println("Distributor extraced root span name", rns)
 				}
 			}
 		}
 	}
 
-	return header
+	b := flatbuffers.NewBuilder(1024)
+
+	rnsB := b.CreateString(rns)
+
+	tempofb.TraceHeaderStart(b)
+	tempofb.TraceHeaderAddRootSpanName(b, rnsB)
+	b.Finish(tempofb.TraceHeaderEnd(b))
+	return b.FinishedBytes()
 }
 
-func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, headers []*tempopb.TraceHeader, keys []uint32, ids [][]byte) error {
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, searchData [][]byte, keys []uint32, ids [][]byte) error {
 	// Marshal to bytes once
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
@@ -307,15 +321,15 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := tempopb.PushBytesRequest{
-			Traces:  make([]tempopb.PreallocBytes, len(indexes)),
-			Ids:     make([]tempopb.PreallocBytes, len(indexes)),
-			Headers: make([]tempopb.TraceHeader, len(indexes)),
+			Traces:     make([]tempopb.PreallocBytes, len(indexes)),
+			Ids:        make([]tempopb.PreallocBytes, len(indexes)),
+			SearchData: make([]tempopb.PreallocBytes, len(indexes)),
 		}
 
 		for i, j := range indexes {
 			req.Traces[i].Slice = marshalledTraces[j][0:]
 			req.Ids[i].Slice = ids[j]
-			req.Headers[i] = *headers[j]
+			req.SearchData[i].Slice = searchData[j]
 		}
 
 		c, err := d.pool.GetClientFor(ingester.Addr)

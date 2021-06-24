@@ -22,6 +22,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
+	tempofb "github.com/grafana/tempo/pkg/tempofb/Tempo"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/validation"
@@ -66,7 +67,8 @@ type instance struct {
 	completingBlocks []*wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
-	headBlockSearch *searchData
+	//headBlockSearch *searchData
+	searchAppendBlocks map[*wal.AppendBlock]*searchData
 
 	lastBlockCut time.Time
 
@@ -82,7 +84,8 @@ type instance struct {
 
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
-		traces: map[uint32]*trace{},
+		traces:             map[uint32]*trace{},
+		searchAppendBlocks: map[*wal.AppendBlock]*searchData{},
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -135,7 +138,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
-func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, header *tempopb.TraceHeader) error {
+func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, searchData []byte) error {
 	if !validation.ValidTraceID(id) {
 		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
 	}
@@ -150,7 +153,7 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 	defer i.tracesMtx.Unlock()
 
 	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, traceBytes, header)
+	return trace.Push(ctx, traceBytes, searchData)
 }
 
 // Moves any complete traces out of the map to complete traces
@@ -175,7 +178,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		//  WARNING: can't reuse traceid's b/c the appender takes ownership of byte slices that are passed to it
 		tempopb.ReuseTraceBytes(t.traceBytes)
 
-		err = i.headBlockSearch.Append(context.TODO(), t.traceID, &t.header)
+		err = i.searchAppendBlocks[i.headBlock].Append(context.TODO(), t.traceID, t.searchData)
 		if err != nil {
 			return err
 		}
@@ -261,6 +264,8 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Unlock()
 
 	if completingBlock != nil {
+		delete(i.searchAppendBlocks, completingBlock)
+
 		return completingBlock.Clear()
 	}
 
@@ -416,7 +421,7 @@ func (i *instance) resetHeadBlock() error {
 
 	i.lastBlockCut = time.Now()
 
-	i.headBlockSearch, err = NewSearchDataForAppendBlock(i, i.headBlock)
+	i.searchAppendBlocks[i.headBlock], err = NewSearchDataForAppendBlock(i, i.headBlock)
 	return err
 }
 
@@ -506,8 +511,51 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 }
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]common.ID, error) {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
 
-	return i.headBlockSearch.Search(ctx, req)
+	var results []common.ID
+
+	p := NewSearchPipeline(req)
+
+	// Search live traces
+	func() {
+		i.tracesMtx.Lock()
+		defer i.tracesMtx.Unlock()
+
+		for _, t := range i.traces {
+
+			for _, s := range t.searchData {
+				if p.Matches(tempofb.GetRootAsTraceHeader(s, 0)) {
+					results = append(results, t.traceID)
+					continue
+				}
+			}
+		}
+
+		fmt.Println("Found", len(results), "matches in live traces")
+	}()
+
+	// Search append blocks
+	err := func() error {
+		i.blocksMtx.Lock()
+		defer i.blocksMtx.Unlock()
+
+		for b, s := range i.searchAppendBlocks {
+			headResults, err := s.Search(ctx, p)
+			if err != nil {
+				return err
+			}
+
+			if len(headResults) > 0 {
+				results = append(results, headResults...)
+				fmt.Println("Found", len(headResults), "matches in block", b.BlockID().String())
+			}
+		}
+
+		return nil
+	}()
+	if err != nil {
+		return nil, errors.Wrap(err, "searching head block")
+	}
+
+	return results, err
 }

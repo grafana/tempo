@@ -55,14 +55,14 @@ message PushBytesRequest {
   repeated bytes traces = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
   // trace ids. length must match traces
   repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
-
-  repeated TraceHeader headers = 4 [(gogoproto.nullable) = false];
+  // search data, length must match traces
+  repeated bytes searchData = 4 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
 }
 
-message TraceHeader {
+/*message TraceHeader {
   string rootSpanName = 1;
   map<string, string> rootSpanTags = 2; 
-}
+}*/
 
 message TraceBytes {
   // pre-marshalled Traces

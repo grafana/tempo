@@ -17,7 +17,8 @@ type trace struct {
 	maxBytes     int
 	currentBytes int
 
-	header tempopb.TraceHeader
+	// List of flatbuffers
+	searchData [][]byte
 }
 
 func newTrace(maxBytes int, traceID []byte) *trace {
@@ -31,7 +32,7 @@ func newTrace(maxBytes int, traceID []byte) *trace {
 	}
 }
 
-func (t *trace) Push(_ context.Context, trace []byte, header *tempopb.TraceHeader) error {
+func (t *trace) Push(_ context.Context, trace []byte, searchData []byte) error {
 	t.lastAppend = time.Now()
 	if t.maxBytes != 0 {
 		reqSize := len(trace)
@@ -44,12 +45,7 @@ func (t *trace) Push(_ context.Context, trace []byte, header *tempopb.TraceHeade
 
 	t.traceBytes.Traces = append(t.traceBytes.Traces, trace)
 
-	// Merge new header data
-	if header != nil {
-		if header.RootSpanName != "" {
-			t.header.RootSpanName = header.RootSpanName
-		}
-	}
+	t.searchData = append(t.searchData, searchData)
 
 	return nil
 }
