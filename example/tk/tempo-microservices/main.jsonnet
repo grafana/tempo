@@ -104,7 +104,7 @@ minio + grafana + load + tempo {
         }
     },
 
-    local ingress = $.networking.v1beta1.ingress,
+    local ingress = k.networking.v1beta1.ingress,
     ingress:
         ingress.new() +
         ingress.mixin.metadata
