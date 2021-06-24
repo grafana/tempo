@@ -21,7 +21,7 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 | [Pprof](#pprof) | _All services_ |  HTTP | `GET /debug/pprof` |
 | [Ingest traces](#ingest) | Distributor |  - | See section for details |
 | [Querying traces](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
-| [Query Path Readiness Check](#query-path-readiness-check) | Query-frontend |  HTTP | `GET /api/echo` |
+| [Query Echo Endpoint](#query-path-readiness-check) | Query-frontend |  HTTP | `GET /api/echo` |
 | [Memberlist](#memberlist) | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
 | [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
