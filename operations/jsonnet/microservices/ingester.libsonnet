@@ -36,6 +36,7 @@
       volumeMount.new(tempo_config_volume, '/conf'),
       volumeMount.new(tempo_data_volume, '/var/tempo'),
     ]) +
+    $.util.withResources($._config.ingester.resources) +
     $.util.readinessProbe,
 
   tempo_ingester_statefulset:

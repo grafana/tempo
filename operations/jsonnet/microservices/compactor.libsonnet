@@ -25,6 +25,7 @@
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
     ]) +
+    $.util.withResources($._config.compactor.resources) +
     $.util.readinessProbe,
 
   tempo_compactor_deployment:

@@ -11,21 +11,71 @@
     gossip_member_label: 'tempo-gossip-member',
     compactor: {
       replicas: 1,
+      resources: {
+        requests: {
+          cpu: '500m',
+          memory: '3Gi',
+        },
+        limits: {
+          cpu: '1',
+          memory: '5Gi',
+        },
+      },
     },
     query_frontend: {
       replicas: 1,
+      resources: {
+        requests: {
+          cpu: '500m',
+          memory: '1Gi',
+        },
+        limits: {
+          cpu: '1',
+          memory: '2Gi',
+        },
+      },
     },
     querier: {
       replicas: 2,
+      resources: {
+        requests: {
+          cpu: '500m',
+          memory: '1Gi',
+        },
+        limits: {
+          cpu: '1',
+          memory: '2Gi',
+        },
+      },
     },
     ingester: {
       pvc_size: error 'Must specify an ingester pvc size',
       pvc_storage_class: error 'Must specify an ingester pvc storage class',
       replicas: 3,
+      resources: {
+        requests: {
+          cpu: '3',
+          memory: '3Gi',
+        },
+        limits: {
+          cpu: '5',
+          memory: '5Gi',
+        },
+      },
     },
     distributor: {
       receivers: error 'Must specify receivers',
       replicas: 1,
+      resources: {
+        requests: {
+          cpu: '3',
+          memory: '3Gi',
+        },
+        limits: {
+          cpu: '5',
+          memory: '5Gi',
+        },
+      },
     },
     memcached: {
       replicas: 3,
@@ -56,26 +106,4 @@
       },
     },
   },
-
-  // TODO: Move this out of config.libsonnet into their respective libsonnet files
-  local k = import 'ksonnet-util/kausal.libsonnet',
-  tempo_compactor_container+::
-    k.util.resourcesRequests('500m', '3Gi') +
-    k.util.resourcesLimits('1', '5Gi'),
-
-  tempo_distributor_container+::
-    k.util.resourcesRequests('3', '3Gi') +
-    k.util.resourcesLimits('5', '5Gi'),
-
-  tempo_ingester_container+::
-    k.util.resourcesRequests('3', '3Gi') +
-    k.util.resourcesLimits('5', '5Gi'),
-
-  tempo_query_frontend_container+::
-    k.util.resourcesRequests('500m', '1Gi') +
-    k.util.resourcesLimits('1', '2Gi'),
-
-  tempo_querier_container+::
-    k.util.resourcesRequests('500m', '1Gi') +
-    k.util.resourcesLimits('1', '2Gi'),
 }

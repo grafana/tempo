@@ -24,7 +24,7 @@
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
     ]) +
-    // This depends on common.libsonnet
+    $.util.withResources($._config.querier.resources) +
     $.util.readinessProbe,
 
   tempo_querier_deployment:

@@ -25,6 +25,7 @@
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
     ]) +
+    $.util.withResources($._config.distributor.resources) +
     $.util.readinessProbe,
 
   tempo_distributor_deployment:
