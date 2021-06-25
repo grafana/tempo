@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/util/flagext"
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,40 +58,27 @@ func TestHedge(t *testing.T) {
 
 			// the first call on each client initiates an extra http request
 			// clearing that here
-			_, _ = r.Read(ctx, "object", uuid.New(), "tenant")
+			_, _ = r.Read(ctx, "object", backend.KeyPath{"test"})
 			time.Sleep(tc.returnIn)
 			atomic.StoreInt32(&count, 0)
 
 			// calls that should hedge
-			_, _ = r.Read(ctx, "object", uuid.New(), "tenant")
+			_, _ = r.Read(ctx, "object", backend.KeyPath{"test"})
 			time.Sleep(tc.returnIn)
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			_ = r.ReadRange(ctx, "object", uuid.New(), "tenant", 10, []byte{})
-			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
-			atomic.StoreInt32(&count, 0)
-
-			_, _ = r.BlockMeta(ctx, uuid.New(), "tenant")
+			_ = r.ReadRange(ctx, "object", backend.KeyPath{"test"}, 10, []byte{})
 			time.Sleep(tc.returnIn)
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			// calls that should not hedge
-			_, _ = r.Tenants(ctx)
+			_, _ = r.List(ctx, backend.KeyPath{"test"})
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			_, _ = r.Blocks(ctx, "tenant")
-			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
-			atomic.StoreInt32(&count, 0)
-
-			_ = w.Write(ctx, "object", uuid.New(), "tenant", []byte{})
-			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
-			atomic.StoreInt32(&count, 0)
-
-			_ = w.WriteBlockMeta(ctx, &backend.BlockMeta{})
+			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, []byte{})
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 		})

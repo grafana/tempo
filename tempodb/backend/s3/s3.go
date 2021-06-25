@@ -3,19 +3,17 @@ package s3
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strings"
 
 	log_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cristalhq/hedgedhttp"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/opentracing/opentracing-go"
@@ -96,13 +94,13 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
-	return rw.WriteReader(ctx, name, blockID, tenantID, bytes.NewBuffer(buffer), int64(len(buffer)))
+func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
+	return rw.WriteReader(ctx, name, keypath, bytes.NewBuffer(buffer), int64(len(buffer)))
 }
 
 // WriteReader implements backend.Writer
-func (rw *readerWriter) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
-	objName := util.ObjectFileName(blockID, tenantID, name)
+func (rw *readerWriter) WriteReader(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64) error {
+	objName := backend.ObjectFileName(keypath, name)
 
 	info, err := rw.core.Client.PutObject(
 		ctx,
@@ -120,39 +118,10 @@ func (rw *readerWriter) WriteReader(ctx context.Context, name string, blockID uu
 	return nil
 }
 
-// WriteBlockMeta implements backend.Writer
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
-	options := minio.PutObjectOptions{
-		PartSize: rw.cfg.PartSize,
-	}
-
-	bMeta, err := json.Marshal(meta)
-	if err != nil {
-		return errors.Wrap(err, "error unmarshalling block meta json")
-	}
-
-	info, err := rw.core.Client.PutObject(
-		ctx,
-		rw.cfg.Bucket,
-		util.MetaFileName(blockID, tenantID),
-		bytes.NewReader(bMeta),
-		int64(len(bMeta)),
-		options,
-	)
-	if err != nil {
-		return errors.Wrap(err, "error uploading block meta to s3")
-	}
-	level.Debug(rw.logger).Log("msg", "block meta uploaded to s3", "size", info.Size)
-
-	return nil
-}
-
 // AppendObject implements backend.Writer
-func (rw *readerWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	var a appendTracker
-	objectName := util.ObjectFileName(blockID, tenantID, name)
+	objectName := backend.ObjectFileName(keypath, name)
 
 	options := minio.PutObjectOptions{
 		PartSize: rw.cfg.PartSize,
@@ -225,26 +194,10 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	return nil
 }
 
-// Tenants implements backend.Reader
-func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
-	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
-	res, err := rw.core.ListObjects(rw.cfg.Bucket, "", "", "/", 0)
-	if err != nil {
-		return nil, errors.Wrapf(err, "error listing tenants in bucket %s", rw.cfg.Bucket)
-	}
-
-	level.Debug(rw.logger).Log("msg", "listing tenants", "found", len(res.CommonPrefixes))
-	var tenants []string
-	for _, cp := range res.CommonPrefixes {
-		tenants = append(tenants, strings.Split(cp.Prefix, "/")[0])
-	}
-	return tenants, nil
-}
-
-// Blocks implements backend.Reader
-func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
-	prefix := tenantID + "/"
-	var blockIDs []uuid.UUID
+// List implements backend.Reader
+func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+	prefix := path.Join(keypath...) + "/"
+	var objects []string
 
 	nextMarker := ""
 	isTruncated := true
@@ -257,55 +210,40 @@ func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUI
 		isTruncated = res.IsTruncated
 		nextMarker = res.NextMarker
 
-		level.Debug(rw.logger).Log("msg", "listing blocks", "tenantID", tenantID,
+		level.Debug(rw.logger).Log("msg", "listing blocks", "keypath", keypath,
 			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextMarker)
 
 		for _, cp := range res.CommonPrefixes {
-			blockID, err := uuid.Parse(strings.Split(strings.TrimPrefix(cp.Prefix, prefix), "/")[0])
-			if err != nil {
-				return nil, errors.Wrapf(err, "error parsing uuid of obj, objectName: %s", cp.Prefix)
-			}
-			blockIDs = append(blockIDs, blockID)
+			objects = append(objects, strings.Split(strings.TrimPrefix(cp.Prefix, prefix), "/")[0])
 		}
 	}
 
-	return blockIDs, nil
-}
-
-// BlockMeta implements backend.Reader
-func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
-	blockMetaFileName := util.MetaFileName(blockID, tenantID)
-	body, err := rw.readAll(ctx, blockMetaFileName)
-	if err != nil && err.Error() == s3KeyDoesNotExist {
-		return nil, backend.ErrMetaDoesNotExist
-	}
-	out := &backend.BlockMeta{}
-	err = json.Unmarshal(body, out)
-	if err != nil {
-		return nil, err
-	}
-	level.Debug(rw.logger).Log("msg", "fetched block meta", "tenantID", out.TenantID, "blockID", out.BlockID.String())
-	return out, nil
+	return objects, nil
 }
 
 // Read implements backend.Reader
-func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Read")
 	defer span.Finish()
 
-	return rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
+	bytes, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
+	if err != nil {
+		return nil, readError(err)
+	}
+
+	return bytes, err
 }
 
-func (rw *readerWriter) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+func (rw *readerWriter) ReadReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
 	panic("ReadReader is not yet supported for S3 backend")
 }
 
 // ReadRange implements backend.Reader
-func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "ReadRange")
 	defer span.Finish()
 
-	return rw.readRange(derivedCtx, util.ObjectFileName(blockID, tenantID, name), int64(offset), buffer)
+	return readError(rw.readRange(derivedCtx, backend.ObjectFileName(keypath, name), int64(offset), buffer))
 }
 
 // Shutdown implements backend.Reader
@@ -418,4 +356,12 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	}
 
 	return minio.NewCore(cfg.Endpoint, opts)
+}
+
+func readError(err error) error { // jpe test
+	if err != nil && err.Error() == s3KeyDoesNotExist {
+		return backend.ErrMetaDoesNotExist
+	}
+
+	return err
 }
