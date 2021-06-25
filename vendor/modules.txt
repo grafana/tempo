@@ -256,6 +256,11 @@ github.com/davecgh/go-spew/spew
 github.com/dgryski/go-rendezvous
 # github.com/docker/go-units v0.4.0
 github.com/docker/go-units
+# github.com/drone/envsubst v1.0.3
+## explicit
+github.com/drone/envsubst
+github.com/drone/envsubst/parse
+github.com/drone/envsubst/path
 # github.com/dustin/go-humanize v1.0.0
 ## explicit
 github.com/dustin/go-humanize

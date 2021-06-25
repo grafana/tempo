@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 
+	"github.com/drone/envsubst"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	"github.com/weaveworks/common/logging"
@@ -103,9 +104,15 @@ func main() {
 }
 
 func loadConfig() (*app.Config, error) {
-	const configFileOption = "config.file"
+	const (
+		configFileOption      = "config.file"
+		configExpandEnvOption = "config.expand-env"
+	)
 
-	var configFile string
+	var (
+		configFile      string
+		configExpandEnv bool
+	)
 
 	args := os.Args[1:]
 	config := &app.Config{}
@@ -115,9 +122,10 @@ func loadConfig() (*app.Config, error) {
 	fs.SetOutput(ioutil.Discard)
 
 	fs.StringVar(&configFile, configFileOption, "", "")
+	fs.BoolVar(&configExpandEnv, configExpandEnvOption, false, "")
 
-	// Try to find -config.file flags. As Parsing stops on the first error, eg. unknown flag, we simply
-	// try remaining parameters until we find config flag, or there are no params left.
+	// Try to find -config.file & -config.expand-env flags. As Parsing stops on the first error, eg. unknown flag,
+	// we simply try remaining parameters until we find config flag, or there are no params left.
 	// (ContinueOnError just means that flag.Parse doesn't call panic or os.Exit, but it returns error, which we ignore)
 	for len(args) > 0 {
 		_ = fs.Parse(args)
@@ -134,6 +142,14 @@ func loadConfig() (*app.Config, error) {
 			return nil, fmt.Errorf("failed to read configFile %s: %w", configFile, err)
 		}
 
+		if configExpandEnv {
+			s, err := envsubst.EvalEnv(string(buff))
+			if err != nil {
+				return nil, fmt.Errorf("failed to expand env vars from configFile %s: %w", configFile, err)
+			}
+			buff = []byte(s)
+		}
+
 		err = yaml.UnmarshalStrict(buff, config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
@@ -142,6 +158,7 @@ func loadConfig() (*app.Config, error) {
 
 	// overlay with cli
 	flagext.IgnoredFlag(flag.CommandLine, configFileOption, "Configuration file to load")
+	flagext.IgnoredFlag(flag.CommandLine, configExpandEnvOption, "Whether to expand environment variables in config file")
 	flag.Parse()
 
 	// after loading config, let's force some values if in single binary mode
