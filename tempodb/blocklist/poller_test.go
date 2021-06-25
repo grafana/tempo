@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/test"
 	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/stretchr/testify/assert"
 )
@@ -267,7 +268,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 		tenants = append(tenants, t)
 	}
 
-	return &util.MockReader{
+	return &test.MockReader{
 		T: tenants,
 		BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 			if expectsError {

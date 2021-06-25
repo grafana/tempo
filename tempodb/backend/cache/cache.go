@@ -33,7 +33,7 @@ func (r *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]str
 // Read implements backend.Reader
 func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
 	var k string
-	if name != backend.MetaName && name != backend.CompactedMetaName { // jpe test
+	if shouldCache(name) {
 		k = key(keypath, name)
 		found, vals, _ := r.cache.Fetch(ctx, []string{k})
 		if len(found) > 0 {
@@ -42,7 +42,7 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 	}
 
 	val, err := r.nextReader.Read(ctx, name, keypath)
-	if err == nil {
+	if err == nil && shouldCache(name) {
 		r.cache.Store(ctx, []string{k}, [][]byte{val})
 	}
 
@@ -66,7 +66,7 @@ func (r *readerWriter) Shutdown() {
 
 // Write implements backend.Writer
 func (r *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
-	if name != backend.MetaName && name != backend.CompactedMetaName { // jpe test
+	if shouldCache(name) {
 		r.cache.Store(ctx, []string{key(keypath, name)}, [][]byte{buffer})
 	}
 
@@ -90,4 +90,8 @@ func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTr
 
 func key(keypath backend.KeyPath, name string) string {
 	return strings.Join(keypath, ":") + ":" + name
+}
+
+func shouldCache(name string) bool {
+	return name != backend.MetaName && name != backend.CompactedMetaName && name != backend.BlockIndexName
 }
