@@ -2,6 +2,7 @@ package s3
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/minio/minio-go/v7"
 
@@ -65,4 +66,28 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	}
 
 	return nil
+}
+
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+	if len(tenantID) == 0 {
+		return nil, backend.ErrEmptyTenantID
+	}
+	if blockID == uuid.Nil {
+		return nil, backend.ErrEmptyBlockID
+	}
+
+	compactedMetaFileName := backend.CompactedMetaFileName(blockID, tenantID)
+	bytes, info, err := rw.readAllWithObjInfo(context.TODO(), compactedMetaFileName)
+	if err != nil {
+		return nil, readError(err)
+	}
+
+	out := &backend.CompactedBlockMeta{}
+	err = json.Unmarshal(bytes, out)
+	if err != nil {
+		return nil, err
+	}
+	out.CompactedTime = info.LastModified
+
+	return out, nil
 }

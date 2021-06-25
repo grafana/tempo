@@ -124,7 +124,12 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 // Read implements backend.Reader
 func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
 	filename := rw.objectFileName(keypath, name)
-	return ioutil.ReadFile(filename)
+	bytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, readError(err)
+	}
+
+	return bytes, nil
 }
 
 // ReadRange implements backend.Reader
@@ -133,7 +138,7 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
-		return err
+		return readError(err)
 	}
 	defer f.Close()
 
@@ -150,7 +155,7 @@ func (rw *Backend) ReadReader(ctx context.Context, name string, keypath backend.
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
-		return nil, -1, err
+		return nil, -1, readError(err)
 	}
 
 	stat, err := f.Stat()
@@ -176,4 +181,12 @@ func (rw *Backend) metaFileName(blockID uuid.UUID, tenantID string) string {
 
 func (rw *Backend) rootPath(keypath backend.KeyPath) string {
 	return filepath.Join(rw.cfg.Path, filepath.Join(keypath...))
+}
+
+func readError(err error) error {
+	if os.IsNotExist(err) {
+		return backend.ErrMetaDoesNotExist
+	}
+
+	return err
 }

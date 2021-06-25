@@ -2,6 +2,7 @@ package gcs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"cloud.google.com/go/storage"
@@ -59,4 +60,22 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	}
 
 	return nil
+}
+
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+	name := backend.CompactedMetaFileName(blockID, tenantID)
+
+	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
+	if err != nil {
+		return nil, readError(err)
+	}
+
+	out := &backend.CompactedBlockMeta{}
+	err = json.Unmarshal(bytes, out)
+	if err != nil {
+		return nil, err
+	}
+	out.CompactedTime = modTime
+
+	return out, nil
 }

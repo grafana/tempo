@@ -2,6 +2,7 @@ package azure
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -87,6 +88,30 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	}
 
 	return warning
+}
+
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+	if len(tenantID) == 0 {
+		return nil, backend.ErrEmptyTenantID
+	}
+	if blockID == uuid.Nil {
+		return nil, backend.ErrEmptyBlockID
+	}
+	name := backend.CompactedMetaFileName(blockID, tenantID)
+
+	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
+	if err != nil {
+		return nil, readError(err)
+	}
+
+	out := &backend.CompactedBlockMeta{}
+	err = json.Unmarshal(bytes, out)
+	if err != nil {
+		return nil, err
+	}
+	out.CompactedTime = modTime
+
+	return out, nil
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {

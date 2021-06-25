@@ -10,7 +10,7 @@ import (
 
 var (
 	ErrMetaDoesNotExist = fmt.Errorf("meta does not exist") // jpe rename to just ErrDoesNotExist
-	ErrEmptyTenantID    = fmt.Errorf("empty tenant id")
+	ErrEmptyTenantID    = fmt.Errorf("empty tenant id")     // jpe do we need these?
 	ErrEmptyBlockID     = fmt.Errorf("empty block id")
 )
 
@@ -46,10 +46,13 @@ type Reader interface {
 	Shutdown()
 }
 
+// jpe - add context
 // Compactor is a collection of methods to interact with compacted elements of a tempodb block
 type Compactor interface {
 	// Marks a block compacted by renaming meta.json => meta.compacted.json
 	MarkBlockCompacted(blockID uuid.UUID, tenantID string) error
 	// Removes a block
 	ClearBlock(blockID uuid.UUID, tenantID string) error
+	// CompactedBlockMeta reuturns the compacted block meta for a block if available
+	CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
 }

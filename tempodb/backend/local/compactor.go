@@ -1,7 +1,9 @@
 package local
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 
@@ -27,6 +29,29 @@ func (rw *Backend) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	}
 
 	return os.RemoveAll(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)))
+}
+
+func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+	filename := rw.compactedMetaFileName(blockID, tenantID)
+
+	fi, err := os.Stat(filename)
+	if err != nil {
+		return nil, readError(err)
+	}
+
+	bytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, readError(err)
+	}
+
+	out := &backend.CompactedBlockMeta{}
+	err = json.Unmarshal(bytes, out)
+	if err != nil {
+		return nil, err
+	}
+	out.CompactedTime = fi.ModTime()
+
+	return out, nil
 }
 
 func (rw *Backend) compactedMetaFileName(blockID uuid.UUID, tenantID string) string {
