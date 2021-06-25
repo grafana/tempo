@@ -130,7 +130,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 	object := backend.ObjectFileName(keypath, name)
 	bytes, err := rw.readAll(derivedCtx, object)
 	if err != nil {
-		return nil, readError(object, err)
+		return nil, readError(err)
 	}
 
 	return bytes, nil
@@ -148,7 +148,7 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 	object := backend.ObjectFileName(keypath, name)
 	err := rw.readRange(derivedCtx, object, int64(offset), buffer)
 	if err != nil {
-		return readError(object, err)
+		return readError(err)
 	}
 
 	return nil
@@ -288,13 +288,13 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	return destBuffer, nil
 }
 
-func readError(name string, err error) error { // jpe test
+func readError(err error) error { // jpe test
 	ret, ok := err.(blob.StorageError)
 	if !ok {
-		return errors.Wrapf(err, "reading storage container: %s", name)
+		return errors.Wrap(err, "reading storage container")
 	}
 	if ret.ServiceCode() == "BlobNotFound" {
 		return backend.ErrMetaDoesNotExist
 	}
-	return errors.Wrapf(err, "reading Azure blob container: %s", name)
+	return errors.Wrap(err, "reading Azure blob container")
 }
