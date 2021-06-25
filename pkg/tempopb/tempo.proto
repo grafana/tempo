@@ -28,7 +28,10 @@ message TraceByIDResponse {
 }
 
 message SearchRequest {
+  // case insensitive partial match
   string rootSpanName = 1;
+  string rootAttributeName = 2;
+  string rootAttributeValue = 3;
 }
 
 message SearchResponse {

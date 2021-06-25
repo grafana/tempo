@@ -7,5 +7,5 @@ table KV {
 
 table TraceHeader {
 	root_span_name:string;
-	root_span_process_tags:[KV];
+	root_span_attributes:[KV];
 }

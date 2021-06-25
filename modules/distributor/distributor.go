@@ -271,9 +271,10 @@ func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {
 
 func (d *Distributor) extractSearchData(t *tempopb.Trace) []byte {
 
-	//fmt.Printf("Distributor extracting search data from trace %x\n", t.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId)
+	fmt.Printf("Distributor extracting search data from trace %x\n", t.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId)
 
-	rns := ""
+	rsn := ""
+	rst := map[string]string{}
 
 	for _, b := range t.Batches {
 		for _, ils := range b.InstrumentationLibrarySpans {
@@ -282,8 +283,24 @@ func (d *Distributor) extractSearchData(t *tempopb.Trace) []byte {
 
 				if len(s.ParentSpanId) == 0 {
 					// Root span
-					rns = s.Name
-					//fmt.Println("Distributor extraced root span name", rns)
+					rsn = s.Name
+					fmt.Println("Distributor extraced root span name", rsn)
+
+					// Span attrs
+					for _, a := range s.Attributes {
+						if v := a.Value.GetStringValue(); v != "" {
+							rst[a.Key] = v
+						}
+					}
+
+					// Batch attrs
+					for _, a := range b.Resource.Attributes {
+						if v := a.Value.GetStringValue(); v != "" {
+							rst[a.Key] = v
+						}
+					}
+
+					fmt.Println("Distributor extraced root span tags", rst)
 				}
 			}
 		}
@@ -291,10 +308,29 @@ func (d *Distributor) extractSearchData(t *tempopb.Trace) []byte {
 
 	b := flatbuffers.NewBuilder(1024)
 
-	rnsB := b.CreateString(rns)
+	rsnB := b.CreateString(rsn)
+
+	var rstu []flatbuffers.UOffsetT
+
+	for k, v := range rst {
+		ku := b.CreateString(k)
+		vu := b.CreateString(v)
+
+		tempofb.KVStart(b)
+		tempofb.KVAddKey(b, ku)
+		tempofb.KVAddValue(b, vu)
+		rstu = append(rstu, tempofb.KVEnd(b))
+	}
+
+	tempofb.TraceHeaderStartRootSpanProcessTagsVector(b, len(rstu))
+	for _, v := range rstu {
+		b.PrependUOffsetT(v)
+	}
+	rstvuu := b.EndVector(len(rstu))
 
 	tempofb.TraceHeaderStart(b)
-	tempofb.TraceHeaderAddRootSpanName(b, rnsB)
+	tempofb.TraceHeaderAddRootSpanName(b, rsnB)
+	tempofb.TraceHeaderAddRootSpanProcessTags(b, rstvuu)
 	b.Finish(tempofb.TraceHeaderEnd(b))
 	return b.FinishedBytes()
 }

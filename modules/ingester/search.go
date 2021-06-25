@@ -25,12 +25,30 @@ type pipeline struct {
 	filters []tracefilter
 }
 
+func caseInsensitiveContains(s []byte, substr string) bool {
+	return bytes.Contains(bytes.ToLower(s), bytes.ToLower([]byte(substr)))
+}
+
 func NewSearchPipeline(req *tempopb.SearchRequest) pipeline {
 	p := pipeline{}
 
 	if req.RootSpanName != "" {
 		p.filters = append(p.filters, func(header *tempofb.TraceHeader) bool {
-			return bytes.Contains(bytes.ToLower(header.RootSpanName()), bytes.ToLower([]byte(req.RootSpanName)))
+			return caseInsensitiveContains(header.RootSpanName(), req.RootSpanName)
+		})
+	}
+
+	if req.RootAttributeName != "" && req.RootAttributeValue != "" {
+		p.filters = append(p.filters, func(header *tempofb.TraceHeader) bool {
+			kv := &tempofb.KV{}
+			for i := 0; i < header.RootSpanProcessTagsLength(); i++ {
+				header.RootSpanProcessTags(kv, i)
+				if caseInsensitiveContains(kv.Key(), req.RootAttributeName) &&
+					caseInsensitiveContains(kv.Value(), req.RootAttributeValue) {
+					return true
+				}
+			}
+			return false
 		})
 	}
 
@@ -122,21 +140,47 @@ func NewSearchDataForAppendBlock(i *instance, b *wal.AppendBlock) (*searchData, 
 func (s *searchData) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
 	var rnsb []byte
 
+	rst := map[string][]byte{}
+
 	// Squash all separate datas into 1
 	for _, s := range searchData {
 		b := tempofb.GetRootAsTraceHeader(s, 0)
 		if len(b.RootSpanName()) > 0 {
 			rnsb = b.RootSpanName()
 		}
+
+		kv := &tempofb.KV{}
+		for i := 0; i < b.RootSpanProcessTagsLength(); i++ {
+			b.RootSpanProcessTags(kv, i)
+			rst[string(kv.Key())] = kv.Value()
+		}
 	}
 
 	b := flatbuffers.NewBuilder(1024)
 
-	rns := b.CreateByteString(rnsb)
+	rsn := b.CreateByteString(rnsb)
+
+	var rstu []flatbuffers.UOffsetT
+
+	for k, v := range rst {
+		ku := b.CreateString(k)
+		vu := b.CreateByteString(v)
+
+		tempofb.KVStart(b)
+		tempofb.KVAddKey(b, ku)
+		tempofb.KVAddValue(b, vu)
+		rstu = append(rstu, tempofb.KVEnd(b))
+	}
+
+	tempofb.TraceHeaderStartRootSpanProcessTagsVector(b, len(rstu))
+	for _, v := range rstu {
+		b.PrependUOffsetT(v)
+	}
+	rstvuu := b.EndVector(len(rstu))
 
 	tempofb.TraceHeaderStart(b)
-	tempofb.TraceHeaderAddRootSpanName(b, rns)
-
+	tempofb.TraceHeaderAddRootSpanName(b, rsn)
+	tempofb.TraceHeaderAddRootSpanProcessTags(b, rstvuu)
 	b.Finish(tempofb.TraceHeaderEnd(b))
 
 	return s.appender.Append(id, b.FinishedBytes())
