@@ -22,3 +22,6 @@ Even if you already have metrics, span metrics can provide in-depth monitoring o
 The generated metrics will show application level insight into your monitoring,
 as far as tracing gets propagated through your applications.
 
+## Example
+
+<p align="center"><img src="../span-metrics-example.png" alt="Span metrics overview"></p>
