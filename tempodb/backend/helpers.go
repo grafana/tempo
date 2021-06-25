@@ -15,7 +15,7 @@ const (
 	BlockIndexName    = "blockindex.json.gz"
 )
 
-// jpe test/comment
+// jpe test/comment/organize better
 func WriteBlockMeta(ctx context.Context, w Writer, meta *BlockMeta) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
