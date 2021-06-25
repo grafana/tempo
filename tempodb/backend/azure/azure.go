@@ -6,17 +6,15 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"io"
+	"path"
 	"strings"
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/util"
 )
 
 const (
@@ -60,38 +58,20 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
-	return rw.WriteReader(ctx, name, blockID, tenantID, bytes.NewBuffer(buffer), int64(len(buffer)))
+func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
+	return rw.WriteReader(ctx, name, keypath, bytes.NewBuffer(buffer), int64(len(buffer)))
 }
 
 // WriteReader implements backend.Writer
-func (rw *readerWriter) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, _ int64) error {
-	return rw.writer(ctx, bufio.NewReader(data), util.ObjectFileName(blockID, tenantID, name))
-}
-
-// WriteBlockMeta implements backend.Writer
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
-
-	bMeta, err := json.Marshal(meta)
-	if err != nil {
-		return err
-	}
-
-	err = rw.writeAll(ctx, util.MetaFileName(blockID, tenantID), bMeta)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (rw *readerWriter) WriteReader(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
+	return rw.writer(ctx, bufio.NewReader(data), backend.ObjectFileName(keypath, name))
 }
 
 // Append implements backend.Writer
-func (rw *readerWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	var a appendTracker
 	if tracker == nil {
-		a.Name = util.ObjectFileName(blockID, tenantID, name)
+		a.Name = backend.ObjectFileName(keypath, name)
 
 		err := rw.writeAll(ctx, a.Name, buffer)
 		if err != nil {
@@ -114,23 +94,24 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	return nil
 }
 
-// Tenants implements backend.Reader
-func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
+// List implements backend.Reader
+func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	marker := blob.Marker{}
 
-	tenants := make([]string, 0)
+	objects := make([]string, 0)
 	for {
 		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, dir, blob.ListBlobsSegmentOptions{
+			Prefix:  path.Join(keypath...),
 			Details: blob.BlobListingDetails{},
 		})
 		if err != nil {
-			return tenants, errors.Wrap(err, "iterating tenants")
+			return objects, errors.Wrap(err, "iterating tenants")
 
 		}
 		marker = list.NextMarker
 
 		for _, blob := range list.Segment.BlobPrefixes {
-			tenants = append(tenants, strings.TrimSuffix(blob.Name, dir))
+			objects = append(objects, strings.TrimSuffix(blob.Name, dir))
 		}
 
 		// Continue iterating if we are not done.
@@ -138,84 +119,39 @@ func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
 			break
 		}
 	}
-	return tenants, nil
-}
-
-// Blocks implements backend.Reader
-func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
-	blocks := make([]uuid.UUID, 0)
-	marker := blob.Marker{}
-
-	for {
-		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, dir, blob.ListBlobsSegmentOptions{
-			Prefix:  tenantID + dir,
-			Details: blob.BlobListingDetails{},
-		})
-		if err != nil {
-			return nil, err
-		}
-		marker = list.NextMarker
-
-		for _, blob := range list.Segment.BlobPrefixes {
-			idString := strings.TrimSuffix(strings.TrimPrefix(blob.Name, tenantID+dir), dir)
-			blockID, err := uuid.Parse(idString)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed parse on blockID %s", idString)
-			}
-			blocks = append(blocks, blockID)
-		}
-		// Continue iterating if we are not done.
-		if !marker.NotDone() {
-			break
-		}
-
-	}
-	return blocks, nil
-}
-
-// BlockMeta implements backend.Reader
-func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
-	name := util.MetaFileName(blockID, tenantID)
-
-	bytes, err := rw.readAll(ctx, name)
-	if err != nil {
-		ret, ok := err.(blob.StorageError)
-		if !ok {
-			return nil, errors.Wrapf(err, "reading storage container: %s", name)
-		}
-		if ret.ServiceCode() == "BlobNotFound" {
-			return nil, backend.ErrMetaDoesNotExist
-		}
-		return nil, errors.Wrapf(err, "reading Azure blob container: %s", name)
-	}
-
-	out := &backend.BlockMeta{}
-	err = json.Unmarshal(bytes, out)
-	if err != nil {
-		return nil, err
-	}
-
-	return out, nil
+	return objects, nil
 }
 
 // Read implements backend.Reader
-func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Read")
 	defer span.Finish()
 
-	return rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
+	object := backend.ObjectFileName(keypath, name)
+	bytes, err := rw.readAll(derivedCtx, object)
+	if err != nil {
+		return nil, readError(object, err)
+	}
+
+	return bytes, nil
 }
 
-func (rw *readerWriter) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+func (rw *readerWriter) ReadReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
 	panic("ReadReader is not yet supported for Azure backend")
 }
 
 // ReadRange implements backend.Reader
-func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "ReadRange")
 	defer span.Finish()
 
-	return rw.readRange(derivedCtx, util.ObjectFileName(blockID, tenantID, name), int64(offset), buffer)
+	object := backend.ObjectFileName(keypath, name)
+	err := rw.readRange(derivedCtx, object, int64(offset), buffer)
+	if err != nil {
+		return readError(object, err)
+	}
+
+	return nil
 }
 
 // Shutdown implements backend.Reader
@@ -350,4 +286,15 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	}
 
 	return destBuffer, nil
+}
+
+func readError(name string, err error) error { // jpe test
+	ret, ok := err.(blob.StorageError)
+	if !ok {
+		return errors.Wrapf(err, "reading storage container: %s", name)
+	}
+	if ret.ServiceCode() == "BlobNotFound" {
+		return backend.ErrMetaDoesNotExist
+	}
+	return errors.Wrapf(err, "reading Azure blob container: %s", name)
 }

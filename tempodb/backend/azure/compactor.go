@@ -2,7 +2,6 @@ package azure
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/util"
 )
 
 type BlobAttributes struct {
@@ -31,8 +29,8 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	}
 
 	// move meta file to a new location
-	metaFilename := util.MetaFileName(blockID, tenantID)
-	compactedMetaFilename := util.CompactedMetaFileName(blockID, tenantID)
+	metaFilename := backend.MetaFileName(blockID, tenantID)
+	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID)
 	ctx := context.TODO()
 
 	src, err := rw.readAll(ctx, metaFilename)
@@ -65,7 +63,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	for {
 		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, "", blob.ListBlobsSegmentOptions{
-			Prefix:  util.RootPath(blockID, tenantID),
+			Prefix:  backend.RootPath(blockID, tenantID),
 			Details: blob.BlobListingDetails{},
 		})
 		if err != nil {
@@ -89,30 +87,6 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	}
 
 	return warning
-}
-
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
-	if len(tenantID) == 0 {
-		return nil, backend.ErrEmptyTenantID
-	}
-	if blockID == uuid.Nil {
-		return nil, backend.ErrEmptyBlockID
-	}
-	name := util.CompactedMetaFileName(blockID, tenantID)
-
-	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
-	if err != nil {
-		return nil, err
-	}
-
-	out := &backend.CompactedBlockMeta{}
-	err = json.Unmarshal(bytes, out)
-	if err != nil {
-		return nil, err
-	}
-	out.CompactedTime = modTime
-
-	return out, err
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
