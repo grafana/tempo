@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
@@ -349,7 +350,7 @@ func (i *Ingester) replayWal() error {
 func (i *Ingester) rediscoverLocalBlocks() error {
 	ctx := context.TODO()
 
-	tenants, err := i.local.Tenants(ctx)
+	tenants, err := backend.Tenants(ctx, i.local)
 	if err != nil {
 		return errors.Wrap(err, "getting local tenants")
 	}

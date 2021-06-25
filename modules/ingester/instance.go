@@ -451,13 +451,13 @@ func pushRequestTraceID(req *tempopb.PushRequest) ([]byte, error) {
 }
 
 func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
-	ids, err := i.local.Blocks(ctx, i.instanceID)
+	ids, err := backend.Blocks(ctx, i.local, i.instanceID)
 	if err != nil {
 		return err
 	}
 
 	for _, id := range ids {
-		meta, err := i.local.BlockMeta(ctx, id, i.instanceID)
+		meta, err := backend.ReadBlockMeta(ctx, i.local, id, i.instanceID)
 		if err != nil {
 			if err == backend.ErrMetaDoesNotExist {
 				// Partial/incomplete block found, remove, it will be recreated from data in the wal.

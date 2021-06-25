@@ -60,7 +60,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
 
 	ctx := context.Background()
-	tenants, err := p.reader.Tenants(ctx)
+	tenants, err := backend.Tenants(ctx, p.reader)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues("").Inc()
 		return nil, nil, err
@@ -85,7 +85,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 }
 
 func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
-	blockIDs, err := p.reader.Blocks(ctx, tenantID)
+	blockIDs, err := backend.Blocks(ctx, p.reader, tenantID)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 		return []*backend.BlockMeta{}, []*backend.CompactedBlockMeta{}, err
@@ -140,7 +140,7 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 
 func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
 	var compactedBlockMeta *backend.CompactedBlockMeta
-	blockMeta, err := p.reader.BlockMeta(ctx, blockID, tenantID)
+	blockMeta, err := backend.ReadBlockMeta(ctx, p.reader, blockID, tenantID)
 	// if the normal meta doesn't exist maybe it's compacted.
 	if err == backend.ErrMetaDoesNotExist {
 		blockMeta = nil

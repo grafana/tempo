@@ -31,7 +31,7 @@ func NewLocalBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l 
 		local:        l,
 	}
 
-	flushedBytes, err := l.Read(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID)
+	flushedBytes, err := l.Read(ctx, nameFlushed, backend.KeyPathForBlock(c.BlockMeta().BlockID, c.BlockMeta().TenantID))
 	if err == nil {
 		flushedTime := time.Time{}
 		err = flushedTime.UnmarshalText(flushedBytes)
@@ -64,7 +64,7 @@ func (c *LocalBlock) SetFlushed(ctx context.Context) error {
 		return errors.Wrap(err, "error marshalling flush time to text")
 	}
 
-	err = c.local.Write(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID, flushedBytes)
+	err = c.local.Write(ctx, nameFlushed, backend.KeyPathForBlock(c.BlockMeta().BlockID, c.BlockMeta().TenantID), flushedBytes)
 	if err != nil {
 		return errors.Wrap(err, "error writing ingester block flushed file")
 	}

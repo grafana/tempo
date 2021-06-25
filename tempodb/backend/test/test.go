@@ -18,7 +18,7 @@ type MockReader struct {
 	ListFn func(ctx context.Context, keypath backend.KeyPath) ([]string, error)
 	R      []byte // read
 	Range  []byte // ReadRange
-	ReadFn func(name string, keypath backend.KeyPath) ([]byte, error)
+	ReadFn func(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error)
 }
 
 func (m *MockReader) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
@@ -30,7 +30,7 @@ func (m *MockReader) List(ctx context.Context, keypath backend.KeyPath) ([]strin
 }
 func (m *MockReader) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
 	if m.ReadFn != nil {
-		return m.ReadFn(name, keypath)
+		return m.ReadFn(ctx, name, keypath)
 	}
 
 	return m.R, nil

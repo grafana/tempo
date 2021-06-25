@@ -52,7 +52,7 @@ type blockStats struct {
 }
 
 func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRange time.Duration, includeCompacted bool) ([]blockStats, error) {
-	blockIDs, err := r.Blocks(context.Background(), tenantID)
+	blockIDs, err := backend.Blocks(context.Background(), r, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id uuid.UUID, windowRange time.Duration, includeCompacted bool) (*blockStats, error) {
 	fmt.Print(".")
 
-	meta, err := r.BlockMeta(context.Background(), id, tenantID)
+	meta, err := backend.ReadBlockMeta(context.Background(), r, id, tenantID)
 	if err == backend.ErrMetaDoesNotExist && !includeCompacted {
 		return nil, nil
 	} else if err != nil && err != backend.ErrMetaDoesNotExist {

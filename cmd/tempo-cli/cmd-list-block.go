@@ -12,6 +12,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 )
@@ -36,7 +37,7 @@ func (cmd *listBlockCmd) Run(ctx *globalOptions) error {
 func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, blockID string, scan bool) error {
 	id := uuid.MustParse(blockID)
 
-	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
+	meta, err := backend.ReadBlockMeta(context.TODO(), r, id, tenantID)
 	if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
 		return err
 	}

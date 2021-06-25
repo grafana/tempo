@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -28,7 +29,7 @@ func (cmd *listIndexCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	meta, err := r.BlockMeta(context.TODO(), blockID, cmd.TenantID)
+	meta, err := backend.ReadBlockMeta(context.TODO(), r, blockID, cmd.TenantID)
 	if err != nil {
 		return err
 	}

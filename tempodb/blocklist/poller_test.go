@@ -2,13 +2,13 @@ package blocklist
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/test"
-	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -237,7 +237,7 @@ func TestPollBlock(t *testing.T) {
 }
 
 func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compactor {
-	return &util.MockCompactor{
+	return &test.MockCompactor{
 		BlockMetaFn: func(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 			if expectsError {
 				return nil, errors.New("err")
@@ -269,28 +269,33 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 	}
 
 	return &test.MockReader{
-		T: tenants,
-		BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
+		ListFn: func(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 			if expectsError {
 				return nil, errors.New("err")
 			}
+			if len(keypath) == 0 {
+				return tenants, nil
+			}
+			tenantID := keypath[0]
 			blocks := list[tenantID]
-			uuids := []uuid.UUID{}
+			uuids := []string{}
 			for _, b := range blocks {
-				uuids = append(uuids, b.BlockID)
+				uuids = append(uuids, b.BlockID.String())
 			}
 			compactedBlocks := compactedList[tenantID]
 			for _, b := range compactedBlocks {
-				uuids = append(uuids, b.BlockID)
+				uuids = append(uuids, b.BlockID.String())
 			}
 
 			return uuids, nil
 		},
-		BlockMetaFn: func(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
+		ReadFn: func(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
 			if expectsError {
 				return nil, errors.New("err")
 			}
 
+			tenantID := keypath[0]
+			blockID := uuid.MustParse(keypath[1])
 			l, ok := list[tenantID]
 			if !ok {
 				return nil, backend.ErrMetaDoesNotExist
@@ -298,7 +303,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 
 			for _, m := range l {
 				if m.BlockID == blockID {
-					return m, nil
+					return json.Marshal(m)
 				}
 			}
 
