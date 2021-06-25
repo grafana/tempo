@@ -9,7 +9,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
-	"github.com/bsipos/thist"
+	//"github.com/bsipos/thist"
 )
 
 type listCompactionSummaryCmd struct {
@@ -58,6 +58,10 @@ func displayCompactionSummary(results []blockStats) {
 	columns := []string{"lvl", "blocks", "total", "smallest block", "largest block", "earliest", "latest", "bloom shard count"}
 
 	out := make([][]string, 0)
+	bloomTable := make([][]int, 6)
+	for i, _ := range bloomTable {
+		bloomTable[i] = make([]int, 15)
+	}
 
 	for _, l := range levels {
 		sizeSum := uint64(0)
@@ -67,7 +71,7 @@ func displayCompactionSummary(results []blockStats) {
 		countMin := 0
 		countMax := 0
 		countBloomShards := 0
-		hist := thist.NewHist(nil, "level " + strconv.Itoa(l), "auto", -1, true)
+		//hist := thist.NewHist(nil, "level " + strconv.Itoa(l), "auto", -1, true)
 
 		var newest time.Time
 		var oldest time.Time
@@ -75,7 +79,14 @@ func displayCompactionSummary(results []blockStats) {
 			sizeSum += r.Size
 			countSum += r.TotalObjects
 			countBloomShards += int(r.BloomShardCount)
-			hist.Update(float64(r.Size))
+
+			row := r.CompactionLevel
+			column := -1 * (int(r.StartTime.Sub(time.Now())/(time.Hour*24)))
+			if row <= 5 && column <= 14 {
+				bloomTable[row][column] += int(r.BloomShardCount)
+			} else {
+				fmt.Println("something wrong with calculating row / column")
+			}
 
 			if r.Size < sizeMin || sizeMin == 0 {
 				sizeMin = r.Size
@@ -97,7 +108,7 @@ func displayCompactionSummary(results []blockStats) {
 			}
 		}
 
-		fmt.Println(hist.Draw())
+		//fmt.Println(hist.Draw())
 
 		line := make([]string, 0)
 
@@ -124,6 +135,11 @@ func displayCompactionSummary(results []blockStats) {
 			line = append(line, s)
 		}
 		out = append(out, line)
+	}
+
+	fmt.Println()
+	for _, row := range bloomTable {
+		fmt.Println("%v", row)
 	}
 
 	fmt.Println()
