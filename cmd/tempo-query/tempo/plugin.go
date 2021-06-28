@@ -46,7 +46,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
 	url := fmt.Sprintf("http://%s/api/traces/%s", b.tempoBackend, hexID)
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "GetTrace")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "GetTrace")
 	defer span.Finish()
 
 	req, err := b.NewGetRequest(ctx, url, span)
@@ -170,9 +170,15 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 		Path:   "querier/api/search",
 	}
 	urlQuery := url.Query()
-	urlQuery.Add("rootAttrName", "service.name")
-	urlQuery.Add("rootAttrValue", query.ServiceName)
-	urlQuery.Add("rootSpanName", query.OperationName)
+	if query.ServiceName != "" {
+		urlQuery.Add("root.service.name", query.ServiceName)
+	}
+	if query.OperationName != "" {
+		urlQuery.Add("root.name", query.OperationName)
+	}
+	for k, v := range query.Tags {
+		urlQuery.Add(k, v)
+	}
 	url.RawQuery = urlQuery.Encode()
 
 	req, err := b.NewGetRequest(ctx, url.String(), span)
