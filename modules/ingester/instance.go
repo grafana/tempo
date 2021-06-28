@@ -524,7 +524,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]co
 		for _, t := range i.traces {
 
 			for _, s := range t.searchData {
-				if p.Matches(tempofb.GetRootAsTraceHeader(s, 0)) {
+				if p.Matches(tempofb.SearchDataFromBytes(s)) {
 					results = append(results, t.traceID)
 					continue
 				}

@@ -41,7 +41,7 @@ func (rcv *TraceHeader) RootSpanName() []byte {
 	return nil
 }
 
-func (rcv *TraceHeader) RootSpanProcessTags(obj *KV, j int) bool {
+func (rcv *TraceHeader) RootSpanAttributes(obj *KV, j int) bool {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		x := rcv._tab.Vector(o)
@@ -53,7 +53,7 @@ func (rcv *TraceHeader) RootSpanProcessTags(obj *KV, j int) bool {
 	return false
 }
 
-func (rcv *TraceHeader) RootSpanProcessTagsLength() int {
+func (rcv *TraceHeader) RootSpanAttributesLength() int {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		return rcv._tab.VectorLen(o)
@@ -67,10 +67,10 @@ func TraceHeaderStart(builder *flatbuffers.Builder) {
 func TraceHeaderAddRootSpanName(builder *flatbuffers.Builder, rootSpanName flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(rootSpanName), 0)
 }
-func TraceHeaderAddRootSpanProcessTags(builder *flatbuffers.Builder, rootSpanProcessTags flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(rootSpanProcessTags), 0)
+func TraceHeaderAddRootSpanAttributes(builder *flatbuffers.Builder, rootSpanAttributes flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(rootSpanAttributes), 0)
 }
-func TraceHeaderStartRootSpanProcessTagsVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
+func TraceHeaderStartRootSpanAttributesVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(4, numElems, 4)
 }
 func TraceHeaderEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {

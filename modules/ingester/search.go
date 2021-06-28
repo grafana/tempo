@@ -3,9 +3,9 @@ package ingester
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 
-	flatbuffers "github.com/google/flatbuffers/go"
 	tempofb "github.com/grafana/tempo/pkg/tempofb/Tempo"
 	"github.com/grafana/tempo/pkg/tempopb"
 
@@ -19,7 +19,7 @@ type blockHeader struct {
 	operations map[string][]string
 }
 
-type tracefilter func(header *tempofb.TraceHeader) (matches bool)
+type tracefilter func(header *tempofb.SearchData) (matches bool)
 
 type pipeline struct {
 	filters []tracefilter
@@ -33,13 +33,16 @@ func NewSearchPipeline(req *tempopb.SearchRequest) pipeline {
 	p := pipeline{}
 
 	if req.RootSpanName != "" {
-		p.filters = append(p.filters, func(header *tempofb.TraceHeader) bool {
+		/*p.filters = append(p.filters, func(header *tempofb.SearchData) bool {
 			return caseInsensitiveContains(header.RootSpanName(), req.RootSpanName)
+		})*/
+		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+			return tempofb.SearchDataContains(s, "root.span.name", req.RootSpanName)
 		})
 	}
 
 	if req.RootAttributeName != "" && req.RootAttributeValue != "" {
-		p.filters = append(p.filters, func(header *tempofb.TraceHeader) bool {
+		/*p.filters = append(p.filters, func(header *tempofb.TraceHeader) bool {
 			kv := &tempofb.KV{}
 			for i := 0; i < header.RootSpanProcessTagsLength(); i++ {
 				header.RootSpanProcessTags(kv, i)
@@ -49,13 +52,28 @@ func NewSearchPipeline(req *tempopb.SearchRequest) pipeline {
 				}
 			}
 			return false
+		})*/
+		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+			return tempofb.SearchDataContains(s, fmt.Sprint("root.span.", req.RootAttributeName), req.RootAttributeValue)
+		})
+	}
+
+	if len(req.Tags) > 0 {
+		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+			// Must match all
+			for k, v := range req.Tags {
+				if !tempofb.SearchDataContains(s, k, v) {
+					return false
+				}
+			}
+			return true
 		})
 	}
 
 	return p
 }
 
-func (p *pipeline) Matches(header *tempofb.TraceHeader) bool {
+func (p *pipeline) Matches(header *tempofb.SearchData) bool {
 
 	for _, f := range p.filters {
 		if !f(header) {
@@ -66,7 +84,7 @@ func (p *pipeline) Matches(header *tempofb.TraceHeader) bool {
 	return true
 }
 
-func (p *pipeline) MatchesAny(headers []*tempofb.TraceHeader) bool {
+func (p *pipeline) MatchesAny(headers []*tempofb.SearchData) bool {
 
 	if len(p.filters) == 0 {
 		// Empty pipeline matches everything
@@ -127,6 +145,7 @@ func NewSearchDataForAppendBlock(i *instance, b *wal.AppendBlock) (*searchData, 
 	}
 	s.file = f
 
+	// Entries in WAL are not paged.
 	a := encoding.NewAppender(s)
 	if err != nil {
 		return nil, err
@@ -138,52 +157,70 @@ func NewSearchDataForAppendBlock(i *instance, b *wal.AppendBlock) (*searchData, 
 }
 
 func (s *searchData) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
-	var rnsb []byte
+	data := tempofb.SearchDataMap{}
 
-	rst := map[string][]byte{}
+	kv := &tempofb.KeyValues{}
 
-	// Squash all separate datas into 1
-	for _, s := range searchData {
-		b := tempofb.GetRootAsTraceHeader(s, 0)
-		if len(b.RootSpanName()) > 0 {
-			rnsb = b.RootSpanName()
-		}
-
-		kv := &tempofb.KV{}
-		for i := 0; i < b.RootSpanProcessTagsLength(); i++ {
-			b.RootSpanProcessTags(kv, i)
-			rst[string(kv.Key())] = kv.Value()
+	// Squash all datas into 1
+	for _, sb := range searchData {
+		sd := tempofb.SearchDataFromBytes(sb)
+		for i := 0; i < sd.DataLength(); i++ {
+			sd.Data(kv, i)
+			for j := 0; j < kv.ValueLength(); j++ {
+				tempofb.SearchDataAppend(data, string(kv.Key()), string(kv.Value(j)))
+			}
 		}
 	}
 
-	b := flatbuffers.NewBuilder(1024)
+	return s.appender.Append(id, tempofb.SearchDataFromMap(data))
 
-	rsn := b.CreateByteString(rnsb)
+	/*
+		var rnsb []byte
 
-	var rstu []flatbuffers.UOffsetT
+		rst := map[string][]byte{}
 
-	for k, v := range rst {
-		ku := b.CreateString(k)
-		vu := b.CreateByteString(v)
+		// Squash all separate datas into 1
+		for _, s := range searchData {
+			b := tempofb.GetRootAsTraceHeader(s, 0)
+			if len(b.RootSpanName()) > 0 {
+				rnsb = b.RootSpanName()
+			}
 
-		tempofb.KVStart(b)
-		tempofb.KVAddKey(b, ku)
-		tempofb.KVAddValue(b, vu)
-		rstu = append(rstu, tempofb.KVEnd(b))
-	}
+			kv := &tempofb.KV{}
+			for i := 0; i < b.RootSpanProcessTagsLength(); i++ {
+				b.RootSpanProcessTags(kv, i)
+				rst[string(kv.Key())] = kv.Value()
+			}
+		}
 
-	tempofb.TraceHeaderStartRootSpanProcessTagsVector(b, len(rstu))
-	for _, v := range rstu {
-		b.PrependUOffsetT(v)
-	}
-	rstvuu := b.EndVector(len(rstu))
+		b := flatbuffers.NewBuilder(1024)
 
-	tempofb.TraceHeaderStart(b)
-	tempofb.TraceHeaderAddRootSpanName(b, rsn)
-	tempofb.TraceHeaderAddRootSpanProcessTags(b, rstvuu)
-	b.Finish(tempofb.TraceHeaderEnd(b))
+		rsn := b.CreateByteString(rnsb)
 
-	return s.appender.Append(id, b.FinishedBytes())
+		var rstu []flatbuffers.UOffsetT
+
+		for k, v := range rst {
+			ku := b.CreateString(k)
+			vu := b.CreateByteString(v)
+
+			tempofb.KVStart(b)
+			tempofb.KVAddKey(b, ku)
+			tempofb.KVAddValue(b, vu)
+			rstu = append(rstu, tempofb.KVEnd(b))
+		}
+
+		tempofb.TraceHeaderStartRootSpanProcessTagsVector(b, len(rstu))
+		for _, v := range rstu {
+			b.PrependUOffsetT(v)
+		}
+		rstvuu := b.EndVector(len(rstu))
+
+		tempofb.TraceHeaderStart(b)
+		tempofb.TraceHeaderAddRootSpanName(b, rsn)
+		tempofb.TraceHeaderAddRootSpanProcessTags(b, rstvuu)
+		b.Finish(tempofb.TraceHeaderEnd(b))
+
+		return s.appender.Append(id, b.FinishedBytes())*/
 }
 
 func (s *searchData) Search(ctx context.Context, p pipeline) ([]common.ID, error) {
@@ -200,9 +237,10 @@ func (s *searchData) Search(ctx context.Context, p pipeline) ([]common.ID, error
 			return nil, err
 		}
 
-		header := tempofb.GetRootAsTraceHeader(buf, 0)
+		//header := tempofb.GetRootAsTraceHeader(buf, 0)
+		searchData := tempofb.SearchDataFromBytes(buf)
 
-		if !p.Matches(header) {
+		if !p.Matches(searchData) {
 			continue
 		}
 

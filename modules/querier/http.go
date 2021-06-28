@@ -147,11 +147,20 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
 	defer cancel()
 
-	resp, err := q.Search(ctx, &tempopb.SearchRequest{
+	req := &tempopb.SearchRequest{
 		RootSpanName:       r.URL.Query().Get("rootSpanName"),
 		RootAttributeName:  r.URL.Query().Get("rootAttrName"),
 		RootAttributeValue: r.URL.Query().Get("rootAttrValue"),
-	})
+		Tags:               map[string]string{},
+	}
+
+	for k, v := range r.URL.Query() {
+		if len(v) > 0 && v[0] != "" {
+			req.Tags[k] = v[0]
+		}
+	}
+
+	resp, err := q.Search(ctx, req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

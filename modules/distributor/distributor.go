@@ -14,7 +14,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/status"
-	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/pkg/errors"
@@ -269,6 +268,53 @@ func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {
 	return headers
 }
 
+func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
+	data := tempofb.SearchDataMap{}
+
+	for _, b := range trace.Batches {
+		for _, ils := range b.InstrumentationLibrarySpans {
+			for _, s := range ils.Spans {
+
+				// Root span
+				if len(s.ParentSpanId) == 0 {
+
+					tempofb.SearchDataAppend(data, "root.span.name", s.Name)
+
+					// Span attrs
+					for _, a := range s.Attributes {
+						if v := a.Value.GetStringValue(); v != "" {
+							//data.RootData[a.Key] = v
+							tempofb.SearchDataAppend(data, fmt.Sprint("root.span.", a.Key), v)
+						}
+					}
+
+					// Batch attrs
+					for _, a := range b.Resource.Attributes {
+						if v := a.Value.GetStringValue(); v != "" {
+							//data.RootData[a.Key] = v
+							tempofb.SearchDataAppend(data, fmt.Sprint("root.span.", a.Key), v)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	fmt.Printf("Distributor extracted search data from trace %x %v\n", trace.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId, data)
+
+	return tempofb.SearchDataFromMap(data)
+}
+
+/*func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {
+	headers := make([][]byte, len(traces))
+
+	for i, t := range traces {
+		headers[i] = d.extractSearchData(t)
+	}
+
+	return headers
+}
+
 func (d *Distributor) extractSearchData(t *tempopb.Trace) []byte {
 
 	fmt.Printf("Distributor extracting search data from trace %x\n", t.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId)
@@ -333,7 +379,7 @@ func (d *Distributor) extractSearchData(t *tempopb.Trace) []byte {
 	tempofb.TraceHeaderAddRootSpanProcessTags(b, rstvuu)
 	b.Finish(tempofb.TraceHeaderEnd(b))
 	return b.FinishedBytes()
-}
+}*/
 
 func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, searchData [][]byte, keys []uint32, ids [][]byte) error {
 	// Marshal to bytes once

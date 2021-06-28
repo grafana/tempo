@@ -32,6 +32,8 @@ message SearchRequest {
   string rootSpanName = 1;
   string rootAttributeName = 2;
   string rootAttributeValue = 3;
+
+  map<string, string> tags = 4 [(gogoproto.nullable) = false];
 }
 
 message SearchResponse {
@@ -60,7 +62,13 @@ message PushBytesRequest {
   repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
   // search data, length must match traces
   repeated bytes searchData = 4 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+  //repeated SearchData searchData = 4 [(gogoproto.nullable) = false];
 }
+
+/*message SearchData {
+  map<string, string> RootData = 1 [(gogoproto.nullable) = false];
+}*/
+
 
 /*message TraceHeader {
   string rootSpanName = 1;
