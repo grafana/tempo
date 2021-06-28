@@ -110,21 +110,35 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 }
 
 func (b *Backend) GetServices(ctx context.Context) ([]string, error) {
-	// TODO
-	return []string{"frontend"}, nil
+	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
+	defer span.Finish()
+
+	return b.lookupTagValues(ctx, span, "root.service.name")
 }
 
 func (b *Backend) GetOperations(ctx context.Context, query jaeger_spanstore.OperationQueryParameters) ([]jaeger_spanstore.Operation, error) {
-	// TODO these are operations from synthetic-load-generator
-	return []jaeger_spanstore.Operation{
-		{Name: "/cart", SpanKind: ""},
-		{Name: "/checkout", SpanKind: ""},
-		{Name: "/product", SpanKind: ""},
-	}, nil
+	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
+	defer span.Finish()
+
+	tagValues, err := b.lookupTagValues(ctx, span, "root.name")
+	if err != nil {
+		return nil, err
+	}
+
+	var operations []jaeger_spanstore.Operation
+	for _, value := range tagValues {
+		operations = append(operations, jaeger_spanstore.Operation{
+			Name:     value,
+			SpanKind: "",
+		})
+	}
+
+	return operations, nil
+
 }
 
 func (b *Backend) FindTraces(ctx context.Context, query *jaeger_spanstore.TraceQueryParameters) ([]*jaeger.Trace, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "FindTraces")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraces")
 	defer span.Finish()
 
 	traceIDs, err := b.FindTraceIDs(ctx, query)
@@ -147,7 +161,7 @@ func (b *Backend) FindTraces(ctx context.Context, query *jaeger_spanstore.TraceQ
 }
 
 func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.TraceQueryParameters) ([]jaeger.TraceID, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "FindTraceIDs")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraceIDs")
 	defer span.Finish()
 
 	url := url.URL{
@@ -195,6 +209,42 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	}
 
 	return jaegerTraceIDs, nil
+}
+
+func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, tagName string) ([]string, error) {
+	url := url.URL{
+		Scheme: "http",
+		Host:   b.tempoBackend,
+		Path:   "querier/api/search/lookup",
+	}
+	urlQuery := url.Query()
+	urlQuery.Add("tag", tagName)
+	url.RawQuery = urlQuery.Encode()
+
+	req, err := b.NewGetRequest(ctx, url.String(), span)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed get to tempo %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("expected 200 OK, got %v", resp.StatusCode)
+	}
+
+	var searchLookupResponse tempopb.SearchLookupResponse
+
+	unmarshaler := jsonpb.Unmarshaler{}
+	err = unmarshaler.Unmarshal(resp.Body, &searchLookupResponse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response %w", err)
+	}
+
+	return searchLookupResponse.TagValues, nil
 }
 
 func (b *Backend) WriteSpan(ctx context.Context, span *jaeger.Span) error {
