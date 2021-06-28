@@ -151,7 +151,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		dataEncoding = blockMeta.DataEncoding // blocks chosen for compaction always have the same data encoding
 
 		// Make sure block still exists
-		_, err = backend.ReadBlockMeta(ctx, rw.r, blockMeta.BlockID, tenantID)
+		_, err = rw.r.BlockMeta(ctx, blockMeta.BlockID, tenantID)
 		if err != nil {
 			return err
 		}

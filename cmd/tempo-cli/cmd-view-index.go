@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
@@ -28,7 +27,7 @@ func (cmd *viewIndexCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	meta, err := backend.ReadBlockMeta(context.TODO(), r, blockID, cmd.TenantID)
+	meta, err := r.BlockMeta(context.TODO(), blockID, cmd.TenantID)
 	if err != nil {
 		return err
 	}

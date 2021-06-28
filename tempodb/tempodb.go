@@ -119,8 +119,8 @@ type readerWriter struct {
 
 // New creates a new tempodb
 func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
-	var r backend.Reader
-	var w backend.Writer
+	var rawR backend.RawReader
+	var rawW backend.RawWriter
 	var c backend.Compactor
 
 	err := validateConfig(cfg)
@@ -130,13 +130,13 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 
 	switch cfg.Backend {
 	case "local":
-		r, w, c, err = local.New(cfg.Local)
+		rawR, rawW, c, err = local.New(cfg.Local)
 	case "gcs":
-		r, w, c, err = gcs.New(cfg.GCS)
+		rawR, rawW, c, err = gcs.New(cfg.GCS)
 	case "s3":
-		r, w, c, err = s3.New(cfg.S3)
+		rawR, rawW, c, err = s3.New(cfg.S3)
 	case "azure":
-		r, w, c, err = azure.New(cfg.Azure)
+		rawR, rawW, c, err = azure.New(cfg.Azure)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.Backend)
 	}
@@ -155,7 +155,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	}
 
 	if cacheBackend != nil {
-		r, w, err = cache.NewCache(r, w, cacheBackend)
+		rawR, rawW, err = cache.NewCache(rawR, rawW, cacheBackend)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -165,6 +165,8 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
 	}
 
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
 		c:                   c,
 		r:                   r,

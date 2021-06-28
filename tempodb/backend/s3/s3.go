@@ -65,7 +65,7 @@ func (s *overrideSignatureVersion) IsExpired() bool {
 	return s.upstream.IsExpired()
 }
 
-func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
+func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	l := log_util.Logger
 
 	core, err := createCore(cfg, false)

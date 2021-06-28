@@ -2,7 +2,6 @@ package blocklist
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -269,33 +268,28 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 	}
 
 	return &test.MockReader{
-		ListFn: func(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+		T: tenants,
+		BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 			if expectsError {
 				return nil, errors.New("err")
 			}
-			if len(keypath) == 0 {
-				return tenants, nil
-			}
-			tenantID := keypath[0]
 			blocks := list[tenantID]
-			uuids := []string{}
+			uuids := []uuid.UUID{}
 			for _, b := range blocks {
-				uuids = append(uuids, b.BlockID.String())
+				uuids = append(uuids, b.BlockID)
 			}
 			compactedBlocks := compactedList[tenantID]
 			for _, b := range compactedBlocks {
-				uuids = append(uuids, b.BlockID.String())
+				uuids = append(uuids, b.BlockID)
 			}
 
 			return uuids, nil
 		},
-		ReadFn: func(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
+		BlockMetaFn: func(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 			if expectsError {
 				return nil, errors.New("err")
 			}
 
-			tenantID := keypath[0]
-			blockID := uuid.MustParse(keypath[1])
 			l, ok := list[tenantID]
 			if !ok {
 				return nil, backend.ErrDoesNotExist
@@ -303,7 +297,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 
 			for _, m := range l {
 				if m.BlockID == blockID {
-					return json.Marshal(m)
+					return m, nil
 				}
 			}
 

@@ -10,12 +10,12 @@ import (
 )
 
 type readerWriter struct {
-	nextReader backend.Reader
-	nextWriter backend.Writer
+	nextReader backend.RawReader
+	nextWriter backend.RawWriter
 	cache      cortex_cache.Cache
 }
 
-func NewCache(nextReader backend.Reader, nextWriter backend.Writer, cache cortex_cache.Cache) (backend.Reader, backend.Writer, error) {
+func NewCache(nextReader backend.RawReader, nextWriter backend.RawWriter, cache cortex_cache.Cache) (backend.RawReader, backend.RawWriter, error) {
 	rw := &readerWriter{
 		cache:      cache,
 		nextReader: nextReader,

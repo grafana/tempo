@@ -32,21 +32,21 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	}
 
 	// index
-	err = w.Write(ctx, nameIndex, backend.KeyPathForBlock(meta.BlockID, meta.TenantID), indexBytes)
+	err = w.Write(ctx, nameIndex, meta.BlockID, meta.TenantID, indexBytes)
 	if err != nil {
 		return fmt.Errorf("unexpected error writing index %w", err)
 	}
 
 	// bloom
 	for i, bloom := range blooms {
-		err := w.Write(ctx, bloomName(i), backend.KeyPathForBlock(meta.BlockID, meta.TenantID), bloom)
+		err := w.Write(ctx, bloomName(i), meta.BlockID, meta.TenantID, bloom)
 		if err != nil {
 			return fmt.Errorf("unexpected error writing bloom-%d %w", i, err)
 		}
 	}
 
 	// meta
-	err = backend.WriteBlockMeta(ctx, w, meta)
+	err = w.WriteBlockMeta(ctx, meta)
 	if err != nil {
 		return fmt.Errorf("unexpected error writing meta %w", err)
 	}
@@ -56,7 +56,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 
 // appendBlockData appends the bytes passed to the block data
 func appendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
-	return w.Append(ctx, nameObjects, backend.KeyPathForBlock(meta.BlockID, meta.TenantID), tracker, buffer)
+	return w.Append(ctx, nameObjects, meta.BlockID, meta.TenantID, tracker, buffer)
 }
 
 // CopyBlock copies a block from one backend to another.   It is done at a low level, all encoding/formatting is preserved.
@@ -65,13 +65,13 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader,
 	tenantID := meta.TenantID
 
 	copy := func(name string) error {
-		reader, size, err := src.ReadReader(ctx, name, backend.KeyPathForBlock(blockID, tenantID))
+		reader, size, err := src.ReadReader(ctx, name, blockID, tenantID)
 		if err != nil {
 			return errors.Wrapf(err, "error reading %s", name)
 		}
 		defer reader.Close()
 
-		return dest.WriteReader(ctx, name, backend.KeyPathForBlock(blockID, tenantID), reader, size)
+		return dest.WriteReader(ctx, name, blockID, tenantID, reader, size)
 	}
 
 	// Data
@@ -95,6 +95,6 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader,
 	}
 
 	// Meta
-	err = backend.WriteBlockMeta(ctx, dest, meta)
+	err = dest.WriteBlockMeta(ctx, meta)
 	return err
 }

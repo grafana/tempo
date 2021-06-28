@@ -82,7 +82,7 @@ func testLegacyBlock(t *testing.T, ids [][]byte, objs [][]byte, meta *backend.Bl
 		Path: path,
 	})
 	require.NoError(t, err, "error creating backend")
-	backendBlock, err := NewBackendBlock(meta, r)
+	backendBlock, err := NewBackendBlock(meta, backend.NewReader(r))
 	require.NoError(t, err, "error creating backendblock")
 
 	// test Find

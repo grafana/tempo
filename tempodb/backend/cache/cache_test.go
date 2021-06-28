@@ -79,10 +79,10 @@ func TestReadWrite(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockR := &test.MockReader{
+			mockR := &test.MockRawReader{
 				R: tt.readerRead,
 			}
-			mockW := &test.MockWriter{}
+			mockW := &test.MockRawWriter{}
 
 			// READ
 			r, _, _ := NewCache(mockR, mockW, NewMockClient())
@@ -126,10 +126,10 @@ func TestList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockR := &test.MockReader{
+			mockR := &test.MockRawReader{
 				L: tt.readerList,
 			}
-			mockW := &test.MockWriter{}
+			mockW := &test.MockRawWriter{}
 
 			rw, _, _ := NewCache(mockR, mockW, NewMockClient())
 

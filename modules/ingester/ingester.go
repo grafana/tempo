@@ -350,7 +350,8 @@ func (i *Ingester) replayWal() error {
 func (i *Ingester) rediscoverLocalBlocks() error {
 	ctx := context.TODO()
 
-	tenants, err := backend.Tenants(ctx, i.local)
+	reader := backend.NewReader(i.local)
+	tenants, err := reader.Tenants(ctx)
 	if err != nil {
 		return errors.Wrap(err, "getting local tenants")
 	}

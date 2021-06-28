@@ -30,7 +30,7 @@ type readerWriter struct {
 	hedgedBucket *storage.BucketHandle
 }
 
-func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
+func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	ctx := context.Background()
 
 	bucket, err := createBucket(ctx, cfg, false)

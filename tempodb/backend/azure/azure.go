@@ -35,7 +35,7 @@ type appendTracker struct {
 }
 
 // New gets the Azure blob container
-func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
+func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	ctx := context.Background()
 
 	container, err := GetContainer(ctx, cfg, false)

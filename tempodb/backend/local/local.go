@@ -16,8 +16,8 @@ type Backend struct {
 	cfg *Config
 }
 
-var _ backend.Reader = (*Backend)(nil)
-var _ backend.Writer = (*Backend)(nil)
+var _ backend.RawReader = (*Backend)(nil)
+var _ backend.RawWriter = (*Backend)(nil)
 var _ backend.Compactor = (*Backend)(nil)
 
 func NewBackend(cfg *Config) (*Backend, error) {
@@ -33,7 +33,7 @@ func NewBackend(cfg *Config) (*Backend, error) {
 	return l, nil
 }
 
-func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
+func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	l, err := NewBackend(cfg)
 	return l, l, l, err
 }

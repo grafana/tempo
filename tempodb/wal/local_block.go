@@ -19,7 +19,8 @@ const nameFlushed = "flushed"
 // permanently tracks the flushed time with a special file in the block
 type LocalBlock struct {
 	encoding.BackendBlock
-	local *local.Backend
+	reader backend.Reader
+	writer backend.Writer
 
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
 }
@@ -28,10 +29,11 @@ func NewLocalBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l 
 
 	c := &LocalBlock{
 		BackendBlock: *existingBlock,
-		local:        l,
+		reader:       backend.NewReader(l),
+		writer:       backend.NewWriter(l),
 	}
 
-	flushedBytes, err := l.Read(ctx, nameFlushed, backend.KeyPathForBlock(c.BlockMeta().BlockID, c.BlockMeta().TenantID))
+	flushedBytes, err := c.reader.Read(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID)
 	if err == nil {
 		flushedTime := time.Time{}
 		err = flushedTime.UnmarshalText(flushedBytes)
@@ -64,7 +66,7 @@ func (c *LocalBlock) SetFlushed(ctx context.Context) error {
 		return errors.Wrap(err, "error marshalling flush time to text")
 	}
 
-	err = c.local.Write(ctx, nameFlushed, backend.KeyPathForBlock(c.BlockMeta().BlockID, c.BlockMeta().TenantID), flushedBytes)
+	err = c.writer.Write(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID, flushedBytes)
 	if err != nil {
 		return errors.Wrap(err, "error writing ingester block flushed file")
 	}
@@ -74,7 +76,7 @@ func (c *LocalBlock) SetFlushed(ctx context.Context) error {
 }
 
 func (c *LocalBlock) Write(ctx context.Context, w backend.Writer) error {
-	err := encoding.CopyBlock(ctx, c.BlockMeta(), c.local, w)
+	err := encoding.CopyBlock(ctx, c.BlockMeta(), c.reader, w)
 	if err != nil {
 		return errors.Wrap(err, "error copying block from local to remote backend")
 	}
