@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -110,7 +111,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 
 func (b *Backend) GetServices(ctx context.Context) ([]string, error) {
 	// TODO
-	return []string{"tempo"}, nil
+	return []string{"frontend"}, nil
 }
 
 func (b *Backend) GetOperations(ctx context.Context, query jaeger_spanstore.OperationQueryParameters) ([]jaeger_spanstore.Operation, error) {
@@ -146,13 +147,21 @@ func (b *Backend) FindTraces(ctx context.Context, query *jaeger_spanstore.TraceQ
 }
 
 func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.TraceQueryParameters) ([]jaeger.TraceID, error) {
-	// TODO to check whether this works when using microservices
-	url := fmt.Sprintf("http://%s/querier/api/search?rootSpanName=%s", b.tempoBackend, query.OperationName)
-
 	span, _ := opentracing.StartSpanFromContext(ctx, "FindTraceIDs")
 	defer span.Finish()
 
-	req, err := b.NewGetRequest(ctx, url, span)
+	url := url.URL{
+		Scheme: "http",
+		Host:   b.tempoBackend,
+		Path:   "querier/api/search",
+	}
+	urlQuery := url.Query()
+	urlQuery.Add("rootAttrName", "service.name")
+	urlQuery.Add("rootAttrValue", query.ServiceName)
+	urlQuery.Add("rootSpanName", query.OperationName)
+	url.RawQuery = urlQuery.Encode()
+
+	req, err := b.NewGetRequest(ctx, url.String(), span)
 	if err != nil {
 		return nil, err
 	}
