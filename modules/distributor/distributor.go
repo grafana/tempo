@@ -272,28 +272,42 @@ func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 	data := tempofb.SearchDataMap{}
 
 	for _, b := range trace.Batches {
+		// Batch attrs
+		for _, a := range b.Resource.Attributes {
+			if v := a.Value.GetStringValue(); v != "" {
+				tempofb.SearchDataAppend(data, a.Key, v)
+			}
+		}
+
 		for _, ils := range b.InstrumentationLibrarySpans {
 			for _, s := range ils.Spans {
 
 				// Root span
 				if len(s.ParentSpanId) == 0 {
 
-					tempofb.SearchDataAppend(data, "root.span.name", s.Name)
+					tempofb.SearchDataAppend(data, "root.name", s.Name)
 
 					// Span attrs
 					for _, a := range s.Attributes {
 						if v := a.Value.GetStringValue(); v != "" {
-							//data.RootData[a.Key] = v
-							tempofb.SearchDataAppend(data, fmt.Sprint("root.span.", a.Key), v)
+							tempofb.SearchDataAppend(data, fmt.Sprint("root.", a.Key), v)
 						}
 					}
 
 					// Batch attrs
 					for _, a := range b.Resource.Attributes {
 						if v := a.Value.GetStringValue(); v != "" {
-							//data.RootData[a.Key] = v
-							tempofb.SearchDataAppend(data, fmt.Sprint("root.span.", a.Key), v)
+							tempofb.SearchDataAppend(data, fmt.Sprint("root.", a.Key), v)
 						}
+					}
+				}
+
+				// Collect for any spans
+				tempofb.SearchDataAppend(data, "name", s.Name)
+
+				for _, a := range s.Attributes {
+					if v := a.Value.GetStringValue(); v != "" {
+						tempofb.SearchDataAppend(data, a.Key, v)
 					}
 				}
 			}

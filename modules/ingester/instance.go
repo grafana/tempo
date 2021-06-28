@@ -569,8 +569,8 @@ func (i *instance) GetSearchLookupValues(tagName string) []string {
 }
 
 var recordableSearchLookupTags map[string]struct{} = map[string]struct{}{
-	"root.span.name":         {},
-	"root.span.service.name": {},
+	"root.name":         {},
+	"root.service.name": {},
 }
 
 func (i *instance) RecordSearchLookupValues(b []byte) {
