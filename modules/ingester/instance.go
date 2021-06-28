@@ -459,7 +459,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 	for _, id := range ids {
 		meta, err := backend.ReadBlockMeta(ctx, i.local, id, i.instanceID)
 		if err != nil {
-			if err == backend.ErrMetaDoesNotExist {
+			if err == backend.ErrDoesNotExist {
 				// Partial/incomplete block found, remove, it will be recreated from data in the wal.
 				level.Warn(log.Logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "tenant", i.instanceID, "block", id.String())
 				err = i.local.ClearBlock(id, i.instanceID)

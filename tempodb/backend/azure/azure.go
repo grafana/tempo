@@ -294,7 +294,7 @@ func readError(err error) error { // jpe test
 		return errors.Wrap(err, "reading storage container")
 	}
 	if ret.ServiceCode() == "BlobNotFound" {
-		return backend.ErrMetaDoesNotExist
+		return backend.ErrDoesNotExist
 	}
 	return errors.Wrap(err, "reading Azure blob container")
 }

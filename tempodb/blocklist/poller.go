@@ -142,14 +142,14 @@ func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UU
 	var compactedBlockMeta *backend.CompactedBlockMeta
 	blockMeta, err := backend.ReadBlockMeta(ctx, p.reader, blockID, tenantID)
 	// if the normal meta doesn't exist maybe it's compacted.
-	if err == backend.ErrMetaDoesNotExist {
+	if err == backend.ErrDoesNotExist {
 		blockMeta = nil
 		compactedBlockMeta, err = p.compactor.CompactedBlockMeta(blockID, tenantID)
 	}
 
 	// blocks in intermediate states may not have a compacted or normal block meta.
 	//   this is not necessarily an error, just bail out
-	if err == backend.ErrMetaDoesNotExist {
+	if err == backend.ErrDoesNotExist {
 		return nil, nil, nil
 	}
 

@@ -185,7 +185,7 @@ func (rw *Backend) rootPath(keypath backend.KeyPath) string {
 
 func readError(err error) error {
 	if os.IsNotExist(err) {
-		return backend.ErrMetaDoesNotExist
+		return backend.ErrDoesNotExist
 	}
 
 	return err

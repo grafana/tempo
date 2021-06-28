@@ -9,9 +9,9 @@ import (
 )
 
 var (
-	ErrMetaDoesNotExist = fmt.Errorf("meta does not exist") // jpe rename to just ErrDoesNotExist
-	ErrEmptyTenantID    = fmt.Errorf("empty tenant id")     // jpe do we need these?
-	ErrEmptyBlockID     = fmt.Errorf("empty block id")
+	ErrDoesNotExist  = fmt.Errorf("does not exist")
+	ErrEmptyTenantID = fmt.Errorf("empty tenant id")
+	ErrEmptyBlockID  = fmt.Errorf("empty block id")
 )
 
 // AppendTracker is an empty interface usable by the backend to track a long running append operation
@@ -46,7 +46,6 @@ type Reader interface {
 	Shutdown()
 }
 
-// jpe - add context
 // Compactor is a collection of methods to interact with compacted elements of a tempodb block
 type Compactor interface {
 	// Marks a block compacted by renaming meta.json => meta.compacted.json

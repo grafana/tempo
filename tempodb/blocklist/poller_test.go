@@ -245,7 +245,7 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 
 			l, ok := list[tenantID]
 			if !ok {
-				return nil, backend.ErrMetaDoesNotExist
+				return nil, backend.ErrDoesNotExist
 			}
 
 			for _, m := range l {
@@ -254,7 +254,7 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 				}
 			}
 
-			return nil, backend.ErrMetaDoesNotExist
+			return nil, backend.ErrDoesNotExist
 		},
 	}
 }
@@ -298,7 +298,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 			blockID := uuid.MustParse(keypath[1])
 			l, ok := list[tenantID]
 			if !ok {
-				return nil, backend.ErrMetaDoesNotExist
+				return nil, backend.ErrDoesNotExist
 			}
 
 			for _, m := range l {
@@ -307,7 +307,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 				}
 			}
 
-			return nil, backend.ErrMetaDoesNotExist
+			return nil, backend.ErrDoesNotExist
 		},
 	}
 }
