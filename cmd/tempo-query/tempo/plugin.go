@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
@@ -26,39 +28,29 @@ const (
 )
 
 type Backend struct {
-	tempoEndpoint string
+	tempoBackend string
 }
 
 func New(cfg *Config) *Backend {
 	return &Backend{
-		tempoEndpoint: "http://" + cfg.Backend + "/api/traces/",
+		tempoBackend: cfg.Backend,
 	}
 }
 
 func (b *Backend) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]jaeger.DependencyLink, error) {
 	return nil, nil
 }
+
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
+	url := fmt.Sprintf("http://%s/api/traces/%s", b.tempoBackend, hexID)
 
 	span, _ := opentracing.StartSpanFromContext(ctx, "GetTrace")
 	defer span.Finish()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", b.tempoEndpoint+hexID, nil)
+	req, err := b.NewGetRequest(ctx, url, span)
 	if err != nil {
 		return nil, err
-	}
-
-	if tracer := opentracing.GlobalTracer(); tracer != nil {
-		// this is not really loggable or anything we can react to.  just ignoring this error
-		_ = tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
-	}
-
-	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers
-	// so we are going to extract the tenant id from the header, if it exists and use it
-	tenantID, found := extractBearerToken(ctx)
-	if found {
-		req.Header.Set(user.OrgIDHeaderName, tenantID)
 	}
 
 	// Set content type to grpc
@@ -117,19 +109,108 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 }
 
 func (b *Backend) GetServices(ctx context.Context) ([]string, error) {
-	return nil, nil
+	// TODO
+	return []string{"tempo"}, nil
 }
+
 func (b *Backend) GetOperations(ctx context.Context, query jaeger_spanstore.OperationQueryParameters) ([]jaeger_spanstore.Operation, error) {
-	return nil, nil
+	// TODO these are operations from synthetic-load-generator
+	return []jaeger_spanstore.Operation{
+		{Name: "/cart", SpanKind: ""},
+		{Name: "/checkout", SpanKind: ""},
+		{Name: "/product", SpanKind: ""},
+	}, nil
 }
+
 func (b *Backend) FindTraces(ctx context.Context, query *jaeger_spanstore.TraceQueryParameters) ([]*jaeger.Trace, error) {
-	return nil, nil
+	span, _ := opentracing.StartSpanFromContext(ctx, "FindTraces")
+	defer span.Finish()
+
+	traceIDs, err := b.FindTraceIDs(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	// for every traceID, get the full trace
+	var jaegerTraces []*jaeger.Trace
+	for _, traceID := range traceIDs {
+		trace, err := b.GetTrace(ctx, traceID)
+		if err != nil {
+			return nil, fmt.Errorf("could not get trace for traceID %v: %w", traceID, err)
+		}
+
+		jaegerTraces = append(jaegerTraces, trace)
+	}
+
+	return jaegerTraces, nil
 }
+
 func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.TraceQueryParameters) ([]jaeger.TraceID, error) {
-	return nil, nil
+	// TODO to check whether this works when using microservices
+	url := fmt.Sprintf("http://%s/querier/api/search?rootSpanName=%s", b.tempoBackend, query.OperationName)
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "FindTraceIDs")
+	defer span.Finish()
+
+	req, err := b.NewGetRequest(ctx, url, span)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed get to tempo %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("expected 200 OK, got %v", resp.StatusCode)
+	}
+
+	var searchResponse tempopb.SearchResponse
+
+	unmarshaler := jsonpb.Unmarshaler{}
+	err = unmarshaler.Unmarshal(resp.Body, &searchResponse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response %w", err)
+	}
+
+	jaegerTraceIDs := make([]jaeger.TraceID, len(searchResponse.Ids))
+
+	for i, id := range searchResponse.Ids {
+		jaegerTraceID, err := jaeger.TraceIDFromBytes(id)
+		if err != nil {
+			return nil, fmt.Errorf("could not convert traceID into jaeger traceID %w", err)
+		}
+		jaegerTraceIDs[i] = jaegerTraceID
+	}
+
+	return jaegerTraceIDs, nil
 }
+
 func (b *Backend) WriteSpan(ctx context.Context, span *jaeger.Span) error {
 	return nil
+}
+
+func (b *Backend) NewGetRequest(ctx context.Context, url string, span opentracing.Span) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if tracer := opentracing.GlobalTracer(); tracer != nil {
+		// this is not really loggable or anything we can react to.  just ignoring this error
+		_ = tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
+	}
+
+	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers
+	// so we are going to extract the tenant id from the header, if it exists and use it
+	tenantID, found := extractBearerToken(ctx)
+	if found {
+		req.Header.Set(user.OrgIDHeaderName, tenantID)
+	}
+
+	return req, nil
 }
 
 func extractBearerToken(ctx context.Context) (string, bool) {
