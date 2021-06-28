@@ -34,7 +34,7 @@ const (
 	// Implementations MAY assume SpanKind to be INTERNAL when receiving UNSPECIFIED.
 	Span_SPAN_KIND_UNSPECIFIED Span_SpanKind = 0
 	// Indicates that the span represents an internal operation within an application,
-	// as opposed to an operations happening at the boundaries. Default value.
+	// as opposed to an operation happening at the boundaries. Default value.
 	Span_SPAN_KIND_INTERNAL Span_SpanKind = 1
 	// Indicates that the span covers server-side handling of an RPC or other
 	// remote network request.
@@ -149,7 +149,7 @@ func (Status_DeprecatedStatusCode) EnumDescriptor() ([]byte, []int) {
 }
 
 // For the semantics of status codes see
-// https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/trace/api.md#set-status
+// https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#set-status
 type Status_StatusCode int32
 
 const (

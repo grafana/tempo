@@ -187,3 +187,39 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+func (q *Querier) SearchLookupHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
+	defer cancel()
+
+	req := &tempopb.SearchLookupRequest{
+		TagName: r.URL.Query().Get("tag"),
+	}
+
+	resp, err := q.SearchLookup(ctx, req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	/*if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
+		b, err := proto.Marshal(resp.Trace)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, err = w.Write(b)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		return
+	}*/
+
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}

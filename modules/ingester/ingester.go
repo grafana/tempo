@@ -407,3 +407,22 @@ func (i *Ingester) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	return resp, nil
 }
+
+func (i *Ingester) SearchLookup(ctx context.Context, req *tempopb.SearchLookupRequest) (*tempopb.SearchLookupResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		return &tempopb.SearchLookupResponse{}, nil
+	}
+
+	vals := inst.GetSearchLookupValues(req.TagName)
+
+	resp := &tempopb.SearchLookupResponse{
+		TagValues: vals,
+	}
+
+	return resp, nil
+}

@@ -69,6 +69,7 @@ type instance struct {
 
 	//headBlockSearch *searchData
 	searchAppendBlocks map[*wal.AppendBlock]*searchData
+	searchTagLookups   tempofb.SearchDataMap
 
 	lastBlockCut time.Time
 
@@ -86,6 +87,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 	i := &instance{
 		traces:             map[uint32]*trace{},
 		searchAppendBlocks: map[*wal.AppendBlock]*searchData{},
+		searchTagLookups:   tempofb.SearchDataMap{},
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -151,6 +153,8 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
+
+	i.RecordSearchLookupValues(searchData)
 
 	trace := i.getOrCreateTrace(id)
 	return trace.Push(ctx, traceBytes, searchData)
@@ -558,4 +562,28 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]co
 	}
 
 	return results, err
+}
+
+func (i *instance) GetSearchLookupValues(tagName string) []string {
+	return i.searchTagLookups[tagName]
+}
+
+var recordableSearchLookupTags map[string]struct{} = map[string]struct{}{
+	"root.span.name":         {},
+	"root.span.service.name": {},
+}
+
+func (i *instance) RecordSearchLookupValues(b []byte) {
+	kv := &tempofb.KeyValues{}
+
+	s := tempofb.SearchDataFromBytes(b)
+	for j := 0; j < s.DataLength(); j++ {
+		s.Data(kv, j)
+		key := string(kv.Key())
+		if _, ok := recordableSearchLookupTags[key]; ok {
+			for k := 0; k < kv.ValueLength(); k++ {
+				tempofb.SearchDataAppend(i.searchTagLookups, key, string(kv.Value(k)))
+			}
+		}
+	}
 }

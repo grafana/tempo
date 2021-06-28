@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -303,4 +304,53 @@ func (q *Querier) searchGivenIngesters(ctx context.Context, replicationSet ring.
 	}
 
 	return responses, err
+}
+
+func (q *Querier) SearchLookup(ctx context.Context, req *tempopb.SearchLookupRequest) (*tempopb.SearchLookupResponse, error) {
+	//userID, err := user.ExtractOrgID(ctx)
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
+	//}
+
+	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
+	}
+
+	// Get results from all ingesters
+	lookupResults, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
+		client, err := q.pool.GetClientFor(ingester.Addr)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := client.(tempopb.QuerierClient).SearchLookup(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		return resp, nil
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchLookup")
+	}
+
+	// Collect only unique values
+	uniqueMap := map[string]struct{}{}
+	for _, resp := range lookupResults {
+		for _, res := range resp.(*tempopb.SearchLookupResponse).TagValues {
+			uniqueMap[res] = struct{}{}
+		}
+	}
+
+	// Final response (sorted)
+	resp := &tempopb.SearchLookupResponse{
+		TagValues: make([]string, 0, len(uniqueMap)),
+	}
+	for k, _ := range uniqueMap {
+		resp.TagValues = append(resp.TagValues, k)
+	}
+	sort.Strings(resp.TagValues)
+
+	return resp, nil
 }
