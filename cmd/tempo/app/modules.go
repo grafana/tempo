@@ -47,8 +47,11 @@ const (
 )
 
 const (
-	apiPathTraces string = "/api/traces/{traceID}"
-	apiPathEcho   string = "/api/echo"
+	apiPathTraces          string = "/api/traces/{traceID}"
+	apiPathSearch          string = "/api/search"
+	apiPathSearchTags      string = "/api/search/tags"
+	apiPathSearchTagValues string = "/api/search/tag/{tagName}/values"
+	apiPathEcho            string = "/api/echo"
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -153,26 +156,21 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 	t.querier = querier
 
-	tracesHandler := middleware.Merge(
+	middleware := middleware.Merge(
 		t.httpAuthMiddleware,
-	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
+	)
 
+	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathTraces)), tracesHandler)
 
-	searchHandler := middleware.Merge(
-		t.httpAuthMiddleware,
-	).Wrap(http.HandlerFunc(t.querier.SearchHandler))
-	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, "/api/search")), searchHandler)
+	searchHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
+	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearch)), searchHandler)
 
-	searchTagsHandler := middleware.Merge(
-		t.httpAuthMiddleware,
-	).Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
-	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, "/api/search/tags")), searchTagsHandler)
+	searchTagsHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
+	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTags)), searchTagsHandler)
 
-	searchTagValuesHandler := middleware.Merge(
-		t.httpAuthMiddleware,
-	).Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, "/api/search/tag/{tagName}/values")), searchTagValuesHandler)
+	searchTagValuesHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
+	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues)), searchTagValuesHandler)
 
 	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTPServer.Handler)
 }
@@ -196,16 +194,31 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 	shardingTripper := shardingTripperWare(cortexTripper)
 
+	tripperWare, err := frontend.NewUnshardedTripperware(log.Logger, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, err
+	}
+	tripper := tripperWare(cortexTripper)
+
 	cortexHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, shardingTripper, log.Logger, prometheus.DefaultRegisterer)
+	nonShardingCortexHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, tripper, log.Logger, prometheus.DefaultRegisterer)
 
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
 	).Wrap(cortexHandler)
 
+	frontendHandler := middleware.Merge(
+		t.httpAuthMiddleware,
+	).Wrap(nonShardingCortexHandler)
+
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
 	// http query endpoint
 	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathTraces), tracesHandler)
+
+	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), frontendHandler)
+	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), frontendHandler)
+	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), frontendHandler)
 
 	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathEcho), echoHandler())
 

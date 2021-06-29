@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -98,27 +99,71 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 
 			span.SetTag("response marshalling format", marshallingFormat)
 
-			traceID, _ := middleware.ExtractTraceID(ctx)
-			statusCode := 500
-			var contentLength int64 = 0
-			if resp != nil {
-				statusCode = resp.StatusCode
-				contentLength = resp.ContentLength
-			}
-
-			level.Info(logger).Log(
-				"tenant", orgID,
-				"method", r.Method,
-				"traceID", traceID,
-				"url", r.URL.RequestURI(),
-				"duration", time.Since(start).String(),
-				"response_size", contentLength,
-				"status", statusCode,
-			)
+			logRequest(ctx, r, resp, orgID, start, logger)
 
 			return resp, err
 		})
 	}, nil
+}
+
+// NewUnshardedTripperware returns a Tripperware that will query a single querier without further
+// processing.
+func NewUnshardedTripperware(logger log.Logger, registerer prometheus.Registerer) (queryrange.Tripperware, error) {
+	level.Info(logger).Log("msg", "creating unsharded tripperware in query frontend")
+	//queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
+	//	Namespace: "tempo",
+	//	Name:      "query_frontend_queries_total",
+	//	Help:      "Total queries received per tenant.",
+	//}, []string{"tenant"})
+
+	return func(rt http.RoundTripper) http.RoundTripper {
+		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
+			start := time.Now()
+			// tracing instrumentation
+			span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.Tripperware")
+			defer span.Finish()
+
+			orgID, _ := user.ExtractOrgID(r.Context())
+			// TODO count search requests as well
+			//queriesPerTenant.WithLabelValues(orgID).Inc()
+			span.SetTag("orgID", orgID)
+
+			// TODO in NewTripperware we force all internal communication to be in protobuf bytes
+			//   	this is tricky to set up here because this tripperware handles multiple data structures
+
+			// for context propagation with traceID set
+			r = r.WithContext(ctx)
+
+			r.Header.Set(user.OrgIDHeaderName, orgID)
+			r.RequestURI = querierPrefix + r.RequestURI
+
+			resp, err := rt.RoundTrip(r)
+
+			logRequest(ctx, r, resp, orgID, start, logger)
+
+			return resp, err
+		})
+	}, nil
+}
+
+func logRequest(ctx context.Context, r *http.Request, resp *http.Response, orgID string, start time.Time, logger log.Logger) {
+	traceID, _ := middleware.ExtractTraceID(ctx)
+	statusCode := 500
+	var contentLength int64 = 0
+	if resp != nil {
+		statusCode = resp.StatusCode
+		contentLength = resp.ContentLength
+	}
+
+	level.Info(logger).Log(
+		"tenant", orgID,
+		"method", r.Method,
+		"traceID", traceID,
+		"url", r.URL.RequestURI(),
+		"duration", time.Since(start).String(),
+		"response_size", contentLength,
+		"status", statusCode,
+	)
 }
 
 type Handler interface {
