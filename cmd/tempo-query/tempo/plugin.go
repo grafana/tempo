@@ -218,7 +218,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 }
 
 func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, tagName string) ([]string, error) {
-	url := fmt.Sprintf("http://%s/api/search/tag/%s/values", b.tempoBackend, tagName)
+	url := fmt.Sprintf("http://%s/querier/api/search/tag/%s/values", b.tempoBackend, tagName)
 
 	req, err := b.NewGetRequest(ctx, url, span)
 	if err != nil {
