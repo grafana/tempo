@@ -212,13 +212,12 @@ func (s *searchData) Search(ctx context.Context, p pipeline) ([]*tempopb.TraceSe
 		}
 
 		// If we got here then it's a match.
-		// TODO how do we extract the other fields
 		matches = append(matches, &tempopb.TraceSearchMetadata{
-			TraceID:         r.ID,
-			RootServiceName: "",
-			RootTraceName:   "",
-			StartTime:       0,
-			Duration:        0,
+			TraceID:           r.ID,
+			RootServiceName:   tempofb.SearchDataGet(searchData, "root.service.name"),
+			RootTraceName:     tempofb.SearchDataGet(searchData, "root.name"),
+			StartTimeUnixNano: searchData.StartTimeUnixNano(),
+			DurationMs:        uint32((searchData.EndTimeUnixNano() - searchData.StartTimeUnixNano()) / 1_000_000),
 		})
 
 		if len(matches) > 20 {

@@ -29,6 +29,22 @@ func SearchDataAppend(d SearchDataMap, k string, v string) {
 	d[k] = append(vs, v)
 }
 
+// SearchDataGet searches SearchData and returns the first value found for the given key.
+func SearchDataGet(s *SearchData, k string) string {
+	kv := &KeyValues{}
+	kb := bytes.ToLower([]byte(k))
+
+	// TODO - Use binary search since keys/values are sorted
+	for i := 0; i < s.TagsLength(); i++ {
+		s.Tags(kv, i)
+		if bytes.Equal(kv.Key(), kb) {
+			return string(kv.Value(0))
+		}
+	}
+
+	return ""
+}
+
 func SearchDataContains(s *SearchData, k string, v string) bool {
 	kv := &KeyValues{}
 	kb := bytes.ToLower([]byte(k))

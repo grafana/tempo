@@ -528,14 +528,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 		for _, t := range i.traces {
 
 			for _, s := range t.searchData {
-				if p.Matches(tempofb.SearchDataFromBytes(s)) {
-					// TODO how do we extract the other fields out of searchData?
+				searchData := tempofb.SearchDataFromBytes(s)
+				if p.Matches(searchData) {
 					results = append(results, &tempopb.TraceSearchMetadata{
-						TraceID:         t.traceID,
-						RootServiceName: "",
-						RootTraceName:   "",
-						StartTime:       0,
-						Duration:        0,
+						TraceID:           t.traceID,
+						RootServiceName:   tempofb.SearchDataGet(searchData, "root.service.name"),
+						RootTraceName:     tempofb.SearchDataGet(searchData, "root.name"),
+						StartTimeUnixNano: searchData.StartTimeUnixNano(),
+						DurationMs:        uint32((searchData.EndTimeUnixNano() - searchData.StartTimeUnixNano()) / 1_000_000),
 					})
 					continue
 				}
