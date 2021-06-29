@@ -218,16 +218,9 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 }
 
 func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, tagName string) ([]string, error) {
-	url := url.URL{
-		Scheme: "http",
-		Host:   b.tempoBackend,
-		Path:   "querier/api/search/lookup",
-	}
-	urlQuery := url.Query()
-	urlQuery.Add("tag", tagName)
-	url.RawQuery = urlQuery.Encode()
+	url := fmt.Sprintf("http://%s/api/search/tag/%s/values", b.tempoBackend, tagName)
 
-	req, err := b.NewGetRequest(ctx, url.String(), span)
+	req, err := b.NewGetRequest(ctx, url, span)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +235,7 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 		return nil, fmt.Errorf("expected 200 OK, got %v", resp.StatusCode)
 	}
 
-	var searchLookupResponse tempopb.SearchLookupResponse
+	var searchLookupResponse tempopb.SearchTagValuesResponse
 
 	unmarshaler := jsonpb.Unmarshaler{}
 	err = unmarshaler.Unmarshal(resp.Body, &searchLookupResponse)

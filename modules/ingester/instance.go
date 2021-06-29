@@ -564,7 +564,15 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]co
 	return results, err
 }
 
-func (i *instance) GetSearchLookupValues(tagName string) []string {
+func (i *instance) GetSearchTags() []string {
+	tags := make([]string, 0, len(i.searchTagLookups))
+	for k := range i.searchTagLookups {
+		tags = append(tags, k)
+	}
+	return tags
+}
+
+func (i *instance) GetSearchTagValues(tagName string) []string {
 	return i.searchTagLookups[tagName]
 }
 

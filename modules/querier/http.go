@@ -10,6 +10,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -147,6 +148,9 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
 	defer cancel()
 
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchHandler")
+	defer span.Finish()
+
 	req := &tempopb.SearchRequest{
 		RootSpanName:       r.URL.Query().Get("rootSpanName"),
 		RootAttributeName:  r.URL.Query().Get("rootAttrName"),
@@ -188,15 +192,47 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (q *Querier) SearchLookupHandler(w http.ResponseWriter, r *http.Request) {
+func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
 	defer cancel()
 
-	req := &tempopb.SearchLookupRequest{
-		TagName: r.URL.Query().Get("tag"),
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagsHandler")
+	defer span.Finish()
+
+	req := &tempopb.SearchTagsRequest{}
+
+	resp, err := q.SearchTags(ctx, req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	resp, err := q.SearchLookup(ctx, req)
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")
+	defer span.Finish()
+
+	vars := mux.Vars(r)
+	tagName, ok := vars["tagName"]
+	if !ok {
+		http.Error(w, "please provide a tagName", http.StatusBadRequest)
+		return
+	}
+	req := &tempopb.SearchTagValuesRequest{
+		TagName: tagName,
+	}
+
+	resp, err := q.SearchTagValues(ctx, req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

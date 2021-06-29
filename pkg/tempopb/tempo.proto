@@ -13,7 +13,8 @@ service Pusher {
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
   rpc Search(SearchRequest) returns (SearchResponse) {};
-  rpc SearchLookup(SearchLookupRequest) returns (SearchLookupResponse) {};
+  rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {};
+  rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {};
 }
 
 // Read
@@ -41,11 +42,18 @@ message SearchResponse {
   repeated bytes ids = 1;
 }
 
-message SearchLookupRequest {
+message SearchTagsRequest {
+}
+
+message SearchTagsResponse {
+  repeated string tagNames = 1;
+}
+
+message SearchTagValuesRequest {
   string tagName = 1;
 }
 
-message SearchLookupResponse {
+message SearchTagValuesResponse {
   repeated string tagValues = 1;
 }
 

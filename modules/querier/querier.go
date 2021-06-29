@@ -261,14 +261,14 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
-		return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.Search")
 	}
 
 	responses, err := q.searchGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (*tempopb.SearchResponse, error) {
 		return client.Search(ctx, req)
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "error querying ingesters in Querier.FindTraceByID")
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.Search")
 	}
 
 	response := &tempopb.SearchResponse{}
@@ -306,7 +306,7 @@ func (q *Querier) searchGivenIngesters(ctx context.Context, replicationSet ring.
 	return responses, err
 }
 
-func (q *Querier) SearchLookup(ctx context.Context, req *tempopb.SearchLookupRequest) (*tempopb.SearchLookupResponse, error) {
+func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
 	//userID, err := user.ExtractOrgID(ctx)
 	//if err != nil {
 	//	return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
@@ -314,7 +314,7 @@ func (q *Querier) SearchLookup(ctx context.Context, req *tempopb.SearchLookupReq
 
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
-		return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTags")
 	}
 
 	// Get results from all ingesters
@@ -324,7 +324,7 @@ func (q *Querier) SearchLookup(ctx context.Context, req *tempopb.SearchLookupReq
 			return nil, err
 		}
 
-		resp, err := client.(tempopb.QuerierClient).SearchLookup(ctx, req)
+		resp, err := client.(tempopb.QuerierClient).SearchTags(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -332,22 +332,71 @@ func (q *Querier) SearchLookup(ctx context.Context, req *tempopb.SearchLookupReq
 		return resp, nil
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchLookup")
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTags")
 	}
 
 	// Collect only unique values
 	uniqueMap := map[string]struct{}{}
 	for _, resp := range lookupResults {
-		for _, res := range resp.(*tempopb.SearchLookupResponse).TagValues {
+		for _, res := range resp.(*tempopb.SearchTagsResponse).TagNames {
 			uniqueMap[res] = struct{}{}
 		}
 	}
 
 	// Final response (sorted)
-	resp := &tempopb.SearchLookupResponse{
+	resp := &tempopb.SearchTagsResponse{
+		TagNames: make([]string, 0, len(uniqueMap)),
+	}
+	for k := range uniqueMap {
+		resp.TagNames = append(resp.TagNames, k)
+	}
+	sort.Strings(resp.TagNames)
+
+	return resp, nil
+}
+
+func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
+	//userID, err := user.ExtractOrgID(ctx)
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
+	//}
+
+	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
+	}
+
+	// Get results from all ingesters
+	lookupResults, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
+		client, err := q.pool.GetClientFor(ingester.Addr)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := client.(tempopb.QuerierClient).SearchTagValues(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		return resp, nil
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTagValues")
+	}
+
+	// Collect only unique values
+	uniqueMap := map[string]struct{}{}
+	for _, resp := range lookupResults {
+		for _, res := range resp.(*tempopb.SearchTagValuesResponse).TagValues {
+			uniqueMap[res] = struct{}{}
+		}
+	}
+
+	// Final response (sorted)
+	resp := &tempopb.SearchTagValuesResponse{
 		TagValues: make([]string, 0, len(uniqueMap)),
 	}
-	for k, _ := range uniqueMap {
+	for k := range uniqueMap {
 		resp.TagValues = append(resp.TagValues, k)
 	}
 	sort.Strings(resp.TagValues)

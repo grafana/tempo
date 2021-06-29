@@ -408,19 +408,38 @@ func (i *Ingester) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	return resp, nil
 }
 
-func (i *Ingester) SearchLookup(ctx context.Context, req *tempopb.SearchLookupRequest) (*tempopb.SearchLookupResponse, error) {
+func (i *Ingester) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	inst, ok := i.getInstanceByID(instanceID)
 	if !ok || inst == nil {
-		return &tempopb.SearchLookupResponse{}, nil
+		return &tempopb.SearchTagsResponse{}, nil
 	}
 
-	vals := inst.GetSearchLookupValues(req.TagName)
+	tags := inst.GetSearchTags()
 
-	resp := &tempopb.SearchLookupResponse{
+	resp := &tempopb.SearchTagsResponse{
+		TagNames: tags,
+	}
+
+	return resp, nil
+}
+
+func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		return &tempopb.SearchTagValuesResponse{}, nil
+	}
+
+	vals := inst.GetSearchTagValues(req.TagName)
+
+	resp := &tempopb.SearchTagValuesResponse{
 		TagValues: vals,
 	}
 
