@@ -113,6 +113,11 @@ type searchData struct {
 	bytesWritten int
 }
 
+func (s *searchData) Clear() error {
+	s.file.Close()
+	return os.Remove(s.file.Name())
+}
+
 func (*searchData) Complete() error {
 	return nil
 }

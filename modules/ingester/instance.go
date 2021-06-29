@@ -268,7 +268,11 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Unlock()
 
 	if completingBlock != nil {
-		delete(i.searchAppendBlocks, completingBlock)
+		searchBlock := i.searchAppendBlocks[completingBlock]
+		if searchBlock != nil {
+			searchBlock.Clear()
+			delete(i.searchAppendBlocks, completingBlock)
+		}
 
 		return completingBlock.Clear()
 	}
