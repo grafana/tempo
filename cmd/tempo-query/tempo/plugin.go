@@ -28,6 +28,13 @@ const (
 	ProtobufTypeHeaderValue = "application/protobuf"
 )
 
+const (
+	serviceSearchTag     = "root.service.name"
+	operationSearchTag   = "root.name"
+	minDurationSearchTag = "minDuration"
+	maxDurationSearchTag = "maxDuration"
+)
+
 type Backend struct {
 	tempoBackend string
 }
@@ -113,14 +120,14 @@ func (b *Backend) GetServices(ctx context.Context) ([]string, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 
-	return b.lookupTagValues(ctx, span, "root.service.name")
+	return b.lookupTagValues(ctx, span, serviceSearchTag)
 }
 
 func (b *Backend) GetOperations(ctx context.Context, query jaeger_spanstore.OperationQueryParameters) ([]jaeger_spanstore.Operation, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 
-	tagValues, err := b.lookupTagValues(ctx, span, "root.name")
+	tagValues, err := b.lookupTagValues(ctx, span, operationSearchTag)
 	if err != nil {
 		return nil, err
 	}
@@ -167,23 +174,15 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	url := url.URL{
 		Scheme: "http",
 		Host:   b.tempoBackend,
-		Path:   "querier/api/search",
+		Path:   "api/search",
 	}
 	urlQuery := url.Query()
-	if query.ServiceName != "" {
-		urlQuery.Add("root.service.name", query.ServiceName)
-	}
-	if query.OperationName != "" {
-		urlQuery.Add("root.name", query.OperationName)
-	}
-	if query.DurationMin != 0 {
-		urlQuery.Add("minDuration", query.DurationMin.String())
-	}
-	if query.DurationMax != 0 {
-		urlQuery.Add("maxDuration", query.DurationMax.String())
-	}
+	urlQuery.Set(serviceSearchTag, query.ServiceName)
+	urlQuery.Set(operationSearchTag, query.OperationName)
+	urlQuery.Set(minDurationSearchTag, query.DurationMin.String())
+	urlQuery.Set(maxDurationSearchTag, query.DurationMax.String())
 	for k, v := range query.Tags {
-		urlQuery.Add(k, v)
+		urlQuery.Set(k, v)
 	}
 	url.RawQuery = urlQuery.Encode()
 
@@ -224,7 +223,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 }
 
 func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, tagName string) ([]string, error) {
-	url := fmt.Sprintf("http://%s/querier/api/search/tag/%s/values", b.tempoBackend, tagName)
+	url := fmt.Sprintf("http://%s/api/search/tag/%s/values", b.tempoBackend, tagName)
 
 	req, err := b.NewGetRequest(ctx, url, span)
 	if err != nil {
