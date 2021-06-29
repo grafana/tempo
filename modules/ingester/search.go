@@ -1,10 +1,10 @@
 package ingester
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	tempofb "github.com/grafana/tempo/pkg/tempofb/Tempo"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -13,6 +13,12 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
+
+type SearchBlock interface {
+	Search(ctx context.Context, p pipeline) ([]common.ID, error)
+}
+
+var _ SearchBlock = (*searchData)(nil)
 
 type blockHeader struct {
 	services   map[string]struct{}
@@ -25,34 +31,18 @@ type pipeline struct {
 	filters []tracefilter
 }
 
-func caseInsensitiveContains(s []byte, substr string) bool {
-	return bytes.Contains(bytes.ToLower(s), bytes.ToLower([]byte(substr)))
-}
-
 func NewSearchPipeline(req *tempopb.SearchRequest) pipeline {
 	p := pipeline{}
 
+	// Obsolete
 	if req.RootSpanName != "" {
-		/*p.filters = append(p.filters, func(header *tempofb.SearchData) bool {
-			return caseInsensitiveContains(header.RootSpanName(), req.RootSpanName)
-		})*/
 		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
 			return tempofb.SearchDataContains(s, "root.span.name", req.RootSpanName)
 		})
 	}
 
+	// Obsolete
 	if req.RootAttributeName != "" && req.RootAttributeValue != "" {
-		/*p.filters = append(p.filters, func(header *tempofb.TraceHeader) bool {
-			kv := &tempofb.KV{}
-			for i := 0; i < header.RootSpanProcessTagsLength(); i++ {
-				header.RootSpanProcessTags(kv, i)
-				if caseInsensitiveContains(kv.Key(), req.RootAttributeName) &&
-					caseInsensitiveContains(kv.Value(), req.RootAttributeValue) {
-					return true
-				}
-			}
-			return false
-		})*/
 		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
 			return tempofb.SearchDataContains(s, fmt.Sprint("root.span.", req.RootAttributeName), req.RootAttributeValue)
 		})
@@ -67,6 +57,20 @@ func NewSearchPipeline(req *tempopb.SearchRequest) pipeline {
 				}
 			}
 			return true
+		})
+	}
+
+	if req.MinDurationMs > 0 {
+		minDuration := req.MinDurationMs * uint32(time.Millisecond)
+		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) >= uint64(minDuration)
+		})
+	}
+
+	if req.MaxDurationMs > 0 {
+		maxDuration := req.MaxDurationMs * uint32(time.Millisecond)
+		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) <= uint64(maxDuration)
 		})
 	}
 
@@ -103,7 +107,7 @@ func (p *pipeline) MatchesAny(headers []*tempofb.SearchData) bool {
 }
 
 type searchData struct {
-	instance     *instance
+	//instance     *instance
 	appender     encoding.Appender
 	file         *os.File
 	bytesWritten int
@@ -136,7 +140,7 @@ var _ common.DataWriter = (*searchData)(nil)
 
 func NewSearchDataForAppendBlock(i *instance, b *wal.AppendBlock) (*searchData, error) {
 	s := &searchData{
-		instance: i,
+		//instance: i,
 	}
 
 	f, err := i.writer.WAL().NewFile(b.BlockID(), i.instanceID, "searchdata")
@@ -156,71 +160,34 @@ func NewSearchDataForAppendBlock(i *instance, b *wal.AppendBlock) (*searchData, 
 	return s, nil
 }
 
-func (s *searchData) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
+func (s *searchData) Append(ctx context.Context, t *trace) error {
 	data := tempofb.SearchDataMap{}
+
+	var minStart uint64
+	var maxEnd uint64
 
 	kv := &tempofb.KeyValues{}
 
 	// Squash all datas into 1
-	for _, sb := range searchData {
+	for _, sb := range t.searchData {
 		sd := tempofb.SearchDataFromBytes(sb)
-		for i := 0; i < sd.DataLength(); i++ {
-			sd.Data(kv, i)
+		for i := 0; i < sd.TagsLength(); i++ {
+			sd.Tags(kv, i)
 			for j := 0; j < kv.ValueLength(); j++ {
 				tempofb.SearchDataAppend(data, string(kv.Key()), string(kv.Value(j)))
 			}
 		}
+		if (sd.StartTimeUnixNano() > 0 && sd.StartTimeUnixNano() < minStart) || minStart == 0 {
+			minStart = sd.StartTimeUnixNano()
+		}
+		if sd.EndTimeUnixNano() > 0 && sd.EndTimeUnixNano() > maxEnd {
+			maxEnd = sd.EndTimeUnixNano()
+		}
 	}
 
-	return s.appender.Append(id, tempofb.SearchDataFromMap(data))
+	buf := tempofb.SearchDataFromValues(data, minStart, maxEnd)
 
-	/*
-		var rnsb []byte
-
-		rst := map[string][]byte{}
-
-		// Squash all separate datas into 1
-		for _, s := range searchData {
-			b := tempofb.GetRootAsTraceHeader(s, 0)
-			if len(b.RootSpanName()) > 0 {
-				rnsb = b.RootSpanName()
-			}
-
-			kv := &tempofb.KV{}
-			for i := 0; i < b.RootSpanProcessTagsLength(); i++ {
-				b.RootSpanProcessTags(kv, i)
-				rst[string(kv.Key())] = kv.Value()
-			}
-		}
-
-		b := flatbuffers.NewBuilder(1024)
-
-		rsn := b.CreateByteString(rnsb)
-
-		var rstu []flatbuffers.UOffsetT
-
-		for k, v := range rst {
-			ku := b.CreateString(k)
-			vu := b.CreateByteString(v)
-
-			tempofb.KVStart(b)
-			tempofb.KVAddKey(b, ku)
-			tempofb.KVAddValue(b, vu)
-			rstu = append(rstu, tempofb.KVEnd(b))
-		}
-
-		tempofb.TraceHeaderStartRootSpanProcessTagsVector(b, len(rstu))
-		for _, v := range rstu {
-			b.PrependUOffsetT(v)
-		}
-		rstvuu := b.EndVector(len(rstu))
-
-		tempofb.TraceHeaderStart(b)
-		tempofb.TraceHeaderAddRootSpanName(b, rsn)
-		tempofb.TraceHeaderAddRootSpanProcessTags(b, rstvuu)
-		b.Finish(tempofb.TraceHeaderEnd(b))
-
-		return s.appender.Append(id, b.FinishedBytes())*/
+	return s.appender.Append(t.traceID, buf)
 }
 
 func (s *searchData) Search(ctx context.Context, p pipeline) ([]common.ID, error) {

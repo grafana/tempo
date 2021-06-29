@@ -1,20 +1,17 @@
 namespace Tempo;
 
-table KV {
-    key:string (key);
-    value:string;
-}
-
-table TraceHeader {
-	root_span_name:string;
-	root_span_attributes:[KV];
-}
-
 table KeyValues {
     key: string;
     value: [string];
 }
 
 table SearchData {
-    data : [KeyValues];
+    id : string; // Converted to []byte
+    tags : [KeyValues];
+    start_time_unix_nano: uint64;
+    end_time_unix_nano: uint64;
+}
+
+table BatchSearchData {
+    entries : [SearchData];
 }

@@ -159,9 +159,32 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for k, v := range r.URL.Query() {
+		// Skip known values
+		if k == "minDuration" || k == "maxDuration" {
+			continue
+		}
+
 		if len(v) > 0 && v[0] != "" {
 			req.Tags[k] = v[0]
 		}
+	}
+
+	minDurationStr := r.URL.Query().Get("minDuration")
+	if minDurationStr != "" {
+		dur, err := time.ParseDuration(minDurationStr)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+		req.MinDurationMs = uint32(dur.Milliseconds())
+	}
+
+	maxDurationStr := r.URL.Query().Get("maxDuration")
+	if maxDurationStr != "" {
+		dur, err := time.ParseDuration(maxDurationStr)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+		req.MaxDurationMs = uint32(dur.Milliseconds())
 	}
 
 	resp, err := q.Search(ctx, req)

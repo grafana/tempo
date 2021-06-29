@@ -36,6 +36,9 @@ message SearchRequest {
   string rootAttributeValue = 3;
 
   map<string, string> tags = 4 [(gogoproto.nullable) = false];
+
+  uint32 MinDurationMs = 5;
+  uint32 MaxDurationMs = 6;
 }
 
 message SearchResponse {

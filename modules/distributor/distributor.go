@@ -271,6 +271,9 @@ func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {
 func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 	data := tempofb.SearchDataMap{}
 
+	var minStart uint64
+	var maxEnd uint64
+
 	for _, b := range trace.Batches {
 		// Batch attrs
 		for _, a := range b.Resource.Attributes {
@@ -302,6 +305,14 @@ func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 					}
 				}
 
+				if s.StartTimeUnixNano < minStart || minStart == 0 {
+					minStart = s.StartTimeUnixNano
+				}
+
+				if s.EndTimeUnixNano > maxEnd {
+					maxEnd = s.EndTimeUnixNano
+				}
+
 				// Collect for any spans
 				tempofb.SearchDataAppend(data, "name", s.Name)
 
@@ -314,9 +325,11 @@ func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 		}
 	}
 
-	fmt.Printf("Distributor extracted search data from trace %x %v\n", trace.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId, data)
+	fmt.Printf("Distributor extracted search data from trace %x %v Duration %v\n",
+		trace.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId, data,
+		(time.Duration((maxEnd - minStart) * uint64(time.Nanosecond))))
 
-	return tempofb.SearchDataFromMap(data)
+	return tempofb.SearchDataFromValues(data, minStart, maxEnd)
 }
 
 /*func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {

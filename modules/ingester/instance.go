@@ -182,7 +182,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		//  WARNING: can't reuse traceid's b/c the appender takes ownership of byte slices that are passed to it
 		tempopb.ReuseTraceBytes(t.traceBytes)
 
-		err = i.searchAppendBlocks[i.headBlock].Append(context.TODO(), t.traceID, t.searchData)
+		err = i.searchAppendBlocks[i.headBlock].Append(context.TODO(), t)
 		if err != nil {
 			return err
 		}
@@ -585,8 +585,8 @@ func (i *instance) RecordSearchLookupValues(b []byte) {
 	kv := &tempofb.KeyValues{}
 
 	s := tempofb.SearchDataFromBytes(b)
-	for j := 0; j < s.DataLength(); j++ {
-		s.Data(kv, j)
+	for j := 0; j < s.TagsLength(); j++ {
+		s.Tags(kv, j)
 		key := string(kv.Key())
 		if _, ok := recordableSearchLookupTags[key]; ok {
 			for k := 0; k < kv.ValueLength(); k++ {

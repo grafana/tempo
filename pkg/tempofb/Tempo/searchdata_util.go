@@ -34,9 +34,10 @@ func SearchDataContains(s *SearchData, k string, v string) bool {
 	kb := bytes.ToLower([]byte(k))
 	vb := bytes.ToLower([]byte(v))
 
-	for i := 0; i < s.DataLength(); i++ {
-		s.Data(kv, i)
-		if bytes.Compare(kv.Key(), kb) == 0 {
+	// TODO - Use binary search since keys/values are sorted
+	for i := 0; i < s.TagsLength(); i++ {
+		s.Tags(kv, i)
+		if bytes.Equal(kv.Key(), kb) {
 			for j := 0; j < kv.ValueLength(); j++ {
 				if bytes.Contains(kv.Value(j), vb) {
 					return true
@@ -52,12 +53,12 @@ func SearchDataFromBytes(b []byte) *SearchData {
 	return GetRootAsSearchData(b, 0)
 }
 
-func SearchDataFromMap(d SearchDataMap) []byte {
+func SearchDataFromValues(tags SearchDataMap, startTimeUnixNano, endTimeUnixNano uint64) []byte {
 	b := flatbuffers.NewBuilder(2048)
 
-	keyValueOffsets := make([]flatbuffers.UOffsetT, 0, len(d))
+	keyValueOffsets := make([]flatbuffers.UOffsetT, 0, len(tags))
 
-	for k, v := range d {
+	for k, v := range tags {
 		ko := b.CreateString(strings.ToLower(k))
 
 		valueStrings := make([]flatbuffers.UOffsetT, len(v))
@@ -77,15 +78,18 @@ func SearchDataFromMap(d SearchDataMap) []byte {
 		keyValueOffsets = append(keyValueOffsets, KeyValuesEnd(b))
 	}
 
-	SearchDataStartDataVector(b, len(keyValueOffsets))
+	SearchDataStartTagsVector(b, len(keyValueOffsets))
 	for _, kvo := range keyValueOffsets {
 		b.PrependUOffsetT(kvo)
 	}
 	keyValueVector := b.EndVector((len(keyValueOffsets)))
 
 	SearchDataStart(b)
-	SearchDataAddData(b, keyValueVector)
+	SearchDataAddStartTimeUnixNano(b, startTimeUnixNano)
+	SearchDataAddEndTimeUnixNano(b, endTimeUnixNano)
+	SearchDataAddTags(b, keyValueVector)
 	s := SearchDataEnd(b)
 	b.Finish(s)
+
 	return b.FinishedBytes()
 }

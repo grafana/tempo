@@ -33,8 +33,16 @@ func (rcv *SearchData) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-func (rcv *SearchData) Data(obj *KeyValues, j int) bool {
+func (rcv *SearchData) Id() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
+	if o != 0 {
+		return rcv._tab.ByteVector(o + rcv._tab.Pos)
+	}
+	return nil
+}
+
+func (rcv *SearchData) Tags(obj *KeyValues, j int) bool {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		x := rcv._tab.Vector(o)
 		x += flatbuffers.UOffsetT(j) * 4
@@ -45,22 +53,55 @@ func (rcv *SearchData) Data(obj *KeyValues, j int) bool {
 	return false
 }
 
-func (rcv *SearchData) DataLength() int {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
+func (rcv *SearchData) TagsLength() int {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		return rcv._tab.VectorLen(o)
 	}
 	return 0
 }
 
+func (rcv *SearchData) StartTimeUnixNano() uint64 {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
+	if o != 0 {
+		return rcv._tab.GetUint64(o + rcv._tab.Pos)
+	}
+	return 0
+}
+
+func (rcv *SearchData) MutateStartTimeUnixNano(n uint64) bool {
+	return rcv._tab.MutateUint64Slot(8, n)
+}
+
+func (rcv *SearchData) EndTimeUnixNano() uint64 {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
+	if o != 0 {
+		return rcv._tab.GetUint64(o + rcv._tab.Pos)
+	}
+	return 0
+}
+
+func (rcv *SearchData) MutateEndTimeUnixNano(n uint64) bool {
+	return rcv._tab.MutateUint64Slot(10, n)
+}
+
 func SearchDataStart(builder *flatbuffers.Builder) {
-	builder.StartObject(1)
+	builder.StartObject(4)
 }
-func SearchDataAddData(builder *flatbuffers.Builder, data flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(data), 0)
+func SearchDataAddId(builder *flatbuffers.Builder, id flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(id), 0)
 }
-func SearchDataStartDataVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
+func SearchDataAddTags(builder *flatbuffers.Builder, tags flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(tags), 0)
+}
+func SearchDataStartTagsVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(4, numElems, 4)
+}
+func SearchDataAddStartTimeUnixNano(builder *flatbuffers.Builder, startTimeUnixNano uint64) {
+	builder.PrependUint64Slot(2, startTimeUnixNano, 0)
+}
+func SearchDataAddEndTimeUnixNano(builder *flatbuffers.Builder, endTimeUnixNano uint64) {
+	builder.PrependUint64Slot(3, endTimeUnixNano, 0)
 }
 func SearchDataEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
