@@ -274,7 +274,7 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 	response := &tempopb.SearchResponse{}
 
 	for _, r := range responses {
-		response.Ids = append(response.Ids, r.response.Ids...)
+		response.Traces = append(response.Traces, r.response.Traces...)
 	}
 
 	return response, nil

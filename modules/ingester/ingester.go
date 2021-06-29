@@ -392,20 +392,14 @@ func (i *Ingester) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		return &tempopb.SearchResponse{}, nil
 	}
 
-	ids, err := inst.Search(ctx, req)
+	traces, err := inst.Search(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	resp := &tempopb.SearchResponse{
-		Ids: make([][]byte, len(ids)),
-	}
-
-	for i := range ids {
-		resp.Ids[i] = ids[i]
-	}
-
-	return resp, nil
+	return &tempopb.SearchResponse{
+		Traces: traces,
+	}, nil
 }
 
 func (i *Ingester) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {

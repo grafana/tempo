@@ -514,9 +514,9 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 	return nil
 }
 
-func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]common.ID, error) {
+func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*tempopb.TraceSearchMetadata, error) {
 
-	var results []common.ID
+	var results []*tempopb.TraceSearchMetadata
 
 	p := NewSearchPipeline(req)
 
@@ -529,7 +529,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]co
 
 			for _, s := range t.searchData {
 				if p.Matches(tempofb.SearchDataFromBytes(s)) {
-					results = append(results, t.traceID)
+					// TODO how do we extract the other fields out of searchData?
+					results = append(results, &tempopb.TraceSearchMetadata{
+						TraceID:         t.traceID,
+						RootServiceName: "",
+						RootTraceName:   "",
+						StartTime:       0,
+						Duration:        0,
+					})
 					continue
 				}
 			}

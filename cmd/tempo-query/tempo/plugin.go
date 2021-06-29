@@ -209,10 +209,10 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 		return nil, fmt.Errorf("failed to unmarshal response %w", err)
 	}
 
-	jaegerTraceIDs := make([]jaeger.TraceID, len(searchResponse.Ids))
+	jaegerTraceIDs := make([]jaeger.TraceID, len(searchResponse.Traces))
 
-	for i, id := range searchResponse.Ids {
-		jaegerTraceID, err := jaeger.TraceIDFromBytes(id)
+	for i, traceMetadata := range searchResponse.Traces {
+		jaegerTraceID, err := jaeger.TraceIDFromBytes(traceMetadata.TraceID)
 		if err != nil {
 			return nil, fmt.Errorf("could not convert traceID into jaeger traceID %w", err)
 		}

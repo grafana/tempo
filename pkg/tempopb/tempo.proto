@@ -42,7 +42,15 @@ message SearchRequest {
 }
 
 message SearchResponse {
-  repeated bytes ids = 1;
+  repeated TraceSearchMetadata traces = 1;
+}
+
+message TraceSearchMetadata {
+  bytes traceID = 1;
+  string rootServiceName = 2;
+  string rootTraceName = 3;
+  uint64 startTime = 4;
+  uint32 duration = 5;
 }
 
 message SearchTagsRequest {

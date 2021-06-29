@@ -15,7 +15,7 @@ import (
 )
 
 type SearchBlock interface {
-	Search(ctx context.Context, p pipeline) ([]common.ID, error)
+	Search(ctx context.Context, p pipeline) ([]*tempopb.TraceSearchMetadata, error)
 }
 
 var _ SearchBlock = (*searchData)(nil)
@@ -190,9 +190,9 @@ func (s *searchData) Append(ctx context.Context, t *trace) error {
 	return s.appender.Append(t.traceID, buf)
 }
 
-func (s *searchData) Search(ctx context.Context, p pipeline) ([]common.ID, error) {
+func (s *searchData) Search(ctx context.Context, p pipeline) ([]*tempopb.TraceSearchMetadata, error) {
 
-	var matches []common.ID
+	var matches []*tempopb.TraceSearchMetadata
 
 	rr := s.appender.Records()
 
@@ -212,7 +212,14 @@ func (s *searchData) Search(ctx context.Context, p pipeline) ([]common.ID, error
 		}
 
 		// If we got here then it's a match.
-		matches = append(matches, r.ID)
+		// TODO how do we extract the other fields
+		matches = append(matches, &tempopb.TraceSearchMetadata{
+			TraceID:         r.ID,
+			RootServiceName: "",
+			RootTraceName:   "",
+			StartTime:       0,
+			Duration:        0,
+		})
 
 		if len(matches) > 20 {
 			break
