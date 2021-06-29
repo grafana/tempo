@@ -75,11 +75,11 @@ func SearchDataFromValues(tags SearchDataMap, startTimeUnixNano, endTimeUnixNano
 	keyValueOffsets := make([]flatbuffers.UOffsetT, 0, len(tags))
 
 	for k, v := range tags {
-		ko := b.CreateString(strings.ToLower(k))
+		ko := b.CreateSharedString(strings.ToLower(k))
 
 		valueStrings := make([]flatbuffers.UOffsetT, len(v))
 		for i := range v {
-			valueStrings[i] = b.CreateString(strings.ToLower(v[i]))
+			valueStrings[i] = b.CreateSharedString(strings.ToLower(v[i]))
 		}
 
 		KeyValuesStartValueVector(b, len(valueStrings))
