@@ -176,6 +176,12 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	if query.OperationName != "" {
 		urlQuery.Add("root.name", query.OperationName)
 	}
+	if query.DurationMin != 0 {
+		urlQuery.Add("minDuration", query.DurationMin.String())
+	}
+	if query.DurationMax != 0 {
+		urlQuery.Add("maxDuration", query.DurationMax.String())
+	}
 	for k, v := range query.Tags {
 		urlQuery.Add(k, v)
 	}
