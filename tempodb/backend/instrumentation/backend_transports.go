@@ -13,28 +13,28 @@ var (
 	gcsRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "gcs_request_duration_seconds",
-		Help:      "Time spent doing GCS requests.",
+		Help:      "Time spent doing GCS requests. (DEPRECATED: See tempodb_backend_request_duration_seconds)",
 		Buckets:   prometheus.ExponentialBuckets(0.005, 4, 6),
 	}, []string{"operation", "status_code"})
 
 	s3RequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "s3_request_duration_seconds",
-		Help:      "Time spent doing AWS S3 requests.",
+		Help:      "Time spent doing AWS S3 requests. (DEPRECATED: See tempodb_backend_request_duration_seconds)",
 		Buckets:   prometheus.ExponentialBuckets(0.005, 4, 6),
 	}, []string{"operation", "status_code"})
 
 	azureRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "azure_request_duration_seconds",
-		Help:      "Time spent doing Azure requests.",
+		Help:      "Time spent doing Azure requests. (DEPRECATED: See tempodb_backend_request_duration_seconds)",
 		Buckets:   prometheus.ExponentialBuckets(0.005, 4, 6),
 	}, []string{"operation", "status_code"})
 
 	requestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempodb",
 		Name:      "backend_request_duration_seconds",
-		Help:      "Time spent doing requests.",
+		Help:      "Time spent doing backend storage requests.",
 		Buckets:   prometheus.ExponentialBuckets(0.005, 4, 6),
 	}, []string{"operation", "status_code"})
 )
