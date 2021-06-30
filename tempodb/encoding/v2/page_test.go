@@ -130,4 +130,16 @@ func TestCorruptHeader(t *testing.T) {
 	page, err = unmarshalPageFromReader(bytes.NewReader(buffBytes), constDataHeader, nil)
 	assert.Nil(t, page)
 	assert.EqualError(t, err, "unexpected negative dataLength unmarshalling page: -6")
+
+	// overwrite the base header with FFs
+	zeroHeader = bytes.Repeat([]byte{0xFF}, baseHeaderSize)
+	copy(buffBytes, zeroHeader)
+
+	page, err = unmarshalPageFromBytes(buffBytes, constDataHeader)
+	assert.Nil(t, page)
+	assert.EqualError(t, err, "headerLen 65535 greater than remaining len 3")
+
+	page, err = unmarshalPageFromReader(bytes.NewReader(buffBytes), constDataHeader, nil)
+	assert.Nil(t, page)
+	assert.EqualError(t, err, "unexpected non-zero len data header")
 }
