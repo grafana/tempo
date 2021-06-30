@@ -177,9 +177,9 @@ vendor-check: gen-proto
 
 .PHONY: gen-flat
 gen-flat:
-	pushd pkg/tempofb/
-	flatc --go tempo.fbs
-	popd
+### -o .. generates into same folder for simpler imports.
+	cd pkg/tempofb/ && flatc --go -o .. tempo.fbs
+	
 
 
 ### Release (intended to be used in the .github/workflows/images.yml)

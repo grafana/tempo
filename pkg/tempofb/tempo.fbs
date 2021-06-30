@@ -1,4 +1,4 @@
-namespace Tempo;
+namespace tempofb;
 
 table KeyValues {
     key: string;

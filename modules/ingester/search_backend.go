@@ -6,7 +6,7 @@ import (
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/google/uuid"
-	tempofb "github.com/grafana/tempo/pkg/tempofb/Tempo"
+	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"

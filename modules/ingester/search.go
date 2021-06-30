@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	tempofb "github.com/grafana/tempo/pkg/tempofb/Tempo"
+	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 
 	"github.com/grafana/tempo/tempodb/encoding"

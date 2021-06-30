@@ -27,7 +27,7 @@ import (
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
-	tempofb "github.com/grafana/tempo/pkg/tempofb/Tempo"
+	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
