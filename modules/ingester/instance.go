@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"sort"
 	"sync"
 	"time"
 
@@ -542,8 +543,12 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*tempopb.TraceSearchMetadata, error) {
 	// TODO - Redo this entire thing around channels and concurrent searches, and bail after reading
+
 	// max results from channel
 	maxResults := 20
+	if req.Limit != 0 {
+		maxResults = int(req.Limit)
+	}
 
 	var results []*tempopb.TraceSearchMetadata
 
@@ -577,66 +582,78 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 	}()
 
 	fmt.Println("Found", len(results), "matches in live traces")
-	if len(results) >= maxResults {
-		return results, nil
-	}
 
-	// Search append blocks
-	err := func() error {
-		i.blocksMtx.Lock()
-		defer i.blocksMtx.Unlock()
+	if len(results) < maxResults {
+		// Search append blocks
+		err := func() error {
+			i.blocksMtx.Lock()
+			defer i.blocksMtx.Unlock()
 
-		for b, s := range i.searchAppendBlocks {
-			headResults, err := s.Search(ctx, p)
-			if err != nil {
-				return err
+			for b, s := range i.searchAppendBlocks {
+				headResults, err := s.Search(ctx, p)
+				if err != nil {
+					return err
+				}
+
+				if len(headResults) > 0 {
+					results = append(results, headResults...)
+					fmt.Println("Found", len(headResults), "matches in wal block", b.BlockID().String())
+				}
+
+				if len(results) >= maxResults {
+					return nil
+				}
 			}
 
-			if len(headResults) > 0 {
-				results = append(results, headResults...)
-				fmt.Println("Found", len(headResults), "matches in wal block", b.BlockID().String())
-			}
-
-			if len(results) >= maxResults {
-				return nil
-			}
+			return nil
+		}()
+		if err != nil {
+			return nil, errors.Wrap(err, "searching head block")
 		}
 
-		return nil
-	}()
-	if err != nil {
-		return nil, errors.Wrap(err, "searching head block")
+		fmt.Println("Found", len(results), "matches in live traces and append blocks")
 	}
 
-	if len(results) >= maxResults {
-		return results, nil
-	}
+	if len(results) < maxResults {
+		// Search complete blocks
+		err := func() error {
+			i.blocksMtx.Lock()
+			defer i.blocksMtx.Unlock()
 
-	// Search complete blocks
-	err = func() error {
-		i.blocksMtx.Lock()
-		defer i.blocksMtx.Unlock()
+			for b, s := range i.searchCompleteBlocks {
+				res, err := s.Search(ctx, p)
+				if err != nil {
+					return err
+				}
 
-		for b, s := range i.searchCompleteBlocks {
-			res, err := s.Search(ctx, p)
-			if err != nil {
-				return err
+				if len(res) > 0 {
+					results = append(results, res...)
+					fmt.Println("Found", len(res), "matches in local block", b.BlockMeta().BlockID)
+				}
+
+				if len(results) >= maxResults {
+					return nil
+				}
 			}
 
-			if len(res) > 0 {
-				results = append(results, res...)
-				fmt.Println("Found", len(res), "matches in local block", b.BlockMeta().BlockID)
-			}
-
-			if len(results) >= maxResults {
-				return nil
-			}
+			return nil
+		}()
+		if err != nil {
+			return nil, errors.Wrap(err, "searching complete block")
 		}
 
-		return nil
-	}()
+		fmt.Println("Found", len(results), "matches in live traces, append blocks and complete blocks")
+	}
 
-	return results, err
+	// Sort and limit results
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
+	})
+	if req.Limit != 0 && int(req.Limit) < len(results) {
+		results = results[:req.Limit]
+	}
+
+	return results, nil
 }
 
 func (i *instance) GetSearchTags() []string {

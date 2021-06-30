@@ -39,6 +39,8 @@ message SearchRequest {
 
   uint32 MinDurationMs = 5;
   uint32 MaxDurationMs = 6;
+
+  uint32 limit = 7;
 }
 
 message SearchResponse {

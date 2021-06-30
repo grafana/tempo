@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -156,11 +157,12 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 		RootAttributeName:  r.URL.Query().Get("rootAttrName"),
 		RootAttributeValue: r.URL.Query().Get("rootAttrValue"),
 		Tags:               map[string]string{},
+		Limit:              0,
 	}
 
 	for k, v := range r.URL.Query() {
 		// Skip known values
-		if k == "minDuration" || k == "maxDuration" {
+		if k == "minDuration" || k == "maxDuration" || k == "limit" {
 			continue
 		}
 
@@ -185,6 +187,16 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 		req.MaxDurationMs = uint32(dur.Milliseconds())
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		req.Limit = uint32(limit)
 	}
 
 	resp, err := q.Search(ctx, req)

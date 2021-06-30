@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -33,6 +34,7 @@ const (
 	operationSearchTag   = "root.name"
 	minDurationSearchTag = "minDuration"
 	maxDurationSearchTag = "maxDuration"
+	numTracesSearchTag   = "limit"
 )
 
 type Backend struct {
@@ -181,6 +183,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	urlQuery.Set(operationSearchTag, query.OperationName)
 	urlQuery.Set(minDurationSearchTag, query.DurationMin.String())
 	urlQuery.Set(maxDurationSearchTag, query.DurationMax.String())
+	urlQuery.Set(numTracesSearchTag, strconv.Itoa(query.NumTraces))
 	for k, v := range query.Tags {
 		urlQuery.Set(k, v)
 	}
