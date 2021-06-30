@@ -325,11 +325,12 @@ func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 		}
 	}
 
-	fmt.Printf("Distributor extracted search data from trace %x %v Duration %v\n",
-		trace.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId, data,
-		(time.Duration((maxEnd - minStart) * uint64(time.Nanosecond))))
+	//fmt.Printf("Distributor extracted search data from trace %x %v Duration %v\n",
+	//	trace.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId, data,
+	//	(time.Duration((maxEnd - minStart) * uint64(time.Nanosecond))))
 
-	return tempofb.SearchDataFromValues(data, minStart, maxEnd)
+	// The ID isn't needed here
+	return tempofb.SearchDataBytesFromValues(nil, data, minStart, maxEnd)
 }
 
 /*func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {

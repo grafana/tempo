@@ -68,8 +68,9 @@ type instance struct {
 	completeBlocks   []*wal.LocalBlock
 
 	//headBlockSearch *searchData
-	searchAppendBlocks map[*wal.AppendBlock]*searchData
-	searchTagLookups   tempofb.SearchDataMap
+	searchAppendBlocks   map[*wal.AppendBlock]*searchData
+	searchCompleteBlocks map[*wal.LocalBlock]*searchDataBackend
+	searchTagLookups     tempofb.SearchDataMap
 
 	lastBlockCut time.Time
 
@@ -85,9 +86,10 @@ type instance struct {
 
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
-		traces:             map[uint32]*trace{},
-		searchAppendBlocks: map[*wal.AppendBlock]*searchData{},
-		searchTagLookups:   tempofb.SearchDataMap{},
+		traces:               map[uint32]*trace{},
+		searchAppendBlocks:   map[*wal.AppendBlock]*searchData{},
+		searchCompleteBlocks: map[*wal.LocalBlock]*searchDataBackend{},
+		searchTagLookups:     tempofb.SearchDataMap{},
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -247,9 +249,25 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 		return errors.Wrap(err, "error creating ingester block")
 	}
 
+	// Search data (optional)
+	oldSearch := i.searchAppendBlocks[completingBlock]
+	var newSearch *searchDataBackend
+	if oldSearch != nil {
+		err = CompleteSearchDataForBlock(oldSearch, i.local, backendBlock)
+		if err != nil {
+			return err
+		}
+
+		newSearch = SearchDataFromBlock(i.local, backendBlock)
+	}
+
 	i.blocksMtx.Lock()
-	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
-	i.blocksMtx.Unlock()
+	defer i.blocksMtx.Unlock()
+
+	i.searchCompleteBlocks[ingesterBlock] = newSearch
+	if newSearch != nil {
+		i.completeBlocks = append(i.completeBlocks, ingesterBlock)
+	}
 
 	return nil
 }
@@ -308,6 +326,7 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
+			delete(i.searchCompleteBlocks, b)
 			err = i.local.ClearBlock(b.BlockMeta().BlockID, i.instanceID)
 			if err == nil {
 				metricBlocksClearedTotal.Inc()
@@ -508,8 +527,11 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 			return err
 		}
 
+		sb := SearchDataFromBlock(i.local, b)
+
 		i.blocksMtx.Lock()
 		i.completeBlocks = append(i.completeBlocks, ib)
+		i.searchCompleteBlocks[ib] = sb
 		i.blocksMtx.Unlock()
 
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())
@@ -562,7 +584,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 
 			if len(headResults) > 0 {
 				results = append(results, headResults...)
-				fmt.Println("Found", len(headResults), "matches in block", b.BlockID().String())
+				fmt.Println("Found", len(headResults), "matches in wal block", b.BlockID().String())
 			}
 		}
 
@@ -571,6 +593,30 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 	if err != nil {
 		return nil, errors.Wrap(err, "searching head block")
 	}
+
+	// Search complete blocks
+	err = func() error {
+		i.blocksMtx.Lock()
+		defer i.blocksMtx.Unlock()
+
+		for b, s := range i.searchCompleteBlocks {
+			res, err := s.Search(ctx, p)
+			if err != nil {
+				return err
+			}
+
+			if len(res) > 0 {
+				results = append(results, res...)
+				fmt.Println("Found", len(res), "matches in local block", b.BlockMeta().BlockID)
+			}
+
+			if len(results) >= 20 {
+				return nil
+			}
+		}
+
+		return nil
+	}()
 
 	return results, err
 }

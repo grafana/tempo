@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type SearchDataMap map[string][]string
@@ -69,10 +70,10 @@ func SearchDataFromBytes(b []byte) *SearchData {
 	return GetRootAsSearchData(b, 0)
 }
 
-func SearchDataFromValues(tags SearchDataMap, startTimeUnixNano, endTimeUnixNano uint64) []byte {
-	b := flatbuffers.NewBuilder(2048)
-
+func WriteSearchDataToBuilder(b *flatbuffers.Builder, id common.ID, tags SearchDataMap, startTimeUnixNano, endTimeUnixNano uint64) flatbuffers.UOffsetT {
 	keyValueOffsets := make([]flatbuffers.UOffsetT, 0, len(tags))
+
+	idOffset := b.CreateByteString(id)
 
 	for k, v := range tags {
 		ko := b.CreateSharedString(strings.ToLower(k))
@@ -101,11 +102,20 @@ func SearchDataFromValues(tags SearchDataMap, startTimeUnixNano, endTimeUnixNano
 	keyValueVector := b.EndVector((len(keyValueOffsets)))
 
 	SearchDataStart(b)
+	SearchDataAddId(b, idOffset)
 	SearchDataAddStartTimeUnixNano(b, startTimeUnixNano)
 	SearchDataAddEndTimeUnixNano(b, endTimeUnixNano)
 	SearchDataAddTags(b, keyValueVector)
-	s := SearchDataEnd(b)
+	return SearchDataEnd(b)
+}
+
+func SearchDataBytesFromValues(id common.ID, tags SearchDataMap, startTimeUnixNano, endTimeUnixNano uint64) []byte {
+	b := flatbuffers.NewBuilder(2048)
+
+	s := WriteSearchDataToBuilder(b, id, tags, startTimeUnixNano, endTimeUnixNano)
+
 	b.Finish(s)
 
 	return b.FinishedBytes()
+
 }

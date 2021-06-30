@@ -190,7 +190,7 @@ func (s *searchData) Append(ctx context.Context, t *trace) error {
 		}
 	}
 
-	buf := tempofb.SearchDataFromValues(data, minStart, maxEnd)
+	buf := tempofb.SearchDataBytesFromValues(t.traceID, data, minStart, maxEnd)
 
 	return s.appender.Append(t.traceID, buf)
 }
