@@ -35,6 +35,9 @@ func unmarshalPageFromBytes(b []byte, header pageHeader) (*page, error) {
 	b = b[uint32Size:]
 	headerLength := binary.LittleEndian.Uint16(b[:uint16Size])
 	b = b[uint16Size:]
+	if int(headerLength) > len(b) {
+		return nil, fmt.Errorf("headerLen %d greater than remaining len %d", headerLength, len(b))
+	}
 	err := header.unmarshalHeader(b[:headerLength])
 	if err != nil {
 		return nil, err
