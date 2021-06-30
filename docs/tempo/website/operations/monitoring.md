@@ -28,7 +28,7 @@ Tempo emits logs in the `key=value` ([logfmt](https://brandur.org/logfmt)) forma
 #### Traces
 
 Tempo uses the [Jaeger Golang SDK](https://github.com/jaegertracing/jaeger-client-go) for tracing instrumentation.
-As of this writing, only the read path of tempo is instrumented for tracing.
+As of this writing, the complete read path and some parts of the write of Tempo are instrumented for tracing.
 
 The tracer can be configured [using environment variables](https://github.com/jaegertracing/jaeger-client-go#environment-variables).
 To enable tracing, set one of the following: `JAEGER_AGENT_HOST` and `JAEGER_AGENT_PORT`, or `JAEGER_ENDPOINT`.
