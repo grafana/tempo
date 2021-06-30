@@ -31,10 +31,10 @@ Tempo uses the [Jaeger Golang SDK](https://github.com/jaegertracing/jaeger-clien
 As of this writing, only the read path of tempo is instrumented for tracing.
 
 The tracer can be configured [using environment variables](https://github.com/jaegertracing/jaeger-client-go#environment-variables).
-In general, to enable tracing either set `JAEGER_AGENT_HOST` and `JAEGER_AGENT_PORT`, or `JAEGER_ENDPOINT`.
+To enable tracing, set one of the following: `JAEGER_AGENT_HOST` and `JAEGER_AGENT_PORT`, or `JAEGER_ENDPOINT`.
 
 The Jaeger client uses remote sampling by default, if the management server is not available no traces will be sent.
-To always send traces (no sampling), the following environment variables can be set:
+To always send traces (no sampling), set the following environment variables:
 
 ```
 JAEGER_SAMPLER_TYPE=const
@@ -43,7 +43,7 @@ JAEGER_SAMPLER_PARAM=1
 
 ## Dashboards
 
-The [Tempo mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) has four Grafana dashboards in the `yamls` folder that can be downloaded and imported into your Grafana UI.
+The [Tempo mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) has four Grafana dashboards in the `yamls` folder that you can download and import into your Grafana UI.
 Note that at the moment, these work well when Tempo is run in a k8s environment and metrics scraped have the
 `cluster` and `namespace` labels!
 
