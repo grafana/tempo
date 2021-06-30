@@ -2,7 +2,6 @@ package ingester
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -33,20 +32,6 @@ type pipeline struct {
 
 func NewSearchPipeline(req *tempopb.SearchRequest) pipeline {
 	p := pipeline{}
-
-	// Obsolete
-	if req.RootSpanName != "" {
-		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
-			return tempofb.SearchDataContains(s, "root.span.name", req.RootSpanName)
-		})
-	}
-
-	// Obsolete
-	if req.RootAttributeName != "" && req.RootAttributeValue != "" {
-		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
-			return tempofb.SearchDataContains(s, fmt.Sprint("root.span.", req.RootAttributeName), req.RootAttributeValue)
-		})
-	}
 
 	if len(req.Tags) > 0 {
 		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {

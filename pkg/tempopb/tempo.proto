@@ -31,16 +31,10 @@ message TraceByIDResponse {
 
 message SearchRequest {
   // case insensitive partial match
-  string rootSpanName = 1;
-  string rootAttributeName = 2;
-  string rootAttributeValue = 3;
-
-  map<string, string> tags = 4 [(gogoproto.nullable) = false];
-
-  uint32 MinDurationMs = 5;
-  uint32 MaxDurationMs = 6;
-
-  uint32 limit = 7;
+  map<string, string> Tags = 1 [(gogoproto.nullable) = false];
+  uint32 MinDurationMs = 2;
+  uint32 MaxDurationMs = 3;
+  uint32 Limit = 4;
 }
 
 message SearchResponse {
