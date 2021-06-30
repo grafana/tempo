@@ -541,6 +541,9 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 }
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*tempopb.TraceSearchMetadata, error) {
+	// TODO - Redo this entire thing around channels and concurrent searches, and bail after reading
+	// max results from channel
+	maxResults := 20
 
 	var results []*tempopb.TraceSearchMetadata
 
@@ -566,10 +569,17 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 					continue
 				}
 			}
-		}
 
-		fmt.Println("Found", len(results), "matches in live traces")
+			if len(results) >= maxResults {
+				return
+			}
+		}
 	}()
+
+	fmt.Println("Found", len(results), "matches in live traces")
+	if len(results) >= maxResults {
+		return results, nil
+	}
 
 	// Search append blocks
 	err := func() error {
@@ -586,12 +596,20 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 				results = append(results, headResults...)
 				fmt.Println("Found", len(headResults), "matches in wal block", b.BlockID().String())
 			}
+
+			if len(results) >= maxResults {
+				return nil
+			}
 		}
 
 		return nil
 	}()
 	if err != nil {
 		return nil, errors.Wrap(err, "searching head block")
+	}
+
+	if len(results) >= maxResults {
+		return results, nil
 	}
 
 	// Search complete blocks
@@ -610,7 +628,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 				fmt.Println("Found", len(res), "matches in local block", b.BlockMeta().BlockID)
 			}
 
-			if len(results) >= 20 {
+			if len(results) >= maxResults {
 				return nil
 			}
 		}

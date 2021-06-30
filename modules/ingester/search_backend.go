@@ -7,9 +7,9 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/google/uuid"
 	tempofb "github.com/grafana/tempo/pkg/tempofb/Tempo"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 //var _ SearchBlock = (*searchDataBackend)(nil)
@@ -147,9 +147,9 @@ func SearchDataFromBlock(r backend.Reader, b *encoding.BackendBlock) *searchData
 	}
 }
 
-func (s *searchDataBackend) Search(ctx context.Context, p pipeline) ([]common.ID, error) {
+func (s *searchDataBackend) Search(ctx context.Context, p pipeline) ([]*tempopb.TraceSearchMetadata, error) {
 
-	var matches []common.ID
+	var matches []*tempopb.TraceSearchMetadata
 
 	offset := uint64(0)
 
@@ -189,7 +189,13 @@ func (s *searchDataBackend) Search(ctx context.Context, p pipeline) ([]common.ID
 			}
 
 			// If we got here then it's a match.
-			matches = append(matches, entry.Id())
+			matches = append(matches, &tempopb.TraceSearchMetadata{
+				TraceID:           entry.Id(),
+				RootServiceName:   tempofb.SearchDataGet(entry, "root.service.name"),
+				RootTraceName:     tempofb.SearchDataGet(entry, "root.name"),
+				StartTimeUnixNano: entry.StartTimeUnixNano(),
+				DurationMs:        uint32((entry.EndTimeUnixNano() - entry.StartTimeUnixNano()) / 1_000_000),
+			})
 
 			if len(matches) >= 20 {
 				return matches, nil
