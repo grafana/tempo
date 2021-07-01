@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -52,8 +51,7 @@ func (b *Backend) GetDependencies(ctx context.Context, endTs time.Time, lookback
 }
 
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
-	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
-	url := fmt.Sprintf("http://%s/api/traces/%s", b.tempoBackend, hexID)
+	url := fmt.Sprintf("http://%s/api/traces/%s", b.tempoBackend, traceID)
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetTrace")
 	defer span.Finish()
@@ -63,12 +61,9 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, err
 	}
 
-	// Set content type to grpc
-	req.Header.Set(AcceptHeaderKey, ProtobufTypeHeaderValue)
-
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed get to tempo %w", err)
+		return nil, fmt.Errorf("failed GET to tempo %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -93,7 +88,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
 	if err != nil {
-		return nil, fmt.Errorf("error translating to jaegerBatches %v: %w", hexID, err)
+		return nil, fmt.Errorf("error translating to jaegerBatches %v: %w", traceID, err)
 	}
 
 	jaegerTrace := &jaeger.Trace{
@@ -155,16 +150,22 @@ func (b *Backend) FindTraces(ctx context.Context, query *jaeger_spanstore.TraceQ
 		return nil, err
 	}
 
+	span.LogFields(ot_log.String("msg", fmt.Sprintf("Found %d trace IDs", len(traceIDs))))
+
 	// for every traceID, get the full trace
 	var jaegerTraces []*jaeger.Trace
 	for _, traceID := range traceIDs {
 		trace, err := b.GetTrace(ctx, traceID)
 		if err != nil {
-			return nil, fmt.Errorf("could not get trace for traceID %v: %w", traceID, err)
+			// TODO this seems to be an internal inconsistency error, ignore so we can still show the rest
+			span.LogFields(ot_log.Error(fmt.Errorf("could not get trace for traceID %v: %w", traceID, err)))
+			continue
 		}
 
 		jaegerTraces = append(jaegerTraces, trace)
 	}
+
+	span.LogFields(ot_log.String("msg", fmt.Sprintf("Returning %d traces", len(jaegerTraces))))
 
 	return jaegerTraces, nil
 }
@@ -196,20 +197,23 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed get to tempo %w", err)
+		return nil, fmt.Errorf("failed GET to tempo %w", err)
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response from tempo: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("expected 200 OK, got %v", resp.StatusCode)
+		return nil, fmt.Errorf("%s", body)
 	}
 
 	var searchResponse tempopb.SearchResponse
-
-	unmarshaler := jsonpb.Unmarshaler{}
-	err = unmarshaler.Unmarshal(resp.Body, &searchResponse)
+	err = searchResponse.Unmarshal(body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response %w", err)
+		return nil, fmt.Errorf("error unmarshaling Tempo response: %w", err)
 	}
 
 	jaegerTraceIDs := make([]jaeger.TraceID, len(searchResponse.Traces))
@@ -217,7 +221,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	for i, traceMetadata := range searchResponse.Traces {
 		jaegerTraceID, err := jaeger.TraceIDFromString(traceMetadata.TraceID)
 		if err != nil {
-			return nil, fmt.Errorf("could not convert traceID into jaeger traceID %w", err)
+			return nil, fmt.Errorf("could not convert traceID into Jaeger's traceID %w", err)
 		}
 		jaegerTraceIDs[i] = jaegerTraceID
 	}
@@ -235,20 +239,23 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed get to tempo %w", err)
+		return nil, fmt.Errorf("failed GET to tempo %w", err)
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response from tempo: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("expected 200 OK, got %v", resp.StatusCode)
+		return nil, fmt.Errorf("%s", body)
 	}
 
 	var searchLookupResponse tempopb.SearchTagValuesResponse
-
-	unmarshaler := jsonpb.Unmarshaler{}
-	err = unmarshaler.Unmarshal(resp.Body, &searchLookupResponse)
+	err = searchLookupResponse.Unmarshal(body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response %w", err)
+		return nil, fmt.Errorf("error unmarshaling Tempo response: %w", err)
 	}
 
 	return searchLookupResponse.TagValues, nil
@@ -275,6 +282,9 @@ func (b *Backend) NewGetRequest(ctx context.Context, url string, span opentracin
 	if found {
 		req.Header.Set(user.OrgIDHeaderName, tenantID)
 	}
+
+	// Set content type to GRPC
+	req.Header.Set(AcceptHeaderKey, ProtobufTypeHeaderValue)
 
 	return req, nil
 }
