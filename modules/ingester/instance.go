@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/search"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -69,9 +70,8 @@ type instance struct {
 	completingBlocks []*wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
-	//headBlockSearch *searchData
-	searchAppendBlocks   map[*wal.AppendBlock]*searchData
-	searchCompleteBlocks map[*wal.LocalBlock]*searchDataBackend
+	searchAppendBlocks   map[*wal.AppendBlock]*search.StreamingSearchBlock
+	searchCompleteBlocks map[*wal.LocalBlock]search.SearchBlock
 	searchTagLookups     tempofb.SearchDataMap
 
 	lastBlockCut time.Time
@@ -89,8 +89,8 @@ type instance struct {
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
 		traces:               map[uint32]*trace{},
-		searchAppendBlocks:   map[*wal.AppendBlock]*searchData{},
-		searchCompleteBlocks: map[*wal.LocalBlock]*searchDataBackend{},
+		searchAppendBlocks:   map[*wal.AppendBlock]*search.StreamingSearchBlock{},
+		searchCompleteBlocks: map[*wal.LocalBlock]search.SearchBlock{},
 		searchTagLookups:     tempofb.SearchDataMap{},
 
 		instanceID:         instanceID,
@@ -186,7 +186,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		//  WARNING: can't reuse traceid's b/c the appender takes ownership of byte slices that are passed to it
 		tempopb.ReuseTraceBytes(t.traceBytes)
 
-		err = i.searchAppendBlocks[i.headBlock].Append(context.TODO(), t)
+		err = i.searchAppendBlocks[i.headBlock].Append(context.TODO(), t.traceID, t.searchData)
 		if err != nil {
 			return err
 		}
@@ -253,14 +253,14 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	// Search data (optional)
 	oldSearch := i.searchAppendBlocks[completingBlock]
-	var newSearch *searchDataBackend
+	var newSearch search.SearchBlock
 	if oldSearch != nil {
-		err = CompleteSearchDataForBlock(oldSearch, i.local, backendBlock)
+		err = search.NewBackendSearchBlock(oldSearch, i.local, backendBlock)
 		if err != nil {
 			return err
 		}
 
-		newSearch = SearchDataFromBlock(i.local, backendBlock)
+		newSearch = search.OpenBackendSearchBlock(i.local, backendBlock)
 	}
 
 	i.blocksMtx.Lock()
@@ -450,7 +450,13 @@ func (i *instance) resetHeadBlock() error {
 
 	i.lastBlockCut = time.Now()
 
-	i.searchAppendBlocks[i.headBlock], err = NewSearchDataForAppendBlock(i, i.headBlock)
+	// Create search data wal file
+	f, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, "searchdata")
+	if err != nil {
+		return err
+	}
+
+	i.searchAppendBlocks[i.headBlock], err = search.NewStreamingSearchBlockForFile(f)
 	return err
 }
 
@@ -529,7 +535,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 			return err
 		}
 
-		sb := SearchDataFromBlock(i.local, b)
+		sb := search.OpenBackendSearchBlock(i.local, b)
 
 		i.blocksMtx.Lock()
 		i.completeBlocks = append(i.completeBlocks, ib)
@@ -553,7 +559,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 
 	var results []*tempopb.TraceSearchMetadata
 
-	p := NewSearchPipeline(req)
+	p := search.NewSearchPipeline(req)
 
 	// Search live traces
 	func() {

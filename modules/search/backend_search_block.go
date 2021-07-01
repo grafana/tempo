@@ -1,4 +1,4 @@
-package ingester
+package search
 
 import (
 	"context"
@@ -14,14 +14,20 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
-var _ SearchBlock = (*searchDataBackend)(nil)
+var _ SearchBlock = (*BackendSearchBlock)(nil)
 
-// CompleteSearchDataForBlock iterates through the given WAL search data and writes it to the persistent backend
+type BackendSearchBlock struct {
+	id       uuid.UUID
+	tenantID string
+	r        backend.Reader
+}
+
+// NewBackendSearchBlock iterates through the given WAL search data and writes it to the persistent backend
 // in a more efficient paged form. Multiple traces are written in the same page to make sure of the flatbuffer
 // CreateSharedString feature which dedupes strings across the entire buffer.
 // TODO - Use the existing buffered encoder for this?  May need to be refactored, because it currently
 //        takes bytes, but we need to pass the search data before bytes...?
-func CompleteSearchDataForBlock(input *searchData, w backend.Writer, block *encoding.BackendBlock) error {
+func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, block *encoding.BackendBlock) error {
 	var err error
 	var pageEntries []flatbuffers.UOffsetT
 	var tracker backend.AppendTracker
@@ -99,15 +105,9 @@ func CompleteSearchDataForBlock(input *searchData, w backend.Writer, block *enco
 	return nil
 }
 
-type searchDataBackend struct {
-	id       uuid.UUID
-	tenantID string
-	r        backend.Reader
-}
-
-// SearchDataFromBlock opens the search data for an existing block in the given backend.
-func SearchDataFromBlock(r backend.Reader, b *encoding.BackendBlock) *searchDataBackend {
-	return &searchDataBackend{
+// OpenBackendSearchBlock opens the search data for an existing block in the given backend.
+func OpenBackendSearchBlock(r backend.Reader, b *encoding.BackendBlock) *BackendSearchBlock {
+	return &BackendSearchBlock{
 		id:       b.BlockMeta().BlockID,
 		tenantID: b.BlockMeta().TenantID,
 		r:        r,
@@ -115,7 +115,7 @@ func SearchDataFromBlock(r backend.Reader, b *encoding.BackendBlock) *searchData
 }
 
 // Search iterates through the block looking for matches.
-func (s *searchDataBackend) Search(ctx context.Context, p pipeline) ([]*tempopb.TraceSearchMetadata, error) {
+func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb.TraceSearchMetadata, error) {
 
 	var matches []*tempopb.TraceSearchMetadata
 
