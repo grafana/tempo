@@ -669,12 +669,8 @@ func (i *instance) GetSearchTagValues(tagName string) []string {
 	return i.searchTagLookups[tagName]
 }
 
-var recordableSearchLookupTags map[string]struct{} = map[string]struct{}{
-	"root.name":         {},
-	"root.service.name": {},
-	"service.name":      {},
-	"name":              {},
-}
+// Record first 50 unique values for every tag
+const maxLookups = 50
 
 func (i *instance) RecordSearchLookupValues(b []byte) {
 	kv := &tempofb.KeyValues{}
@@ -683,10 +679,12 @@ func (i *instance) RecordSearchLookupValues(b []byte) {
 	for j := 0; j < s.TagsLength(); j++ {
 		s.Tags(kv, j)
 		key := string(kv.Key())
-		if _, ok := recordableSearchLookupTags[key]; ok {
-			for k := 0; k < kv.ValueLength(); k++ {
-				tempofb.SearchDataAppend(i.searchTagLookups, key, string(kv.Value(k)))
-			}
+		if vals, ok := i.searchTagLookups[key]; ok && len(vals) >= maxLookups {
+			// key exists and we have enough
+			continue
+		}
+		for k := 0; k < kv.ValueLength(); k++ {
+			tempofb.SearchDataAppend(i.searchTagLookups, key, string(kv.Value(k)))
 		}
 	}
 }
