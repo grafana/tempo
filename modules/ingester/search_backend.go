@@ -14,49 +14,13 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
-//var _ SearchBlock = (*searchDataBackend)(nil)
+var _ SearchBlock = (*searchDataBackend)(nil)
 
-/*type searchWriterBuffered struct {
-	tracker backend.AppendTracker
-	a       encoding.Appender
-	Builder *flatbuffers.Builder
-	page    flatbuffers.UOffsetT
-	entries []flatbuffers.UOffsetT
-}
-
-var _ common.DataWriter = (*searchWriterBuffered)(nil)
-
-func NewSearchWriterBuffered() *searchWriterBuffered {
-	return &searchWriterBuffered{
-		Builder: flatbuffers.NewBuilder(1024),
-	}
-}
-
-/*func (*searchWriterBuffered) Complete() error {
-	return nil
-}
-
-func (s *searchWriterBuffered) CutPage() (int, error) {
-
-	s.builder.Finish(s.page)
-	buf := s.builder.FinishedBytes()
-
-	s.
-
-		// Reset for next page
-		s.builder.Reset()
-	s.entries = s.entries[:0]
-
-	return b, nil
-}
-
-func (s *searchWriterBuffered) Write(id common.ID, obj []byte) (int, error) {
-	var err error
-
-	return len(obj), err
-}
-*/
-
+// CompleteSearchDataForBlock iterates through the given WAL search data and writes it to the persistent backend
+// in a more efficient paged form. Multiple traces are written in the same page to make sure of the flatbuffer
+// CreateSharedString feature which dedupes strings across the entire buffer.
+// TODO - Use the existing buffered encoder for this?  May need to be refactored, because it currently
+//        takes bytes, but we need to pass the search data before bytes...?
 func CompleteSearchDataForBlock(input *searchData, w backend.Writer, block *encoding.BackendBlock) error {
 	var err error
 	var pageEntries []flatbuffers.UOffsetT
@@ -141,6 +105,7 @@ type searchDataBackend struct {
 	r        backend.Reader
 }
 
+// SearchDataFromBlock opens the search data for an existing block in the given backend.
 func SearchDataFromBlock(r backend.Reader, b *encoding.BackendBlock) *searchDataBackend {
 	return &searchDataBackend{
 		id:       b.BlockMeta().BlockID,
@@ -149,6 +114,7 @@ func SearchDataFromBlock(r backend.Reader, b *encoding.BackendBlock) *searchData
 	}
 }
 
+// Search iterates through the block looking for matches.
 func (s *searchDataBackend) Search(ctx context.Context, p pipeline) ([]*tempopb.TraceSearchMetadata, error) {
 
 	var matches []*tempopb.TraceSearchMetadata

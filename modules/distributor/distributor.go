@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
@@ -258,6 +260,7 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
+// extractSearchDataAll returns flatbuffer search data for every trace.
 func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {
 	headers := make([][]byte, len(traces))
 
@@ -268,6 +271,9 @@ func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {
 	return headers
 }
 
+// extractSearchData returns the flatbuffer search data for the given trace.  It is extracted here
+// in the distributor because this is the only place on the ingest path where the trace is available
+// in object form.
 func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 	data := tempofb.SearchDataMap{}
 
@@ -277,8 +283,8 @@ func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 	for _, b := range trace.Batches {
 		// Batch attrs
 		for _, a := range b.Resource.Attributes {
-			if v := a.Value.GetStringValue(); v != "" {
-				tempofb.SearchDataAppend(data, a.Key, v)
+			if s, ok := extractValueAsString(a.Value); ok {
+				tempofb.SearchDataAppend(data, a.Key, s)
 			}
 		}
 
@@ -292,15 +298,15 @@ func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 
 					// Span attrs
 					for _, a := range s.Attributes {
-						if v := a.Value.GetStringValue(); v != "" {
-							tempofb.SearchDataAppend(data, fmt.Sprint("root.", a.Key), v)
+						if s, ok := extractValueAsString(a.Value); ok {
+							tempofb.SearchDataAppend(data, fmt.Sprint("root.", a.Key), s)
 						}
 					}
 
 					// Batch attrs
 					for _, a := range b.Resource.Attributes {
-						if v := a.Value.GetStringValue(); v != "" {
-							tempofb.SearchDataAppend(data, fmt.Sprint("root.", a.Key), v)
+						if s, ok := extractValueAsString(a.Value); ok {
+							tempofb.SearchDataAppend(data, fmt.Sprint("root.", a.Key), s)
 						}
 					}
 				}
@@ -317,97 +323,46 @@ func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 				tempofb.SearchDataAppend(data, "name", s.Name)
 
 				for _, a := range s.Attributes {
-					if v := a.Value.GetStringValue(); v != "" {
-						tempofb.SearchDataAppend(data, a.Key, v)
+					if s, ok := extractValueAsString(a.Value); ok {
+						tempofb.SearchDataAppend(data, a.Key, s)
 					}
 				}
 			}
 		}
 	}
 
-	//fmt.Printf("Distributor extracted search data from trace %x %v Duration %v\n",
-	//	trace.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId, data,
-	//	(time.Duration((maxEnd - minStart) * uint64(time.Nanosecond))))
+	fmt.Printf("Distributor extracted search data from trace %x %v Duration %v\n",
+		trace.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId, data,
+		(time.Duration((maxEnd - minStart) * uint64(time.Nanosecond))))
 
 	// The ID isn't needed here
 	return tempofb.SearchDataBytesFromValues(nil, data, minStart, maxEnd)
 }
 
-/*func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {
-	headers := make([][]byte, len(traces))
-
-	for i, t := range traces {
-		headers[i] = d.extractSearchData(t)
+func extractValueAsString(v *common_v1.AnyValue) (s string, ok bool) {
+	vv := v.GetValue()
+	if vv == nil {
+		return "", false
 	}
 
-	return headers
+	if s, ok := vv.(*common_v1.AnyValue_StringValue); ok {
+		return s.StringValue, true
+	}
+
+	if b, ok := vv.(*common_v1.AnyValue_BoolValue); ok {
+		return strconv.FormatBool(b.BoolValue), true
+	}
+
+	if i, ok := vv.(*common_v1.AnyValue_IntValue); ok {
+		return strconv.FormatInt(i.IntValue, 10), true
+	}
+
+	if d, ok := vv.(*common_v1.AnyValue_DoubleValue); ok {
+		return strconv.FormatFloat(d.DoubleValue, 'g', -1, 64), true
+	}
+
+	return "", false
 }
-
-func (d *Distributor) extractSearchData(t *tempopb.Trace) []byte {
-
-	fmt.Printf("Distributor extracting search data from trace %x\n", t.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId)
-
-	rsn := ""
-	rst := map[string]string{}
-
-	for _, b := range t.Batches {
-		for _, ils := range b.InstrumentationLibrarySpans {
-			for _, s := range ils.Spans {
-				//fmt.Printf("Distributor looking at span with name %s Parent: %x", s.Name, s.ParentSpanId)
-
-				if len(s.ParentSpanId) == 0 {
-					// Root span
-					rsn = s.Name
-					fmt.Println("Distributor extraced root span name", rsn)
-
-					// Span attrs
-					for _, a := range s.Attributes {
-						if v := a.Value.GetStringValue(); v != "" {
-							rst[a.Key] = v
-						}
-					}
-
-					// Batch attrs
-					for _, a := range b.Resource.Attributes {
-						if v := a.Value.GetStringValue(); v != "" {
-							rst[a.Key] = v
-						}
-					}
-
-					fmt.Println("Distributor extraced root span tags", rst)
-				}
-			}
-		}
-	}
-
-	b := flatbuffers.NewBuilder(1024)
-
-	rsnB := b.CreateString(rsn)
-
-	var rstu []flatbuffers.UOffsetT
-
-	for k, v := range rst {
-		ku := b.CreateString(k)
-		vu := b.CreateString(v)
-
-		tempofb.KVStart(b)
-		tempofb.KVAddKey(b, ku)
-		tempofb.KVAddValue(b, vu)
-		rstu = append(rstu, tempofb.KVEnd(b))
-	}
-
-	tempofb.TraceHeaderStartRootSpanProcessTagsVector(b, len(rstu))
-	for _, v := range rstu {
-		b.PrependUOffsetT(v)
-	}
-	rstvuu := b.EndVector(len(rstu))
-
-	tempofb.TraceHeaderStart(b)
-	tempofb.TraceHeaderAddRootSpanName(b, rsnB)
-	tempofb.TraceHeaderAddRootSpanProcessTags(b, rstvuu)
-	b.Finish(tempofb.TraceHeaderEnd(b))
-	return b.FinishedBytes()
-}*/
 
 func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, searchData [][]byte, keys []uint32, ids [][]byte) error {
 	// Marshal to bytes once
