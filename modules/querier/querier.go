@@ -277,10 +277,20 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 		response.Traces = append(response.Traces, r.response.Traces...)
 	}
 
+	// Sort and limit results
+	sort.Slice(response.Traces, func(i, j int) bool {
+		return response.Traces[i].StartTimeUnixNano > response.Traces[j].StartTimeUnixNano
+	})
+	if req.Limit != 0 && int(req.Limit) < len(response.Traces) {
+		response.Traces = response.Traces[:req.Limit]
+	}
+
 	return response, nil
 }
 
 func (q *Querier) searchGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (*tempopb.SearchResponse, error)) ([]searchResponseFromIngester, error) {
+	// TODO use grpc streams to stream results from all ingesters concurrently and stop when enough results are received
+
 	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
 		client, err := q.pool.GetClientFor(ingester.Addr)
 		if err != nil {
