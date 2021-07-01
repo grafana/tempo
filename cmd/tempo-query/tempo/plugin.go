@@ -55,7 +55,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	hexID := fmt.Sprintf("%016x%016x", traceID.High, traceID.Low)
 	url := fmt.Sprintf("http://%s/api/traces/%s", b.tempoBackend, hexID)
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "GetTrace")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetTrace")
 	defer span.Finish()
 
 	req, err := b.NewGetRequest(ctx, url, span)
@@ -119,14 +119,14 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 }
 
 func (b *Backend) GetServices(ctx context.Context) ([]string, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetOperations")
 	defer span.Finish()
 
 	return b.lookupTagValues(ctx, span, serviceSearchTag)
 }
 
 func (b *Backend) GetOperations(ctx context.Context, query jaeger_spanstore.OperationQueryParameters) ([]jaeger_spanstore.Operation, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetOperations")
 	defer span.Finish()
 
 	tagValues, err := b.lookupTagValues(ctx, span, operationSearchTag)
@@ -147,7 +147,7 @@ func (b *Backend) GetOperations(ctx context.Context, query jaeger_spanstore.Oper
 }
 
 func (b *Backend) FindTraces(ctx context.Context, query *jaeger_spanstore.TraceQueryParameters) ([]*jaeger.Trace, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraces")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.FindTraces")
 	defer span.Finish()
 
 	traceIDs, err := b.FindTraceIDs(ctx, query)
@@ -170,7 +170,7 @@ func (b *Backend) FindTraces(ctx context.Context, query *jaeger_spanstore.TraceQ
 }
 
 func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.TraceQueryParameters) ([]jaeger.TraceID, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraceIDs")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.FindTraceIDs")
 	defer span.Finish()
 
 	url := url.URL{
