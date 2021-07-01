@@ -6,8 +6,10 @@ import (
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 )
@@ -190,7 +192,7 @@ func (s *searchDataBackend) Search(ctx context.Context, p pipeline) ([]*tempopb.
 
 			// If we got here then it's a match.
 			matches = append(matches, &tempopb.TraceSearchMetadata{
-				TraceID:           entry.Id(),
+				TraceID:           util.TraceIDToHexString(entry.Id()),
 				RootServiceName:   tempofb.SearchDataGet(entry, "root.service.name"),
 				RootTraceName:     tempofb.SearchDataGet(entry, "root.name"),
 				StartTimeUnixNano: entry.StartTimeUnixNano(),

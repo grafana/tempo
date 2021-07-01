@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -52,4 +53,11 @@ func hexStringToTraceID(id string) ([]byte, error) {
 	}
 
 	return byteID, nil
+}
+
+func TraceIDToHexString(byteID []byte) string {
+	id := hex.EncodeToString(byteID)
+	// remove leading zeros
+	id = strings.Trim(id, "0")
+	return id
 }

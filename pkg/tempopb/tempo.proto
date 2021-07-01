@@ -42,7 +42,7 @@ message SearchResponse {
 }
 
 message TraceSearchMetadata {
-  bytes traceID = 1;
+  string traceID = 1;
   string rootServiceName = 2;
   string rootTraceName = 3;
   uint64 startTimeUnixNano = 4;

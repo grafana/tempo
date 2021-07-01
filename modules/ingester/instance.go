@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -565,7 +566,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 				searchData := tempofb.SearchDataFromBytes(s)
 				if p.Matches(searchData) {
 					results = append(results, &tempopb.TraceSearchMetadata{
-						TraceID:           t.traceID,
+						TraceID:           util.TraceIDToHexString(t.traceID),
 						RootServiceName:   tempofb.SearchDataGet(searchData, "root.service.name"),
 						RootTraceName:     tempofb.SearchDataGet(searchData, "root.name"),
 						StartTimeUnixNano: searchData.StartTimeUnixNano(),

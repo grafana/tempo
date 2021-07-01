@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -203,7 +204,7 @@ func (s *searchData) Search(ctx context.Context, p pipeline) ([]*tempopb.TraceSe
 
 		// If we got here then it's a match.
 		matches = append(matches, &tempopb.TraceSearchMetadata{
-			TraceID:           r.ID,
+			TraceID:           util.TraceIDToHexString(r.ID),
 			RootServiceName:   tempofb.SearchDataGet(searchData, "root.service.name"),
 			RootTraceName:     tempofb.SearchDataGet(searchData, "root.name"),
 			StartTimeUnixNano: searchData.StartTimeUnixNano(),

@@ -215,7 +215,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	jaegerTraceIDs := make([]jaeger.TraceID, len(searchResponse.Traces))
 
 	for i, traceMetadata := range searchResponse.Traces {
-		jaegerTraceID, err := jaeger.TraceIDFromBytes(traceMetadata.TraceID)
+		jaegerTraceID, err := jaeger.TraceIDFromString(traceMetadata.TraceID)
 		if err != nil {
 			return nil, fmt.Errorf("could not convert traceID into jaeger traceID %w", err)
 		}
