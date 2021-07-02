@@ -30,8 +30,8 @@ const (
 )
 
 const (
-	serviceSearchTag     = "root.service.name"
-	operationSearchTag   = "root.name"
+	serviceSearchTag     = "service.name"
+	operationSearchTag   = "name"
 	minDurationSearchTag = "minDuration"
 	maxDurationSearchTag = "maxDuration"
 	numTracesSearchTag   = "limit"
