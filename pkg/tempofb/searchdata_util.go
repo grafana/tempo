@@ -2,6 +2,7 @@ package tempofb
 
 import (
 	"bytes"
+	"sort"
 	"strings"
 
 	flatbuffers "github.com/google/flatbuffers/go"
@@ -46,17 +47,24 @@ func SearchDataGet(s *SearchData, k string) string {
 	return ""
 }
 
-func SearchDataContains(s *SearchData, k string, v string) bool {
-	kv := &KeyValues{}
-	kb := bytes.ToLower([]byte(k))
-	vb := bytes.ToLower([]byte(v))
+// SearchDataContains returns true if the key and value are found in the search data.
+// Buffer KeyValue object can be passed to reduce allocations. Key and value must be
+// already converted to byte slices which match the nature of the flatbuffer data
+// which reduces allocations even further.
+func SearchDataContains(s *SearchData, kv *KeyValues, k []byte, v []byte) bool {
 
-	// TODO - Use binary search since keys/values are sorted
-	for i := 0; i < s.TagsLength(); i++ {
+	// Binary search for keys which are sorted descendingly ?
+	keyIndex := sort.Search(s.TagsLength(), func(i int) bool {
 		s.Tags(kv, i)
-		if bytes.Equal(kv.Key(), kb) {
+		return bytes.Compare(k, kv.Key()) >= 0
+	})
+
+	if keyIndex < s.TagsLength() && keyIndex >= 0 {
+		s.Tags(kv, keyIndex)
+		if bytes.Equal(kv.Key(), k) {
+			// Linear search for matching values
 			for j := 0; j < kv.ValueLength(); j++ {
-				if bytes.Contains(kv.Value(j), vb) {
+				if bytes.Contains(kv.Value(j), v) {
 					return true
 				}
 			}

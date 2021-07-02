@@ -1,6 +1,7 @@
 package search
 
 import (
+	"strings"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempofb"
@@ -17,10 +18,21 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 	p := Pipeline{}
 
 	if len(req.Tags) > 0 {
+		// Convert all search params to bytes once
+		kb := make([][]byte, 0, len(req.Tags))
+		vb := make([][]byte, 0, len(req.Tags))
+
+		for k, v := range req.Tags {
+			kb = append(kb, []byte(strings.ToLower(k)))
+			vb = append(vb, []byte(strings.ToLower(v)))
+		}
+
+		buffer := &tempofb.KeyValues{}
+
 		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
 			// Must match all
-			for k, v := range req.Tags {
-				if !tempofb.SearchDataContains(s, k, v) {
+			for i := range kb {
+				if !tempofb.SearchDataContains(s, buffer, kb[i], vb[i]) {
 					return false
 				}
 			}
