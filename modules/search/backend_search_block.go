@@ -11,7 +11,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 )
 
 var _ SearchBlock = (*BackendSearchBlock)(nil)
@@ -27,7 +26,7 @@ type BackendSearchBlock struct {
 // CreateSharedString feature which dedupes strings across the entire buffer.
 // TODO - Use the existing buffered encoder for this?  May need to be refactored, because it currently
 //        takes bytes, but we need to pass the search data before bytes...?
-func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, block *encoding.BackendBlock) error {
+func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, blockID uuid.UUID, tenantID string) (int, error) {
 	var err error
 	var pageEntries []flatbuffers.UOffsetT
 	var tracker backend.AppendTracker
@@ -35,6 +34,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, block 
 	ctx := context.TODO()
 	builder := flatbuffers.NewBuilder(1024)
 	pageSize := 1024 * 1024 //1MB
+	bytesFlushed := 0
 
 	flush := func() error {
 		// Create vector of entries
@@ -52,10 +52,12 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, block 
 
 		buf := builder.FinishedBytes()
 
-		tracker, err = w.Append(ctx, "search", block.BlockMeta().BlockID, block.BlockMeta().TenantID, tracker, buf)
+		tracker, err = w.Append(ctx, "search", blockID, tenantID, tracker, buf)
 		if err != nil {
 			return err
 		}
+
+		bytesFlushed += len(buf)
 
 		// Reset for next page
 		builder.Reset()
@@ -70,7 +72,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, block 
 		buf := make([]byte, r.Length)
 		_, err = input.file.ReadAt(buf, int64(r.Start))
 		if err != nil {
-			return err
+			return bytesFlushed, err
 		}
 
 		tags := tempofb.SearchDataMap{}
@@ -99,17 +101,17 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, block 
 
 	err = w.CloseAppend(ctx, tracker)
 	if err != nil {
-		return err
+		return bytesFlushed, err
 	}
 
-	return nil
+	return bytesFlushed, nil
 }
 
 // OpenBackendSearchBlock opens the search data for an existing block in the given backend.
-func OpenBackendSearchBlock(r backend.Reader, b *encoding.BackendBlock) *BackendSearchBlock {
+func OpenBackendSearchBlock(r backend.Reader, blockID uuid.UUID, tenantID string) *BackendSearchBlock {
 	return &BackendSearchBlock{
-		id:       b.BlockMeta().BlockID,
-		tenantID: b.BlockMeta().TenantID,
+		id:       blockID,
+		tenantID: tenantID,
 		r:        r,
 	}
 }

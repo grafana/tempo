@@ -255,12 +255,12 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	oldSearch := i.searchAppendBlocks[completingBlock]
 	var newSearch search.SearchBlock
 	if oldSearch != nil {
-		err = search.NewBackendSearchBlock(oldSearch, i.local, backendBlock)
+		_, err = search.NewBackendSearchBlock(oldSearch, i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID)
 		if err != nil {
 			return err
 		}
 
-		newSearch = search.OpenBackendSearchBlock(i.local, backendBlock)
+		newSearch = search.OpenBackendSearchBlock(i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID)
 	}
 
 	i.blocksMtx.Lock()
@@ -535,7 +535,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 			return err
 		}
 
-		sb := search.OpenBackendSearchBlock(i.local, b)
+		sb := search.OpenBackendSearchBlock(i.local, b.BlockMeta().BlockID, b.BlockMeta().TenantID)
 
 		i.blocksMtx.Lock()
 		i.completeBlocks = append(i.completeBlocks, ib)

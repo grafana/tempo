@@ -53,7 +53,8 @@ func SearchDataGet(s *SearchData, k string) string {
 // which reduces allocations even further.
 func SearchDataContains(s *SearchData, kv *KeyValues, k []byte, v []byte) bool {
 
-	// Binary search for keys which are sorted descendingly ?
+	// Binary search for keys. Flatbuffers are written backwards so
+	// keys are descending.
 	keyIndex := sort.Search(s.TagsLength(), func(i int) bool {
 		s.Tags(kv, i)
 		return bytes.Compare(k, kv.Key()) >= 0
@@ -83,8 +84,19 @@ func WriteSearchDataToBuilder(b *flatbuffers.Builder, id common.ID, tags SearchD
 
 	idOffset := b.CreateByteString(id)
 
-	for k, v := range tags {
+	// Sort keys
+	keys := make([]string, 0, len(tags))
+	for k := range tags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
 		ko := b.CreateSharedString(strings.ToLower(k))
+
+		// Sort values
+		v := tags[k]
+		sort.Strings(v)
 
 		valueStrings := make([]flatbuffers.UOffsetT, len(v))
 		for i := range v {
