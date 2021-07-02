@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -204,17 +205,16 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response from tempo: %w", err)
-	}
-
 	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("error reading response from Tempo: got %s", resp.Status)
+		}
 		return nil, fmt.Errorf("%s", body)
 	}
 
 	var searchResponse tempopb.SearchResponse
-	err = searchResponse.Unmarshal(body)
+	err = jsonpb.Unmarshal(resp.Body, &searchResponse)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshaling Tempo response: %w", err)
 	}
@@ -246,17 +246,16 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response from tempo: %w", err)
-	}
-
 	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("error reading response from Tempo: got %s", resp.Status)
+		}
 		return nil, fmt.Errorf("%s", body)
 	}
 
 	var searchLookupResponse tempopb.SearchTagValuesResponse
-	err = searchLookupResponse.Unmarshal(body)
+	err = jsonpb.Unmarshal(resp.Body, &searchLookupResponse)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshaling Tempo response: %w", err)
 	}
