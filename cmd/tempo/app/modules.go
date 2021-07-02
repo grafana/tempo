@@ -180,46 +180,36 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", frontend.MinQueryShards, frontend.MaxQueryShards)
 	}
 
-	var err error
 	cortexTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
 	t.frontend = v1
 
-	// custom tripperware that splits requests
-	shardingTripperWare, err := frontend.NewTripperware(t.cfg.Frontend, log.Logger, prometheus.DefaultRegisterer)
+	tripperware, err := frontend.NewTripperware(t.cfg.Frontend, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
-	shardingTripper := shardingTripperWare(cortexTripper)
+	roundTripper := tripperware(cortexTripper)
 
-	tripperWare, err := frontend.NewUnshardedTripperware(log.Logger, prometheus.DefaultRegisterer)
-	if err != nil {
-		return nil, err
-	}
-	tripper := tripperWare(cortexTripper)
+	frontendHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, roundTripper, log.Logger, prometheus.DefaultRegisterer)
 
-	cortexHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, shardingTripper, log.Logger, prometheus.DefaultRegisterer)
-	nonShardingCortexHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, tripper, log.Logger, prometheus.DefaultRegisterer)
-
-	tracesHandler := middleware.Merge(
+	frontendHandler = middleware.Merge(
 		t.httpAuthMiddleware,
-	).Wrap(cortexHandler)
-
-	frontendHandler := middleware.Merge(
-		t.httpAuthMiddleware,
-	).Wrap(nonShardingCortexHandler)
+	).Wrap(frontendHandler)
 
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
-	// http query endpoint
-	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathTraces), tracesHandler)
 
+	// http query endpoint
+	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathTraces), frontendHandler)
+
+	// http search endpoints
 	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), frontendHandler)
 	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), frontendHandler)
 	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), frontendHandler)
 
+	// http query echo endpoint
 	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathEcho), echoHandler())
 
 	return t.frontend, nil

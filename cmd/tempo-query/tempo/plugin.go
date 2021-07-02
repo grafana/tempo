@@ -61,6 +61,9 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, err
 	}
 
+	// Set content type to GRPC
+	req.Header.Set(AcceptHeaderKey, ProtobufTypeHeaderValue)
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed GET to tempo %w", err)
@@ -282,9 +285,6 @@ func (b *Backend) NewGetRequest(ctx context.Context, url string, span opentracin
 	if found {
 		req.Header.Set(user.OrgIDHeaderName, tenantID)
 	}
-
-	// Set content type to GRPC
-	req.Header.Set(AcceptHeaderKey, ProtobufTypeHeaderValue)
 
 	return req, nil
 }
