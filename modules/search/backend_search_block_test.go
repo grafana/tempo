@@ -54,10 +54,17 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 
 	b.ResetTimer()
 	start := time.Now()
-	//for i := 0; i < b.N; i++ {
-	_, err = b2.Search(ctx, p)
-	require.NoError(b, err)
-	//}
+	// Search 10x because this is really fast but creating the test data is slow
+	// and it helps the benchmark reach consensus faster.
+	loops := 10
+	for i := 0; i < loops; i++ {
+		_, err = b2.Search(ctx, p)
+		require.NoError(b, err)
+	}
 	elapsed := time.Since(start)
-	fmt.Println("BackendSearchBlock search throughput:", float64(bytesFlushed)/(elapsed.Seconds())/(1024*1024), "MiB/s", elapsed.Seconds(), "s elapsed", "bytesFlushed:", float64(bytesFlushed)/(1024*1024), "MB", b.N, "records")
+
+	fmt.Printf("BackendSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s throughput \n",
+		elapsed,
+		float64(bytesFlushed*loops)/(1024*1024),
+		float64(bytesFlushed*loops)/(elapsed.Seconds())/(1024*1024))
 }
