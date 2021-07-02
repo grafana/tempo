@@ -53,21 +53,31 @@ func SearchDataGet(s *SearchData, k string) string {
 // which reduces allocations even further.
 func SearchDataContains(s *SearchData, kv *KeyValues, k []byte, v []byte) bool {
 
+	matched := -1
+
 	// Binary search for keys. Flatbuffers are written backwards so
-	// keys are descending.
-	keyIndex := sort.Search(s.TagsLength(), func(i int) bool {
+	// keys are descending (the comparison is reversed).
+	// TODO - We only want exact matches, sort.Search has to make an
+	// extra comparison. We should fork it to make use of the full
+	// tri-state response from bytes.Compare
+	sort.Search(s.TagsLength(), func(i int) bool {
 		s.Tags(kv, i)
-		return bytes.Compare(k, kv.Key()) >= 0
+		comparison := bytes.Compare(k, kv.Key())
+		if comparison == 0 {
+			matched = i
+			// TODO it'd be great to exit here and retain the data in kv buffer
+		}
+		return comparison >= 0
 	})
 
-	if keyIndex < s.TagsLength() && keyIndex >= 0 {
-		s.Tags(kv, keyIndex)
-		if bytes.Equal(kv.Key(), k) {
-			// Linear search for matching values
-			for j := 0; j < kv.ValueLength(); j++ {
-				if bytes.Contains(kv.Value(j), v) {
-					return true
-				}
+	if matched >= 0 {
+		s.Tags(kv, matched)
+
+		// Linear search for matching values
+		l := kv.ValueLength()
+		for j := 0; j < l; j++ {
+			if bytes.Contains(kv.Value(j), v) {
+				return true
 			}
 		}
 	}

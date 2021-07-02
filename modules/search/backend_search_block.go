@@ -139,6 +139,8 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb
 
 		size := flatbuffers.GetSizePrefix(offsetBuf, 0)
 
+		//fmt.Println("BackendSearchBlock is loading a page size", size, "bytes")
+
 		// Read page
 		dataBuf := make([]byte, size)
 		err = s.r.ReadRange(ctx, "search", s.id, s.tenantID, offset, dataBuf)
@@ -149,9 +151,10 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb
 			return nil, err
 		}
 
+		entry := &tempofb.SearchData{} // Buffer
 		datas := tempofb.GetRootAsBatchSearchData(dataBuf, 0)
-		entry := &tempofb.SearchData{}
-		for i := 0; i < datas.EntriesLength(); i++ {
+		l := datas.EntriesLength()
+		for i := 0; i < l; i++ {
 			datas.Entries(entry, i)
 
 			if !p.Matches(entry) {

@@ -36,9 +36,15 @@ func TestPipelineMatchesTags(t *testing.T) {
 		},
 		{
 			name:        "matchMulti",
-			searchData:  tempofb.SearchDataMap{"key1": {"value1"}, "key2": {"value2"}, "key3": {"value3"}},
+			searchData:  tempofb.SearchDataMap{"key1": {"value1"}, "key2": {"value2"}, "key3": {"value3"}, "key4": {"value4"}},
 			request:     map[string]string{"key1": "value1", "key3": "value3"},
 			shouldMatch: true,
+		},
+		{
+			name:        "noMatchMulti",
+			searchData:  tempofb.SearchDataMap{"key1": {"value1"}, "key2": {"value2"}},
+			request:     map[string]string{"key1": "value1", "key3": "value3"},
+			shouldMatch: false,
 		}}
 
 	for _, tc := range testCases {
