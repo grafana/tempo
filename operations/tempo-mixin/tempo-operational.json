@@ -25,12 +25,17 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
-  "iteration": 1615543281712,
+  "id": 152,
+  "iteration": 1625468849630,
   "links": [],
   "panels": [
     {
       "collapsed": false,
       "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -48,10 +53,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
@@ -78,7 +79,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -141,10 +142,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
@@ -171,7 +168,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -234,10 +231,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
@@ -264,7 +257,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -326,10 +319,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
@@ -356,7 +345,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -366,10 +355,10 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\", container!=\"\"}[$__rate_interval])",
+          "expr": "rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}[$__rate_interval])",
           "interval": "",
           "intervalFactor": 5,
-          "legendFormat": "{{pod}} {{container}}",
+          "legendFormat": "{{pod}}",
           "refId": "A"
         }
       ],
@@ -420,10 +409,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
@@ -450,7 +435,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -460,9 +445,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\", container!=\"\"}",
+          "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}",
           "interval": "",
-          "legendFormat": "{{pod}} {{container}}",
+          "legendFormat": "{{pod}}",
           "refId": "A"
         }
       ],
@@ -513,10 +498,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
@@ -543,7 +524,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -614,10 +595,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
@@ -644,7 +621,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -706,10 +683,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -736,7 +709,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -796,6 +769,10 @@
     {
       "collapsed": false,
       "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -813,10 +790,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -843,7 +816,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -906,10 +879,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -936,7 +905,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1008,10 +977,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1038,7 +1003,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": true,
       "renderer": "flot",
@@ -1112,10 +1077,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1142,16 +1103,17 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
-      "stack": false,
+      "stack": true,
       "steppedLine": false,
       "targets": [
         {
+          "exemplar": true,
           "expr": "avg(tempodb_blocklist_length{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}) by (tenant)",
           "instant": false,
           "interval": "",
@@ -1206,10 +1168,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1236,7 +1194,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": true,
       "renderer": "flot",
@@ -1311,10 +1269,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1341,7 +1295,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1410,10 +1364,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1440,7 +1390,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1501,6 +1451,10 @@
     {
       "collapsed": false,
       "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1518,10 +1472,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1548,7 +1498,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1612,10 +1562,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1642,7 +1588,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1717,10 +1663,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1747,7 +1689,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1811,10 +1753,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1841,7 +1779,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -1916,10 +1854,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -1946,7 +1880,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2010,10 +1944,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2040,7 +1970,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2115,10 +2045,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2145,7 +2071,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2209,10 +2135,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2239,7 +2161,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2311,6 +2233,10 @@
     {
       "collapsed": false,
       "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -2328,10 +2254,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
@@ -2358,7 +2280,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2421,10 +2343,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2451,7 +2369,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2514,10 +2432,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2544,7 +2458,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2607,10 +2521,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2637,7 +2547,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2700,10 +2610,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2730,7 +2636,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2793,10 +2699,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2823,7 +2725,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": true,
       "renderer": "flot",
@@ -2898,10 +2800,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -2928,7 +2826,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -2991,10 +2889,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -3021,7 +2915,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -3090,10 +2984,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -3120,7 +3010,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -3195,10 +3085,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -3225,7 +3111,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -3297,6 +3183,10 @@
     {
       "collapsed": false,
       "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -3346,7 +3236,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -3441,7 +3331,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -3513,6 +3403,10 @@
     {
       "collapsed": true,
       "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -3729,6 +3623,10 @@
     {
       "collapsed": true,
       "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -4140,6 +4038,10 @@
     {
       "collapsed": false,
       "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -4157,6 +4059,34 @@
         "defaults": {
           "color": {
             "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -4181,7 +4111,7 @@
           "displayMode": "list",
           "placement": "bottom"
         },
-        "tooltipOptions": {
+        "tooltip": {
           "mode": "single"
         }
       },
@@ -4207,6 +4137,8 @@
             "mode": "thresholds"
           },
           "mappings": [],
+          "max": 1,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -4240,7 +4172,7 @@
         "showUnfilled": true,
         "text": {}
       },
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "targets": [
         {
           "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
@@ -4257,6 +4189,10 @@
     {
       "collapsed": false,
       "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -4274,10 +4210,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -4304,7 +4236,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -4370,10 +4302,6 @@
       "dashes": false,
       "datasource": "$ds",
       "description": "",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -4400,7 +4328,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -4463,10 +4391,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -4493,7 +4417,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -4556,10 +4480,6 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$ds",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
@@ -4586,7 +4506,7 @@
         "alertThreshold": true
       },
       "percentage": false,
-      "pluginVersion": "7.5.0-14141pre",
+      "pluginVersion": "8.1.0-27525pre",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -4645,7 +4565,7 @@
     }
   ],
   "refresh": "",
-  "schemaVersion": 27,
+  "schemaVersion": 30,
   "style": "dark",
   "tags": [],
   "templating": {
@@ -4673,8 +4593,8 @@
       {
         "current": {
           "selected": false,
-          "text": "loki-dev",
-          "value": "loki-dev"
+          "text": "Loki-ops",
+          "value": "Loki-ops"
         },
         "description": null,
         "error": null,
@@ -4695,8 +4615,8 @@
         "allValue": null,
         "current": {
           "selected": false,
-          "text": "ops-tools1",
-          "value": "ops-tools1"
+          "text": "ops-us-east-0",
+          "value": "ops-us-east-0"
         },
         "datasource": "$ds",
         "definition": "label_values(tempo_build_info, cluster)",
@@ -4717,7 +4637,6 @@
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
-        "tags": [],
         "tagsQuery": "",
         "type": "query",
         "useTags": false
@@ -4726,8 +4645,8 @@
         "allValue": null,
         "current": {
           "selected": false,
-          "text": "tracing-ops",
-          "value": "tracing-ops"
+          "text": "tempo-ops",
+          "value": "tempo-ops"
         },
         "datasource": "$ds",
         "definition": "label_values(kube_pod_container_info{image=~\".*tempo.*\", cluster=\"$cluster\"}, namespace)",
@@ -4748,7 +4667,6 @@
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
-        "tags": [],
         "tagsQuery": "",
         "type": "query",
         "useTags": false
