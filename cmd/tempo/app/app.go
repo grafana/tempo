@@ -137,7 +137,7 @@ func (c *Config) CheckConfig() {
 type App struct {
 	cfg Config
 
-	server       *server.Server
+	Server       *server.Server
 	ring         *ring.Ring
 	overrides    *overrides.Overrides
 	distributor  *distributor.Distributor
@@ -149,7 +149,7 @@ type App struct {
 	memberlistKV *memberlist.KVInitService
 
 	httpAuthMiddleware middleware.Interface
-	moduleManager      *modules.Manager
+	ModuleManager      *modules.Manager
 	serviceMap         map[string]services.Service
 }
 
@@ -211,11 +211,11 @@ func (t *App) setupAuthMiddleware() {
 
 // Run starts, and blocks until a signal is received.
 func (t *App) Run() error {
-	if !t.moduleManager.IsUserVisibleModule(t.cfg.Target) {
+	if !t.ModuleManager.IsUserVisibleModule(t.cfg.Target) {
 		level.Warn(log.Logger).Log("msg", "selected target is an internal module, is this intended?", "target", t.cfg.Target)
 	}
 
-	serviceMap, err := t.moduleManager.InitModuleServices(t.cfg.Target)
+	serviceMap, err := t.ModuleManager.InitModuleServices(t.cfg.Target)
 	if err != nil {
 		return fmt.Errorf("failed to init module services %w", err)
 	}
@@ -232,9 +232,9 @@ func (t *App) Run() error {
 	}
 
 	// before starting servers, register /ready handler and gRPC health check service.
-	t.server.HTTP.Path("/config").Handler(t.configHandler())
-	t.server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
-	grpc_health_v1.RegisterHealthServer(t.server.GRPC, healthcheck.New(sm))
+	t.Server.HTTP.Path("/config").Handler(t.configHandler())
+	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
+	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, healthcheck.New(sm))
 
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }
@@ -260,7 +260,7 @@ func (t *App) Run() error {
 	sm.AddListener(services.NewManagerListener(healthy, stopped, serviceFailed))
 
 	// Setup signal handler. If signal arrives, we stop the manager, which stops all the services.
-	handler := signals.NewHandler(t.server.Log)
+	handler := signals.NewHandler(t.Server.Log)
 	go func() {
 		handler.Loop()
 		sm.StopAsync()
