@@ -99,7 +99,7 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 
 func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id uuid.UUID, blockNum int, windowRange time.Duration, includeCompacted bool) (*blockStats, error) {
 	fmt.Print(".")
-	if blockNum % 100 == 0 {
+	if blockNum%100 == 0 {
 		fmt.Print(strconv.Itoa(blockNum))
 	}
 

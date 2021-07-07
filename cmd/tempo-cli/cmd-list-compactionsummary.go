@@ -58,7 +58,7 @@ func displayCompactionSummary(results []blockStats) {
 
 	out := make([][]string, 0)
 	bloomTable := make([][]int, 7)
-	for i, _ := range bloomTable {
+	for i := range bloomTable {
 		bloomTable[i] = make([]int, 15)
 	}
 
@@ -79,7 +79,7 @@ func displayCompactionSummary(results []blockStats) {
 			countBloomShards += int(r.BloomShardCount)
 
 			row := r.CompactionLevel
-			column := -1 * (int(r.StartTime.Sub(time.Now())/(time.Hour*24)))
+			column := -1 * (int(r.StartTime.Sub(time.Now()) / (time.Hour * 24)))
 			if row <= 6 && column <= 14 {
 				bloomTable[row][column] += int(r.BloomShardCount)
 			} else {

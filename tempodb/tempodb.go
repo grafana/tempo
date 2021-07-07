@@ -117,6 +117,9 @@ type readerWriter struct {
 	w backend.Writer
 	c backend.Compactor
 
+	// bucketReader is a cache-free reader
+	bucketReader backend.Reader
+
 	wal  *wal.WAL
 	pool *pool.Pool
 
@@ -160,6 +163,8 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		return nil, nil, nil, err
 	}
 
+	bucketReader := r
+
 	var cacheBackend cortex_cache.Cache
 
 	switch cfg.Cache {
@@ -184,6 +189,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		c:                   c,
 		compactedBlockLists: make(map[string][]*backend.CompactedBlockMeta),
 		r:                   r,
+		bucketReader:        bucketReader,
 		w:                   w,
 		cfg:                 cfg,
 		logger:              logger,
@@ -321,9 +327,16 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, nil, nil
 	}
 
+	curTime := time.Now()
 	partialTraces, dataEncodings, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 		meta := payload.(*backend.BlockMeta)
-		block, err := encoding.NewBackendBlock(meta, rw.r)
+		var block *encoding.BackendBlock
+		var err error
+		if rw.shouldCache(meta, curTime) {
+			block, err = encoding.NewBackendBlock(meta, rw.r)
+		} else {
+			block, err = encoding.NewBackendBlock(meta, rw.bucketReader)
+		}
 		if err != nil {
 			return nil, "", err
 		}
@@ -582,6 +595,15 @@ func (rw *readerWriter) updateBlocklist(tenantID string, add []*backend.BlockMet
 
 	// ******** Compacted blocks ********
 	rw.compactedBlockLists[tenantID] = append(rw.compactedBlockLists[tenantID], compactedAdd...)
+}
+
+func (rw *readerWriter) shouldCache(meta *backend.BlockMeta, curTime time.Time) bool {
+	// compaction level is _atleast_ CacheMinCompactionLevel
+	// block is not older than CacheMaxBlockAge
+	if rw.cfg.CacheMaxBlockAge == 0 {
+		return meta.CompactionLevel >= rw.cfg.CacheMinCompactionLevel
+	}
+	return meta.CompactionLevel >= rw.cfg.CacheMinCompactionLevel && curTime.Sub(meta.StartTime) < rw.cfg.CacheMaxBlockAge
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
