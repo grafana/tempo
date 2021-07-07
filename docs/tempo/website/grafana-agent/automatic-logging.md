@@ -25,7 +25,7 @@ This allows searching by those key-value pairs in Loki.
 ## Quickstart
 
 To configure it, you need to select your preferred backend and what trace data to log.
-To see all the available config options, refer to the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration-reference.md#tempo_instance_config).
+To see all the available config options, refer to the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration/tempo-config.md).
 
 ```
 tempo:
