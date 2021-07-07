@@ -51,7 +51,10 @@ func TestPipelineMatchesTags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			p := NewSearchPipeline(&tempopb.SearchRequest{Tags: tc.request})
-			sd := tempofb.SearchDataFromBytes(tempofb.SearchDataBytesFromValues([]byte{0}, tc.searchData, 0, 0))
+			data := tempofb.SearchDataMutable{
+				Tags: tc.searchData,
+			}
+			sd := tempofb.SearchDataFromBytes(data.ToBytes())
 			matches := p.Matches(sd)
 
 			require.Equal(t, tc.shouldMatch, matches)
@@ -61,13 +64,13 @@ func TestPipelineMatchesTags(t *testing.T) {
 
 func BenchmarkPipelineMatchesTags(b *testing.B) {
 
-	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8}
-	searchData := tempofb.SearchDataFromBytes(tempofb.SearchDataBytesFromValues(traceID, tempofb.SearchDataMap{
-		"key1": {"value10", "value11"},
-		"key2": {"value20", "value21"},
-		"key3": {"value30", "value31"},
-		"key4": {"value40", "value41"},
-	}, 0, 0))
+	searchData := tempofb.SearchDataFromBytes((&tempofb.SearchDataMutable{
+		Tags: tempofb.SearchDataMap{
+			"key1": {"value10", "value11"},
+			"key2": {"value20", "value21"},
+			"key3": {"value30", "value31"},
+			"key4": {"value40", "value41"},
+		}}).ToBytes())
 
 	pipeline := NewSearchPipeline(&tempopb.SearchRequest{
 		Tags: map[string]string{

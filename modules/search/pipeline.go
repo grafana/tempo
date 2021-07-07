@@ -32,7 +32,7 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
 			// Must match all
 			for i := range kb {
-				if !tempofb.SearchDataContains(s, buffer, kb[i], vb[i]) {
+				if !s.Contains(buffer, kb[i], vb[i]) {
 					return false
 				}
 			}

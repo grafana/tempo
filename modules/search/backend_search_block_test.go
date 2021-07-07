@@ -20,12 +20,13 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 	//n := 1_000_000
 
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8}
-	searchData := [][]byte{tempofb.SearchDataBytesFromValues(id, tempofb.SearchDataMap{
-		"key1": {"value10", "value11"},
-		"key2": {"value20", "value21"},
-		"key3": {"value30", "value31"},
-		"key4": {"value40", "value41"},
-	}, 0, 0)}
+	searchData := [][]byte{(&tempofb.SearchDataMutable{
+		Tags: tempofb.SearchDataMap{
+			"key1": {"value10", "value11"},
+			"key2": {"value20", "value21"},
+			"key3": {"value30", "value31"},
+			"key4": {"value40", "value41"},
+		}}).ToBytes()}
 
 	f, err := os.OpenFile(path.Join(b.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(b, err)

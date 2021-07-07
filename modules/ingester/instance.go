@@ -573,8 +573,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 				if p.Matches(searchData) {
 					results = append(results, &tempopb.TraceSearchMetadata{
 						TraceID:           util.TraceIDToHexString(t.traceID),
-						RootServiceName:   tempofb.SearchDataGet(searchData, "root.service.name"),
-						RootTraceName:     tempofb.SearchDataGet(searchData, "root.name"),
+						RootServiceName:   searchData.Get("root.service.name"),
+						RootTraceName:     searchData.Get("root.name"),
 						StartTimeUnixNano: searchData.StartTimeUnixNano(),
 						DurationMs:        uint32((searchData.EndTimeUnixNano() - searchData.StartTimeUnixNano()) / 1_000_000),
 					})
@@ -630,7 +630,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 			for b, s := range i.searchCompleteBlocks {
 				res, err := s.Search(ctx, p)
 				if err != nil {
-					return err
+					continue
 				}
 
 				if len(res) > 0 {
@@ -690,7 +690,7 @@ func (i *instance) RecordSearchLookupValues(b []byte) {
 			continue
 		}
 		for k := 0; k < kv.ValueLength(); k++ {
-			tempofb.SearchDataAppend(i.searchTagLookups, key, string(kv.Value(k)))
+			i.searchTagLookups.Add(key, string(kv.Value(k)))
 		}
 	}
 }

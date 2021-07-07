@@ -35,6 +35,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, blockI
 	builder := flatbuffers.NewBuilder(1024)
 	pageSize := 1024 * 1024 //1MB
 	bytesFlushed := 0
+	kv := &tempofb.KeyValues{}
 
 	flush := func() error {
 		// Create vector of entries
@@ -75,18 +76,23 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, blockI
 			return bytesFlushed, err
 		}
 
-		tags := tempofb.SearchDataMap{}
-		kv := &tempofb.KeyValues{}
-
 		s := tempofb.SearchDataFromBytes(buf)
-		for i := 0; i < s.TagsLength(); i++ {
+
+		data := &tempofb.SearchDataMutable{
+			TraceID:           r.ID,
+			StartTimeUnixNano: s.StartTimeUnixNano(),
+			EndTimeUnixNano:   s.EndTimeUnixNano(),
+		}
+
+		l := s.TagsLength()
+		for i := 0; i < l; i++ {
 			s.Tags(kv, i)
 			for j := 0; j < kv.ValueLength(); j++ {
-				tempofb.SearchDataAppend(tags, string(kv.Key()), string(kv.Value(j)))
+				data.AddTag(string(kv.Key()), string(kv.Value(j)))
 			}
 		}
 
-		offset := tempofb.WriteSearchDataToBuilder(builder, r.ID, tags, s.StartTimeUnixNano(), s.EndTimeUnixNano())
+		offset := data.WriteToBuilder(builder)
 		pageEntries = append(pageEntries, offset)
 
 		if builder.Offset() > flatbuffers.UOffsetT(pageSize) {
@@ -170,8 +176,8 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb
 			// If we got here then it's a match.
 			matches = append(matches, &tempopb.TraceSearchMetadata{
 				TraceID:           util.TraceIDToHexString(entry.Id()),
-				RootServiceName:   tempofb.SearchDataGet(entry, "root.service.name"),
-				RootTraceName:     tempofb.SearchDataGet(entry, "root.name"),
+				RootServiceName:   entry.Get("root.service.name"),
+				RootTraceName:     entry.Get("root.name"),
 				StartTimeUnixNano: entry.StartTimeUnixNano(),
 				DurationMs:        uint32((entry.EndTimeUnixNano() - entry.StartTimeUnixNano()) / 1_000_000),
 			})

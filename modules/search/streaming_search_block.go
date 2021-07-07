@@ -62,10 +62,7 @@ func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
 }
 
 func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
-	data := tempofb.SearchDataMap{}
-
-	var minStart uint64
-	var maxEnd uint64
+	data := tempofb.SearchDataMutable{}
 
 	kv := &tempofb.KeyValues{}
 
@@ -75,18 +72,20 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 		for i := 0; i < sd.TagsLength(); i++ {
 			sd.Tags(kv, i)
 			for j := 0; j < kv.ValueLength(); j++ {
-				tempofb.SearchDataAppend(data, string(kv.Key()), string(kv.Value(j)))
+				data.AddTag(string(kv.Key()), string(kv.Value(j)))
 			}
 		}
-		if (sd.StartTimeUnixNano() > 0 && sd.StartTimeUnixNano() < minStart) || minStart == 0 {
+		data.SetStartTimeUnixNano(sd.StartTimeUnixNano())
+		data.SetEndTimeUnixNano(sd.EndTimeUnixNano())
+		/*if (sd.StartTimeUnixNano() > 0 && sd.StartTimeUnixNano() < minStart) || minStart == 0 {
 			minStart = sd.StartTimeUnixNano()
 		}
 		if sd.EndTimeUnixNano() > 0 && sd.EndTimeUnixNano() > maxEnd {
 			maxEnd = sd.EndTimeUnixNano()
-		}
+		}*/
 	}
 
-	buf := tempofb.SearchDataBytesFromValues(id, data, minStart, maxEnd)
+	buf := data.ToBytes()
 
 	return s.appender.Append(id, buf)
 }
@@ -115,8 +114,8 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempo
 		// If we got here then it's a match.
 		matches = append(matches, &tempopb.TraceSearchMetadata{
 			TraceID:           util.TraceIDToHexString(r.ID),
-			RootServiceName:   tempofb.SearchDataGet(searchData, "root.service.name"),
-			RootTraceName:     tempofb.SearchDataGet(searchData, "root.name"),
+			RootServiceName:   searchData.Get("root.service.name"),
+			RootTraceName:     searchData.Get("root.name"),
 			StartTimeUnixNano: searchData.StartTimeUnixNano(),
 			DurationMs:        uint32((searchData.EndTimeUnixNano() - searchData.StartTimeUnixNano()) / 1_000_000),
 		})

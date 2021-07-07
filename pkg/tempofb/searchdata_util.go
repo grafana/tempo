@@ -11,11 +11,11 @@ import (
 
 type SearchDataMap map[string][]string
 
-func SearchDataAppend(d SearchDataMap, k string, v string) {
-	vs, ok := d[k]
+func (s SearchDataMap) Add(k, v string) {
+	vs, ok := s[k]
 	if !ok {
 		// First entry for key
-		d[k] = []string{v}
+		s[k] = []string{v}
 		return
 	}
 
@@ -28,11 +28,98 @@ func SearchDataAppend(d SearchDataMap, k string, v string) {
 	}
 
 	// Not found, append
-	d[k] = append(vs, v)
+	s[k] = append(vs, v)
+}
+
+// SearchDataMutable is a mutable form of the flatbuffer-compiled SearchData struct, to make building and transporting.
+type SearchDataMutable struct {
+	TraceID           common.ID
+	Tags              SearchDataMap
+	StartTimeUnixNano uint64
+	EndTimeUnixNano   uint64
+}
+
+// AddTag adds the unique tag name and value to the search data. No effect if the pair is already present.
+func (s *SearchDataMutable) AddTag(k string, v string) {
+	if s.Tags == nil {
+		s.Tags = SearchDataMap{}
+	}
+	s.Tags.Add(k, v)
+}
+
+// SetStartTimeUnixNano records the earliest of all timestamps passed to this function.
+func (s *SearchDataMutable) SetStartTimeUnixNano(t uint64) {
+	if t > 0 && s.StartTimeUnixNano == 0 || s.StartTimeUnixNano > t {
+		s.StartTimeUnixNano = t
+	}
+}
+
+// SetEndTimeUnixNano records the latest of all timestamps passed to this function.
+func (s *SearchDataMutable) SetEndTimeUnixNano(t uint64) {
+	if t > 0 && t > s.EndTimeUnixNano {
+		s.EndTimeUnixNano = t
+	}
+}
+
+func (s *SearchDataMutable) ToBytes() []byte {
+	b := flatbuffers.NewBuilder(2048)
+	offset := s.WriteToBuilder(b)
+	b.Finish(offset)
+	return b.FinishedBytes()
+}
+
+func (s *SearchDataMutable) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
+	keyValueOffsets := make([]flatbuffers.UOffsetT, 0, len(s.Tags))
+
+	idOffset := b.CreateByteString(s.TraceID)
+
+	// Sort keys
+	keys := make([]string, 0, len(s.Tags))
+	for k := range s.Tags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		ko := b.CreateSharedString(strings.ToLower(k))
+
+		// Sort values
+		v := s.Tags[k]
+		sort.Strings(v)
+
+		valueStrings := make([]flatbuffers.UOffsetT, len(v))
+		for i := range v {
+			valueStrings[i] = b.CreateSharedString(strings.ToLower(v[i]))
+		}
+
+		KeyValuesStartValueVector(b, len(valueStrings))
+		for _, vs := range valueStrings {
+			b.PrependUOffsetT(vs)
+		}
+		valueVector := b.EndVector(len(valueStrings))
+
+		KeyValuesStart(b)
+		KeyValuesAddKey(b, ko)
+		KeyValuesAddValue(b, valueVector)
+		keyValueOffsets = append(keyValueOffsets, KeyValuesEnd(b))
+	}
+
+	SearchDataStartTagsVector(b, len(keyValueOffsets))
+	for _, kvo := range keyValueOffsets {
+		b.PrependUOffsetT(kvo)
+	}
+	keyValueVector := b.EndVector((len(keyValueOffsets)))
+
+	SearchDataStart(b)
+	SearchDataAddId(b, idOffset)
+	SearchDataAddStartTimeUnixNano(b, s.StartTimeUnixNano)
+	SearchDataAddEndTimeUnixNano(b, s.EndTimeUnixNano)
+	SearchDataAddTags(b, keyValueVector)
+	return SearchDataEnd(b)
 }
 
 // SearchDataGet searches SearchData and returns the first value found for the given key.
-func SearchDataGet(s *SearchData, k string) string {
+func (s *SearchData) Get(k string) string {
 	kv := &KeyValues{}
 	kb := bytes.ToLower([]byte(k))
 
@@ -51,7 +138,7 @@ func SearchDataGet(s *SearchData, k string) string {
 // Buffer KeyValue object can be passed to reduce allocations. Key and value must be
 // already converted to byte slices which match the nature of the flatbuffer data
 // which reduces allocations even further.
-func SearchDataContains(s *SearchData, kv *KeyValues, k []byte, v []byte) bool {
+func (s *SearchData) Contains(kv *KeyValues, k []byte, v []byte) bool {
 
 	matched := -1
 
@@ -87,65 +174,4 @@ func SearchDataContains(s *SearchData, kv *KeyValues, k []byte, v []byte) bool {
 
 func SearchDataFromBytes(b []byte) *SearchData {
 	return GetRootAsSearchData(b, 0)
-}
-
-func WriteSearchDataToBuilder(b *flatbuffers.Builder, id common.ID, tags SearchDataMap, startTimeUnixNano, endTimeUnixNano uint64) flatbuffers.UOffsetT {
-	keyValueOffsets := make([]flatbuffers.UOffsetT, 0, len(tags))
-
-	idOffset := b.CreateByteString(id)
-
-	// Sort keys
-	keys := make([]string, 0, len(tags))
-	for k := range tags {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
-		ko := b.CreateSharedString(strings.ToLower(k))
-
-		// Sort values
-		v := tags[k]
-		sort.Strings(v)
-
-		valueStrings := make([]flatbuffers.UOffsetT, len(v))
-		for i := range v {
-			valueStrings[i] = b.CreateSharedString(strings.ToLower(v[i]))
-		}
-
-		KeyValuesStartValueVector(b, len(valueStrings))
-		for _, vs := range valueStrings {
-			b.PrependUOffsetT(vs)
-		}
-		valueVector := b.EndVector(len(valueStrings))
-
-		KeyValuesStart(b)
-		KeyValuesAddKey(b, ko)
-		KeyValuesAddValue(b, valueVector)
-		keyValueOffsets = append(keyValueOffsets, KeyValuesEnd(b))
-	}
-
-	SearchDataStartTagsVector(b, len(keyValueOffsets))
-	for _, kvo := range keyValueOffsets {
-		b.PrependUOffsetT(kvo)
-	}
-	keyValueVector := b.EndVector((len(keyValueOffsets)))
-
-	SearchDataStart(b)
-	SearchDataAddId(b, idOffset)
-	SearchDataAddStartTimeUnixNano(b, startTimeUnixNano)
-	SearchDataAddEndTimeUnixNano(b, endTimeUnixNano)
-	SearchDataAddTags(b, keyValueVector)
-	return SearchDataEnd(b)
-}
-
-func SearchDataBytesFromValues(id common.ID, tags SearchDataMap, startTimeUnixNano, endTimeUnixNano uint64) []byte {
-	b := flatbuffers.NewBuilder(2048)
-
-	s := WriteSearchDataToBuilder(b, id, tags, startTimeUnixNano, endTimeUnixNano)
-
-	b.Finish(s)
-
-	return b.FinishedBytes()
-
 }
