@@ -163,14 +163,16 @@ func (t *App) initQuerier() (services.Service, error) {
 	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathTraces)), tracesHandler)
 
-	searchHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
-	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearch)), searchHandler)
+	if t.cfg.SearchEnabled {
+		searchHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
+		t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearch)), searchHandler)
 
-	searchTagsHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
-	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTags)), searchTagsHandler)
+		searchTagsHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
+		t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTags)), searchTagsHandler)
 
-	searchTagValuesHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues)), searchTagValuesHandler)
+		searchTagValuesHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
+		t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues)), searchTagValuesHandler)
+	}
 
 	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTPServer.Handler)
 }
@@ -205,9 +207,11 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathTraces), frontendHandler)
 
 	// http search endpoints
-	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), frontendHandler)
-	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), frontendHandler)
-	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), frontendHandler)
+	if t.cfg.SearchEnabled {
+		t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), frontendHandler)
+		t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), frontendHandler)
+		t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), frontendHandler)
+	}
 
 	// http query echo endpoint
 	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathEcho), echoHandler())

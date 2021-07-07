@@ -3,7 +3,7 @@ services:
 
   tempo:
     image: grafana/tempo:latest
-    command: [ "-config.file=/etc/tempo.yaml" ]
+    command: [ "-search.enabled=true", "-config.file=/etc/tempo.yaml" ]
     volumes:
       - ../local/tempo-local.yaml:/etc/tempo.yaml
       - ./tempo-data/:/tmp/tempo

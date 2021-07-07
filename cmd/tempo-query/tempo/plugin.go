@@ -205,6 +205,11 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	}
 	defer resp.Body.Close()
 
+	// if search endpoint returns 404, search is most likely not enabled
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -245,6 +250,11 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 		return nil, fmt.Errorf("failed GET to tempo %w", err)
 	}
 	defer resp.Body.Close()
+
+	// if search endpoint returns 404, search is most likely not enabled
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
