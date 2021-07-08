@@ -24,8 +24,8 @@ type KeyPath []string
 type RawWriter interface {
 	// Write is for in memory data.  It is expected that this data will be cached.
 	Write(ctx context.Context, name string, keypath KeyPath, buffer []byte) error
-	// WriteReader is for larger data payloads streamed through an io.Reader.  It is expected this will _not_ be cached.
-	WriteReader(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64) error
+	// StreamWriter is for larger data payloads streamed through an io.Reader.  It is expected this will _not_ be cached.
+	StreamWriter(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
 	Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error)
 	// Closes any resources associated with the AppendTracker
@@ -36,8 +36,8 @@ type RawWriter interface {
 type RawReader interface {
 	// Read is for reading entire objects from the backend.  It is expected that there will be an attempt to retrieve this from cache
 	Read(ctx context.Context, name string, keypath KeyPath) ([]byte, error)
-	// ReadReader is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
-	ReadReader(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, int64, error)
+	// StreamReader is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
+	StreamReader(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.  It is expected this will _not_ be cached.
 	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte) error
 	// List returns all objects one level beneath the provided keypath
@@ -61,8 +61,8 @@ func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tena
 	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), buffer)
 }
 
-func (w *writer) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
-	return w.w.WriteReader(ctx, name, KeyPathForBlock(blockID, tenantID), data, size)
+func (w *writer) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+	return w.w.StreamWriter(ctx, name, KeyPathForBlock(blockID, tenantID), data, size)
 }
 
 func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
@@ -99,8 +99,8 @@ func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenan
 	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID))
 }
 
-func (r *reader) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
-	return r.r.ReadReader(ctx, name, KeyPathForBlock(blockID, tenantID))
+func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+	return r.r.StreamReader(ctx, name, KeyPathForBlock(blockID, tenantID))
 }
 
 func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {

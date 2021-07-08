@@ -40,11 +40,11 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 
 // Write implements backend.Writer
 func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
-	return rw.WriteReader(ctx, name, keypath, bytes.NewBuffer(buffer), int64(len(buffer)))
+	return rw.StreamWriter(ctx, name, keypath, bytes.NewBuffer(buffer), int64(len(buffer)))
 }
 
-// WriteReader implements backend.Writer
-func (rw *Backend) WriteReader(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
+// StreamWriter implements backend.Writer
+func (rw *Backend) StreamWriter(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
 	blockFolder := rw.rootPath(keypath)
 	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
@@ -150,7 +150,7 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 	return nil
 }
 
-func (rw *Backend) ReadReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
+func (rw *Backend) StreamReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
 	filename := rw.objectFileName(keypath, name)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)

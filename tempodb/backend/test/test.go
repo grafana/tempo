@@ -35,8 +35,8 @@ func (m *MockRawReader) Read(ctx context.Context, name string, keypath backend.K
 
 	return m.R, nil
 }
-func (m *MockRawReader) ReadReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
-	panic("ReadReader is not yet supported for mock reader")
+func (m *MockRawReader) StreamReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
+	panic("StreamReader is not yet supported for mock reader")
 }
 func (m *MockRawReader) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
 	copy(buffer, m.Range)
@@ -52,7 +52,7 @@ type MockRawWriter struct {
 func (m *MockRawWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
 	return nil
 }
-func (m *MockRawWriter) WriteReader(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64) error {
+func (m *MockRawWriter) StreamWriter(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64) error {
 	return nil
 }
 func (m *MockRawWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
@@ -116,8 +116,8 @@ func (m *MockReader) Read(ctx context.Context, name string, blockID uuid.UUID, t
 	return m.R, nil
 }
 
-func (m *MockReader) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
-	panic("ReadReader is not yet supported for mock reader")
+func (m *MockReader) StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+	panic("StreamReader is not yet supported for mock reader")
 }
 
 func (m *MockReader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
@@ -134,7 +134,7 @@ type MockWriter struct {
 func (m *MockWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
 	return nil
 }
-func (m *MockWriter) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+func (m *MockWriter) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
 	return nil
 }
 func (m *MockWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {

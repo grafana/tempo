@@ -49,8 +49,8 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 	return val, err
 }
 
-func (r *readerWriter) ReadReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
-	panic("ReadReader is not yet supported for cache")
+func (r *readerWriter) StreamReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
+	panic("StreamReader is not yet supported for cache")
 }
 
 // ReadRange implements backend.Reader
@@ -74,8 +74,8 @@ func (r *readerWriter) Write(ctx context.Context, name string, keypath backend.K
 }
 
 // Write implements backend.Writer
-func (r *readerWriter) WriteReader(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64) error {
-	return r.nextWriter.WriteReader(ctx, name, keypath, data, size)
+func (r *readerWriter) StreamWriter(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64) error {
+	return r.nextWriter.StreamWriter(ctx, name, keypath, data, size)
 }
 
 // Append implements backend.Writer

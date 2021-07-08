@@ -53,7 +53,7 @@ func TestReadWrite(t *testing.T) {
 		fakeMeta.TenantID = id
 		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID, id), fakeObject)
 		assert.NoError(t, err, "unexpected error writing")
-		err = w.WriteReader(ctx, objectReaderName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewBuffer(fakeObject), int64(len(fakeObject)))
+		err = w.StreamWriter(ctx, objectReaderName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewBuffer(fakeObject), int64(len(fakeObject)))
 		assert.NoError(t, err, "unexpected error writing reader")
 	}
 

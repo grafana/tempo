@@ -59,11 +59,11 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 
 // Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
-	return rw.WriteReader(ctx, name, keypath, bytes.NewBuffer(buffer), int64(len(buffer)))
+	return rw.StreamWriter(ctx, name, keypath, bytes.NewBuffer(buffer), int64(len(buffer)))
 }
 
-// WriteReader implements backend.Writer
-func (rw *readerWriter) WriteReader(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
+// StreamWriter implements backend.Writer
+func (rw *readerWriter) StreamWriter(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
 	return rw.writer(ctx, bufio.NewReader(data), backend.ObjectFileName(keypath, name))
 }
 
@@ -136,8 +136,8 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 	return bytes, nil
 }
 
-func (rw *readerWriter) ReadReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
-	panic("ReadReader is not yet supported for Azure backend")
+func (rw *readerWriter) StreamReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
+	panic("StreamReader is not yet supported for Azure backend")
 }
 
 // ReadRange implements backend.Reader

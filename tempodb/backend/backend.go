@@ -23,8 +23,8 @@ type AppendTracker interface{}
 type Writer interface {
 	// Write is for in memory data.  It is expected that this data will be cached.
 	Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error
-	// WriteReader is for larger data payloads streamed through an io.Reader.  It is expected this will _not_ be cached.
-	WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error
+	// StreamWriter is for larger data payloads streamed through an io.Reader.  It is expected this will _not_ be cached.
+	StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error
 	// WriteBlockMeta writes a block meta to its blocks
 	WriteBlockMeta(ctx context.Context, meta *BlockMeta) error
 
@@ -36,8 +36,8 @@ type Writer interface {
 type Reader interface {
 	// Reader is for reading entire objects from the backend.  It is expected that there will be an attempt to retrieve this from cache
 	Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error)
-	// ReadReader is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
-	ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error)
+	// StreamReader is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
+	StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.  It is expected this will _not_ be cached.
 	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error
 
