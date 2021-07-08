@@ -161,19 +161,6 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 func (rw *readerWriter) Shutdown() {
 }
 
-func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {
-	w := rw.writer(ctx, name)
-
-	_, err := w.Write(b)
-	if err != nil {
-		w.Close()
-		return err
-	}
-
-	err = w.Close()
-	return err
-}
-
 func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
 	w := rw.bucket.Object(name).NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
