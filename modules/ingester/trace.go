@@ -45,22 +45,9 @@ func (t *trace) Push(_ context.Context, trace []byte, searchData []byte) error {
 
 	t.traceBytes.Traces = append(t.traceBytes.Traces, trace)
 
-	t.searchData = append(t.searchData, searchData)
+	if searchData != nil {
+		t.searchData = append(t.searchData, searchData)
+	}
 
 	return nil
 }
-
-/*func (t *trace) pushHeader(trace []byte) {
-	// Unmarshal data so we can process it
-	x := &tempopb.Trace{}
-	proto.Unmarshal(trace, x)
-
-	for _, b := range x.Batches {
-		for _, i := range b.InstrumentationLibrarySpans {
-			for _, s := range i.Spans {
-
-			}
-		}
-	}
-}
-*/

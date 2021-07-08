@@ -157,7 +157,9 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
-	i.RecordSearchLookupValues(searchData)
+	if searchData != nil {
+		i.RecordSearchLookupValues(searchData)
+	}
 
 	trace := i.getOrCreateTrace(id)
 	return trace.Push(ctx, traceBytes, searchData)
@@ -175,7 +177,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 			return err
 		}
 
-		err = i.writeTraceToHeadBlock(t.traceID, out)
+		err = i.writeTraceToHeadBlock(t.traceID, out, t.searchData)
 		if err != nil {
 			return err
 		}
@@ -184,11 +186,6 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		// return trace byte slices to be reused by proto marshalling
 		//  WARNING: can't reuse traceid's b/c the appender takes ownership of byte slices that are passed to it
 		tempopb.ReuseTraceBytes(t.traceBytes)
-
-		err = i.searchAppendBlocks[i.headBlock].Append(context.TODO(), t.traceID, t.searchData)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -265,10 +262,10 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	i.searchCompleteBlocks[ingesterBlock] = newSearch
 	if newSearch != nil {
-		i.completeBlocks = append(i.completeBlocks, ingesterBlock)
+		i.searchCompleteBlocks[ingesterBlock] = newSearch
 	}
+	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
 
 	return nil
 }
@@ -477,11 +474,22 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	return tracesToCut
 }
 
-func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte) error {
+func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	return i.headBlock.Write(id, b)
+	err := i.headBlock.Write(id, b)
+	if err != nil {
+		return err
+	}
+
+	searchBlock := i.searchAppendBlocks[i.headBlock]
+	if searchBlock != nil {
+		err := searchBlock.Append(context.TODO(), id, searchData)
+		return err
+	}
+
+	return nil
 }
 
 // pushRequestTraceID gets the TraceID of the first span in the batch and assumes its the trace ID throughout

@@ -97,6 +97,7 @@ type Distributor struct {
 	ingestersRing   ring.ReadRing
 	pool            *ring_client.Pool
 	DistributorRing *ring.Ring
+	searchEnabled   bool
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -107,7 +108,7 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, multitenancyEnabled bool, level logging.Level) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, multitenancyEnabled bool, level logging.Level, searchEnabled bool) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -156,6 +157,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		pool:                 pool,
 		DistributorRing:      distributorRing,
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
+		searchEnabled:        searchEnabled,
 	}
 
 	cfgReceivers := cfg.Receivers
@@ -250,9 +252,13 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
-	headers := d.extractSearchDataAll(traces)
+	//var
+	var searchData [][]byte
+	if d.searchEnabled {
+		searchData = d.extractSearchDataAll(traces, ids)
+	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, traces, headers, keys, ids)
+	err = d.sendToIngestersViaBytes(ctx, userID, traces, searchData, keys, ids)
 	if err != nil {
 		recordDiscaredSpans(err, userID, spanCount)
 	}
@@ -261,11 +267,11 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 }
 
 // extractSearchDataAll returns flatbuffer search data for every trace.
-func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {
+func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace, ids [][]byte) [][]byte {
 	headers := make([][]byte, len(traces))
 
 	for i, t := range traces {
-		headers[i] = d.extractSearchData(t)
+		headers[i] = d.extractSearchData(t, ids[i])
 	}
 
 	return headers
@@ -274,14 +280,18 @@ func (d *Distributor) extractSearchDataAll(traces []*tempopb.Trace) [][]byte {
 // extractSearchData returns the flatbuffer search data for the given trace.  It is extracted here
 // in the distributor because this is the only place on the ingest path where the trace is available
 // in object form.
-func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
+func (d *Distributor) extractSearchData(trace *tempopb.Trace, id []byte) []byte {
 	data := &tempofb.SearchDataMutable{}
+
+	data.TraceID = id
 
 	for _, b := range trace.Batches {
 		// Batch attrs
-		for _, a := range b.Resource.Attributes {
-			if s, ok := extractValueAsString(a.Value); ok {
-				data.AddTag(a.Key, s)
+		if b.Resource != nil {
+			for _, a := range b.Resource.Attributes {
+				if s, ok := extractValueAsString(a.Value); ok {
+					data.AddTag(a.Key, s)
+				}
 			}
 		}
 
@@ -301,9 +311,11 @@ func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 					}
 
 					// Batch attrs
-					for _, a := range b.Resource.Attributes {
-						if s, ok := extractValueAsString(a.Value); ok {
-							data.AddTag(fmt.Sprint("root.", a.Key), s)
+					if b.Resource != nil {
+						for _, a := range b.Resource.Attributes {
+							if s, ok := extractValueAsString(a.Value); ok {
+								data.AddTag(fmt.Sprint("root.", a.Key), s)
+							}
 						}
 					}
 				}
@@ -323,7 +335,7 @@ func (d *Distributor) extractSearchData(trace *tempopb.Trace) []byte {
 	}
 
 	fmt.Printf("Distributor extracted search data from trace %x %v Duration %v\n",
-		trace.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId, data,
+		id, data,
 		(time.Duration((data.EndTimeUnixNano - data.StartTimeUnixNano) * uint64(time.Nanosecond))))
 
 	return data.ToBytes()
@@ -384,7 +396,11 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		for i, j := range indexes {
 			req.Traces[i].Slice = marshalledTraces[j][0:]
 			req.Ids[i].Slice = ids[j]
-			req.SearchData[i].Slice = searchData[j]
+
+			// Search data optional
+			if len(searchData) > j {
+				req.SearchData[i].Slice = searchData[j]
+			}
 		}
 
 		c, err := d.pool.GetClientFor(ingester.Addr)

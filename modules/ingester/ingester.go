@@ -216,7 +216,14 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 
 	// Unmarshal and push each trace
 	for i := range req.Traces {
-		err := instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice, req.SearchData[i].Slice)
+
+		// Search data is optional.
+		var searchData []byte
+		if len(req.SearchData) > i && len(req.SearchData[i].Slice) > 0 {
+			searchData = req.SearchData[i].Slice
+		}
+
+		err := instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice, searchData)
 		if err != nil {
 			return nil, err
 		}

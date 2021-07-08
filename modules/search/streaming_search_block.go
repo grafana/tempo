@@ -84,6 +84,7 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 		data.SetStartTimeUnixNano(sd.StartTimeUnixNano())
 		data.SetEndTimeUnixNano(sd.EndTimeUnixNano())
 	}
+	data.TraceID = id
 
 	buf := data.ToBytes()
 
