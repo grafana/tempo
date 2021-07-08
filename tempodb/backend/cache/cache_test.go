@@ -7,7 +7,6 @@ import (
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -79,10 +78,10 @@ func TestReadWrite(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockR := &test.MockRawReader{
+			mockR := &backend.MockRawReader{
 				R: tt.readerRead,
 			}
-			mockW := &test.MockRawWriter{}
+			mockW := &backend.MockRawWriter{}
 
 			// READ
 			r, _, _ := NewCache(mockR, mockW, NewMockClient())
@@ -126,10 +125,10 @@ func TestList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockR := &test.MockRawReader{
+			mockR := &backend.MockRawReader{
 				L: tt.readerList,
 			}
-			mockW := &test.MockRawWriter{}
+			mockW := &backend.MockRawWriter{}
 
 			rw, _, _ := NewCache(mockR, mockW, NewMockClient())
 

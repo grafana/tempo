@@ -9,9 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// jpe - which of these needs to be public
 const (
-	// jpe NameMeta? NameCompactedMeta?
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
 	BlockIndexName    = "blockindex.json.gz"
@@ -50,13 +48,13 @@ type writer struct {
 	w RawWriter
 }
 
+// NewWriter returns an object that implements Writer and bridges to a RawWriter
 func NewWriter(w RawWriter) Writer {
 	return &writer{
 		w: w,
 	}
 }
 
-// jpe test all this garbage
 func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
 	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), buffer)
 }
@@ -89,6 +87,7 @@ type reader struct {
 	r RawReader
 }
 
+// NewReader returns an object that implements Reader and bridges to a RawReader
 func NewReader(r RawReader) Reader {
 	return &reader{
 		r: r,
@@ -152,24 +151,28 @@ func (r *reader) Shutdown() {
 	r.r.Shutdown()
 }
 
-// jpe review these, do we need them all?
+// KeyPathForBlock returns a correctly ordered keypath given a block id and tenantid
+func KeyPathForBlock(blockID uuid.UUID, tenantID string) KeyPath {
+	return []string{tenantID, blockID.String()}
+}
+
+// ObjectFileName returns a unique identifier for an object in object storage given its name and keypath
 func ObjectFileName(keypath KeyPath, name string) string {
 	return path.Join(path.Join(keypath...), name)
 }
 
+// MetaFileName returns the object name for the block meta given a block id and tenantid
 func MetaFileName(blockID uuid.UUID, tenantID string) string {
 	return path.Join(RootPath(blockID, tenantID), MetaName)
 }
 
+// CompactedMetaFileName returns the object name for the compacted block meta given a block id and tenantid
 func CompactedMetaFileName(blockID uuid.UUID, tenantID string) string {
 	return path.Join(RootPath(blockID, tenantID), CompactedMetaName)
 }
 
+// RootPath returns the root path for a block given a block id and tenantid
 // nolint:interfacer
 func RootPath(blockID uuid.UUID, tenantID string) string {
 	return path.Join(tenantID, blockID.String())
-}
-
-func KeyPathForBlock(blockID uuid.UUID, tenantID string) KeyPath { // jpe test / make internal
-	return []string{tenantID, blockID.String()}
 }

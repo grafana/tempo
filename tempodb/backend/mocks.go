@@ -1,44 +1,44 @@
-package test
+package backend
 
 import (
 	"context"
 	"io"
+	"io/ioutil"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 )
 
-var _ backend.RawReader = (*MockRawReader)(nil)
-var _ backend.RawWriter = (*MockRawWriter)(nil)
-var _ backend.Compactor = (*MockCompactor)(nil)
+var _ RawReader = (*MockRawReader)(nil)
+var _ RawWriter = (*MockRawWriter)(nil)
+var _ Compactor = (*MockCompactor)(nil)
 
 // MockRawReader
 type MockRawReader struct {
 	L      []string
-	ListFn func(ctx context.Context, keypath backend.KeyPath) ([]string, error)
+	ListFn func(ctx context.Context, keypath KeyPath) ([]string, error)
 	R      []byte // read
 	Range  []byte // ReadRange
-	ReadFn func(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error)
+	ReadFn func(ctx context.Context, name string, keypath KeyPath) ([]byte, error)
 }
 
-func (m *MockRawReader) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, error) {
 	if m.ListFn != nil {
 		return m.ListFn(ctx, keypath)
 	}
 
 	return m.L, nil
 }
-func (m *MockRawReader) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
+func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath) ([]byte, error) {
 	if m.ReadFn != nil {
 		return m.ReadFn(ctx, name, keypath)
 	}
 
 	return m.R, nil
 }
-func (m *MockRawReader) StreamReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
+func (m *MockRawReader) StreamReader(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, int64, error) {
 	panic("StreamReader is not yet supported for mock reader")
 }
-func (m *MockRawReader) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
+func (m *MockRawReader) ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte) error {
 	copy(buffer, m.Range)
 
 	return nil
@@ -47,24 +47,32 @@ func (m *MockRawReader) Shutdown() {}
 
 // MockRawWriter
 type MockRawWriter struct {
+	writeBuffer       []byte
+	writeStreamBuffer []byte
+	appendBuffer      []byte
+	closeAppendCalled bool
 }
 
-func (m *MockRawWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
+func (m *MockRawWriter) Write(ctx context.Context, name string, keypath KeyPath, buffer []byte) error {
+	m.writeBuffer = buffer
 	return nil
 }
-func (m *MockRawWriter) StreamWriter(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64) error {
+func (m *MockRawWriter) StreamWriter(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64) error {
+	m.writeStreamBuffer, _ = ioutil.ReadAll(data)
 	return nil
 }
-func (m *MockRawWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+func (m *MockRawWriter) Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
+	m.appendBuffer = buffer
 	return nil, nil
 }
-func (m *MockRawWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+func (m *MockRawWriter) CloseAppend(ctx context.Context, tracker AppendTracker) error {
+	m.closeAppendCalled = true
 	return nil
 }
 
 // MockCompactor
 type MockCompactor struct {
-	BlockMetaFn func(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error)
+	BlockMetaFn func(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
 }
 
 func (c *MockCompactor) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
@@ -75,7 +83,7 @@ func (c *MockCompactor) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return nil
 }
 
-func (c *MockCompactor) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (c *MockCompactor) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error) {
 	return c.BlockMetaFn(blockID, tenantID)
 }
 
@@ -84,8 +92,8 @@ type MockReader struct {
 	T           []string
 	B           []uuid.UUID // blocks
 	BlockFn     func(ctx context.Context, tenantID string) ([]uuid.UUID, error)
-	M           *backend.BlockMeta // meta
-	BlockMetaFn func(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error)
+	M           *BlockMeta // meta
+	BlockMetaFn func(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	R           []byte // read
 	Range       []byte // ReadRange
 	ReadFn      func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
@@ -101,7 +109,7 @@ func (m *MockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, 
 
 	return m.B, nil
 }
-func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
+func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
 	if m.BlockMetaFn != nil {
 		return m.BlockMetaFn(ctx, blockID, tenantID)
 	}
@@ -137,12 +145,12 @@ func (m *MockWriter) Write(ctx context.Context, name string, blockID uuid.UUID, 
 func (m *MockWriter) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
 	return nil
 }
-func (m *MockWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
+func (m *MockWriter) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 	return nil
 }
-func (m *MockWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+func (m *MockWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
 	return nil, nil
 }
-func (m *MockWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+func (m *MockWriter) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 	return nil
 }

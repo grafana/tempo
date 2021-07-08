@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -236,7 +235,7 @@ func TestPollBlock(t *testing.T) {
 }
 
 func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compactor {
-	return &test.MockCompactor{
+	return &backend.MockCompactor{
 		BlockMetaFn: func(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 			if expectsError {
 				return nil, errors.New("err")
@@ -267,7 +266,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 		tenants = append(tenants, t)
 	}
 
-	return &test.MockReader{
+	return &backend.MockReader{
 		T: tenants,
 		BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 			if expectsError {
