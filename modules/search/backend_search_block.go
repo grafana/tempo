@@ -9,7 +9,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -174,13 +173,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb
 			}
 
 			// If we got here then it's a match.
-			matches = append(matches, &tempopb.TraceSearchMetadata{
-				TraceID:           util.TraceIDToHexString(entry.Id()),
-				RootServiceName:   entry.Get("root.service.name"),
-				RootTraceName:     entry.Get("root.name"),
-				StartTimeUnixNano: entry.StartTimeUnixNano(),
-				DurationMs:        uint32((entry.EndTimeUnixNano() - entry.StartTimeUnixNano()) / 1_000_000),
-			})
+			matches = append(matches, GetSearchResultFromData(entry))
 
 			if len(matches) >= 20 {
 				return matches, nil

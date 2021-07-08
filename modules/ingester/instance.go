@@ -27,7 +27,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -550,7 +549,6 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*tempopb.TraceSearchMetadata, error) {
 	// TODO - Redo this entire thing around channels and concurrent searches, and bail after reading
-
 	// max results from channel
 	maxResults := 20
 	if req.Limit != 0 {
@@ -571,13 +569,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 			for _, s := range t.searchData {
 				searchData := tempofb.SearchDataFromBytes(s)
 				if p.Matches(searchData) {
-					results = append(results, &tempopb.TraceSearchMetadata{
-						TraceID:           util.TraceIDToHexString(t.traceID),
-						RootServiceName:   searchData.Get("root.service.name"),
-						RootTraceName:     searchData.Get("root.name"),
-						StartTimeUnixNano: searchData.StartTimeUnixNano(),
-						DurationMs:        uint32((searchData.EndTimeUnixNano() - searchData.StartTimeUnixNano()) / 1_000_000),
-					})
+					results = append(results, search.GetSearchResultFromData(searchData))
 					continue
 				}
 			}
