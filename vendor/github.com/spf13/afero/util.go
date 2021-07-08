@@ -33,11 +33,11 @@ import (
 const FilePathSeparator = string(filepath.Separator)
 
 // Takes a reader and a path and writes the content
-func (a Afero) StreamWriter(path string, r io.Reader) (err error) {
-	return StreamWriter(a.Fs, path, r)
+func (a Afero) WriteReader(path string, r io.Reader) (err error) {
+	return WriteReader(a.Fs, path, r)
 }
 
-func StreamWriter(fs Fs, path string, r io.Reader) (err error) {
+func WriteReader(fs Fs, path string, r io.Reader) (err error) {
 	dir, _ := filepath.Split(path)
 	ospath := filepath.FromSlash(dir)
 
@@ -60,12 +60,12 @@ func StreamWriter(fs Fs, path string, r io.Reader) (err error) {
 	return
 }
 
-// Same as StreamWriter but checks to see if file/directory already exists.
-func (a Afero) SafeStreamWriter(path string, r io.Reader) (err error) {
-	return SafeStreamWriter(a.Fs, path, r)
+// Same as WriteReader but checks to see if file/directory already exists.
+func (a Afero) SafeWriteReader(path string, r io.Reader) (err error) {
+	return SafeWriteReader(a.Fs, path, r)
 }
 
-func SafeStreamWriter(fs Fs, path string, r io.Reader) (err error) {
+func SafeWriteReader(fs Fs, path string, r io.Reader) (err error) {
 	dir, _ := filepath.Split(path)
 	ospath := filepath.FromSlash(dir)
 

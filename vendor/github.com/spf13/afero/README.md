@@ -144,12 +144,12 @@ IsDir(path string) (bool, error)
 IsEmpty(path string) (bool, error)
 ReadDir(dirname string) ([]os.FileInfo, error)
 ReadFile(filename string) ([]byte, error)
-SafeStreamWriter(path string, r io.Reader) (err error)
+SafeWriteReader(path string, r io.Reader) (err error)
 TempDir(dir, prefix string) (name string, err error)
 TempFile(dir, prefix string) (f File, err error)
 Walk(root string, walkFn filepath.WalkFunc) error
 WriteFile(filename string, data []byte, perm os.FileMode) error
-StreamWriter(path string, r io.Reader) (err error)
+WriteReader(path string, r io.Reader) (err error)
 ```
 For a complete list see [Afero's GoDoc](https://godoc.org/github.com/spf13/afero)
 
