@@ -2,6 +2,7 @@ package s3
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -98,4 +99,14 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+func TestReadError(t *testing.T) {
+	errA := fmt.Errorf(s3KeyDoesNotExist)
+	errB := readError(errA)
+	assert.Equal(t, backend.ErrDoesNotExist, errB)
+
+	wups := fmt.Errorf("wups")
+	errB = readError(wups)
+	assert.Equal(t, wups, errB)
 }

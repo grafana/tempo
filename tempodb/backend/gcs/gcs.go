@@ -259,7 +259,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 	return client.Bucket(cfg.BucketName), nil
 }
 
-func readError(err error) error { // jpe test
+func readError(err error) error {
 	if err == storage.ErrObjectNotExist {
 		return backend.ErrDoesNotExist
 	}

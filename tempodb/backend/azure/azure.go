@@ -288,7 +288,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	return destBuffer, nil
 }
 
-func readError(err error) error { // jpe test
+func readError(err error) error {
 	ret, ok := err.(blob.StorageError)
 	if !ok {
 		return errors.Wrap(err, "reading storage container")

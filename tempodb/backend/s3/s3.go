@@ -358,7 +358,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	return minio.NewCore(cfg.Endpoint, opts)
 }
 
-func readError(err error) error { // jpe test
+func readError(err error) error {
 	if err != nil && err.Error() == s3KeyDoesNotExist {
 		return backend.ErrDoesNotExist
 	}

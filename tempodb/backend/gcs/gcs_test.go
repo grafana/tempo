@@ -2,12 +2,15 @@ package gcs
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"cloud.google.com/go/storage"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,4 +94,14 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+func TestReadError(t *testing.T) {
+	errA := storage.ErrObjectNotExist
+	errB := readError(errA)
+	assert.Equal(t, backend.ErrDoesNotExist, errB)
+
+	wups := fmt.Errorf("wups")
+	errB = readError(wups)
+	assert.Equal(t, wups, errB)
 }
