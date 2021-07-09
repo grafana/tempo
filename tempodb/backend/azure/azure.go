@@ -116,7 +116,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 		marker = list.NextMarker
 
 		for _, blob := range list.Segment.BlobPrefixes {
-			objects = append(objects, strings.TrimSuffix(blob.Name, dir))
+			objects = append(objects, strings.TrimPrefix(strings.TrimSuffix(blob.Name, dir), prefix))
 		}
 
 		// Continue iterating if we are not done.
