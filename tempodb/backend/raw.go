@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"path"
 
@@ -124,7 +125,7 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, erro
 		}
 		uuid, err := uuid.Parse(id)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse %s: %w", id, err)
 		}
 		blockIDs = append(blockIDs, uuid)
 	}

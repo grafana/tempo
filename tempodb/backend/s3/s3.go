@@ -196,8 +196,12 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
-	prefix := path.Join(keypath...) + "/"
+	prefix := path.Join(keypath...)
 	var objects []string
+
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
 
 	nextMarker := ""
 	isTruncated := true
@@ -210,7 +214,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 		isTruncated = res.IsTruncated
 		nextMarker = res.NextMarker
 
-		level.Debug(rw.logger).Log("msg", "listing blocks", "keypath", keypath,
+		level.Debug(rw.logger).Log("msg", "listing blocks", "keypath", path.Join(keypath...)+"/",
 			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextMarker)
 
 		for _, cp := range res.CommonPrefixes {

@@ -103,7 +103,10 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
-	prefix := path.Join(keypath...) + "/"
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Prefix:    prefix,
 		Delimiter: "/",

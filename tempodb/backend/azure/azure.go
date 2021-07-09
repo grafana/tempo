@@ -97,11 +97,16 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	marker := blob.Marker{}
+	prefix := path.Join(keypath...)
+
+	if len(prefix) > 0 {
+		prefix = prefix + dir
+	}
 
 	objects := make([]string, 0)
 	for {
 		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, dir, blob.ListBlobsSegmentOptions{
-			Prefix:  path.Join(keypath...),
+			Prefix:  prefix,
 			Details: blob.BlobListingDetails{},
 		})
 		if err != nil {
