@@ -664,6 +664,7 @@ github.com/oklog/ulid
 ## explicit
 github.com/olekukonko/tablewriter
 # github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e => github.com/pracucci/go-grpc v0.0.0-20201022134131-ef559b8db645
+## explicit
 github.com/opentracing-contrib/go-grpc
 # github.com/opentracing-contrib/go-stdlib v1.0.0
 github.com/opentracing-contrib/go-stdlib/nethttp
