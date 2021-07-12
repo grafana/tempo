@@ -671,7 +671,7 @@ github.com/oklog/ulid
 # github.com/olekukonko/tablewriter v0.0.2
 ## explicit
 github.com/olekukonko/tablewriter
-# github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e => github.com/pracucci/go-grpc v0.0.0-20201022134131-ef559b8db645
+# github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e
 github.com/opentracing-contrib/go-grpc
 # github.com/opentracing-contrib/go-stdlib v1.0.0
 github.com/opentracing-contrib/go-stdlib/nethttp
@@ -829,7 +829,7 @@ github.com/sean-/seed
 # github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 ## explicit
 github.com/segmentio/fasthash/fnv1a
-# github.com/sercand/kuberesolver v2.4.0+incompatible => github.com/sercand/kuberesolver v2.4.0+incompatible
+# github.com/sercand/kuberesolver v2.4.0+incompatible
 github.com/sercand/kuberesolver
 # github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
 github.com/shurcooL/httpfs/filter
@@ -973,7 +973,7 @@ github.com/xdg/stringprep
 github.com/xiang90/probing
 # go.etcd.io/bbolt v1.3.5
 go.etcd.io/bbolt
-# go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
+# go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
 go.etcd.io/etcd/pkg/tlsutil
 go.etcd.io/etcd/pkg/transport
 # go.etcd.io/etcd/api/v3 v3.5.0-alpha.0
@@ -1286,7 +1286,7 @@ google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/status
 google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/protobuf/field_mask
-# google.golang.org/grpc v1.37.0 => google.golang.org/grpc v1.29.1
+# google.golang.org/grpc v1.39.0 => google.golang.org/grpc v1.33.3
 ## explicit
 google.golang.org/grpc
 google.golang.org/grpc/attributes
@@ -1295,6 +1295,7 @@ google.golang.org/grpc/balancer
 google.golang.org/grpc/balancer/base
 google.golang.org/grpc/balancer/grpclb
 google.golang.org/grpc/balancer/grpclb/grpc_lb_v1
+google.golang.org/grpc/balancer/grpclb/state
 google.golang.org/grpc/balancer/roundrobin
 google.golang.org/grpc/binarylog/grpc_binarylog_v1
 google.golang.org/grpc/codes
@@ -1308,7 +1309,6 @@ google.golang.org/grpc/credentials/alts/internal/handshaker
 google.golang.org/grpc/credentials/alts/internal/handshaker/service
 google.golang.org/grpc/credentials/alts/internal/proto/grpc_gcp
 google.golang.org/grpc/credentials/google
-google.golang.org/grpc/credentials/internal
 google.golang.org/grpc/credentials/oauth
 google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/gzip
@@ -1322,6 +1322,7 @@ google.golang.org/grpc/internal/balancerload
 google.golang.org/grpc/internal/binarylog
 google.golang.org/grpc/internal/buffer
 google.golang.org/grpc/internal/channelz
+google.golang.org/grpc/internal/credentials
 google.golang.org/grpc/internal/envconfig
 google.golang.org/grpc/internal/grpclog
 google.golang.org/grpc/internal/grpcrand
@@ -1329,12 +1330,12 @@ google.golang.org/grpc/internal/grpcsync
 google.golang.org/grpc/internal/grpcutil
 google.golang.org/grpc/internal/resolver/dns
 google.golang.org/grpc/internal/resolver/passthrough
+google.golang.org/grpc/internal/serviceconfig
 google.golang.org/grpc/internal/status
 google.golang.org/grpc/internal/syscall
 google.golang.org/grpc/internal/transport
 google.golang.org/grpc/keepalive
 google.golang.org/grpc/metadata
-google.golang.org/grpc/naming
 google.golang.org/grpc/peer
 google.golang.org/grpc/reflection
 google.golang.org/grpc/reflection/grpc_reflection_v1alpha
@@ -1407,15 +1408,11 @@ rsc.io/binaryregexp
 rsc.io/binaryregexp/syntax
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
-# github.com/gocql/gocql => github.com/grafana/gocql v0.0.0-20200605141915-ba5dc39ece85
-# github.com/sercand/kuberesolver => github.com/sercand/kuberesolver v2.4.0+incompatible
-# go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
-# google.golang.org/grpc => google.golang.org/grpc v1.29.1
 # github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
-# github.com/opentracing-contrib/go-grpc => github.com/pracucci/go-grpc v0.0.0-20201022134131-ef559b8db645
-# github.com/satori/go.uuid => github.com/satori/go.uuid v1.2.0
-# k8s.io/api => k8s.io/api v0.19.4
-# k8s.io/client-go => k8s.io/client-go v0.19.2
+# github.com/gocql/gocql => github.com/grafana/gocql v0.0.0-20200605141915-ba5dc39ece85
+# k8s.io/api => k8s.io/api v0.20.4
+# k8s.io/client-go => k8s.io/client-go v0.20.4
+# google.golang.org/grpc => google.golang.org/grpc v1.33.3
 # github.com/go-openapi/errors => github.com/go-openapi/errors v0.20.0
 # github.com/go-openapi/validate => github.com/go-openapi/validate v0.20.2
 # github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
