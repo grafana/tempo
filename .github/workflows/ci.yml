@@ -22,7 +22,7 @@ jobs:
     - name: Lint
       uses: golangci/golangci-lint-action@v2
       with:
-        version: v1.32.2
+        version: v1.41.1
 
     - name: Install Protoc
       uses: arduino/setup-protoc@v1
