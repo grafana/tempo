@@ -53,30 +53,23 @@ require (
 	go.uber.org/zap v1.16.0
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/api v0.45.0
-	google.golang.org/grpc v1.37.0
+	google.golang.org/grpc v1.39.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
-)
-
-// All of the below replace directives exist due to
-//   Cortex -> ETCD -> GRPC requiring 1.29.1
-//   Otel Collector -> requiring 1.30.1
-//  Once this is merged: https://github.com/etcd-io/etcd/pull/12155 and Cortex revendors we should be able to update everything to current
-replace (
-	github.com/gocql/gocql => github.com/grafana/gocql v0.0.0-20200605141915-ba5dc39ece85
-	github.com/sercand/kuberesolver => github.com/sercand/kuberesolver v2.4.0+incompatible
-	go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
-	google.golang.org/grpc => google.golang.org/grpc v1.29.1
 )
 
 // additional Cortex or upstream required replaces
 replace (
 	github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
-	github.com/opentracing-contrib/go-grpc => github.com/pracucci/go-grpc v0.0.0-20201022134131-ef559b8db645
-	github.com/satori/go.uuid => github.com/satori/go.uuid v1.2.0
-	k8s.io/api => k8s.io/api v0.19.4
-	k8s.io/client-go => k8s.io/client-go v0.19.2
+	github.com/gocql/gocql => github.com/grafana/gocql v0.0.0-20200605141915-ba5dc39ece85
+	k8s.io/api => k8s.io/api v0.20.4
+	k8s.io/client-go => k8s.io/client-go v0.20.4
 )
+
+// Pin to the latest release of grpc-go with GenerateAndRegisterManualResolver
+// This function is used by jeagertracing/jaeger, but we can't update jaeger
+// without updating the open-telemetry/collector as well
+replace google.golang.org/grpc => google.golang.org/grpc v1.33.3
 
 // Pin github.com/go-openapi versions to match Prometheus alertmanager to avoid
 // breaking changing affecting the alertmanager.
