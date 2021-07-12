@@ -81,8 +81,8 @@ replace (
 // Pin github.com/go-openapi versions to match Prometheus alertmanager to avoid
 // breaking changing affecting the alertmanager.
 replace (
-	github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
-	github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
+	github.com/go-openapi/errors => github.com/go-openapi/errors v0.20.0
+	github.com/go-openapi/validate => github.com/go-openapi/validate v0.20.2
 )
 
 // Pin github.com/soheilhy/cmux to control grpc required version.
