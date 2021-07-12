@@ -299,10 +299,10 @@ github.com/go-kit/kit/metrics/generic
 github.com/go-kit/kit/metrics/internal/lv
 # github.com/go-logfmt/logfmt v0.5.0
 github.com/go-logfmt/logfmt
-# github.com/go-openapi/analysis v0.19.16
+# github.com/go-openapi/analysis v0.20.0
 github.com/go-openapi/analysis
 github.com/go-openapi/analysis/internal
-# github.com/go-openapi/errors v0.20.0 => github.com/go-openapi/errors v0.19.4
+# github.com/go-openapi/errors v0.20.0 => github.com/go-openapi/errors v0.20.0
 github.com/go-openapi/errors
 # github.com/go-openapi/jsonpointer v0.19.5
 github.com/go-openapi/jsonpointer
@@ -325,7 +325,7 @@ github.com/go-openapi/spec
 github.com/go-openapi/strfmt
 # github.com/go-openapi/swag v0.19.14
 github.com/go-openapi/swag
-# github.com/go-openapi/validate v0.20.2 => github.com/go-openapi/validate v0.19.8
+# github.com/go-openapi/validate v0.20.2 => github.com/go-openapi/validate v0.20.2
 github.com/go-openapi/validate
 # github.com/go-redis/redis/v8 v8.2.3
 github.com/go-redis/redis/v8
@@ -1416,6 +1416,6 @@ sigs.k8s.io/yaml
 # github.com/satori/go.uuid => github.com/satori/go.uuid v1.2.0
 # k8s.io/api => k8s.io/api v0.19.4
 # k8s.io/client-go => k8s.io/client-go v0.19.2
-# github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
-# github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
+# github.com/go-openapi/errors => github.com/go-openapi/errors v0.20.0
+# github.com/go-openapi/validate => github.com/go-openapi/validate v0.20.2
 # github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
