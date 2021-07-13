@@ -15,13 +15,13 @@ At this point, the following containers should be spun up -
 docker-compose ps
 ```
 ```
-                  Name                                Command               State                         Ports                      
+                  Name                                Command               State                         Ports
 -------------------------------------------------------------------------------------------------------------------------------------
-grafana74_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp                           
-grafana74_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp                           
-grafana74_synthetic-load-generator_1   ./start.sh                       Up                                                       
-grafana74_tempo-query_1                /go/bin/query-linux --grpc ...   Up      0.0.0.0:16686->16686/tcp                         
-grafana74_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:59541->14268/tcp, 0.0.0.0:59542->3100/tcp
+grafana74_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp
+grafana74_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp
+grafana74_synthetic-load-generator_1   ./start.sh                       Up
+grafana74_tempo-query_1                /go/bin/query-linux --grpc ...   Up      0.0.0.0:16686->16686/tcp
+grafana74_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:59541->14268/tcp, 0.0.0.0:59542->3200/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.

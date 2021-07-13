@@ -20,7 +20,7 @@ azure_azurite_1                    docker-entrypoint.sh azuri ...   Up       0.0
 azure_grafana_1                    /run.sh                          Up       0.0.0.0:3000->3000/tcp
 azure_prometheus_1                 /bin/prometheus --config.f ...   Up       0.0.0.0:9090->9090/tcp
 azure_synthetic-load-generator_1   ./start.sh                       Up
-azure_tempo_1                      /tempo -config.file=/etc/t ...   Up       0.0.0.0:32768->14268/tcp, 0.0.0.0:3100->3100/tcp
+azure_tempo_1                      /tempo -config.file=/etc/t ...   Up       0.0.0.0:32768->14268/tcp, 0.0.0.0:3200->3200/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.  Check [Azure Storage Explorer](https://azure.microsoft.com/en-us/features/storage-explorer/) and [Azurite docs](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite).

@@ -64,7 +64,7 @@ func newK6Runner(tempo *cortex_e2e.HTTPService) *cortex_e2e.ConcreteService {
 
 	s.SetUser("0") // required so k6 can read the js files passed in
 
-	tempoHTTP := "http://" + tempo.NetworkEndpoint(3100)
+	tempoHTTP := "http://" + tempo.NetworkEndpoint(3200)
 	tempoZipkin := "http://" + tempo.NetworkEndpoint(9411)
 	s.SetEnvVars(map[string]string{
 		"WRITE_ENDPOINT":       tempoZipkin,

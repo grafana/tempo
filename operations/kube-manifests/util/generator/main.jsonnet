@@ -51,7 +51,7 @@ tempo {
       replicas: 1,
       tempoOrgId: '1',
       tempoPushUrl: 'http://distributor',
-      tempoQueryUrl: 'http://query-frontend:3100/tempo',
+      tempoQueryUrl: 'http://query-frontend:3200/tempo',
     },
     jaeger_ui: {
       base_path: '/tempo',

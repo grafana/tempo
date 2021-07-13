@@ -71,7 +71,7 @@
     + service.mixin.spec.withPortsMixin([
       servicePort.withName('http')
       + servicePort.withPort(80)
-      + servicePort.withTargetPort(3100),
+      + servicePort.withTargetPort(3200),
     ]),
 
   tempo_query_frontend_discovery_service:

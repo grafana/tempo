@@ -9,7 +9,7 @@
   local servicePort = service.mixin.spec.portsType,
 
   _config +:: {
-    tempo_query_url: 'http://tempo:3100',
+    tempo_query_url: 'http://tempo:3200',
   },
 
   grafana_configmap:

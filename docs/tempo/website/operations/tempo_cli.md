@@ -63,7 +63,7 @@ Options:
 
 **Example:**
 ```bash
-tempo-cli query http://tempo:3100 f1cfe82a8eef933b
+tempo-cli query http://tempo:3200 f1cfe82a8eef933b
 ```
 
 ## List Blocks

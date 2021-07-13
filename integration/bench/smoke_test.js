@@ -3,10 +3,10 @@ import http from "k6/http";
 import { generateId, Span } from './modules/util.js';
 
 const WRITE_ENDPOINT = __ENV.WRITE_ENDPOINT || "http://0.0.0.0:9411";
-const DISTRIBUTOR_ENDPOINT = __ENV.DISTRIBUTOR_ENDPOINT || "http://0.0.0.0:3100";
-const INGESTER_ENDPOINT = __ENV.INGESTER_ENDPOINT || "http://0.0.0.0:3100";
-const QUERY_ENDPOINT = __ENV.QUERY_ENDPOINT || "http://0.0.0.0:3100";
-const QUERIER_ENDPOINT = __ENV.QUERIER_ENDPOINT || "http://0.0.0.0:3100";
+const DISTRIBUTOR_ENDPOINT = __ENV.DISTRIBUTOR_ENDPOINT || "http://0.0.0.0:3200";
+const INGESTER_ENDPOINT = __ENV.INGESTER_ENDPOINT || "http://0.0.0.0:3200";
+const QUERY_ENDPOINT = __ENV.QUERY_ENDPOINT || "http://0.0.0.0:3200";
+const QUERIER_ENDPOINT = __ENV.QUERIER_ENDPOINT || "http://0.0.0.0:3200";
 
 const WRITE_WAIT = 1;
 const READ_WAIT = 1;

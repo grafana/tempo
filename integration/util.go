@@ -27,8 +27,8 @@ func NewTempoAllInOne() *cortex_e2e.HTTPService {
 		"tempo",
 		image,
 		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args),
-		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 299),
-		3100,  // http all things
+		cortex_e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,  // http all things
 		14250, // jaeger grpc ingest
 		9411,  // zipkin ingest (used by load)
 	)
@@ -59,8 +59,8 @@ func NewTempoDistributor() *cortex_e2e.HTTPService {
 		"distributor",
 		image,
 		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
-		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 299),
-		3100,
+		cortex_e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,
 		14250,
 	)
 
@@ -76,8 +76,8 @@ func NewTempoIngester(replica int) *cortex_e2e.HTTPService {
 		"ingester-"+strconv.Itoa(replica),
 		image,
 		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
-		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 299),
-		3100,
+		cortex_e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,
 	)
 
 	s.SetBackoff(tempoBackoff())
@@ -92,8 +92,8 @@ func NewTempoQueryFrontend() *cortex_e2e.HTTPService {
 		"query-frontend",
 		image,
 		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
-		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 299),
-		3100,
+		cortex_e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,
 	)
 
 	s.SetBackoff(tempoBackoff())
@@ -108,8 +108,8 @@ func NewTempoQuerier() *cortex_e2e.HTTPService {
 		"querier",
 		image,
 		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
-		cortex_e2e.NewHTTPReadinessProbe(3100, "/ready", 200, 299),
-		3100,
+		cortex_e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,
 	)
 
 	s.SetBackoff(tempoBackoff())

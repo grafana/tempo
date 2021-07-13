@@ -13,13 +13,13 @@ At this point, the following containers should be spun up -
 docker-compose ps
 ```
 ```
-                  Name                                Command               State                        Ports                      
+                  Name                                Command               State                        Ports
 ------------------------------------------------------------------------------------------------------------------------------------
-gcs_gcs_1                        /bin/fake-gcs-server -data ...   Up      0.0.0.0:4443->4443/tcp                          
-gcs_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp                          
-gcs_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp                          
-gcs_synthetic-load-generator_1   ./start.sh                       Up                                                      
-gcs_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:59543->14268/tcp, 0.0.0.0:3100->3100/tcp
+gcs_gcs_1                        /bin/fake-gcs-server -data ...   Up      0.0.0.0:4443->4443/tcp
+gcs_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp
+gcs_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp
+gcs_synthetic-load-generator_1   ./start.sh                       Up
+gcs_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:59543->14268/tcp, 0.0.0.0:3200->3200/tcp
 ```
 
 2. If you're interested you can kind of see the wal/blocks as they are being created. Navigate to https://localhost:4443/storage/v1/b/tempo/o
