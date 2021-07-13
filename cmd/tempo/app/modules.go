@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/cortexproject/cortex/pkg/cortex"
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend"
 	cortex_transport "github.com/cortexproject/cortex/pkg/frontend/transport"
@@ -185,6 +186,8 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
 	).Wrap(cortexHandler)
+
+	tracesHandler = gziphandler.GzipHandler(tracesHandler)
 
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)

@@ -1,10 +1,13 @@
 package e2e
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"testing"
 	"time"
 
@@ -20,7 +23,6 @@ import (
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -66,6 +68,9 @@ func TestAllInOne(t *testing.T) {
 
 	// query an in-memory trace
 	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
+
+	// ensure queries are compressed when requested
+	queryAndAssertCompression(t, "http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 
 	// flush trace to backend
 	res, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/flush")
@@ -155,6 +160,7 @@ func TestAzuriteAllInOne(t *testing.T) {
 	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3100)+"/api/traces/"+hexID, "my operation", 1)
 
 }
+
 func TestMicroservices(t *testing.T) {
 	s, err := cortex_e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
@@ -256,7 +262,6 @@ func TestMicroservices(t *testing.T) {
 	batch = makeThriftBatch()
 	require.Error(t, c.EmitBatch(context.Background(), batch))
 }
-
 func makeThriftBatch() *thrift.Batch {
 	return makeThriftBatchWithSpanCount(1)
 }
@@ -295,12 +300,37 @@ func assertEcho(t *testing.T, url string) {
 func queryAndAssertTrace(t *testing.T, url string, expectedName string, expectedBatches int) {
 	res, err := cortex_e2e.GetRequest(url)
 	require.NoError(t, err)
+	defer res.Body.Close()
+
+	assertTrace(t, res.Body, expectedBatches, expectedName)
+}
+
+func queryAndAssertCompression(t *testing.T, url string, expectedName string, expectedBatches int) {
+	client := &http.Client{Timeout: 1 * time.Second}
+
+	request, err := http.NewRequest("GET", url, nil)
+	require.NoError(t, err)
+	request.Header.Add("Accept-Encoding", "gzip")
+
+	res, err := client.Do(request)
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	require.Equal(t, "gzip", res.Header.Get("Content-Encoding"))
+
+	gzipReader, err := gzip.NewReader(res.Body)
+	require.NoError(t, err)
+	defer gzipReader.Close()
+
+	assertTrace(t, gzipReader, expectedBatches, expectedName)
+}
+
+func assertTrace(t *testing.T, reader io.Reader, expectedBatches int, expectedName string) {
 	out := &tempopb.Trace{}
 	unmarshaller := &jsonpb.Unmarshaler{}
-	require.NoError(t, unmarshaller.Unmarshal(res.Body, out))
+	require.NoError(t, unmarshaller.Unmarshal(reader, out))
 	require.Len(t, out.Batches, expectedBatches)
-	assert.Equal(t, expectedName, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name)
-	defer res.Body.Close()
+	require.Equal(t, expectedName, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name)
 }
 
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
