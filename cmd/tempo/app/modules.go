@@ -183,11 +183,11 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	cortexHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, shardingTripper, log.Logger, prometheus.DefaultRegisterer)
 
+	cortexHandler = gziphandler.GzipHandler(cortexHandler)
+
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
 	).Wrap(cortexHandler)
-
-	tracesHandler = gziphandler.GzipHandler(tracesHandler)
 
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
