@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
-	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
@@ -24,7 +22,6 @@ import (
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/util"
 )
 
 const uptoHedgedRequests = 2
@@ -35,7 +32,7 @@ type readerWriter struct {
 	hedgedBucket *storage.BucketHandle
 }
 
-func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error) {
+func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	ctx := context.Background()
 
 	bucket, err := createBucket(ctx, cfg, false)
@@ -63,13 +60,13 @@ func New(cfg *Config) (backend.Reader, backend.Writer, backend.Compactor, error)
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
-	return rw.WriteReader(ctx, name, blockID, tenantID, bytes.NewBuffer(buffer), int64(len(buffer)))
+func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
+	return rw.StreamWriter(ctx, name, keypath, bytes.NewBuffer(buffer), int64(len(buffer)))
 }
 
-// WriteReader implements backend.Writer
-func (rw *readerWriter) WriteReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, _ int64) error {
-	w := rw.writer(ctx, util.ObjectFileName(blockID, tenantID, name))
+// StreamWriter implements backend.Writer
+func (rw *readerWriter) StreamWriter(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
+	w := rw.writer(ctx, backend.ObjectFileName(keypath, name))
 	_, err := io.Copy(w, data)
 	if err != nil {
 		w.Close()
@@ -79,29 +76,11 @@ func (rw *readerWriter) WriteReader(ctx context.Context, name string, blockID uu
 	return w.Close()
 }
 
-// WriteBlockMeta implements backend.Writer
-func (rw *readerWriter) WriteBlockMeta(ctx context.Context, meta *backend.BlockMeta) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
-
-	bMeta, err := json.Marshal(meta)
-	if err != nil {
-		return err
-	}
-
-	err = rw.writeAll(ctx, util.MetaFileName(blockID, tenantID), bMeta)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // Append implements backend.Writer
-func (rw *readerWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	var w *storage.Writer
 	if tracker == nil {
-		w = rw.writer(ctx, util.ObjectFileName(blockID, tenantID, name))
+		w = rw.writer(ctx, backend.ObjectFileName(keypath, name))
 	} else {
 		w = tracker.(*storage.Writer)
 	}
@@ -124,129 +103,67 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 	return w.Close()
 }
 
-// Tenants implements backend.Reader
-func (rw *readerWriter) Tenants(ctx context.Context) ([]string, error) {
+// List implements backend.Reader
+func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
 	iter := rw.bucket.Objects(ctx, &storage.Query{
+		Prefix:    prefix,
 		Delimiter: "/",
 		Versions:  false,
 	})
 
-	tenants := make([]string, 0)
-
+	objects := make([]string, 0)
 	for {
 		attrs, err := iter.Next()
 		if err == iterator.Done {
 			break
 		}
 		if err != nil {
-			return tenants, errors.Wrap(err, "iterating tenants")
+			return nil, errors.Wrap(err, "iterating blocks")
 		}
 
-		tenants = append(tenants, strings.TrimSuffix(attrs.Prefix, "/"))
+		obj := strings.TrimSuffix(strings.TrimPrefix(attrs.Prefix, prefix), "/")
+		objects = append(objects, obj)
 	}
 
-	return tenants, nil
-}
-
-// Tenants implements backend.Reader
-func (rw *readerWriter) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
-	var warning error
-
-	iter := rw.bucket.Objects(ctx, &storage.Query{
-		Prefix:    tenantID + "/",
-		Delimiter: "/",
-		Versions:  false,
-	})
-
-	blocks := make([]uuid.UUID, 0)
-	for {
-		attrs, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return blocks, errors.Wrap(err, "iterating blocks")
-		}
-
-		idString := strings.TrimSuffix(strings.TrimPrefix(attrs.Prefix, tenantID+"/"), "/")
-		blockID, err := uuid.Parse(idString)
-		if err != nil {
-			warning = fmt.Errorf("failed parse on blockID %s: %v", idString, err)
-			continue
-		}
-
-		blocks = append(blocks, blockID)
-	}
-
-	return blocks, warning
-}
-
-// BlockMeta implements backend.Reader
-func (rw *readerWriter) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
-	name := util.MetaFileName(blockID, tenantID)
-
-	bytes, err := rw.readAll(ctx, name)
-	if err == storage.ErrObjectNotExist {
-		return nil, backend.ErrMetaDoesNotExist
-	}
-	if err != nil {
-		return nil, errors.Wrap(err, "read block meta from gcs")
-	}
-
-	out := &backend.BlockMeta{}
-	err = json.Unmarshal(bytes, out)
-	if err != nil {
-		return nil, err
-	}
-
-	return out, nil
+	return objects, nil
 }
 
 // Read implements backend.Reader
-func (rw *readerWriter) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Read")
 	defer span.Finish()
 
 	span.SetTag("object", name)
 
-	bytes, err := rw.readAll(derivedCtx, util.ObjectFileName(blockID, tenantID, name))
+	bytes, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
 	if err != nil {
 		span.SetTag("error", true)
 	}
-	return bytes, err
+	return bytes, readError(err)
 }
 
-func (rw *readerWriter) ReadReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
-	panic("ReadReader is not yet supported for GCS backend")
+func (rw *readerWriter) StreamReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
+	panic("StreamReader is not yet supported for GCS backend")
 }
 
 // ReadRange implements backend.Reader
-func (rw *readerWriter) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.ReadRange")
 	defer span.Finish()
 
-	err := rw.readRange(derivedCtx, util.ObjectFileName(blockID, tenantID, name), int64(offset), buffer)
+	err := rw.readRange(derivedCtx, backend.ObjectFileName(keypath, name), int64(offset), buffer)
 	if err != nil {
 		span.SetTag("error", true)
 	}
-	return err
+	return readError(err)
 }
 
 // Shutdown implements backend.Reader
 func (rw *readerWriter) Shutdown() {
-}
-
-func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {
-	w := rw.writer(ctx, name)
-
-	_, err := w.Write(b)
-	if err != nil {
-		w.Close()
-		return err
-	}
-
-	err = w.Close()
-	return err
 }
 
 func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
@@ -347,4 +264,12 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 
 	// build bucket
 	return client.Bucket(cfg.BucketName), nil
+}
+
+func readError(err error) error {
+	if err == storage.ErrObjectNotExist {
+		return backend.ErrDoesNotExist
+	}
+
+	return err
 }

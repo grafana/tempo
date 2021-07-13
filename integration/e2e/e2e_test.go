@@ -75,6 +75,11 @@ func TestAllInOne(t *testing.T) {
 	// sleep for one maintenance cycle
 	time.Sleep(5 * time.Second)
 
+	// force clear completed block
+	res, err = cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/flush")
+	require.NoError(t, err)
+	require.Equal(t, 204, res.StatusCode)
+
 	// test metrics
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
@@ -136,6 +141,11 @@ func TestAzuriteAllInOne(t *testing.T) {
 
 	// sleep for one maintenance cycle
 	time.Sleep(5 * time.Second)
+
+	// force clear completed block
+	res, err = cortex_e2e.GetRequest("http://" + tempo.Endpoint(3100) + "/flush")
+	require.NoError(t, err)
+	require.Equal(t, 204, res.StatusCode)
 
 	// test metrics
 	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))

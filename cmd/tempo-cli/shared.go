@@ -100,14 +100,14 @@ func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id uuid.U
 	fmt.Print(".")
 
 	meta, err := r.BlockMeta(context.Background(), id, tenantID)
-	if err == backend.ErrMetaDoesNotExist && !includeCompacted {
+	if err == backend.ErrDoesNotExist && !includeCompacted {
 		return nil, nil
-	} else if err != nil && err != backend.ErrMetaDoesNotExist {
+	} else if err != nil && err != backend.ErrDoesNotExist {
 		return nil, err
 	}
 
 	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-	if err != nil && err != backend.ErrMetaDoesNotExist {
+	if err != nil && err != backend.ErrDoesNotExist {
 		return nil, err
 	}
 

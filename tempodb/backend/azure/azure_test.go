@@ -56,12 +56,12 @@ func TestHedge(t *testing.T) {
 
 			// the first call on each client initiates an extra http request
 			// clearing that here
-			_, _ = r.Read(ctx, "object", uuid.New(), "tenant")
+			_, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"))
 			time.Sleep(tc.returnIn)
 			atomic.StoreInt32(&count, 0)
 
 			// calls that should hedge
-			_, _ = r.Read(ctx, "object", uuid.New(), "tenant")
+			_, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"))
 			time.Sleep(tc.returnIn)
 			assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count)) // *2 b/c reads execute a HEAD and GET
 			atomic.StoreInt32(&count, 0)
@@ -72,25 +72,12 @@ func TestHedge(t *testing.T) {
 			// assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			// atomic.StoreInt32(&count, 0)
 
-			_, _ = r.BlockMeta(ctx, uuid.New(), "tenant") // *2 b/c reads execute a HEAD and GET
-			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count))
-			atomic.StoreInt32(&count, 0)
-
 			// calls that should not hedge
-			_, _ = r.Tenants(ctx)
+			_, _ = r.List(ctx, backend.KeyPath{"test"})
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			_, _ = r.Blocks(ctx, "tenant")
-			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
-			atomic.StoreInt32(&count, 0)
-
-			_ = w.Write(ctx, "object", uuid.New(), "tenant", make([]byte, 10))
-			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
-			atomic.StoreInt32(&count, 0)
-
-			_ = w.WriteBlockMeta(ctx, &backend.BlockMeta{})
+			_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), make([]byte, 10))
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 		})

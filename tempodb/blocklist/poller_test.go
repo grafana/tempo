@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -236,7 +235,7 @@ func TestPollBlock(t *testing.T) {
 }
 
 func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compactor {
-	return &util.MockCompactor{
+	return &backend.MockCompactor{
 		BlockMetaFn: func(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 			if expectsError {
 				return nil, errors.New("err")
@@ -244,7 +243,7 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 
 			l, ok := list[tenantID]
 			if !ok {
-				return nil, backend.ErrMetaDoesNotExist
+				return nil, backend.ErrDoesNotExist
 			}
 
 			for _, m := range l {
@@ -253,7 +252,7 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 				}
 			}
 
-			return nil, backend.ErrMetaDoesNotExist
+			return nil, backend.ErrDoesNotExist
 		},
 	}
 }
@@ -267,7 +266,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 		tenants = append(tenants, t)
 	}
 
-	return &util.MockReader{
+	return &backend.MockReader{
 		T: tenants,
 		BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
 			if expectsError {
@@ -292,7 +291,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 
 			l, ok := list[tenantID]
 			if !ok {
-				return nil, backend.ErrMetaDoesNotExist
+				return nil, backend.ErrDoesNotExist
 			}
 
 			for _, m := range l {
@@ -301,7 +300,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 				}
 			}
 
-			return nil, backend.ErrMetaDoesNotExist
+			return nil, backend.ErrDoesNotExist
 		},
 	}
 }

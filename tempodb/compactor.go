@@ -103,7 +103,7 @@ func (rw *readerWriter) doCompaction() {
 		level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
 		err := rw.compact(toBeCompacted, tenantID)
 
-		if err == backend.ErrMetaDoesNotExist {
+		if err == backend.ErrDoesNotExist {
 			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
 		} else if err != nil {
 			level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
