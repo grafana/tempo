@@ -302,7 +302,7 @@ github.com/go-logfmt/logfmt
 # github.com/go-openapi/analysis v0.20.0
 github.com/go-openapi/analysis
 github.com/go-openapi/analysis/internal
-# github.com/go-openapi/errors v0.20.0 => github.com/go-openapi/errors v0.20.0
+# github.com/go-openapi/errors v0.20.0
 github.com/go-openapi/errors
 # github.com/go-openapi/jsonpointer v0.19.5
 github.com/go-openapi/jsonpointer
@@ -325,7 +325,7 @@ github.com/go-openapi/spec
 github.com/go-openapi/strfmt
 # github.com/go-openapi/swag v0.19.14
 github.com/go-openapi/swag
-# github.com/go-openapi/validate v0.20.2 => github.com/go-openapi/validate v0.20.2
+# github.com/go-openapi/validate v0.20.2
 github.com/go-openapi/validate
 # github.com/go-redis/redis/v8 v8.2.3
 github.com/go-redis/redis/v8
@@ -1413,6 +1413,4 @@ sigs.k8s.io/yaml
 # k8s.io/api => k8s.io/api v0.20.4
 # k8s.io/client-go => k8s.io/client-go v0.20.4
 # google.golang.org/grpc => google.golang.org/grpc v1.33.3
-# github.com/go-openapi/errors => github.com/go-openapi/errors v0.20.0
-# github.com/go-openapi/validate => github.com/go-openapi/validate v0.20.2
 # github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
