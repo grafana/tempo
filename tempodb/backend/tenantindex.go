@@ -15,7 +15,7 @@ const (
 // tenantindex holds a list of all metas and compacted metas for a given tenant
 // it is probably stored in /<tenantid>/blockindex.json.gz as a gzipped json file
 type tenantindex struct {
-	Tenant        string                `json:"tenant"`
+	Tenant        string                `json:"tenant"` // jpe -remove
 	Meta          []*BlockMeta          `json:"meta"`
 	CompactedMeta []*CompactedBlockMeta `json:"compacted"`
 }
