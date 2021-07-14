@@ -9,7 +9,7 @@ services:
       - ./tempo-data/:/tmp/tempo
     ports:
       - "14268"  # jaeger ingest
-      - "3100"   # tempo
+      - "3200"   # tempo
 
   tempo-query:
     image: grafana/tempo-query:latest

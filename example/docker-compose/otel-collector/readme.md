@@ -13,14 +13,14 @@ At this point, the following containers should be spun up -
 docker-compose ps
 ```
 ```
-                  Name                                Command               State           Ports         
+                  Name                                Command               State           Ports
 ----------------------------------------------------------------------------------------------------------
-otel-collector_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp                                      
-otel-collector_otel-collector_1             /otelcol --config=/etc/ote ...   Up      55678/tcp, 55679/tcp                                        
-otel-collector_synthetic-load-generator_1   ./start.sh                       Up                                                                  
-otel-collector_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:59538->14268/tcp, 0.0.0.0:59540->3100/tcp,          
-                                                                                    0.0.0.0:59537->55680/tcp, 0.0.0.0:59536->55681/tcp,         
-                                                                                    0.0.0.0:59539->9411/tcp               
+otel-collector_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp
+otel-collector_otel-collector_1             /otelcol --config=/etc/ote ...   Up      55678/tcp, 55679/tcp
+otel-collector_synthetic-load-generator_1   ./start.sh                       Up
+otel-collector_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:59538->14268/tcp, 0.0.0.0:59540->3200/tcp,
+                                                                                    0.0.0.0:59537->55680/tcp, 0.0.0.0:59536->55681/tcp,
+                                                                                    0.0.0.0:59539->9411/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.

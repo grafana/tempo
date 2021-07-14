@@ -127,10 +127,11 @@ func getOperation(path string) RequestOp {
 // NewTracesTripperware creates a new frontend tripperware responsible for handling get traces requests.
 func NewTracesTripperware(cfg Config, logger log.Logger) func(next http.RoundTripper) http.RoundTripper {
 	return func(next http.RoundTripper) http.RoundTripper {
-		// We're constructing middleware in this statement. There are two at the moment -
-		// - the rightmost one (executed first) is ShardingWare which helps to shard queries by splitting the block ID space
-		// - the leftmost one (executed last) is Deduper which dedupe Span IDs for Zipkin support
-		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger))
+		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
+		// - the Deduper dedupes Span IDs for Zipkin support
+		// - the ShardingWare shards queries by splitting the block ID space
+		// - the RetryWare retries requests that have failed (error or http status 500)
+		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, logger))
 
 		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
 			// don't start a new span, this is already handled by frontendRoundTripper

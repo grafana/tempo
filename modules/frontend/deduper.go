@@ -46,8 +46,11 @@ type spanIDDeduper struct {
 // Do implements Handler
 func (s spanIDDeduper) Do(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
-	span, _ := opentracing.StartSpanFromContext(ctx, "frontend.DedupeSpanIDs")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.DedupeSpanIDs")
 	defer span.Finish()
+
+	// context propagation
+	req = req.WithContext(ctx)
 
 	resp, err := s.next.Do(req)
 	if err != nil {

@@ -36,7 +36,7 @@ minio + grafana + load + tempo {
         },
         backend: 's3',
         bucket: 'tempo',
-        tempo_query_url: 'http://query-frontend:3100',
+        tempo_query_url: 'http://query-frontend:3200',
     },
 
     // manually overriding to get tempo to talk to minio

@@ -25,7 +25,7 @@ The value of both metrics should be greater than `0` within a few minutes of the
 You can check both metrics using -
 - The metrics page exposed from Tempo at `http://<tempo-address>:<tempo-http-port>/metrics`, or
 - In Prometheus, if it is being used to scrape metrics
- 
+
 ### Case 1 - tempo_distributor_spans_received_total is 0
 If the value of `tempo_distributor_spans_received_total` is 0, possible reasons are:
 - Use of incorrect protocol/port combination while initializing the tracer in the application.
@@ -102,7 +102,7 @@ The presence of the following errors in the log may explain issues with querying
 
 - `level=info ts=XXXXXXX caller=frontend.go:63 method=GET traceID=XXXXXXXXX url=/api/traces/XXXXXXXXX duration=5m41.729449877s status=500`
 - `no org id`
-- `could not dial 10.X.X.X:3100 connection refused`
+- `could not dial 10.X.X.X:3200 connection refused`
 - `tenant-id not found`
 
 Possible reasons for the above errors are:

@@ -37,12 +37,12 @@ spec:
         imagePullPolicy: IfNotPresent
         name: ingester
         ports:
-        - containerPort: 3100
+        - containerPort: 3200
           name: prom-metrics
         readinessProbe:
           httpGet:
             path: /ready
-            port: 3100
+            port: 3200
           initialDelaySeconds: 15
           timeoutSeconds: 1
         volumeMounts:
