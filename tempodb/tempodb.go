@@ -82,6 +82,7 @@ type Compactor interface {
 	EnableCompaction(cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 }
 
+// jpe combine below? wrap it into new poller interface?
 type CompactorSharder interface {
 	common.ObjectCombiner
 	Owns(hash string) bool

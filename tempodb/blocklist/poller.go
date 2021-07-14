@@ -5,6 +5,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -38,19 +40,37 @@ type PerTenant map[string][]*backend.BlockMeta
 // PerTenantCompacted is a map of tenant ids to backend.CompactedBlockMetas
 type PerTenantCompacted map[string][]*backend.CompactedBlockMeta
 
+// PollerSharder is used to determine if this node should build the blocklist index or just pull it
+//  jpe rename? combine with others?
+type PollerSharder interface {
+	BuildTenantIndex() bool
+}
+
 // Poller retrieves the blocklist
 type Poller struct {
-	reader          backend.Reader
-	compactor       backend.Compactor
+	reader    backend.Reader
+	writer    backend.Writer
+	compactor backend.Compactor
+
 	pollConcurrency uint
+	pollFallback    bool // jpe wire this up to a config value and document
+
+	sharder PollerSharder
+	logger  log.Logger
 }
 
 // NewPoller creates the Poller
-func NewPoller(pollConcurrency uint, reader backend.Reader, compactor backend.Compactor) *Poller {
+func NewPoller(pollConcurrency uint, pollFallback bool, sharder PollerSharder, reader backend.Reader, compactor backend.Compactor, writer backend.Writer, logger log.Logger) *Poller {
 	return &Poller{
-		reader:          reader,
-		compactor:       compactor,
-		pollConcurrency: pollConcurrency,
+		reader:    reader,
+		compactor: compactor,
+		writer:    writer,
+
+		pollConcurrency: pollConcurrency, // jpe remove poll prefix
+		pollFallback:    pollFallback,
+
+		sharder: sharder,
+		logger:  logger,
 	}
 }
 
@@ -85,6 +105,25 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 }
 
 func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+	// pull bucket index? or poll everything?
+	if !p.sharder.BuildTenantIndex() {
+		// jpe gauge metric: IS POLLING BUCKET INDEX create alarm if gauge == 0
+
+		meta, compactedMeta, err := p.reader.TenantIndex(ctx, tenantID)
+		if err == nil {
+			return meta, compactedMeta, nil
+		}
+
+		// we had an error, do we bail?
+		if !p.pollFallback {
+			return nil, nil, err
+		}
+
+		// log error and keep on keeping on
+		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+		level.Error(p.logger).Log("msg", "failed to pull bucket index for tenant. falling back to polling", "tenant", tenantID, "err", err)
+	}
+
 	blockIDs, err := p.reader.Blocks(ctx, tenantID)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
@@ -134,6 +173,13 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 	sort.Slice(newCompactedBlocklist, func(i, j int) bool {
 		return newCompactedBlocklist[i].StartTime.Before(newCompactedBlocklist[j].StartTime)
 	})
+
+	// everything is happy, write this tenant index
+	err = p.writer.WriteTenantIndex(ctx, tenantID, newBlockList, newCompactedBlocklist)
+	if err != nil {
+		// jpe metric, new metric?
+		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
+	}
 
 	return newBlockList, newCompactedBlocklist, nil
 }
