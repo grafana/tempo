@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
 var _ SearchBlock = (*BackendSearchBlock)(nil)
@@ -17,7 +18,7 @@ var _ SearchBlock = (*BackendSearchBlock)(nil)
 type BackendSearchBlock struct {
 	id       uuid.UUID
 	tenantID string
-	r        backend.Reader
+	l        *local.Backend
 }
 
 // NewBackendSearchBlock iterates through the given WAL search data and writes it to the persistent backend
@@ -25,7 +26,7 @@ type BackendSearchBlock struct {
 // CreateSharedString feature which dedupes strings across the entire buffer.
 // TODO - Use the existing buffered encoder for this?  May need to be refactored, because it currently
 //        takes bytes, but we need to pass the search data before bytes...?
-func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, blockID uuid.UUID, tenantID string) (int, error) {
+func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockID uuid.UUID, tenantID string) (int, error) {
 	var err error
 	var pageEntries []flatbuffers.UOffsetT
 	var tracker backend.AppendTracker
@@ -52,7 +53,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, blockI
 
 		buf := builder.FinishedBytes()
 
-		tracker, err = w.Append(ctx, "search", blockID, tenantID, tracker, buf)
+		tracker, err = l.Append(ctx, "search", backend.KeyPathForBlock(blockID, tenantID), tracker, buf)
 		if err != nil {
 			return err
 		}
@@ -104,7 +105,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, blockI
 		flush()
 	}
 
-	err = w.CloseAppend(ctx, tracker)
+	err = l.CloseAppend(ctx, tracker)
 	if err != nil {
 		return bytesFlushed, err
 	}
@@ -113,11 +114,11 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, w backend.Writer, blockI
 }
 
 // OpenBackendSearchBlock opens the search data for an existing block in the given backend.
-func OpenBackendSearchBlock(r backend.Reader, blockID uuid.UUID, tenantID string) *BackendSearchBlock {
+func OpenBackendSearchBlock(l *local.Backend, blockID uuid.UUID, tenantID string) *BackendSearchBlock {
 	return &BackendSearchBlock{
 		id:       blockID,
 		tenantID: tenantID,
-		r:        r,
+		l:        l,
 	}
 }
 
@@ -134,7 +135,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb
 	for {
 
 		// Read page size
-		err := s.r.ReadRange(ctx, "search", s.id, s.tenantID, offset, offsetBuf)
+		err := s.l.ReadRange(ctx, "search", backend.KeyPathForBlock(s.id, s.tenantID), offset, offsetBuf)
 		if err == io.EOF {
 			return matches, nil
 		}
@@ -155,7 +156,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb
 		//fmt.Println("BackendSearchBlock is loading a page size", size, "bytes")
 
 		// Read page
-		err = s.r.ReadRange(ctx, "search", s.id, s.tenantID, offset, dataBuf)
+		err = s.l.ReadRange(ctx, "search", backend.KeyPathForBlock(s.id, s.tenantID), offset, dataBuf)
 		if err == io.EOF {
 			return matches, nil
 		}

@@ -4,30 +4,29 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"github.com/grafana/tempo/pkg/tempofb"
-	"github.com/grafana/tempo/pkg/util"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/go-kit/kit/log"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type ringCountMock struct {
@@ -537,7 +536,7 @@ func TestInstanceSearch(t *testing.T) {
 
 		// annotate just a fraction of traces with search data
 		var searchData []byte
-		if j % searchAnnotatedFractionDenominator == 0 {
+		if j%searchAnnotatedFractionDenominator == 0 {
 			data := &tempofb.SearchDataMutable{}
 			data.TraceID = id
 			data.AddTag(tagKey, tagValue)
