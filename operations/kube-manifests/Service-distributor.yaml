@@ -8,8 +8,8 @@ metadata:
 spec:
   ports:
   - name: distributor-prom-metrics
-    port: 3100
-    targetPort: 3100
+    port: 3200
+    targetPort: 3200
   selector:
     app: distributor
     name: distributor

@@ -2,7 +2,7 @@
 In this example all data is stored locally in the `tempo-data` folder. Local storage is fine for experimenting with Tempo
 or when using the single binary, but does not work in a distributed/microservices scenario.
 
-1. First start up the local stack. 
+1. First start up the local stack.
 
 ```console
 docker-compose up -d
@@ -19,7 +19,7 @@ docker-compose ps
 docker-compose_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp
 docker-compose_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp
 docker-compose_synthetic-load-generator_1   ./start.sh                       Up
-docker-compose_tempo_1                      /tempo -storage.trace.back ...   Up      0.0.0.0:32772->14268/tcp, 0.0.0.0:32773->3100/tcp
+docker-compose_tempo_1                      /tempo -storage.trace.back ...   Up      0.0.0.0:32772->14268/tcp, 0.0.0.0:32773->3200/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.

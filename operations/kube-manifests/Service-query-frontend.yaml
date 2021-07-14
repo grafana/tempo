@@ -8,8 +8,8 @@ metadata:
 spec:
   ports:
   - name: query-frontend-prom-metrics
-    port: 3100
-    targetPort: 3100
+    port: 3200
+    targetPort: 3200
   - name: tempo-query-jaeger-ui
     port: 16686
     targetPort: 16686
@@ -18,7 +18,7 @@ spec:
     targetPort: 16687
   - name: http
     port: 80
-    targetPort: 3100
+    targetPort: 3200
   selector:
     app: query-frontend
     name: query-frontend

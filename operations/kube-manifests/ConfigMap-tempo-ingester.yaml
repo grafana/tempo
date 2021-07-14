@@ -17,7 +17,7 @@ data:
     overrides:
         per_tenant_override_config: /conf/overrides.yaml
     server:
-        http_listen_port: 3100
+        http_listen_port: 3200
     storage:
         trace:
             backend: gcs

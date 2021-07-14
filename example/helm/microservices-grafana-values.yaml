@@ -12,7 +12,7 @@ datasources:
         type: tempo
         access: proxy
         orgId: 1
-        url: http://tempo-tempo-distributed-query-frontend:3100
+        url: http://tempo-tempo-distributed-query-frontend:3200
         basicAuth: false
         isDefault: true
         version: 1

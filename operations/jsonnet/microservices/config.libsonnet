@@ -87,11 +87,11 @@
     vulture: {
       replicas: 0,
       tempoPushUrl: 'http://distributor',
-      tempoQueryUrl: 'http://query-frontend:3100',
+      tempoQueryUrl: 'http://query-frontend:3200',
       tempoOrgId: '',
     },
     ballast_size_mbs: '1024',
-    port: 3100,
+    port: 3200,
     http_api_prefix: '',
     gossip_ring_port: 7946,
     backend: error 'Must specify a backend',  // gcs|s3

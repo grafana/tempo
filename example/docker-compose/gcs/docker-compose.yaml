@@ -9,7 +9,7 @@ services:
       - ./tempo-data:/tmp/tempo
     ports:
       - "14268"      # jaeger
-      - "3100:3100"  # tempo
+      - "3200:3200"  # tempo
     depends_on:
       - gcs
 
