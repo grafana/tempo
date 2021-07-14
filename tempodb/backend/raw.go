@@ -45,6 +45,7 @@ type RawReader interface {
 	Shutdown()
 }
 
+// jpe - better organized?
 type writer struct {
 	w RawWriter
 }
@@ -82,6 +83,11 @@ func (w *writer) Append(ctx context.Context, name string, blockID uuid.UUID, ten
 
 func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 	return w.w.CloseAppend(ctx, tracker)
+}
+
+func (w *writer) WriteTenantIndex(ctx context.Context, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+	// jpe
+	return nil
 }
 
 type reader struct {
@@ -146,6 +152,11 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	}
 
 	return out, nil
+}
+
+func (r *reader) TenantIndex(ctx context.Context, tenantID string) ([]*BlockMeta, []*CompactedBlockMeta, error) {
+	//jpe
+	return nil, nil, nil
 }
 
 func (r *reader) Shutdown() {
