@@ -600,6 +600,9 @@ func TestInstanceSearch(t *testing.T) {
 	// create new ingester.  this should replay wal!
 	ingester, _, _ = defaultIngester(t, tempDir)
 
+	i, ok := ingester.getInstanceByID("fake")
+	assert.True(t, ok)
+
 	traceMetas, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
 	// todo: this currently fails because we do not dedupe results in instance.Search()

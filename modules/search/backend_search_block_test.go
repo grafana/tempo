@@ -37,17 +37,17 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 		b1.Append(ctx, id, searchData)
 	}
 
-	r, w, _, err := local.New(&local.Config{
+	l, err := local.NewBackend(&local.Config{
 		Path: b.TempDir(),
 	})
 	require.NoError(b, err)
 
 	blockID := uuid.New()
 	tenantID := "fake"
-	bytesFlushed, err := NewBackendSearchBlock(b1, w, blockID, tenantID)
+	bytesFlushed, err := NewBackendSearchBlock(b1, l, blockID, tenantID)
 	require.NoError(b, err)
 
-	b2 := OpenBackendSearchBlock(r, blockID, tenantID)
+	b2 := OpenBackendSearchBlock(l, blockID, tenantID)
 
 	p := NewSearchPipeline(&tempopb.SearchRequest{
 		Tags: map[string]string{"nomatch": "nomatch"},
