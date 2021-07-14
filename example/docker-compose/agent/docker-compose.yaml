@@ -26,7 +26,7 @@ services:
       - ./tempo-data:/tmp/tempo
     ports:
       - "14268"  # jaeger ingest
-      - "3100"   # tempo
+      - "3200"   # tempo
       - "55680"  # otlp grpc
       - "55681"  # otlp http
       - "9411"   # zipkin

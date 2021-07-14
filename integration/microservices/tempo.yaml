@@ -25,7 +25,7 @@ overrides:
   max_traces_per_user: 1000000
 
 server:
-    http_listen_port: 3100
+    http_listen_port: 3200
 
 storage:
   trace:
@@ -40,4 +40,4 @@ storage:
     pool:
         queue_depth: 2000
     wal:
-        path: /var/tempo/wal  
+        path: /var/tempo/wal

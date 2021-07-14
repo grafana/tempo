@@ -1,16 +1,15 @@
-local k = import 'ksonnet-util/kausal.libsonnet';
-
 {
-  local configMap = $.core.v1.configMap,
-  local container = $.core.v1.container,
-  local volumeMount = $.core.v1.volumeMount,
-  local deployment = $.apps.v1.deployment,
-  local volume = $.core.v1.volume,
-  local service = $.core.v1.service,
+  local k = import 'ksonnet-util/kausal.libsonnet',
+  local configMap = k.core.v1.configMap,
+  local container = k.core.v1.container,
+  local volumeMount = k.core.v1.volumeMount,
+  local deployment = k.apps.v1.deployment,
+  local volume = k.core.v1.volume,
+  local service = k.core.v1.service,
   local servicePort = service.mixin.spec.portsType,
 
   _config +:: {
-    tempo_query_url: 'http://tempo:3100',
+    tempo_query_url: 'http://tempo:3200',
   },
 
   grafana_configmap:
@@ -54,7 +53,7 @@ local k = import 'ksonnet-util/kausal.libsonnet';
     ]),
 
   grafana_service:
-    $.util.serviceFor($.grafana_deployment)
+    k.util.serviceFor($.grafana_deployment)
     + service.mixin.spec.withPortsMixin([
       servicePort.withName('http').withPort(3000).withTargetPort(3000),
     ]),

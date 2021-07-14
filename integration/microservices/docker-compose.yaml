@@ -8,7 +8,7 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "14268"  # jaeger ingest
-      - "3100"   # tempo
+      - "3200"   # tempo
       - "7946"
     depends_on:
       - minio
@@ -21,7 +21,7 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "14268"  # jaeger ingest
-      - "3100"   # tempo
+      - "3200"   # tempo
       - "7946"
     depends_on:
       - distributor # inverted relationship here to add delay for minio
@@ -34,7 +34,7 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "14268"  # jaeger ingest
-      - "3100"   # tempo
+      - "3200"   # tempo
       - "7946"
     depends_on:
       - distributor # inverted relationship here to add delay for minio
@@ -47,7 +47,7 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml
     ports:
       - "14268"  # jaeger ingest
-      - "3100"   # tempo
+      - "3200"   # tempo
       - "7946"
     depends_on:
       - distributor # inverted relationship here to add delay for minio
@@ -62,7 +62,7 @@ services:
     entrypoint:
       - sh
       - -euc
-      - mkdir -p /data/tempo && /usr/bin/minio server /data      
+      - mkdir -p /data/tempo && /usr/bin/minio server /data
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25

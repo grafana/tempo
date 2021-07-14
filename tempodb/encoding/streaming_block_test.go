@@ -152,9 +152,12 @@ func testStreamingBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 	defer os.RemoveAll(backendTmpDir)
 	require.NoError(t, err, "unexpected error creating temp dir")
 
-	r, w, _, err := local.New(&local.Config{
+	rawR, rawW, _, err := local.New(&local.Config{
 		Path: backendTmpDir,
 	})
+
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
 	require.NoError(t, err, "error creating backend")
 	_, ids, reqs := streamingBlock(t, cfg, w)
 
@@ -351,11 +354,12 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	defer os.RemoveAll(tempDir)
 	require.NoError(b, err, "unexpected error creating temp dir")
 
-	r, _, _, err := local.New(&local.Config{
+	rawR, _, _, err := local.New(&local.Config{
 		Path: "./benchmark_block",
 	})
 	require.NoError(b, err, "error creating backend")
 
+	r := backend.NewReader(rawR)
 	backendBlock, err := NewBackendBlock(backend.NewBlockMeta("fake", uuid.MustParse("9f15417a-1242-40e4-9de3-a057d3b176c1"), "v0", backend.EncNone, ""), r)
 	require.NoError(b, err, "error creating backend block")
 
@@ -366,11 +370,12 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	defer os.RemoveAll(backendTmpDir)
 	require.NoError(b, err, "unexpected error creating temp dir")
 
-	_, w, _, err := local.New(&local.Config{
+	_, rawW, _, err := local.New(&local.Config{
 		Path: backendTmpDir,
 	})
 	require.NoError(b, err, "error creating backend")
 
+	w := backend.NewWriter(rawW)
 	if !benchRead {
 		b.ResetTimer()
 	}

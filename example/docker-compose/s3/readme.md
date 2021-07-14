@@ -18,7 +18,7 @@ s3_grafana_1                    /run.sh                          Up      0.0.0.0
 s3_minio_1                      sh -euc mkdir -p /data/tem ...   Up      0.0.0.0:9000->9000/tcp
 s3_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp
 s3_synthetic-load-generator_1   ./start.sh                       Up
-s3_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:32770->14268/tcp, 0.0.0.0:3100->3100/tcp
+s3_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:32770->14268/tcp, 0.0.0.0:3200->3200/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.  Navigate to minio at

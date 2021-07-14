@@ -7,7 +7,6 @@ import (
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,75 +38,110 @@ func NewMockClient() cortex_cache.Cache {
 		client: map[string][]byte{},
 	}
 }
-func TestCache(t *testing.T) {
+func TestReadWrite(t *testing.T) {
 	tenantID := "test"
 	blockID := uuid.New()
 
 	tests := []struct {
-		name            string
-		readerTenants   []string
-		readerBlocks    []uuid.UUID
-		readerMeta      *backend.BlockMeta
-		readerRead      []byte
-		expectedTenants []string
-		expectedBlocks  []uuid.UUID
-		expectedMeta    *backend.BlockMeta
-		expectedRead    []byte
+		name          string
+		readerRead    []byte
+		readerName    string
+		expectedRead  []byte
+		expectedCache []byte
 	}{
 		{
-			name:            "tenants passthrough",
-			expectedTenants: []string{"1"},
-			readerTenants:   []string{"1"},
+			name:          "read",
+			readerName:    "test-thing",
+			readerRead:    []byte{0x02},
+			expectedRead:  []byte{0x02},
+			expectedCache: []byte{0x02},
 		},
 		{
-			name:           "blocks passthrough",
-			expectedBlocks: []uuid.UUID{blockID},
-			readerBlocks:   []uuid.UUID{blockID},
-		},
-		{
-			name:         "read",
-			expectedRead: []byte{0x02},
+			name:         "block meta",
+			readerName:   "meta.json",
 			readerRead:   []byte{0x02},
+			expectedRead: []byte{0x02},
+		},
+		{
+			name:         "compacted block meta",
+			readerName:   "meta.compacted.json",
+			readerRead:   []byte{0x02},
+			expectedRead: []byte{0x02},
+		},
+		{
+			name:         "block index",
+			readerName:   "blockindex.json.gz",
+			readerRead:   []byte{0x02},
+			expectedRead: []byte{0x02},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockR := &util.MockReader{
-				T: tt.readerTenants,
-				B: tt.readerBlocks,
-				M: tt.readerMeta,
+			mockR := &backend.MockRawReader{
 				R: tt.readerRead,
 			}
-			mockW := &util.MockWriter{}
+			mockW := &backend.MockRawWriter{}
+
+			// READ
+			r, _, _ := NewCache(mockR, mockW, NewMockClient())
+
+			ctx := context.Background()
+			read, _ := r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			assert.Equal(t, tt.expectedRead, read)
+
+			// clear reader and re-request
+			mockR.R = nil
+
+			read, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			assert.Equal(t, tt.expectedCache, read)
+
+			// WRITE
+			_, w, _ := NewCache(mockR, mockW, NewMockClient())
+			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.readerRead)
+			read, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			assert.Equal(t, tt.expectedCache, read)
+		})
+	}
+}
+
+func TestList(t *testing.T) {
+	tenantID := "test"
+	blockID := uuid.New()
+
+	tests := []struct {
+		name          string
+		readerList    []string
+		expectedList  []string
+		expectedCache []string
+	}{
+		{
+			name:          "list passthrough",
+			readerList:    []string{"1"},
+			expectedList:  []string{"1"},
+			expectedCache: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockR := &backend.MockRawReader{
+				L: tt.readerList,
+			}
+			mockW := &backend.MockRawWriter{}
 
 			rw, _, _ := NewCache(mockR, mockW, NewMockClient())
 
 			ctx := context.Background()
-			tenants, _ := rw.Tenants(ctx)
-			assert.Equal(t, tt.expectedTenants, tenants)
-			blocks, _ := rw.Blocks(ctx, tenantID)
-			assert.Equal(t, tt.expectedBlocks, blocks)
-			meta, _ := rw.BlockMeta(ctx, blockID, tenantID)
-			assert.Equal(t, tt.expectedMeta, meta)
-			read, _ := rw.Read(ctx, "test", blockID, tenantID)
-			assert.Equal(t, tt.expectedRead, read)
+			list, _ := rw.List(ctx, backend.KeyPathForBlock(blockID, tenantID))
+			assert.Equal(t, tt.expectedList, list)
 
 			// clear reader and re-request.  things should be cached!
-			mockR.T = nil
-			mockR.B = nil
-			mockR.M = nil
+			mockR.L = nil
 
-			read, _ = rw.Read(ctx, "test", blockID, tenantID)
-			assert.Equal(t, tt.expectedRead, read)
-
-			// others should be nil
-			tenants, _ = rw.Tenants(ctx)
-			assert.Nil(t, tenants)
-			blocks, _ = rw.Blocks(ctx, tenantID)
-			assert.Nil(t, blocks)
-			meta, _ = rw.BlockMeta(ctx, blockID, tenantID)
-			assert.Nil(t, tt.expectedMeta, meta)
+			// list is not cached
+			list, _ = rw.List(ctx, backend.KeyPathForBlock(blockID, tenantID))
+			assert.Equal(t, tt.expectedCache, list)
 		})
 	}
 }

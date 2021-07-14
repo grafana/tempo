@@ -3,8 +3,8 @@ import http from "k6/http";
 import { Span } from './modules/util.js';
 
 const WRITE_ENDPOINT = __ENV.WRITE_ENDPOINT || "http://0.0.0.0:9411";
-const DISTRIBUTOR_ENDPOINT = __ENV.DISTRIBUTOR_ENDPOINT || "http://0.0.0.0:3100";
-const INGESTER_ENDPOINT = __ENV.INGESTER_ENDPOINT || "http://0.0.0.0:3100";
+const DISTRIBUTOR_ENDPOINT = __ENV.DISTRIBUTOR_ENDPOINT || "http://0.0.0.0:3200";
+const INGESTER_ENDPOINT = __ENV.INGESTER_ENDPOINT || "http://0.0.0.0:3200";
 
 const STEADY_CHECK_WAIT = 5;
 

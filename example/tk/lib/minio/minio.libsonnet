@@ -1,8 +1,9 @@
 {
-  local configMap = $.core.v1.configMap,
-  local container = $.core.v1.container,
-  local containerPort = $.core.v1.containerPort,
-  local deployment = $.apps.v1.deployment,
+  local k = import 'ksonnet-util/kausal.libsonnet',
+  local configMap = k.core.v1.configMap,
+  local container = k.core.v1.container,
+  local containerPort = k.core.v1.containerPort,
+  local deployment = k.apps.v1.deployment,
 
   minio_container::
     container.new('minio', 'minio/minio:RELEASE.2021-05-26T00-22-46Z') +
@@ -26,5 +27,5 @@
                    { app: 'minio' }),
 
   minio_service:
-    $.util.serviceFor($.minio_deployment)
+    k.util.serviceFor($.minio_deployment)
 }

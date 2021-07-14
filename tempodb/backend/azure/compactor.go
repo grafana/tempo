@@ -11,7 +11,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/util"
 )
 
 type BlobAttributes struct {
@@ -31,8 +30,8 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	}
 
 	// move meta file to a new location
-	metaFilename := util.MetaFileName(blockID, tenantID)
-	compactedMetaFilename := util.CompactedMetaFileName(blockID, tenantID)
+	metaFilename := backend.MetaFileName(blockID, tenantID)
+	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID)
 	ctx := context.TODO()
 
 	src, err := rw.readAll(ctx, metaFilename)
@@ -65,7 +64,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	for {
 		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, "", blob.ListBlobsSegmentOptions{
-			Prefix:  util.RootPath(blockID, tenantID),
+			Prefix:  backend.RootPath(blockID, tenantID),
 			Details: blob.BlobListingDetails{},
 		})
 		if err != nil {
@@ -98,11 +97,11 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	if blockID == uuid.Nil {
 		return nil, backend.ErrEmptyBlockID
 	}
-	name := util.CompactedMetaFileName(blockID, tenantID)
+	name := backend.CompactedMetaFileName(blockID, tenantID)
 
 	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
 	if err != nil {
-		return nil, err
+		return nil, readError(err)
 	}
 
 	out := &backend.CompactedBlockMeta{}
@@ -112,7 +111,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	}
 	out.CompactedTime = modTime
 
-	return out, err
+	return out, nil
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {

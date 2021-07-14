@@ -92,7 +92,7 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.C
 	}
 
 	var err error
-	var r backend.Reader
+	var r backend.RawReader
 	var c backend.Compactor
 
 	switch cfg.StorageConfig.Trace.Backend {
@@ -112,5 +112,5 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.C
 		return nil, nil, err
 	}
 
-	return r, c, nil
+	return backend.NewReader(r), c, nil
 }

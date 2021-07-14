@@ -36,7 +36,7 @@ minio + grafana + load + tempo {
         },
         backend: 's3',
         bucket: 'tempo',
-        tempo_query_url: 'http://query-frontend:3100',
+        tempo_query_url: 'http://query-frontend:3200',
     },
 
     // manually overriding to get tempo to talk to minio
@@ -52,26 +52,27 @@ minio + grafana + load + tempo {
             },
         },
     },
-    
-    local service = $.core.v1.service,
+
+    local k = import 'ksonnet-util/kausal.libsonnet',
+    local service = k.core.v1.service,
     tempo_service:
-        $.util.serviceFor($.tempo_distributor_deployment)
+        k.util.serviceFor($.tempo_distributor_deployment)
         + service.mixin.metadata.withName('tempo'),
 
-    local container = $.core.v1.container,
-    local containerPort = $.core.v1.containerPort,
+    local container = k.core.v1.container,
+    local containerPort = k.core.v1.containerPort,
     tempo_compactor_container+::
-        $.util.resourcesRequests('500m', '500Mi'),
+        k.util.resourcesRequests('500m', '500Mi'),
 
     tempo_distributor_container+::
-        $.util.resourcesRequests('500m', '500Mi') +
+        k.util.resourcesRequests('500m', '500Mi') +
         container.withPortsMixin([
             containerPort.new('opencensus', 55678),
             containerPort.new('jaeger-http', 14268),
         ]),
 
     tempo_ingester_container+::
-        $.util.resourcesRequests('500m', '500Mi'),
+        k.util.resourcesRequests('500m', '500Mi'),
 
     // clear affinity so we can run multiple ingesters on a single node
     tempo_ingester_statefulset+: {
@@ -85,10 +86,10 @@ minio + grafana + load + tempo {
     },
 
     tempo_querier_container+::
-        $.util.resourcesRequests('500m', '500Mi'),
+        k.util.resourcesRequests('500m', '500Mi'),
 
     tempo_query_frontend_container+::
-        $.util.resourcesRequests('300m', '500Mi'),
+        k.util.resourcesRequests('300m', '500Mi'),
 
     // clear affinity so we can run multiple instances of memcached on a single node
     memcached_all+: {
@@ -103,7 +104,7 @@ minio + grafana + load + tempo {
         }
     },
 
-    local ingress = $.networking.v1beta1.ingress,
+    local ingress = k.networking.v1beta1.ingress,
     ingress:
         ingress.new() +
         ingress.mixin.metadata
