@@ -1,9 +1,10 @@
 {
-  local configMap = $.core.v1.configMap,
-  local container = $.core.v1.container,
-  local volumeMount = $.core.v1.volumeMount,
-  local deployment = $.apps.v1.deployment,
-  local volume = $.core.v1.volume,
+  local k = import 'ksonnet-util/kausal.libsonnet',
+  local configMap = k.core.v1.configMap,
+  local container = k.core.v1.container,
+  local volumeMount = k.core.v1.volumeMount,
+  local deployment = k.apps.v1.deployment,
+  local volume = k.core.v1.volume,
 
   synthetic_load_generator_configmap:
     configMap.new('synthetic-load-generator') +

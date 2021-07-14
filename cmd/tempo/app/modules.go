@@ -76,7 +76,7 @@ func (t *App) initServer() (services.Service, error) {
 		return svs
 	}
 
-	t.server = server
+	t.Server = server
 	s := cortex.NewServerService(server, servicesToWaitFor)
 
 	return s, nil
@@ -90,7 +90,7 @@ func (t *App) initRing() (services.Service, error) {
 	t.ring = ring
 
 	prometheus.MustRegister(t.ring)
-	t.server.HTTP.Handle("/ingester/ring", t.ring)
+	t.Server.HTTP.Handle("/ingester/ring", t.ring)
 
 	return t.ring, nil
 }
@@ -115,7 +115,7 @@ func (t *App) initDistributor() (services.Service, error) {
 
 	if distributor.DistributorRing != nil {
 		prometheus.MustRegister(distributor.DistributorRing)
-		t.server.HTTP.Handle("/distributor/ring", distributor.DistributorRing)
+		t.Server.HTTP.Handle("/distributor/ring", distributor.DistributorRing)
 	}
 
 	return t.distributor, nil
@@ -129,10 +129,10 @@ func (t *App) initIngester() (services.Service, error) {
 	}
 	t.ingester = ingester
 
-	tempopb.RegisterPusherServer(t.server.GRPC, t.ingester)
-	tempopb.RegisterQuerierServer(t.server.GRPC, t.ingester)
-	t.server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
-	t.server.HTTP.Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
+	tempopb.RegisterPusherServer(t.Server.GRPC, t.ingester)
+	tempopb.RegisterQuerierServer(t.Server.GRPC, t.ingester)
+	t.Server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
+	t.Server.HTTP.Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
 	return t.ingester, nil
 }
 
@@ -161,20 +161,20 @@ func (t *App) initQuerier() (services.Service, error) {
 	)
 
 	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathTraces)), tracesHandler)
+	t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathTraces)), tracesHandler)
 
 	if t.cfg.SearchEnabled {
 		searchHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
-		t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearch)), searchHandler)
+		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearch)), searchHandler)
 
 		searchTagsHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
-		t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTags)), searchTagsHandler)
+		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTags)), searchTagsHandler)
 
 		searchTagValuesHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-		t.server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues)), searchTagValuesHandler)
+		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues)), searchTagValuesHandler)
 	}
 
-	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTPServer.Handler)
+	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPServer.Handler)
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
@@ -201,20 +201,20 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	).Wrap(frontendHandler)
 
 	// register grpc server for queriers to connect to
-	cortex_frontend_v1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
+	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
 
 	// http query endpoint
-	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathTraces), frontendHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathTraces), frontendHandler)
 
 	// http search endpoints
 	if t.cfg.SearchEnabled {
-		t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), frontendHandler)
-		t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), frontendHandler)
-		t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), frontendHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), frontendHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), frontendHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), frontendHandler)
 	}
 
 	// http query echo endpoint
-	t.server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathEcho), echoHandler())
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathEcho), echoHandler())
 
 	return t.frontend, nil
 }
@@ -228,7 +228,7 @@ func (t *App) initCompactor() (services.Service, error) {
 
 	if t.compactor.Ring != nil {
 		prometheus.MustRegister(t.compactor.Ring)
-		t.server.HTTP.Handle("/compactor/ring", t.compactor.Ring)
+		t.Server.HTTP.Handle("/compactor/ring", t.compactor.Ring)
 	}
 
 	return t.compactor, nil
@@ -257,7 +257,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
 
-	t.server.HTTP.Handle("/memberlist", t.memberlistKV)
+	t.Server.HTTP.Handle("/memberlist", t.memberlistKV)
 
 	return t.memberlistKV, nil
 }
@@ -297,7 +297,7 @@ func (t *App) setupModuleManager() error {
 		}
 	}
 
-	t.moduleManager = mm
+	t.ModuleManager = mm
 
 	return nil
 }

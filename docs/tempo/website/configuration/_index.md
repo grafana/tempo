@@ -16,6 +16,31 @@ This document explains the configuration options for Tempo as well as the detail
   - [storage](#storage)
   - [memberlist](#memberlist)
 
+#### Use environment variables in the configuration
+
+You can use environment variable references in the configuration file to set values that need to be configurable during deployment using `--config.expand-env` option.
+To do this, use:
+
+```
+${VAR}
+```
+
+Where VAR is the name of the environment variable.
+
+Each variable reference is replaced at startup by the value of the environment variable.
+The replacement is case-sensitive and occurs before the YAML file is parsed.
+References to undefined variables are replaced by empty strings unless you specify a default value or custom error text.
+
+To specify a default value, use:
+
+```
+${VAR:-default_value}
+```
+
+where default_value is the value to use if the environment variable is undefined.
+
+You can find more about other supported syntax [here](https://github.com/drone/envsubst/blob/master/readme.md)
+
 ## Server
 Tempo uses the Weaveworks/common server. See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.
 

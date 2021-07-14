@@ -80,7 +80,10 @@ type instance struct {
 	bytesWrittenTotal  prometheus.Counter
 	limiter            *Limiter
 	writer             tempodb.Writer
-	local              *local.Backend
+
+	local       *local.Backend
+	localReader backend.Reader
+	localWriter backend.Writer
 
 	hash hash.Hash32
 }
@@ -97,7 +100,10 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		bytesWrittenTotal:  metricBytesWrittenTotal.WithLabelValues(instanceID),
 		limiter:            limiter,
 		writer:             writer,
-		local:              l,
+
+		local:       l,
+		localReader: backend.NewReader(l),
+		localWriter: backend.NewWriter(l),
 
 		hash: fnv.New32(),
 	}
@@ -237,7 +243,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	ctx := context.Background()
 
-	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, model.ObjectCombiner, i.local, i.local)
+	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, model.ObjectCombiner, i.localReader, i.localWriter)
 	if err != nil {
 		return errors.Wrap(err, "error completing wal block with local backend")
 	}
@@ -511,15 +517,15 @@ func pushRequestTraceID(req *tempopb.PushRequest) ([]byte, error) {
 }
 
 func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
-	ids, err := i.local.Blocks(ctx, i.instanceID)
+	ids, err := i.localReader.Blocks(ctx, i.instanceID)
 	if err != nil {
 		return err
 	}
 
 	for _, id := range ids {
-		meta, err := i.local.BlockMeta(ctx, id, i.instanceID)
+		meta, err := i.localReader.BlockMeta(ctx, id, i.instanceID)
 		if err != nil {
-			if err == backend.ErrMetaDoesNotExist {
+			if err == backend.ErrDoesNotExist {
 				// Partial/incomplete block found, remove, it will be recreated from data in the wal.
 				level.Warn(log.Logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "tenant", i.instanceID, "block", id.String())
 				err = i.local.ClearBlock(id, i.instanceID)
@@ -532,7 +538,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 			return err
 		}
 
-		b, err := encoding.NewBackendBlock(meta, i.local)
+		b, err := encoding.NewBackendBlock(meta, i.localReader)
 		if err != nil {
 			return err
 		}

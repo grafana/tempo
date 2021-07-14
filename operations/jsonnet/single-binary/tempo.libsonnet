@@ -1,14 +1,14 @@
-(import 'ksonnet-util/kausal.libsonnet') +
 (import 'configmap.libsonnet') +
 (import 'config.libsonnet') + 
 {
-  local container = $.core.v1.container,
-  local containerPort = $.core.v1.containerPort,
-  local volumeMount = $.core.v1.volumeMount,
-  local pvc = $.core.v1.persistentVolumeClaim,
-  local statefulset = $.apps.v1.statefulSet,
-  local volume = $.core.v1.volume,
-  local service = $.core.v1.service,
+  local k = import 'ksonnet-util/kausal.libsonnet',
+  local container = k.core.v1.container,
+  local containerPort = k.core.v1.containerPort,
+  local volumeMount = k.core.v1.volumeMount,
+  local pvc = k.core.v1.persistentVolumeClaim,
+  local statefulset = k.apps.v1.statefulSet,
+  local volume = k.core.v1.volume,
+  local service = k.core.v1.service,
   local servicePort = service.mixin.spec.portsType,
 
   local tempo_config_volume = 'tempo-conf',
@@ -16,7 +16,7 @@
   local tempo_data_volume = 'tempo-data',
 
   namespace:
-    $.core.v1.namespace.new($._config.namespace),
+    k.core.v1.namespace.new($._config.namespace),
 
   tempo_pvc:
     pvc.new() +
@@ -43,7 +43,9 @@
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
       volumeMount.new(tempo_data_volume, '/var/tempo'),
-    ]),
+    ]) +
+    k.util.resourcesRequests('3', '3Gi') +
+    k.util.resourcesLimits('5', '5Gi'),
 
   tempo_query_container::
     container.new('tempo-query', $._images.tempo_query) +
@@ -78,7 +80,7 @@
     ]),
 
   tempo_service:
-    $.util.serviceFor($.tempo_statefulset)
+    k.util.serviceFor($.tempo_statefulset)
     + service.mixin.spec.withPortsMixin([
       servicePort.withName('http').withPort(80).withTargetPort(16686),
     ]),

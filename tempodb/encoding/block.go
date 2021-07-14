@@ -65,13 +65,13 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader,
 	tenantID := meta.TenantID
 
 	copy := func(name string) error {
-		reader, size, err := src.ReadReader(ctx, name, blockID, tenantID)
+		reader, size, err := src.StreamReader(ctx, name, blockID, tenantID)
 		if err != nil {
 			return errors.Wrapf(err, "error reading %s", name)
 		}
 		defer reader.Close()
 
-		return dest.WriteReader(ctx, name, blockID, tenantID, reader, size)
+		return dest.StreamWriter(ctx, name, blockID, tenantID, reader, size)
 	}
 
 	// Data

@@ -37,12 +37,12 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
-	if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
+	if err != nil && err != tempodb_backend.ErrDoesNotExist {
 		return err
 	}
 
 	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-	if err != nil && err != tempodb_backend.ErrMetaDoesNotExist {
+	if err != nil && err != tempodb_backend.ErrDoesNotExist {
 		return err
 	}
 

@@ -1,12 +1,13 @@
 {
-  local container = $.core.v1.container,
-  local containerPort = $.core.v1.containerPort,
-  local volumeMount = $.core.v1.volumeMount,
-  local pv = $.core.v1.persistentVolume,
-  local deployment = $.apps.v1.deployment,
-  local volume = $.core.v1.volume,
-  local service = $.core.v1.service,
-  local servicePort = $.core.v1.servicePort,
+  local k = import 'ksonnet-util/kausal.libsonnet',
+  local container = k.core.v1.container,
+  local containerPort = k.core.v1.containerPort,
+  local volumeMount = k.core.v1.volumeMount,
+  local pv = k.core.v1.persistentVolume,
+  local deployment = k.apps.v1.deployment,
+  local volume = k.core.v1.volume,
+  local service = k.core.v1.service,
+  local servicePort = k.core.v1.servicePort,
 
   local target_name = 'distributor',
   local tempo_config_volume = 'tempo-conf',
@@ -24,6 +25,7 @@
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
     ]) +
+    $.util.withResources($._config.distributor.resources) +
     $.util.readinessProbe,
 
   tempo_distributor_deployment:
@@ -47,10 +49,10 @@
     ]),
 
   tempo_distributor_service:
-    $.util.serviceFor($.tempo_distributor_deployment),
+    k.util.serviceFor($.tempo_distributor_deployment),
 
   ingest_service:
-    $.util.serviceFor($.tempo_distributor_deployment)
+    k.util.serviceFor($.tempo_distributor_deployment)
     + service.mixin.metadata.withName('ingest')
     + service.mixin.spec.withClusterIp('None'),
 }

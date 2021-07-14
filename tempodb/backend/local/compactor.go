@@ -8,7 +8,6 @@ import (
 	"path"
 
 	"github.com/google/uuid"
-
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -29,23 +28,20 @@ func (rw *Backend) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		return fmt.Errorf("empty block id")
 	}
 
-	return os.RemoveAll(rw.rootPath(blockID, tenantID))
+	return os.RemoveAll(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)))
 }
 
 func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	filename := rw.compactedMetaFileName(blockID, tenantID)
 
 	fi, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return nil, backend.ErrMetaDoesNotExist
-	}
 	if err != nil {
-		return nil, err
+		return nil, readError(err)
 	}
 
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		return nil, readError(err)
 	}
 
 	out := &backend.CompactedBlockMeta{}
@@ -55,9 +51,9 @@ func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*back
 	}
 	out.CompactedTime = fi.ModTime()
 
-	return out, err
+	return out, nil
 }
 
 func (rw *Backend) compactedMetaFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(blockID, tenantID), "meta.compacted.json")
+	return path.Join(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)), backend.CompactedMetaName)
 }
