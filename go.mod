@@ -71,13 +71,6 @@ replace (
 // without updating the open-telemetry/collector as well
 replace google.golang.org/grpc => google.golang.org/grpc v1.33.3
 
-// Pin github.com/go-openapi versions to match Prometheus alertmanager to avoid
-// breaking changing affecting the alertmanager.
-replace (
-	github.com/go-openapi/errors => github.com/go-openapi/errors v0.20.0
-	github.com/go-openapi/validate => github.com/go-openapi/validate v0.20.2
-)
-
 // Pin github.com/soheilhy/cmux to control grpc required version.
 // Before v0.1.5 it contained examples in the root folder that imported grpc without a version,
 // and therefore were importing grpc latest (which is problematic because we need <v1.29.1)
