@@ -674,7 +674,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 
 func dedupeResults(results []*tempopb.TraceSearchMetadata) []*tempopb.TraceSearchMetadata {
 	for i := range results {
-		for j:=i+1; j < len(results); j++ {
+		for j := i + 1; j < len(results); j++ {
 			if results[i].TraceID == results[j].TraceID {
 				results = append(results[:j], results[j+1:]...)
 				j--

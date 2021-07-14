@@ -110,7 +110,7 @@ type RequestOp string
 
 const (
 	TracesOp RequestOp = "traces"
-	SearchOp           = "search"
+	SearchOp RequestOp = "search"
 )
 
 func getOperation(path string) RequestOp {
