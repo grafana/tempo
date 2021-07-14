@@ -5,13 +5,22 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/go-kit/kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
 
-var testPollConcurrency = uint(10)
+var (
+	testPollConcurrency = uint(10)
+	testPollFallback    = true
+)
 
+type mockPollerSharder struct{}
+
+func (m *mockPollerSharder) BuildTenantIndex() bool { return true }
+
+// jpe extend
 func TestDo(t *testing.T) {
 	tests := []struct {
 		name                  string
@@ -133,8 +142,9 @@ func TestDo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := newMockCompactor(tc.compactedList, tc.expectsError)
 			r := newMockReader(tc.list, tc.compactedList, tc.expectsError)
+			w := &backend.MockWriter{}
 
-			poller := NewPoller(testPollConcurrency, r, c)
+			poller := NewPoller(testPollConcurrency, testPollFallback, &mockPollerSharder{}, r, c, w, log.NewNopLogger())
 			actualList, actualCompactedList, err := poller.Do()
 
 			assert.Equal(t, tc.expectedList, actualList)
@@ -219,8 +229,9 @@ func TestPollBlock(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := newMockCompactor(tc.compactedList, tc.expectsError)
 			r := newMockReader(tc.list, nil, tc.expectsError)
+			w := &backend.MockWriter{}
 
-			poller := NewPoller(testPollConcurrency, r, c)
+			poller := NewPoller(testPollConcurrency, testPollFallback, &mockPollerSharder{}, r, c, w, log.NewNopLogger())
 			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, tc.pollBlockID)
 
 			assert.Equal(t, tc.expectedMeta, actualMeta)

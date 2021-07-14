@@ -142,7 +142,7 @@ func (c *Compactor) Owns(hash string) bool {
 		return false
 	}
 
-	if len(rs.Instances) != 1 {
+	if len(rs.Instances) != 1 { // jpe increase to N for polling - add config option: how many should poll?
 		level.Error(log.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Instances))
 		return false
 	}

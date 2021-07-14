@@ -10,6 +10,8 @@ import (
 
 var _ RawReader = (*MockRawReader)(nil)
 var _ RawWriter = (*MockRawWriter)(nil)
+var _ Reader = (*MockReader)(nil)
+var _ Writer = (*MockWriter)(nil)
 var _ Compactor = (*MockCompactor)(nil)
 
 // MockRawReader
@@ -133,6 +135,11 @@ func (m *MockReader) ReadRange(ctx context.Context, name string, blockID uuid.UU
 
 	return nil
 }
+
+func (m *MockReader) TenantIndex(ctx context.Context, tenantID string) ([]*BlockMeta, []*CompactedBlockMeta, error) {
+	return nil, nil, nil
+}
+
 func (m *MockReader) Shutdown() {}
 
 // MockWriter
@@ -152,5 +159,8 @@ func (m *MockWriter) Append(ctx context.Context, name string, blockID uuid.UUID,
 	return nil, nil
 }
 func (m *MockWriter) CloseAppend(ctx context.Context, tracker AppendTracker) error {
+	return nil
+}
+func (m *MockWriter) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
 	return nil
 }
