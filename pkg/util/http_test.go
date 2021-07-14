@@ -39,7 +39,7 @@ func TestHexStringToTraceID(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.id, func(t *testing.T) {
-			actual, err := hexStringToTraceID(tt.id)
+			actual, err := HexStringToTraceID(tt.id)
 
 			if tt.expectError {
 				assert.Error(t, err)

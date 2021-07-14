@@ -24,7 +24,7 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 		return nil, fmt.Errorf("please provide a traceID")
 	}
 
-	byteID, err := hexStringToTraceID(traceID)
+	byteID, err := HexStringToTraceID(traceID)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 	return byteID, nil
 }
 
-func hexStringToTraceID(id string) ([]byte, error) {
+func HexStringToTraceID(id string) ([]byte, error) {
 	// the encoding/hex package does not like odd length strings.
 	// just append a bit here
 	if len(id)%2 == 1 {
