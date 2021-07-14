@@ -658,15 +658,30 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 		fmt.Println("Found", len(results), "matches in live traces, append blocks and complete blocks")
 	}
 
-	// Sort and limit results
+	// Sort, dedupe and limit results
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
 	})
+
+	results = dedupeResults(results)
+
 	if req.Limit != 0 && int(req.Limit) < len(results) {
 		results = results[:req.Limit]
 	}
 
 	return results, nil
+}
+
+func dedupeResults(results []*tempopb.TraceSearchMetadata) []*tempopb.TraceSearchMetadata {
+	for i := range results {
+		for j:=i+1; j < len(results); j++ {
+			if results[i].TraceID == results[j].TraceID {
+				results = append(results[:j], results[j+1:]...)
+				j--
+			}
+		}
+	}
+	return results
 }
 
 func (i *instance) GetSearchTags() []string {

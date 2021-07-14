@@ -590,7 +590,6 @@ func TestInstanceSearch(t *testing.T) {
 
 	traceMetas, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	// todo: this currently fails because we do not dedupe results in instance.Search()
 	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
 	checkEqual(t, ids, traceMetas)
 
@@ -605,7 +604,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	traceMetas, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	// todo: this currently fails because we do not dedupe results in instance.Search()
+	// note: this currently passes even though WAL replay is not implemented, only because traces are in completeblocks
 	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
 	checkEqual(t, ids, traceMetas)
 }
