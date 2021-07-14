@@ -30,7 +30,7 @@ type Writer interface {
 	// Closes any resources associated with the AppendTracker
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
 	// WriteTenantIndex writes the two meta slices as a tenant index
-	WriteTenantIndex(ctx context.Context, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error
+	WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error
 }
 
 // Reader is a collection of methods to read data from tempodb backends

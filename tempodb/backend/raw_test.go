@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// jpe add keypath tests?
 func TestWriter(t *testing.T) {
 	m := &MockRawWriter{}
 	w := NewWriter(m)

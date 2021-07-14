@@ -13,7 +13,7 @@ import (
 const (
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
-	BlockIndexName    = "blockindex.json.gz"
+	TenantIndexName   = "index.json.gz"
 )
 
 // KeyPath is an ordered set of strings that govern where data is read/written from the backend
@@ -85,8 +85,24 @@ func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 	return w.w.CloseAppend(ctx, tracker)
 }
 
-func (w *writer) WriteTenantIndex(ctx context.Context, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
-	// jpe
+// jpe test
+func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+	b := &tenantindex{
+		Tenant:        tenantID,
+		Meta:          meta,
+		CompactedMeta: compactedMeta,
+	}
+
+	indexBytes, err := b.marshal()
+	if err != nil {
+		return err
+	}
+
+	err = w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), indexBytes)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -126,7 +142,7 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, erro
 	// translate everything to UUIDs, if we see a bucket index we can skip that
 	blockIDs := make([]uuid.UUID, 0, len(objects))
 	for _, id := range objects {
-		if id == BlockIndexName {
+		if id == TenantIndexName {
 			continue
 		}
 		uuid, err := uuid.Parse(id)
@@ -154,9 +170,20 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	return out, nil
 }
 
+// jpe test
 func (r *reader) TenantIndex(ctx context.Context, tenantID string) ([]*BlockMeta, []*CompactedBlockMeta, error) {
-	//jpe
-	return nil, nil, nil
+	indexBytes, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	i := &tenantindex{}
+	err = i.unmarshal(indexBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return i.Meta, i.CompactedMeta, nil
 }
 
 func (r *reader) Shutdown() {

@@ -93,5 +93,5 @@ func key(keypath backend.KeyPath, name string) string {
 }
 
 func shouldCache(name string) bool {
-	return name != backend.MetaName && name != backend.CompactedMetaName && name != backend.BlockIndexName
+	return name != backend.MetaName && name != backend.CompactedMetaName && name != backend.TenantIndexName
 }
