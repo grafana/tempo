@@ -107,6 +107,9 @@ func (q *Querier) starting(ctx context.Context) error {
 			return fmt.Errorf("failed to start subservices %w", err)
 		}
 	}
+
+	q.store.EnablePolling(q)
+
 	return nil
 }
 
@@ -245,4 +248,10 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 	}
 
 	return responses, err
+}
+
+// implements blocklist.PollingSharder. Generally queriers should rely on
+// compactors to build the tenant index which they then can consume
+func (q *Querier) BuildTenantIndex() bool {
+	return false // jpe configurable?
 }

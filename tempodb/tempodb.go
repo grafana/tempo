@@ -75,6 +75,8 @@ type Writer interface {
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error)
+	EnablePolling(sharder blocklist.PollerSharder)
+
 	Shutdown()
 }
 
@@ -162,10 +164,6 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		}
 	}
 
-	if cfg.BlocklistPollConcurrency == 0 {
-		cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
-	}
-
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
@@ -177,15 +175,12 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		pool:                pool.NewPool(cfg.Pool),
 		blockLists:          make(blocklist.PerTenant),
 		compactedBlockLists: make(blocklist.PerTenantCompacted),
-		blocklistPoller:     blocklist.NewPoller(cfg.BlocklistPollConcurrency, r, c),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	go rw.maintenanceLoop()
 
 	return rw, rw, rw, nil
 }
@@ -363,7 +358,25 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	}
 }
 
-func (rw *readerWriter) maintenanceLoop() {
+func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) {
+	if rw.cfg.BlocklistPollConcurrency == 0 {
+		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
+	}
+
+	blocklistPoller := blocklist.NewPoller(rw.cfg.BlocklistPollConcurrency,
+		true, // jpe do thing
+		sharder,
+		rw.r,
+		rw.c,
+		rw.w,
+		rw.logger)
+
+	rw.blocklistPoller = blocklistPoller
+
+	go rw.pollingLoop()
+}
+
+func (rw *readerWriter) pollingLoop() {
 	if rw.cfg.BlocklistPoll == 0 {
 		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  blocklist polling disabled.")
 		return

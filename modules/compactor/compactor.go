@@ -90,6 +90,8 @@ func (c *Compactor) starting(ctx context.Context) error {
 		}
 	}
 
+	c.store.EnablePolling(c)
+
 	return nil
 }
 
@@ -150,6 +152,13 @@ func (c *Compactor) Owns(hash string) bool {
 	level.Debug(log.Logger).Log("msg", "checking addresses", "owning_addr", rs.Instances[0].Addr, "this_addr", c.ringLifecycler.Addr)
 
 	return rs.Instances[0].Addr == c.ringLifecycler.Addr
+}
+
+// BuildTenantIndex implements blocklist.PollingSharder. Use the ring to determine if
+// we should be building the tenant index or just polling for an already existing one.
+func (c *Compactor) BuildTenantIndex() bool {
+	// jpe stuff
+	return true
 }
 
 // Combine implements common.ObjectCombiner
