@@ -1,7 +1,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"io/ioutil"
@@ -39,12 +38,7 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 }
 
 // Write implements backend.Writer
-func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
-	return rw.StreamWriter(ctx, name, keypath, bytes.NewBuffer(buffer), int64(len(buffer)))
-}
-
-// StreamWriter implements backend.Writer
-func (rw *Backend) StreamWriter(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
+func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
 	blockFolder := rw.rootPath(keypath)
 	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
@@ -122,14 +116,20 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 }
 
 // Read implements backend.Reader
-func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
+func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	filename := rw.objectFileName(keypath, name)
-	bytes, err := ioutil.ReadFile(filename)
+
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
-		return nil, readError(err)
+		return nil, -1, readError(err)
 	}
 
-	return bytes, nil
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, -1, err
+	}
+
+	return f, stat.Size(), err
 }
 
 // ReadRange implements backend.Reader
@@ -148,22 +148,6 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 	}
 
 	return nil
-}
-
-func (rw *Backend) StreamReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
-	filename := rw.objectFileName(keypath, name)
-
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
-	if err != nil {
-		return nil, -1, readError(err)
-	}
-
-	stat, err := f.Stat()
-	if err != nil {
-		return nil, -1, err
-	}
-
-	return f, stat.Size(), err
 }
 
 // Shutdown implements backend.Reader

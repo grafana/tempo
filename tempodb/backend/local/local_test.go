@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/grafana/tempo/pkg/io"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -16,7 +17,6 @@ import (
 )
 
 const objectName = "test"
-const objectReaderName = "test-reader"
 
 func TestReadWrite(t *testing.T) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
@@ -51,18 +51,18 @@ func TestReadWrite(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range tenantIDs {
 		fakeMeta.TenantID = id
-		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID, id), fakeObject)
+		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), false)
 		assert.NoError(t, err, "unexpected error writing")
-		err = w.StreamWriter(ctx, objectReaderName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewBuffer(fakeObject), int64(len(fakeObject)))
-		assert.NoError(t, err, "unexpected error writing reader")
 	}
 
-	actualObject, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]))
+	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), false)
 	assert.NoError(t, err, "unexpected error reading")
-	assert.Equal(t, fakeObject, actualObject)
+	actualObjectBytes, err := io.ReadAllWithEstimate(actualObject, size)
+	assert.NoError(t, err, "unexpected error reading")
+	assert.Equal(t, fakeObject, actualObjectBytes)
 
 	actualReadRange := make([]byte, 5)
-	err = r.ReadRange(ctx, objectReaderName, backend.KeyPathForBlock(blockID, tenantIDs[0]), 5, actualReadRange)
+	err = r.ReadRange(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), 5, actualReadRange)
 	assert.NoError(t, err, "unexpected error range")
 	assert.Equal(t, fakeObject[5:10], actualReadRange)
 
