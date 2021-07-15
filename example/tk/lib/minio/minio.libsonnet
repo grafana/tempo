@@ -6,7 +6,7 @@
   local deployment = k.apps.v1.deployment,
 
   minio_container::
-    container.new('minio', 'minio/minio:RELEASE.2021-05-26T00-22-46Z') +
+    container.new('minio', 'minio/minio:latest') +
     container.withPorts([
       containerPort.new('minio', 9000),
     ]) +
