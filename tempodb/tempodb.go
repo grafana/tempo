@@ -148,7 +148,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		return nil, nil, nil, err
 	}
 
-	bucketReader := r
+	bucketReader := backend.NewReader(rawR)
 
 	var cacheBackend cortex_cache.Cache
 
