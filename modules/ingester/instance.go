@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"sort"
 	"sync"
 	"time"
 
@@ -21,7 +22,9 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/search"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/validation"
@@ -66,6 +69,10 @@ type instance struct {
 	completingBlocks []*wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
+	searchAppendBlocks   map[*wal.AppendBlock]*search.StreamingSearchBlock
+	searchCompleteBlocks map[*wal.LocalBlock]search.SearchBlock
+	searchTagLookups     tempofb.SearchDataMap
+
 	lastBlockCut time.Time
 
 	instanceID         string
@@ -83,7 +90,10 @@ type instance struct {
 
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
-		traces: map[uint32]*trace{},
+		traces:               map[uint32]*trace{},
+		searchAppendBlocks:   map[*wal.AppendBlock]*search.StreamingSearchBlock{},
+		searchCompleteBlocks: map[*wal.LocalBlock]search.SearchBlock{},
+		searchTagLookups:     tempofb.SearchDataMap{},
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -135,11 +145,11 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	}
 
 	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, buffer)
+	return trace.Push(ctx, buffer, nil)
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
-func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, searchData []byte) error {
 	if !validation.ValidTraceID(id) {
 		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
 	}
@@ -153,8 +163,12 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) 
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
+	if searchData != nil {
+		i.RecordSearchLookupValues(searchData)
+	}
+
 	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, traceBytes)
+	return trace.Push(ctx, traceBytes, searchData)
 }
 
 // Moves any complete traces out of the map to complete traces
@@ -169,7 +183,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 			return err
 		}
 
-		err = i.writeTraceToHeadBlock(t.traceID, out)
+		err = i.writeTraceToHeadBlock(t.traceID, out, t.searchData)
 		if err != nil {
 			return err
 		}
@@ -239,9 +253,25 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 		return errors.Wrap(err, "error creating ingester block")
 	}
 
+	// Search data (optional)
+	oldSearch := i.searchAppendBlocks[completingBlock]
+	var newSearch search.SearchBlock
+	if oldSearch != nil {
+		_, err = search.NewBackendSearchBlock(oldSearch, i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID)
+		if err != nil {
+			return err
+		}
+
+		newSearch = search.OpenBackendSearchBlock(i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID)
+	}
+
 	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
+	if newSearch != nil {
+		i.searchCompleteBlocks[ingesterBlock] = newSearch
+	}
 	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
-	i.blocksMtx.Unlock()
 
 	return nil
 }
@@ -260,6 +290,12 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Unlock()
 
 	if completingBlock != nil {
+		searchBlock := i.searchAppendBlocks[completingBlock]
+		if searchBlock != nil {
+			searchBlock.Clear()
+			delete(i.searchAppendBlocks, completingBlock)
+		}
+
 		return completingBlock.Clear()
 	}
 
@@ -294,6 +330,7 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
+			delete(i.searchCompleteBlocks, b)
 			err = i.local.ClearBlock(b.BlockMeta().BlockID, i.instanceID)
 			if err == nil {
 				metricBlocksClearedTotal.Inc()
@@ -409,7 +446,19 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 func (i *instance) resetHeadBlock() error {
 	var err error
 	i.headBlock, err = i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
+	if err != nil {
+		return err
+	}
+
 	i.lastBlockCut = time.Now()
+
+	// Create search data wal file
+	f, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, "searchdata")
+	if err != nil {
+		return err
+	}
+
+	i.searchAppendBlocks[i.headBlock], err = search.NewStreamingSearchBlockForFile(f)
 	return err
 }
 
@@ -431,11 +480,22 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	return tracesToCut
 }
 
-func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte) error {
+func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	return i.headBlock.Write(id, b)
+	err := i.headBlock.Write(id, b)
+	if err != nil {
+		return err
+	}
+
+	searchBlock := i.searchAppendBlocks[i.headBlock]
+	if searchBlock != nil {
+		err := searchBlock.Append(context.TODO(), id, searchData)
+		return err
+	}
+
+	return nil
 }
 
 // pushRequestTraceID gets the TraceID of the first span in the batch and assumes its the trace ID throughout
@@ -488,12 +548,170 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 			return err
 		}
 
+		sb := search.OpenBackendSearchBlock(i.local, b.BlockMeta().BlockID, b.BlockMeta().TenantID)
+
 		i.blocksMtx.Lock()
 		i.completeBlocks = append(i.completeBlocks, ib)
+		i.searchCompleteBlocks[ib] = sb
 		i.blocksMtx.Unlock()
 
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())
 	}
 
 	return nil
+}
+
+func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*tempopb.TraceSearchMetadata, error) {
+	// TODO - Redo this entire thing around channels and concurrent searches, and bail after reading
+	// max results from channel
+	maxResults := 20
+	if req.Limit != 0 {
+		maxResults = int(req.Limit)
+	}
+
+	var results []*tempopb.TraceSearchMetadata
+
+	p := search.NewSearchPipeline(req)
+
+	// Search live traces
+	func() {
+		i.tracesMtx.Lock()
+		defer i.tracesMtx.Unlock()
+
+		for _, t := range i.traces {
+
+			for _, s := range t.searchData {
+				searchData := tempofb.SearchDataFromBytes(s)
+				if p.Matches(searchData) {
+					results = append(results, search.GetSearchResultFromData(searchData))
+					continue
+				}
+			}
+
+			if len(results) >= maxResults {
+				return
+			}
+		}
+	}()
+
+	fmt.Println("Found", len(results), "matches in live traces")
+
+	if len(results) < maxResults {
+		// Search append blocks
+		err := func() error {
+			i.blocksMtx.Lock()
+			defer i.blocksMtx.Unlock()
+
+			for b, s := range i.searchAppendBlocks {
+				headResults, err := s.Search(ctx, p)
+				if err != nil {
+					return err
+				}
+
+				if len(headResults) > 0 {
+					results = append(results, headResults...)
+					fmt.Println("Found", len(headResults), "matches in wal block", b.BlockID().String())
+				}
+
+				if len(results) >= maxResults {
+					return nil
+				}
+			}
+
+			return nil
+		}()
+		if err != nil {
+			return nil, errors.Wrap(err, "searching head block")
+		}
+
+		fmt.Println("Found", len(results), "matches in live traces and append blocks")
+	}
+
+	if len(results) < maxResults {
+		// Search complete blocks
+		err := func() error {
+			i.blocksMtx.Lock()
+			defer i.blocksMtx.Unlock()
+
+			for b, s := range i.searchCompleteBlocks {
+				res, err := s.Search(ctx, p)
+				if err != nil {
+					continue
+				}
+
+				if len(res) > 0 {
+					results = append(results, res...)
+					fmt.Println("Found", len(res), "matches in local block", b.BlockMeta().BlockID)
+				}
+
+				if len(results) >= maxResults {
+					return nil
+				}
+			}
+
+			return nil
+		}()
+		if err != nil {
+			return nil, errors.Wrap(err, "searching complete block")
+		}
+
+		fmt.Println("Found", len(results), "matches in live traces, append blocks and complete blocks")
+	}
+
+	// Sort, dedupe and limit results
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
+	})
+
+	results = dedupeResults(results)
+
+	if req.Limit != 0 && int(req.Limit) < len(results) {
+		results = results[:req.Limit]
+	}
+
+	return results, nil
+}
+
+func dedupeResults(results []*tempopb.TraceSearchMetadata) []*tempopb.TraceSearchMetadata {
+	for i := range results {
+		for j := i + 1; j < len(results); j++ {
+			if results[i].TraceID == results[j].TraceID {
+				results = append(results[:j], results[j+1:]...)
+				j--
+			}
+		}
+	}
+	return results
+}
+
+func (i *instance) GetSearchTags() []string {
+	tags := make([]string, 0, len(i.searchTagLookups))
+	for k := range i.searchTagLookups {
+		tags = append(tags, k)
+	}
+	return tags
+}
+
+func (i *instance) GetSearchTagValues(tagName string) []string {
+	return i.searchTagLookups[tagName]
+}
+
+// Record first 50 unique values for every tag
+const maxLookups = 50
+
+func (i *instance) RecordSearchLookupValues(b []byte) {
+	kv := &tempofb.KeyValues{}
+
+	s := tempofb.SearchDataFromBytes(b)
+	for j := 0; j < s.TagsLength(); j++ {
+		s.Tags(kv, j)
+		key := string(kv.Key())
+		if vals, ok := i.searchTagLookups[key]; ok && len(vals) >= maxLookups {
+			// key exists and we have enough
+			continue
+		}
+		for k := 0; k < kv.ValueLength(); k++ {
+			i.searchTagLookups.Add(key, string(kv.Value(k)))
+		}
+	}
 }

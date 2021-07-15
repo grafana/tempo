@@ -175,6 +175,13 @@ vendor-check: gen-proto
 	go mod tidy -e
 	git diff --exit-code -- go.sum go.mod vendor/ pkg/tempopb/
 
+.PHONY: gen-flat
+gen-flat:
+### -o .. generates into same folder for simpler imports.
+	cd pkg/tempofb/ && flatc --go -o .. tempo.fbs
+	
+
+
 ### Release (intended to be used in the .github/workflows/images.yml)
 $(GORELEASER):
 	curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | BINDIR=$(GOPATH)/bin sh

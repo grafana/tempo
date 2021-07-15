@@ -1,0 +1,17 @@
+namespace tempofb;
+
+table KeyValues {
+    key: string;
+    value: [string];
+}
+
+table SearchData {
+    id : string; // Converted to []byte
+    tags : [KeyValues];
+    start_time_unix_nano: uint64;
+    end_time_unix_nano: uint64;
+}
+
+table BatchSearchData {
+    entries : [SearchData];
+}

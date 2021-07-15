@@ -387,6 +387,9 @@ github.com/golang/protobuf/ptypes/wrappers
 github.com/golang/snappy
 # github.com/google/btree v1.0.0
 github.com/google/btree
+# github.com/google/flatbuffers v2.0.0+incompatible
+## explicit
+github.com/google/flatbuffers/go
 # github.com/google/go-cmp v0.5.5
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
@@ -666,6 +669,7 @@ github.com/oklog/ulid
 ## explicit
 github.com/olekukonko/tablewriter
 # github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e => github.com/pracucci/go-grpc v0.0.0-20201022134131-ef559b8db645
+## explicit
 github.com/opentracing-contrib/go-grpc
 # github.com/opentracing-contrib/go-stdlib v1.0.0
 github.com/opentracing-contrib/go-stdlib/nethttp

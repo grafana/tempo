@@ -159,7 +159,7 @@ func TestDeprecatedPush(t *testing.T) {
 
 func TestWal(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting tempdir")
+	require.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
 
 	ctx := user.InjectOrgID(context.Background(), "test")
@@ -169,14 +169,14 @@ func TestWal(t *testing.T) {
 		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
-		assert.NoError(t, err, "unexpected error querying")
-		assert.Equal(t, foundTrace.Trace, traces[pos])
+		require.NoError(t, err, "unexpected error querying")
+		require.Equal(t, foundTrace.Trace, traces[pos])
 	}
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
 		err := instance.CutCompleteTraces(0, true)
-		assert.NoError(t, err, "unexpected error cutting traces")
+		require.NoError(t, err, "unexpected error cutting traces")
 	}
 
 	// create new ingester.  this should replay wal!
@@ -187,9 +187,9 @@ func TestWal(t *testing.T) {
 		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
-		assert.NoError(t, err, "unexpected error querying")
+		require.NoError(t, err, "unexpected error querying")
 		equal := proto.Equal(traces[i], foundTrace.Trace)
-		assert.True(t, equal)
+		require.True(t, equal)
 	}
 
 	// a block that has been replayed should have a flush queue entry to complete it
@@ -198,23 +198,23 @@ func TestWal(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	assert.Len(t, ingester.instances["test"].completingBlocks, 0)
-	assert.Len(t, ingester.instances["test"].completeBlocks, 1)
+	require.Len(t, ingester.instances["test"].completingBlocks, 0)
+	require.Len(t, ingester.instances["test"].completeBlocks, 1)
 
 	// should be able to find old traces that were replayed
 	for i, traceID := range traceIDs {
 		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
-		assert.NoError(t, err, "unexpected error querying")
+		require.NoError(t, err, "unexpected error querying")
 		equal := proto.Equal(traces[i], foundTrace.Trace)
-		assert.True(t, equal)
+		require.True(t, equal)
 	}
 }
 
 func TestFlush(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting tempdir")
+	require.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
 
 	ctx := user.InjectOrgID(context.Background(), "test")
@@ -224,13 +224,13 @@ func TestFlush(t *testing.T) {
 		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
-		assert.NoError(t, err, "unexpected error querying")
-		assert.Equal(t, foundTrace.Trace, traces[pos])
+		require.NoError(t, err, "unexpected error querying")
+		require.Equal(t, foundTrace.Trace, traces[pos])
 	}
 
 	// stopping the ingester should force cut all live traces to disk
 	err = ingester.stopping(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// create new ingester.  this should replay wal!
 	ingester, _, _ = defaultIngester(t, tmpDir)
@@ -240,9 +240,9 @@ func TestFlush(t *testing.T) {
 		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
-		assert.NoError(t, err, "unexpected error querying")
+		require.NoError(t, err, "unexpected error querying")
 		equal := proto.Equal(traces[i], foundTrace.Trace)
-		assert.True(t, equal)
+		require.True(t, equal)
 	}
 }
 

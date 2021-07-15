@@ -16,6 +16,9 @@ type trace struct {
 	traceID      []byte
 	maxBytes     int
 	currentBytes int
+
+	// List of flatbuffers
+	searchData [][]byte
 }
 
 func newTrace(maxBytes int, traceID []byte) *trace {
@@ -29,7 +32,7 @@ func newTrace(maxBytes int, traceID []byte) *trace {
 	}
 }
 
-func (t *trace) Push(_ context.Context, trace []byte) error {
+func (t *trace) Push(_ context.Context, trace []byte, searchData []byte) error {
 	t.lastAppend = time.Now()
 	if t.maxBytes != 0 {
 		reqSize := len(trace)
@@ -41,6 +44,10 @@ func (t *trace) Push(_ context.Context, trace []byte) error {
 	}
 
 	t.traceBytes.Traces = append(t.traceBytes.Traces, trace)
+
+	if searchData != nil {
+		t.searchData = append(t.searchData, searchData)
+	}
 
 	return nil
 }

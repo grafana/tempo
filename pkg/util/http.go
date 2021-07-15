@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -23,7 +24,7 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 		return nil, fmt.Errorf("please provide a traceID")
 	}
 
-	byteID, err := hexStringToTraceID(traceID)
+	byteID, err := HexStringToTraceID(traceID)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +32,7 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 	return byteID, nil
 }
 
-func hexStringToTraceID(id string) ([]byte, error) {
+func HexStringToTraceID(id string) ([]byte, error) {
 	// the encoding/hex package does not like odd length strings.
 	// just append a bit here
 	if len(id)%2 == 1 {
@@ -52,4 +53,12 @@ func hexStringToTraceID(id string) ([]byte, error) {
 	}
 
 	return byteID, nil
+}
+
+// TraceIDToHexString converts a trace ID to its string representation and removes any leading zeros.
+func TraceIDToHexString(byteID []byte) string {
+	id := hex.EncodeToString(byteID)
+	// remove leading zeros
+	id = strings.TrimLeft(id, "0")
+	return id
 }

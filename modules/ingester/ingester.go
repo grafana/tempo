@@ -217,7 +217,14 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 
 	// Unmarshal and push each trace
 	for i := range req.Traces {
-		err := instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice)
+
+		// Search data is optional.
+		var searchData []byte
+		if len(req.SearchData) > i && len(req.SearchData[i].Slice) > 0 {
+			searchData = req.SearchData[i].Slice
+		}
+
+		err := instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice, searchData)
 		if err != nil {
 			return nil, err
 		}
@@ -382,4 +389,62 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 	}
 
 	return nil
+}
+
+func (i *Ingester) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		return &tempopb.SearchResponse{}, nil
+	}
+
+	traces, err := inst.Search(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tempopb.SearchResponse{
+		Traces: traces,
+	}, nil
+}
+
+func (i *Ingester) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		return &tempopb.SearchTagsResponse{}, nil
+	}
+
+	tags := inst.GetSearchTags()
+
+	resp := &tempopb.SearchTagsResponse{
+		TagNames: tags,
+	}
+
+	return resp, nil
+}
+
+func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		return &tempopb.SearchTagValuesResponse{}, nil
+	}
+
+	vals := inst.GetSearchTagValues(req.TagName)
+
+	resp := &tempopb.SearchTagValuesResponse{
+		TagValues: vals,
+	}
+
+	return resp, nil
 }
