@@ -1,8 +1,11 @@
 package wal
 
 import (
+	"bytes"
 	"context"
 	"time"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
 
 	"go.uber.org/atomic"
 
@@ -33,7 +36,12 @@ func NewLocalBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l 
 		writer:       backend.NewWriter(l),
 	}
 
-	flushedBytes, err := c.reader.Read(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID)
+	reader, size, err := c.reader.Read(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID, false)
+	if err != nil {
+		return nil, err
+	}
+
+	flushedBytes, err := tempo_io.ReadAllWithEstimate(reader, size)
 	if err == nil {
 		flushedTime := time.Time{}
 		err = flushedTime.UnmarshalText(flushedBytes)
@@ -66,7 +74,7 @@ func (c *LocalBlock) SetFlushed(ctx context.Context) error {
 		return errors.Wrap(err, "error marshalling flush time to text")
 	}
 
-	err = c.writer.Write(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID, flushedBytes)
+	err = c.writer.Write(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID, bytes.NewReader(flushedBytes), int64(len(flushedBytes)), false)
 	if err != nil {
 		return errors.Wrap(err, "error writing ingester block flushed file")
 	}

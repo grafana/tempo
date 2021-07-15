@@ -1,7 +1,6 @@
 package encoding
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -52,13 +51,13 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
 
-	bloomBytes, err := b.reader.Read(ctx, bloomName(shardKey), blockID, tenantID)
+	bloomReader, _, err := b.reader.Read(ctx, bloomName(shardKey), blockID, tenantID, backend.ShouldCache(backend.BloomName))
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
 	filter := &willf_bloom.BloomFilter{}
-	_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
+	_, err = filter.ReadFrom(bloomReader)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}

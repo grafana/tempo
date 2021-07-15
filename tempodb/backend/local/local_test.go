@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/grafana/tempo/pkg/io"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
+
+	"github.com/grafana/tempo/pkg/io"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

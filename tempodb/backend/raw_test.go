@@ -17,13 +17,9 @@ func TestWriter(t *testing.T) {
 
 	expected := []byte{0x01, 0x02, 0x03, 0x04}
 
-	err := w.Write(ctx, "test", uuid.New(), "test", expected)
+	err := w.Write(ctx, "test", uuid.New(), "test", bytes.NewReader(expected), int64(len(expected)),false)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, m.writeBuffer)
-
-	err = w.StreamWriter(ctx, "test", uuid.New(), "test", bytes.NewReader(expected), 0)
-	assert.NoError(t, err)
-	assert.Equal(t, expected, m.writeStreamBuffer)
 
 	_, err = w.Append(ctx, "test", uuid.New(), "test", nil, expected)
 	assert.NoError(t, err)

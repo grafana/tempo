@@ -17,6 +17,7 @@ const (
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
 	BlockIndexName    = "blockindex.json.gz"
+	BloomName         = "bloom"
 )
 
 // KeyPath is an ordered set of strings that govern where data is read/written from the backend
@@ -173,4 +174,8 @@ func CompactedMetaFileName(blockID uuid.UUID, tenantID string) string {
 // nolint:interfacer
 func RootPath(blockID uuid.UUID, tenantID string) string {
 	return path.Join(tenantID, blockID.String())
+}
+
+func ShouldCache(name string) bool {
+	return name != MetaName && name != CompactedMetaName && name != BlockIndexName
 }

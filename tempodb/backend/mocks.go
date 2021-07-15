@@ -1,7 +1,9 @@
 package backend
 
 import (
+	"bytes"
 	"context"
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"io"
 	"io/ioutil"
 
@@ -18,7 +20,7 @@ type MockRawReader struct {
 	ListFn func(ctx context.Context, keypath KeyPath) ([]string, error)
 	R      []byte // read
 	Range  []byte // ReadRange
-	ReadFn func(ctx context.Context, name string, keypath KeyPath) ([]byte, error)
+	ReadFn func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
 }
 
 func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, error) {
@@ -28,15 +30,12 @@ func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, er
 
 	return m.L, nil
 }
-func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath) ([]byte, error) {
+func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
 	if m.ReadFn != nil {
-		return m.ReadFn(ctx, name, keypath)
+		return m.ReadFn(ctx, name, keypath, shouldCache)
 	}
 
-	return m.R, nil
-}
-func (m *MockRawReader) StreamReader(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, int64, error) {
-	panic("StreamReader is not yet supported for mock reader")
+	return ioutil.NopCloser(bytes.NewReader(m.R)), int64(len(m.R)), nil
 }
 func (m *MockRawReader) ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte) error {
 	copy(buffer, m.Range)
@@ -53,13 +52,10 @@ type MockRawWriter struct {
 	closeAppendCalled bool
 }
 
-func (m *MockRawWriter) Write(ctx context.Context, name string, keypath KeyPath, buffer []byte) error {
-	m.writeBuffer = buffer
-	return nil
-}
-func (m *MockRawWriter) StreamWriter(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64) error {
-	m.writeStreamBuffer, _ = ioutil.ReadAll(data)
-	return nil
+func (m *MockRawWriter) Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, shouldCache bool) error {
+	var err error
+	m.writeBuffer, err = tempo_io.ReadAllWithEstimate(data, size)
+	return err
 }
 func (m *MockRawWriter) Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
 	m.appendBuffer = buffer
