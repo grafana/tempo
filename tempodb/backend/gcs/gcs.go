@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"path"
 	"strings"
@@ -59,13 +60,8 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 	return rw, rw, rw, nil
 }
 
-// Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
-	return rw.StreamWriter(ctx, name, keypath, bytes.NewBuffer(buffer), int64(len(buffer)))
-}
-
 // StreamWriter implements backend.Writer
-func (rw *readerWriter) StreamWriter(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
+func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
 	w := rw.writer(ctx, backend.ObjectFileName(keypath, name))
 	_, err := io.Copy(w, data)
 	if err != nil {
@@ -133,21 +129,17 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 }
 
 // Read implements backend.Reader
-func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
+func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Read")
 	defer span.Finish()
 
 	span.SetTag("object", name)
 
-	bytes, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
+	b, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
 	if err != nil {
 		span.SetTag("error", true)
 	}
-	return bytes, readError(err)
-}
-
-func (rw *readerWriter) StreamReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
-	panic("StreamReader is not yet supported for GCS backend")
+	return ioutil.NopCloser(bytes.NewReader(b)), int64(len(b)), readError(err)
 }
 
 // ReadRange implements backend.Reader
