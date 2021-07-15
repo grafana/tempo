@@ -20,11 +20,11 @@ services:
       - MINIO_ACCESS_KEY=tempo
       - MINIO_SECRET_KEY=supersecret
     ports:
-      - "9000:9000"
+      - "9001:9001"
     entrypoint:
       - sh
       - -euc
-      - mkdir -p /data/tempo && /usr/bin/minio server /data
+      - mkdir -p /data/tempo && /usr/bin/minio server /data --console-address ':9001'
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
