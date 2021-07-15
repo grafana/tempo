@@ -3,17 +3,14 @@ services:
 
   tempo:
     image: grafana/tempo:latest
-    # command: [ "-config.file=/etc/tempo.yaml" ]
+    command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
       - ./tempo-s3.yaml:/etc/tempo.yaml
       - ./tempo-data:/tmp/tempo
     ports:
       - "14268"      # jaeger
       - "3200:3200"  # tempo
-    entrypoint:
-      - sh
-      - -euc
-      - sleep 5 && /tempo -config.file=/etc/tempo.yaml
+    restart: on-failure
     depends_on:
       - minio
 
