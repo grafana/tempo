@@ -1,7 +1,9 @@
 package cache
 
 import (
+	"bytes"
 	"context"
+	"io/ioutil"
 	"testing"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
@@ -87,19 +89,22 @@ func TestReadWrite(t *testing.T) {
 			r, _, _ := NewCache(mockR, mockW, NewMockClient())
 
 			ctx := context.Background()
-			read, _ := r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			reader, _, _ := r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			read, _ := ioutil.ReadAll(reader)
 			assert.Equal(t, tt.expectedRead, read)
 
 			// clear reader and re-request
 			mockR.R = nil
 
-			read, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			read, _ = ioutil.ReadAll(reader)
 			assert.Equal(t, tt.expectedCache, read)
 
 			// WRITE
 			_, w, _ := NewCache(mockR, mockW, NewMockClient())
-			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.readerRead)
-			read, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(tt.readerRead), int64(len(tt.readerRead)))
+			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			read, _ = ioutil.ReadAll(reader)
 			assert.Equal(t, tt.expectedCache, read)
 		})
 	}
