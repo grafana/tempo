@@ -364,6 +364,14 @@ storage:
         # Example: "cache: memcached"
         [cache: <string>]
 
+        # Min compaction level of block to qualify for caching bloom filter
+        # Example: "cache_min_compaction_level: 2"
+        [cache_min_compaction_level: <int>]
+
+        # Max block age to qualify for caching bloom filter
+        # Example: "cache_max_block_age: 48h"
+        [cache_max_block_age: <duration>]
+
         # Cortex Background cache configuration. Requires having a cache configured.
         background_cache:
 
