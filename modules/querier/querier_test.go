@@ -66,15 +66,14 @@ func TestReturnAllHits(t *testing.T) {
 		},
 		BlocklistPoll: 50 * time.Millisecond,
 	}, log.NewNopLogger())
-	assert.NoError(t, err, "unexpected error creating tempodb")
+	require.NoError(t, err, "unexpected error creating tempodb")
 
 	wal := w.WAL()
-	assert.NoError(t, err)
 
 	blockCount := 2
 	testTraceID := make([]byte, 16)
 	_, err = rand.Read(testTraceID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// keep track of traces sent
 	testTraces := make([]*tempopb.Trace, 0, blockCount)

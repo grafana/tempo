@@ -67,7 +67,7 @@ func (rw *readerWriter) compactionLoop() {
 }
 
 func (rw *readerWriter) doCompaction() {
-	tenants := rw.blocklistTenants()
+	tenants := rw.blocklist.Tenants()
 	if len(tenants) == 0 {
 		return
 	}
@@ -78,7 +78,7 @@ func (rw *readerWriter) doCompaction() {
 	rw.compactorTenantOffset = (rw.compactorTenantOffset + 1) % uint(len(tenants))
 
 	tenantID := tenants[rw.compactorTenantOffset].(string)
-	blocklist := rw.blocklist(tenantID)
+	blocklist := rw.blocklist.Metas(tenantID)
 
 	blockSelector := newTimeWindowBlockSelector(blocklist,
 		rw.compactorCfg.MaxCompactionRange,
@@ -301,7 +301,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.Block
 	}
 
 	// Update blocklist in memory
-	rw.updateBlocklist(tenantID, newBlocks, oldBlocks, newCompactions)
+	rw.blocklist.Update(tenantID, newBlocks, oldBlocks, newCompactions)
 }
 
 type instrumentedObjectCombiner struct {

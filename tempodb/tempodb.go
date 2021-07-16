@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -109,10 +108,8 @@ type readerWriter struct {
 	logger log.Logger
 	cfg    *Config
 
-	blockListsMtx       sync.Mutex
-	blockLists          blocklist.PerTenant
-	compactedBlockLists blocklist.PerTenantCompacted
-	blocklistPoller     *blocklist.Poller
+	blocklistPoller *blocklist.Poller
+	blocklist       *blocklist.List
 
 	compactorCfg          *CompactorConfig
 	compactorSharder      CompactorSharder
@@ -167,14 +164,13 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
-		c:                   c,
-		r:                   r,
-		w:                   w,
-		cfg:                 cfg,
-		logger:              logger,
-		pool:                pool.NewPool(cfg.Pool),
-		blockLists:          make(blocklist.PerTenant),
-		compactedBlockLists: make(blocklist.PerTenantCompacted),
+		c:         c,
+		r:         r,
+		w:         w,
+		cfg:       cfg,
+		logger:    logger,
+		pool:      pool.NewPool(cfg.Pool),
+		blocklist: blocklist.New(),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -282,8 +278,9 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, nil, err
 	}
 
-	rw.blockListsMtx.Lock()
-	blocklist, found := rw.blockLists[tenantID]
+	// gather appropriate blocks
+	blocklist := rw.blocklist.Metas(tenantID)
+	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
 
 	for _, b := range blocklist {
@@ -291,17 +288,12 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 			copiedBlocklist = append(copiedBlocklist, b)
 		}
 	}
-
-	compactedBlocklist := rw.compactedBlockLists[tenantID]
 	for _, c := range compactedBlocklist {
 		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 		}
 	}
-	rw.blockListsMtx.Unlock()
-
-	// deliberately placed outside the blocklist mtx unlock
-	if !found {
+	if len(copiedBlocklist) == 0 {
 		return nil, nil, nil
 	}
 
@@ -347,7 +339,7 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	rw.compactorOverrides = overrides
 
 	if rw.cfg.BlocklistPoll == 0 {
-		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  compaction and retention disabled.")
+		level.Info(rw.logger).Log("msg", "polling cycle unset. compaction and retention disabled")
 		return
 	}
 
@@ -358,10 +350,16 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	}
 }
 
-func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) {
+func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) { // jpe all in one has an EnablePolling race condition
+	if rw.cfg.BlocklistPoll == 0 {
+		rw.cfg.BlocklistPoll = DefaultBlocklistPoll
+	}
+
 	if rw.cfg.BlocklistPollConcurrency == 0 {
 		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
 	}
+
+	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "concurrency", rw.cfg.BlocklistPollConcurrency)
 
 	blocklistPoller := blocklist.NewPoller(rw.cfg.BlocklistPollConcurrency,
 		true, // jpe do thing
@@ -377,11 +375,6 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) {
 }
 
 func (rw *readerWriter) pollingLoop() {
-	if rw.cfg.BlocklistPoll == 0 {
-		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  blocklist polling disabled.")
-		return
-	}
-
 	rw.pollBlocklist()
 
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
@@ -398,86 +391,7 @@ func (rw *readerWriter) pollBlocklist() {
 		return
 	}
 
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	rw.blockLists = blocklist
-	rw.compactedBlockLists = compactedBlocklist
-}
-
-func (rw *readerWriter) blocklistTenants() []interface{} {
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	tenants := make([]interface{}, 0, len(rw.blockLists))
-	for tenant := range rw.blockLists {
-		tenants = append(tenants, tenant)
-	}
-
-	return tenants
-}
-
-func (rw *readerWriter) blocklist(tenantID string) []*backend.BlockMeta {
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	if tenantID == "" {
-		return nil
-	}
-
-	copiedBlocklist := make([]*backend.BlockMeta, 0, len(rw.blockLists[tenantID]))
-	copiedBlocklist = append(copiedBlocklist, rw.blockLists[tenantID]...)
-	return copiedBlocklist
-}
-
-// todo:  make separate compacted list mutex?
-func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.CompactedBlockMeta {
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	if tenantID == "" {
-		return nil
-	}
-
-	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(rw.compactedBlockLists[tenantID]))
-	copiedBlocklist = append(copiedBlocklist, rw.compactedBlockLists[tenantID]...)
-
-	return copiedBlocklist
-}
-
-// updateBlocklist Add and remove regular or compacted blocks from the in-memory blocklist.
-// Changes are temporary and will be overwritten on the next poll.
-func (rw *readerWriter) updateBlocklist(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta) {
-	if tenantID == "" {
-		return
-	}
-
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	// ******** Regular blocks ********
-	blocklist := rw.blockLists[tenantID]
-
-	matchedRemovals := make(map[uuid.UUID]struct{})
-	for _, b := range blocklist {
-		for _, rem := range remove {
-			if b.BlockID == rem.BlockID {
-				matchedRemovals[rem.BlockID] = struct{}{}
-			}
-		}
-	}
-
-	newblocklist := make([]*backend.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
-	for _, b := range blocklist {
-		if _, ok := matchedRemovals[b.BlockID]; !ok {
-			newblocklist = append(newblocklist, b)
-		}
-	}
-	newblocklist = append(newblocklist, add...)
-	rw.blockLists[tenantID] = newblocklist
-
-	// ******** Compacted blocks ********
-	rw.compactedBlockLists[tenantID] = append(rw.compactedBlockLists[tenantID], compactedAdd...)
+	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
 }
 
 // includeBlock indicates whether a given block should be included in a backend search

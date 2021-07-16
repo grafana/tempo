@@ -18,7 +18,7 @@ func (rw *readerWriter) retentionLoop() {
 }
 
 func (rw *readerWriter) doRetention() {
-	tenants := rw.blocklistTenants()
+	tenants := rw.blocklist.Tenants()
 
 	bg := boundedwaitgroup.New(rw.compactorCfg.RetentionConcurrency)
 
@@ -46,7 +46,7 @@ func (rw *readerWriter) retainTenant(tenantID string) {
 
 	// iterate through block list.  make compacted anything that is past retention.
 	cutoff := time.Now().Add(-retention)
-	blocklist := rw.blocklist(tenantID)
+	blocklist := rw.blocklist.Metas(tenantID)
 	for _, b := range blocklist {
 		if b.EndTime.Before(cutoff) && rw.compactorSharder.Owns(b.BlockID.String()) {
 			level.Info(rw.logger).Log("msg", "marking block for deletion", "blockID", b.BlockID, "tenantID", tenantID)
@@ -62,7 +62,7 @@ func (rw *readerWriter) retainTenant(tenantID string) {
 
 	// iterate through compacted list looking for blocks ready to be cleared
 	cutoff = time.Now().Add(-rw.compactorCfg.CompactedBlockRetention)
-	compactedBlocklist := rw.compactedBlocklist(tenantID)
+	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
 	for _, b := range compactedBlocklist {
 		if b.CompactedTime.Before(cutoff) && rw.compactorSharder.Owns(b.BlockID.String()) {
 			level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)

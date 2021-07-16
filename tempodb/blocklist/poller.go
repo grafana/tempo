@@ -34,12 +34,6 @@ var (
 	}, []string{"tenant"})
 )
 
-// PerTenant is a map of tenant ids to backend.BlockMetas
-type PerTenant map[string][]*backend.BlockMeta
-
-// PerTenantCompacted is a map of tenant ids to backend.CompactedBlockMetas
-type PerTenantCompacted map[string][]*backend.CompactedBlockMeta
-
 // PollerSharder is used to determine if this node should build the blocklist index or just pull it
 //  jpe rename? combine with others?
 type PollerSharder interface {

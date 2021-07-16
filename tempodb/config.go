@@ -17,8 +17,11 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-const DefaultBlocklistPollConcurrency = uint(50)
-const DefaultRetentionConcurrency = uint(10)
+const (
+	DefaultBlocklistPoll            = 5 * time.Minute
+	DefaultBlocklistPollConcurrency = uint(50)
+	DefaultRetentionConcurrency     = uint(10)
+)
 
 // Config holds the entirety of tempodb configuration
 type Config struct {

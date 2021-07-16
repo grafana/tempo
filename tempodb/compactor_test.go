@@ -32,6 +32,10 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
+type mockPollerSharder struct{}
+
+func (m *mockPollerSharder) BuildTenantIndex() bool { return true }
+
 func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
 	if len(objA) > len(objB) {
 		return objA, true
@@ -82,6 +86,8 @@ func TestCompaction(t *testing.T) {
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+
+	r.EnablePolling(&mockPollerSharder{})
 
 	wal := w.WAL()
 	assert.NoError(t, err)
@@ -134,7 +140,7 @@ func TestCompaction(t *testing.T) {
 
 	rw.pollBlocklist()
 
-	blocklist := rw.blocklist(testTenantID)
+	blocklist := rw.blocklist.Metas(testTenantID)
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
 
 	expectedCompactions := len(blocklist) / inputBlocks
@@ -159,7 +165,7 @@ func TestCompaction(t *testing.T) {
 
 	// do we have the right number of records
 	var records int
-	for _, meta := range rw.blockLists[testTenantID] {
+	for _, meta := range rw.blocklist.Metas(testTenantID) {
 		records += meta.TotalObjects
 	}
 	assert.Equal(t, blockCount*recordCount, records)
@@ -212,6 +218,8 @@ func TestSameIDCompaction(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
+	r.EnablePolling(&mockPollerSharder{})
+
 	wal := w.WAL()
 	assert.NoError(t, err)
 
@@ -243,7 +251,7 @@ func TestSameIDCompaction(t *testing.T) {
 	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
 
 	var blocks []*backend.BlockMeta
-	blocklist := rw.blocklist(testTenantID)
+	blocklist := rw.blocklist.Metas(testTenantID)
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
 	blocks, _ = blockSelector.BlocksToCompact()
 	assert.Len(t, blocks, inputBlocks)
@@ -255,7 +263,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 	// do we have the right number of records
 	var records int
-	for _, meta := range rw.blockLists[testTenantID] {
+	for _, meta := range rw.blocklist.Metas(testTenantID) {
 		records += meta.TotalObjects
 	}
 	assert.Equal(t, blockCount-blocksPerCompaction, records)
@@ -300,6 +308,8 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
+	r.EnablePolling(&mockPollerSharder{})
+
 	// Cut x blocks with y records each
 	blockCount := 5
 	recordCount := 1
@@ -309,17 +319,17 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(rw.blocklist(testTenantID), testTenantID)
+	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
 	assert.NoError(t, err)
 
 	// New blocklist contains 1 compacted block with everything
-	blocks := rw.blocklist(testTenantID)
+	blocks := rw.blocklist.Metas(testTenantID)
 	assert.Equal(t, 1, len(blocks))
 	assert.Equal(t, uint8(1), blocks[0].CompactionLevel)
 	assert.Equal(t, blockCount*recordCount, blocks[0].TotalObjects)
 
 	// Compacted list contains all old blocks
-	assert.Equal(t, blockCount, len(rw.compactedBlocklist(testTenantID)))
+	assert.Equal(t, blockCount, len(rw.blocklist.CompactedMetas(testTenantID)))
 
 	// Make sure all expected traces are found.
 	for i := 0; i < blockCount; i++ {
@@ -367,6 +377,8 @@ func TestCompactionMetrics(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
+	r.EnablePolling(&mockPollerSharder{})
+
 	// Cut x blocks with y records each
 	blockCount := 5
 	recordCount := 1
@@ -386,7 +398,7 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// compact everything
-	err = rw.compact(rw.blocklist(testTenantID), testTenantID)
+	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
 	assert.NoError(t, err)
 
 	// Check metric
@@ -440,6 +452,8 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
+	r.EnablePolling(&mockPollerSharder{})
+
 	// Cut blocks for multiple tenants
 	cutTestBlocks(t, w, testTenantID, 2, 2)
 	cutTestBlocks(t, w, testTenantID2, 2, 2)
@@ -447,19 +461,19 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	rw := r.(*readerWriter)
 	rw.pollBlocklist()
 
-	assert.Equal(t, 2, len(rw.blockLists[testTenantID]))
-	assert.Equal(t, 2, len(rw.blockLists[testTenantID2]))
+	assert.Equal(t, 2, len(rw.blocklist.Metas(testTenantID)))
+	assert.Equal(t, 2, len(rw.blocklist.Metas(testTenantID2)))
 
 	// Verify that tenant 2 compacted, tenant 1 is not
 	// Compaction starts at index 1 for simplicity
 	rw.doCompaction()
-	assert.Equal(t, 2, len(rw.blockLists[testTenantID]))
-	assert.Equal(t, 1, len(rw.blockLists[testTenantID2]))
+	assert.Equal(t, 2, len(rw.blocklist.Metas(testTenantID)))
+	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 
 	// Verify both tenants compacted after second run
 	rw.doCompaction()
-	assert.Equal(t, 1, len(rw.blockLists[testTenantID]))
-	assert.Equal(t, 1, len(rw.blockLists[testTenantID2]))
+	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID)))
+	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 }
 
 func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []*encoding.BackendBlock {
