@@ -70,7 +70,7 @@ func TestReadWrite(t *testing.T) {
 		},
 		{
 			name:         "block index",
-			readerName:   "blockindex.json.gz",
+			readerName:   "index.json.gz",
 			readerRead:   []byte{0x02},
 			expectedRead: []byte{0x02},
 		},
