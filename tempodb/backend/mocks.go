@@ -3,9 +3,10 @@ package backend
 import (
 	"bytes"
 	"context"
-	tempo_io "github.com/grafana/tempo/pkg/io"
 	"io"
 	"io/ioutil"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
 
 	"github.com/google/uuid"
 )
@@ -20,7 +21,7 @@ type MockRawReader struct {
 	ListFn func(ctx context.Context, keypath KeyPath) ([]string, error)
 	R      []byte // read
 	Range  []byte // ReadRange
-	ReadFn func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
+	ReadFn func(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, int64, error)
 }
 
 func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, error) {
@@ -30,9 +31,9 @@ func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, er
 
 	return m.L, nil
 }
-func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
+func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, int64, error) {
 	if m.ReadFn != nil {
-		return m.ReadFn(ctx, name, keypath, shouldCache)
+		return m.ReadFn(ctx, name, keypath)
 	}
 
 	return ioutil.NopCloser(bytes.NewReader(m.R)), int64(len(m.R)), nil
@@ -47,12 +48,11 @@ func (m *MockRawReader) Shutdown() {}
 // MockRawWriter
 type MockRawWriter struct {
 	writeBuffer       []byte
-	writeStreamBuffer []byte
 	appendBuffer      []byte
 	closeAppendCalled bool
 }
 
-func (m *MockRawWriter) Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, shouldCache bool) error {
+func (m *MockRawWriter) Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64) error {
 	var err error
 	m.writeBuffer, err = tempo_io.ReadAllWithEstimate(data, size)
 	return err

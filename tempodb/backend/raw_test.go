@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"testing"
@@ -17,7 +16,7 @@ func TestWriter(t *testing.T) {
 
 	expected := []byte{0x01, 0x02, 0x03, 0x04}
 
-	err := w.Write(ctx, "test", uuid.New(), "test", bytes.NewReader(expected), int64(len(expected)),false)
+	err := w.Write(ctx, "test", uuid.New(), "test", expected)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, m.writeBuffer)
 
