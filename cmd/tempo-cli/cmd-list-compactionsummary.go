@@ -57,11 +57,6 @@ func displayCompactionSummary(results []blockStats) {
 	columns := []string{"lvl", "blocks", "total", "smallest block", "largest block", "earliest", "latest", "bloom shard count"}
 
 	out := make([][]string, 0)
-	bloomTable := make([][]int, 7)
-	for i := range bloomTable {
-		bloomTable[i] = make([]int, 15)
-	}
-
 	for _, l := range levels {
 		sizeSum := uint64(0)
 		sizeMin := uint64(0)
@@ -77,14 +72,6 @@ func displayCompactionSummary(results []blockStats) {
 			sizeSum += r.Size
 			countSum += r.TotalObjects
 			countBloomShards += int(r.BloomShardCount)
-
-			row := r.CompactionLevel
-			column := -1 * (int(r.StartTime.Sub(time.Now()) / (time.Hour * 24)))
-			if row <= 6 && column <= 14 {
-				bloomTable[row][column] += int(r.BloomShardCount)
-			} else {
-				fmt.Println("something wrong with calculating row / column", row, column)
-			}
 
 			if r.Size < sizeMin || sizeMin == 0 {
 				sizeMin = r.Size
@@ -131,11 +118,6 @@ func displayCompactionSummary(results []blockStats) {
 			line = append(line, s)
 		}
 		out = append(out, line)
-	}
-
-	fmt.Println()
-	for _, row := range bloomTable {
-		fmt.Println(row)
 	}
 
 	fmt.Println()
