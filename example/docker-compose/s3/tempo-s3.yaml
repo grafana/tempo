@@ -49,5 +49,5 @@ storage:
       # endpoint: s3.dualstack.us-west-2.amazonaws.com
       # region: us-west-2
     pool:
-      max_workers: 100                 # the worker pool mainly drives querying, but is also used for polling the blocklist
+      max_workers: 100                 # the worker pool is used for querying
       queue_depth: 10000

@@ -44,5 +44,5 @@ storage:
       endpoint: https://gcs:4443/storage/v1/
       insecure: true
     pool:
-      max_workers: 100                 # the worker pool mainly drives querying, but is also used for polling the blocklist
+      max_workers: 100                 # the worker pool is used for querying
       queue_depth: 10000
