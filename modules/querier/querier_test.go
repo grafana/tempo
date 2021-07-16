@@ -68,6 +68,8 @@ func TestReturnAllHits(t *testing.T) {
 	}, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error creating tempodb")
 
+	r.EnablePolling(&Querier{})
+
 	wal := w.WAL()
 
 	blockCount := 2
