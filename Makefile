@@ -120,7 +120,7 @@ endif
 
 ### Dependencies
 DOCKER_PROTOBUF ?= otel/build-protobuf:0.2.1
-PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
+PROTOC = docker run --rm -u ${shell id -u} -v"${PWD}":"${PWD}" -w"${PWD}" ${DOCKER_PROTOBUF} --proto_path=./
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
 PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
 PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
