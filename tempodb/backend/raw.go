@@ -26,7 +26,7 @@ type KeyPath []string
 // RawWriter is a collection of methods to write data to tempodb backends
 type RawWriter interface {
 	// Write is for in memory data.  It is expected that this data will be cached.
-	Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, shouldCache bool) error
+	Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
 	Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error)
 	// Closes any resources associated with the AppendTracker
@@ -38,7 +38,7 @@ type RawReader interface {
 	// List returns all objects one level beneath the provided keypath
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
 	// Read is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
-	Read(ctx context.Context, name string, keyPath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
+	Read(ctx context.Context, name string, keyPath KeyPath) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.  It is expected this will _not_ be cached.
 	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte) error
 	// Shutdown must be called when the Reader is finished and cleans up any associated resources.
@@ -56,8 +56,12 @@ func NewWriter(w RawWriter) Writer {
 	}
 }
 
-func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64, shouldCache bool) error {
-	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), data, size, shouldCache)
+func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
+	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), bytes.NewReader(buffer), int64(len(buffer)))
+}
+
+func (w *writer) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), data, size)
 }
 
 func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
@@ -69,7 +73,7 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 		return err
 	}
 
-	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), false)
+	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)))
 }
 
 func (w *writer) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
@@ -91,8 +95,16 @@ func NewReader(r RawReader) Reader {
 	}
 }
 
-func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) (io.ReadCloser, int64, error) {
-	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), shouldCache)
+func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+	objReader, size, err := r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID))
+	if err != nil {
+		return nil, err
+	}
+	return tempo_io.ReadAllWithEstimate(objReader, size)
+}
+
+func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID))
 }
 
 func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
@@ -126,7 +138,7 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, erro
 }
 
 func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
-	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), false)
+	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID))
 	if err != nil {
 		return nil, err
 	}
@@ -174,8 +186,4 @@ func CompactedMetaFileName(blockID uuid.UUID, tenantID string) string {
 // nolint:interfacer
 func RootPath(blockID uuid.UUID, tenantID string) string {
 	return path.Join(tenantID, blockID.String())
-}
-
-func ShouldCache(name string) bool {
-	return name != MetaName && name != CompactedMetaName && name != BlockIndexName
 }

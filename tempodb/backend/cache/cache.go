@@ -35,9 +35,9 @@ func (r *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]str
 }
 
 // Read implements backend.RawReader
-func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
+func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
 	var k string
-	if shouldCache {
+	if shouldCache(name) {
 		k = key(keypath, name)
 		found, vals, _ := r.cache.Fetch(ctx, []string{k})
 		if len(found) > 0 {
@@ -45,13 +45,13 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 		}
 	}
 
-	object, size, err := r.nextReader.Read(ctx, name, keypath, false)
+	object, size, err := r.nextReader.Read(ctx, name, keypath)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	b, err := tempo_io.ReadAllWithEstimate(object, size)
-	if err == nil && shouldCache {
+	if err == nil && shouldCache(name) {
 		r.cache.Store(ctx, []string{k}, [][]byte{b})
 	}
 
@@ -70,16 +70,16 @@ func (r *readerWriter) Shutdown() {
 }
 
 // Write implements backend.Writer
-func (r *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, shouldCache bool) error {
+func (r *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64) error {
 	b, err := tempo_io.ReadAllWithEstimate(data, size)
 	if err != nil {
 		return err
 	}
 
-	if shouldCache {
+	if shouldCache(name) {
 		r.cache.Store(ctx, []string{key(keypath, name)}, [][]byte{b})
 	}
-	return r.nextWriter.Write(ctx, name, keypath, bytes.NewReader(b), int64(len(b)), false)
+	return r.nextWriter.Write(ctx, name, keypath, bytes.NewReader(b), int64(len(b)))
 }
 
 // Append implements backend.Writer
@@ -94,4 +94,8 @@ func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTr
 
 func key(keypath backend.KeyPath, name string) string {
 	return strings.Join(keypath, ":") + ":" + name
+}
+
+func shouldCache(name string) bool {
+	return name != backend.MetaName && name != backend.CompactedMetaName && name != backend.BlockIndexName
 }
