@@ -21,6 +21,7 @@ const DefaultBlocklistPollConcurrency = uint(50)
 const DefaultRetentionConcurrency = uint(10)
 
 // Config holds the entirety of tempodb configuration
+// Defaults are in modules/storage/config.go
 type Config struct {
 	Pool  *pool.Config          `yaml:"pool,omitempty"`
 	WAL   *wal.Config           `yaml:"wal"`
@@ -37,10 +38,12 @@ type Config struct {
 	Azure   *azure.Config `yaml:"azure"`
 
 	// caches
-	Cache           string                         `yaml:"cache"`
-	BackgroundCache *cortex_cache.BackgroundConfig `yaml:"background_cache"`
-	Memcached       *memcached.Config              `yaml:"memcached"`
-	Redis           *redis.Config                  `yaml:"redis"`
+	Cache                   string                         `yaml:"cache"`
+	CacheMinCompactionLevel uint8                          `yaml:"cache_min_compaction_level"`
+	CacheMaxBlockAge        time.Duration                  `yaml:"cache_max_block_age"`
+	BackgroundCache         *cortex_cache.BackgroundConfig `yaml:"background_cache"`
+	Memcached               *memcached.Config              `yaml:"memcached"`
+	Redis                   *redis.Config                  `yaml:"redis"`
 }
 
 // CompactorConfig contains compaction configuration options
