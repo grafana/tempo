@@ -108,9 +108,9 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 	// pull bucket index? or poll everything?
 	if !p.sharder.BuildTenantIndex() {
 		// jpe gauge metric: IS POLLING BUCKET INDEX create alarm if gauge == 0
-
 		meta, compactedMeta, err := p.reader.TenantIndex(ctx, tenantID)
 		if err == nil {
+			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "metas", len(meta), "compactedMetas", len(compactedMeta))
 			return meta, compactedMeta, nil
 		}
 
@@ -175,6 +175,7 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 	})
 
 	// everything is happy, write this tenant index
+	level.Info(p.logger).Log("msg", "writing tenant index", "tenant", tenantID, "metas", len(newBlockList), "compactedMetas", len(newCompactedBlocklist))
 	err = p.writer.WriteTenantIndex(ctx, tenantID, newBlockList, newCompactedBlocklist)
 	if err != nil {
 		// jpe metric, new metric?
