@@ -27,7 +27,20 @@
   "graphTooltip": 1,
   "id": 152,
   "iteration": 1625468849630,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [
+        "tempo"
+      ],
+      "targetBlank": false,
+      "title": "Tempo Dashboards",
+      "type": "dashboards"
+    }
+  ],
   "panels": [
     {
       "collapsed": false,
@@ -4567,7 +4580,7 @@
   "refresh": "",
   "schemaVersion": 30,
   "style": "dark",
-  "tags": [],
+  "tags": ["tempo"],
   "templating": {
     "list": [
       {

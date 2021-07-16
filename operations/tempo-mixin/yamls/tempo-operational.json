@@ -30,7 +30,18 @@
  "id": 152,
  "iteration": 1625468849630,
  "links": [
-
+  {
+   "asDropdown": true,
+   "icon": "external link",
+   "includeVars": true,
+   "keepTime": true,
+   "tags": [
+    "tempo"
+   ],
+   "targetBlank": false,
+   "title": "Tempo Dashboards",
+   "type": "dashboards"
+  }
  ],
  "panels": [
   {
@@ -5132,7 +5143,7 @@
  "schemaVersion": 30,
  "style": "dark",
  "tags": [
-
+  "tempo"
  ],
  "templating": {
   "list": [
