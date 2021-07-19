@@ -52,11 +52,11 @@ func TestReadWrite(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range tenantIDs {
 		fakeMeta.TenantID = id
-		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)))
+		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), false)
 		assert.NoError(t, err, "unexpected error writing")
 	}
 
-	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]))
+	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), false)
 	assert.NoError(t, err, "unexpected error reading")
 	actualObjectBytes, err := io.ReadAllWithEstimate(actualObject, size)
 	assert.NoError(t, err, "unexpected error reading")

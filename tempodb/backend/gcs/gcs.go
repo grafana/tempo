@@ -61,7 +61,7 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 }
 
 // StreamWriter implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
+func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
 	w := rw.writer(ctx, backend.ObjectFileName(keypath, name))
 	_, err := io.Copy(w, data)
 	if err != nil {
@@ -129,7 +129,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 }
 
 // Read implements backend.Reader
-func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
+func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Read")
 	defer span.Finish()
 

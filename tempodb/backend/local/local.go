@@ -38,7 +38,7 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 }
 
 // Write implements backend.Writer
-func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
+func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
 	blockFolder := rw.rootPath(keypath)
 	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
@@ -116,7 +116,7 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 }
 
 // Read implements backend.Reader
-func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
+func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	filename := rw.objectFileName(keypath, name)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)

@@ -57,12 +57,12 @@ func TestHedge(t *testing.T) {
 
 			// the first call on each client initiates an extra http request
 			// clearing that here
-			_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"))
+			_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), false)
 			time.Sleep(tc.returnIn)
 			atomic.StoreInt32(&count, 0)
 
 			// calls that should hedge
-			_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"))
+			_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), false)
 			time.Sleep(tc.returnIn)
 			assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count)) // *2 b/c reads execute a HEAD and GET
 			atomic.StoreInt32(&count, 0)
@@ -78,7 +78,7 @@ func TestHedge(t *testing.T) {
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), bytes.NewReader(make([]byte, 10)), 10)
+			_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), bytes.NewReader(make([]byte, 10)), 10, false)
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 		})
