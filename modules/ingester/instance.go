@@ -453,7 +453,7 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file
-	f, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, "searchdata")
+	f, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir, "searchdata")
 	if err != nil {
 		return err
 	}
@@ -548,11 +548,11 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 			return err
 		}
 
-		sb := search.OpenBackendSearchBlock(i.local, b.BlockMeta().BlockID, b.BlockMeta().TenantID)
+		//sb := search.OpenBackendSearchBlock(i.local, b.BlockMeta().BlockID, b.BlockMeta().TenantID)
 
 		i.blocksMtx.Lock()
 		i.completeBlocks = append(i.completeBlocks, ib)
-		i.searchCompleteBlocks[ib] = sb
+		//i.searchCompleteBlocks[ib] = sb
 		i.blocksMtx.Unlock()
 
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())

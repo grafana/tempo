@@ -32,6 +32,8 @@ import (
 // attempted.
 var ErrReadOnly = errors.New("Ingester is shutting down")
 
+var searchDir = "search"
+
 var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "tempo",
 	Name:      "ingester_flush_queue_length",
@@ -105,6 +107,9 @@ func (i *Ingester) starting(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to rediscover local blocks %w", err)
 	}
+
+	// Search data is considered experimental and removed on every startup.
+	i.clearSearchData()
 
 	// Now that user states have been created, we can start the lifecycler.
 	// Important: we want to keep lifecycler running until we ask it to stop, so we need to give it independent context
@@ -447,4 +452,12 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 	}
 
 	return resp, nil
+}
+
+func (i *Ingester) clearSearchData() {
+	// clear wal
+	err := i.store.WAL().ClearFolder(searchDir)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "error clearing search data from wal")
+	}
 }

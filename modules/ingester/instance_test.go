@@ -604,9 +604,8 @@ func TestInstanceSearch(t *testing.T) {
 
 	traceMetas, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	// note: this currently passes even though WAL replay is not implemented, only because traces are in completeblocks
-	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, traceMetas)
+	// note: search is experimental and removed on every startup. Verify no search results now
+	assert.Len(t, traceMetas, 0)
 }
 
 func checkEqual(t *testing.T, ids [][]byte, traceMetas []*tempopb.TraceSearchMetadata) {
