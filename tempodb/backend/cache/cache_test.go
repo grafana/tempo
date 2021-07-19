@@ -89,23 +89,23 @@ func TestReadWrite(t *testing.T) {
 			r, _, _ := NewCache(mockR, mockW, NewMockClient())
 
 			ctx := context.Background()
-			reader, _, _ := r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			reader, _, _ := r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), backend.ShouldCache(tt.readerName))
 			read, _ := ioutil.ReadAll(reader)
 			assert.Equal(t, tt.expectedRead, read)
 
 			// clear reader and re-request
 			mockR.R = nil
 
-			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), backend.ShouldCache(tt.readerName))
 			read, _ = ioutil.ReadAll(reader)
-			assert.Equal(t, tt.expectedCache, read)
+			assert.Equal(t, len(tt.expectedCache), len(read))
 
 			// WRITE
 			_, w, _ := NewCache(mockR, mockW, NewMockClient())
-			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(tt.readerRead), int64(len(tt.readerRead)))
-			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(tt.readerRead), int64(len(tt.readerRead)), backend.ShouldCache(tt.readerName))
+			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), backend.ShouldCache(tt.readerName))
 			read, _ = ioutil.ReadAll(reader)
-			assert.Equal(t, tt.expectedCache, read)
+			assert.Equal(t, len(tt.expectedCache), len(read))
 		})
 	}
 }

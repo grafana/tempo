@@ -21,7 +21,7 @@ type MockRawReader struct {
 	ListFn func(ctx context.Context, keypath KeyPath) ([]string, error)
 	R      []byte // read
 	Range  []byte // ReadRange
-	ReadFn func(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, int64, error)
+	ReadFn func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
 }
 
 func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, error) {
@@ -31,9 +31,9 @@ func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, er
 
 	return m.L, nil
 }
-func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, int64, error) {
+func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
 	if m.ReadFn != nil {
-		return m.ReadFn(ctx, name, keypath)
+		return m.ReadFn(ctx, name, keypath, shouldCache)
 	}
 
 	return ioutil.NopCloser(bytes.NewReader(m.R)), int64(len(m.R)), nil
@@ -52,7 +52,7 @@ type MockRawWriter struct {
 	closeAppendCalled bool
 }
 
-func (m *MockRawWriter) Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64) error {
+func (m *MockRawWriter) Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, shouldCache bool) error {
 	var err error
 	m.writeBuffer, err = tempo_io.ReadAllWithEstimate(data, size)
 	return err
@@ -112,7 +112,7 @@ func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID 
 
 	return m.M, nil
 }
-func (m *MockReader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
+func (m *MockReader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error) {
 	if m.ReadFn != nil {
 		return m.ReadFn(name, blockID, tenantID)
 	}

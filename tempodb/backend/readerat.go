@@ -41,7 +41,7 @@ func (b *backendReader) ReadAt(ctx context.Context, p []byte, off int64) (int, e
 
 // ReadAll implements ContextReader
 func (b *backendReader) ReadAll(ctx context.Context) ([]byte, error) {
-	return b.r.Read(ctx, b.name, b.meta.BlockID, b.meta.TenantID)
+	return b.r.Read(ctx, b.name, b.meta.BlockID, b.meta.TenantID, ShouldCache(b.name))
 }
 
 // Reader implements ContextReader

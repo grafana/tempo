@@ -19,8 +19,10 @@ type AppendTracker interface{}
 
 // Writer is a collection of methods to write data to tempodb backends
 type Writer interface {
-	// Write is for writing objects to the backend.
-	Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64, shouldCache bool) error
+	// Write is for in memory data.  It is expected that this data will be cached.
+	Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, shouldCache bool) error
+	// StreamWriter is for larger data payloads streamed through an io.Reader.  It is expected this will _not_ be cached.
+	StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error
 	// WriteBlockMeta writes a block meta to its blocks
 	WriteBlockMeta(ctx context.Context, meta *BlockMeta) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
@@ -31,8 +33,10 @@ type Writer interface {
 
 // Reader is a collection of methods to read data from tempodb backends
 type Reader interface {
-	// Read is for reading objects from the backend.
-	Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) (io.ReadCloser, int64, error)
+	// Reader is for reading entire objects from the backend.  It is expected that there will be an attempt to retrieve this from cache
+	Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error)
+	// StreamReader is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
+	StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.  It is expected this will _not_ be cached.
 	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error
 	// Tenants returns a list of all tenants in a backend

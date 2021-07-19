@@ -52,7 +52,8 @@ func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	blockID := b.meta.BlockID
 	tenantID := b.meta.TenantID
 
-	bloomBytes, err := b.reader.Read(ctx, bloomName(shardKey), blockID, tenantID)
+	nameBloom := bloomName(shardKey)
+	bloomBytes, err := b.reader.Read(ctx, nameBloom, blockID, tenantID, backend.ShouldCache(nameBloom))
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}

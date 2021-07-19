@@ -16,7 +16,7 @@ func TestWriter(t *testing.T) {
 
 	expected := []byte{0x01, 0x02, 0x03, 0x04}
 
-	err := w.Write(ctx, "test", uuid.New(), "test", expected)
+	err := w.Write(ctx, "test", uuid.New(), "test", expected, false)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, m.writeBuffer)
 
@@ -42,7 +42,7 @@ func TestReader(t *testing.T) {
 
 	expected := []byte{0x01, 0x02, 0x03, 0x04}
 	m.R = expected
-	actual, err := r.Read(ctx, "test", uuid.New(), "test")
+	actual, err := r.Read(ctx, "test", uuid.New(), "test", false)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 

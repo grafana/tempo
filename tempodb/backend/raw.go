@@ -56,8 +56,12 @@ func NewWriter(w RawWriter) Writer {
 	}
 }
 
-func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64, shouldCache bool) error {
-	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), data, size, shouldCache)
+func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, shouldCache bool) error {
+	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), bytes.NewReader(buffer), int64(len(buffer)), shouldCache)
+}
+
+func (w *writer) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), data, size, false)
 }
 
 func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
@@ -91,8 +95,16 @@ func NewReader(r RawReader) Reader {
 	}
 }
 
-func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) (io.ReadCloser, int64, error) {
-	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), shouldCache)
+func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error) {
+	objReader, size, err := r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), shouldCache)
+	if err != nil {
+		return nil, err
+	}
+	return tempo_io.ReadAllWithEstimate(objReader, size)
+}
+
+func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), false)
 }
 
 func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {

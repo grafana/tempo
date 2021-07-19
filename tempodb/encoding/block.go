@@ -32,14 +32,15 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	}
 
 	// index
-	err = w.Write(ctx, nameIndex, meta.BlockID, meta.TenantID, indexBytes)
+	err = w.Write(ctx, nameIndex, meta.BlockID, meta.TenantID, indexBytes, backend.ShouldCache(nameIndex))
 	if err != nil {
 		return fmt.Errorf("unexpected error writing index %w", err)
 	}
 
 	// bloom
 	for i, bloom := range blooms {
-		err := w.Write(ctx, bloomName(i), meta.BlockID, meta.TenantID, bloom)
+		nameBloom := bloomName(i)
+		err := w.Write(ctx, nameBloom, meta.BlockID, meta.TenantID, bloom, backend.ShouldCache(nameBloom))
 		if err != nil {
 			return fmt.Errorf("unexpected error writing bloom-%d %w", i, err)
 		}
