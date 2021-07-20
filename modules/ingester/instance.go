@@ -562,6 +562,12 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 }
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*tempopb.TraceSearchMetadata, error) {
+
+	done := make(chan struct{})
+	defer close(done)
+
+	var resultsCh []<-chan *tempopb.TraceSearchMetadata
+
 	// TODO - Redo this entire thing around channels and concurrent searches, and bail after reading
 	// max results from channel
 	maxResults := 20
@@ -573,103 +579,150 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 
 	p := search.NewSearchPipeline(req)
 
-	// Search live traces
-	func() {
+	resultsCh = append(resultsCh, i.searchLiveTraces(ctx, done, p))
+	resultsCh = append(resultsCh, i.searchWAL(ctx, done, p))
+	resultsCh = append(resultsCh, i.searchLocalBlocks(ctx, done, p)...)
+
+	for result := range mergeSearchResults(done, resultsCh...) {
+		results = append(results, result)
+
+		// Sort, dedupe and limit results
+		sort.Slice(results, func(i, j int) bool {
+			return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
+		})
+
+		results = dedupeResults(results)
+
+		if len(results) >= maxResults {
+			break
+		}
+	}
+
+	return results, nil
+}
+
+func (i *instance) searchLiveTraces(ctx context.Context, done <-chan struct{}, p search.Pipeline) <-chan *tempopb.TraceSearchMetadata {
+	out := make(chan *tempopb.TraceSearchMetadata)
+
+	go func() {
+		defer close(out)
+
 		i.tracesMtx.Lock()
 		defer i.tracesMtx.Unlock()
 
 		for _, t := range i.traces {
-
 			for _, s := range t.searchData {
 				searchData := tempofb.SearchDataFromBytes(s)
 				if p.Matches(searchData) {
-					results = append(results, search.GetSearchResultFromData(searchData))
+					result := search.GetSearchResultFromData(searchData)
+
+					select {
+					case out <- result:
+					case <-ctx.Done():
+						return
+					case <-done:
+						return
+					}
+
 					continue
 				}
-			}
-
-			if len(results) >= maxResults {
-				return
 			}
 		}
 	}()
 
-	fmt.Println("Found", len(results), "matches in live traces")
+	return out
+}
 
-	if len(results) < maxResults {
-		// Search append blocks
-		err := func() error {
-			i.blocksMtx.Lock()
-			defer i.blocksMtx.Unlock()
+func (i *instance) searchWAL(ctx context.Context, done <-chan struct{}, p search.Pipeline) <-chan *tempopb.TraceSearchMetadata {
+	out := make(chan *tempopb.TraceSearchMetadata)
 
-			for b, s := range i.searchAppendBlocks {
-				headResults, err := s.Search(ctx, p)
-				if err != nil {
-					return err
-				}
+	go func() {
+		defer close(out)
 
-				if len(headResults) > 0 {
-					results = append(results, headResults...)
-					fmt.Println("Found", len(headResults), "matches in wal block", b.BlockID().String())
-				}
+		i.blocksMtx.Lock()
+		defer i.blocksMtx.Unlock()
 
-				if len(results) >= maxResults {
-					return nil
-				}
+		for _, s := range i.searchAppendBlocks {
+			headResults, err := s.Search(ctx, p)
+			if err != nil {
+				continue
 			}
 
-			return nil
-		}()
-		if err != nil {
-			return nil, errors.Wrap(err, "searching head block")
-		}
-
-		fmt.Println("Found", len(results), "matches in live traces and append blocks")
-	}
-
-	if len(results) < maxResults {
-		// Search complete blocks
-		err := func() error {
-			i.blocksMtx.Lock()
-			defer i.blocksMtx.Unlock()
-
-			for b, s := range i.searchCompleteBlocks {
-				res, err := s.Search(ctx, p)
-				if err != nil {
-					continue
-				}
-
-				if len(res) > 0 {
-					results = append(results, res...)
-					fmt.Println("Found", len(res), "matches in local block", b.BlockMeta().BlockID)
-				}
-
-				if len(results) >= maxResults {
-					return nil
+			for _, result := range headResults {
+				select {
+				case out <- result:
+				case <-ctx.Done():
+					return
+				case <-done:
+					return
 				}
 			}
-
-			return nil
-		}()
-		if err != nil {
-			return nil, errors.Wrap(err, "searching complete block")
 		}
+	}()
 
-		fmt.Println("Found", len(results), "matches in live traces, append blocks and complete blocks")
+	return out
+}
+
+func (i *instance) searchLocalBlocks(ctx context.Context, done <-chan struct{}, p search.Pipeline) []<-chan *tempopb.TraceSearchMetadata {
+	var outs []<-chan *tempopb.TraceSearchMetadata
+
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
+	for _, s := range i.searchCompleteBlocks {
+		out := make(chan *tempopb.TraceSearchMetadata)
+		outs = append(outs, out)
+
+		go func(c chan *tempopb.TraceSearchMetadata, s search.SearchBlock) {
+			defer close(c)
+
+			results, err := s.Search(ctx, p)
+			if err != nil {
+				return
+			}
+
+			for _, result := range results {
+				select {
+				case out <- result:
+				case <-ctx.Done():
+					return
+				case <-done:
+					return
+				}
+			}
+		}(out, s)
 	}
 
-	// Sort, dedupe and limit results
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
-	})
+	return outs
+}
 
-	results = dedupeResults(results)
+func mergeSearchResults(done <-chan struct{}, cs ...<-chan *tempopb.TraceSearchMetadata) <-chan *tempopb.TraceSearchMetadata {
+	var wg sync.WaitGroup
+	out := make(chan *tempopb.TraceSearchMetadata)
 
-	if req.Limit != 0 && int(req.Limit) < len(results) {
-		results = results[:req.Limit]
+	// Start an output goroutine for each input channel in cs.  output
+	// copies values from c to out until c is closed, then calls wg.Done.
+	output := func(c <-chan *tempopb.TraceSearchMetadata) {
+		for n := range c {
+			select {
+			case out <- n:
+			case <-done:
+			}
+		}
+		wg.Done()
+	}
+	wg.Add(len(cs))
+	for _, c := range cs {
+		go output(c)
 	}
 
-	return results, nil
+	// Start a goroutine to close out once all the output goroutines are
+	// done.  This must start after the wg.Add call.
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
 }
 
 func dedupeResults(results []*tempopb.TraceSearchMetadata) []*tempopb.TraceSearchMetadata {

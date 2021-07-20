@@ -27,9 +27,10 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 			vb = append(vb, []byte(strings.ToLower(v)))
 		}
 
-		buffer := &tempofb.KeyValues{}
-
 		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+			// Buffer is allocated here so function is thread-safe
+			buffer := &tempofb.KeyValues{}
+
 			// Must match all
 			for i := range kb {
 				if !s.Contains(buffer, kb[i], vb[i]) {

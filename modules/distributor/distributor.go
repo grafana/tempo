@@ -334,9 +334,9 @@ func (d *Distributor) extractSearchData(trace *tempopb.Trace, id []byte) []byte 
 		}
 	}
 
-	fmt.Printf("Distributor extracted search data from trace %x %v Duration %v\n",
-		id, data,
-		(time.Duration((data.EndTimeUnixNano - data.StartTimeUnixNano) * uint64(time.Nanosecond))))
+	//fmt.Printf("Distributor extracted search data from trace %x %v Duration %v\n",
+	//	id, data,
+	//	(time.Duration((data.EndTimeUnixNano - data.StartTimeUnixNano) * uint64(time.Nanosecond))))
 
 	return data.ToBytes()
 }
