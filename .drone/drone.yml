@@ -36,6 +36,8 @@ trigger:
   ref:
   - refs/heads/main
   - refs/tags/**
+  - refs/heads/r? # For weekly release
+  - refs/heads/r?? # For weekly release
 
 ---
 ##  AMD64  ##
@@ -90,6 +92,8 @@ trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
+  - refs/heads/r? # For weekly release
+  - refs/heads/r?? # For weekly release
 
 ---
 ##  ARM64  ##
@@ -144,6 +148,8 @@ trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
+  - refs/heads/r? # For weekly release
+  - refs/heads/r?? # For weekly release
 
 ---
 ##  MANIFEST  ##
@@ -189,6 +195,8 @@ trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
+  - refs/heads/r? # For weekly release
+  - refs/heads/r?? # For weekly release
 
 ---
 kind: secret
