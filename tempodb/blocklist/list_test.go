@@ -365,3 +365,174 @@ func TestUpdateCompacted(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdatesSaved(t *testing.T) {
+	// unlike most tests these are applied serially to the same list object and the expected
+	// results are cumulative across all tests
+	tests := []struct {
+		applyMetas     PerTenant
+		applyCompacted PerTenantCompacted
+		updateTenant   string
+		addMetas       []*backend.BlockMeta
+		removeMetas    []*backend.BlockMeta
+		addCompacted   []*backend.CompactedBlockMeta
+
+		expectedTenants   []string
+		expectedMetas     PerTenant
+		expectedCompacted PerTenantCompacted
+	}{
+		// STEP 1: apply a normal polling data and updates
+		{
+			applyMetas: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+			},
+			applyCompacted: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+			},
+			updateTenant: "test",
+			addMetas: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+			removeMetas: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+			},
+			addCompacted: []*backend.CompactedBlockMeta{
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+			expectedTenants: []string{"test"},
+			expectedMetas: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+			expectedCompacted: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000002"),
+						},
+					},
+				},
+			},
+		},
+		// STEP 2: same polling apply, no update! but expect the same results
+		{
+			applyMetas: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+			},
+			applyCompacted: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+			},
+			expectedTenants: []string{"test"},
+			expectedMetas: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+			expectedCompacted: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000002"),
+						},
+					},
+				},
+			},
+		},
+		// STEP 3: same polling apply, no update! but this time the update doesn't impact results
+		{
+			applyMetas: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+			},
+			applyCompacted: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+			},
+			expectedTenants: []string{"test"},
+			expectedMetas: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+			},
+			expectedCompacted: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	l := New()
+	for _, tc := range tests {
+		l.ApplyPollResults(tc.applyMetas, tc.applyCompacted)
+		if tc.updateTenant != "" {
+			l.Update(tc.updateTenant, tc.addMetas, tc.removeMetas, tc.addCompacted)
+		}
+
+		actualTenants := l.Tenants()
+		actualMetas := l.metas
+		actualCompacted := l.compactedMetas
+
+		sort.Slice(actualTenants, func(i, j int) bool { return actualTenants[i] < actualTenants[j] })
+		assert.Equal(t, tc.expectedTenants, actualTenants)
+		assert.Equal(t, tc.expectedMetas, actualMetas)
+		assert.Equal(t, tc.expectedCompacted, actualCompacted)
+	}
+}
