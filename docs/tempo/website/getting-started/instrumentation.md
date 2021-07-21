@@ -8,7 +8,11 @@ weight: 100
 # OpenTelemetry
 
 Check out these resources for help instrumenting your favorite languages with OpenTelemetry instrumentation.  Most of these guides include complete
-end to end examples with Grafana, Loki, and Tempo.
+end to end examples with Grafana, Loki, and Tempo. 
+
+- [OpenTelemetry Language Specific Instrumentation] (https://opentelemetry.io/docs/)
+- [Jaeger Language Specific Instrumentation] (https://www.jaegertracing.io/docs/1.24/client-libraries/#supported-libraries)
+- [Zipkin Language Specific Instrumentation] (https://zipkin.io/pages/tracers_instrumentation.html)
 
 ## Grafana Blog
 
