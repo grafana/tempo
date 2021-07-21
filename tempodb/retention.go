@@ -27,7 +27,7 @@ func (rw *readerWriter) doRetention() {
 		go func(t string) {
 			defer bg.Done()
 			rw.retainTenant(t)
-		}(tenantID.(string))
+		}(tenantID)
 	}
 
 	bg.Wait()

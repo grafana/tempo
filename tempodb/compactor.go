@@ -74,10 +74,10 @@ func (rw *readerWriter) doCompaction() {
 
 	// Iterate through tenants each cycle
 	// Sort tenants for stability (since original map does not guarantee order)
-	sort.Slice(tenants, func(i, j int) bool { return tenants[i].(string) < tenants[j].(string) })
+	sort.Slice(tenants, func(i, j int) bool { return tenants[i] < tenants[j] })
 	rw.compactorTenantOffset = (rw.compactorTenantOffset + 1) % uint(len(tenants))
 
-	tenantID := tenants[rw.compactorTenantOffset].(string)
+	tenantID := tenants[rw.compactorTenantOffset]
 	blocklist := rw.blocklist.Metas(tenantID)
 
 	blockSelector := newTimeWindowBlockSelector(blocklist,

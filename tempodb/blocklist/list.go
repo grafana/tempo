@@ -36,11 +36,12 @@ func New() *List {
 	}
 }
 
-func (l *List) Tenants() []interface{} { // this can be [] string now
+// Tenants returns a slice of tenant ids with metas (compacted metas are ignored.)
+func (l *List) Tenants() []string {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	tenants := make([]interface{}, 0, len(l.metas))
+	tenants := make([]string, 0, len(l.metas))
 	for tenant := range l.metas {
 		tenants = append(tenants, tenant)
 	}

@@ -16,11 +16,11 @@ func TestApplyPollResults(t *testing.T) {
 		name            string
 		metas           PerTenant
 		compacted       PerTenantCompacted
-		expectedTenants []interface{}
+		expectedTenants []string
 	}{
 		{
 			name:            "all nil",
-			expectedTenants: []interface{}{},
+			expectedTenants: []string{},
 		},
 		{
 			name: "meta only",
@@ -36,7 +36,7 @@ func TestApplyPollResults(t *testing.T) {
 					},
 				},
 			},
-			expectedTenants: []interface{}{"test", "test2"},
+			expectedTenants: []string{"test", "test2"},
 		},
 		{
 			name: "compacted meta only",
@@ -61,7 +61,7 @@ func TestApplyPollResults(t *testing.T) {
 					},
 				},
 			},
-			expectedTenants: []interface{}{},
+			expectedTenants: []string{},
 		},
 		{
 			name: "all",
@@ -98,7 +98,7 @@ func TestApplyPollResults(t *testing.T) {
 					},
 				},
 			},
-			expectedTenants: []interface{}{"blerg", "test"},
+			expectedTenants: []string{"blerg", "test"},
 		},
 	}
 
@@ -108,7 +108,7 @@ func TestApplyPollResults(t *testing.T) {
 			l.ApplyPollResults(tc.metas, tc.compacted)
 
 			actualTenants := l.Tenants()
-			sort.Slice(actualTenants, func(i, j int) bool { return actualTenants[i].(string) < actualTenants[j].(string) })
+			sort.Slice(actualTenants, func(i, j int) bool { return actualTenants[i] < actualTenants[j] })
 			assert.Equal(t, tc.expectedTenants, actualTenants)
 			for tenant, expected := range tc.metas {
 				actual := l.Metas(tenant)
