@@ -54,13 +54,15 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 		Tags: map[string]string{"nomatch": "nomatch"},
 	})
 
+	sr := NewSearchResults()
+
 	b.ResetTimer()
 	start := time.Now()
 	// Search 10x because this is really fast but creating the test data is slow
 	// and it helps the benchmark reach consensus faster.
 	loops := 10
 	for i := 0; i < loops; i++ {
-		_, err = b2.Search(ctx, p)
+		err = b2.Search(ctx, p, sr)
 		require.NoError(b, err)
 	}
 	elapsed := time.Since(start)

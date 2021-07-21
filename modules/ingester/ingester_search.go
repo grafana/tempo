@@ -21,14 +21,12 @@ func (i *Ingester) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		return &tempopb.SearchResponse{}, nil
 	}
 
-	traces, err := inst.Search(ctx, req)
+	res, err := inst.Search(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	return &tempopb.SearchResponse{
-		Traces: traces,
-	}, nil
+	return res, nil
 }
 
 func (i *Ingester) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {

@@ -39,6 +39,7 @@ message SearchRequest {
 
 message SearchResponse {
   repeated TraceSearchMetadata traces = 1;
+  SearchMetrics metrics = 2;
 }
 
 message TraceSearchMetadata {
@@ -47,6 +48,11 @@ message TraceSearchMetadata {
   string rootTraceName = 3;
   uint64 startTimeUnixNano = 4;
   uint32 durationMs = 5;
+}
+
+message SearchMetrics {
+  uint32 inspectedTraces = 1;
+  uint64 inspectedBytes = 2;
 }
 
 message SearchTagsRequest {

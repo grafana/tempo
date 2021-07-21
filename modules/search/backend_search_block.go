@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/tempofb"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
@@ -123,9 +122,9 @@ func OpenBackendSearchBlock(l *local.Backend, blockID uuid.UUID, tenantID string
 }
 
 // Search iterates through the block looking for matches.
-func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb.TraceSearchMetadata, error) {
+func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchResults) error {
 
-	var matches []*tempopb.TraceSearchMetadata
+	//var matches []*tempopb.TraceSearchMetadata
 
 	offset := uint64(0)
 	offsetBuf := make([]byte, 4)
@@ -137,10 +136,10 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb
 		// Read page size
 		err := s.l.ReadRange(ctx, "search", backend.KeyPathForBlock(s.id, s.tenantID), offset, offsetBuf)
 		if err == io.EOF {
-			return matches, nil
+			return nil
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		offset += 4
@@ -158,15 +157,19 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb
 		// Read page
 		err = s.l.ReadRange(ctx, "search", backend.KeyPathForBlock(s.id, s.tenantID), offset, dataBuf)
 		if err == io.EOF {
-			return matches, nil
+			return nil
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
+
+		sr.AddBytesInspected(uint64(size))
 
 		datas := tempofb.GetRootAsBatchSearchData(dataBuf, 0)
 		l := datas.EntriesLength()
 		for i := 0; i < l; i++ {
+			sr.AddTraceInspected()
+
 			datas.Entries(entry, i)
 
 			if !p.Matches(entry) {
@@ -174,10 +177,10 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb
 			}
 
 			// If we got here then it's a match.
-			matches = append(matches, GetSearchResultFromData(entry))
+			match := GetSearchResultFromData(entry)
 
-			if len(matches) >= 20 {
-				return matches, nil
+			if quit := sr.AddResult(ctx, match); quit {
+				return nil
 			}
 		}
 

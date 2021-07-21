@@ -3,22 +3,14 @@ package ingester
 import (
 	"context"
 	"sort"
-	"sync"
 
 	"github.com/grafana/tempo/modules/search"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*tempopb.TraceSearchMetadata, error) {
+func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 
-	done := make(chan struct{})
-	defer close(done)
-
-	var resultsCh []<-chan *tempopb.TraceSearchMetadata
-
-	// TODO - Redo this entire thing around channels and concurrent searches, and bail after reading
-	// max results from channel
 	maxResults := 20
 	if req.Limit != 0 {
 		maxResults = int(req.Limit)
@@ -28,11 +20,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 
 	p := search.NewSearchPipeline(req)
 
-	resultsCh = append(resultsCh, i.searchLiveTraces(ctx, done, p))
-	resultsCh = append(resultsCh, i.searchWAL(ctx, done, p))
-	resultsCh = append(resultsCh, i.searchLocalBlocks(ctx, done, p)...)
+	sr := search.NewSearchResults()
+	defer sr.Close()
 
-	for result := range mergeSearchResults(done, resultsCh...) {
+	i.searchLiveTraces(ctx, p, sr)
+	i.searchWAL(ctx, p, sr)
+	i.searchLocalBlocks(ctx, p, sr)
+
+	for result := range sr.Results() {
 		results = append(results, result)
 
 		// Sort, dedupe and limit results
@@ -47,29 +42,35 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) ([]*t
 		}
 	}
 
-	return results, nil
+	return &tempopb.SearchResponse{
+		Traces: results,
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: sr.TracesInspected(),
+			InspectedBytes:  sr.BytesInspected(),
+		},
+	}, nil
 }
 
-func (i *instance) searchLiveTraces(ctx context.Context, done <-chan struct{}, p search.Pipeline) <-chan *tempopb.TraceSearchMetadata {
-	out := make(chan *tempopb.TraceSearchMetadata)
+func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *search.SearchResults) {
+	sr.StartWorker()
 
 	go func() {
-		defer close(out)
+		defer sr.FinishWorker()
 
 		i.tracesMtx.Lock()
 		defer i.tracesMtx.Unlock()
 
 		for _, t := range i.traces {
+			sr.AddTraceInspected()
+
 			for _, s := range t.searchData {
+				sr.AddBytesInspected(uint64(len(s)))
+
 				searchData := tempofb.SearchDataFromBytes(s)
 				if p.Matches(searchData) {
 					result := search.GetSearchResultFromData(searchData)
 
-					select {
-					case out <- result:
-					case <-ctx.Done():
-						return
-					case <-done:
+					if quit := sr.AddResult(ctx, result); quit {
 						return
 					}
 
@@ -78,100 +79,34 @@ func (i *instance) searchLiveTraces(ctx context.Context, done <-chan struct{}, p
 			}
 		}
 	}()
-
-	return out
 }
 
-func (i *instance) searchWAL(ctx context.Context, done <-chan struct{}, p search.Pipeline) <-chan *tempopb.TraceSearchMetadata {
-	out := make(chan *tempopb.TraceSearchMetadata)
+func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.SearchResults) {
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 
-	go func() {
-		defer close(out)
+	for _, s := range i.searchAppendBlocks {
+		sr.StartWorker()
 
-		i.blocksMtx.Lock()
-		defer i.blocksMtx.Unlock()
-
-		for _, s := range i.searchAppendBlocks {
-			headResults, err := s.Search(ctx, p)
-			if err != nil {
-				continue
-			}
-
-			for _, result := range headResults {
-				select {
-				case out <- result:
-				case <-ctx.Done():
-					return
-				case <-done:
-					return
-				}
-			}
-		}
-	}()
-
-	return out
+		go func(s search.SearchBlock) {
+			defer sr.FinishWorker()
+			s.Search(ctx, p, sr)
+		}(s)
+	}
 }
 
-func (i *instance) searchLocalBlocks(ctx context.Context, done <-chan struct{}, p search.Pipeline) []<-chan *tempopb.TraceSearchMetadata {
-	var outs []<-chan *tempopb.TraceSearchMetadata
-
+func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr *search.SearchResults) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	for _, s := range i.searchCompleteBlocks {
-		out := make(chan *tempopb.TraceSearchMetadata)
-		outs = append(outs, out)
+		sr.StartWorker()
 
-		go func(c chan *tempopb.TraceSearchMetadata, s search.SearchBlock) {
-			defer close(c)
-
-			results, err := s.Search(ctx, p)
-			if err != nil {
-				return
-			}
-
-			for _, result := range results {
-				select {
-				case out <- result:
-				case <-ctx.Done():
-					return
-				case <-done:
-					return
-				}
-			}
-		}(out, s)
+		go func(s search.SearchBlock) {
+			defer sr.FinishWorker()
+			s.Search(ctx, p, sr)
+		}(s)
 	}
-
-	return outs
-}
-
-func mergeSearchResults(done <-chan struct{}, cs ...<-chan *tempopb.TraceSearchMetadata) <-chan *tempopb.TraceSearchMetadata {
-	var wg sync.WaitGroup
-	out := make(chan *tempopb.TraceSearchMetadata)
-
-	// Start an output goroutine for each input channel in cs.  output
-	// copies values from c to out until c is closed, then calls wg.Done.
-	output := func(c <-chan *tempopb.TraceSearchMetadata) {
-		for n := range c {
-			select {
-			case out <- n:
-			case <-done:
-			}
-		}
-		wg.Done()
-	}
-	wg.Add(len(cs))
-	for _, c := range cs {
-		go output(c)
-	}
-
-	// Start a goroutine to close out once all the output goroutines are
-	// done.  This must start after the wg.Add call.
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
 }
 
 func dedupeResults(results []*tempopb.TraceSearchMetadata) []*tempopb.TraceSearchMetadata {

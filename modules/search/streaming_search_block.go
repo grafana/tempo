@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/grafana/tempo/pkg/tempofb"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -92,9 +91,7 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 }
 
 // Search the streaming block.
-func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempopb.TraceSearchMetadata, error) {
-
-	var matches []*tempopb.TraceSearchMetadata
+func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchResults) error {
 
 	rr := s.appender.Records()
 
@@ -103,8 +100,11 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempo
 		buf := make([]byte, r.Length)
 		_, err := s.file.ReadAt(buf, int64(r.Start))
 		if err != nil {
-			return nil, err
+			return err
 		}
+
+		sr.AddBytesInspected(uint64(r.Length))
+		sr.AddTraceInspected()
 
 		searchData := tempofb.SearchDataFromBytes(buf)
 
@@ -113,12 +113,12 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline) ([]*tempo
 		}
 
 		// If we got here then it's a match.
-		matches = append(matches, GetSearchResultFromData(searchData))
+		match := GetSearchResultFromData(searchData)
 
-		if len(matches) > 20 {
-			break
+		if quit := sr.AddResult(ctx, match); quit {
+			return nil
 		}
 	}
 
-	return matches, nil
+	return nil
 }

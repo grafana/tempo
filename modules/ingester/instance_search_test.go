@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func checkEqual(t *testing.T, ids [][]byte, traceMetas []*tempopb.TraceSearchMetadata) {
-	for _, meta := range traceMetas {
+func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
+	for _, meta := range sr.Traces {
 		parsedTraceID, err := util.HexStringToTraceID(meta.TraceID)
 		assert.NoError(t, err)
 
@@ -88,40 +88,40 @@ func TestInstanceSearch(t *testing.T) {
 	}
 	req.Tags[tagKey] = tagValue
 
-	traceMetas, err := i.Search(context.Background(), req)
+	sr, err := i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
+	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
 	// todo: test that returned results are in sorted time order, create order of id's beforehand
-	checkEqual(t, ids, traceMetas)
+	checkEqual(t, ids, sr)
 
 	// Test after appending to WAL
 	err = i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
 	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
-	traceMetas, err = i.Search(context.Background(), req)
+	sr, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, traceMetas)
+	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
+	checkEqual(t, ids, sr)
 
 	// Test after cutting new headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
-	traceMetas, err = i.Search(context.Background(), req)
+	sr, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, traceMetas)
+	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
+	checkEqual(t, ids, sr)
 
 	// Test after completing a block
 	err = i.CompleteBlock(blockID)
 	require.NoError(t, err)
 
-	traceMetas, err = i.Search(context.Background(), req)
+	sr, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, traceMetas)
+	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
+	checkEqual(t, ids, sr)
 
 	err = ingester.stopping(nil)
 	require.NoError(t, err)
@@ -132,8 +132,8 @@ func TestInstanceSearch(t *testing.T) {
 	i, ok := ingester.getInstanceByID("fake")
 	assert.True(t, ok)
 
-	traceMetas, err = i.Search(context.Background(), req)
+	sr, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
 	// note: search is experimental and removed on every startup. Verify no search results now
-	assert.Len(t, traceMetas, 0)
+	assert.Len(t, sr.Traces, 0)
 }

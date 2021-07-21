@@ -271,10 +271,14 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.Search")
 	}
 
-	response := &tempopb.SearchResponse{}
+	response := &tempopb.SearchResponse{
+		Metrics: &tempopb.SearchMetrics{},
+	}
 
 	for _, r := range responses {
 		response.Traces = append(response.Traces, r.response.Traces...)
+		response.Metrics.InspectedBytes += r.response.Metrics.InspectedBytes
+		response.Metrics.InspectedTraces += r.response.Metrics.InspectedTraces
 	}
 
 	// Sort and limit results
