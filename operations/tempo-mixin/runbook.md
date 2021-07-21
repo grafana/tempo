@@ -107,11 +107,53 @@ remove them.
 
 In the case of failed flushes your local WAL disk is now filling up.  Tempo will continue to retry sending the blocks
 until it succeeds, but at some point your WAL files will start failing to write due to out of disk issues.  If the problem
-persists consider killing the block that's failing to upload in `/var/tempo/wal` and restarting the ingester.
+persists consider removing files from `/var/tempo/wal/blocks` and restarting the ingester or increasing the amount of disk space
+available to the ingester.
 
 ## TempoPollsFailing
 
-If polls are failing check the component that is raising this metric and look for any obvious logs that may indicate a quick fix.
+See [Polling Issues](#polling-issues) below for general information.
 
-Generally, failure to poll just means that the component is not aware of the current state of the backend but will continue working
-otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale.
+If polls are failing check the component that is raising this metric and look for any obvious logs that may indicate a quick fix.
+We have only seen polling failures occur due to intermittent backend issues.
+
+## TempoTenantIndexFailures
+
+See [Polling Issues](#polling-issues) below for general information.
+
+If the following is being logged then things are stable (due to polling fallback) and we just need to review the logs to determine why 
+there is an issue with the index and correct.
+```
+failed to pull bucket index for tenant. falling back to polling
+```
+
+If the following (or other errors) are being logged repeatedly then the tenant index is not being updated and more direct action is necessary.
+If the core issue can not be resolved one option is to delete all tenant indexes which will force the components to fallback to 
+scanning the entire bucket.
+```
+failed to write tenant index
+```
+
+## TempoNoTenantIndexBuilders
+
+See [Polling Issues](#polling-issues) below for general information.
+
+If a cluster has no tenant index builders then nothing is refreshing the per tenant indexes. This can be dangerous
+b/c other components will not be aware there is an issue as they repeatedly download a stale tenant index. In Tempo the compactors
+play the role of building the tenant index. Ways to address this issue in order of preference:
+
+- Find and forget all unhealthy compactors.
+- Increase the number of compactors that attempt to build the index.
+  ```
+  compactor:
+    tenant_index_builders: 2  # <- increase this value jpe confirm this is the setting
+  ```
+- Delete all tenant index files to force other components to fallback to scanning the entire bucket.
+
+### Polling Issues
+
+In the case of all polling issues intermittent issues are not concerning. Sustained polling issues need to be addressed.  
+
+Failure to poll just means that the component is not aware of the current state of the backend but will continue working
+otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale. 
+Compactors will attempt to compact blocks that don't exist.

@@ -37,6 +37,11 @@ var (
 		Name:      "blocklist_tenant_index_errors_total",
 		Help:      "Total number of times an error occurred while retrieving or building the tenant index.",
 	}, []string{"tenant"})
+	metricTenantIndexBuilder = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "blocklist_tenant_index_builder",
+		Help:      "A value of 1 indicates this instance of tempodb is building the tenant index.",
+	})
 )
 
 // PollerSharder is used to determine if this node should build the blocklist index or just pull it
@@ -106,11 +111,15 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	// pull bucket index? or poll everything?
 	if !p.sharder.BuildTenantIndex() {
+		metricTenantIndexBuilder.Set(0)
+
 		meta, compactedMeta, err := p.reader.TenantIndex(ctx, tenantID)
 		if err == nil {
 			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "metas", len(meta), "compactedMetas", len(compactedMeta))
 			return meta, compactedMeta, nil
 		}
+
+		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 
 		// we had an error, do we bail?
 		if !p.pollFallback {
@@ -118,9 +127,10 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 		}
 
 		// log error and keep on keeping on
-		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to pull bucket index for tenant. falling back to polling", "tenant", tenantID, "err", err)
 	}
+
+	metricTenantIndexBuilder.Set(1)
 
 	blockIDs, err := p.reader.Blocks(ctx, tenantID)
 	if err != nil {

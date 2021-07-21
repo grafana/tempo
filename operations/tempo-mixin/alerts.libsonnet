@@ -109,6 +109,34 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPollsFailing'
             },
           },
+          {
+            alert: 'TempoTenantIndexFailures',
+            expr: |||
+              sum by (cluster, namespace) (increase(tempodb_blocklist_tenant_index_errors_total{}[1h])) > %s and
+              sum by (cluster, namespace) (increase(tempodb_blocklist_tenant_index_errors_total{}[5m])) > 0
+            ||| % $._config.alerts.polls_per_hour_failed,
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Greater than %s tenant index failures in the past hour.' % $._config.alerts.polls_per_hour_failed,
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexFailures'
+            },
+          },
+          {
+            alert: 'TempoNoTenantIndexBuilders',
+            expr: |||
+              sum by (cluster, namespace) (tempodb_blocklist_tenant_index_builder{}) == 0 and
+            ||| % $._config.alerts.polls_per_hour_failed,
+            'for': '5m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'No tenant index builders. Tenant index is out of date.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoNoTenantIndexBuilders'
+            },
+          },
         ],
       },
     ],
