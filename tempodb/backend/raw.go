@@ -17,7 +17,6 @@ const (
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
 	BlockIndexName    = "blockindex.json.gz"
-	BloomName         = "bloom"
 )
 
 // KeyPath is an ordered set of strings that govern where data is read/written from the backend
@@ -25,7 +24,7 @@ type KeyPath []string
 
 // RawWriter is a collection of methods to write data to tempodb backends
 type RawWriter interface {
-	// Write is for in memory data.  It is expected that this data will be cached.
+	// Write is for in memory data. shouldCache specifies whether or not caching should be attempted.
 	Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, shouldCache bool) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
 	Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error)
@@ -37,7 +36,7 @@ type RawWriter interface {
 type RawReader interface {
 	// List returns all objects one level beneath the provided keypath
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
-	// Read is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
+	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
 	Read(ctx context.Context, name string, keyPath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.  It is expected this will _not_ be cached.
 	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte) error
@@ -186,8 +185,4 @@ func CompactedMetaFileName(blockID uuid.UUID, tenantID string) string {
 // nolint:interfacer
 func RootPath(blockID uuid.UUID, tenantID string) string {
 	return path.Join(tenantID, blockID.String())
-}
-
-func ShouldCache(name string) bool {
-	return name != MetaName && name != CompactedMetaName && name != BlockIndexName
 }
