@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +35,7 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 	b1, err := NewStreamingSearchBlockForFile(f)
 	require.NoError(b, err)
 	for i := 0; i < b.N; i++ {
-		b1.Append(ctx, id, searchData)
+		assert.NoError(b, b1.Append(ctx, id, searchData))
 	}
 
 	l, err := local.NewBackend(&local.Config{
