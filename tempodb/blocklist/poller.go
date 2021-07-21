@@ -32,6 +32,11 @@ var (
 		Name:      "blocklist_length",
 		Help:      "Total number of blocks per tenant.",
 	}, []string{"tenant"})
+	metricTenantIndexErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "blocklist_tenant_index_errors_total",
+		Help:      "Total number of times an error occurred while retrieving or building the tenant index.",
+	}, []string{"tenant"})
 )
 
 // PollerSharder is used to determine if this node should build the blocklist index or just pull it
@@ -114,7 +119,7 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 		}
 
 		// log error and keep on keeping on
-		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to pull bucket index for tenant. falling back to polling", "tenant", tenantID, "err", err)
 	}
 
@@ -149,6 +154,7 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 	close(chCompactedMeta)
 
 	if err = anyError.Load(); err != nil {
+		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		return nil, nil, err
 	}
 
@@ -172,7 +178,7 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 	level.Info(p.logger).Log("msg", "writing tenant index", "tenant", tenantID, "metas", len(newBlockList), "compactedMetas", len(newCompactedBlocklist))
 	err = p.writer.WriteTenantIndex(ctx, tenantID, newBlockList, newCompactedBlocklist)
 	if err != nil {
-		// jpe metric, new metric?
+		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
 	}
 
@@ -195,7 +201,6 @@ func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UU
 	}
 
 	if err != nil {
-		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
 		return nil, nil, err
 	}
 
