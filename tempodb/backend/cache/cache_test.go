@@ -53,7 +53,7 @@ func TestReadWrite(t *testing.T) {
 		expectedCache []byte
 	}{
 		{
-			name:          "read",
+			name:          "should cache",
 			readerName:    "foo",
 			readerRead:    []byte{0x02},
 			shouldCache:   true,
@@ -61,7 +61,7 @@ func TestReadWrite(t *testing.T) {
 			expectedCache: []byte{0x02},
 		},
 		{
-			name:         "block meta",
+			name:         "should not cache",
 			readerName:   "bar",
 			shouldCache:  false,
 			readerRead:   []byte{0x02},
