@@ -47,6 +47,8 @@ type Querier struct {
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
+
+	enablePolling bool
 }
 
 type responseFromIngesters struct {
@@ -55,7 +57,7 @@ type responseFromIngesters struct {
 }
 
 // New makes a new Querier.
-func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *overrides.Overrides) (*Querier, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *overrides.Overrides, enablePolling bool) (*Querier, error) {
 	factory := func(addr string) (ring_client.PoolClient, error) {
 		return ingester_client.New(addr, clientCfg)
 	}
@@ -69,8 +71,9 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			factory,
 			metricIngesterClients,
 			log.Logger),
-		store:  store,
-		limits: limits,
+		store:         store,
+		limits:        limits,
+		enablePolling: enablePolling,
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -108,7 +111,10 @@ func (q *Querier) starting(ctx context.Context) error {
 		}
 	}
 
-	q.store.EnablePolling(q)
+	if q.enablePolling {
+		// this will block until one poll cycle is complete
+		q.store.EnablePolling(q)
+	}
 
 	return nil
 }
@@ -250,8 +256,8 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 	return responses, err
 }
 
-// implements blocklist.PollingSharder. Generally queriers should rely on
+// implements blocklist.PollingSharder. Queriers rely on
 // compactors to build the tenant index which they then can consume
 func (q *Querier) BuildTenantIndex() bool {
-	return false // jpe configurable?
+	return false
 }

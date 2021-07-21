@@ -351,7 +351,6 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 }
 
 // jpe all in one has an EnablePolling race condition
-//  add a param to wait for first poll for querier to use to not start until its ready (or just always wait?)
 func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) {
 	if rw.cfg.BlocklistPoll == 0 {
 		rw.cfg.BlocklistPoll = DefaultBlocklistPoll
@@ -373,12 +372,14 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) {
 
 	rw.blocklistPoller = blocklistPoller
 
+	// do the first poll cycle synchronously. this will allow the caller to know
+	// that when this method returns the block list is updated
+	rw.pollBlocklist()
+
 	go rw.pollingLoop()
 }
 
 func (rw *readerWriter) pollingLoop() {
-	rw.pollBlocklist()
-
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
 	for range ticker.C {
 		rw.pollBlocklist()
