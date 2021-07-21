@@ -4,10 +4,13 @@ import (
 	"context"
 	"time"
 
+	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/status"
+	"google.golang.org/grpc/codes"
+
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"google.golang.org/grpc/codes"
 )
 
 type trace struct {
@@ -18,17 +21,20 @@ type trace struct {
 	currentBytes int
 
 	// List of flatbuffers
-	searchData [][]byte
+	searchData         [][]byte
+	maxSearchBytes     int
+	currentSearchBytes int
 }
 
-func newTrace(maxBytes int, traceID []byte) *trace {
+func newTrace(traceID []byte, maxBytes int, maxSearchBytes int) *trace {
 	return &trace{
 		traceBytes: &tempopb.TraceBytes{
 			Traces: make([][]byte, 0, 10), // 10 for luck
 		},
-		lastAppend: time.Now(),
-		traceID:    traceID,
-		maxBytes:   maxBytes,
+		lastAppend:     time.Now(),
+		traceID:        traceID,
+		maxBytes:       maxBytes,
+		maxSearchBytes: maxSearchBytes,
 	}
 }
 
@@ -46,6 +52,15 @@ func (t *trace) Push(_ context.Context, trace []byte, searchData []byte) error {
 	t.traceBytes.Traces = append(t.traceBytes.Traces, trace)
 
 	if searchData != nil {
+		searchDataSize := len(searchData)
+		if t.maxSearchBytes != 0 { // disable limit if set to 0
+			if t.currentSearchBytes+searchDataSize > t.maxSearchBytes {
+				// todo: info level since we are not expecting this limit to be hit, but calibrate accordingly in the future
+				level.Info(cortex_util.Logger).Log("msg", "size of search data exceeded max search bytes limit", "maxSearchBytes", t.maxSearchBytes)
+				return nil
+			}
+			t.currentSearchBytes += searchDataSize
+		}
 		t.searchData = append(t.searchData, searchData)
 	}
 

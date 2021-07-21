@@ -426,7 +426,8 @@ func (i *instance) getOrCreateTrace(traceID []byte) *trace {
 	}
 
 	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
-	trace = newTrace(maxBytes, traceID)
+	maxSearchBytes := i.limiter.limits.MaxSearchBytesPerTrace(i.instanceID)
+	trace = newTrace(traceID, maxBytes, maxSearchBytes)
 	i.traces[fp] = trace
 	i.tracesCreatedTotal.Inc()
 	i.traceCount.Inc()
