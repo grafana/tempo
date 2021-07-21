@@ -124,14 +124,12 @@ func OpenBackendSearchBlock(l *local.Backend, blockID uuid.UUID, tenantID string
 // Search iterates through the block looking for matches.
 func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchResults) error {
 
-	//var matches []*tempopb.TraceSearchMetadata
-
 	offset := uint64(0)
 	offsetBuf := make([]byte, 4)
 	dataBuf := make([]byte, 1024*1024)
 	entry := &tempofb.SearchData{} // Buffer
 
-	for {
+	for !sr.Quit() {
 
 		// Read page size
 		err := s.l.ReadRange(ctx, "search", backend.KeyPathForBlock(s.id, s.tenantID), offset, offsetBuf)
@@ -186,4 +184,6 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchR
 
 		offset += uint64(size)
 	}
+
+	return nil
 }

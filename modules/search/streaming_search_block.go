@@ -97,6 +97,10 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Searc
 
 	for _, r := range rr {
 
+		if sr.Quit() {
+			return nil
+		}
+
 		buf := make([]byte, r.Length)
 		_, err := s.file.ReadAt(buf, int64(r.Start))
 		if err != nil {

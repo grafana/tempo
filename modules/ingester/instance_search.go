@@ -61,6 +61,10 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 		defer i.tracesMtx.Unlock()
 
 		for _, t := range i.traces {
+			if sr.Quit() {
+				return
+			}
+
 			sr.AddTraceInspected()
 
 			for _, s := range t.searchData {
