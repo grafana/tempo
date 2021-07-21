@@ -76,6 +76,9 @@ func (l *List) CompactedMetas(tenantID string) []*backend.CompactedBlockMeta {
 	return copiedBlocklist
 }
 
+// ApplyPollResults applies the PerTenant and PerTenantCompacted maps to this blocklist
+// Note that it also applies any known local changes and then wipes them out to be restored
+// in the next polling cycle.
 func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
@@ -94,7 +97,7 @@ func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted) {
 }
 
 // Update Adds and removes regular or compacted blocks from the in-memory blocklist.
-// Changes are temporary and will be preserved only for one poll (jpe actually do this)
+// Changes are temporary and will be preserved only for one poll
 func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta) {
 	if tenantID == "" {
 		return

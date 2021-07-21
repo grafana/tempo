@@ -328,6 +328,7 @@ func (rw *readerWriter) Shutdown() {
 	rw.r.Shutdown()
 }
 
+// EnableCompaction activates the compaction/retention loops
 func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) {
 	// Set default if needed. This is mainly for tests.
 	if cfg.RetentionConcurrency == 0 {
@@ -350,7 +351,7 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	}
 }
 
-// jpe all in one has an EnablePolling race condition
+// EnablePolling activates the polling loop
 func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) {
 	if rw.cfg.BlocklistPoll == 0 {
 		rw.cfg.BlocklistPoll = DefaultBlocklistPoll

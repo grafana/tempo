@@ -52,7 +52,7 @@ type Poller struct {
 	compactor backend.Compactor
 
 	pollConcurrency uint
-	pollFallback    bool // jpe wire this up to a config value and document
+	pollFallback    bool
 
 	sharder PollerSharder
 	logger  log.Logger
@@ -65,7 +65,7 @@ func NewPoller(pollConcurrency uint, pollFallback bool, sharder PollerSharder, r
 		compactor: compactor,
 		writer:    writer,
 
-		pollConcurrency: pollConcurrency, // jpe remove poll prefix
+		pollConcurrency: pollConcurrency,
 		pollFallback:    pollFallback,
 
 		sharder: sharder,
@@ -106,7 +106,6 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	// pull bucket index? or poll everything?
 	if !p.sharder.BuildTenantIndex() {
-		// jpe gauge metric: IS POLLING BUCKET INDEX create alarm if gauge == 0
 		meta, compactedMeta, err := p.reader.TenantIndex(ctx, tenantID)
 		if err == nil {
 			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "metas", len(meta), "compactedMetas", len(compactedMeta))
