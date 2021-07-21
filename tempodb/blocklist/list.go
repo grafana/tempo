@@ -18,16 +18,25 @@ type List struct {
 	mtx            sync.Mutex
 	metas          PerTenant
 	compactedMetas PerTenantCompacted
+
+	// used by the compactor to track local changes it is aware of
+	added          PerTenant
+	removed        PerTenant
+	compactedAdded PerTenantCompacted
 }
 
 func New() *List {
 	return &List{
 		metas:          make(PerTenant),
 		compactedMetas: make(PerTenantCompacted),
+
+		added:          make(PerTenant),
+		removed:        make(PerTenant),
+		compactedAdded: make(PerTenantCompacted),
 	}
 }
 
-func (l *List) Tenants() []interface{} {
+func (l *List) Tenants() []interface{} { // this can be [] string now
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
@@ -72,6 +81,15 @@ func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted) {
 
 	l.metas = m
 	l.compactedMetas = c
+
+	// now reapply all updates and clear
+	for tenantID := range l.added {
+		l.updateInternal(tenantID, l.added[tenantID], l.removed[tenantID], l.compactedAdded[tenantID])
+	}
+
+	l.added = make(PerTenant)
+	l.removed = make(PerTenant)
+	l.compactedAdded = make(PerTenantCompacted)
 }
 
 // Update Adds and removes regular or compacted blocks from the in-memory blocklist.
@@ -84,6 +102,16 @@ func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backe
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
+	l.updateInternal(tenantID, add, remove, compactedAdd)
+
+	// save off
+	l.added[tenantID] = append(l.added[tenantID], add...)
+	l.removed[tenantID] = append(l.removed[tenantID], remove...)
+	l.compactedAdded[tenantID] = append(l.compactedAdded[tenantID], compactedAdd...)
+}
+
+// jpe comment
+func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta) {
 	// ******** Regular blocks ********
 	blocklist := l.metas[tenantID]
 

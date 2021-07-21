@@ -350,7 +350,9 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	}
 }
 
-func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) { // jpe all in one has an EnablePolling race condition
+// jpe all in one has an EnablePolling race condition
+//  add a param to wait for first poll for querier to use to not start until its ready (or just always wait?)
+func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) {
 	if rw.cfg.BlocklistPoll == 0 {
 		rw.cfg.BlocklistPoll = DefaultBlocklistPoll
 	}

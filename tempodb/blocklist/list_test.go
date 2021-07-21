@@ -1,6 +1,7 @@
 package blocklist
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/google/uuid"
@@ -9,6 +10,117 @@ import (
 )
 
 const testTenantID = "test"
+
+func TestApplyPollResults(t *testing.T) {
+	tests := []struct {
+		name            string
+		metas           PerTenant
+		compacted       PerTenantCompacted
+		expectedTenants []interface{}
+	}{
+		{
+			name:            "all nil",
+			expectedTenants: []interface{}{},
+		},
+		{
+			name: "meta only",
+			metas: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+				"test2": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+			},
+			expectedTenants: []interface{}{"test", "test2"},
+		},
+		{
+			name: "compacted meta only",
+			compacted: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+				"test2": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+						},
+					},
+				},
+			},
+			expectedTenants: []interface{}{},
+		},
+		{
+			name: "all",
+			metas: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+				"blerg": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+			},
+			compacted: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+				"test2": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+						},
+					},
+				},
+			},
+			expectedTenants: []interface{}{"blerg", "test"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			l := New()
+			l.ApplyPollResults(tc.metas, tc.compacted)
+
+			actualTenants := l.Tenants()
+			sort.Slice(actualTenants, func(i, j int) bool { return actualTenants[i].(string) < actualTenants[j].(string) })
+			assert.Equal(t, tc.expectedTenants, actualTenants)
+			for tenant, expected := range tc.metas {
+				actual := l.Metas(tenant)
+				assert.Equal(t, expected, actual)
+			}
+			for tenant, expected := range tc.compacted {
+				actual := l.CompactedMetas(tenant)
+				assert.Equal(t, expected, actual)
+			}
+		})
+	}
+}
 
 func TestUpdate(t *testing.T) {
 	tests := []struct {
