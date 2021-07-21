@@ -3,7 +3,6 @@ package backend
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 
 	"github.com/klauspost/compress/gzip"
 )
@@ -15,17 +14,12 @@ const (
 // tenantindex holds a list of all metas and compacted metas for a given tenant
 // it is probably stored in /<tenantid>/blockindex.json.gz as a gzipped json file
 type tenantindex struct {
-	Tenant        string                `json:"tenant"` // jpe -remove
 	Meta          []*BlockMeta          `json:"meta"`
 	CompactedMeta []*CompactedBlockMeta `json:"compacted"`
 }
 
 // marshal converts to json and compresses the bucketindex
 func (b *tenantindex) marshal() ([]byte, error) {
-	if b.Tenant == "" {
-		return nil, errors.New("empty tenant found while marshalling index")
-	}
-
 	buffer := &bytes.Buffer{}
 
 	gzip := gzip.NewWriter(buffer)
@@ -51,7 +45,7 @@ func (b *tenantindex) marshal() ([]byte, error) {
 func (b *tenantindex) unmarshal(buffer []byte) error {
 	gzipReader, err := gzip.NewReader(bytes.NewReader(buffer))
 	if err != nil {
-		return err // jpe return "index corrupted"?
+		return err
 	}
 	defer gzipReader.Close()
 

@@ -88,7 +88,6 @@ func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 // jpe test
 func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
 	b := &tenantindex{
-		Tenant:        tenantID,
 		Meta:          meta,
 		CompactedMeta: compactedMeta,
 	}

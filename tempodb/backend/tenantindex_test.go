@@ -15,13 +15,10 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		idx *tenantindex
 	}{
 		{
-			idx: &tenantindex{
-				Tenant: "test",
-			},
+			idx: &tenantindex{},
 		},
 		{
 			idx: &tenantindex{
-				Tenant: "test",
 				Meta: []*BlockMeta{
 					NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 					NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
@@ -31,7 +28,6 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		},
 		{
 			idx: &tenantindex{
-				Tenant: "test",
 				CompactedMeta: []*CompactedBlockMeta{
 					{
 						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
@@ -50,7 +46,6 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		},
 		{
 			idx: &tenantindex{
-				Tenant: "test",
 				Meta: []*BlockMeta{
 					NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 					NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
@@ -91,11 +86,4 @@ func TestIndexUnmarshalErrors(t *testing.T) {
 	test := &tenantindex{}
 	err := test.unmarshal([]byte("bad data"))
 	assert.Error(t, err)
-}
-
-func TestIndexMarshalErrors(t *testing.T) {
-	test := &tenantindex{}
-	buff, err := test.marshal()
-	assert.Error(t, err)
-	assert.Nil(t, buff)
 }
