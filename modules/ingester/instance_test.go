@@ -1,7 +1,6 @@
 package ingester
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"io/ioutil"
@@ -18,9 +17,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -501,125 +498,6 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 
 			assert.Equal(t, tc.expectedToCutBlock, instance.lastBlockCut.After(lastCutTime))
 		})
-	}
-}
-
-func TestInstanceSearch(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
-	assert.NoError(t, err, "unexpected error creating limits")
-	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
-
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	ingester, _, _ := defaultIngester(t, tempDir)
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
-	assert.NoError(t, err, "unexpected error creating new instance")
-
-	numTraces := 500
-	searchAnnotatedFractionDenominator := 100
-	ids := [][]byte{}
-
-	// add dummy search data
-	var tagKey = "foo"
-	var tagValue = "bar"
-
-	for j := 0; j < numTraces; j++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-
-		trace := test.MakeTrace(10, id)
-		model.SortTrace(trace)
-		traceBytes, err := trace.Marshal()
-		require.NoError(t, err)
-
-		// annotate just a fraction of traces with search data
-		var searchData []byte
-		if j%searchAnnotatedFractionDenominator == 0 {
-			data := &tempofb.SearchDataMutable{}
-			data.TraceID = id
-			data.AddTag(tagKey, tagValue)
-			searchData = data.ToBytes()
-
-			// these are the only ids we want to test against
-			ids = append(ids, id)
-		}
-
-		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes, searchData)
-		require.NoError(t, err)
-
-		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-	}
-
-	var req = &tempopb.SearchRequest{
-		Tags: map[string]string{},
-	}
-	req.Tags[tagKey] = tagValue
-
-	traceMetas, err := i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
-	// todo: test that returned results are in sorted time order, create order of id's beforehand
-	checkEqual(t, ids, traceMetas)
-
-	// Test after appending to WAL
-	err = i.CutCompleteTraces(0, true)
-	require.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-	traceMetas, err = i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, traceMetas)
-
-	// Test after cutting new headblock
-	blockID, err := i.CutBlockIfReady(0, 0, true)
-	require.NoError(t, err)
-	assert.NotEqual(t, blockID, uuid.Nil)
-
-	traceMetas, err = i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, traceMetas)
-
-	// Test after completing a block
-	err = i.CompleteBlock(blockID)
-	require.NoError(t, err)
-
-	traceMetas, err = i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Len(t, traceMetas, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, traceMetas)
-
-	err = ingester.stopping(nil)
-	require.NoError(t, err)
-
-	// create new ingester.  this should replay wal!
-	ingester, _, _ = defaultIngester(t, tempDir)
-
-	i, ok := ingester.getInstanceByID("fake")
-	assert.True(t, ok)
-
-	traceMetas, err = i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	// note: search is experimental and removed on every startup. Verify no search results now
-	assert.Len(t, traceMetas, 0)
-}
-
-func checkEqual(t *testing.T, ids [][]byte, traceMetas []*tempopb.TraceSearchMetadata) {
-	for _, meta := range traceMetas {
-		parsedTraceID, err := util.HexStringToTraceID(meta.TraceID)
-		assert.NoError(t, err)
-
-		present := false
-		for _, id := range ids {
-			if bytes.Equal(parsedTraceID, id) {
-				present = true
-			}
-		}
-		assert.True(t, present)
 	}
 }
 
