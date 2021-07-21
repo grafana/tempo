@@ -270,6 +270,31 @@ func TestUpdate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "add already exists",
+			existing: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+			},
+			add: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+			remove: nil,
+			expected: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -348,6 +373,40 @@ func TestUpdateCompacted(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "add already exists",
+			existing: []*backend.CompactedBlockMeta{
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+			},
+			add: []*backend.CompactedBlockMeta{
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+			expected: []*backend.CompactedBlockMeta{
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -401,6 +460,9 @@ func TestUpdatesSaved(t *testing.T) {
 			},
 			updateTenant: "test",
 			addMetas: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 				},
