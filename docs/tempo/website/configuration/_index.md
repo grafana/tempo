@@ -360,6 +360,10 @@ storage:
         # Number of blocks to process in parallel during polling. Default is 50.
         [blocklist_poll_concurrency: <int>]
 
+        # By default components will pull the blocklist from the tenant index. If that fails the component can
+        # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
+        [blocklist_poll_fallback: <bool>]
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         [cache: <string>]

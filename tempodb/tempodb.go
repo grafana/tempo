@@ -363,7 +363,7 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) {
 	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "concurrency", rw.cfg.BlocklistPollConcurrency)
 
 	blocklistPoller := blocklist.NewPoller(rw.cfg.BlocklistPollConcurrency,
-		true, // jpe do thing
+		rw.cfg.BlocklistPollFallback,
 		sharder,
 		rw.r,
 		rw.c,
