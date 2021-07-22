@@ -27,7 +27,7 @@ This is achieved by redistributing spans by trace ID once they arrive from the a
 The Agent must be able to discover and connect to other Agent instances where spans for the same trace can arrive.
 For kubernetes users, that can be done with a [headless service](https://kubernetes.io/docs/concepts/services-networking/service/#headless-services).
 
-Redistributing spans by trace ID means that spans are sent and receive twice,
+Redistributing spans by trace ID means that spans are sent and received twice,
 which can cause a significant increase in CPU usage.
 This overhead will increase with the number of Agent instances that share the same traces.
 
@@ -49,8 +49,8 @@ tempo:
         policies:
           - rate_limiting:
               spans_per_second: 50
-        load_balancing:
-          resolver:
-            dns:
-              hostname: host.namespace.svc.cluster.local
+      load_balancing:
+        resolver:
+          dns:
+            hostname: host.namespace.svc.cluster.local
 ```
