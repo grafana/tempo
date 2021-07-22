@@ -23,10 +23,11 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	sr := search.NewSearchResults()
 	defer sr.Close()
 
-	sr.SetWorkerCount(3)
 	i.searchLiveTraces(ctx, p, sr)
 	i.searchWAL(ctx, p, sr)
 	i.searchLocalBlocks(ctx, p, sr)
+
+	sr.AllWorkersStarted()
 
 	for result := range sr.Results() {
 		results = append(results, result)
@@ -53,6 +54,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 }
 
 func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *search.SearchResults) {
+	sr.StartWorker()
+
 	go func() {
 		defer sr.FinishWorker()
 
@@ -89,6 +92,7 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 	defer i.blocksMtx.Unlock()
 
 	for _, s := range i.searchAppendBlocks {
+		sr.StartWorker()
 		go func(s search.SearchBlock) {
 			defer sr.FinishWorker()
 			s.Search(ctx, p, sr)
@@ -101,6 +105,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 	defer i.blocksMtx.Unlock()
 
 	for _, s := range i.searchCompleteBlocks {
+		sr.StartWorker()
 		go func(s search.SearchBlock) {
 			defer sr.FinishWorker()
 			s.Search(ctx, p, sr)

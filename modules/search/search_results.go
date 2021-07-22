@@ -14,6 +14,7 @@ type SearchResults struct {
 	resultsCh   chan *tempopb.TraceSearchMetadata
 	doneCh      chan struct{}
 	quit        atomic.Bool
+	started     atomic.Bool
 	workerCount atomic.Int32
 
 	tracesInspected atomic.Uint32
@@ -67,9 +68,21 @@ func (sr *SearchResults) Close() {
 	sr.quit.Store(true)
 }
 
-// SetWorkerCount sets the number of workers that will be started
-func (sr *SearchResults) SetWorkerCount(count int32) {
-	sr.workerCount.Add(count)
+// StartWorker indicates another sender will be using the results channel. Must be followed
+// with a call to FinishWorker which is usually deferred in a goroutine:
+//   sr.StartWorker()
+//   go func() {
+//      defer sr.FinishWorker()
+func (sr *SearchResults) StartWorker() {
+	sr.workerCount.Inc()
+}
+
+// AllWorkersStarted indicates that no more workers (senders) will be launched, and the
+// results channel can be closed once the number of workers reaches zero.  This function
+// call occurs after all calls to StartWorker.
+func (sr *SearchResults) AllWorkersStarted() {
+	sr.started.Store(true)
+	sr.checkCleanup(sr.workerCount.Load())
 }
 
 // FinishWorker indicates a sender (goroutine) is done searching and will not
@@ -77,7 +90,11 @@ func (sr *SearchResults) SetWorkerCount(count int32) {
 // channel is closed.
 func (sr *SearchResults) FinishWorker() {
 	newCount := sr.workerCount.Dec()
-	if newCount == 0 {
+	sr.checkCleanup(newCount)
+}
+
+func (sr *SearchResults) checkCleanup(workerCount int32) {
+	if sr.started.Load() && workerCount == 0 {
 		// No more senders. This ends the receiver that is iterating
 		// the results channel.
 		close(sr.resultsCh)

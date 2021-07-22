@@ -137,3 +137,25 @@ func TestInstanceSearch(t *testing.T) {
 	// note: search is experimental and removed on every startup. Verify no search results now
 	assert.Len(t, sr.Traces, 0)
 }
+
+func TestInstanceSearchNoData(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	var req = &tempopb.SearchRequest{
+		Tags: map[string]string{},
+	}
+
+	sr, err := i.Search(context.Background(), req)
+	assert.NoError(t, err)
+	require.Len(t, sr.Traces, 0)
+}
