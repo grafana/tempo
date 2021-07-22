@@ -67,9 +67,9 @@ func (sr *SearchResults) Close() {
 	sr.quit.Store(true)
 }
 
-// StartWorker indicates another sender is using the results channel. Must be followed
-func (sr *SearchResults) StartWorker() {
-	sr.workerCount.Inc()
+// SetWorkerCount sets the number of workers that will be started
+func (sr *SearchResults) SetWorkerCount(count int32) {
+	sr.workerCount.Add(count)
 }
 
 // FinishWorker indicates a sender (goroutine) is done searching and will not
