@@ -360,7 +360,7 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
 	}
 
-	if rw.cfg.MaxTenantIndexBuilders >= 0 {
+	if rw.cfg.MaxTenantIndexBuilders <= 0 {
 		rw.cfg.MaxTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
 

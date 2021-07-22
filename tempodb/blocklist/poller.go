@@ -74,8 +74,6 @@ type Poller struct {
 
 // NewPoller creates the Poller
 func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, compactor backend.Compactor, writer backend.Writer, logger log.Logger) *Poller {
-	// jpe return err if config is bad?
-
 	return &Poller{
 		reader:    reader,
 		compactor: compactor,

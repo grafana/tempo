@@ -114,7 +114,8 @@ func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backe
 	l.compactedAdded[tenantID] = append(l.compactedAdded[tenantID], compactedAdd...)
 }
 
-// jpe comment
+// updateInternal exists to do the work of applying updates to held PerTenant and PerTenantCompacted maps
+//  it must be called under lock
 func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta) {
 	// ******** Regular blocks ********
 	blocklist := l.metas[tenantID]
