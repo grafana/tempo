@@ -12,13 +12,13 @@ import (
 
 func TestIndexMarshalUnmarshal(t *testing.T) {
 	tests := []struct {
-		idx *tenantindex
+		idx *TenantIndex
 	}{
 		{
-			idx: &tenantindex{},
+			idx: &TenantIndex{},
 		},
 		{
-			idx: &tenantindex{
+			idx: &TenantIndex{
 				Meta: []*BlockMeta{
 					NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 					NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
@@ -27,7 +27,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 			},
 		},
 		{
-			idx: &tenantindex{
+			idx: &TenantIndex{
 				CompactedMeta: []*CompactedBlockMeta{
 					{
 						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
@@ -45,7 +45,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 			},
 		},
 		{
-			idx: &tenantindex{
+			idx: &TenantIndex{
 				Meta: []*BlockMeta{
 					NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 					NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
@@ -73,7 +73,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		buff, err := tc.idx.marshal()
 		require.NoError(t, err)
 
-		actual := &tenantindex{}
+		actual := &TenantIndex{}
 		err = actual.unmarshal(buff)
 		require.NoError(t, err)
 
@@ -83,7 +83,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 }
 
 func TestIndexUnmarshalErrors(t *testing.T) {
-	test := &tenantindex{}
+	test := &TenantIndex{}
 	err := test.unmarshal([]byte("bad data"))
 	assert.Error(t, err)
 }

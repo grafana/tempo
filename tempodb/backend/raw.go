@@ -87,10 +87,7 @@ func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 
 // jpe test
 func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
-	b := &tenantindex{
-		Meta:          meta,
-		CompactedMeta: compactedMeta,
-	}
+	b := newTenantIndex(meta, compactedMeta)
 
 	indexBytes, err := b.marshal()
 	if err != nil {
@@ -170,19 +167,19 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 }
 
 // jpe test
-func (r *reader) TenantIndex(ctx context.Context, tenantID string) ([]*BlockMeta, []*CompactedBlockMeta, error) {
+func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
 	indexBytes, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	i := &tenantindex{}
+	i := &TenantIndex{}
 	err = i.unmarshal(indexBytes)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return i.Meta, i.CompactedMeta, nil
+	return i, nil
 }
 
 func (r *reader) Shutdown() {

@@ -152,6 +152,17 @@ play the role of building the tenant index. Ways to address this issue in order 
 - Delete tenant index files to force other components to fallback to scanning the entire bucket. They are located at 
   `/<tenant>/index.json.gz`
 
+## TempoTenantIndexTooOld
+
+See [Polling Issues](#polling-issues) below for general information.
+
+If the tenant indexes are too old we need to review the compactor logs to determine why they are failing to update. Compactors
+with `tempodb_blocklist_tenant_index_builder` set to 1 are expected to be creating the tenant indexes are should be checked
+first. If no compactors are creating tenant indexes refer to [TempoNoTenantIndexBuilders](#temponotenantindexbuilders) above.
+
+Additionally the metric `tempodb_blocklist_tenant_index_age_seconds` can be grouped by the `tenant` label. If only one (or few) 
+indexes are lagging these can be deleted to force components to manually rescan the bucket.
+
 ### Polling Issues
 
 In the case of all polling issues intermittent issues are not concerning. Sustained polling issues need to be addressed.  

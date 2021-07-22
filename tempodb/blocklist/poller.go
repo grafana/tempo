@@ -43,6 +43,11 @@ var (
 		Name:      "blocklist_tenant_index_builder",
 		Help:      "A value of 1 indicates this instance of tempodb is building the tenant index.",
 	})
+	metricTenantIndexAgeSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "blocklist_tenant_index_age_seconds",
+		Help:      "Age in seconds of the last pulled tenant index.",
+	}, []string{"tenant"})
 )
 
 // Config is used to configure the poller
@@ -116,14 +121,15 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 }
 
 func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
-	// pull bucket index? or poll everything?
+	// if we're not building the tenant index then attempt to pull it
 	if !p.buildTenantIndex() {
 		metricTenantIndexBuilder.Set(0)
 
-		meta, compactedMeta, err := p.reader.TenantIndex(ctx, tenantID)
+		i, err := p.reader.TenantIndex(ctx, tenantID)
+		metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Now().Sub(i.CreatedAt) / time.Second))
 		if err == nil {
-			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "metas", len(meta), "compactedMetas", len(compactedMeta))
-			return meta, compactedMeta, nil
+			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
+			return i.Meta, i.CompactedMeta, nil
 		}
 
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()

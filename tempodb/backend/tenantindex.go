@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"encoding/json"
+	"time"
 
 	"github.com/klauspost/compress/gzip"
 )
@@ -11,15 +12,24 @@ const (
 	internalFilename = "index.json"
 )
 
-// tenantindex holds a list of all metas and compacted metas for a given tenant
+// TenantIndex holds a list of all metas and compacted metas for a given tenant
 // it is probably stored in /<tenantid>/blockindex.json.gz as a gzipped json file
-type tenantindex struct {
-	Meta          []*BlockMeta          `json:"meta"` // jpe add creation time
+type TenantIndex struct {
+	CreatedAt     time.Time             `json:"created_at"`
+	Meta          []*BlockMeta          `json:"meta"`
 	CompactedMeta []*CompactedBlockMeta `json:"compacted"`
 }
 
+func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
+	return &TenantIndex{
+		CreatedAt:     time.Now(), // jpe metric
+		Meta:          meta,
+		CompactedMeta: compactedMeta,
+	}
+}
+
 // marshal converts to json and compresses the bucketindex
-func (b *tenantindex) marshal() ([]byte, error) {
+func (b *TenantIndex) marshal() ([]byte, error) {
 	buffer := &bytes.Buffer{}
 
 	gzip := gzip.NewWriter(buffer)
@@ -42,7 +52,7 @@ func (b *tenantindex) marshal() ([]byte, error) {
 }
 
 // unmarshal decompresses and unmarshals the results from json
-func (b *tenantindex) unmarshal(buffer []byte) error {
+func (b *TenantIndex) unmarshal(buffer []byte) error {
 	gzipReader, err := gzip.NewReader(bytes.NewReader(buffer))
 	if err != nil {
 		return err

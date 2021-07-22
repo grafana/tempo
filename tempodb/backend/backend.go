@@ -48,7 +48,7 @@ type Reader interface {
 	// BlockMeta returns the blockmeta given a block and tenant id
 	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	// TenantIndex returns lists of all metas given a tenant
-	TenantIndex(ctx context.Context, tenantID string) ([]*BlockMeta, []*CompactedBlockMeta, error)
+	TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error)
 	// Shutdown shuts...down?
 	Shutdown()
 }
