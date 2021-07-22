@@ -5150,8 +5150,8 @@
    {
     "current": {
      "selected": false,
-     "text": "1-ops-tools1",
-     "value": "1-ops-tools1"
+     "text": "ops-cortex",
+     "value": "ops-cortex"
     },
     "description": null,
     "error": null,
@@ -5213,7 +5213,7 @@
     ],
     "query": {
      "query": "label_values(tempo_build_info, cluster)",
-     "refId": "1-ops-tools1-cluster-Variable-Query"
+     "refId": "ops-cortex-cluster-Variable-Query"
     },
     "refresh": 1,
     "regex": "",
@@ -5245,7 +5245,7 @@
     ],
     "query": {
      "query": "label_values(kube_pod_container_info{image=~\".*tempo.*\", cluster=\"$cluster\"}, namespace)",
-     "refId": "1-ops-tools1-namespace-Variable-Query"
+     "refId": "ops-cortex-namespace-Variable-Query"
     },
     "refresh": 1,
     "regex": "",
