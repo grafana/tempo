@@ -48,7 +48,7 @@ func TestRetention(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	blockID := uuid.New()
 
@@ -108,7 +108,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, overrides)
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	cutTestBlocks(t, w, testTenantID, 10, 10)
 

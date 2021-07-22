@@ -67,7 +67,7 @@ func TestDB(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	blockID := uuid.New()
 
@@ -120,7 +120,7 @@ func TestBlockSharding(t *testing.T) {
 	r, w, _, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
 	defer os.RemoveAll(tempDir)
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	// create block with known ID
 	blockID := uuid.New()
@@ -190,7 +190,7 @@ func TestBlockCleanup(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	blockID := uuid.New()
 
@@ -480,7 +480,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	wal := w.WAL()
 

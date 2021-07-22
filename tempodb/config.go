@@ -21,6 +21,7 @@ const (
 	DefaultBlocklistPoll            = 5 * time.Minute
 	DefaultBlocklistPollConcurrency = uint(50)
 	DefaultRetentionConcurrency     = uint(10)
+	DefaultTenantIndexBuilders      = 2
 )
 
 // Config holds the entirety of tempodb configuration
@@ -32,6 +33,7 @@ type Config struct {
 	BlocklistPoll            time.Duration `yaml:"blocklist_poll"`
 	BlocklistPollConcurrency uint          `yaml:"blocklist_poll_concurrency"`
 	BlocklistPollFallback    bool          `yaml:"blocklist_poll_fallback"`
+	MaxTenantIndexBuilders   int           `yaml:"blocklist_poll_tenant_index_builders"` // jpe review all these mixed up names
 
 	// backends
 	Backend string        `yaml:"backend"`

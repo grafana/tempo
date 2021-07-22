@@ -256,8 +256,8 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 	return responses, err
 }
 
-// implements blocklist.PollingSharder. Queriers rely on
-// compactors to build the tenant index which they then can consume
-func (q *Querier) BuildTenantIndex() bool {
+// implements blocklist.JobSharder. Queriers rely on compactors to build the tenant
+// index which they then consume.
+func (q *Querier) Owns(_ string) bool {
 	return false
 }

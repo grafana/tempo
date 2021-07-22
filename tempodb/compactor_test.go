@@ -32,9 +32,9 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
-type mockPollerSharder struct{}
+type mockJobSharder struct{}
 
-func (m *mockPollerSharder) BuildTenantIndex() bool { return true }
+func (m *mockJobSharder) Owns(_ string) bool { return true }
 
 func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
 	if len(objA) > len(objB) {
@@ -76,7 +76,7 @@ func TestCompaction(t *testing.T) {
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
 		},
-		BlocklistPoll: 0,
+		BlocklistPoll: 0, // jpe poll fallback = true makes this test sad, why?
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
@@ -87,7 +87,7 @@ func TestCompaction(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	wal := w.WAL()
 	assert.NoError(t, err)
@@ -131,7 +131,6 @@ func TestCompaction(t *testing.T) {
 
 	rw := r.(*readerWriter)
 
-	// poll
 	expectedBlockCount := blockCount
 	expectedCompactedCount := 0
 	checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
@@ -218,7 +217,7 @@ func TestSameIDCompaction(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	wal := w.WAL()
 	assert.NoError(t, err)
@@ -308,7 +307,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -377,7 +376,7 @@ func TestCompactionMetrics(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	// Cut x blocks with y records each
 	blockCount := 5
@@ -452,7 +451,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
-	r.EnablePolling(&mockPollerSharder{})
+	r.EnablePolling(&mockJobSharder{})
 
 	// Cut blocks for multiple tenants
 	cutTestBlocks(t, w, testTenantID, 2, 2)

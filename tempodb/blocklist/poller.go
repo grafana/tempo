@@ -3,6 +3,7 @@ package blocklist
 import (
 	"context"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -44,11 +45,20 @@ var (
 	})
 )
 
-// PollerSharder is used to determine if this node should build the blocklist index or just pull it
-//  jpe rename? combine with others?
-type PollerSharder interface {
-	BuildTenantIndex() bool
+// Config is used to configure the poller
+type PollerConfig struct {
+	PollConcurrency uint
+	PollFallback    bool
+	IndexBuilders   int
 }
+
+// JobSharder is used to determine if a particular job is owned by this process
+type JobSharder interface {
+	// Owns is used to ask if a job, identified by a string, is owned by this process
+	Owns(string) bool
+}
+
+const jobPrefix = "build-tenant-index-"
 
 // Poller retrieves the blocklist
 type Poller struct {
@@ -56,23 +66,22 @@ type Poller struct {
 	writer    backend.Writer
 	compactor backend.Compactor
 
-	pollConcurrency uint
-	pollFallback    bool
+	cfg *PollerConfig
 
-	sharder PollerSharder
+	sharder JobSharder
 	logger  log.Logger
 }
 
 // NewPoller creates the Poller
-func NewPoller(pollConcurrency uint, pollFallback bool, sharder PollerSharder, reader backend.Reader, compactor backend.Compactor, writer backend.Writer, logger log.Logger) *Poller {
+func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, compactor backend.Compactor, writer backend.Writer, logger log.Logger) *Poller {
+	// jpe return err if config is bad?
+
 	return &Poller{
 		reader:    reader,
 		compactor: compactor,
 		writer:    writer,
 
-		pollConcurrency: pollConcurrency,
-		pollFallback:    pollFallback,
-
+		cfg:     cfg,
 		sharder: sharder,
 		logger:  logger,
 	}
@@ -110,7 +119,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 
 func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	// pull bucket index? or poll everything?
-	if !p.sharder.BuildTenantIndex() {
+	if !p.buildTenantIndex() {
 		metricTenantIndexBuilder.Set(0)
 
 		meta, compactedMeta, err := p.reader.TenantIndex(ctx, tenantID)
@@ -122,7 +131,7 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 
 		// we had an error, do we bail?
-		if !p.pollFallback {
+		if !p.cfg.PollFallback {
 			return nil, nil, err
 		}
 
@@ -138,7 +147,7 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 		return []*backend.BlockMeta{}, []*backend.CompactedBlockMeta{}, err
 	}
 
-	bg := boundedwaitgroup.New(p.pollConcurrency)
+	bg := boundedwaitgroup.New(p.cfg.PollConcurrency)
 	chMeta := make(chan *backend.BlockMeta, len(blockIDs))
 	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(blockIDs))
 	anyError := atomic.Error{}
@@ -214,4 +223,15 @@ func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UU
 	}
 
 	return blockMeta, compactedBlockMeta, nil
+}
+
+func (p *Poller) buildTenantIndex() bool {
+	for i := 0; i < p.cfg.IndexBuilders; i++ {
+		job := jobPrefix + strconv.Itoa(i)
+		if p.sharder.Owns(job) {
+			return true
+		}
+	}
+
+	return false
 }

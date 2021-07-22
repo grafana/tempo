@@ -14,11 +14,12 @@ import (
 var (
 	testPollConcurrency = uint(10)
 	testPollFallback    = true
+	testBuilders        = 1
 )
 
-type mockPollerSharder struct{}
+type mockJobSharder struct{}
 
-func (m *mockPollerSharder) BuildTenantIndex() bool { return true }
+func (m *mockJobSharder) Owns(_ string) bool { return true }
 
 // jpe extend
 func TestDo(t *testing.T) {
@@ -144,7 +145,11 @@ func TestDo(t *testing.T) {
 			r := newMockReader(tc.list, tc.compactedList, tc.expectsError)
 			w := &backend.MockWriter{}
 
-			poller := NewPoller(testPollConcurrency, testPollFallback, &mockPollerSharder{}, r, c, w, log.NewNopLogger())
+			poller := NewPoller(&PollerConfig{
+				PollConcurrency: testPollConcurrency,
+				PollFallback:    testPollFallback,
+				IndexBuilders:   testBuilders,
+			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
 			actualList, actualCompactedList, err := poller.Do()
 
 			assert.Equal(t, tc.expectedList, actualList)
@@ -231,7 +236,11 @@ func TestPollBlock(t *testing.T) {
 			r := newMockReader(tc.list, nil, tc.expectsError)
 			w := &backend.MockWriter{}
 
-			poller := NewPoller(testPollConcurrency, testPollFallback, &mockPollerSharder{}, r, c, w, log.NewNopLogger())
+			poller := NewPoller(&PollerConfig{
+				PollConcurrency: testPollConcurrency,
+				PollFallback:    testPollFallback,
+				IndexBuilders:   testBuilders,
+			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
 			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, tc.pollBlockID)
 
 			assert.Equal(t, tc.expectedMeta, actualMeta)

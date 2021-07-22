@@ -64,7 +64,8 @@ func TestReturnAllHits(t *testing.T) {
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
 		},
-		BlocklistPoll: 50 * time.Millisecond,
+		BlocklistPoll:         50 * time.Millisecond,
+		BlocklistPollFallback: true,
 	}, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error creating tempodb")
 
@@ -99,7 +100,7 @@ func TestReturnAllHits(t *testing.T) {
 	}
 
 	// sleep for blocklist poll
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	// find should return both now
 	foundBytes, _, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)

@@ -155,13 +155,6 @@ func (c *Compactor) Owns(hash string) bool {
 	return rs.Instances[0].Addr == c.ringLifecycler.Addr
 }
 
-// BuildTenantIndex implements blocklist.PollingSharder. Use the ring to determine if
-// we should be building the tenant index or just polling for an already existing one.
-func (c *Compactor) BuildTenantIndex() bool {
-	// jpe stuff
-	return true
-}
-
 // Combine implements common.ObjectCombiner
 func (c *Compactor) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
 	return model.ObjectCombiner.Combine(objA, objB, dataEncoding)

@@ -74,7 +74,7 @@ type Writer interface {
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error)
-	EnablePolling(sharder blocklist.PollerSharder)
+	EnablePolling(sharder blocklist.JobSharder)
 
 	Shutdown()
 }
@@ -83,7 +83,6 @@ type Compactor interface {
 	EnableCompaction(cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 }
 
-// jpe combine below? wrap it into new poller interface?
 type CompactorSharder interface {
 	common.ObjectCombiner
 	Owns(hash string) bool
@@ -352,7 +351,7 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 }
 
 // EnablePolling activates the polling loop
-func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) {
+func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 	if rw.cfg.BlocklistPoll == 0 {
 		rw.cfg.BlocklistPoll = DefaultBlocklistPoll
 	}
@@ -361,15 +360,17 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.PollerSharder) {
 		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
 	}
 
+	if rw.cfg.MaxTenantIndexBuilders >= 0 {
+		rw.cfg.MaxTenantIndexBuilders = DefaultTenantIndexBuilders
+	}
+
 	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "concurrency", rw.cfg.BlocklistPollConcurrency)
 
-	blocklistPoller := blocklist.NewPoller(rw.cfg.BlocklistPollConcurrency,
-		rw.cfg.BlocklistPollFallback,
-		sharder,
-		rw.r,
-		rw.c,
-		rw.w,
-		rw.logger)
+	blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
+		PollConcurrency: rw.cfg.BlocklistPollConcurrency,
+		PollFallback:    rw.cfg.BlocklistPollFallback,
+		IndexBuilders:   rw.cfg.MaxTenantIndexBuilders,
+	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller
 

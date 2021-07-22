@@ -145,10 +145,12 @@ play the role of building the tenant index. Ways to address this issue in order 
 - Find and forget all unhealthy compactors.
 - Increase the number of compactors that attempt to build the index.
   ```
-  compactor:
-    tenant_index_builders: 2  # <- increase this value jpe confirm this is the setting
+  storage:
+    trace:
+      blocklist_poll_tenant_index_builders: 2  # <- increase this value
   ```
-- Delete all tenant index files to force other components to fallback to scanning the entire bucket.
+- Delete tenant index files to force other components to fallback to scanning the entire bucket. They are located at 
+  `/<tenant>/index.json.gz`
 
 ### Polling Issues
 
