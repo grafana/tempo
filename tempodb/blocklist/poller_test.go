@@ -146,9 +146,9 @@ func TestDo(t *testing.T) {
 			w := &backend.MockWriter{}
 
 			poller := NewPoller(&PollerConfig{
-				PollConcurrency: testPollConcurrency,
-				PollFallback:    testPollFallback,
-				IndexBuilders:   testBuilders,
+				PollConcurrency:     testPollConcurrency,
+				PollFallback:        testPollFallback,
+				TenantIndexBuilders: testBuilders,
 			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
 			actualList, actualCompactedList, err := poller.Do()
 
@@ -237,9 +237,9 @@ func TestPollBlock(t *testing.T) {
 			w := &backend.MockWriter{}
 
 			poller := NewPoller(&PollerConfig{
-				PollConcurrency: testPollConcurrency,
-				PollFallback:    testPollFallback,
-				IndexBuilders:   testBuilders,
+				PollConcurrency:     testPollConcurrency,
+				PollFallback:        testPollFallback,
+				TenantIndexBuilders: testBuilders,
 			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
 			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, tc.pollBlockID)
 

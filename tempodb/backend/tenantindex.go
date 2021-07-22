@@ -22,7 +22,7 @@ type TenantIndex struct {
 
 func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
 	return &TenantIndex{
-		CreatedAt:     time.Now(), // jpe metric
+		CreatedAt:     time.Now(),
 		Meta:          meta,
 		CompactedMeta: compactedMeta,
 	}

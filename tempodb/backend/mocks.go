@@ -136,8 +136,8 @@ func (m *MockReader) ReadRange(ctx context.Context, name string, blockID uuid.UU
 	return nil
 }
 
-func (m *MockReader) TenantIndex(ctx context.Context, tenantID string) ([]*BlockMeta, []*CompactedBlockMeta, error) {
-	return nil, nil, nil
+func (m *MockReader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
+	return &TenantIndex{}, nil
 }
 
 func (m *MockReader) Shutdown() {}

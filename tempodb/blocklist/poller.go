@@ -52,9 +52,9 @@ var (
 
 // Config is used to configure the poller
 type PollerConfig struct {
-	PollConcurrency uint
-	PollFallback    bool
-	IndexBuilders   int
+	PollConcurrency     uint
+	PollFallback        bool
+	TenantIndexBuilders int
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -126,9 +126,9 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 		metricTenantIndexBuilder.Set(0)
 
 		i, err := p.reader.TenantIndex(ctx, tenantID)
-		metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Now().Sub(i.CreatedAt) / time.Second))
 		if err == nil {
-			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
+			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Now().Sub(i.CreatedAt) / time.Second))
+			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "createdAt", i.CreatedAt, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
 			return i.Meta, i.CompactedMeta, nil
 		}
 
@@ -230,7 +230,7 @@ func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UU
 }
 
 func (p *Poller) buildTenantIndex() bool {
-	for i := 0; i < p.cfg.IndexBuilders; i++ {
+	for i := 0; i < p.cfg.TenantIndexBuilders; i++ {
 		job := jobPrefix + strconv.Itoa(i)
 		if p.sharder.Owns(job) {
 			return true

@@ -30,10 +30,10 @@ type Config struct {
 	WAL   *wal.Config           `yaml:"wal"`
 	Block *encoding.BlockConfig `yaml:"block"`
 
-	BlocklistPoll            time.Duration `yaml:"blocklist_poll"`
-	BlocklistPollConcurrency uint          `yaml:"blocklist_poll_concurrency"`
-	BlocklistPollFallback    bool          `yaml:"blocklist_poll_fallback"`
-	MaxTenantIndexBuilders   int           `yaml:"blocklist_poll_tenant_index_builders"` // jpe review all these mixed up names
+	BlocklistPoll                    time.Duration `yaml:"blocklist_poll"`
+	BlocklistPollConcurrency         uint          `yaml:"blocklist_poll_concurrency"`
+	BlocklistPollFallback            bool          `yaml:"blocklist_poll_fallback"`
+	BlocklistPollTenantIndexBuilders int           `yaml:"blocklist_poll_tenant_index_builders"`
 
 	// backends
 	Backend string        `yaml:"backend"`

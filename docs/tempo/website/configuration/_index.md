@@ -364,6 +364,10 @@ storage:
         # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
         [blocklist_poll_fallback: <bool>]
 
+        # Maximum number of compactors that should build the tenant index. All other components will download 
+        # the index.  Default 2.
+        [blocklist_poll_tenant_index_builders: <int>]
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         [cache: <string>]
