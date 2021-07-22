@@ -8,7 +8,7 @@ services:
       - ../local/tempo-local.yaml:/etc/tempo.yaml
       - ./tempo-data/:/tmp/tempo
     ports:
-      - "3100:3100"   # tempo
+      - "3200:3200"   # tempo
       - "14268"  # jaeger ingest
 
   tempo-query:
