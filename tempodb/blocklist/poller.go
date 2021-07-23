@@ -127,7 +127,7 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 
 		i, err := p.reader.TenantIndex(ctx, tenantID)
 		if err == nil {
-			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Now().Sub(i.CreatedAt) / time.Second))
+			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Since(i.CreatedAt) / time.Second))
 			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "createdAt", i.CreatedAt, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
 			return i.Meta, i.CompactedMeta, nil
 		}
