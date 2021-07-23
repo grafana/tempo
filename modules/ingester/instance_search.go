@@ -2,11 +2,13 @@ package ingester
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/grafana/tempo/modules/search"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -91,12 +93,19 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	for _, s := range i.searchAppendBlocks {
+	for b, e := range i.searchAppendBlocks {
 		sr.StartWorker()
-		go func(s search.SearchBlock) {
+		go func(k *wal.AppendBlock, e *searchStreamingBlockEntry) {
 			defer sr.FinishWorker()
-			s.Search(ctx, p, sr)
-		}(s)
+
+			e.mtx.RLock()
+			defer e.mtx.RUnlock()
+
+			err := e.b.Search(ctx, p, sr)
+			if err != nil {
+				fmt.Println("error searching wal block", k.BlockID().String(), err)
+			}
+		}(b, e)
 	}
 }
 
@@ -104,12 +113,19 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	for _, s := range i.searchCompleteBlocks {
+	for b, e := range i.searchCompleteBlocks {
 		sr.StartWorker()
-		go func(s search.SearchBlock) {
+		go func(b *wal.LocalBlock, e *searchLocalBlockEntry) {
 			defer sr.FinishWorker()
-			s.Search(ctx, p, sr)
-		}(s)
+
+			e.mtx.RLock()
+			defer e.mtx.RUnlock()
+
+			err := e.b.Search(ctx, p, sr)
+			if err != nil {
+				fmt.Println("error searching local block", b.BlockMeta().BlockID.String(), err)
+			}
+		}(b, e)
 	}
 }
 

@@ -68,8 +68,8 @@ type instance struct {
 	completingBlocks []*wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
-	searchAppendBlocks   map[*wal.AppendBlock]*search.StreamingSearchBlock
-	searchCompleteBlocks map[*wal.LocalBlock]search.SearchBlock
+	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
+	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
 	searchTagLookups     tempofb.SearchDataMap
 
 	lastBlockCut time.Time
@@ -87,11 +87,21 @@ type instance struct {
 	hash hash.Hash32
 }
 
+type searchStreamingBlockEntry struct {
+	b   *search.StreamingSearchBlock
+	mtx sync.RWMutex
+}
+
+type searchLocalBlockEntry struct {
+	b   search.SearchBlock
+	mtx sync.RWMutex
+}
+
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
 		traces:               map[uint32]*trace{},
-		searchAppendBlocks:   map[*wal.AppendBlock]*search.StreamingSearchBlock{},
-		searchCompleteBlocks: map[*wal.LocalBlock]search.SearchBlock{},
+		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
+		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
 		searchTagLookups:     tempofb.SearchDataMap{},
 
 		instanceID:         instanceID,
@@ -259,7 +269,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	var newSearch search.SearchBlock
 	if oldSearch != nil {
-		_, err = search.NewBackendSearchBlock(oldSearch, i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID)
+		_, err = search.NewBackendSearchBlock(oldSearch.b, i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID)
 		if err != nil {
 			return err
 		}
@@ -271,7 +281,9 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	defer i.blocksMtx.Unlock()
 
 	if newSearch != nil {
-		i.searchCompleteBlocks[ingesterBlock] = newSearch
+		i.searchCompleteBlocks[ingesterBlock] = &searchLocalBlockEntry{
+			b: newSearch,
+		}
 	}
 	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
 
@@ -293,16 +305,18 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	}
 
 	if completingBlock != nil {
-		searchBlock := i.searchAppendBlocks[completingBlock]
-		if searchBlock != nil {
-			searchBlock.Clear()
+		entry := i.searchAppendBlocks[completingBlock]
+		if entry != nil {
+			entry.mtx.Lock()
+			defer entry.mtx.Unlock()
+			entry.b.Clear()
 			delete(i.searchAppendBlocks, completingBlock)
 		}
 
 		return completingBlock.Clear()
 	}
 
-	return fmt.Errorf("Error finding wal completingBlock to clear")
+	return errors.New("Error finding wal completingBlock to clear")
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend
@@ -333,7 +347,14 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
-			delete(i.searchCompleteBlocks, b)
+
+			searchEntry := i.searchCompleteBlocks[b]
+			if searchEntry != nil {
+				searchEntry.mtx.Lock()
+				defer searchEntry.mtx.Unlock()
+				delete(i.searchCompleteBlocks, b)
+			}
+
 			err = i.local.ClearBlock(b.BlockMeta().BlockID, i.instanceID)
 			if err == nil {
 				metricBlocksClearedTotal.Inc()
@@ -462,8 +483,14 @@ func (i *instance) resetHeadBlock() error {
 		return err
 	}
 
-	i.searchAppendBlocks[i.headBlock], err = search.NewStreamingSearchBlockForFile(f)
-	return err
+	b, err := search.NewStreamingSearchBlockForFile(f)
+	if err != nil {
+		return err
+	}
+	i.searchAppendBlocks[i.headBlock] = &searchStreamingBlockEntry{
+		b: b,
+	}
+	return nil
 }
 
 func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
@@ -493,9 +520,9 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 		return err
 	}
 
-	searchBlock := i.searchAppendBlocks[i.headBlock]
-	if searchBlock != nil {
-		err := searchBlock.Append(context.TODO(), id, searchData)
+	entry := i.searchAppendBlocks[i.headBlock]
+	if entry != nil {
+		err := entry.b.Append(context.TODO(), id, searchData)
 		return err
 	}
 

@@ -163,21 +163,20 @@ func TestInstanceSearchNoData(t *testing.T) {
 
 func TestInstanceSearchDoesNotRace(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
-	assert.NoError(t, err, "unexpected error creating limits")
+	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := ioutil.TempDir("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	ingester, _, _ := defaultIngester(t, tempDir)
-
+	ingester, _, _ := defaultIngester(t, t.TempDir())
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
-	assert.NoError(t, err, "unexpected error creating new instance")
+	require.NoError(t, err)
 
 	// add dummy search data
 	var tagKey = "foo"
 	var tagValue = "bar"
+
+	var req = &tempopb.SearchRequest{
+		Tags: map[string]string{tagKey: tagValue},
+	}
 
 	end := make(chan struct{})
 
@@ -191,53 +190,132 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 			}
 		}
 	}
+
 	go concurrent(func() {
-		for j := 0; j < 10; j++ {
-			id := make([]byte, 16)
-			rand.Read(id)
+		id := make([]byte, 16)
+		rand.Read(id)
 
-			trace := test.MakeTrace(10, id)
-			model.SortTrace(trace)
-			traceBytes, err := trace.Marshal()
-			require.NoError(t, err)
+		trace := test.MakeTrace(10, id)
+		traceBytes, err := trace.Marshal()
+		require.NoError(t, err)
 
-			var searchData []byte
-			data := &tempofb.SearchDataMutable{}
-			data.TraceID = id
-			data.AddTag(tagKey, tagValue)
-			searchData = data.ToBytes()
+		searchData := &tempofb.SearchDataMutable{}
+		searchData.TraceID = id
+		searchData.AddTag(tagKey, tagValue)
+		searchBytes := searchData.ToBytes()
 
-			// searchData will be nil if not
-			err = i.PushBytes(context.Background(), id, traceBytes, searchData)
-			require.NoError(t, err)
-		}
+		// searchData will be nil if not
+		err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+		require.NoError(t, err)
 	})
 
 	go concurrent(func() {
 		err := i.CutCompleteTraces(0, true)
-		assert.NoError(t, err, "error cutting complete traces")
+		require.NoError(t, err, "error cutting complete traces")
 	})
 
 	go concurrent(func() {
-		blockID, _ := i.CutBlockIfReady(0, 0, false)
-		if blockID != uuid.Nil {
-			err := i.CompleteBlock(blockID)
-			assert.NoError(t, err, "unexpected error completing block")
-		}
-	})
-
-	go concurrent(func() {
-		var req = &tempopb.SearchRequest{
-			Tags: map[string]string{},
-		}
-		req.Tags[tagKey] = tagValue
-		_, err := i.Search(context.Background(), req)
+		_, err := i.FindTraceByID(context.Background(), []byte{0x01})
 		assert.NoError(t, err, "error finding trace by id")
 	})
 
-	time.Sleep(100 * time.Millisecond)
+	go concurrent(func() {
+		// Cut wal, complete, delete wal, then flush
+		blockID, _ := i.CutBlockIfReady(0, 0, true)
+		if blockID != uuid.Nil {
+			err := i.CompleteBlock(blockID)
+			require.NoError(t, err)
+			err = i.ClearCompletingBlock(blockID)
+			require.NoError(t, err)
+			block := i.GetBlockToBeFlushed(blockID)
+			require.NotNil(t, block)
+			err = ingester.store.WriteBlock(context.Background(), block)
+			require.NoError(t, err)
+		}
+	})
+
+	go concurrent(func() {
+		err = i.ClearFlushedBlocks(0)
+		require.NoError(t, err)
+	})
+
+	go concurrent(func() {
+		_, err := i.Search(context.Background(), req)
+		require.NoError(t, err, "error finding trace by id")
+	})
+
+	time.Sleep(2000 * time.Millisecond)
 	close(end)
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
+	time.Sleep(2 * time.Second)
+}
+
+func TestWALBlockDeletedDuringSearch(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(t, err)
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	ingester, _, _ := defaultIngester(t, t.TempDir())
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	require.NoError(t, err)
+
+	end := make(chan struct{})
+
+	concurrent := func(f func()) {
+		for {
+			select {
+			case <-end:
+				return
+			default:
+				f()
+			}
+		}
+	}
+
+	for j := 0; j < 500; j++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+
+		trace := test.MakeTrace(10, id)
+		traceBytes, err := trace.Marshal()
+		require.NoError(t, err)
+
+		searchData := &tempofb.SearchDataMutable{}
+		searchData.TraceID = id
+		searchData.AddTag("foo", "bar")
+		searchBytes := searchData.ToBytes()
+
+		// searchData will be nil if not
+		err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+		require.NoError(t, err)
+	}
+
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+
+	go concurrent(func() {
+		_, err := i.Search(context.Background(), &tempopb.SearchRequest{
+			Tags: map[string]string{
+				// Not present in the data, so it will be an exhaustive
+				// search
+				"wuv": "xyz",
+			},
+		})
+		require.NoError(t, err)
+	})
+
+	// Let search get going
+	time.Sleep(100 * time.Millisecond)
+
+	err = i.ClearCompletingBlock(blockID)
+	require.NoError(t, err)
+
+	// Wait for go funcs to quit before
+	// exiting and cleaning up
+	close(end)
 	time.Sleep(2 * time.Second)
 }
