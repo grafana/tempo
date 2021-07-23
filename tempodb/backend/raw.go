@@ -96,10 +96,10 @@ func NewReader(r RawReader) Reader {
 
 func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error) {
 	objReader, size, err := r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), shouldCache)
-	defer objReader.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer objReader.Close()
 	return tempo_io.ReadAllWithEstimate(objReader, size)
 }
 
@@ -139,10 +139,10 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, erro
 
 func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
 	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), false)
-	defer reader.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer reader.Close()
 
 	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
 	if err != nil {
