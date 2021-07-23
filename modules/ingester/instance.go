@@ -253,7 +253,10 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	}
 
 	// Search data (optional)
+	i.blocksMtx.Lock()
 	oldSearch := i.searchAppendBlocks[completingBlock]
+	i.blocksMtx.Unlock()
+
 	var newSearch search.SearchBlock
 	if oldSearch != nil {
 		_, err = search.NewBackendSearchBlock(oldSearch, i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID)
@@ -278,6 +281,8 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 // nolint:interfacer
 func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
 	var completingBlock *wal.AppendBlock
 	for j, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
@@ -286,7 +291,6 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 			break
 		}
 	}
-	i.blocksMtx.Unlock()
 
 	if completingBlock != nil {
 		searchBlock := i.searchAppendBlocks[completingBlock]

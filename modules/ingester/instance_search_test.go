@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/overrides"
@@ -158,4 +159,85 @@ func TestInstanceSearchNoData(t *testing.T) {
 	sr, err := i.Search(context.Background(), req)
 	assert.NoError(t, err)
 	require.Len(t, sr.Traces, 0)
+}
+
+func TestInstanceSearchDoesNotRace(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir, err := ioutil.TempDir("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	// add dummy search data
+	var tagKey = "foo"
+	var tagValue = "bar"
+
+	end := make(chan struct{})
+
+	concurrent := func(f func()) {
+		for {
+			select {
+			case <-end:
+				return
+			default:
+				f()
+			}
+		}
+	}
+	go concurrent(func() {
+		for j := 0; j < 10; j++ {
+			id := make([]byte, 16)
+			rand.Read(id)
+
+			trace := test.MakeTrace(10, id)
+			model.SortTrace(trace)
+			traceBytes, err := trace.Marshal()
+			require.NoError(t, err)
+
+			var searchData []byte
+			data := &tempofb.SearchDataMutable{}
+			data.TraceID = id
+			data.AddTag(tagKey, tagValue)
+			searchData = data.ToBytes()
+
+			// searchData will be nil if not
+			err = i.PushBytes(context.Background(), id, traceBytes, searchData)
+			require.NoError(t, err)
+		}
+	})
+
+	go concurrent(func() {
+		err := i.CutCompleteTraces(0, true)
+		assert.NoError(t, err, "error cutting complete traces")
+	})
+
+	go concurrent(func() {
+		blockID, _ := i.CutBlockIfReady(0, 0, false)
+		if blockID != uuid.Nil {
+			err := i.CompleteBlock(blockID)
+			assert.NoError(t, err, "unexpected error completing block")
+		}
+	})
+
+	go concurrent(func() {
+		var req = &tempopb.SearchRequest{
+			Tags: map[string]string{},
+		}
+		req.Tags[tagKey] = tagValue
+		_, err := i.Search(context.Background(), req)
+		assert.NoError(t, err, "error finding trace by id")
+	})
+
+	time.Sleep(100 * time.Millisecond)
+	close(end)
+	// Wait for go funcs to quit before
+	// exiting and cleaning up
+	time.Sleep(2 * time.Second)
 }
