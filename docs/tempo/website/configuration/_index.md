@@ -159,6 +159,10 @@ The Query Frontend is responsible for sharding incoming requests for faster proc
 # Query Frontend configuration block
 query_frontend:
 
+    # number of times to retry a request sent to a querier
+    # (default: 5)
+    [max_retries: <int>]
+
     # number of shards to split the query into
     # (default: 2)
     [query_shards: <int>]

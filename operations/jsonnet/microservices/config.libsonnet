@@ -87,7 +87,7 @@
     vulture: {
       replicas: 0,
       tempoPushUrl: 'http://distributor',
-      tempoQueryUrl: 'http://query-frontend:3200',
+      tempoQueryUrl: 'http://query-frontend:%s' % %._config.port,
       tempoOrgId: '',
     },
     ballast_size_mbs: '1024',
