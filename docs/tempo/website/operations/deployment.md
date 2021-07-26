@@ -28,3 +28,8 @@ Helm charts are available in the grafana/helm-charts repo:
 
 - [single binary](https://github.com/grafana/helm-charts/tree/main/charts/tempo)
 - [microservices](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed)
+
+## Kubernetes manifests
+
+You can find example Kubernetes manifests in [operations/kube-manifests](https://github.com/grafana/tempo/tree/main/operations/kube-manifests).
+These are generated using the Tanka / Jsonnet.
