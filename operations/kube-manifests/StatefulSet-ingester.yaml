@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 215474a01327c5068b4236ec4a327838
+        config_hash: 0bf23ab3d6ba5b97313fcc0c4b845a33
       labels:
         app: ingester
         name: ingester
@@ -45,6 +45,13 @@ spec:
             port: 3200
           initialDelaySeconds: 15
           timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "5"
+            memory: 5Gi
+          requests:
+            cpu: "3"
+            memory: 3Gi
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
