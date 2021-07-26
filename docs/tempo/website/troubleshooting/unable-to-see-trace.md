@@ -1,6 +1,6 @@
 ---
 title: Unable to Find Traces
-weight: 471
+weight: 473
 aliases:
 - /docs/tempo/latest/troubleshooting/missing-trace
 ---
