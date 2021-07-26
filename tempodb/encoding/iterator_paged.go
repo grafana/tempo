@@ -52,7 +52,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	// dataReader returns pages in the raw format, so this works
 	i.activePage, id, object, err = i.objectRW.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil && err != io.EOF {
-		return nil, nil, fmt.Errorf("error iterating through object in backend, blockID: %s, err: %v", i.meta.BlockID.String(), err)
+		return nil, nil, fmt.Errorf("error unmarshalling active page, blockID: %s, err: %v", i.meta.BlockID.String(), err)
 	} else if err != io.EOF {
 		return id, object, nil
 	}
@@ -90,7 +90,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 
 	i.pages, i.buffer, err = i.dataReader.Read(ctx, records, i.buffer)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error iterating through object in backend, blockID: %s, err: %v", i.meta.BlockID.String(), err)
+		return nil, nil, fmt.Errorf("error reading objects for records, blockID: %s, err: %v", i.meta.BlockID.String(), err)
 	}
 	if len(i.pages) == 0 {
 		return nil, nil, fmt.Errorf("unexpected 0 length pages in pagedIterator, blockID: %s, err: %v", i.meta.BlockID.String(), err)
@@ -102,7 +102,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	// attempt to get next object from objects
 	i.activePage, id, object, err = i.objectRW.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error iterating through object in backend, blockID: %s, err: %v", i.meta.BlockID.String(), err)
+		return nil, nil, fmt.Errorf("error unmarshalling active page from new records, blockID: %s, err: %v", i.meta.BlockID.String(), err)
 	}
 
 	return id, object, nil
