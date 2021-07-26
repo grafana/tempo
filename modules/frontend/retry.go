@@ -51,6 +51,11 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 			return resp, nil
 		}
 
-		span.LogFields(ot_log.String("msg", "error processing request"), ot_log.Int("try", triesLeft), ot_log.Error(err))
+		span.LogFields(
+			ot_log.String("msg", "error processing request"),
+			ot_log.Int("status_code", resp.StatusCode),
+			ot_log.Error(err),
+			ot_log.Int("triesLeft", triesLeft),
+		)
 	}
 }
