@@ -31,5 +31,5 @@ Helm charts are available in the grafana/helm-charts repo:
 
 ## Kubernetes manifests
 
-You can find example Kubernetes manifests in [operations/kube-manifests](https://github.com/grafana/tempo/tree/main/operations/kube-manifests).
+You can find a collection of Kubernetes manifests to deploy Tempo in the [operations/kube-manifests](https://github.com/grafana/tempo/tree/main/operations/kube-manifests) folder.
 These are generated using the Tanka / Jsonnet.
