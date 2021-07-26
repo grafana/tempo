@@ -68,6 +68,7 @@ type instance struct {
 	completingBlocks []*wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
+	searchHeadBlock      *searchStreamingBlockEntry
 	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
 	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
 	searchTagLookups     tempofb.SearchDataMap
@@ -469,6 +470,7 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 
 // resetHeadBlock() should be called under lock
 func (i *instance) resetHeadBlock() error {
+	oldHeadBlock := i.headBlock
 	var err error
 	i.headBlock, err = i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
 	if err != nil {
@@ -487,7 +489,10 @@ func (i *instance) resetHeadBlock() error {
 	if err != nil {
 		return err
 	}
-	i.searchAppendBlocks[i.headBlock] = &searchStreamingBlockEntry{
+	if i.searchHeadBlock != nil {
+		i.searchAppendBlocks[oldHeadBlock] = i.searchHeadBlock
+	}
+	i.searchHeadBlock = &searchStreamingBlockEntry{
 		b: b,
 	}
 	return nil
@@ -520,9 +525,11 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 		return err
 	}
 
-	entry := i.searchAppendBlocks[i.headBlock]
+	entry := i.searchHeadBlock
 	if entry != nil {
+		entry.mtx.Lock()
 		err := entry.b.Append(context.TODO(), id, searchData)
+		entry.mtx.Unlock()
 		return err
 	}
 

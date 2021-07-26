@@ -2,7 +2,6 @@ package encoding
 
 import (
 	"hash"
-	"sync"
 
 	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -23,7 +22,6 @@ type appender struct {
 	records       map[uint64][]common.Record
 	hash          hash.Hash64
 	currentOffset uint64
-	mtx           sync.RWMutex
 }
 
 // NewAppender returns an appender.  This appender simply appends new objects
@@ -53,9 +51,6 @@ func (a *appender) Append(id common.ID, b []byte) error {
 	_, _ = a.hash.Write(id)
 	hash := a.hash.Sum64()
 
-	a.mtx.Lock()
-	defer a.mtx.Unlock()
-
 	records := a.records[hash]
 	records = append(records, common.Record{
 		ID:     id,
@@ -69,14 +64,10 @@ func (a *appender) Append(id common.ID, b []byte) error {
 }
 
 func (a *appender) Records() []common.Record {
-	a.mtx.RLock()
-
 	sliceRecords := make([]common.Record, 0, len(a.records))
 	for _, r := range a.records {
 		sliceRecords = append(sliceRecords, r...)
 	}
-
-	a.mtx.RUnlock()
 
 	common.SortRecords(sliceRecords)
 	return sliceRecords
@@ -86,9 +77,6 @@ func (a *appender) RecordsForID(id common.ID) []common.Record {
 	a.hash.Reset()
 	_, _ = a.hash.Write(id)
 	hash := a.hash.Sum64()
-
-	a.mtx.RLock()
-	defer a.mtx.RUnlock()
 
 	return a.records[hash]
 }

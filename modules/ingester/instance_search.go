@@ -90,22 +90,29 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 }
 
 func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.SearchResults) {
+	searchFunc := func(k *wal.AppendBlock, e *searchStreamingBlockEntry) {
+		defer sr.FinishWorker()
+
+		e.mtx.RLock()
+		defer e.mtx.RUnlock()
+
+		err := e.b.Search(ctx, p, sr)
+		if err != nil {
+			fmt.Println("error searching wal block", k.BlockID().String(), err)
+		}
+	}
+
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
+	// head block
+	sr.StartWorker()
+	go searchFunc(i.headBlock, i.searchHeadBlock)
+
+	// completing blocks
 	for b, e := range i.searchAppendBlocks {
 		sr.StartWorker()
-		go func(k *wal.AppendBlock, e *searchStreamingBlockEntry) {
-			defer sr.FinishWorker()
-
-			e.mtx.RLock()
-			defer e.mtx.RUnlock()
-
-			err := e.b.Search(ctx, p, sr)
-			if err != nil {
-				fmt.Println("error searching wal block", k.BlockID().String(), err)
-			}
-		}(b, e)
+		go searchFunc(b, e)
 	}
 }
 
