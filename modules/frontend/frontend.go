@@ -31,7 +31,7 @@ const (
 )
 
 // NewTripperware returns a Tripperware configured with a middleware to route, split and dedupe requests.
-func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) (queryrange.Tripperware, error) {
+func NewTripperware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (queryrange.Tripperware, error) {
 	level.Info(logger).Log("msg", "creating tripperware in query frontend")
 
 	tracesTripperware := NewTracesTripperware(cfg, logger)
@@ -41,17 +41,18 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 		traces := tracesTripperware(next)
 		search := searchTripperware(next)
 
-		return newFrontendRoundTripper(next, traces, search, logger, registerer)
+		return newFrontendRoundTripper(apiPrefix, next, traces, search, logger, registerer)
 	}, nil
 }
 
 type frontendRoundTripper struct {
+	apiPrefix            string
 	next, traces, search http.RoundTripper
 	logger               log.Logger
 	queriesPerTenant     *prometheus.CounterVec
 }
 
-func newFrontendRoundTripper(next, traces, search http.RoundTripper, logger log.Logger, registerer prometheus.Registerer) frontendRoundTripper {
+func newFrontendRoundTripper(apiPrefix string, next, traces, search http.RoundTripper, logger log.Logger, registerer prometheus.Registerer) frontendRoundTripper {
 	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_total",
@@ -59,6 +60,7 @@ func newFrontendRoundTripper(next, traces, search http.RoundTripper, logger log.
 	}, []string{"tenant"})
 
 	return frontendRoundTripper{
+		apiPrefix:        apiPrefix,
 		next:             next,
 		traces:           traces,
 		search:           search,
@@ -81,7 +83,7 @@ func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response,
 	req = req.WithContext(ctx)
 
 	// route the request to the appropriate RoundTripper
-	switch op := getOperation(req.URL.Path); op {
+	switch op := getOperation(r.apiPrefix, req.URL.Path); op {
 	case TracesOp:
 		resp, err = r.traces.RoundTrip(req)
 	case SearchOp:
@@ -118,11 +120,18 @@ const (
 	SearchOp RequestOp = "search"
 )
 
-func getOperation(path string) RequestOp {
+func getOperation(prefix, path string) RequestOp {
+	if !strings.HasPrefix(path, prefix) {
+		return ""
+	}
+
+	// remove prefix from path
+	path = path[len(prefix):]
+
 	switch {
-	case strings.Contains(path, apiPathTraces):
+	case strings.HasPrefix(path, apiPathTraces):
 		return TracesOp
-	case strings.Contains(path, apiPathSearch):
+	case strings.HasPrefix(path, apiPathSearch):
 		return SearchOp
 	default:
 		return ""

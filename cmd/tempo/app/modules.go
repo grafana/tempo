@@ -188,7 +188,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 	t.frontend = v1
 
-	tripperware, err := frontend.NewTripperware(t.cfg.Frontend, log.Logger, prometheus.DefaultRegisterer)
+	tripperware, err := frontend.NewTripperware(t.cfg.Frontend, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}

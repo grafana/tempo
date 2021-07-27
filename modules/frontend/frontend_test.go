@@ -42,32 +42,48 @@ func TestFrontendRoundTripper(t *testing.T) {
 	traces := &mockTracesTripperware{}
 	search := &mockSearchTripperware{}
 
-	frontendTripper := newFrontendRoundTripper(next, traces, search, log.NewNopLogger(), prometheus.DefaultRegisterer)
-
 	testCases := []struct {
-		name     string
-		endpoint string
-		response string
+		name      string
+		apiPrefix string
+		endpoint  string
+		response  string
 	}{
 		{
-			name:     "next tripper",
-			endpoint: "/api/foo",
-			response: "next",
+			name:      "next tripper",
+			apiPrefix: "",
+			endpoint:  "/api/foo",
+			response:  "next",
 		},
 		{
-			name:     "traces tripper",
-			endpoint: apiPathTraces + "/X",
-			response: "traces",
+			name:      "traces tripper",
+			apiPrefix: "",
+			endpoint:  apiPathTraces + "/X",
+			response:  "traces",
 		},
 		{
-			name:     "search tripper",
-			endpoint: apiPathSearch + "/X",
-			response: "search",
+			name:      "search tripper",
+			apiPrefix: "",
+			endpoint:  apiPathSearch + "/X",
+			response:  "search",
+		},
+		{
+			name:      "traces tripper with prefix",
+			apiPrefix: "/tempo",
+			endpoint:  "/tempo" + apiPathTraces + "/X",
+			response:  "traces",
+		},
+		{
+			name:      "next tripper with a misleading prefix",
+			apiPrefix: "/api/traces",
+			endpoint:  "/api/traces" + apiPathSearch + "/api/traces",
+			response:  "search",
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			frontendTripper := newFrontendRoundTripper(tt.apiPrefix, next, traces, search, log.NewNopLogger(), prometheus.NewRegistry())
+
 			req := &http.Request{
 				URL: &url.URL{
 					Path: tt.endpoint,
