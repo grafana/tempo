@@ -35,7 +35,7 @@ func NewTripperware(cfg Config, apiPrefix string, logger log.Logger, registerer 
 	level.Info(logger).Log("msg", "creating tripperware in query frontend")
 
 	tracesTripperware := NewTracesTripperware(cfg, logger)
-	searchTripperware := NewSearchTripperware(logger)
+	searchTripperware := NewSearchTripperware()
 
 	return func(next http.RoundTripper) http.RoundTripper {
 		traces := tracesTripperware(next)
@@ -202,52 +202,15 @@ func NewTracesTripperware(cfg Config, logger log.Logger) func(next http.RoundTri
 }
 
 // NewSearchTripperware creates a new frontend tripperware to handle search and search tags requests.
-func NewSearchTripperware(logger log.Logger) queryrange.Tripperware {
+func NewSearchTripperware() queryrange.Tripperware {
 	return func(rt http.RoundTripper) http.RoundTripper {
 		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
-			// don't start a new span, this is already handled by frontendRoundTripper
-			span := opentracing.SpanFromContext(r.Context())
-
-			// check marshalling format
-			marshallingFormat := util.JSONTypeHeaderValue
-			if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
-				marshallingFormat = util.ProtobufTypeHeaderValue
-			}
-
-			// TODO GRPC requests aren't handled properply yet
-
-			//// Enforce all communication internal to Tempo to be in protobuf bytes
-			//r.Header.Set(util.AcceptHeaderKey, util.ProtobufTypeHeaderValue)
-
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
 			r.RequestURI = querierPrefix + r.RequestURI
 
 			resp, err := rt.RoundTrip(r)
-
-			//if resp != nil && resp.StatusCode == http.StatusOK && marshallingFormat == util.JSONTypeHeaderValue {
-			//	// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
-			//	body, err := io.ReadAll(resp.Body)
-			//	resp.Body.Close()
-			//	if err != nil {
-			//		return nil, errors.Wrap(err, "error reading response body at query frontend")
-			//	}
-			//	traceObject := &tempopb.Trace{}
-			//	err = proto.Unmarshal(body, traceObject)
-			//	if err != nil {
-			//		return nil, err
-			//	}
-			//
-			//	var jsonTrace bytes.Buffer
-			//	marshaller := &jsonpb.Marshaler{}
-			//	err = marshaller.Marshal(&jsonTrace, traceObject)
-			//	if err != nil {
-			//		return nil, err
-			//	}
-			//	resp.Body = ioutil.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
-			//}
-			span.SetTag("response marshalling format", marshallingFormat)
 
 			return resp, err
 		})

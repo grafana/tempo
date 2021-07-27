@@ -201,20 +201,6 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/*if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
-		b, err := proto.Marshal(resp.Trace)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		_, err = w.Write(b)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		return
-	}*/
-
 	marshaller := &jsonpb.Marshaler{}
 	err = marshaller.Marshal(w, resp)
 	if err != nil {
@@ -224,6 +210,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
 	defer cancel()
 
@@ -247,6 +234,7 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
 	defer cancel()
 
@@ -268,20 +256,6 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	/*if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
-		b, err := proto.Marshal(resp.Trace)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		_, err = w.Write(b)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		return
-	}*/
 
 	marshaller := &jsonpb.Marshaler{}
 	err = marshaller.Marshal(w, resp)
