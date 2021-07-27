@@ -57,7 +57,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetTrace")
 	defer span.Finish()
 
-	req, err := b.NewGetRequest(ctx, url, span)
+	req, err := b.newGetRequest(ctx, url, span)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	}
 	url.RawQuery = urlQuery.Encode()
 
-	req, err := b.NewGetRequest(ctx, url.String(), span)
+	req, err := b.newGetRequest(ctx, url.String(), span)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +240,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, tagName string) ([]string, error) {
 	url := fmt.Sprintf("http://%s/api/search/tag/%s/values", b.tempoBackend, tagName)
 
-	req, err := b.NewGetRequest(ctx, url, span)
+	req, err := b.newGetRequest(ctx, url, span)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +277,7 @@ func (b *Backend) WriteSpan(ctx context.Context, span *jaeger.Span) error {
 	return nil
 }
 
-func (b *Backend) NewGetRequest(ctx context.Context, url string, span opentracing.Span) (*http.Request, error) {
+func (b *Backend) newGetRequest(ctx context.Context, url string, span opentracing.Span) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
