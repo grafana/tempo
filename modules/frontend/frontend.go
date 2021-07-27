@@ -25,6 +25,11 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
+const (
+	apiPathTraces = "/api/traces"
+	apiPathSearch = "/api/search"
+)
+
 // NewTripperware returns a Tripperware configured with a middleware to route, split and dedupe requests.
 func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) (queryrange.Tripperware, error) {
 	level.Info(logger).Log("msg", "creating tripperware in query frontend")
@@ -115,9 +120,9 @@ const (
 
 func getOperation(path string) RequestOp {
 	switch {
-	case strings.HasPrefix(path, "/api/traces"):
+	case strings.HasPrefix(path, apiPathTraces):
 		return TracesOp
-	case strings.HasPrefix(path, "/api/search"):
+	case strings.HasPrefix(path, apiPathSearch):
 		return SearchOp
 	default:
 		return ""
