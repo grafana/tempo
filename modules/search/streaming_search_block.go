@@ -93,6 +93,8 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 // Search the streaming block.
 func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchResults) error {
 
+	buf := make([]byte, 10*1024)
+
 	rr := s.appender.Records()
 
 	for _, r := range rr {
@@ -101,7 +103,12 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Searc
 			return nil
 		}
 
-		buf := make([]byte, r.Length)
+		// Reset/resize buffer
+		if cap(buf) < int(r.Length) {
+			buf = make([]byte, r.Length)
+		}
+		buf = buf[:r.Length]
+
 		_, err := s.file.ReadAt(buf, int64(r.Start))
 		if err != nil {
 			return err

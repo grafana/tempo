@@ -8,15 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func BenchmarkBackendSearchBlockSearch(b *testing.B) {
+func BenchmarkStreamingSearchBlockSearch(b *testing.B) {
 	ctx := context.TODO()
 	//n := 1_000_000
 
@@ -32,23 +29,12 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 	f, err := os.OpenFile(path.Join(b.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(b, err)
 
-	b1, err := NewStreamingSearchBlockForFile(f)
+	sb, err := NewStreamingSearchBlockForFile(f)
 	require.NoError(b, err)
+
 	for i := 0; i < b.N; i++ {
-		assert.NoError(b, b1.Append(ctx, id, searchData))
+		require.NoError(b, sb.Append(ctx, id, searchData))
 	}
-
-	l, err := local.NewBackend(&local.Config{
-		Path: b.TempDir(),
-	})
-	require.NoError(b, err)
-
-	blockID := uuid.New()
-	tenantID := "fake"
-	_, err = NewBackendSearchBlock(b1, l, blockID, tenantID)
-	require.NoError(b, err)
-
-	b2 := OpenBackendSearchBlock(l, blockID, tenantID)
 
 	p := NewSearchPipeline(&tempopb.SearchRequest{
 		Tags: map[string]string{"nomatch": "nomatch"},
@@ -62,12 +48,12 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 	// and it helps the benchmark reach consensus faster.
 	loops := 10
 	for i := 0; i < loops; i++ {
-		err = b2.Search(ctx, p, sr)
+		err = sb.Search(ctx, p, sr)
 		require.NoError(b, err)
 	}
 	elapsed := time.Since(start)
 
-	fmt.Printf("BackendSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s throughput \n",
+	fmt.Printf("StreamingSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s throughput \n",
 		elapsed,
 		float64(sr.bytesInspected.Load())/(1024*1024),
 		float64(sr.bytesInspected.Load())/(elapsed.Seconds())/(1024*1024))

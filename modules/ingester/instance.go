@@ -472,11 +472,12 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 func (i *instance) resetHeadBlock() error {
 	oldHeadBlock := i.headBlock
 	var err error
-	i.headBlock, err = i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
+	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
 	if err != nil {
 		return err
 	}
 
+	i.headBlock = newHeadBlock
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file

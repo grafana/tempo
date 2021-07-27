@@ -3,6 +3,7 @@ package ingester
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -318,4 +319,78 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	// exiting and cleaning up
 	close(end)
 	time.Sleep(2 * time.Second)
+}
+
+func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
+	ctx := context.TODO()
+	//n := 1_000_000
+
+	i := defaultInstance(b, b.TempDir())
+
+	end := make(chan struct{})
+
+	concurrent := func(f func()) {
+		for {
+			select {
+			case <-end:
+				return
+			default:
+				f()
+			}
+		}
+	}
+
+	go concurrent(func() {
+		id := make([]byte, 16)
+		rand.Read(id)
+
+		trace := test.MakeTrace(10, id)
+		traceBytes, err := trace.Marshal()
+		require.NoError(b, err)
+
+		searchData := &tempofb.SearchDataMutable{}
+		searchData.TraceID = id
+		searchData.AddTag("foo", "bar")
+		searchBytes := searchData.ToBytes()
+
+		// searchData will be nil if not
+		err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+		require.NoError(b, err)
+	})
+
+	go concurrent(func() {
+		err := i.CutCompleteTraces(0, true)
+		require.NoError(b, err, "error cutting complete traces")
+	})
+
+	go concurrent(func() {
+		// Slow this down to prevent "too many open files" error
+		time.Sleep(10 * time.Millisecond)
+		_, err := i.CutBlockIfReady(0, 0, true)
+		require.NoError(b, err)
+	})
+
+	b.ResetTimer()
+	start := time.Now()
+	bytesInspected := uint64(0)
+	for j := 0; j < b.N; j++ {
+		var req = &tempopb.SearchRequest{
+			Tags: map[string]string{"nomatch": "nomatch"},
+		}
+		resp, err := i.Search(ctx, req)
+		require.NoError(b, err)
+		bytesInspected += resp.Metrics.InspectedBytes
+	}
+	elapsed := time.Since(start)
+
+	fmt.Printf("Instance search throughput under load: %v elapsed %.2f MB = %.2f MiB/s throughput \n",
+		elapsed,
+		float64(bytesInspected)/(1024*1024),
+		float64(bytesInspected)/(elapsed.Seconds())/(1024*1024))
+
+	b.StopTimer()
+	close(end)
+	// Wait for go funcs to quit before
+	// exiting and cleaning up
+	time.Sleep(1 * time.Second)
 }
