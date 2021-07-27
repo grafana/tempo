@@ -120,9 +120,9 @@ const (
 
 func getOperation(path string) RequestOp {
 	switch {
-	case strings.HasPrefix(path, apiPathTraces):
+	case strings.Contains(path, apiPathTraces):
 		return TracesOp
-	case strings.HasPrefix(path, apiPathSearch):
+	case strings.Contains(path, apiPathSearch):
 		return SearchOp
 	default:
 		return ""
