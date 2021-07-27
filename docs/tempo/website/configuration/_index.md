@@ -83,9 +83,10 @@ server:
 ## Distributor
 See [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go) for all configuration options.
 
-Distributors are responsible for receiving spans and forwarding them to the appropriate ingesters.  The below configuration
-exposes the otlp receiver on port 0.0.0.0:55680.  [This configuration](https://github.com/grafana/tempo/blob/main/example/docker-compose/local/tempo-local.yaml) shows how to
-configure all available receiver options.
+Distributors receive spans and forward them to the appropriate ingesters.
+
+The following configuration enables all available receivers. For a production deployment, enable only the receivers you need.
+Additional documentation about the receiver is available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
 
 ```
 # Distributor config block
