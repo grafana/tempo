@@ -254,11 +254,6 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 }
 
 func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	//userID, err := user.ExtractOrgID(ctx)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
-	//}
-
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.Search")
@@ -321,11 +316,6 @@ func (q *Querier) searchGivenIngesters(ctx context.Context, replicationSet ring.
 }
 
 func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
-	//userID, err := user.ExtractOrgID(ctx)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
-	//}
-
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTags")
@@ -370,11 +360,6 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 }
 
 func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
-	//userID, err := user.ExtractOrgID(ctx)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
-	//}
-
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
