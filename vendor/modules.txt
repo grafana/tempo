@@ -1153,7 +1153,7 @@ go.opentelemetry.io/otel/semconv/v1.4.0
 ## explicit
 go.opentelemetry.io/otel/bridge/opencensus
 go.opentelemetry.io/otel/bridge/opencensus/utils
-# go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
+# go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2 => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
 ## explicit
 go.opentelemetry.io/otel/bridge/opentracing
 go.opentelemetry.io/otel/bridge/opentracing/migration
@@ -1437,6 +1437,7 @@ rsc.io/binaryregexp
 rsc.io/binaryregexp/syntax
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
+# go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
 # github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
 # github.com/gocql/gocql => github.com/grafana/gocql v0.0.0-20200605141915-ba5dc39ece85
 # k8s.io/api => k8s.io/api v0.20.4
