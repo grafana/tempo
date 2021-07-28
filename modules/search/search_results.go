@@ -10,6 +10,7 @@ import (
 // SearchResults eases performing a highly parallel search by funneling all results into a single
 // channel that is easy to consume, signaling workers to quit early as needed, and collecting
 // metrics.
+// nolint:golint
 type SearchResults struct {
 	resultsCh   chan *tempopb.TraceSearchMetadata
 	doneCh      chan struct{}

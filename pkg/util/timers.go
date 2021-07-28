@@ -21,9 +21,9 @@ func StartActivity() {
 
 func CompleteActivity(activity string) {
 	now := time.Now()
-	elasped := now.Sub(activityStartTime)
+	elapsed := now.Sub(activityStartTime)
 
-	metricCompactionSeconds.WithLabelValues(activity).Add(elasped.Seconds())
+	metricCompactionSeconds.WithLabelValues(activity).Add(elapsed.Seconds())
 
 	activityStartTime = now
 }

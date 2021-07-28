@@ -310,7 +310,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 		if entry != nil {
 			entry.mtx.Lock()
 			defer entry.mtx.Unlock()
-			entry.b.Clear()
+			_ = entry.b.Clear()
 			delete(i.searchAppendBlocks, completingBlock)
 		}
 

@@ -89,6 +89,8 @@ func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response,
 	case SearchOp:
 		resp, err = r.search.RoundTrip(req)
 	default:
+		// should never be called
+		level.Warn(r.logger).Log("msg", "unknown path called in frontend roundtripper", "path", req.URL.Path)
 		resp, err = r.next.RoundTrip(req)
 	}
 
