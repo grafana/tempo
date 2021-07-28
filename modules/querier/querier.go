@@ -52,7 +52,7 @@ type Querier struct {
 
 type responseFromIngesters struct {
 	addr     string
-	response *tempopb.TraceByIDResponse
+	response interface{}
 }
 
 type searchResponseFromIngester struct {
@@ -161,7 +161,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 		span.LogFields(ot_log.String("msg", "searching ingesters"))
 		// get responses from all ingesters in parallel
-		responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (*tempopb.TraceByIDResponse, error) {
+		responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
 			return client.FindTraceByID(opentracing.ContextWithSpan(ctx, span), req)
 		})
 		if err != nil {
@@ -169,7 +169,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		for _, r := range responses {
-			trace := r.response.Trace
+			trace := r.response.(*tempopb.TraceByIDResponse).Trace
 			if trace != nil {
 				completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, trace)
 				spanCountTotal += spanCount
@@ -227,7 +227,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 }
 
 // forGivenIngesters runs f, in parallel, for given ingesters
-func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (*tempopb.TraceByIDResponse, error)) ([]responseFromIngesters, error) {
+func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (interface{}, error)) ([]responseFromIngesters, error) {
 	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
 		client, err := q.pool.GetClientFor(ingester.Addr)
 		if err != nil {
@@ -264,7 +264,7 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.Search")
 	}
 
-	responses, err := q.searchGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (*tempopb.SearchResponse, error) {
+	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
 		return client.Search(ctx, req)
 	})
 	if err != nil {
@@ -276,9 +276,9 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 	}
 
 	for _, r := range responses {
-		response.Traces = append(response.Traces, r.response.Traces...)
-		response.Metrics.InspectedBytes += r.response.Metrics.InspectedBytes
-		response.Metrics.InspectedTraces += r.response.Metrics.InspectedTraces
+		response.Traces = append(response.Traces, r.response.(*tempopb.SearchResponse).Traces...)
+		response.Metrics.InspectedBytes += r.response.(*tempopb.SearchResponse).Metrics.InspectedBytes
+		response.Metrics.InspectedTraces += r.response.(*tempopb.SearchResponse).Metrics.InspectedTraces
 	}
 
 	// Sort and limit results
@@ -292,43 +292,10 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 	return response, nil
 }
 
-func (q *Querier) searchGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (*tempopb.SearchResponse, error)) ([]searchResponseFromIngester, error) {
-	_, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
-	}
-
-	// TODO use grpc streams to stream results from all ingesters concurrently and stop when enough results are received
-
-	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
-		client, err := q.pool.GetClientFor(ingester.Addr)
-		if err != nil {
-			return nil, err
-		}
-
-		resp, err := f(client.(tempopb.QuerierClient))
-		if err != nil {
-			return nil, err
-		}
-
-		return searchResponseFromIngester{ingester.Addr, resp}, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	responses := make([]searchResponseFromIngester, 0, len(results))
-	for _, result := range results {
-		responses = append(responses, result.(searchResponseFromIngester))
-	}
-
-	return responses, err
-}
-
 func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
 	_, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
+		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTags")
 	}
 
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
@@ -337,18 +304,8 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	}
 
 	// Get results from all ingesters
-	lookupResults, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
-		client, err := q.pool.GetClientFor(ingester.Addr)
-		if err != nil {
-			return nil, err
-		}
-
-		resp, err := client.(tempopb.QuerierClient).SearchTags(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-
-		return resp, nil
+	lookupResults, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
+		return client.SearchTags(ctx, req)
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTags")
@@ -357,7 +314,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	// Collect only unique values
 	uniqueMap := map[string]struct{}{}
 	for _, resp := range lookupResults {
-		for _, res := range resp.(*tempopb.SearchTagsResponse).TagNames {
+		for _, res := range resp.response.(*tempopb.SearchTagsResponse).TagNames {
 			uniqueMap[res] = struct{}{}
 		}
 	}
@@ -377,7 +334,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
 	_, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
+		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTagValues")
 	}
 
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
@@ -386,18 +343,8 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	// Get results from all ingesters
-	lookupResults, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
-		client, err := q.pool.GetClientFor(ingester.Addr)
-		if err != nil {
-			return nil, err
-		}
-
-		resp, err := client.(tempopb.QuerierClient).SearchTagValues(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-
-		return resp, nil
+	lookupResults, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
+		return client.SearchTagValues(ctx, req)
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTagValues")
@@ -406,7 +353,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	// Collect only unique values
 	uniqueMap := map[string]struct{}{}
 	for _, resp := range lookupResults {
-		for _, res := range resp.(*tempopb.SearchTagValuesResponse).TagValues {
+		for _, res := range resp.response.(*tempopb.SearchTagValuesResponse).TagValues {
 			uniqueMap[res] = struct{}{}
 		}
 	}
