@@ -55,11 +55,6 @@ type responseFromIngesters struct {
 	response interface{}
 }
 
-type searchResponseFromIngester struct {
-	addr     string
-	response *tempopb.SearchResponse
-}
-
 // New makes a new Querier.
 func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *overrides.Overrides) (*Querier, error) {
 	factory := func(addr string) (ring_client.PoolClient, error) {
