@@ -254,6 +254,11 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 }
 
 func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	_, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
+	}
+
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.Search")
@@ -288,6 +293,11 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 }
 
 func (q *Querier) searchGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (*tempopb.SearchResponse, error)) ([]searchResponseFromIngester, error) {
+	_, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
+	}
+
 	// TODO use grpc streams to stream results from all ingesters concurrently and stop when enough results are received
 
 	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
@@ -316,6 +326,11 @@ func (q *Querier) searchGivenIngesters(ctx context.Context, replicationSet ring.
 }
 
 func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
+	_, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
+	}
+
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTags")
@@ -360,6 +375,11 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 }
 
 func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
+	_, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
+	}
+
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")

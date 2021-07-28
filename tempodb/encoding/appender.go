@@ -77,7 +77,6 @@ func (a *appender) RecordsForID(id common.ID) []common.Record {
 	a.hash.Reset()
 	_, _ = a.hash.Write(id)
 	hash := a.hash.Sum64()
-
 	return a.records[hash]
 }
 
