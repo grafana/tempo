@@ -15,10 +15,19 @@ import (
 	"github.com/go-kit/kit/log/level"
 
 	"github.com/drone/envsubst"
+	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
+	jaegercfg "github.com/uber/jaeger-client-go/config"
 	"github.com/weaveworks/common/logging"
-	"github.com/weaveworks/common/tracing"
+	octrace "go.opencensus.io/trace"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/bridge/opencensus"
+	"go.opentelemetry.io/otel/bridge/opentracing"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/sdk/resource"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/cortexproject/cortex/pkg/util/log"
@@ -62,18 +71,42 @@ func main() {
 	}
 	log.InitLogger(&config.Server)
 
-	// Setting the environment variable JAEGER_AGENT_HOST enables tracing
-	trace, err := tracing.NewFromEnv(fmt.Sprintf("%s-%s", appName, config.Target))
+	// Configure the OpenTelemetry Jaeger exporter
+	jaegerCfg, err := jaegercfg.FromEnv()
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
+		level.Error(log.Logger).Log("msg", "could not load jaeger tracer configuration", "err", err)
 		os.Exit(1)
 	}
-	defer func() {
-		if err := trace.Close(); err != nil {
-			level.Error(log.Logger).Log("msg", "error closing tracing", "err", err)
-			os.Exit(1)
-		}
-	}()
+	exp, err := jaeger.New(
+		jaeger.WithCollectorEndpoint(
+			jaeger.WithEndpoint(jaegerCfg.Reporter.CollectorEndpoint),
+		),
+	)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "failed to create Jaeger exporter", "err", err)
+		os.Exit(1)
+	}
+	tp := tracesdk.NewTracerProvider(
+		tracesdk.WithBatcher(exp),
+		tracesdk.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String("tempo"),
+			// TODO add more resource attributes
+		)),
+	)
+	otel.SetTracerProvider(tp)
+
+	// Install the OpenTracing bridge
+	tracer := tp.Tracer("")
+	bridgeTracer, wrapperTracer := opentracing.NewTracerPair(tracer)
+	bridgeTracer.SetWarningHandler(func(msg string) {
+		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
+	})
+	ot.SetGlobalTracer(bridgeTracer)
+
+	// Install the OpenCensus bridge
+	tracer = wrapperTracer.Tracer("")
+	octrace.DefaultTracer = opencensus.NewTracer(tracer)
 
 	if *mutexProfileFraction > 0 {
 		runtime.SetMutexProfileFraction(*mutexProfileFraction)

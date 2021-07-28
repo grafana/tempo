@@ -48,6 +48,11 @@ require (
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.21.0
+	go.opentelemetry.io/otel v1.0.0-RC2
+	go.opentelemetry.io/otel/bridge/opencensus v0.21.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
+	go.opentelemetry.io/otel/exporters/jaeger v1.0.0-RC2
+	go.opentelemetry.io/otel/sdk v1.0.0-RC2
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
@@ -65,6 +70,9 @@ replace (
 	k8s.io/api => k8s.io/api v0.20.4
 	k8s.io/client-go => k8s.io/client-go v0.20.4
 )
+
+// Use a more recent version of go-redis that does not depend on OpenTelemetry anymore
+replace github.com/go-redis/redis/v8 => github.com/go-redis/redis/v8 v8.11.0
 
 // Pin to the latest release of grpc-go with GenerateAndRegisterManualResolver
 // This function is used by jeagertracing/jaeger, but we can't update jaeger
