@@ -11,8 +11,12 @@ Probabilistic sampling strategies are easy to implement,
 but also run the risk of discarding relevant data that you'll later want.
 
 In tail-based sampling, sampling decisions are made at the end of the workflow.
-The Grafana Agent groups spans by trace ID and makes a sampling decision based on the data contained in the trace.
-For instance, inspecting if a trace contains an error.
+The Grafana Agent groups spans by trace ID and evaluates checks its data to see
+if it meets one of the defined policies (e.g. latency or status_code).
+For instance, a policy can check if a trace contains an error, or it if it took
+longer than a certain duration.
+
+A trace gets sampled if it meets one policy's condition, even if it doesn't meet others. 
 
 To group spans by trace ID, the Agent buffers spans for a configurable amount of time,
 after which it will consider the trace complete.
@@ -21,7 +25,8 @@ However, waiting longer times will increase the memory overhead of buffering.
 
 One particular challenge of grouping trace data is for multi-instance Agent deployments,
 where spans that belong to the same trace can arrive to different Agents.
-To solve that, in the Agent is possible to distribute traces across agent instances by consistently exporting spans belonging to the same trace to the same agent.
+To solve that, in the Agent is possible to distribute traces across agent instances
+by consistently exporting spans belonging to the same trace to the same agent.
 
 This is achieved by redistributing spans by trace ID once they arrive from the application.
 The Agent must be able to discover and connect to other Agent instances where spans for the same trace can arrive.
@@ -47,8 +52,13 @@ tempo:
       ...
       tail_sampling:
         policies:
-          - rate_limiting:
-              spans_per_second: 50
+          # It will sample traces that lasted for 100ms or more
+          - latency:
+              threshold_ms: 100
+          # It will sample traces which status code is ERROR
+          - status_code:
+              status_codes:
+                - "ERROR"
       load_balancing:
         resolver:
           dns:
