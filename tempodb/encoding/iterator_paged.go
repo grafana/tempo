@@ -2,13 +2,15 @@ package encoding
 
 import (
 	"context"
+	"fmt"
 	"io"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/pkg/errors"
 )
 
 type pagedIterator struct {
+	meta         *backend.BlockMeta
 	dataReader   common.DataReader
 	indexReader  common.IndexReader
 	objectRW     common.ObjectReaderWriter
@@ -23,8 +25,9 @@ type pagedIterator struct {
 
 // newPagedIterator returns a backendIterator.  This iterator is used to iterate
 //  through objects stored in object storage.
-func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter) Iterator {
+func newPagedIterator(meta *backend.BlockMeta, chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter) Iterator {
 	return &pagedIterator{
+		meta:           meta,
 		dataReader:     dataReader,
 		indexReader:    indexReader,
 		chunkSizeBytes: chunkSizeBytes,
@@ -49,7 +52,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	// dataReader returns pages in the raw format, so this works
 	i.activePage, id, object, err = i.objectRW.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil && err != io.EOF {
-		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
+		return nil, nil, fmt.Errorf("error unmarshalling active page, blockID: %s, err: %w", i.meta.BlockID.String(), err)
 	} else if err != io.EOF {
 		return id, object, nil
 	}
@@ -81,16 +84,16 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		i.currentIndex++
 		currentRecord, err = i.indexReader.At(ctx, i.currentIndex)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("error getting next record, blockID: %s, err: %w", i.meta.BlockID.String(), err)
 		}
 	}
 
 	i.pages, i.buffer, err = i.dataReader.Read(ctx, records, i.buffer)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
+		return nil, nil, fmt.Errorf("error reading objects for records, blockID: %s, err: %w", i.meta.BlockID.String(), err)
 	}
 	if len(i.pages) == 0 {
-		return nil, nil, errors.Wrap(err, "unexpected 0 length pages in pagedIterator")
+		return nil, nil, fmt.Errorf("unexpected 0 length pages in pagedIterator, blockID: %s, err: %w", i.meta.BlockID.String(), err)
 	}
 
 	i.activePage = i.pages[0]
@@ -99,7 +102,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	// attempt to get next object from objects
 	i.activePage, id, object, err = i.objectRW.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "error iterating through object in backend")
+		return nil, nil, fmt.Errorf("error unmarshalling active page from new records, blockID: %s, err: %w", i.meta.BlockID.String(), err)
 	}
 
 	return id, object, nil
