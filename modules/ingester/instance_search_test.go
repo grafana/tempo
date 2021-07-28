@@ -321,6 +321,70 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	time.Sleep(2 * time.Second)
 }
 
+func TestInstanceSearchMetrics(t *testing.T) {
+
+	i := defaultInstance(t, t.TempDir())
+
+	numTraces := uint32(500)
+	numBytes := uint64(0)
+	for j := uint32(0); j < numTraces; j++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+
+		trace := test.MakeTrace(10, id)
+		traceBytes, err := trace.Marshal()
+		require.NoError(t, err)
+
+		data := &tempofb.SearchDataMutable{}
+		data.TraceID = id
+		data.AddTag("foo", "bar")
+		searchData := data.ToBytes()
+
+		numBytes += uint64(len(searchData))
+
+		err = i.PushBytes(context.Background(), id, traceBytes, searchData)
+		require.NoError(t, err)
+
+		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+	}
+
+	search := func() *tempopb.SearchMetrics {
+		sr, err := i.Search(context.Background(), &tempopb.SearchRequest{
+			Tags: map[string]string{"nomatch": "nomatch"},
+		})
+		require.NoError(t, err)
+		return sr.Metrics
+	}
+
+	m := search()
+	require.Equal(t, numTraces, m.InspectedTraces)
+	require.Equal(t, numBytes, m.InspectedBytes)
+
+	// Test after appending to WAL
+	err := i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	m = search()
+	require.Equal(t, numTraces, m.InspectedTraces)
+	require.Equal(t, numBytes, m.InspectedBytes)
+
+	// Test after cutting new headblock
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	m = search()
+	require.Equal(t, numTraces, m.InspectedTraces)
+	require.Equal(t, numBytes, m.InspectedBytes)
+
+	// Test after completing a block
+	err = i.CompleteBlock(blockID)
+	require.NoError(t, err)
+	err = i.ClearCompletingBlock(blockID)
+	require.NoError(t, err)
+	// Complete blocks are paged and search data is normalized, therefore smaller than individual wal entries.
+	m = search()
+	require.Equal(t, numTraces, m.InspectedTraces)
+	require.Less(t, m.InspectedBytes, numBytes)
+}
+
 func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	ctx := context.TODO()
 	//n := 1_000_000
