@@ -15,14 +15,14 @@ docker-compose ps
                   Name                                 Command               State                        Ports
 -------------------------------------------------------------------------------------------------------------------------------------
 s3_grafana_1                    /run.sh                          Up      0.0.0.0:3000->3000/tcp
-s3_minio_1                      sh -euc mkdir -p /data/tem ...   Up      0.0.0.0:9000->9000/tcp
+s3_minio_1                      sh -euc mkdir -p /data/tem ...   Up      0.0.0.0:9001->9001/tcp
 s3_prometheus_1                 /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp
 s3_synthetic-load-generator_1   ./start.sh                       Up
 s3_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:32770->14268/tcp, 0.0.0.0:3200->3200/tcp
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.  Navigate to minio at
-http://localhost:9000 and use the username/password of `tempo`/`supersecret`.
+http://localhost:9001 and use the username/password of `tempo`/`supersecret`.
 
 3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
 

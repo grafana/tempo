@@ -18,7 +18,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 391906d5363b2172f5ef468fcc2fca50
+        config_hash: 527bb84fb5ed28ab14bed73b2434e3dc
       labels:
         app: compactor
         name: compactor
@@ -40,6 +40,13 @@ spec:
             port: 3200
           initialDelaySeconds: 15
           timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "1"
+            memory: 5Gi
+          requests:
+            cpu: 500m
+            memory: 3Gi
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf

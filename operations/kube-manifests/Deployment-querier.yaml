@@ -19,7 +19,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 5ae9881ddd5abc1d3609268198a0aacd
+        config_hash: c83370e4a6c7e2eec54f5c49e5f88bea
       labels:
         app: querier
         name: querier
@@ -42,6 +42,13 @@ spec:
             port: 3200
           initialDelaySeconds: 15
           timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf

@@ -14,7 +14,6 @@ type Config struct {
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	cfg.Config.CompressResponses = true
 	cfg.Config.DownstreamURL = ""
 	cfg.Config.Handler.LogQueriesLongerThan = 0
 	cfg.Config.FrontendV1.MaxOutstandingPerTenant = 100
