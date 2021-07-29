@@ -13,16 +13,15 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/user"
-
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // NewTripperware returns a Tripperware configured with a middleware to split requests
@@ -100,7 +99,8 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 
 			span.SetTag("response marshalling format", marshallingFormat)
 
-			traceID, _ := middleware.ExtractTraceID(ctx)
+			otelspan := trace.SpanFromContext(ctx)
+			traceID := otelspan.SpanContext().TraceID()
 			statusCode := 500
 			var contentLength int64 = 0
 			if resp != nil {
