@@ -334,7 +334,7 @@ github.com/go-openapi/strfmt
 github.com/go-openapi/swag
 # github.com/go-openapi/validate v0.20.2
 github.com/go-openapi/validate
-# github.com/go-redis/redis/v8 v8.2.3 => github.com/go-redis/redis/v8 v8.11.0
+# github.com/go-redis/redis/v8 v8.9.0 => github.com/go-redis/redis/v8 v8.11.0
 github.com/go-redis/redis/v8
 github.com/go-redis/redis/v8/internal
 github.com/go-redis/redis/v8/internal/hashtag
