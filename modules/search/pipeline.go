@@ -17,6 +17,20 @@ type Pipeline struct {
 func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 	p := Pipeline{}
 
+	if req.MinDurationMs > 0 {
+		minDuration := req.MinDurationMs * uint32(time.Millisecond)
+		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) >= uint64(minDuration)
+		})
+	}
+
+	if req.MaxDurationMs > 0 {
+		maxDuration := req.MaxDurationMs * uint32(time.Millisecond)
+		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) <= uint64(maxDuration)
+		})
+	}
+
 	if len(req.Tags) > 0 {
 		// Convert all search params to bytes once
 		kb := make([][]byte, 0, len(req.Tags))
@@ -38,20 +52,6 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 				}
 			}
 			return true
-		})
-	}
-
-	if req.MinDurationMs > 0 {
-		minDuration := req.MinDurationMs * uint32(time.Millisecond)
-		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
-			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) >= uint64(minDuration)
-		})
-	}
-
-	if req.MaxDurationMs > 0 {
-		maxDuration := req.MaxDurationMs * uint32(time.Millisecond)
-		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
-			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) <= uint64(maxDuration)
 		})
 	}
 

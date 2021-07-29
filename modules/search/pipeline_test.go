@@ -2,6 +2,7 @@ package search
 
 import (
 	"testing"
+	"time"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -62,9 +63,11 @@ func TestPipelineMatchesTags(t *testing.T) {
 	}
 }
 
-func BenchmarkPipelineMatchesTags(b *testing.B) {
+func BenchmarkPipelineMatches(b *testing.B) {
 
 	searchData := tempofb.SearchDataFromBytes((&tempofb.SearchDataMutable{
+		StartTimeUnixNano: 0,
+		EndTimeUnixNano:   uint64(500 * time.Millisecond / time.Nanosecond), //500ms in nanoseconds
 		Tags: tempofb.SearchDataMap{
 			"key1": {"value10", "value11"},
 			"key2": {"value20", "value21"},
@@ -72,14 +75,48 @@ func BenchmarkPipelineMatchesTags(b *testing.B) {
 			"key4": {"value40", "value41"},
 		}}).ToBytes())
 
-	pipeline := NewSearchPipeline(&tempopb.SearchRequest{
-		Tags: map[string]string{
-			"key2": "valu21",
+	testCases := []struct {
+		name string
+		req  *tempopb.SearchRequest
+	}{
+		{
+			"match_tag",
+			&tempopb.SearchRequest{
+				Tags: map[string]string{
+					"key2": "valu21",
+				},
+			},
 		},
-	})
+		{
+			"nomatch_tag_minDuration",
+			&tempopb.SearchRequest{
+				MinDurationMs: 501,
+				Tags: map[string]string{
+					"key5": "nomatch",
+				},
+			},
+		},
+		{
+			"nomatch_minDuration",
+			&tempopb.SearchRequest{
+				MinDurationMs: 501,
+			},
+		},
+		{
+			"match_minDuration",
+			&tempopb.SearchRequest{
+				MinDurationMs: 499,
+			},
+		},
+	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		pipeline.Matches(searchData)
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			pipeline := NewSearchPipeline(tc.req)
+
+			for i := 0; i < b.N; i++ {
+				pipeline.Matches(searchData)
+			}
+		})
 	}
 }
