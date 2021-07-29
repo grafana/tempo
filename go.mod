@@ -67,9 +67,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
 
-// Should solve https://github.com/open-telemetry/opentelemetry-go/issues/2137
-replace go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
-
 // additional Cortex or upstream required replaces
 replace (
 	github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
@@ -90,3 +87,7 @@ replace google.golang.org/grpc => google.golang.org/grpc v1.33.3
 // Before v0.1.5 it contained examples in the root folder that imported grpc without a version,
 // and therefore were importing grpc latest (which is problematic because we need <v1.29.1)
 replace github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
+
+// Fix for injecting and extracting the propagation context
+// Can be removed when https://github.com/open-telemetry/opentelemetry-go/pull/2141 is merged
+replace go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
