@@ -3,6 +3,7 @@ package search
 import (
 	"math"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempofb"
@@ -16,6 +17,7 @@ const maxValuesPerTag = 50
 
 type SearchTagCache struct {
 	lookups map[string]*CacheEntry
+	mtx     sync.RWMutex
 }
 
 func NewSearchTagCache() *SearchTagCache {
@@ -25,27 +27,37 @@ func NewSearchTagCache() *SearchTagCache {
 }
 
 func (s *SearchTagCache) GetNames() []string {
+	s.mtx.RLock()
 	tags := make([]string, 0, len(s.lookups))
 	for k := range s.lookups {
 		tags = append(tags, k)
 	}
+	s.mtx.RUnlock()
+
 	sort.Strings(tags)
 	return tags
 }
 
 func (s *SearchTagCache) GetValues(tagName string) []string {
+	var vals []string
+
+	s.mtx.RLock()
 	if e := s.lookups[tagName]; e != nil {
-		vals := make([]string, 0, len(e.values))
+		vals = make([]string, 0, len(e.values))
 		for v := range e.values {
 			vals = append(vals, v)
 		}
-		sort.Strings(vals)
-		return vals
 	}
-	return nil
+	s.mtx.RUnlock()
+
+	sort.Strings(vals)
+	return vals
 }
 
 func (s *SearchTagCache) SetData(ts time.Time, data *tempofb.SearchData) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	tsUnix := ts.Unix()
 	kv := &tempofb.KeyValues{}
 
@@ -60,6 +72,7 @@ func (s *SearchTagCache) SetData(ts time.Time, data *tempofb.SearchData) {
 	}
 }
 
+// setEntry should be called under lock.
 func (s *SearchTagCache) setEntry(ts int64, k, v string) {
 	e := s.lookups[k]
 	if e == nil {
@@ -87,6 +100,9 @@ func (s *SearchTagCache) setEntry(ts int64, k, v string) {
 }
 
 func (s *SearchTagCache) PurgeExpired(before time.Time) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	beforeUnix := before.Unix()
 
 	for k, e := range s.lookups {

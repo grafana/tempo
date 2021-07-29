@@ -245,6 +245,14 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		require.NoError(t, err, "error finding trace by id")
 	})
 
+	go concurrent(func() {
+		i.GetSearchTags()
+	})
+
+	go concurrent(func() {
+		i.GetSearchTagValues(tagKey)
+	})
+
 	time.Sleep(2000 * time.Millisecond)
 	close(end)
 	// Wait for go funcs to quit before
