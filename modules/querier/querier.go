@@ -266,25 +266,7 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.Search")
 	}
 
-	response := &tempopb.SearchResponse{
-		Metrics: &tempopb.SearchMetrics{},
-	}
-
-	for _, r := range responses {
-		response.Traces = append(response.Traces, r.response.(*tempopb.SearchResponse).Traces...)
-		response.Metrics.InspectedBytes += r.response.(*tempopb.SearchResponse).Metrics.InspectedBytes
-		response.Metrics.InspectedTraces += r.response.(*tempopb.SearchResponse).Metrics.InspectedTraces
-	}
-
-	// Sort and limit results
-	sort.Slice(response.Traces, func(i, j int) bool {
-		return response.Traces[i].StartTimeUnixNano > response.Traces[j].StartTimeUnixNano
-	})
-	if req.Limit != 0 && int(req.Limit) < len(response.Traces) {
-		response.Traces = response.Traces[:req.Limit]
-	}
-
-	return response, nil
+	return q.postProcessSearchResults(req, responses), nil
 }
 
 func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
@@ -363,4 +345,38 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	sort.Strings(resp.TagValues)
 
 	return resp, nil
+}
+
+func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {
+	response := &tempopb.SearchResponse{
+		Metrics: &tempopb.SearchMetrics{},
+	}
+
+	traces := map[string]*tempopb.TraceSearchMetadata{}
+
+	for _, r := range rr {
+		sr := r.response.(*tempopb.SearchResponse)
+		for _, t := range sr.Traces {
+			// Just simply take first result for each trace
+			if _, ok := traces[t.TraceID]; !ok {
+				traces[t.TraceID] = t
+			}
+		}
+		response.Metrics.InspectedBytes += sr.Metrics.InspectedBytes
+		response.Metrics.InspectedTraces += sr.Metrics.InspectedTraces
+	}
+
+	for _, t := range traces {
+		response.Traces = append(response.Traces, t)
+	}
+
+	// Sort and limit results
+	sort.Slice(response.Traces, func(i, j int) bool {
+		return response.Traces[i].StartTimeUnixNano > response.Traces[j].StartTimeUnixNano
+	})
+	if req.Limit != 0 && int(req.Limit) < len(response.Traces) {
+		response.Traces = response.Traces[:req.Limit]
+	}
+
+	return response
 }
