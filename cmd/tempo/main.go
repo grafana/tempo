@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/cmd/tempo/build"
 	_ "github.com/grafana/tempo/cmd/tempo/build"
 	"gopkg.in/yaml.v2"
 
@@ -88,12 +89,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	resources, err := resource.New(context.Background(),
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(fmt.Sprintf("%s-%s", appName, config.Target)),
+			semconv.ServiceVersionKey.String(build.Version),
+		),
+		resource.WithHost(),
+		// TODO set Kubernetes resources (cluster, namespace, pod, container)
+	)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "failed to initialize trace resources", "err", err)
+		os.Exit(1)
+	}
+
 	tp := tracesdk.NewTracerProvider(
 		tracesdk.WithBatcher(exp),
-		tracesdk.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(fmt.Sprintf("%s-%s", appName, config.Target)),
-		)),
+		tracesdk.WithResource(resources),
 	)
 	otel.SetTracerProvider(tp)
 
