@@ -23,7 +23,6 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/search"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/validation"
@@ -71,7 +70,7 @@ type instance struct {
 	searchHeadBlock      *searchStreamingBlockEntry
 	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
 	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
-	searchTagLookups     tempofb.SearchDataMap
+	searchTagCache       *search.SearchTagCache
 
 	lastBlockCut time.Time
 
@@ -103,7 +102,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		traces:               map[uint32]*trace{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
-		searchTagLookups:     tempofb.SearchDataMap{},
+		searchTagCache:       search.NewSearchTagCache(),
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),

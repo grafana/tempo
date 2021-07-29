@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/grafana/tempo/modules/search"
 	"github.com/grafana/tempo/pkg/tempofb"
@@ -149,33 +150,18 @@ func dedupeResults(results []*tempopb.TraceSearchMetadata) []*tempopb.TraceSearc
 }
 
 func (i *instance) GetSearchTags() []string {
-	tags := make([]string, 0, len(i.searchTagLookups))
-	for k := range i.searchTagLookups {
-		tags = append(tags, k)
-	}
-	return tags
+	return i.searchTagCache.GetNames()
 }
 
 func (i *instance) GetSearchTagValues(tagName string) []string {
-	return i.searchTagLookups[tagName]
+	return i.searchTagCache.GetValues(tagName)
 }
 
-// Record first 50 unique values for every tag
-const maxLookups = 50
-
 func (i *instance) RecordSearchLookupValues(b []byte) {
-	kv := &tempofb.KeyValues{}
-
 	s := tempofb.SearchDataFromBytes(b)
-	for j := 0; j < s.TagsLength(); j++ {
-		s.Tags(kv, j)
-		key := string(kv.Key())
-		if vals, ok := i.searchTagLookups[key]; ok && len(vals) >= maxLookups {
-			// key exists and we have enough
-			continue
-		}
-		for k := 0; k < kv.ValueLength(); k++ {
-			i.searchTagLookups.Add(key, string(kv.Value(k)))
-		}
-	}
+	i.searchTagCache.SetData(time.Now(), s)
+}
+
+func (i *instance) PurgeExpiredSearchTags(before time.Time) {
+	i.searchTagCache.PurgeExpired(before)
 }

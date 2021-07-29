@@ -170,6 +170,9 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	if err != nil {
 		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to complete block", "err", err)
 	}
+
+	// periodically purge tag cache, keep tags within complete block timeout (i.e. data that is locally)
+	instance.PurgeExpiredSearchTags(time.Now().Add(-i.cfg.CompleteBlockTimeout))
 }
 
 func (i *Ingester) flushLoop(j int) {
