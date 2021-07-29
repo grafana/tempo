@@ -4,15 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/grafana/tempo/modules/search"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-)
-
-const (
-	rootSpanPrefix  = "root."
-	rootSpanNameTag = "root.name"
-	spanNameTag     = "name"
 )
 
 // extractSearchDataAll returns flatbuffer search data for every trace.
@@ -50,12 +45,12 @@ func extractSearchData(trace *tempopb.Trace, id []byte) []byte {
 				// Root span
 				if len(s.ParentSpanId) == 0 {
 
-					data.AddTag(rootSpanNameTag, s.Name)
+					data.AddTag(search.RootSpanNameTag, s.Name)
 
 					// Span attrs
 					for _, a := range s.Attributes {
 						if s, ok := extractValueAsString(a.Value); ok {
-							data.AddTag(fmt.Sprint(rootSpanPrefix, a.Key), s)
+							data.AddTag(fmt.Sprint(search.RootSpanPrefix, a.Key), s)
 						}
 					}
 
@@ -63,14 +58,14 @@ func extractSearchData(trace *tempopb.Trace, id []byte) []byte {
 					if b.Resource != nil {
 						for _, a := range b.Resource.Attributes {
 							if s, ok := extractValueAsString(a.Value); ok {
-								data.AddTag(fmt.Sprint(rootSpanPrefix, a.Key), s)
+								data.AddTag(fmt.Sprint(search.RootSpanPrefix, a.Key), s)
 							}
 						}
 					}
 				}
 
 				// Collect for any spans
-				data.AddTag(spanNameTag, s.Name)
+				data.AddTag(search.SpanNameTag, s.Name)
 				data.SetStartTimeUnixNano(s.StartTimeUnixNano)
 				data.SetEndTimeUnixNano(s.EndTimeUnixNano)
 
@@ -82,10 +77,6 @@ func extractSearchData(trace *tempopb.Trace, id []byte) []byte {
 			}
 		}
 	}
-
-	//fmt.Printf("Distributor extracted search data from trace %x %v Duration %v\n",
-	//	id, data,
-	//	(time.Duration((data.EndTimeUnixNano - data.StartTimeUnixNano) * uint64(time.Nanosecond))))
 
 	return data.ToBytes()
 }

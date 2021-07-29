@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/grafana/tempo/modules/search"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -34,6 +35,12 @@ func TestExtractSearchData(t *testing.T) {
 										Value: &v1_common.AnyValue_StringValue{StringValue: "bar"},
 									},
 								},
+								{
+									Key: "service.name",
+									Value: &v1_common.AnyValue{
+										Value: &v1_common.AnyValue_StringValue{StringValue: "baz"},
+									},
+								},
 							},
 						},
 						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -56,10 +63,12 @@ func TestExtractSearchData(t *testing.T) {
 			searchData: &tempofb.SearchDataMutable{
 				TraceID: traceIDA,
 				Tags: tempofb.SearchDataMap{
-					"foo":                  []string{"bar"},
-					rootSpanPrefix + "foo": []string{"bar"},
-					rootSpanNameTag:        []string{"firstSpan"},
-					spanNameTag:            []string{"firstSpan"},
+					"foo":                         []string{"bar"},
+					search.RootSpanPrefix + "foo": []string{"bar"},
+					search.RootSpanNameTag:        []string{"firstSpan"},
+					search.SpanNameTag:            []string{"firstSpan"},
+					search.RootServiceNameTag:     []string{"baz"},
+					search.ServiceNameTag:         []string{"baz"},
 				},
 				StartTimeUnixNano: 0,
 				EndTimeUnixNano:   0,
@@ -69,7 +78,7 @@ func TestExtractSearchData(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, extractSearchData(tc.trace, tc.id), tc.searchData.ToBytes())
+			assert.Equal(t, tc.searchData.ToBytes(), extractSearchData(tc.trace, tc.id))
 		})
 	}
 }
