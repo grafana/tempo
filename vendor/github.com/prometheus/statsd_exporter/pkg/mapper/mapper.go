@@ -20,60 +20,40 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
-	"github.com/prometheus/statsd_exporter/pkg/mapper/fsm"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/prometheus/statsd_exporter/pkg/mapper/fsm"
 )
 
 var (
-	statsdMetricRE    = `[a-zA-Z_](-?[a-zA-Z0-9_])+`
-	templateReplaceRE = `(\$\{?\d+\}?)`
+	// The first segment of a match cannot start with a number
+	statsdMetricRE = `[a-zA-Z_](-?[a-zA-Z0-9_])*`
+	// The subsequent segments of a match can start with a number
+	// See https://github.com/prometheus/statsd_exporter/issues/328
+	statsdMetricSubsequentRE = `[a-zA-Z0-9_](-?[a-zA-Z0-9_])*`
+	templateReplaceRE        = `(\$\{?\d+\}?)`
 
-	metricLineRE = regexp.MustCompile(`^(\*\.|` + statsdMetricRE + `\.)+(\*|` + statsdMetricRE + `)$`)
+	metricLineRE = regexp.MustCompile(`^(\*|` + statsdMetricRE + `)(\.\*|\.` + statsdMetricSubsequentRE + `)*$`)
 	metricNameRE = regexp.MustCompile(`^([a-zA-Z_]|` + templateReplaceRE + `)([a-zA-Z0-9_]|` + templateReplaceRE + `)*$`)
 	labelNameRE  = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]+$`)
 )
 
-type mapperConfigDefaults struct {
-	TimerType           TimerType         `yaml:"timer_type"`
-	Buckets             []float64         `yaml:"buckets"`
-	Quantiles           []metricObjective `yaml:"quantiles"`
-	MatchType           MatchType         `yaml:"match_type"`
-	GlobDisableOrdering bool              `yaml:"glob_disable_ordering"`
-	Ttl                 time.Duration     `yaml:"ttl"`
-}
-
 type MetricMapper struct {
-	Defaults mapperConfigDefaults `yaml:"defaults"`
-	Mappings []MetricMapping      `yaml:"mappings"`
-	FSM      *fsm.FSM
-	doFSM    bool
-	doRegex  bool
-	cache    MetricMapperCache
-	mutex    sync.RWMutex
+	Registerer prometheus.Registerer
+	Defaults   mapperConfigDefaults `yaml:"defaults"`
+	Mappings   []MetricMapping      `yaml:"mappings"`
+	FSM        *fsm.FSM
+	doFSM      bool
+	doRegex    bool
+	cache      MetricMapperCache
+	mutex      sync.RWMutex
 
 	MappingsCount prometheus.Gauge
-}
 
-type MetricMapping struct {
-	Match            string `yaml:"match"`
-	Name             string `yaml:"name"`
-	nameFormatter    *fsm.TemplateFormatter
-	regex            *regexp.Regexp
-	Labels           prometheus.Labels `yaml:"labels"`
-	labelKeys        []string
-	labelFormatters  []*fsm.TemplateFormatter
-	TimerType        TimerType         `yaml:"timer_type"`
-	LegacyBuckets    []float64         `yaml:"buckets"`
-	LegacyQuantiles  []metricObjective `yaml:"quantiles"`
-	MatchType        MatchType         `yaml:"match_type"`
-	HelpText         string            `yaml:"help"`
-	Action           ActionType        `yaml:"action"`
-	MatchMetricType  MetricType        `yaml:"match_metric_type"`
-	Ttl              time.Duration     `yaml:"ttl"`
-	SummaryOptions   *SummaryOptions   `yaml:"summary_options"`
-	HistogramOptions *HistogramOptions `yaml:"histogram_options"`
+	Logger log.Logger
 }
 
 type SummaryOptions struct {
@@ -98,19 +78,19 @@ var defaultQuantiles = []metricObjective{
 	{Quantile: 0.99, Error: 0.001},
 }
 
-func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int, options ...CacheOption) error {
+func (m *MetricMapper) InitFromYAMLString(fileContents string) error {
 	var n MetricMapper
 
 	if err := yaml.Unmarshal([]byte(fileContents), &n); err != nil {
 		return err
 	}
 
-	if n.Defaults.Buckets == nil || len(n.Defaults.Buckets) == 0 {
-		n.Defaults.Buckets = prometheus.DefBuckets
+	if len(n.Defaults.HistogramOptions.Buckets) == 0 {
+		n.Defaults.HistogramOptions.Buckets = prometheus.DefBuckets
 	}
 
-	if n.Defaults.Quantiles == nil || len(n.Defaults.Quantiles) == 0 {
-		n.Defaults.Quantiles = defaultQuantiles
+	if len(n.Defaults.SummaryOptions.Quantiles) == 0 {
+		n.Defaults.SummaryOptions.Quantiles = defaultQuantiles
 	}
 
 	if n.Defaults.MatchType == MatchTypeDefault {
@@ -119,7 +99,7 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int, op
 
 	remainingMappingsCount := len(n.Mappings)
 
-	n.FSM = fsm.NewFSM([]string{string(MetricTypeCounter), string(MetricTypeGauge), string(MetricTypeTimer)},
+	n.FSM = fsm.NewFSM([]string{string(MetricTypeCounter), string(MetricTypeGauge), string(MetricTypeObserver)},
 		remainingMappingsCount, n.Defaults.GlobDisableOrdering)
 
 	for i := range n.Mappings {
@@ -171,7 +151,6 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int, op
 			}
 			currentMapping.labelFormatters = labelFormatters
 			currentMapping.labelKeys = labelKeys
-
 		} else {
 			if regex, err := regexp.Compile(currentMapping.Match); err != nil {
 				return fmt.Errorf("invalid regex %s in mapping: %v", currentMapping.Match, err)
@@ -181,18 +160,18 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int, op
 			n.doRegex = true
 		}
 
-		if currentMapping.TimerType == "" {
-			currentMapping.TimerType = n.Defaults.TimerType
+		if currentMapping.ObserverType == "" {
+			currentMapping.ObserverType = n.Defaults.ObserverType
 		}
 
 		if currentMapping.LegacyQuantiles != nil &&
 			(currentMapping.SummaryOptions == nil || currentMapping.SummaryOptions.Quantiles != nil) {
-			log.Warn("using the top level quantiles is deprecated.  Please use quantiles in the summary_options hierarchy")
+			level.Warn(m.Logger).Log("msg", "using the top level quantiles is deprecated.  Please use quantiles in the summary_options hierarchy")
 		}
 
 		if currentMapping.LegacyBuckets != nil &&
 			(currentMapping.HistogramOptions == nil || currentMapping.HistogramOptions.Buckets != nil) {
-			log.Warn("using the top level buckets is deprecated.  Please use buckets in the histogram_options hierarchy")
+			level.Warn(m.Logger).Log("msg", "using the top level buckets is deprecated.  Please use buckets in the histogram_options hierarchy")
 		}
 
 		if currentMapping.SummaryOptions != nil &&
@@ -207,9 +186,9 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int, op
 			return fmt.Errorf("cannot use buckets in both the top level and histogram options at the same time in %s", currentMapping.Match)
 		}
 
-		if currentMapping.TimerType == TimerTypeHistogram {
+		if currentMapping.ObserverType == ObserverTypeHistogram {
 			if currentMapping.SummaryOptions != nil {
-				return fmt.Errorf("cannot use histogram timer and summary options at the same time")
+				return fmt.Errorf("cannot use histogram observer and summary options at the same time")
 			}
 			if currentMapping.HistogramOptions == nil {
 				currentMapping.HistogramOptions = &HistogramOptions{}
@@ -218,13 +197,13 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int, op
 				currentMapping.HistogramOptions.Buckets = currentMapping.LegacyBuckets
 			}
 			if currentMapping.HistogramOptions.Buckets == nil || len(currentMapping.HistogramOptions.Buckets) == 0 {
-				currentMapping.HistogramOptions.Buckets = n.Defaults.Buckets
+				currentMapping.HistogramOptions.Buckets = n.Defaults.HistogramOptions.Buckets
 			}
 		}
 
-		if currentMapping.TimerType == TimerTypeSummary {
+		if currentMapping.ObserverType == ObserverTypeSummary {
 			if currentMapping.HistogramOptions != nil {
-				return fmt.Errorf("cannot use summary timer and histogram options at the same time")
+				return fmt.Errorf("cannot use summary observer and histogram options at the same time")
 			}
 			if currentMapping.SummaryOptions == nil {
 				currentMapping.SummaryOptions = &SummaryOptions{}
@@ -233,14 +212,22 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int, op
 				currentMapping.SummaryOptions.Quantiles = currentMapping.LegacyQuantiles
 			}
 			if currentMapping.SummaryOptions.Quantiles == nil || len(currentMapping.SummaryOptions.Quantiles) == 0 {
-				currentMapping.SummaryOptions.Quantiles = n.Defaults.Quantiles
+				currentMapping.SummaryOptions.Quantiles = n.Defaults.SummaryOptions.Quantiles
+			}
+			if currentMapping.SummaryOptions.MaxAge == 0 {
+				currentMapping.SummaryOptions.MaxAge = n.Defaults.SummaryOptions.MaxAge
+			}
+			if currentMapping.SummaryOptions.AgeBuckets == 0 {
+				currentMapping.SummaryOptions.AgeBuckets = n.Defaults.SummaryOptions.AgeBuckets
+			}
+			if currentMapping.SummaryOptions.BufCap == 0 {
+				currentMapping.SummaryOptions.BufCap = n.Defaults.SummaryOptions.BufCap
 			}
 		}
 
 		if currentMapping.Ttl == 0 && n.Defaults.Ttl > 0 {
 			currentMapping.Ttl = n.Defaults.Ttl
 		}
-
 	}
 
 	m.mutex.Lock()
@@ -248,7 +235,11 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int, op
 
 	m.Defaults = n.Defaults
 	m.Mappings = n.Mappings
-	m.InitCache(cacheSize, options...)
+
+	// Reset the cache since this function can be used to reload config
+	if m.cache != nil {
+		m.cache.Reset()
+	}
 
 	if n.doFSM {
 		var mappings []string
@@ -257,7 +248,7 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int, op
 				mappings = append(mappings, mapping.Match)
 			}
 		}
-		n.FSM.BacktrackingNeeded = fsm.TestIfNeedBacktracking(mappings, n.FSM.OrderingDisabled)
+		n.FSM.BacktrackingNeeded = fsm.TestIfNeedBacktracking(mappings, n.FSM.OrderingDisabled, m.Logger)
 
 		m.FSM = n.FSM
 		m.doRegex = n.doRegex
@@ -267,56 +258,44 @@ func (m *MetricMapper) InitFromYAMLString(fileContents string, cacheSize int, op
 	if m.MappingsCount != nil {
 		m.MappingsCount.Set(float64(len(n.Mappings)))
 	}
+
+	if m.Logger == nil {
+		m.Logger = log.NewNopLogger()
+	}
+
 	return nil
 }
 
-func (m *MetricMapper) InitFromFile(fileName string, cacheSize int, options ...CacheOption) error {
+func (m *MetricMapper) InitFromFile(fileName string) error {
 	mappingStr, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		return err
 	}
 
-	return m.InitFromYAMLString(string(mappingStr), cacheSize, options...)
+	return m.InitFromYAMLString(string(mappingStr))
 }
 
-func (m *MetricMapper) InitCache(cacheSize int, options ...CacheOption) {
-	if cacheSize == 0 {
-		m.cache = NewMetricMapperNoopCache()
-	} else {
-		o := cacheOptions{
-			cacheType: "lru",
-		}
-		for _, f := range options {
-			f(&o)
-		}
-
-		var (
-			cache MetricMapperCache
-			err   error
-		)
-		switch o.cacheType {
-		case "lru":
-			cache, err = NewMetricMapperCache(cacheSize)
-		case "random":
-			cache, err = NewMetricMapperRRCache(cacheSize)
-		default:
-			err = fmt.Errorf("unsupported cache type %q", o.cacheType)
-		}
-
-		if err != nil {
-			log.Fatalf("Unable to setup metric cache. Caused by: %s", err)
-		}
-		m.cache = cache
-	}
+// UseCache tells the mapper to use a cache that implements the MetricMapperCache interface.
+// This cache MUST be thread-safe!
+func (m *MetricMapper) UseCache(cache MetricMapperCache) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.cache = cache
 }
 
 func (m *MetricMapper) GetMapping(statsdMetric string, statsdMetricType MetricType) (*MetricMapping, prometheus.Labels, bool) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	result, cached := m.cache.Get(statsdMetric, statsdMetricType)
-	if cached {
-		return result.Mapping, result.Labels, result.Matched
+
+	// only use a cache if one is present
+	if m.cache != nil {
+		result, cached := m.cache.Get(formatKey(statsdMetric, statsdMetricType))
+		if cached {
+			r := result.(MetricMapperCacheResult)
+			return r.Mapping, r.Labels, r.Matched
+		}
 	}
+
 	// glob matching
 	if m.doFSM {
 		finalState, captures := m.FSM.GetMapping(statsdMetric, string(statsdMetricType))
@@ -330,12 +309,23 @@ func (m *MetricMapper) GetMapping(statsdMetric string, statsdMetricType MetricTy
 				labels[result.labelKeys[index]] = formatter.Format(captures)
 			}
 
-			m.cache.AddMatch(statsdMetric, statsdMetricType, result, labels)
+			r := MetricMapperCacheResult{
+				Mapping: result,
+				Matched: true,
+				Labels:  labels,
+			}
+			// add match to cache
+			if m.cache != nil {
+				m.cache.Add(formatKey(statsdMetric, statsdMetricType), r)
+			}
 
 			return result, labels, true
 		} else if !m.doRegex {
 			// if there's no regex match type, return immediately
-			m.cache.AddMiss(statsdMetric, statsdMetricType)
+			// Add miss to cache
+			if m.cache != nil {
+				m.cache.Add(formatKey(statsdMetric, statsdMetricType), MetricMapperCacheResult{})
+			}
 			return nil, nil, false
 		}
 	}
@@ -368,12 +358,23 @@ func (m *MetricMapper) GetMapping(statsdMetric string, statsdMetricType MetricTy
 			labels[label] = string(value)
 		}
 
-		m.cache.AddMatch(statsdMetric, statsdMetricType, &mapping, labels)
+		r := MetricMapperCacheResult{
+			Mapping: &mapping,
+			Matched: true,
+			Labels:  labels,
+		}
+		// Add Match to cache
+		if m.cache != nil {
+			m.cache.Add(formatKey(statsdMetric, statsdMetricType), r)
+		}
 
 		return &mapping, labels, true
 	}
 
-	m.cache.AddMiss(statsdMetric, statsdMetricType)
+	// Add Miss to cache
+	if m.cache != nil {
+		m.cache.Add(formatKey(statsdMetric, statsdMetricType), MetricMapperCacheResult{})
+	}
 	return nil, nil, false
 }
 

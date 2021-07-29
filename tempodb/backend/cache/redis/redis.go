@@ -24,7 +24,7 @@ func NewClient(cfg *Config, cfgBackground *cortex_cache.BackgroundConfig, logger
 	}
 
 	client := cortex_cache.NewRedisClient(&cfg.ClientConfig)
-	cache := cortex_cache.NewRedisCache("tempo", client, logger)
+	cache := cortex_cache.NewRedisCache("tempo", client, prometheus.DefaultRegisterer, logger)
 
 	return cortex_cache.NewBackground("tempo", *cfgBackground, cache, prometheus.DefaultRegisterer)
 }

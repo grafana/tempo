@@ -1,4 +1,4 @@
-// Copyright The OpenTelemetry Authors
+// Copyright 2015 The etcd Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+<<<<<<< HEAD:vendor/go.opentelemetry.io/otel/attribute/doc.go
 // package attribute provides key and value attributes.
 //
 // This package is currently in a Release Candidate phase. Backwards incompatible changes
 // may be introduced prior to v1.0.0, but we believe the current API is ready to stabilize.
 package attribute // import "go.opentelemetry.io/otel/attribute"
+=======
+// +build !linux,!darwin
+
+package fileutil
+
+import "os"
+
+func preallocExtend(f *os.File, sizeInBytes int64) error {
+	return preallocExtendTrunc(f, sizeInBytes)
+}
+
+func preallocFixed(f *os.File, sizeInBytes int64) error { return nil }
+>>>>>>> main:vendor/go.etcd.io/etcd/pkg/fileutil/preallocate_unsupported.go
