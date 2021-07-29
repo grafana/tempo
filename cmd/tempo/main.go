@@ -16,10 +16,12 @@ import (
 
 	"github.com/drone/envsubst"
 	ot "github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 	"github.com/weaveworks/common/logging"
+	"github.com/weaveworks/common/tracing"
 	octrace "go.opencensus.io/trace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/bridge/opencensus"
@@ -71,42 +73,13 @@ func main() {
 	}
 	log.InitLogger(&config.Server)
 
-	// Configure the OpenTelemetry Jaeger exporter
-	jaegerCfg, err := jaegercfg.FromEnv()
+	//closeFn, err := installOpenTracingTracer(config)
+	err = installOpenTelemetryTracer()
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "could not load jaeger tracer configuration", "err", err)
+		level.Error(log.Logger).Log("msg", "failed installing tracer", "err", err)
 		os.Exit(1)
 	}
-	exp, err := jaeger.New(
-		jaeger.WithCollectorEndpoint(
-			jaeger.WithEndpoint(jaegerCfg.Reporter.CollectorEndpoint),
-		),
-	)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "failed to create Jaeger exporter", "err", err)
-		os.Exit(1)
-	}
-	tp := tracesdk.NewTracerProvider(
-		tracesdk.WithBatcher(exp),
-		tracesdk.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("tempo"),
-			// TODO add more resource attributes
-		)),
-	)
-	otel.SetTracerProvider(tp)
-
-	// Install the OpenTracing bridge
-	tracer := tp.Tracer("")
-	bridgeTracer, wrapperTracer := opentracing.NewTracerPair(tracer)
-	bridgeTracer.SetWarningHandler(func(msg string) {
-		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
-	})
-	ot.SetGlobalTracer(bridgeTracer)
-
-	// Install the OpenCensus bridge
-	tracer = wrapperTracer.Tracer("")
-	octrace.DefaultTracer = opencensus.NewTracer(tracer)
+	//defer closeFn()
 
 	if *mutexProfileFraction > 0 {
 		runtime.SetMutexProfileFraction(*mutexProfileFraction)
@@ -203,4 +176,57 @@ func loadConfig() (*app.Config, error) {
 	}
 
 	return config, nil
+}
+
+func installOpenTracingTracer(config *app.Config) (func(), error) {
+	// Setting the environment variable JAEGER_AGENT_HOST enables tracing
+	trace, err := tracing.NewFromEnv(fmt.Sprintf("%s-%s", appName, config.Target))
+	if err != nil {
+		return nil, errors.Wrap(err, "error initialising tracer")
+	}
+	return func() {
+		if err := trace.Close(); err != nil {
+			level.Error(log.Logger).Log("msg", "error closing tracing", "err", err)
+			os.Exit(1)
+		}
+	}, nil
+}
+
+func installOpenTelemetryTracer() error {
+	// Configure the OpenTelemetry Jaeger exporter
+	jaegerCfg, err := jaegercfg.FromEnv()
+	if err != nil {
+		return errors.Wrap(err, "could not load jaeger tracer configuration")
+	}
+	exp, err := jaeger.New(
+		jaeger.WithCollectorEndpoint(
+			jaeger.WithEndpoint(jaegerCfg.Reporter.CollectorEndpoint),
+		),
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to create Jaeger exporter")
+	}
+	tp := tracesdk.NewTracerProvider(
+		tracesdk.WithBatcher(exp),
+		tracesdk.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String("tempo"),
+			// TODO add more resource attributes
+		)),
+	)
+
+	// Install the OpenTracing bridge
+	tracer := tp.Tracer("")
+	bridgeTracer, wrapperTracer := opentracing.NewTracerPair(tracer)
+	bridgeTracer.SetWarningHandler(func(msg string) {
+		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
+	})
+	ot.SetGlobalTracer(bridgeTracer)
+	otel.SetTracerProvider(wrapperTracer)
+
+	// Install the OpenCensus bridge
+	tracer = wrapperTracer.Tracer("")
+	octrace.DefaultTracer = opencensus.NewTracer(tracer)
+
+	return nil
 }
