@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/otel/bridge/opencensus"
 	"go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -206,6 +207,7 @@ func installOpenTelemetryTracer() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to create Jaeger exporter")
 	}
+
 	tp := tracesdk.NewTracerProvider(
 		tracesdk.WithBatcher(exp),
 		tracesdk.WithResource(resource.NewWithAttributes(
@@ -214,19 +216,20 @@ func installOpenTelemetryTracer() error {
 			// TODO add more resource attributes
 		)),
 	)
+	otel.SetTracerProvider(tp)
+
+	propagator := propagation.NewCompositeTextMapPropagator(propagation.Baggage{}, propagation.TraceContext{})
+	otel.SetTextMapPropagator(propagator)
 
 	// Install the OpenTracing bridge
-	tracer := tp.Tracer("")
-	bridgeTracer, wrapperTracer := opentracing.NewTracerPair(tracer)
+	bridgeTracer, _ := opentracing.NewTracerPair(tp.Tracer("OpenTracing"))
 	bridgeTracer.SetWarningHandler(func(msg string) {
 		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
 	})
 	ot.SetGlobalTracer(bridgeTracer)
-	otel.SetTracerProvider(wrapperTracer)
 
 	// Install the OpenCensus bridge
-	tracer = wrapperTracer.Tracer("")
-	octrace.DefaultTracer = opencensus.NewTracer(tracer)
+	octrace.DefaultTracer = opencensus.NewTracer(tp.Tracer("OpenCensus"))
 
 	return nil
 }
