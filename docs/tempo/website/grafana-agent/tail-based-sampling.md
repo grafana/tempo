@@ -11,9 +11,9 @@ Probabilistic sampling strategies are easy to implement,
 but also run the risk of discarding relevant data that you'll later want.
 
 In tail-based sampling, sampling decisions are made at the end of the workflow.
-The Grafana Agent groups spans by trace ID and evaluates checks its data to see
-if it meets one of the defined policies (e.g. latency or status_code).
-For instance, a policy can check if a trace contains an error, or it if it took
+The Grafana Agent groups span by trace ID and check its data to see
+if it meets one of the defined policies (for example, latency or status_code).
+For instance, a policy can check if a trace contains an error or if it took
 longer than a certain duration.
 
 A trace gets sampled if it meets one policy's condition, even if it doesn't meet others. 
