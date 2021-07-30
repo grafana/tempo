@@ -48,7 +48,7 @@ Tempo uses the Weaveworks/common server. See [here](https://github.com/weavework
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
 
-# Optional. String prefix for all http api endpoints.
+# Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
 
 server:
