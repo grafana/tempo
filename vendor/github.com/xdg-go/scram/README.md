@@ -1,5 +1,6 @@
-[![GoDoc](https://godoc.org/github.com/xdg/scram?status.svg)](https://godoc.org/github.com/xdg/scram)
-[![Build Status](https://travis-ci.org/xdg/scram.svg?branch=master)](https://travis-ci.org/xdg/scram)
+[![Go Reference](https://pkg.go.dev/badge/github.com/xdg-go/scram.svg)](https://pkg.go.dev/github.com/xdg-go/scram)
+[![Go Report Card](https://goreportcard.com/badge/github.com/xdg-go/scram)](https://goreportcard.com/report/github.com/xdg-go/scram)
+[![Github Actions](https://github.com/xdg-go/scram/actions/workflows/test.yml/badge.svg)](https://github.com/xdg-go/scram/actions/workflows/test.yml)
 
 # scram – Go implementation of RFC-5802
 
@@ -20,7 +21,7 @@ Channel binding and extensions are not (yet) supported.
 
     package main
 
-    import "github.com/xdg/scram"
+    import "github.com/xdg-go/scram"
 
     func main() {
         // Get Client with username, password and (optional) authorization ID.
