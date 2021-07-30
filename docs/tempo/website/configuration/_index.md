@@ -42,11 +42,14 @@ where default_value is the value to use if the environment variable is undefined
 You can find more about other supported syntax [here](https://github.com/drone/envsubst/blob/master/readme.md)
 
 ## Server
-Tempo uses the Weaveworks/common server. See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.
+Tempo uses the Weaveworks/common server. See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L54) for all configuration options.
 
 ```
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
+
+# Optional. String prefix for all http api endpoints.
+[http_api_prefix: <string>]
 
 server:
     # HTTP server listen host
