@@ -70,7 +70,7 @@ type instance struct {
 	searchHeadBlock      *searchStreamingBlockEntry
 	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
 	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
-	searchTagCache       *search.SearchTagCache
+	searchTagCache       *search.TagCache
 
 	lastBlockCut time.Time
 
@@ -102,7 +102,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		traces:               map[uint32]*trace{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
-		searchTagCache:       search.NewSearchTagCache(),
+		searchTagCache:       search.NewTagCache(),
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),

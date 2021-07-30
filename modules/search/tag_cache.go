@@ -15,18 +15,18 @@ type CacheEntry struct {
 
 const maxValuesPerTag = 50
 
-type SearchTagCache struct {
+type TagCache struct {
 	lookups map[string]*CacheEntry
 	mtx     sync.RWMutex
 }
 
-func NewSearchTagCache() *SearchTagCache {
-	return &SearchTagCache{
+func NewTagCache() *TagCache {
+	return &TagCache{
 		lookups: map[string]*CacheEntry{},
 	}
 }
 
-func (s *SearchTagCache) GetNames() []string {
+func (s *TagCache) GetNames() []string {
 	s.mtx.RLock()
 	tags := make([]string, 0, len(s.lookups))
 	for k := range s.lookups {
@@ -38,7 +38,7 @@ func (s *SearchTagCache) GetNames() []string {
 	return tags
 }
 
-func (s *SearchTagCache) GetValues(tagName string) []string {
+func (s *TagCache) GetValues(tagName string) []string {
 	var vals []string
 
 	s.mtx.RLock()
@@ -54,7 +54,7 @@ func (s *SearchTagCache) GetValues(tagName string) []string {
 	return vals
 }
 
-func (s *SearchTagCache) SetData(ts time.Time, data *tempofb.SearchData) {
+func (s *TagCache) SetData(ts time.Time, data *tempofb.SearchData) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -73,7 +73,7 @@ func (s *SearchTagCache) SetData(ts time.Time, data *tempofb.SearchData) {
 }
 
 // setEntry should be called under lock.
-func (s *SearchTagCache) setEntry(ts int64, k, v string) {
+func (s *TagCache) setEntry(ts int64, k, v string) {
 	e := s.lookups[k]
 	if e == nil {
 		// First entry
@@ -99,7 +99,7 @@ func (s *SearchTagCache) setEntry(ts int64, k, v string) {
 	e.values[v] = ts
 }
 
-func (s *SearchTagCache) PurgeExpired(before time.Time) {
+func (s *TagCache) PurgeExpired(before time.Time) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 

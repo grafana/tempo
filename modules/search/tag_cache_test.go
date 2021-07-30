@@ -10,14 +10,14 @@ import (
 )
 
 func TestSearchTagCacheGetNames(t *testing.T) {
-	c := NewSearchTagCache()
+	c := NewTagCache()
 	c.setEntry(0, "k1", "v1")
 	c.setEntry(0, "k1", "v2")
 	require.Equal(t, []string{"k1"}, c.GetNames())
 }
 
 func TestSearchTagCacheMaxValuesPerTag(t *testing.T) {
-	c := NewSearchTagCache()
+	c := NewTagCache()
 
 	for i := 0; i < maxValuesPerTag+1; i++ {
 		c.setEntry(int64(i), "k", fmt.Sprintf("v%02d", i))
@@ -31,7 +31,7 @@ func TestSearchTagCacheMaxValuesPerTag(t *testing.T) {
 }
 
 func TestSearchTagCachePurge(t *testing.T) {
-	c := NewSearchTagCache()
+	c := NewTagCache()
 
 	oneMinuteAgo := time.Now().Add(-1 * time.Minute)
 	twoMinutesAgo := time.Now().Add(-2 * time.Minute)
@@ -47,7 +47,7 @@ func TestSearchTagCachePurge(t *testing.T) {
 }
 
 func BenchmarkSearchTagCacheSetEntry(b *testing.B) {
-	c := NewSearchTagCache()
+	c := NewTagCache()
 
 	for i := 0; i < b.N; i++ {
 		c.setEntry(int64(i), "k", strconv.Itoa(b.N))

@@ -95,13 +95,19 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		pageEntries = append(pageEntries, offset)
 
 		if builder.Offset() > flatbuffers.UOffsetT(pageSize) {
-			flush()
+			err = flush()
+			if err != nil {
+				return bytesFlushed, err
+			}
 		}
 	}
 
 	// Final page
 	if len(pageEntries) > 0 {
-		flush()
+		err = flush()
+		if err != nil {
+			return bytesFlushed, err
+		}
 	}
 
 	err = l.CloseAppend(ctx, tracker)
