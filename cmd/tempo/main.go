@@ -208,8 +208,7 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	// for now, migrate OpenTracing Jaeger environment variables
 	migrateJaegerEnvironmentVariables()
 
-	// TODO the OpenTelelemetry Jaeger exporter does not support remote sampling
-	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(os.Getenv("OTEL_EXPORTER_JAEGER_ENDPOINT"))))
+	exp, err := jaeger.New(jaeger.WithCollectorEndpoint())
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create Jaeger exporter")
 	}
@@ -220,7 +219,6 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 			semconv.ServiceVersionKey.String(build.Version),
 		),
 		resource.WithHost(),
-		// TODO set Kubernetes resources (cluster, namespace, pod, container)
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to initialise trace resuorces")
