@@ -82,6 +82,10 @@ func main() {
 			_ = os.Setenv("OTEL_EXPORTER_"+v, os.Getenv(v))
 		}
 	}
+	if _, ok := os.LookupEnv("JAEGER_TAGS"); ok {
+		_ = os.Setenv("OTEL_RESOURCE_ATTRIBUTES", os.Getenv("JAEGER_TAGS"))
+	}
+
 	// TODO the OpenTelelemetry Jaeger exporter does not support remote sampling
 	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(os.Getenv("OTEL_EXPORTER_JAEGER_ENDPOINT"))))
 	if err != nil {
