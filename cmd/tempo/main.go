@@ -19,9 +19,11 @@ import (
 
 	"github.com/drone/envsubst"
 	ot "github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	"github.com/weaveworks/common/logging"
+	"github.com/weaveworks/common/tracing"
 	octrace "go.opencensus.io/trace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/bridge/opencensus"
@@ -74,65 +76,18 @@ func main() {
 	}
 	log.InitLogger(&config.Server)
 
-	// Init OpenTelemetry
-	// for now, copy over the OpenTracing Jaeger environment variables by prefixing OTEL_EXPORTER_
-	envVars := []string{"JAEGER_AGENT_HOST", "JAEGER_AGENT_PORT", "JAEGER_ENDPOINT", "JAEGER_USER", "JAEGER_PASSWORD"}
-	for _, v := range envVars {
-		if _, ok := os.LookupEnv("OTEL_EXPORTER_" + v); !ok {
-			_ = os.Setenv("OTEL_EXPORTER_"+v, os.Getenv(v))
-		}
+	// Init tracer
+	var shutdownTracer func()
+	if config.UseOTelTracer {
+		shutdownTracer, err = installOpenTelemetryTracer(config)
+	} else {
+		shutdownTracer, err = installOpenTracingTracer(config)
 	}
-	if _, ok := os.LookupEnv("JAEGER_TAGS"); ok {
-		_ = os.Setenv("OTEL_RESOURCE_ATTRIBUTES", os.Getenv("JAEGER_TAGS"))
-	}
-
-	// TODO the OpenTelelemetry Jaeger exporter does not support remote sampling
-	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(os.Getenv("OTEL_EXPORTER_JAEGER_ENDPOINT"))))
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "failed to create Jaeger exporter", "err", err)
+		level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
 		os.Exit(1)
 	}
-
-	resources, err := resource.New(context.Background(),
-		resource.WithAttributes(
-			semconv.ServiceNameKey.String(fmt.Sprintf("%s-%s", appName, config.Target)),
-			semconv.ServiceVersionKey.String(build.Version),
-		),
-		resource.WithHost(),
-		// TODO set Kubernetes resources (cluster, namespace, pod, container)
-	)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "failed to initialize trace resources", "err", err)
-		os.Exit(1)
-	}
-
-	tp := tracesdk.NewTracerProvider(
-		tracesdk.WithBatcher(exp),
-		tracesdk.WithResource(resources),
-	)
-	otel.SetTracerProvider(tp)
-
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := tp.Shutdown(ctx); err != nil {
-			level.Error(log.Logger).Log("msg", "OpenTeleemtry trace provider failed to shutdown", "err", err)
-		}
-	}()
-
-	propagator := propagation.NewCompositeTextMapPropagator(propagation.Baggage{}, propagation.TraceContext{})
-	otel.SetTextMapPropagator(propagator)
-
-	// Install the OpenTracing bridge
-	// TODO the bridge emits warnings because the Jaeger exporter does not defer context setup
-	bridgeTracer, _ := opentracing.NewTracerPair(tp.Tracer("OpenTracing"))
-	bridgeTracer.SetWarningHandler(func(msg string) {
-		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
-	})
-	ot.SetGlobalTracer(bridgeTracer)
-
-	// Install the OpenCensus bridge
-	octrace.DefaultTracer = opencensus.NewTracer(tp.Tracer("OpenCensus"))
+	defer shutdownTracer()
 
 	if *mutexProfileFraction > 0 {
 		runtime.SetMutexProfileFraction(*mutexProfileFraction)
@@ -229,4 +184,84 @@ func loadConfig() (*app.Config, error) {
 	}
 
 	return config, nil
+}
+
+func installOpenTracingTracer(config *app.Config) (func(), error) {
+	level.Info(log.Logger).Log("msg", "initialising OpenTracing tracer")
+
+	// Setting the environment variable JAEGER_AGENT_HOST enables tracing
+	trace, err := tracing.NewFromEnv(fmt.Sprintf("%s-%s", appName, config.Target))
+	if err != nil {
+		return nil, errors.Wrap(err, "error initialising tracer")
+	}
+	return func() {
+		if err := trace.Close(); err != nil {
+			level.Error(log.Logger).Log("msg", "error closing tracing", "err", err)
+			os.Exit(1)
+		}
+	}, nil
+}
+
+func installOpenTelemetryTracer(config *app.Config) (func(), error) {
+	level.Info(log.Logger).Log("msg", "initialising OpenTelemetry tracer")
+
+	// for now, copy over the OpenTracing Jaeger environment variables by prefixing OTEL_EXPORTER_
+	envVars := []string{"JAEGER_AGENT_HOST", "JAEGER_AGENT_PORT", "JAEGER_ENDPOINT", "JAEGER_USER", "JAEGER_PASSWORD"}
+	for _, v := range envVars {
+		if _, ok := os.LookupEnv("OTEL_EXPORTER_" + v); !ok {
+			_ = os.Setenv("OTEL_EXPORTER_"+v, os.Getenv(v))
+		}
+	}
+	if _, ok := os.LookupEnv("JAEGER_TAGS"); ok {
+		_ = os.Setenv("OTEL_RESOURCE_ATTRIBUTES", os.Getenv("JAEGER_TAGS"))
+	}
+
+	// TODO the OpenTelelemetry Jaeger exporter does not support remote sampling
+	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(os.Getenv("OTEL_EXPORTER_JAEGER_ENDPOINT"))))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create Jaeger exporter")
+	}
+
+	resources, err := resource.New(context.Background(),
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(fmt.Sprintf("%s-%s", appName, config.Target)),
+			semconv.ServiceVersionKey.String(build.Version),
+		),
+		resource.WithHost(),
+		// TODO set Kubernetes resources (cluster, namespace, pod, container)
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to initialise trace resuorces")
+	}
+
+	tp := tracesdk.NewTracerProvider(
+		tracesdk.WithBatcher(exp),
+		tracesdk.WithResource(resources),
+	)
+	otel.SetTracerProvider(tp)
+
+	shutdown := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tp.Shutdown(ctx); err != nil {
+			level.Error(log.Logger).Log("msg", "OpenTeleemtry trace provider failed to shutdown", "err", err)
+			os.Exit(1)
+		}
+	}
+
+	propagator := propagation.NewCompositeTextMapPropagator(propagation.Baggage{}, propagation.TraceContext{})
+	otel.SetTextMapPropagator(propagator)
+
+	// Install the OpenTracing bridge
+	// TODO the bridge emits warnings because the Jaeger exporter does not defer context setup
+	bridgeTracer, _ := opentracing.NewTracerPair(tp.Tracer("OpenTracing"))
+	bridgeTracer.SetWarningHandler(func(msg string) {
+		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
+	})
+	ot.SetGlobalTracer(bridgeTracer)
+
+	// Install the OpenCensus bridge
+	octrace.DefaultTracer = opencensus.NewTracer(tp.Tracer("OpenCensus"))
+
+	return shutdown, nil
 }
