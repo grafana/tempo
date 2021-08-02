@@ -242,6 +242,10 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	propagator := propagation.NewCompositeTextMapPropagator(propagation.Baggage{}, propagation.TraceContext{})
 	otel.SetTextMapPropagator(propagator)
 
+	otel.SetErrorHandler(otelErrorHandlerFunc(func(err error) {
+		level.Error(log.Logger).Log("msg", "OpenTelemetry.ErrorHandler", "err", err)
+	}))
+
 	// Install the OpenTracing bridge
 	// TODO the bridge emits warnings because the Jaeger exporter does not defer context setup
 	bridgeTracer, _ := opentracing.NewTracerPair(tp.Tracer("OpenTracing"))
@@ -280,4 +284,11 @@ func migrateJaegerEnvironmentVariables() {
 	if _, ok := os.LookupEnv("JAEGER_SAMPLER_TYPE"); ok {
 		level.Warn(log.Logger).Log("msg", "JAEGER_SAMPLER_TYPE is not supported with the OpenTelemetry tracer, no sampling will be performed")
 	}
+}
+
+type otelErrorHandlerFunc func(error)
+
+// Handle implements otel.ErrorHandler
+func (f otelErrorHandlerFunc) Handle(err error) {
+	f(err)
 }
