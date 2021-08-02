@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/weaveworks/common/httpgrpc"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/user"
 
@@ -106,6 +107,9 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 			if resp != nil {
 				statusCode = resp.StatusCode
 				contentLength = resp.ContentLength
+			} else if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
+				statusCode = int(httpResp.Code)
+				contentLength = int64(len(httpResp.Body))
 			}
 
 			level.Info(logger).Log(
