@@ -39,7 +39,7 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
-		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, logger))
+		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, registerer))
 
 		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
 			start := time.Now()

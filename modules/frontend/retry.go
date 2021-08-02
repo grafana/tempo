@@ -3,25 +3,32 @@ package frontend
 import (
 	"net/http"
 
-	"github.com/go-kit/kit/log"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/weaveworks/common/httpgrpc"
 )
 
-func RetryWare(maxRetries int, logger log.Logger) Middleware {
+func RetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
 	return MiddlewareFunc(func(next Handler) Handler {
 		return retryWare{
 			next:       next,
-			logger:     logger,
 			maxRetries: maxRetries,
+			retriesCount: promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
+				Namespace: "tempo",
+				Name:      "query_frontend_retries",
+				Help:      "Number of times a request is retried.",
+				Buckets:   []float64{0, 1, 2, 3, 4, 5},
+			}),
 		}
 	})
 }
 
 type retryWare struct {
-	next       Handler
-	logger     log.Logger
-	maxRetries int
+	next         Handler
+	maxRetries   int
+	retriesCount prometheus.Histogram
 }
 
 // Do implements Handler
@@ -33,7 +40,8 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 	// context propagation
 	req = req.WithContext(ctx)
 
-	triesLeft := r.maxRetries
+	tries := 0
+	defer func() { r.retriesCount.Observe(float64(tries)) }()
 
 	for {
 		if ctx.Err() != nil {
@@ -42,25 +50,23 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 
 		resp, err := r.next.Do(req)
 
-		triesLeft--
-		if triesLeft == 0 {
-			return resp, err
-		}
-
+		// do not retry if no error and reponse is not HTTP 5xx
 		if err == nil && resp.StatusCode/100 != 5 {
 			return resp, nil
 		}
 
-		statusCode := 0
-		if resp != nil {
-			statusCode = resp.StatusCode
+		// do not retry if GRPC error contains response that is not HTTP 5xx
+		httpResp, ok := httpgrpc.HTTPResponseFromError(err)
+		if ok && httpResp.Code/100 != 5 {
+			return resp, err
 		}
 
-		span.LogFields(
-			ot_log.String("msg", "error processing request"),
-			ot_log.Int("status_code", statusCode),
-			ot_log.Error(err),
-			ot_log.Int("triesLeft", triesLeft),
-		)
+		// reached max retries
+		tries++
+		if tries >= r.maxRetries {
+			return resp, err
+		}
+
+		span.LogFields(ot_log.String("msg", "error processing request. retrying"))
 	}
 }
