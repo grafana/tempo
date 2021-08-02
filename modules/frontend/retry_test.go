@@ -25,6 +25,7 @@ func TestRetry(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
 		handler       Handler
+		maxRetries    int
 		expectedTries int32
 		expectedRes   *http.Response
 		expectedErr   error
@@ -37,6 +38,7 @@ func TestRetry(t *testing.T) {
 				}
 				return nil, errors.New("this request failed")
 			}),
+			maxRetries:    5,
 			expectedTries: 5,
 			expectedRes:   &http.Response{StatusCode: 200},
 			expectedErr:   nil,
@@ -47,6 +49,7 @@ func TestRetry(t *testing.T) {
 				try.Inc()
 				return &http.Response{StatusCode: 400}, nil
 			}),
+			maxRetries:    5,
 			expectedTries: 1,
 			expectedRes:   &http.Response{StatusCode: 400},
 			expectedErr:   nil,
@@ -57,6 +60,7 @@ func TestRetry(t *testing.T) {
 				try.Inc()
 				return &http.Response{StatusCode: 500}, nil
 			}),
+			maxRetries:    5,
 			expectedTries: 5,
 			expectedRes:   &http.Response{StatusCode: 500},
 			expectedErr:   nil,
@@ -69,15 +73,38 @@ func TestRetry(t *testing.T) {
 				}
 				return nil, errors.New("not the last request")
 			}),
+			maxRetries:    5,
 			expectedTries: 5,
 			expectedRes:   nil,
 			expectedErr:   errors.New("request failed"),
+		},
+		{
+			name: "maxRetries=1",
+			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+				try.Inc()
+				return &http.Response{StatusCode: 500}, nil
+			}),
+			maxRetries:    1,
+			expectedTries: 1,
+			expectedRes:   &http.Response{StatusCode: 500},
+			expectedErr:   nil,
+		},
+		{
+			name: "maxRetries=0",
+			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+				try.Inc()
+				return &http.Response{StatusCode: 500}, nil
+			}),
+			maxRetries:    0,
+			expectedTries: 1,
+			expectedRes:   &http.Response{StatusCode: 500},
+			expectedErr:   nil,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			try.Store(0)
 
-			retryWare := RetryWare(5, log.NewNopLogger())
+			retryWare := RetryWare(tc.maxRetries, log.NewNopLogger())
 			handler := retryWare.Wrap(tc.handler)
 
 			req := httptest.NewRequest("GET", "http://example.com", nil)

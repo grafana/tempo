@@ -33,7 +33,7 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 	// context propagation
 	req = req.WithContext(ctx)
 
-	triesLeft := r.maxRetries
+	try := 0
 
 	for {
 		if ctx.Err() != nil {
@@ -42,8 +42,8 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 
 		resp, err := r.next.Do(req)
 
-		triesLeft--
-		if triesLeft == 0 {
+		try++
+		if try >= r.maxRetries {
 			return resp, err
 		}
 
@@ -60,7 +60,7 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 			ot_log.String("msg", "error processing request"),
 			ot_log.Int("status_code", statusCode),
 			ot_log.Error(err),
-			ot_log.Int("triesLeft", triesLeft),
+			ot_log.Int("try", try),
 		)
 	}
 }
