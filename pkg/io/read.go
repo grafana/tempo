@@ -1,17 +1,13 @@
 package io
 
 import (
-	"fmt"
 	"io"
 )
 
 // ReadAllWithEstimate is a fork of https://go.googlesource.com/go/+/go1.16.3/src/io/io.go#626
 //  with a starting buffer size. if none is provided it uses the existing default of 512
 func ReadAllWithEstimate(r io.Reader, estimatedBytes int64) ([]byte, error) {
-	if estimatedBytes < 0 {
-		return nil, fmt.Errorf("negative value received for estimatedBytes")
-	}
-	if estimatedBytes == 0 {
+	if estimatedBytes <= 0 {
 		estimatedBytes = 512
 	}
 
