@@ -24,10 +24,10 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/tracing"
-	octrace "go.opencensus.io/trace"
+	oc "go.opencensus.io/trace"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/bridge/opencensus"
-	"go.opentelemetry.io/otel/bridge/opentracing"
+	oc_bridge "go.opentelemetry.io/otel/bridge/opencensus"
+	ot_bridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -248,14 +248,14 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 
 	// Install the OpenTracing bridge
 	// TODO the bridge emits warnings because the Jaeger exporter does not defer context setup
-	bridgeTracer, _ := opentracing.NewTracerPair(tp.Tracer("OpenTracing"))
+	bridgeTracer, _ := ot_bridge.NewTracerPair(tp.Tracer("OpenTracing"))
 	bridgeTracer.SetWarningHandler(func(msg string) {
 		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
 	})
 	ot.SetGlobalTracer(bridgeTracer)
 
 	// Install the OpenCensus bridge
-	octrace.DefaultTracer = opencensus.NewTracer(tp.Tracer("OpenCensus"))
+	oc.DefaultTracer = oc_bridge.NewTracer(tp.Tracer("OpenCensus"))
 
 	return shutdown, nil
 }
