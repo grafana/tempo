@@ -276,7 +276,7 @@ func migrateJaegerEnvironmentVariables() {
 		_, otelOk := os.LookupEnv(otelKey)
 
 		if jaegerOk && !otelOk {
-			level.Warn(log.Logger).Log("msg", "migrating Jaeger environment variable, consider using native OpenTelemetry variables", "variable", jaegerKey)
+			level.Warn(log.Logger).Log("msg", "migrating Jaeger environment variable, consider using native OpenTelemetry variables", "jaeger", jaegerKey, "otel", otelKey)
 			_ = os.Setenv(otelKey, value)
 		}
 	}
