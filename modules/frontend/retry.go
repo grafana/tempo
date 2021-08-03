@@ -50,7 +50,7 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 
 		resp, err := r.next.Do(req)
 
-		// do not retry if no error and reponse is not HTTP 5xx
+		// do not retry if no error and response is not HTTP 5xx
 		if err == nil && resp.StatusCode/100 != 5 {
 			return resp, nil
 		}
