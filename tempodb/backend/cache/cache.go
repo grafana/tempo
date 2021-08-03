@@ -1,11 +1,15 @@
 package cache
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"strings"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -25,57 +29,57 @@ func NewCache(nextReader backend.RawReader, nextWriter backend.RawWriter, cache 
 	return rw, rw, nil
 }
 
-// List implements backend.Reader
+// List implements backend.RawReader
 func (r *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	return r.nextReader.List(ctx, keypath)
 }
 
-// Read implements backend.Reader
-func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
+// Read implements backend.RawReader
+func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
 	var k string
-	if shouldCache(name) {
+	if shouldCache {
 		k = key(keypath, name)
 		found, vals, _ := r.cache.Fetch(ctx, []string{k})
 		if len(found) > 0 {
-			return vals[0], nil
+			return ioutil.NopCloser(bytes.NewReader(vals[0])), int64(len(vals[0])), nil
 		}
 	}
 
-	val, err := r.nextReader.Read(ctx, name, keypath)
-	if err == nil && shouldCache(name) {
-		r.cache.Store(ctx, []string{k}, [][]byte{val})
+	object, size, err := r.nextReader.Read(ctx, name, keypath, false)
+	if err != nil {
+		return nil, 0, err
 	}
 
-	return val, err
+	b, err := tempo_io.ReadAllWithEstimate(object, size)
+	if err == nil && shouldCache {
+		r.cache.Store(ctx, []string{k}, [][]byte{b})
+	}
+
+	return ioutil.NopCloser(bytes.NewReader(b)), size, err
 }
 
-func (r *readerWriter) StreamReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
-	panic("StreamReader is not yet supported for cache")
-}
-
-// ReadRange implements backend.Reader
+// ReadRange implements backend.RawReader
 func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
 	return r.nextReader.ReadRange(ctx, name, keypath, offset, buffer)
 }
 
-// Shutdown implements backend.Reader
+// Shutdown implements backend.RawReader
 func (r *readerWriter) Shutdown() {
 	r.nextReader.Shutdown()
 	r.cache.Stop()
 }
 
 // Write implements backend.Writer
-func (r *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
-	if shouldCache(name) {
-		r.cache.Store(ctx, []string{key(keypath, name)}, [][]byte{buffer})
+func (r *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, shouldCache bool) error {
+	b, err := tempo_io.ReadAllWithEstimate(data, size)
+	if err != nil {
+		return err
 	}
 
-	return r.nextWriter.Write(ctx, name, keypath, buffer)
-}
-
-// Write implements backend.Writer
-func (r *readerWriter) StreamWriter(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64) error {
-	return r.nextWriter.StreamWriter(ctx, name, keypath, data, size)
+	if shouldCache {
+		r.cache.Store(ctx, []string{key(keypath, name)}, [][]byte{b})
+	}
+	return r.nextWriter.Write(ctx, name, keypath, bytes.NewReader(b), int64(len(b)), false)
 }
 
 // Append implements backend.Writer
@@ -90,8 +94,4 @@ func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTr
 
 func key(keypath backend.KeyPath, name string) string {
 	return strings.Join(keypath, ":") + ":" + name
-}
-
-func shouldCache(name string) bool {
-	return name != backend.MetaName && name != backend.CompactedMetaName && name != backend.BlockIndexName
 }
