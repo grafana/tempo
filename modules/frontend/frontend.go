@@ -21,7 +21,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // NewTripperware returns a Tripperware configured with a middleware to split requests
@@ -99,8 +98,7 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 
 			span.SetTag("response marshalling format", marshallingFormat)
 
-			otelspan := trace.SpanFromContext(ctx)
-			traceID := otelspan.SpanContext().TraceID()
+			traceID, _ := util.ExtractTraceID(ctx)
 			statusCode := 500
 			var contentLength int64 = 0
 			if resp != nil {
