@@ -19,7 +19,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
-	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/pkg/tempopb"
