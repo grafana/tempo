@@ -35,7 +35,7 @@ func displayCacheSummary(results []blockStats) {
 	fmt.Println()
 	fmt.Println("Bloom filter shards by day and compaction level:")
 
-	columns := []string{"-"} // "-" for the intersection of column header and row header
+	columns := []string{"bloom filter age"}
 	out := make([][]string, 0)
 	bloomTable := make([][]int, 0)
 
@@ -52,7 +52,7 @@ func displayCacheSummary(results []blockStats) {
 		}
 		// extend columns (header of bloomTable)
 		for i := len(columns) - 1; i <= column; i++ {
-			columns = append(columns, fmt.Sprintf("%d days old", i))
+			columns = append(columns, fmt.Sprintf("%d days", i))
 		}
 
 		if int(row) < len(bloomTable) && column < len(bloomTable[row]) {

@@ -364,11 +364,13 @@ storage:
         # Example: "cache: memcached"
         [cache: <string>]
 
-        # Min compaction level of block to qualify for caching bloom filter
+        # Minimum compaction level of block to qualify for bloom filter caching. Default is 0 (disabled), meaning
+        # that compaction level is not used to determine if the bloom filter should be cached.
         # Example: "cache_min_compaction_level: 2"
         [cache_min_compaction_level: <int>]
 
-        # Max block age to qualify for caching bloom filter
+        # Max block age to qualify for bloom filter caching. Default is 0 (disabled), meaning that block age is not
+        # used to determine if the bloom filter should be cached.
         # Example: "cache_max_block_age: 48h"
         [cache_max_block_age: <duration>]
 
