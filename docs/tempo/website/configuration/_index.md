@@ -42,11 +42,14 @@ where default_value is the value to use if the environment variable is undefined
 You can find more about other supported syntax [here](https://github.com/drone/envsubst/blob/master/readme.md)
 
 ## Server
-Tempo uses the Weaveworks/common server. See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.
+Tempo uses the Weaveworks/common server. For more information on configuration options, see [here](https://github.com/weaveworks/common/blob/master/server/server.go#L54).
 
 ```
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
+
+# Optional. String prefix for all http api endpoints. Must include beginning slash.
+[http_api_prefix: <string>]
 
 server:
     # HTTP server listen host
@@ -81,7 +84,7 @@ server:
 ```
 
 ## Distributor
-See [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
 
 Distributors receive spans and forward them to the appropriate ingesters.
 
@@ -122,7 +125,7 @@ distributor:
 ```
 
 ## Ingester
-See [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go).
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
 
@@ -152,7 +155,7 @@ ingester:
 ```
 
 ## Query-frontend
-See [here](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go).
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
@@ -170,7 +173,7 @@ query_frontend:
 ```
 
 ## Querier
-See [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
 
 The Querier is responsible for querying the backends/cache for the traceID.
 
@@ -190,7 +193,7 @@ It also queries compacted blocks that fall within the (2 * BlocklistPoll) range 
 is defined in the storage section below.
 
 ## Compactor
-See [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go).
 
 Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
 
@@ -238,7 +241,7 @@ compactor:
 ```
 
 ## Storage
-See [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go).
 
 The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.  
 
