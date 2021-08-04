@@ -8,8 +8,13 @@ import (
 	"strconv"
 	"time"
 
+	gklog "github.com/go-kit/kit/log"
 	"github.com/google/uuid"
+	ot "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
+	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
+	"github.com/uber/jaeger-client-go"
 
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/services"
@@ -187,7 +192,7 @@ func (i *Ingester) flushLoop(j int) {
 		if op.kind == opKindComplete {
 			retry, err = i.handleComplete(op)
 		} else {
-			retry, err = i.handleFlush(op.userID, op.blockID)
+			retry, err = i.handleFlush(context.Background(), op.userID, op.blockID)
 		}
 
 		if err != nil {
@@ -261,8 +266,24 @@ func (i *Ingester) handleComplete(op *flushOp) (retry bool, err error) {
 	return false, nil
 }
 
-func (i *Ingester) handleFlush(userID string, blockID uuid.UUID) (retry bool, err error) {
-	level.Info(log.Logger).Log("msg", "flushing block", "userid", userID, "block", blockID.String())
+// withSpan adds traceID to a logger, if span is sampled
+// TODO: move into some central trace/log package
+func withSpan(logger gklog.Logger, sp ot.Span) gklog.Logger {
+	if sp == nil {
+		return logger
+	}
+	sctx, ok := sp.Context().(jaeger.SpanContext)
+	if !ok || !sctx.IsSampled() {
+		return logger
+	}
+
+	return gklog.With(logger, "traceID", sctx.TraceID().String())
+}
+
+func (i *Ingester) handleFlush(ctx context.Context, userID string, blockID uuid.UUID) (retry bool, err error) {
+	sp, ctx := ot.StartSpanFromContext(ctx, "flush", ot.Tag{Key: "organization", Value: userID}, ot.Tag{Key: "blockID", Value: blockID.String()})
+	defer sp.Finish()
+	withSpan(level.Info(log.Logger), sp).Log("msg", "flushing block", "userid", userID, "block", blockID.String())
 
 	instance, err := i.getOrCreateInstance(userID)
 	if err != nil {
@@ -274,7 +295,7 @@ func (i *Ingester) handleFlush(userID string, blockID uuid.UUID) (retry bool, er
 	}
 
 	if block := instance.GetBlockToBeFlushed(blockID); block != nil {
-		ctx := user.InjectOrgID(context.Background(), userID)
+		ctx := user.InjectOrgID(ctx, userID)
 		ctx, cancel := context.WithTimeout(ctx, i.cfg.FlushOpTimeout)
 		defer cancel()
 
@@ -283,6 +304,8 @@ func (i *Ingester) handleFlush(userID string, blockID uuid.UUID) (retry bool, er
 		metricFlushDuration.Observe(time.Since(start).Seconds())
 		metricFlushSize.Observe(float64(block.BlockMeta().Size))
 		if err != nil {
+			ext.Error.Set(sp, true)
+			sp.LogFields(otlog.Error(err))
 			return true, err
 		}
 

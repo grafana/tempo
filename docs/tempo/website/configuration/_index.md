@@ -42,11 +42,14 @@ where default_value is the value to use if the environment variable is undefined
 You can find more about other supported syntax [here](https://github.com/drone/envsubst/blob/master/readme.md)
 
 ## Server
-Tempo uses the Weaveworks/common server. See [here](https://github.com/weaveworks/common/blob/master/server/server.go#L45) for all configuration options.
+Tempo uses the Weaveworks/common server. For more information on configuration options, see [here](https://github.com/weaveworks/common/blob/master/server/server.go#L54).
 
 ```
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
+
+# Optional. String prefix for all http api endpoints. Must include beginning slash.
+[http_api_prefix: <string>]
 
 server:
     # HTTP server listen host
@@ -81,11 +84,12 @@ server:
 ```
 
 ## Distributor
-See [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
 
-Distributors are responsible for receiving spans and forwarding them to the appropriate ingesters.  The below configuration
-exposes the otlp receiver on port 0.0.0.0:55680.  [This configuration](https://github.com/grafana/tempo/blob/main/example/docker-compose/local/tempo-local.yaml) shows how to
-configure all available receiver options.
+Distributors receive spans and forward them to the appropriate ingesters.
+
+The following configuration enables all available receivers. For a production deployment, enable only the receivers you need.
+Additional documentation about the receiver is available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
 
 ```
 # Distributor config block
@@ -121,7 +125,7 @@ distributor:
 ```
 
 ## Ingester
-See [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go).
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
 
@@ -151,7 +155,7 @@ ingester:
 ```
 
 ## Query-frontend
-See [here](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go).
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
@@ -159,13 +163,17 @@ The Query Frontend is responsible for sharding incoming requests for faster proc
 # Query Frontend configuration block
 query_frontend:
 
+    # number of times to retry a request sent to a querier
+    # (default: 5)
+    [max_retries: <int>]
+
     # number of shards to split the query into
     # (default: 2)
     [query_shards: <int>]
 ```
 
 ## Querier
-See [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
 
 The Querier is responsible for querying the backends/cache for the traceID.
 
@@ -185,7 +193,7 @@ It also queries compacted blocks that fall within the (2 * BlocklistPoll) range 
 is defined in the storage section below.
 
 ## Compactor
-See [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go).
 
 Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
 
@@ -233,7 +241,7 @@ compactor:
 ```
 
 ## Storage
-See [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go) for all configuration options.
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go).
 
 The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.  
 

@@ -508,3 +508,7 @@ func (r mockRing) HasInstance(instanceID string) bool {
 
 func (r mockRing) CleanupShuffleShardCache(identifier string) {
 }
+
+func (r mockRing) GetInstanceState(instanceID string) (ring.InstanceState, error) {
+	return ring.ACTIVE, nil
+}

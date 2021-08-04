@@ -48,8 +48,11 @@ type shardQuery struct {
 // Do implements Handler
 func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
 	ctx := r.Context()
-	span, _ := opentracing.StartSpanFromContext(ctx, "frontend.ShardQuery")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardQuery")
 	defer span.Finish()
+
+	// context propagation
+	r = r.WithContext(ctx)
 
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {

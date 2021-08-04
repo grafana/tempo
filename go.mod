@@ -4,12 +4,12 @@ go 1.16
 
 require (
 	cloud.google.com/go/storage v1.15.0
-	contrib.go.opencensus.io/exporter/prometheus v0.2.0
+	contrib.go.opencensus.io/exporter/prometheus v0.3.0
 	github.com/Azure/azure-pipeline-go v0.2.2
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/alecthomas/kong v0.2.11
 	github.com/cespare/xxhash v1.1.0
-	github.com/cortexproject/cortex v1.8.1-0.20210422151339-cf1c444e0905
+	github.com/cortexproject/cortex v1.9.1-0.20210726155107-a4bf10354786
 	github.com/cristalhq/hedgedhttp v0.6.0
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.0.0
@@ -27,63 +27,52 @@ require (
 	github.com/hashicorp/go-plugin v1.3.0 // indirect
 	github.com/jaegertracing/jaeger v1.21.0
 	github.com/jsternberg/zap-logfmt v1.2.0
-	github.com/klauspost/compress v1.11.7
+	github.com/klauspost/compress v1.11.13
 	github.com/minio/minio-go/v7 v7.0.10
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.3
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.10.0
+	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
-	github.com/prometheus/common v0.20.0
-	github.com/prometheus/prometheus v1.8.2-0.20210324152458-c7a62b95cea0
+	github.com/prometheus/common v0.30.0
+	github.com/prometheus/procfs v0.7.1 // indirect
+	github.com/prometheus/prometheus v1.8.2-0.20210720123808-b1ed4a0a663d
+	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
 	github.com/uber-go/atomic v1.4.0
-	github.com/uber/jaeger-client-go v2.25.0+incompatible
+	github.com/uber/jaeger-client-go v2.29.1+incompatible
 	github.com/weaveworks/common v0.0.0-20210419092856-009d1eebd624
-	github.com/willf/bitset v1.1.10 // indirect
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.21.0
-	go.uber.org/atomic v1.7.0
+	go.uber.org/atomic v1.8.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
-	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	google.golang.org/api v0.45.0
-	google.golang.org/grpc v1.37.0
+	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
+	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6
+	google.golang.org/api v0.48.0
+	google.golang.org/grpc v1.39.0
+	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
-)
-
-// All of the below replace directives exist due to
-//   Cortex -> ETCD -> GRPC requiring 1.29.1
-//   Otel Collector -> requiring 1.30.1
-//  Once this is merged: https://github.com/etcd-io/etcd/pull/12155 and Cortex revendors we should be able to update everything to current
-replace (
-	github.com/gocql/gocql => github.com/grafana/gocql v0.0.0-20200605141915-ba5dc39ece85
-	github.com/sercand/kuberesolver => github.com/sercand/kuberesolver v2.4.0+incompatible
-	go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200520232829-54ba9589114f
-	google.golang.org/grpc => google.golang.org/grpc v1.29.1
 )
 
 // additional Cortex or upstream required replaces
 replace (
 	github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
-	github.com/opentracing-contrib/go-grpc => github.com/pracucci/go-grpc v0.0.0-20201022134131-ef559b8db645
-	github.com/satori/go.uuid => github.com/satori/go.uuid v1.2.0
-	k8s.io/api => k8s.io/api v0.19.4
-	k8s.io/client-go => k8s.io/client-go v0.19.2
+	github.com/gocql/gocql => github.com/grafana/gocql v0.0.0-20200605141915-ba5dc39ece85
+	k8s.io/api => k8s.io/api v0.20.4
+	k8s.io/client-go => k8s.io/client-go v0.20.4
 )
 
-// Pin github.com/go-openapi versions to match Prometheus alertmanager to avoid
-// breaking changing affecting the alertmanager.
-replace (
-	github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
-	github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
-)
+// Pin to the latest release of grpc-go with GenerateAndRegisterManualResolver
+// This function is used by jeagertracing/jaeger, but we can't update jaeger
+// without updating the open-telemetry/collector as well
+replace google.golang.org/grpc => google.golang.org/grpc v1.33.3
 
 // Pin github.com/soheilhy/cmux to control grpc required version.
 // Before v0.1.5 it contained examples in the root folder that imported grpc without a version,

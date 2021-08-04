@@ -102,22 +102,12 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, multit
 			return nil, fmt.Errorf("receiver factory not found for type: %s", cfg.Type())
 		}
 
-		if factory, ok := factoryBase.(component.ReceiverFactory); ok {
-			receiver, err := factory.CreateTracesReceiver(ctx, params, cfg, shim)
-			if err != nil {
-				return nil, err
-			}
-
-			shim.receivers = append(shim.receivers, receiver)
-			continue
-		}
-
-		/*factory := factoryBase.(component.ReceiverFactoryOld)
-		receiver, err := factory.CreateTraceReceiver(ctx, zapLogger, cfg, converter.NewOCToInternalTraceConverter(shim))
+		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, shim)
 		if err != nil {
 			return nil, err
 		}
-		shim.receivers = append(shim.receivers, receiver)*/
+
+		shim.receivers = append(shim.receivers, receiver)
 	}
 
 	shim.Service = services.NewIdleService(shim.starting, shim.stopping)

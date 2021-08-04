@@ -11,6 +11,7 @@ steps:
 - name: image-tag
   image: alpine/git
   commands:
+  - apk --update --no-cache add bash
   - git fetch origin --tags
   - echo $(./tools/image-tag) > .tags
 
@@ -36,6 +37,8 @@ trigger:
   ref:
   - refs/heads/main
   - refs/tags/**
+  - refs/heads/r? # For weekly release
+  - refs/heads/r?? # For weekly release
 
 ---
 ##  AMD64  ##
@@ -50,6 +53,7 @@ steps:
 - name: image-tag
   image: alpine/git
   commands:
+  - apk --update --no-cache add bash
   - git fetch origin --tags
   - echo $(./tools/image-tag)-amd64 > .tags
 
@@ -90,6 +94,8 @@ trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
+  - refs/heads/r? # For weekly release
+  - refs/heads/r?? # For weekly release
 
 ---
 ##  ARM64  ##
@@ -104,6 +110,7 @@ steps:
 - name: image-tag
   image: alpine/git
   commands:
+  - apk --update --no-cache add bash
   - git fetch origin --tags
   - echo $(./tools/image-tag)-arm64 > .tags
 
@@ -144,6 +151,8 @@ trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
+  - refs/heads/r? # For weekly release
+  - refs/heads/r?? # For weekly release
 
 ---
 ##  MANIFEST  ##
@@ -158,6 +167,7 @@ steps:
 - name: image-tag
   image: alpine/git
   commands:
+  - apk --update --no-cache add bash
   - git fetch origin --tags
   - echo $(./tools/image-tag) > .tags
 
@@ -189,6 +199,8 @@ trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
+  - refs/heads/r? # For weekly release
+  - refs/heads/r?? # For weekly release
 
 ---
 kind: secret

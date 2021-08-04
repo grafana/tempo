@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"path"
 
 	"github.com/google/uuid"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
 )
 
 const (
@@ -21,10 +24,8 @@ type KeyPath []string
 
 // RawWriter is a collection of methods to write data to tempodb backends
 type RawWriter interface {
-	// Write is for in memory data.  It is expected that this data will be cached.
-	Write(ctx context.Context, name string, keypath KeyPath, buffer []byte) error
-	// StreamWriter is for larger data payloads streamed through an io.Reader.  It is expected this will _not_ be cached.
-	StreamWriter(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64) error
+	// Write is for in memory data. shouldCache specifies whether or not caching should be attempted.
+	Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, shouldCache bool) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
 	Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error)
 	// Closes any resources associated with the AppendTracker
@@ -33,14 +34,12 @@ type RawWriter interface {
 
 // RawReader is a collection of methods to read data from tempodb backends
 type RawReader interface {
-	// Read is for reading entire objects from the backend.  It is expected that there will be an attempt to retrieve this from cache
-	Read(ctx context.Context, name string, keypath KeyPath) ([]byte, error)
-	// StreamReader is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
-	StreamReader(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, int64, error)
-	// ReadRange is for reading parts of large objects from the backend.  It is expected this will _not_ be cached.
-	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte) error
 	// List returns all objects one level beneath the provided keypath
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
+	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
+	Read(ctx context.Context, name string, keyPath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
+	// ReadRange is for reading parts of large objects from the backend.  It is expected this will _not_ be cached.
+	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte) error
 	// Shutdown must be called when the Reader is finished and cleans up any associated resources.
 	Shutdown()
 }
@@ -56,12 +55,12 @@ func NewWriter(w RawWriter) Writer {
 	}
 }
 
-func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte) error {
-	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), buffer)
+func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, shouldCache bool) error {
+	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), bytes.NewReader(buffer), int64(len(buffer)), shouldCache)
 }
 
 func (w *writer) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
-	return w.w.StreamWriter(ctx, name, KeyPathForBlock(blockID, tenantID), data, size)
+	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), data, size, false)
 }
 
 func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
@@ -73,7 +72,7 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 		return err
 	}
 
-	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bMeta)
+	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), false)
 }
 
 func (w *writer) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
@@ -95,12 +94,17 @@ func NewReader(r RawReader) Reader {
 	}
 }
 
-func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string) ([]byte, error) {
-	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID))
+func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error) {
+	objReader, size, err := r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), shouldCache)
+	if err != nil {
+		return nil, err
+	}
+	defer objReader.Close()
+	return tempo_io.ReadAllWithEstimate(objReader, size)
 }
 
 func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
-	return r.r.StreamReader(ctx, name, KeyPathForBlock(blockID, tenantID))
+	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), false)
 }
 
 func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
@@ -134,7 +138,13 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, erro
 }
 
 func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
-	bytes, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID))
+	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), false)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+
+	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
 	if err != nil {
 		return nil, err
 	}

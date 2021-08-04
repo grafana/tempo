@@ -3,8 +3,8 @@ data:
   overrides.yaml: |
     overrides: {}
   tempo.yaml: |
-    compactor: null
-    distributor: null
+    compactor: {}
+    distributor: {}
     ingester:
         lifecycler:
             ring:
@@ -30,7 +30,7 @@ data:
                 consistent_hash: true
                 host: memcached
                 service: memcached-client
-                timeout: 500ms
+                timeout: 200ms
             pool:
                 queue_depth: 2000
             s3:

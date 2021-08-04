@@ -19,7 +19,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 76b3caf721a80349e206778e56d41a66
+        config_hash: 74a9c5a46c39c13146cc518435f003d0
       labels:
         app: distributor
         name: distributor
@@ -42,6 +42,13 @@ spec:
             port: 3200
           initialDelaySeconds: 15
           timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "5"
+            memory: 5Gi
+          requests:
+            cpu: "3"
+            memory: 3Gi
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf

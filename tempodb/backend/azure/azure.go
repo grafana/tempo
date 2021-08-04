@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"io"
+	"io/ioutil"
 	"path"
 	"strings"
 
@@ -58,12 +59,7 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, buffer []byte) error {
-	return rw.StreamWriter(ctx, name, keypath, bytes.NewBuffer(buffer), int64(len(buffer)))
-}
-
-// StreamWriter implements backend.Writer
-func (rw *readerWriter) StreamWriter(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64) error {
+func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
 	return rw.writer(ctx, bufio.NewReader(data), backend.ObjectFileName(keypath, name))
 }
 
@@ -128,21 +124,17 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 }
 
 // Read implements backend.Reader
-func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath) ([]byte, error) {
+func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Read")
 	defer span.Finish()
 
 	object := backend.ObjectFileName(keypath, name)
-	bytes, err := rw.readAll(derivedCtx, object)
+	b, err := rw.readAll(derivedCtx, object)
 	if err != nil {
-		return nil, readError(err)
+		return nil, 0, readError(err)
 	}
 
-	return bytes, nil
-}
-
-func (rw *readerWriter) StreamReader(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, int64, error) {
-	panic("StreamReader is not yet supported for Azure backend")
+	return ioutil.NopCloser(bytes.NewReader(b)), int64(len(b)), nil
 }
 
 // ReadRange implements backend.Reader

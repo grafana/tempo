@@ -61,6 +61,10 @@ linters:
     - interfacer
     - typecheck
 
+linters-settings:
+  errcheck:
+    exclude: ./.errcheck-exclude.txt
+
 issues:
   exclude:
     - Error return value of .*log\.Logger\)\.Log\x60 is not checked

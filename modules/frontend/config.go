@@ -9,14 +9,15 @@ import (
 
 type Config struct {
 	Config      frontend.CombinedFrontendConfig `yaml:",inline"`
+	MaxRetries  int                             `yaml:"max_retries,omitempty"`
 	QueryShards int                             `yaml:"query_shards,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	cfg.Config.CompressResponses = true
 	cfg.Config.DownstreamURL = ""
 	cfg.Config.Handler.LogQueriesLongerThan = 0
 	cfg.Config.FrontendV1.MaxOutstandingPerTenant = 100
+	cfg.MaxRetries = 5
 	cfg.QueryShards = 2
 }
 

@@ -88,8 +88,8 @@ func (q *blockBaseQuerier) LabelValues(name string, matchers ...*labels.Matcher)
 	return res, nil, err
 }
 
-func (q *blockBaseQuerier) LabelNames() ([]string, storage.Warnings, error) {
-	res, err := q.index.LabelNames()
+func (q *blockBaseQuerier) LabelNames(matchers ...*labels.Matcher) ([]string, storage.Warnings, error) {
+	res, err := q.index.LabelNames(matchers...)
 	return res, nil, err
 }
 
@@ -407,6 +407,23 @@ func labelValuesWithMatchers(r IndexReader, name string, matchers ...*labels.Mat
 	return values, nil
 }
 
+func labelNamesWithMatchers(r IndexReader, matchers ...*labels.Matcher) ([]string, error) {
+	p, err := PostingsForMatchers(r, matchers...)
+	if err != nil {
+		return nil, err
+	}
+
+	var postings []uint64
+	for p.Next() {
+		postings = append(postings, p.At())
+	}
+	if p.Err() != nil {
+		return nil, errors.Wrapf(p.Err(), "postings for label names with matchers")
+	}
+
+	return r.LabelNamesFor(postings...)
+}
+
 // blockBaseSeriesSet allows to iterate over all series in the single block.
 // Iterated series are trimmed with given min and max time as well as tombstones.
 // See newBlockSeriesSet and newBlockChunkSeriesSet to use it for either sample or chunk iterating.
@@ -453,7 +470,7 @@ func (b *blockBaseSeriesSet) Next() bool {
 
 		var trimFront, trimBack bool
 
-		// Copy chunks as iteratables are reusable.
+		// Copy chunks as iterables are reusable.
 		chks := make([]chunks.Meta, 0, len(b.bufChks))
 
 		// Prefilter chunks and pick those which are not entirely deleted or totally outside of the requested range.
