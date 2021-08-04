@@ -100,8 +100,7 @@ type readerWriter struct {
 	w backend.Writer
 	c backend.Compactor
 
-	// bucketReader is a cache-free reader
-	bucketReader backend.Reader
+	uncachedReader backend.Reader
 
 	wal  *wal.WAL
 	pool *pool.Pool
@@ -148,7 +147,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		return nil, nil, nil, err
 	}
 
-	bucketReader := backend.NewReader(rawR)
+	uncachedReader := backend.NewReader(rawR)
 
 	var cacheBackend cortex_cache.Cache
 
@@ -175,7 +174,7 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	rw := &readerWriter{
 		c:                   c,
 		r:                   r,
-		bucketReader:        bucketReader,
+		uncachedReader:      uncachedReader,
 		w:                   w,
 		cfg:                 cfg,
 		logger:              logger,
@@ -323,7 +322,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		if rw.shouldCache(meta, curTime) {
 			block, err = encoding.NewBackendBlock(meta, rw.r)
 		} else {
-			block, err = encoding.NewBackendBlock(meta, rw.bucketReader)
+			block, err = encoding.NewBackendBlock(meta, rw.uncachedReader)
 		}
 		if err != nil {
 			return nil, "", err
@@ -481,11 +480,16 @@ func (rw *readerWriter) updateBlocklist(tenantID string, add []*backend.BlockMet
 
 func (rw *readerWriter) shouldCache(meta *backend.BlockMeta, curTime time.Time) bool {
 	// compaction level is _atleast_ CacheMinCompactionLevel
-	// block is not older than CacheMaxBlockAge
-	if rw.cfg.CacheMaxBlockAge == 0 {
-		return meta.CompactionLevel >= rw.cfg.CacheMinCompactionLevel
+	if rw.cfg.CacheMinCompactionLevel > 0 && meta.CompactionLevel < rw.cfg.CacheMinCompactionLevel {
+		return false
 	}
-	return meta.CompactionLevel >= rw.cfg.CacheMinCompactionLevel && curTime.Sub(meta.StartTime) < rw.cfg.CacheMaxBlockAge
+
+	// block is not older than CacheMaxBlockAge
+	if rw.cfg.CacheMaxBlockAge > 0 && curTime.Sub(meta.StartTime) > rw.cfg.CacheMaxBlockAge {
+		return false
+	}
+
+	return true
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
