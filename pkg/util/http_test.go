@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
@@ -13,7 +14,7 @@ func TestHexStringToTraceID(t *testing.T) {
 	tc := []struct {
 		id          string
 		expected    []byte
-		expectError bool
+		expectError error
 	}{
 		{
 			id:       "12",
@@ -30,11 +31,16 @@ func TestHexStringToTraceID(t *testing.T) {
 		{
 			id:          "121234567890abcdef1234567890abcdef", // value too long
 			expected:    []byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
-			expectError: true,
+			expectError: errors.New("trace IDs can't be larger than 128 bits"),
 		},
 		{
 			id:       "234567890abcdef", // odd length
 			expected: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
+		},
+		{
+			id:          "1234567890abcdef ", // trailing space
+			expected:    nil,
+			expectError: errors.New("trace IDs can only contain hex characters: invalid character ' ' at position 17"),
 		},
 	}
 
@@ -42,8 +48,8 @@ func TestHexStringToTraceID(t *testing.T) {
 		t.Run(tt.id, func(t *testing.T) {
 			actual, err := hexStringToTraceID(tt.id)
 
-			if tt.expectError {
-				assert.Error(t, err)
+			if tt.expectError != nil {
+				assert.Equal(t, tt.expectError, err)
 				assert.Nil(t, actual)
 				return
 			}
