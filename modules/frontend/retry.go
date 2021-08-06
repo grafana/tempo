@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/opentracing/opentracing-go"
@@ -67,6 +68,23 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 			return resp, err
 		}
 
-		span.LogFields(ot_log.String("msg", "error processing request. retrying"))
+		statusCode := 0
+		if resp != nil {
+			statusCode = resp.StatusCode
+		}
+		if httpResp != nil {
+			statusCode = int(httpResp.Code)
+		}
+
+		// avoid calling err.Error() on an error returned by frontend tripperware
+		// https://github.com/grafana/tempo/issues/857
+		errMsg := fmt.Sprint(err)
+
+		span.LogFields(
+			ot_log.String("msg", "error processing request. retrying"),
+			ot_log.Int("try", tries),
+			ot_log.Int("status_code", statusCode),
+			ot_log.String("errMsg", errMsg),
+		)
 	}
 }
