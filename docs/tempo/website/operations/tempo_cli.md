@@ -133,6 +133,22 @@ Arguments:
 tempo-cli list compaction-summary -c ./tempo.yaml single-tenant
 ```
 
+## List Cache Summary
+Prints information about the number of bloom filter shards per day per compaction level. This command is useful to
+estimate and fine-tune cache storage. Read the [caching topic](../caching) for more information.
+
+```bash
+tempo-cli list cache-summary <tenant-id>
+```
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+
+**Example:**
+```bash
+tempo-cli list cache-summary -c ./tempo.yaml single-tenant
+```
+
 ## List Index
 Lists basic index info for the given block.
 

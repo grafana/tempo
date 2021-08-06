@@ -841,3 +841,70 @@ func TestCompleteBlock(t *testing.T) {
 		assert.True(t, proto.Equal(out, reqs[i]))
 	}
 }
+
+func TestShouldCache(t *testing.T) {
+	tempDir, err := ioutil.TempDir(tmpdir, "")
+	defer os.RemoveAll(tempDir)
+	require.NoError(t, err)
+
+	r, _, _, err := New(&Config{
+		Backend: "local",
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &encoding.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Encoding:             backend.EncLZ4_256k,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll:           0,
+		CacheMaxBlockAge:        time.Hour,
+		CacheMinCompactionLevel: 1,
+	}, log.NewNopLogger())
+	require.NoError(t, err)
+
+	rw := r.(*readerWriter)
+
+	testCases := []struct {
+		name            string
+		compactionLevel uint8
+		startTime       time.Time
+		cache           bool
+	}{
+		{
+			name:            "both pass",
+			compactionLevel: 1,
+			startTime:       time.Now(),
+			cache:           true,
+		},
+		{
+			name:            "startTime fail",
+			compactionLevel: 2,
+			startTime:       time.Now().Add(-2 * time.Hour),
+			cache:           false,
+		},
+		{
+			name:            "compactionLevel fail",
+			compactionLevel: 0,
+			startTime:       time.Now(),
+			cache:           false,
+		},
+		{
+			name:            "both fail",
+			compactionLevel: 0,
+			startTime:       time.Now(),
+			cache:           false,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.cache, rw.shouldCache(&backend.BlockMeta{CompactionLevel: tt.compactionLevel, StartTime: tt.startTime}, time.Now()))
+		})
+	}
+}
