@@ -49,6 +49,12 @@ require (
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.21.0
+	go.opentelemetry.io/otel v1.0.0-RC2
+	go.opentelemetry.io/otel/bridge/opencensus v0.21.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
+	go.opentelemetry.io/otel/exporters/jaeger v1.0.0-RC2
+	go.opentelemetry.io/otel/sdk v1.0.0-RC2
+	go.opentelemetry.io/otel/trace v1.0.0-RC2
 	go.uber.org/atomic v1.8.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
@@ -69,6 +75,9 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.20.4
 )
 
+// Use a more recent version of go-redis that does not depend on OpenTelemetry anymore
+replace github.com/go-redis/redis/v8 => github.com/go-redis/redis/v8 v8.11.0
+
 // Pin to the latest release of grpc-go with GenerateAndRegisterManualResolver
 // This function is used by jeagertracing/jaeger, but we can't update jaeger
 // without updating the open-telemetry/collector as well
@@ -78,3 +87,7 @@ replace google.golang.org/grpc => google.golang.org/grpc v1.33.3
 // Before v0.1.5 it contained examples in the root folder that imported grpc without a version,
 // and therefore were importing grpc latest (which is problematic because we need <v1.29.1)
 replace github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
+
+// Fix for injecting and extracting the propagation context
+// Can be removed when https://github.com/open-telemetry/opentelemetry-go/pull/2141 is merged
+replace go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348

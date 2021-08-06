@@ -19,7 +19,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
-	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -101,7 +100,7 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 
 			span.SetTag("response marshalling format", marshallingFormat)
 
-			traceID, _ := middleware.ExtractTraceID(ctx)
+			traceID, _ := util.ExtractTraceID(ctx)
 			statusCode := 500
 			var contentLength int64 = 0
 			if resp != nil {
