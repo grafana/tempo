@@ -52,13 +52,13 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 		resp, err := r.next.Do(req)
 
 		// do not retry if no error and response is not HTTP 5xx
-		if err == nil && resp.StatusCode/100 != 5 {
+		if err == nil && !shouldRetry(resp.StatusCode) {
 			return resp, nil
 		}
 
 		// do not retry if GRPC error contains response that is not HTTP 5xx
 		httpResp, ok := httpgrpc.HTTPResponseFromError(err)
-		if ok && httpResp.Code/100 != 5 {
+		if ok && !shouldRetry(int(httpResp.Code)) {
 			return resp, err
 		}
 
@@ -87,4 +87,8 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 			ot_log.String("errMsg", errMsg),
 		)
 	}
+}
+
+func shouldRetry(statusCode int) bool {
+	return statusCode/100 == 5
 }
