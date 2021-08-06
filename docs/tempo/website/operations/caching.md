@@ -69,7 +69,7 @@ Tempo provides two config parameters in order to filter down on the items stored
 Using a combination of these config options, we can narrow down on which bloom filters are cached, thereby reducing our
 cache eviction rate, and increasing our cache hit rate. Nice!
 
-So how do we decide the values of these config parameters? We have added a new command to [tempo-cli](tempo_cli) that
+So how do we decide the values of these config parameters? We have added a new command to [tempo-cli](../tempo_cli) that
 prints a summary of bloom filter shards per day and per compaction level. The result looks something like this:
 
 <p align="center"><img src="../cache-summary.png" alt="Cache summary"></p>
