@@ -37,6 +37,6 @@ If this metric is greater than zero (0), check the logs of the compactor for an 
 storage:
   trace:
     pool:
-      max_workers: 100                 # the worker pool mainly drives querying, but is also used for polling the blocklist
+      max_workers: 100                 # worker pool determines the number of parallel requests to the object store backend
       queue_depth: 10000
 ```
