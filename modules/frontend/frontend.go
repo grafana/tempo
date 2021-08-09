@@ -18,7 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/weaveworks/common/middleware"
+	"github.com/weaveworks/common/httpgrpc"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -39,7 +39,7 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
-		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, logger))
+		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, registerer))
 
 		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
 			start := time.Now()
@@ -100,12 +100,15 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 
 			span.SetTag("response marshalling format", marshallingFormat)
 
-			traceID, _ := middleware.ExtractTraceID(ctx)
+			traceID, _ := util.ExtractTraceID(ctx)
 			statusCode := 500
 			var contentLength int64 = 0
 			if resp != nil {
 				statusCode = resp.StatusCode
 				contentLength = resp.ContentLength
+			} else if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
+				statusCode = int(httpResp.Code)
+				contentLength = int64(len(httpResp.Body))
 			}
 
 			level.Info(logger).Log(

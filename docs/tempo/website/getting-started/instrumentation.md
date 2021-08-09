@@ -5,10 +5,19 @@ aliases:
 weight: 100
 ---
 
-# OpenTelemetry
+# References to use when instrumenting your applications 
 
-Check out these resources for help instrumenting your favorite languages with OpenTelemetry instrumentation.  Most of these guides include complete
-end to end examples with Grafana, Loki, and Tempo.
+Check out these resources for help instrumenting tracing with your favorite languages.  Most of these guides include complete end to end examples with Grafana, Loki, and Tempo. 
+
+## OpenTelemetry
+
+- [OpenTelemetry Language Specific Instrumentation](https://opentelemetry.io/docs/)
+
+## Jaeger 
+- [Jaeger Language Specific Instrumentation](https://www.jaegertracing.io/docs/latest/client-libraries/)
+
+## Zipkin 
+- [Zipkin Language Specific Instrumentation](https://zipkin.io/pages/tracers_instrumentation.html)
 
 ## Grafana Blog
 

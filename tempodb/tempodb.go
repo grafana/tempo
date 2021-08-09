@@ -93,6 +93,7 @@ type CompactorOverrides interface {
 }
 
 type WriteableBlock interface {
+	BlockMeta() *backend.BlockMeta
 	Write(ctx context.Context, w backend.Writer) error
 }
 
@@ -100,6 +101,9 @@ type readerWriter struct {
 	r backend.Reader
 	w backend.Writer
 	c backend.Compactor
+
+	uncachedReader backend.Reader
+	uncachedWriter backend.Writer
 
 	wal  *wal.WAL
 	pool *pool.Pool
@@ -144,6 +148,9 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		return nil, nil, nil, err
 	}
 
+	uncachedReader := backend.NewReader(rawR)
+	uncachedWriter := backend.NewWriter(rawW)
+
 	var cacheBackend cortex_cache.Cache
 
 	switch cfg.Cache {
@@ -163,13 +170,15 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
-		c:         c,
-		r:         r,
-		w:         w,
-		cfg:       cfg,
-		logger:    logger,
-		pool:      pool.NewPool(cfg.Pool),
-		blocklist: blocklist.New(),
+		c:              c,
+		r:              r,
+		uncachedReader: uncachedReader,
+		uncachedWriter: uncachedWriter,
+		w:              w,
+		cfg:            cfg,
+		logger:         logger,
+		pool:           pool.NewPool(cfg.Pool),
+		blocklist:      blocklist.New(),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -181,7 +190,8 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error {
-	return c.Write(ctx, rw.w)
+	w := rw.getWriterForBlock(c.BlockMeta(), time.Now())
+	return c.Write(ctx, w)
 }
 
 // CompleteBlock iterates the given WAL block and flushes it to the TempoDB backend.
@@ -296,9 +306,11 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, nil, nil
 	}
 
+	curTime := time.Now()
 	partialTraces, dataEncodings, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 		meta := payload.(*backend.BlockMeta)
-		block, err := encoding.NewBackendBlock(meta, rw.r)
+		r := rw.getReaderForBlock(meta, curTime)
+		block, err := encoding.NewBackendBlock(meta, r)
 		if err != nil {
 			return nil, "", err
 		}
@@ -397,6 +409,36 @@ func (rw *readerWriter) pollBlocklist() {
 	}
 
 	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
+}
+
+func (rw *readerWriter) shouldCache(meta *backend.BlockMeta, curTime time.Time) bool {
+	// compaction level is _atleast_ CacheMinCompactionLevel
+	if rw.cfg.CacheMinCompactionLevel > 0 && meta.CompactionLevel < rw.cfg.CacheMinCompactionLevel {
+		return false
+	}
+
+	// block is not older than CacheMaxBlockAge
+	if rw.cfg.CacheMaxBlockAge > 0 && curTime.Sub(meta.StartTime) > rw.cfg.CacheMaxBlockAge {
+		return false
+	}
+
+	return true
+}
+
+func (rw *readerWriter) getReaderForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Reader {
+	if rw.shouldCache(meta, curTime) {
+		return rw.r
+	}
+
+	return rw.uncachedReader
+}
+
+func (rw *readerWriter) getWriterForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Writer {
+	if rw.shouldCache(meta, curTime) {
+		return rw.w
+	}
+
+	return rw.uncachedWriter
 }
 
 // includeBlock indicates whether a given block should be included in a backend search

@@ -260,7 +260,9 @@ func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *encodin
 func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.StreamingBlock) error {
 	level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", block.BlockMeta()))
 
-	bytesFlushed, err := block.Complete(context.TODO(), tracker, rw.w)
+	w := rw.getWriterForBlock(block.BlockMeta(), time.Now())
+
+	bytesFlushed, err := block.Complete(context.TODO(), tracker, w)
 	if err != nil {
 		return err
 	}

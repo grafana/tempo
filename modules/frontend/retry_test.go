@@ -7,8 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"github.com/weaveworks/common/httpgrpc"
 	"go.uber.org/atomic"
 )
 
@@ -25,18 +26,20 @@ func TestRetry(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
 		handler       Handler
+		maxRetries    int
 		expectedTries int32
 		expectedRes   *http.Response
 		expectedErr   error
 	}{
 		{
-			name: "retry until success",
+			name: "retry errors until success",
 			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
 				if try.Inc() == 5 {
 					return &http.Response{StatusCode: 200}, nil
 				}
 				return nil, errors.New("this request failed")
 			}),
+			maxRetries:    5,
 			expectedTries: 5,
 			expectedRes:   &http.Response{StatusCode: 200},
 			expectedErr:   nil,
@@ -47,18 +50,31 @@ func TestRetry(t *testing.T) {
 				try.Inc()
 				return &http.Response{StatusCode: 400}, nil
 			}),
+			maxRetries:    5,
 			expectedTries: 1,
 			expectedRes:   &http.Response{StatusCode: 400},
 			expectedErr:   nil,
 		},
 		{
+			name: "don't retry GRPC request with HTTP 400's",
+			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+				try.Inc()
+				return nil, httpgrpc.ErrorFromHTTPResponse(&httpgrpc.HTTPResponse{Code: 400})
+			}),
+			maxRetries:    5,
+			expectedTries: 1,
+			expectedRes:   nil,
+			expectedErr:   httpgrpc.ErrorFromHTTPResponse(&httpgrpc.HTTPResponse{Code: 400}),
+		},
+		{
 			name: "retry 500s",
 			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
 				try.Inc()
-				return &http.Response{StatusCode: 500}, nil
+				return &http.Response{StatusCode: 503}, nil
 			}),
+			maxRetries:    5,
 			expectedTries: 5,
-			expectedRes:   &http.Response{StatusCode: 500},
+			expectedRes:   &http.Response{StatusCode: 503},
 			expectedErr:   nil,
 		},
 		{
@@ -69,15 +85,38 @@ func TestRetry(t *testing.T) {
 				}
 				return nil, errors.New("not the last request")
 			}),
+			maxRetries:    5,
 			expectedTries: 5,
 			expectedRes:   nil,
 			expectedErr:   errors.New("request failed"),
+		},
+		{
+			name: "maxRetries=1",
+			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+				try.Inc()
+				return &http.Response{StatusCode: 500}, nil
+			}),
+			maxRetries:    1,
+			expectedTries: 1,
+			expectedRes:   &http.Response{StatusCode: 500},
+			expectedErr:   nil,
+		},
+		{
+			name: "maxRetries=0",
+			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+				try.Inc()
+				return &http.Response{StatusCode: 500}, nil
+			}),
+			maxRetries:    0,
+			expectedTries: 1,
+			expectedRes:   &http.Response{StatusCode: 500},
+			expectedErr:   nil,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			try.Store(0)
 
-			retryWare := RetryWare(5, log.NewNopLogger())
+			retryWare := RetryWare(tc.maxRetries, prometheus.NewRegistry())
 			handler := retryWare.Wrap(tc.handler)
 
 			req := httptest.NewRequest("GET", "http://example.com", nil)
@@ -101,7 +140,7 @@ func TestRetry_CancelledRequest(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 	require.NoError(t, err)
 
-	_, err = RetryWare(5, log.NewNopLogger()).
+	_, err = RetryWare(5, prometheus.NewRegistry()).
 		Wrap(HandlerFunc(func(req *http.Request) (*http.Response, error) {
 			try.Inc()
 			return nil, ctx.Err()
@@ -117,7 +156,7 @@ func TestRetry_CancelledRequest(t *testing.T) {
 	req, err = http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 	require.NoError(t, err)
 
-	_, err = RetryWare(5, log.NewNopLogger()).
+	_, err = RetryWare(5, prometheus.NewRegistry()).
 		Wrap(HandlerFunc(func(req *http.Request) (*http.Response, error) {
 			try.Inc()
 			cancel()

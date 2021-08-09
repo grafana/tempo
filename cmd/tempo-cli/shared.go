@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,16 +61,16 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 	fmt.Println("total blocks: ", len(blockIDs))
 
 	// Load in parallel
-	wg := boundedwaitgroup.New(10)
+	wg := boundedwaitgroup.New(20)
 	resultsCh := make(chan blockStats, len(blockIDs))
 
-	for _, id := range blockIDs {
+	for blockNum, id := range blockIDs {
 		wg.Add(1)
 
-		go func(id2 uuid.UUID) {
+		go func(id2 uuid.UUID, blockNum2 int) {
 			defer wg.Done()
 
-			b, err := loadBlock(r, c, tenantID, id2, windowRange, includeCompacted)
+			b, err := loadBlock(r, c, tenantID, id2, blockNum2, windowRange, includeCompacted)
 			if err != nil {
 				fmt.Println("Error loading block:", id2, err)
 				return
@@ -78,7 +79,7 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 			if b != nil {
 				resultsCh <- *b
 			}
-		}(id)
+		}(id, blockNum)
 	}
 
 	wg.Wait()
@@ -96,8 +97,11 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 	return results, nil
 }
 
-func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id uuid.UUID, windowRange time.Duration, includeCompacted bool) (*blockStats, error) {
+func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id uuid.UUID, blockNum int, windowRange time.Duration, includeCompacted bool) (*blockStats, error) {
 	fmt.Print(".")
+	if blockNum%100 == 0 {
+		fmt.Print(strconv.Itoa(blockNum))
+	}
 
 	meta, err := r.BlockMeta(context.Background(), id, tenantID)
 	if err == backend.ErrDoesNotExist && !includeCompacted {

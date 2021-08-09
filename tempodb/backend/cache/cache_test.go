@@ -1,7 +1,9 @@
 package cache
 
 import (
+	"bytes"
 	"context"
+	"io/ioutil"
 	"testing"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
@@ -46,31 +48,22 @@ func TestReadWrite(t *testing.T) {
 		name          string
 		readerRead    []byte
 		readerName    string
+		shouldCache   bool
 		expectedRead  []byte
 		expectedCache []byte
 	}{
 		{
-			name:          "read",
-			readerName:    "test-thing",
+			name:          "should cache",
+			readerName:    "foo",
 			readerRead:    []byte{0x02},
+			shouldCache:   true,
 			expectedRead:  []byte{0x02},
 			expectedCache: []byte{0x02},
 		},
 		{
-			name:         "block meta",
-			readerName:   "meta.json",
-			readerRead:   []byte{0x02},
-			expectedRead: []byte{0x02},
-		},
-		{
-			name:         "compacted block meta",
-			readerName:   "meta.compacted.json",
-			readerRead:   []byte{0x02},
-			expectedRead: []byte{0x02},
-		},
-		{
-			name:         "block index",
-			readerName:   "index.json.gz",
+			name:         "should not cache",
+			readerName:   "bar",
+			shouldCache:  false,
 			readerRead:   []byte{0x02},
 			expectedRead: []byte{0x02},
 		},
@@ -87,20 +80,23 @@ func TestReadWrite(t *testing.T) {
 			r, _, _ := NewCache(mockR, mockW, NewMockClient())
 
 			ctx := context.Background()
-			read, _ := r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
+			reader, _, _ := r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.shouldCache)
+			read, _ := ioutil.ReadAll(reader)
 			assert.Equal(t, tt.expectedRead, read)
 
 			// clear reader and re-request
 			mockR.R = nil
 
-			read, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
-			assert.Equal(t, tt.expectedCache, read)
+			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.shouldCache)
+			read, _ = ioutil.ReadAll(reader)
+			assert.Equal(t, len(tt.expectedCache), len(read))
 
 			// WRITE
 			_, w, _ := NewCache(mockR, mockW, NewMockClient())
-			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.readerRead)
-			read, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID))
-			assert.Equal(t, tt.expectedCache, read)
+			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(tt.readerRead), int64(len(tt.readerRead)), tt.shouldCache)
+			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.shouldCache)
+			read, _ = ioutil.ReadAll(reader)
+			assert.Equal(t, len(tt.expectedCache), len(read))
 		})
 	}
 }

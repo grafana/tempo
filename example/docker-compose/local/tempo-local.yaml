@@ -41,5 +41,5 @@ storage:
     local:
       path: /tmp/tempo/blocks
     pool:
-      max_workers: 100                 # the worker pool is used for querying
+      max_workers: 100                 # worker pool determines the number of parallel requests to the object store backend
       queue_depth: 10000

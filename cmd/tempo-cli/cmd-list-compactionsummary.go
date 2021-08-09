@@ -54,10 +54,9 @@ func displayCompactionSummary(results []blockStats) {
 
 	sort.Ints(levels)
 
-	columns := []string{"lvl", "blocks", "total", "smallest block", "largest block", "earliest", "latest"}
+	columns := []string{"lvl", "blocks", "total", "smallest block", "largest block", "earliest", "latest", "bloom shards"}
 
 	out := make([][]string, 0)
-
 	for _, l := range levels {
 		sizeSum := uint64(0)
 		sizeMin := uint64(0)
@@ -65,11 +64,14 @@ func displayCompactionSummary(results []blockStats) {
 		countSum := 0
 		countMin := 0
 		countMax := 0
+		countBloomShards := 0
+
 		var newest time.Time
 		var oldest time.Time
 		for _, r := range resultsByLevel[l] {
 			sizeSum += r.Size
 			countSum += r.TotalObjects
+			countBloomShards += int(r.BloomShardCount)
 
 			if r.Size < sizeMin || sizeMin == 0 {
 				sizeMin = r.Size
@@ -110,6 +112,8 @@ func displayCompactionSummary(results []blockStats) {
 				s = fmt.Sprint(time.Since(oldest).Round(time.Second), " ago")
 			case "latest":
 				s = fmt.Sprint(time.Since(newest).Round(time.Second), " ago")
+			case "bloom shards":
+				s = fmt.Sprint(countBloomShards)
 			}
 			line = append(line, s)
 		}

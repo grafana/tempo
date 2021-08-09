@@ -46,6 +46,7 @@ type Config struct {
 	AuthEnabled         bool   `yaml:"auth_enabled,omitempty"`
 	MultitenancyEnabled bool   `yaml:"multitenancy_enabled,omitempty"`
 	HTTPAPIPrefix       string `yaml:"http_api_prefix"`
+	UseOTelTracer       bool   `yaml:"use_otel_tracer,omitempty"`
 
 	Server         server.Config          `yaml:"server,omitempty"`
 	Distributor    distributor.Config     `yaml:"distributor,omitempty"`
@@ -67,6 +68,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
 	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
+	f.BoolVar(&c.UseOTelTracer, "use-otel-tracer", false, "Set to true to replace the OpenTracing tracer with the OpenTelemetry tracer")
 
 	// Server settings
 	flagext.DefaultValues(&c.Server)
@@ -83,7 +85,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	// Memberlist settings
 	fs := flag.NewFlagSet("", flag.PanicOnError)
-	c.MemberlistKV.RegisterFlags(fs, "")
+	c.MemberlistKV.RegisterFlags(fs)
 	_ = fs.Parse([]string{})
 	f.Var(&c.MemberlistKV.JoinMembers, "memberlist.host-port", "Host port to connect to memberlist cluster.")
 	f.IntVar(&c.MemberlistKV.TCPTransport.BindPort, "memberlist.bind-port", 7946, "Port for memberlist to communicate on")

@@ -46,3 +46,33 @@ Too many open connections
 ```
 
 When using the [memcached_exporter](https://github.com/prometheus/memcached_exporter), the number of open connections can be observed at `memcached_current_connections`. 
+
+### Cache Size Control
+
+Tempo querier accesses bloom filters of all blocks while searching for a trace. This essentially mandates the size
+of cache to be at-least the total size of the bloom filters (the working set) . However, in larger deployments, the
+working set might be larger than the desired size of cache. When that happens, eviction rates on the cache grow high,
+and hit rate drop. Not nice!
+
+Tempo provides two config parameters in order to filter down on the items stored in cache.
+
+```
+        # Min compaction level of block to qualify for caching bloom filter
+        # Example: "cache_min_compaction_level: 2"
+        [cache_min_compaction_level: <int>]
+
+        # Max block age to qualify for caching bloom filter
+        # Example: "cache_max_block_age: 48h"
+        [cache_max_block_age: <duration>]
+```
+
+Using a combination of these config options, we can narrow down on which bloom filters are cached, thereby reducing our
+cache eviction rate, and increasing our cache hit rate. Nice!
+
+So how do we decide the values of these config parameters? We have added a new command to [tempo-cli](../tempo_cli) that
+prints a summary of bloom filter shards per day and per compaction level. The result looks something like this:
+
+<p align="center"><img src="../cache-summary.png" alt="Cache summary"></p>
+
+The above image shows the bloom filter shards over 14 days and 6 compaction levels. This can be used to decide the
+above configuration parameters.
