@@ -169,12 +169,12 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 		return status.Errorf(codes.FailedPrecondition, "%s max live traces per tenant exceeded: %v", overrides.ErrorPrefixLiveTracesExceeded, err)
 	}
 
-	i.tracesMtx.Lock()
-	defer i.tracesMtx.Unlock()
-
 	if searchData != nil {
 		i.RecordSearchLookupValues(searchData)
 	}
+
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
 
 	trace := i.getOrCreateTrace(id)
 	return trace.Push(ctx, traceBytes, searchData)
