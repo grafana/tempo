@@ -12,6 +12,4 @@ Resources for deploying and running Tempo:
 - [Ingester PVCs](ingester_pvcs)
 - [Caching](caching)
 - [Tempo CLI](tempo_cli)
-
-
-# jpe tenant index
+- [Polling/Tenant Index](polling)
