@@ -10,7 +10,7 @@ import (
 type CompactedBlockMeta struct {
 	BlockMeta
 
-	CompactedTime time.Time `json:"compactedTime"` // jpe test/consider this super scary change
+	CompactedTime time.Time `json:"compactedTime"`
 }
 
 type BlockMeta struct {

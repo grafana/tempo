@@ -222,14 +222,18 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
+	res, err = cortex_e2e.GetRequest("http://" + tempoIngester3.Endpoint(3200) + "/flush")
+	require.NoError(t, err)
+	require.Equal(t, 204, res.StatusCode)
+
 	// sleep for one maintenance cycle
 	time.Sleep(5 * time.Second)
 
 	// test metrics
 	for _, i := range []*cortex_e2e.HTTPService{tempoIngester1, tempoIngester2, tempoIngester3} {
 		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
 	}
+	require.NoError(t, tempoQuerier.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
 	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_query_frontend_queries_total"))
 
 	// query trace - should fetch from backend

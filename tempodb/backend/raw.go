@@ -44,7 +44,6 @@ type RawReader interface {
 	Shutdown()
 }
 
-// jpe - better organized?
 type writer struct {
 	w RawWriter
 }
