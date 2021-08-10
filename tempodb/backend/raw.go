@@ -174,7 +174,6 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	return out, nil
 }
 
-// jpe test
 func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
 	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), false)
 	if err != nil {
