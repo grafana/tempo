@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,10 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func BenchmarkBackendSearchBlockSearch(b *testing.B) {
-	ctx := context.TODO()
-	//n := 1_000_000
-
+func newBackendSearchBlockWithTraces(traceCount int, t testing.TB) *BackendSearchBlock {
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8}
 	searchData := [][]byte{(&tempofb.SearchDataMutable{
 		Tags: tempofb.SearchDataMap{
@@ -29,27 +27,61 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 			"key4": {"value40", "value41"},
 		}}).ToBytes()}
 
-	f, err := os.OpenFile(path.Join(b.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
-	require.NoError(b, err)
+	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
+	require.NoError(t, err)
 
 	b1, err := NewStreamingSearchBlockForFile(f)
-	require.NoError(b, err)
-	for i := 0; i < b.N; i++ {
-		assert.NoError(b, b1.Append(ctx, id, searchData))
+	require.NoError(t, err)
+	for i := 0; i < traceCount; i++ {
+		assert.NoError(t, b1.Append(context.Background(), id, searchData))
 	}
 
 	l, err := local.NewBackend(&local.Config{
-		Path: b.TempDir(),
+		Path: t.TempDir(),
 	})
-	require.NoError(b, err)
+	require.NoError(t, err)
 
 	blockID := uuid.New()
 	tenantID := "fake"
 	_, err = NewBackendSearchBlock(b1, l, blockID, tenantID)
-	require.NoError(b, err)
+	require.NoError(t, err)
 
 	b2 := OpenBackendSearchBlock(l, blockID, tenantID)
+	return b2
+}
 
+func TestBackendSearchBlockSearch(t *testing.T) {
+	traceCount := 5
+
+	b2 := newBackendSearchBlockWithTraces(traceCount, t)
+
+	// Matches every trace
+	p := NewSearchPipeline(&tempopb.SearchRequest{
+		Tags: map[string]string{"key1": "value10"},
+	})
+
+	sr := NewSearchResults()
+
+	sr.StartWorker()
+	go func() {
+		defer sr.FinishWorker()
+		err := b2.Search(context.TODO(), p, sr)
+		require.NoError(t, err)
+	}()
+	sr.AllWorkersStarted()
+
+	var results []*tempopb.TraceSearchMetadata
+	for r := range sr.Results() {
+		results = append(results, r)
+	}
+	require.Equal(t, traceCount, len(results))
+	require.Equal(t, traceCount, int(sr.TracesInspected()))
+}
+
+func BenchmarkBackendSearchBlockSearch(b *testing.B) {
+	b2 := newBackendSearchBlockWithTraces(b.N, b)
+
+	// Matches nothing, will perform an exhaustive search.
 	p := NewSearchPipeline(&tempopb.SearchRequest{
 		Tags: map[string]string{"nomatch": "nomatch"},
 	})
@@ -58,13 +90,21 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 
 	b.ResetTimer()
 	start := time.Now()
-	// Search 10x because this is really fast but creating the test data is slow
-	// and it helps the benchmark reach consensus faster.
+	// Search 10x10 because reading the search data is much faster than creating it, but we need
+	// to spend at least 1 second to satisfy go bench minimum elapsed time requirement.
 	loops := 10
+	wg := &sync.WaitGroup{}
 	for i := 0; i < loops; i++ {
-		err = b2.Search(ctx, p, sr)
-		require.NoError(b, err)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < loops; j++ {
+				err := b2.Search(context.TODO(), p, sr)
+				require.NoError(b, err)
+			}
+		}()
 	}
+	wg.Wait()
 	elapsed := time.Since(start)
 
 	fmt.Printf("BackendSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s throughput \n",

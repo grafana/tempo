@@ -2,8 +2,10 @@ package search
 
 import (
 	"context"
+	"encoding/binary"
 	"io"
 
+	"github.com/golang/snappy"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/google/uuid"
 
@@ -20,6 +22,28 @@ type BackendSearchBlock struct {
 	l        *local.Backend
 }
 
+func snappyEncode(dst []byte, src []byte) []byte {
+	dst = dst[:0]
+	return snappy.Encode(dst, src)
+}
+func snappyDecode(dst []byte, src []byte) ([]byte, error) {
+	dst = dst[:0]
+	return snappy.Decode(dst, src)
+}
+
+func noEncode(dst []byte, src []byte) []byte {
+	return src
+}
+func noDecode(dst []byte, src []byte) ([]byte, error) {
+	return src, nil
+}
+
+//var defaultEncode func([]byte, []byte) []byte = snappyEncode
+//var defaultDecode func(dst []byte, src []byte) ([]byte, error) = snappyDecode
+
+var defaultEncode func([]byte, []byte) []byte = noEncode
+var defaultDecode func(dst []byte, src []byte) ([]byte, error) = noDecode
+
 // NewBackendSearchBlock iterates through the given WAL search data and writes it to the persistent backend
 // in a more efficient paged form. Multiple traces are written in the same page to make sure of the flatbuffer
 // CreateSharedString feature which dedupes strings across the entire buffer.
@@ -33,8 +57,10 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 	ctx := context.TODO()
 	builder := flatbuffers.NewBuilder(1024)
 	pageSize := 1024 * 1024 //1MB
+	sizeBuf := make([]byte, 4)
 	bytesFlushed := 0
 	kv := &tempofb.KeyValues{}
+	pageBuf := make([]byte, 0, 1024*1024)
 
 	flush := func() error {
 		// Create vector of entries
@@ -48,11 +74,19 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		tempofb.BatchSearchDataStart(builder)
 		tempofb.BatchSearchDataAddEntries(builder, entryVector)
 		batch := tempofb.BatchSearchDataEnd(builder)
-		builder.FinishSizePrefixed(batch)
+		builder.Finish(batch)
 
 		buf := builder.FinishedBytes()
 
-		tracker, err = l.Append(ctx, "search", backend.KeyPathForBlock(blockID, tenantID), tracker, buf)
+		pageBuf = defaultEncode(pageBuf, buf)
+
+		binary.LittleEndian.PutUint32(sizeBuf, uint32(len(pageBuf)))
+		tracker, err = l.Append(ctx, "search", backend.KeyPathForBlock(blockID, tenantID), tracker, sizeBuf)
+		if err != nil {
+			return err
+		}
+
+		tracker, err = l.Append(ctx, "search", backend.KeyPathForBlock(blockID, tenantID), tracker, pageBuf)
 		if err != nil {
 			return err
 		}
@@ -132,6 +166,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchR
 
 	offset := uint64(0)
 	offsetBuf := make([]byte, 4)
+	pageBuf := make([]byte, 1024*1024)
 	dataBuf := make([]byte, 1024*1024)
 	entry := &tempofb.SearchData{} // Buffer
 
@@ -148,21 +183,24 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchR
 
 		offset += 4
 
-		size := flatbuffers.GetSizePrefix(offsetBuf, 0)
+		size := binary.LittleEndian.Uint32(offsetBuf)
 
 		// Reset/resize buffer
-		if cap(dataBuf) < int(size) {
-			dataBuf = make([]byte, size)
+		if cap(pageBuf) < int(size) {
+			pageBuf = make([]byte, size)
 		}
-		dataBuf = dataBuf[:size]
-
-		//fmt.Println("BackendSearchBlock is loading a page size", size, "bytes")
+		pageBuf = pageBuf[:size]
 
 		// Read page
-		err = s.l.ReadRange(ctx, "search", backend.KeyPathForBlock(s.id, s.tenantID), offset, dataBuf)
+		err = s.l.ReadRange(ctx, "search", backend.KeyPathForBlock(s.id, s.tenantID), offset, pageBuf)
 		if err == io.EOF {
 			return nil
 		}
+		if err != nil {
+			return err
+		}
+
+		dataBuf, err = defaultDecode(dataBuf, pageBuf)
 		if err != nil {
 			return err
 		}
