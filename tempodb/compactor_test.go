@@ -76,7 +76,7 @@ func TestCompaction(t *testing.T) {
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
 		},
-		BlocklistPoll: 0, // jpe poll fallback = true makes this test sad, why?
+		BlocklistPoll: 0,
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 

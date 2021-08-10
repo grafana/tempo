@@ -46,7 +46,9 @@ func (b *TenantIndex) marshal() ([]byte, error) {
 	if err = gzip.Flush(); err != nil {
 		return nil, err
 	}
-	defer gzip.Close()
+	if err = gzip.Close(); err != nil {
+		return nil, err
+	}
 
 	return buffer.Bytes(), nil
 }
