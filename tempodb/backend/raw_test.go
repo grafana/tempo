@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// jpe add keypath tests?
+// todo: add tests that check the appropriate keypath is passed
 func TestWriter(t *testing.T) {
 	m := &MockRawWriter{}
 	w := NewWriter(m)

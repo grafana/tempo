@@ -50,12 +50,12 @@ func (l *List) Tenants() []string {
 }
 
 func (l *List) Metas(tenantID string) []*backend.BlockMeta {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-
 	if tenantID == "" {
 		return nil
 	}
+
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
 
 	copiedBlocklist := make([]*backend.BlockMeta, 0, len(l.metas[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, l.metas[tenantID]...)
@@ -63,12 +63,12 @@ func (l *List) Metas(tenantID string) []*backend.BlockMeta {
 }
 
 func (l *List) CompactedMetas(tenantID string) []*backend.CompactedBlockMeta {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-
 	if tenantID == "" {
 		return nil
 	}
+
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
 
 	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(l.compactedMetas[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, l.compactedMetas[tenantID]...)
@@ -108,7 +108,7 @@ func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backe
 
 	l.updateInternal(tenantID, add, remove, compactedAdd)
 
-	// save off
+	// save off, they are retained for an additional polling cycle
 	l.added[tenantID] = append(l.added[tenantID], add...)
 	l.removed[tenantID] = append(l.removed[tenantID], remove...)
 	l.compactedAdded[tenantID] = append(l.compactedAdded[tenantID], compactedAdd...)

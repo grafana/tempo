@@ -106,7 +106,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	compactedBlocklist := PerTenantCompacted{}
 
 	for _, tenantID := range tenants {
-		newBlockList, newCompactedBlockList, err := p.pollTenant(ctx, tenantID)
+		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -120,7 +120,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	return blocklist, compactedBlocklist, nil
 }
 
-func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	// if we're not building the tenant index then attempt to pull it
 	if !p.buildTenantIndex() {
 		metricTenantIndexBuilder.Set(0)
@@ -145,6 +145,23 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 
 	metricTenantIndexBuilder.Set(1)
 
+	blocklist, compactedBlocklist, err := p.pollTenantBlocks(ctx, tenantID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// everything is happy, write this tenant index
+	level.Info(p.logger).Log("msg", "writing tenant index", "tenant", tenantID, "metas", len(blocklist), "compactedMetas", len(compactedBlocklist))
+	err = p.writer.WriteTenantIndex(ctx, tenantID, blocklist, compactedBlocklist)
+	if err != nil {
+		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
+		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
+	}
+
+	return blocklist, compactedBlocklist, nil
+}
+
+func (p *Poller) pollTenantBlocks(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	blockIDs, err := p.reader.Blocks(ctx, tenantID)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
@@ -195,14 +212,6 @@ func (p *Poller) pollTenant(ctx context.Context, tenantID string) ([]*backend.Bl
 	sort.Slice(newCompactedBlocklist, func(i, j int) bool {
 		return newCompactedBlocklist[i].StartTime.Before(newCompactedBlocklist[j].StartTime)
 	})
-
-	// everything is happy, write this tenant index
-	level.Info(p.logger).Log("msg", "writing tenant index", "tenant", tenantID, "metas", len(newBlockList), "compactedMetas", len(newCompactedBlocklist))
-	err = p.writer.WriteTenantIndex(ctx, tenantID, newBlockList, newCompactedBlocklist)
-	if err != nil {
-		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
-		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
-	}
 
 	return newBlockList, newCompactedBlocklist, nil
 }
