@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
@@ -236,6 +237,7 @@ func (t *App) Run() error {
 	// before starting servers, register /ready handler and gRPC health check service.
 	t.Server.HTTP.Path("/config").Handler(t.configHandler())
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
+	t.Server.HTTP.Path("/services").Handler(t.servicesHandler())
 	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, healthcheck.New(sm))
 
 	// Let's listen for events from this manager, and log them.
@@ -329,5 +331,33 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 		}
 
 		http.Error(w, "ready", http.StatusOK)
+	}
+}
+
+func (t *App) servicesHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		msg := bytes.Buffer{}
+
+		svcNames := make([]string, 0, len(t.serviceMap))
+		for name := range t.serviceMap {
+			svcNames = append(svcNames, name)
+		}
+
+		sort.Strings(svcNames)
+
+		for _, name := range svcNames {
+			service := t.serviceMap[name]
+
+			msg.WriteString(fmt.Sprintf("%s: %s\n", name, service.State()))
+			if err := service.FailureCase(); err != nil {
+				msg.WriteString(fmt.Sprintf("  Failure case: %s\n", err))
+			}
+		}
+
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write(msg.Bytes()); err != nil {
+			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
+		}
 	}
 }
