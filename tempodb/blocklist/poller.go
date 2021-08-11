@@ -121,12 +121,13 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 }
 
 func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
-	// if we're not building the tenant index then attempt to pull it
+	// are we a tenant index builder?
 	if !p.buildTenantIndex() {
 		metricTenantIndexBuilder.Set(0)
 
 		i, err := p.reader.TenantIndex(ctx, tenantID)
 		if err == nil {
+			// success! return the retrieved index
 			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Since(i.CreatedAt) / time.Second))
 			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "createdAt", i.CreatedAt, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
 			return i.Meta, i.CompactedMeta, nil
@@ -134,17 +135,18 @@ func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) 
 
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 
-		// we had an error, do we bail?
+		// there was an error, return the error if we're not supposed to fallback to polling
 		if !p.cfg.PollFallback {
 			return nil, nil, err
 		}
 
-		// log error and keep on keeping on
+		// polling fallback is true, log the error and continue in this method to completely poll the backend
 		level.Error(p.logger).Log("msg", "failed to pull bucket index for tenant. falling back to polling", "tenant", tenantID, "err", err)
 	}
 
+	// if we're here then we have been configured to be a tenant index builder OR there was a failure to pull
+	// the tenant index and we are configured to fall back to polling
 	metricTenantIndexBuilder.Set(1)
-
 	blocklist, compactedBlocklist, err := p.pollTenantBlocks(ctx, tenantID)
 	if err != nil {
 		return nil, nil, err

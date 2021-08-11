@@ -140,6 +140,8 @@ func (m *MockReader) Shutdown() {}
 
 // MockWriter
 type MockWriter struct {
+	IndexMeta          map[string][]*BlockMeta
+	IndexCompactedMeta map[string][]*CompactedBlockMeta
 }
 
 func (m *MockWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, shouldCache bool) error {
@@ -158,5 +160,13 @@ func (m *MockWriter) CloseAppend(ctx context.Context, tracker AppendTracker) err
 	return nil
 }
 func (m *MockWriter) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+	if m.IndexMeta == nil {
+		m.IndexMeta = make(map[string][]*BlockMeta)
+	}
+	if m.IndexCompactedMeta == nil {
+		m.IndexCompactedMeta = make(map[string][]*CompactedBlockMeta)
+	}
+	m.IndexMeta[tenantID] = meta
+	m.IndexCompactedMeta[tenantID] = compactedMeta
 	return nil
 }

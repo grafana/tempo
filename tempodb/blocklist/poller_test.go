@@ -21,8 +21,7 @@ type mockJobSharder struct{}
 
 func (m *mockJobSharder) Owns(_ string) bool { return true }
 
-// jpe extend
-func TestDo(t *testing.T) {
+func TestTenantIndexBuilder(t *testing.T) {
 	tests := []struct {
 		name                  string
 		list                  PerTenant
@@ -152,12 +151,21 @@ func TestDo(t *testing.T) {
 			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
 			actualList, actualCompactedList, err := poller.Do()
 
+			// confirm return as expected
 			assert.Equal(t, tc.expectedList, actualList)
 			assert.Equal(t, tc.expectedCompactedList, actualCompactedList)
 			if tc.expectsError {
 				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
+				return
+			}
+			assert.NoError(t, err)
+
+			// confirm tenant index written as expected
+			for tenant, list := range tc.expectedList {
+				assert.Equal(t, list, w.IndexMeta[tenant])
+			}
+			for tenant, list := range tc.expectedCompactedList {
+				assert.Equal(t, list, w.IndexCompactedMeta[tenant])
 			}
 		})
 	}
