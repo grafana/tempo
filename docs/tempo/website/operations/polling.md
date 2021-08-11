@@ -11,10 +11,14 @@ and queriers.
 
 In order to reduce calls to the backend only a small subset of compactors actually list all blocks and build 
 what's called a tenant index. The tenant index is a gzip'ed json file located at `/<tenant>/index.json.gz` containing
-an entry for every block and compacted block for that tenant. All other compactors and all queriers then rely
-on downloading this file, unzipping it and using the contained list.
+an entry for every block and compacted block for that tenant. This is done once every `blocklist_poll` duration.
 
-See [configuration]({{< relref "../configuration/polling" >}}) for more information.
+All other compactors and all queriers then rely on downloading this file, unzipping it and using the contained list. 
+Again this is done once every `blocklist_poll` duration.
+
+Due to this behavior a given compactor or querier will often have an out of date blocklist. During normal operation
+it will stale by at most 2x the configured `blocklist_poll`. See [configuration]({{< relref "../configuration/polling" >}})
+for more information.
 
 # Monitoring
 

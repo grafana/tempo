@@ -22,7 +22,7 @@ storage:
         [blocklist_poll_tenant_index_builders: <int>]
 ```
 
-Due to the mechanics of the [tenant index]({{< relref "../operations/polling" >}}) the blocklist will stale by
+Due to the mechanics of the [tenant index]({{< relref "../operations/polling" >}}) the blocklist will be stale by
 at most 2x the configured `blockist_poll` duration. There are two configuration options that need to be balanced 
 against the blockist_poll to handle this:
 
@@ -31,7 +31,7 @@ it has been flushed. This allows the ingester to return traces to the queriers w
 of the newly flushed blocks.
 ```
 ingester:
-  # How long to hold a complete block in the ingester after it has been flushed to the backend.  Default is 10m
+  # How long to hold a complete block in the ingester after it has been flushed to the backend.  Default is 15m
   [complete_block_timeout: <duration>]
 ```
 
