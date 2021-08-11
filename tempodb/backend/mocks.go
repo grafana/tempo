@@ -87,14 +87,15 @@ func (c *MockCompactor) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 
 // MockReader
 type MockReader struct {
-	T           []string
-	B           []uuid.UUID // blocks
-	BlockFn     func(ctx context.Context, tenantID string) ([]uuid.UUID, error)
-	M           *BlockMeta // meta
-	BlockMetaFn func(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
-	R           []byte // read
-	Range       []byte // ReadRange
-	ReadFn      func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
+	T             []string
+	B             []uuid.UUID // blocks
+	BlockFn       func(ctx context.Context, tenantID string) ([]uuid.UUID, error)
+	M             *BlockMeta // meta
+	BlockMetaFn   func(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
+	TenantIndexFn func(ctx context.Context, tenantID string) (*TenantIndex, error)
+	R             []byte // read
+	Range         []byte // ReadRange
+	ReadFn        func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
 }
 
 func (m *MockReader) Tenants(ctx context.Context) ([]string, error) {
@@ -133,6 +134,10 @@ func (m *MockReader) ReadRange(ctx context.Context, name string, blockID uuid.UU
 }
 
 func (m *MockReader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
+	if m.TenantIndexFn != nil {
+		return m.TenantIndexFn(ctx, tenantID)
+	}
+
 	return &TenantIndex{}, nil
 }
 

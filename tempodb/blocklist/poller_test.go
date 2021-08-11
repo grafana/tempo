@@ -17,9 +17,11 @@ var (
 	testBuilders        = 1
 )
 
-type mockJobSharder struct{}
+type mockJobSharder struct {
+	owns bool
+}
 
-func (m *mockJobSharder) Owns(_ string) bool { return true }
+func (m *mockJobSharder) Owns(_ string) bool { return m.owns }
 
 func TestTenantIndexBuilder(t *testing.T) {
 	tests := []struct {
@@ -148,7 +150,9 @@ func TestTenantIndexBuilder(t *testing.T) {
 				PollConcurrency:     testPollConcurrency,
 				PollFallback:        testPollFallback,
 				TenantIndexBuilders: testBuilders,
-			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
+			}, &mockJobSharder{
+				owns: true,
+			}, r, c, w, log.NewNopLogger())
 			actualList, actualCompactedList, err := poller.Do()
 
 			// confirm return as expected
@@ -167,6 +171,74 @@ func TestTenantIndexBuilder(t *testing.T) {
 			for tenant, list := range tc.expectedCompactedList {
 				assert.Equal(t, list, w.IndexCompactedMeta[tenant])
 			}
+		})
+	}
+}
+
+func TestTenantIndexFallback(t *testing.T) {
+	tests := []struct {
+		name                      string
+		isTenantIndexBuilder      bool
+		errorOnCreateTenantIndex  bool
+		pollFallback              bool
+		expectsError              bool
+		expectsTenantIndexWritten bool
+	}{
+		{
+			name:                      "tenant index builder writes index",
+			isTenantIndexBuilder:      true,
+			expectsTenantIndexWritten: true,
+		},
+		{
+			name:                      "tenant index reader does not write index",
+			isTenantIndexBuilder:      false,
+			expectsTenantIndexWritten: false,
+		},
+		{
+			name:                      "tenant index reader does not write index on error if no fallback",
+			isTenantIndexBuilder:      false,
+			errorOnCreateTenantIndex:  true,
+			pollFallback:              false,
+			expectsError:              true,
+			expectsTenantIndexWritten: false,
+		},
+		{
+			name:                      "tenant index reader writes index on error if fallback",
+			isTenantIndexBuilder:      true,
+			errorOnCreateTenantIndex:  true,
+			pollFallback:              false,
+			expectsError:              false,
+			expectsTenantIndexWritten: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &backend.MockCompactor{}
+			r := newMockReader(PerTenant{
+				"test": []*backend.BlockMeta{},
+			}, nil, false)
+			w := &backend.MockWriter{}
+
+			r.(*backend.MockReader).TenantIndexFn = func(ctx context.Context, tenantID string) (*backend.TenantIndex, error) {
+				if tc.errorOnCreateTenantIndex {
+					return nil, errors.New("err")
+				}
+				return &backend.TenantIndex{}, nil
+			}
+
+			poller := NewPoller(&PollerConfig{
+				PollConcurrency:     testPollConcurrency,
+				PollFallback:        tc.pollFallback,
+				TenantIndexBuilders: testBuilders,
+			}, &mockJobSharder{
+				owns: tc.isTenantIndexBuilder,
+			}, r, c, w, log.NewNopLogger())
+			_, _, err := poller.Do()
+
+			assert.Equal(t, tc.expectsError, err != nil)
+			assert.Equal(t, tc.expectsTenantIndexWritten, w.IndexCompactedMeta != nil)
+			assert.Equal(t, tc.expectsTenantIndexWritten, w.IndexMeta != nil)
 		})
 	}
 }
