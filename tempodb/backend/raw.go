@@ -16,7 +16,7 @@ import (
 const (
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
-	BlockIndexName    = "blockindex.json.gz"
+	TenantIndexName   = "index.json.gz"
 )
 
 // KeyPath is an ordered set of strings that govern where data is read/written from the backend
@@ -83,6 +83,22 @@ func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 	return w.w.CloseAppend(ctx, tracker)
 }
 
+func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+	b := newTenantIndex(meta, compactedMeta)
+
+	indexBytes, err := b.marshal()
+	if err != nil {
+		return err
+	}
+
+	err = w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), false)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 type reader struct {
 	r RawReader
 }
@@ -124,7 +140,7 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, erro
 	// translate everything to UUIDs, if we see a bucket index we can skip that
 	blockIDs := make([]uuid.UUID, 0, len(objects))
 	for _, id := range objects {
-		if id == BlockIndexName {
+		if id == TenantIndexName {
 			continue
 		}
 		uuid, err := uuid.Parse(id)
@@ -156,6 +172,26 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	}
 
 	return out, nil
+}
+
+func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
+	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), false)
+	if err != nil {
+		return nil, err
+	}
+
+	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
+	if err != nil {
+		return nil, err
+	}
+
+	i := &TenantIndex{}
+	err = i.unmarshal(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return i, nil
 }
 
 func (r *reader) Shutdown() {

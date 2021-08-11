@@ -29,6 +29,8 @@ type Writer interface {
 	Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error)
 	// Closes any resources associated with the AppendTracker
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
+	// WriteTenantIndex writes the two meta slices as a tenant index
+	WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error
 }
 
 // Reader is a collection of methods to read data from tempodb backends
@@ -45,6 +47,8 @@ type Reader interface {
 	Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error)
 	// BlockMeta returns the blockmeta given a block and tenant id
 	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
+	// TenantIndex returns lists of all metas given a tenant
+	TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error)
 	// Shutdown shuts...down?
 	Shutdown()
 }

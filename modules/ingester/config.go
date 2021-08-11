@@ -9,8 +9,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
-
-	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/tempodb"
 )
 
 // Config for an ingester.
@@ -42,7 +41,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.MaxTraceIdle, prefix+".trace-idle-period", 30*time.Second, "Duration after which to consider a trace complete if no spans have been received")
 	f.DurationVar(&cfg.MaxBlockDuration, prefix+".max-block-duration", time.Hour, "Maximum duration which the head block can be appended to before cutting it.")
 	f.Uint64Var(&cfg.MaxBlockBytes, prefix+".max-block-bytes", 1024*1024*1024, "Maximum size of the head block before cutting it.")
-	f.DurationVar(&cfg.CompleteBlockTimeout, prefix+".complete-block-timeout", time.Minute+storage.DefaultBlocklistPoll, "Duration to keep head blocks in the ingester after they have been cut.")
+	f.DurationVar(&cfg.CompleteBlockTimeout, prefix+".complete-block-timeout", 3*tempodb.DefaultBlocklistPoll, "Duration to keep head blocks in the ingester after they have been cut.")
 
 	hostname, err := os.Hostname()
 	if err != nil {

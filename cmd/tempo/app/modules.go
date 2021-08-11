@@ -146,8 +146,11 @@ func (t *App) initQuerier() (services.Service, error) {
 		}
 	}
 
+	// do not enable polling if this is the single binary. in that case the compactor will take care of polling
+	enablePolling := t.cfg.Target == Querier
+
 	// todo: make ingester client a module instead of passing config everywhere
-	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides)
+	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides, enablePolling)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create querier %w", err)
 	}
