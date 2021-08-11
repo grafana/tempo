@@ -89,7 +89,7 @@ For more information on configuration options, see [here](https://github.com/gra
 Distributors receive spans and forward them to the appropriate ingesters.
 
 The following configuration enables all available receivers with their default configuration. For a production deployment, enable only the receivers you need.
-Additional document and more advanced configuration options are available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
+Additional documentation and more advanced configuration options are available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
 
 ```
 # Distributor config block
