@@ -362,8 +362,10 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 				traces[t.TraceID] = t
 			}
 		}
-		response.Metrics.InspectedBytes += sr.Metrics.InspectedBytes
-		response.Metrics.InspectedTraces += sr.Metrics.InspectedTraces
+		if sr.Metrics != nil {
+			response.Metrics.InspectedBytes += sr.Metrics.InspectedBytes
+			response.Metrics.InspectedTraces += sr.Metrics.InspectedTraces
+		}
 	}
 
 	for _, t := range traces {
