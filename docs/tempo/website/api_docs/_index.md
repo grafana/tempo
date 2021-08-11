@@ -17,6 +17,7 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 | --- | ------- | ---- | -------- |
 | [Configuration](#configuration) | _All services_ |  HTTP | `GET /config` |
 | [Readiness probe](#readiness-probe) | _All services_ |  HTTP | `GET /ready` |
+| [Services](#services) | _All services_ |  HTTP | `GET /services` |
 | [Metrics](#metrics) | _All services_ |  HTTP | `GET /metrics` |
 | [Pprof](#pprof) | _All services_ |  HTTP | `GET /debug/pprof` |
 | [Ingest traces](#ingest) | Distributor |  - | See section for details |
@@ -48,6 +49,14 @@ GET /ready
 ```
 
 Returns status code 200 when Tempo is ready to serve traffic.
+
+### Services
+
+```
+GET /services
+```
+
+Displays a list of services and their status. If a service failed it will show the failure case.
 
 ### Metrics
 
