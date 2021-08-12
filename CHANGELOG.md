@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] Update port spec for GCS docker-compose example [#869](https://github.com/grafana/tempo/pull/869) (@zalegrala)
+
 ## v1.1.0-rc.0 / 2021-08-11
 
 * [BUGFIX] Allow only valid trace ID characters when decoding [#854](https://github.com/grafana/tempo/pull/854) (@zalegrala)
