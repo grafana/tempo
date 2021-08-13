@@ -44,7 +44,10 @@ var cli struct {
 		Index viewIndexCmd `cmd:"" help:"View contents of block index"`
 	} `cmd:""`
 
-	Query queryCmd `cmd:"" help:"query tempo api"`
+	Query struct {
+		API    queryCmd       `cmd:"" help:"query tempo http api"`
+		Blocks queryBlocksCmd `cmd:"" help:"query for a traceid directly from backend blocks"`
+	} `cmd:""`
 }
 
 func main() {

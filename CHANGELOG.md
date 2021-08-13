@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [BUGFIX] Update port spec for GCS docker-compose example [#869](https://github.com/grafana/tempo/pull/869) (@zalegrala)
+* [ENHANCEMENT] Added "query blocks" cli option. [#876](https://github.com/grafana/tempo/pull/876) (@joe-elliott)
 
 ## v1.1.0-rc.0 / 2021-08-11
 
