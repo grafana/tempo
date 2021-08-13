@@ -19,6 +19,16 @@ exporters:
       x-scope-orgid: foo-bar-baz
 ```
 
+### Grafana 7.5.x and higher
+- Configure the Tempo datasource in Grafana to pass the tenant with the same header.
+```
+- name: Tempo-Multitenant
+  jsonData:
+    httpHeaderName1: 'X-Scope-OrgID'
+  secureJsonData:
+    httpHeaderValue1: 'foo-bar-baz'
+```
+
 ### Grafana 7.4.x
 - Configure the Tempo datasource in Grafana to pass the tenant as a bearer token. Yes, this is weird. It works b/c it is the only header that Jaeger can be configured to pass to its GRPC plugin.
 ```
@@ -31,16 +41,6 @@ exporters:
 - Configure Jaeger Query to pass the bearer token to its backend.
 ```
 --query.bearer-token-propagation=true
-```
-
-### Grafana 7.5.x
-- Configure the Tempo datasource in Grafana to pass the tenant with the same header.
-```
-- name: Tempo-Multitenant
-  jsonData:
-    httpHeaderName1: 'X-Scope-OrgID'
-  secureJsonData:
-    httpHeaderValue1: 'foo-bar-baz'
 ```
 
 ## Important Notes
