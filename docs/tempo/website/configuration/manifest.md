@@ -300,6 +300,8 @@ storage:
       encoding: zstd
     blocklist_poll: 5m0s
     blocklist_poll_concurrency: 50
+    blocklist_poll_fallback: true
+    blocklist_poll_tenant_index_builders: 2
     backend: local
     local:
       path: /tmp/tempo/traces

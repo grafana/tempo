@@ -15,7 +15,7 @@ services:
 
   gcs:
     image: fsouza/fake-gcs-server
-    command: [ "-public-host gcs:4443"]
+    command: [ "-public-host=gcs -port=4443"]
     ports:
       - "4443:4443"
     volumes:

@@ -90,6 +90,9 @@ func (c *Compactor) starting(ctx context.Context) error {
 		}
 	}
 
+	// this will block until one poll cycle is complete
+	c.store.EnablePolling(c)
+
 	return nil
 }
 

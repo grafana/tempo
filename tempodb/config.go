@@ -17,8 +17,12 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-const DefaultBlocklistPollConcurrency = uint(50)
-const DefaultRetentionConcurrency = uint(10)
+const (
+	DefaultBlocklistPoll            = 5 * time.Minute
+	DefaultBlocklistPollConcurrency = uint(50)
+	DefaultRetentionConcurrency     = uint(10)
+	DefaultTenantIndexBuilders      = 2
+)
 
 // Config holds the entirety of tempodb configuration
 // Defaults are in modules/storage/config.go
@@ -27,8 +31,10 @@ type Config struct {
 	WAL   *wal.Config           `yaml:"wal"`
 	Block *encoding.BlockConfig `yaml:"block"`
 
-	BlocklistPoll            time.Duration `yaml:"blocklist_poll"`
-	BlocklistPollConcurrency uint          `yaml:"blocklist_poll_concurrency"`
+	BlocklistPoll                    time.Duration `yaml:"blocklist_poll"`
+	BlocklistPollConcurrency         uint          `yaml:"blocklist_poll_concurrency"`
+	BlocklistPollFallback            bool          `yaml:"blocklist_poll_fallback"`
+	BlocklistPollTenantIndexBuilders int           `yaml:"blocklist_poll_tenant_index_builders"`
 
 	// backends
 	Backend string        `yaml:"backend"`

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -75,6 +74,8 @@ type Writer interface {
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error)
+	EnablePolling(sharder blocklist.JobSharder)
+
 	Shutdown()
 }
 
@@ -110,10 +111,8 @@ type readerWriter struct {
 	logger log.Logger
 	cfg    *Config
 
-	blockListsMtx       sync.Mutex
-	blockLists          blocklist.PerTenant
-	compactedBlockLists blocklist.PerTenantCompacted
-	blocklistPoller     *blocklist.Poller
+	blocklistPoller *blocklist.Poller
+	blocklist       *blocklist.List
 
 	compactorCfg          *CompactorConfig
 	compactorSharder      CompactorSharder
@@ -168,32 +167,24 @@ func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
 		}
 	}
 
-	if cfg.BlocklistPollConcurrency == 0 {
-		cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
-	}
-
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
-		c:                   c,
-		r:                   r,
-		uncachedReader:      uncachedReader,
-		uncachedWriter:      uncachedWriter,
-		w:                   w,
-		cfg:                 cfg,
-		logger:              logger,
-		pool:                pool.NewPool(cfg.Pool),
-		blockLists:          make(blocklist.PerTenant),
-		compactedBlockLists: make(blocklist.PerTenantCompacted),
-		blocklistPoller:     blocklist.NewPoller(cfg.BlocklistPollConcurrency, r, c),
+		c:              c,
+		r:              r,
+		uncachedReader: uncachedReader,
+		uncachedWriter: uncachedWriter,
+		w:              w,
+		cfg:            cfg,
+		logger:         logger,
+		pool:           pool.NewPool(cfg.Pool),
+		blocklist:      blocklist.New(),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	go rw.maintenanceLoop()
 
 	return rw, rw, rw, nil
 }
@@ -296,8 +287,9 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, nil, err
 	}
 
-	rw.blockListsMtx.Lock()
-	blocklist, found := rw.blockLists[tenantID]
+	// gather appropriate blocks
+	blocklist := rw.blocklist.Metas(tenantID)
+	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
 
 	for _, b := range blocklist {
@@ -305,17 +297,12 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 			copiedBlocklist = append(copiedBlocklist, b)
 		}
 	}
-
-	compactedBlocklist := rw.compactedBlockLists[tenantID]
 	for _, c := range compactedBlocklist {
 		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 		}
 	}
-	rw.blockListsMtx.Unlock()
-
-	// deliberately placed outside the blocklist mtx unlock
-	if !found {
+	if len(copiedBlocklist) == 0 {
 		return nil, nil, nil
 	}
 
@@ -352,6 +339,7 @@ func (rw *readerWriter) Shutdown() {
 	rw.r.Shutdown()
 }
 
+// EnableCompaction activates the compaction/retention loops
 func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) {
 	// Set default if needed. This is mainly for tests.
 	if cfg.RetentionConcurrency == 0 {
@@ -363,7 +351,7 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	rw.compactorOverrides = overrides
 
 	if rw.cfg.BlocklistPoll == 0 {
-		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  compaction and retention disabled.")
+		level.Info(rw.logger).Log("msg", "polling cycle unset. compaction and retention disabled")
 		return
 	}
 
@@ -374,14 +362,38 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	}
 }
 
-func (rw *readerWriter) maintenanceLoop() {
+// EnablePolling activates the polling loop
+func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 	if rw.cfg.BlocklistPoll == 0 {
-		level.Info(rw.logger).Log("msg", "maintenance cycle unset.  blocklist polling disabled.")
-		return
+		rw.cfg.BlocklistPoll = DefaultBlocklistPoll
 	}
 
+	if rw.cfg.BlocklistPollConcurrency == 0 {
+		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
+	}
+
+	if rw.cfg.BlocklistPollTenantIndexBuilders <= 0 {
+		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
+	}
+
+	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "concurrency", rw.cfg.BlocklistPollConcurrency)
+
+	blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
+		PollConcurrency:     rw.cfg.BlocklistPollConcurrency,
+		PollFallback:        rw.cfg.BlocklistPollFallback,
+		TenantIndexBuilders: rw.cfg.BlocklistPollTenantIndexBuilders,
+	}, sharder, rw.r, rw.c, rw.w, rw.logger)
+
+	rw.blocklistPoller = blocklistPoller
+
+	// do the first poll cycle synchronously. this will allow the caller to know
+	// that when this method returns the block list is updated
 	rw.pollBlocklist()
 
+	go rw.pollingLoop()
+}
+
+func (rw *readerWriter) pollingLoop() {
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
 	for range ticker.C {
 		rw.pollBlocklist()
@@ -396,86 +408,7 @@ func (rw *readerWriter) pollBlocklist() {
 		return
 	}
 
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	rw.blockLists = blocklist
-	rw.compactedBlockLists = compactedBlocklist
-}
-
-func (rw *readerWriter) blocklistTenants() []interface{} {
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	tenants := make([]interface{}, 0, len(rw.blockLists))
-	for tenant := range rw.blockLists {
-		tenants = append(tenants, tenant)
-	}
-
-	return tenants
-}
-
-func (rw *readerWriter) blocklist(tenantID string) []*backend.BlockMeta {
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	if tenantID == "" {
-		return nil
-	}
-
-	copiedBlocklist := make([]*backend.BlockMeta, 0, len(rw.blockLists[tenantID]))
-	copiedBlocklist = append(copiedBlocklist, rw.blockLists[tenantID]...)
-	return copiedBlocklist
-}
-
-// todo:  make separate compacted list mutex?
-func (rw *readerWriter) compactedBlocklist(tenantID string) []*backend.CompactedBlockMeta {
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	if tenantID == "" {
-		return nil
-	}
-
-	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(rw.compactedBlockLists[tenantID]))
-	copiedBlocklist = append(copiedBlocklist, rw.compactedBlockLists[tenantID]...)
-
-	return copiedBlocklist
-}
-
-// updateBlocklist Add and remove regular or compacted blocks from the in-memory blocklist.
-// Changes are temporary and will be overwritten on the next poll.
-func (rw *readerWriter) updateBlocklist(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta) {
-	if tenantID == "" {
-		return
-	}
-
-	rw.blockListsMtx.Lock()
-	defer rw.blockListsMtx.Unlock()
-
-	// ******** Regular blocks ********
-	blocklist := rw.blockLists[tenantID]
-
-	matchedRemovals := make(map[uuid.UUID]struct{})
-	for _, b := range blocklist {
-		for _, rem := range remove {
-			if b.BlockID == rem.BlockID {
-				matchedRemovals[rem.BlockID] = struct{}{}
-			}
-		}
-	}
-
-	newblocklist := make([]*backend.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
-	for _, b := range blocklist {
-		if _, ok := matchedRemovals[b.BlockID]; !ok {
-			newblocklist = append(newblocklist, b)
-		}
-	}
-	newblocklist = append(newblocklist, add...)
-	rw.blockLists[tenantID] = newblocklist
-
-	// ******** Compacted blocks ********
-	rw.compactedBlockLists[tenantID] = append(rw.compactedBlockLists[tenantID], compactedAdd...)
+	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
 }
 
 func (rw *readerWriter) shouldCache(meta *backend.BlockMeta, curTime time.Time) bool {

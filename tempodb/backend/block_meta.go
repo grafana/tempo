@@ -10,7 +10,7 @@ import (
 type CompactedBlockMeta struct {
 	BlockMeta
 
-	CompactedTime time.Time `json:"-"`
+	CompactedTime time.Time `json:"compactedTime"`
 }
 
 type BlockMeta struct {

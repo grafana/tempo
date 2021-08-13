@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
+// todo: add tests that check the appropriate keypath is passed
 func TestWriter(t *testing.T) {
 	m := &MockRawWriter{}
 	w := NewWriter(m)
@@ -33,6 +35,16 @@ func TestWriter(t *testing.T) {
 	err = w.WriteBlockMeta(ctx, meta)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, m.writeBuffer)
+
+	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
+	assert.NoError(t, err)
+
+	idx := &TenantIndex{}
+	err = idx.unmarshal(m.writeBuffer)
+	assert.NoError(t, err)
+
+	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idx.Meta))                  // using cmp.Equal to compare json datetimes
+	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idx.CompactedMeta)) // using cmp.Equal to compare json datetimes
 }
 
 func TestReader(t *testing.T) {
@@ -74,9 +86,18 @@ func TestReader(t *testing.T) {
 	m.R, _ = json.Marshal(expectedMeta)
 	meta, err = r.BlockMeta(ctx, uuid.New(), "test")
 	assert.NoError(t, err)
-	e, _ := json.Marshal(expectedMeta)
-	a, _ := json.Marshal(meta)
-	assert.Equal(t, e, a)
+	assert.True(t, cmp.Equal(expectedMeta, meta))
+
+	// should fail b/c tenant index is not valid
+	idx, err := r.TenantIndex(ctx, "test")
+	assert.Error(t, err)
+	assert.Nil(t, idx)
+
+	expectedIdx := newTenantIndex([]*BlockMeta{expectedMeta}, nil)
+	m.R, _ = expectedIdx.marshal()
+	idx, err = r.TenantIndex(ctx, "test")
+	assert.NoError(t, err)
+	assert.True(t, cmp.Equal(expectedIdx, idx))
 }
 
 func TestKeyPathForBlock(t *testing.T) {

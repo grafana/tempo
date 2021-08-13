@@ -48,6 +48,8 @@ func TestRetention(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
 
+	r.EnablePolling(&mockJobSharder{})
+
 	blockID := uuid.New()
 
 	wal := w.WAL()
@@ -106,6 +108,8 @@ func TestBlockRetentionOverride(t *testing.T) {
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, overrides)
 
+	r.EnablePolling(&mockJobSharder{})
+
 	cutTestBlocks(t, w, testTenantID, 10, 10)
 
 	rw := r.(*readerWriter)
@@ -115,17 +119,17 @@ func TestBlockRetentionOverride(t *testing.T) {
 	overrides.blockRetention = time.Hour
 	r.(*readerWriter).doRetention()
 	rw.pollBlocklist()
-	assert.Equal(t, 10, len(rw.blocklist(testTenantID)))
+	assert.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 0, use default, still does nothing
 	overrides.blockRetention = time.Minute
 	r.(*readerWriter).doRetention()
 	rw.pollBlocklist()
-	assert.Equal(t, 10, len(rw.blocklist(testTenantID)))
+	assert.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 1ns, deletes everything
 	overrides.blockRetention = time.Nanosecond
 	r.(*readerWriter).doRetention()
 	rw.pollBlocklist()
-	assert.Equal(t, 0, len(rw.blocklist(testTenantID)))
+	assert.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
 }

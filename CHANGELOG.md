@@ -1,12 +1,19 @@
 ## main / unreleased
 
+* [BUGFIX] Update port spec for GCS docker-compose example [#869](https://github.com/grafana/tempo/pull/869) (@zalegrala)
+
+## v1.1.0-rc.0 / 2021-08-11
+
 * [BUGFIX] Allow only valid trace ID characters when decoding [#854](https://github.com/grafana/tempo/pull/854) (@zalegrala)
+* [BUGFIX] Queriers complete one polling cycle before finishing startup. [#834](https://github.com/grafana/tempo/pull/834) (@joe-elliott)
 * [CHANGE] Upgrade Cortex from v1.9.0 to v1.9.0-131-ga4bf10354 [#841](https://github.com/grafana/tempo/pull/841) (@aknuds1)
 * [CHANGE] Change default tempo port from 3100 to 3200 [#770](https://github.com/grafana/tempo/pull/809) (@MurzNN)
+* [CHANGE] Jsonnet: use dedicated configmaps for distributors and ingesters [#775](https://github.com/grafana/tempo/pull/775) (@kvrhdn)
+* [CHANGE] Docker images are now prefixed by their branch name [#828](https://github.com/grafana/tempo/pull/828) (@jvrplmlmn)
+* [FEATURE] Added the ability to hedge requests with all backends [#750](https://github.com/grafana/tempo/pull/750) (@joe-elliott)
+* [FEATURE] Added a tenant index to reduce bucket polling. [#834](https://github.com/grafana/tempo/pull/834) (@joe-elliott)
 * [ENHANCEMENT] Added hedged request metric `tempodb_backend_hedged_roundtrips_total` and a new storage agnostic `tempodb_backend_request_duration_seconds` metric that
   supersedes the soon-to-be deprecated storage specific metrics (`tempodb_azure_request_duration_seconds`, `tempodb_s3_request_duration_seconds` and `tempodb_gcs_request_duration_seconds`). [#790](https://github.com/grafana/tempo/pull/790) (@JosephWoodward)
-* [CHANGE] Jsonnet: use dedicated configmaps for distributors and ingesters [#775](https://github.com/grafana/tempo/pull/775) (@kvrhdn)
-* [FEATURE] Added the ability to hedge requests with all backends [#750](https://github.com/grafana/tempo/pull/750) (@joe-elliott)
 * [ENHANCEMENT] Performance: improve compaction speed with concurrent reads and writes [#754](https://github.com/grafana/tempo/pull/754) (@mdisibio)
 * [ENHANCEMENT] Improve readability of cpu and memory metrics on operational dashboard [#764](https://github.com/grafana/tempo/pull/764) (@bboreham)
 * [ENHANCEMENT] Add `azure_request_duration_seconds` metric. [#767](https://github.com/grafana/tempo/pull/767) (@JosephWoodward)
@@ -19,13 +26,12 @@
 * [ENHANCEMENT] Add retry middleware in query-frontend. [#814](https://github.com/grafana/tempo/pull/814) (@kvrhdn)
 * [ENHANCEMENT] Add `-use-otel-tracer` to use the OpenTelemetry tracer, this will also capture traces emitted by the gcs sdk. Experimental: not all features are supported (i.e. remote sampling). [#842](https://github.com/grafana/tempo/pull/842) (@kvrhdn)
 * [ENHANCEMENT] Add `/services` endpoint. [#863](https://github.com/grafana/tempo/pull/863) (@kvrhdn)
-* [CHANGE] Docker images are now prefixed by their branch name [#828](https://github.com/grafana/tempo/pull/828) (@jvrplmlmn)
 
-## v1.0.1
+## v1.0.1 / 2021-06-14
 
 * [BUGFIX] Guard against negative dataLength [#763](https://github.com/grafana/tempo/pull/763) (@joe-elliott)
 
-## v1.0.0
+## v1.0.0 / 2021-06-08
 
 * [CHANGE] Mark `-auth.enabled` as deprecated. New flag is `-multitenancy.enabled` and is set to false by default.
   This is a **breaking change** if you were relying on auth/multitenancy being enabled by default. [#646](https://github.com/grafana/tempo/pull/646)
@@ -44,7 +50,7 @@
 * [BUGFIX] Zipkin support - Dedupe span IDs based on span.Kind (client/server) in Query Frontend. [#687](https://github.com/grafana/tempo/pull/687)
 * [BUGFIX] Azure Backend - Fix an issue with the append method on the Azure backend. [#736](https://github.com/grafana/tempo/pull/736)
 
-## v0.7.0
+## v0.7.0 / 2021-04-22
 
 **License Change** v0.7.0 and future versions are licensed under AGPLv3 [#660](https://github.com/grafana/tempo/pull/660)
 
@@ -77,7 +83,7 @@
 * [BUGFIX] Sort traces on flush to reduce unexpected recombination work by compactors [#606](https://github.com/grafana/tempo/pull/606)
 * [BUGFIX] Ingester fully persists blocks locally to reduce amount of work done after restart [#628](https://github.com/grafana/tempo/pull/628)
 
-## v0.6.0
+## v0.6.0 / 2021-02-18
 
 * [CHANGE] Fixed ingester latency spikes on read [#461](https://github.com/grafana/tempo/pull/461)
 * [CHANGE] Ingester cut blocks based on size instead of trace count.  Replace ingester `traces_per_block` setting with `max_block_bytes`. This is a **breaking change**. [#474](https://github.com/grafana/tempo/issues/474)
@@ -98,7 +104,7 @@
 * [BUGFIX] No longer raise the `tempodb_blocklist_poll_errors_total` metric if a block doesn't have meta or compacted meta. [#481](https://github.com/grafana/tempo/pull/481)]
 * [BUGFIX] Replay wal completely before ingesting new spans. [#525](https://github.com/grafana/tempo/pull/525)
 
-## v0.5.0
+## v0.5.0 / 2021-01-15
 
 * [CHANGE] Redo tempo-cli with basic command structure and improvements [#385](https://github.com/grafana/tempo/pull/385)
 * [CHANGE] Add content negotiation support and sharding parameters to Querier [#375](https://github.com/grafana/tempo/pull/375)
@@ -118,7 +124,7 @@
 * [FEATURE] Add support for Azure Blob Storage backend [#340](https://github.com/grafana/tempo/issues/340)
 * [FEATURE] Add Query Frontend module to allow scaling the query path [#400](https://github.com/grafana/tempo/pull/400)
 
-## v0.4.0
+## v0.4.0 / 2020-12-03
 
 * [CHANGE] From path.Join to filepath.Join [#338](https://github.com/grafana/tempo/pull/338)
 * [CHANGE] Upgrade Cortex from v1.3.0 to v.1.4.0 [#341](https://github.com/grafana/tempo/pull/341)
@@ -136,7 +142,7 @@
 * [BUGFIX] Fix ingesters occassionally double flushing [#364](https://github.com/grafana/tempo/pull/364)
 * [BUGFIX] Fix S3 backend logs "unsupported value type" [#381](https://github.com/grafana/tempo/issues/381)
 
-## v0.3.0
+## v0.3.0 / 2020-11-10
 
 * [CHANGE] Bloom filters are now sharded to reduce size and improve caching, as blocks grow. This is a **breaking change** and all data stored before this change will **not** be queryable. [#192](https://github.com/grafana/tempo/pull/192)
 * [CHANGE] Rename maintenance cycle to blocklist poll. [#315](https://github.com/grafana/tempo/pull/315)
