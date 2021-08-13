@@ -24,7 +24,7 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 		return nil, fmt.Errorf("please provide a traceID")
 	}
 
-	byteID, err := hexStringToTraceID(traceID)
+	byteID, err := HexStringToTraceID(traceID)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 	return byteID, nil
 }
 
-func hexStringToTraceID(id string) ([]byte, error) {
+func HexStringToTraceID(id string) ([]byte, error) {
 	// The encoding/hex package does not handle non-hex characters.
 	// Ensure the ID has only the proper characters
 	for pos, idChar := range strings.Split(id, "") {
