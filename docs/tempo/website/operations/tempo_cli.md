@@ -71,6 +71,7 @@ Iterate over all backend blocks and dump all data found for a given trace id.
 ```bash
 tempo-cli query blocks <trace-id> <tenant-id>
 ```
+ **Note:** can be intense as it downloads every bloom filter and some percentage of indexes/trace data.
 
 Arguments:
 - `trace-id` Trace ID as a hexadecimal string.
