@@ -45,8 +45,8 @@ var cli struct {
 	} `cmd:""`
 
 	Query struct {
-		HTTP   queryCmd       `cmd:"" help:"query tempo http api"`
-		Blocks queryBlocksCmd `cmd:"" help:"query data directly from blocks"`
+		API    queryCmd       `cmd:"" help:"query tempo http api"`
+		Blocks queryBlocksCmd `cmd:"" help:"query for a traceid directly from backend blocks"`
 	} `cmd:""`
 }
 
