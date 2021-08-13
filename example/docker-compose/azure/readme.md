@@ -23,8 +23,6 @@ azure_synthetic-load-generator_1   ./start.sh                       Up
 azure_tempo_1                      /tempo -config.file=/etc/t ...   Up       0.0.0.0:32768->14268/tcp, 0.0.0.0:3200->3200/tcp
 ```
 
-⚠️ If tempo failed to start, run `docker-compose up -d` again. There is a race condition between Azurite starting and Tempo needing it. 
-
 2. If you're interested you can see the wal/blocks as they are being created.  Check [Azure Storage Explorer](https://azure.microsoft.com/en-us/features/storage-explorer/) and [Azurite docs](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite).
 
 3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -

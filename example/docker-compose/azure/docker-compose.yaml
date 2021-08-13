@@ -4,6 +4,7 @@ services:
   tempo:
     image: grafana/tempo:latest
     command: [ "-config.file=/etc/tempo.yaml" ]
+    restart: always
     volumes:
       - ./tempo-azure.yaml:/etc/tempo.yaml
       - ./tempo-data:/tmp/tempo
@@ -12,7 +13,7 @@ services:
       - "3200:3200"  # tempo
     depends_on:
       - azure-cli
-      - azurite      # TODO Tempo fails to start if azurite is not accepting connections yet, we should wait
+      - azurite
 
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
