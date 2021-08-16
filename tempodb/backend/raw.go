@@ -140,6 +140,8 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, erro
 	// translate everything to UUIDs, if we see a bucket index we can skip that
 	blockIDs := make([]uuid.UUID, 0, len(objects))
 	for _, id := range objects {
+		// TODO: this line exists due to behavior differences in backends: https://github.com/grafana/tempo/issues/880
+		// revisit once #880 is resolved.
 		if id == TenantIndexName || id == "" {
 			continue
 		}
