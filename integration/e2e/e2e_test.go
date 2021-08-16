@@ -8,12 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	util "github.com/grafana/tempo/integration"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	"gopkg.in/yaml.v2"
-
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
 	"github.com/gogo/protobuf/jsonpb"
@@ -24,137 +18,100 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"gopkg.in/yaml.v2"
+
+	"github.com/grafana/tempo/cmd/tempo/app"
+	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/integration/e2e/backend"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
-	configAllInOne      = "config-all-in-one.yaml"
 	configMicroservices = "config-microservices.yaml"
 
+	configAllInOneS3      = "config-all-in-one-s3.yaml"
 	configAllInOneAzurite = "config-all-in-one-azurite.yaml"
 )
 
 func TestAllInOne(t *testing.T) {
-	s, err := cortex_e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
+	testBackends := []struct {
+		name       string
+		configFile string
+	}{
+		{
+			name:       "s3",
+			configFile: configAllInOneS3,
+		},
+		{
+			name:       "azure",
+			configFile: configAllInOneAzurite,
+		},
+	}
 
-	minio := cortex_e2e_db.NewMinio(9000, "tempo")
-	require.NotNil(t, minio)
-	require.NoError(t, s.StartAndWaitReady(minio))
+	for _, tc := range testBackends {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := cortex_e2e.NewScenario("tempo_e2e")
+			require.NoError(t, err)
+			defer s.Close()
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOne, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
+			// set up the backend
+			cfg := app.Config{}
+			buff, err := ioutil.ReadFile(tc.configFile)
+			require.NoError(t, err)
+			err = yaml.UnmarshalStrict(buff, &cfg)
+			require.NoError(t, err)
+			_, err = backend.New(s, cfg)
+			require.NoError(t, err)
 
-	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
-	require.NoError(t, err)
-	require.NotNil(t, c)
-	batch := makeThriftBatch()
-	require.NoError(t, c.EmitBatch(context.Background(), batch))
+			require.NoError(t, util.CopyFileToSharedDir(s, tc.configFile, "config.yaml"))
+			tempo := util.NewTempoAllInOne()
+			require.NoError(t, s.StartAndWaitReady(tempo))
 
-	// test metrics
-	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_distributor_spans_received_total"))
+			// Get port for the Jaeger gRPC receiver endpoint
+			c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
+			require.NoError(t, err)
+			require.NotNil(t, c)
+			batch := makeThriftBatch()
+			require.NoError(t, c.EmitBatch(context.Background(), batch))
 
-	hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+			// test metrics
+			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_distributor_spans_received_total"))
 
-	// test echo
-	assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
+			hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
 
-	// ensure trace is created in ingester (trace_idle_time has passed)
-	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
+			// test echo
+			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
-	// query an in-memory trace
-	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
+			// ensure trace is created in ingester (trace_idle_time has passed)
+			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
-	// flush trace to backend
-	res, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
-	require.NoError(t, err)
-	require.Equal(t, 204, res.StatusCode)
+			// query an in-memory trace
+			queryAndAssertTrace(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
 
-	// sleep for one maintenance cycle
-	time.Sleep(5 * time.Second)
+			// flush trace to backend
+			res, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
+			require.NoError(t, err)
+			require.Equal(t, 204, res.StatusCode)
 
-	// force clear completed block
-	res, err = cortex_e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
-	require.NoError(t, err)
-	require.Equal(t, 204, res.StatusCode)
+			// sleep for one maintenance cycle
+			time.Sleep(5 * time.Second)
 
-	// test metrics
-	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
-	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_query_frontend_queries_total"))
+			// force clear completed block
+			res, err = cortex_e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
+			require.NoError(t, err)
+			require.Equal(t, 204, res.StatusCode)
 
-	// query trace - should fetch from backend
-	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
+			// test metrics
+			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
+			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_query_frontend_queries_total"))
+
+			// query trace - should fetch from backend
+			queryAndAssertTrace(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
+		})
+	}
 }
 
-func TestAzuriteAllInOne(t *testing.T) {
-	s, err := cortex_e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	azurite := util.NewAzurite()
-	require.NoError(t, s.StartAndWaitReady(azurite))
-	ctx := context.TODO()
-
-	//Create the azurite container for tempo
-	cfg := app.Config{}
-	buff, err := ioutil.ReadFile(configAllInOneAzurite)
-	require.NoError(t, err)
-	err = yaml.UnmarshalStrict(buff, &cfg)
-	require.NoError(t, err)
-	cfg.StorageConfig.Trace.Azure.Endpoint = azurite.Endpoint(10000)
-	_, err = azure.CreateContainer(ctx, cfg.StorageConfig.Trace.Azure)
-	require.NoError(t, err)
-
-	//Start tempo
-	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneAzurite, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo))
-
-	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
-	require.NoError(t, err)
-	require.NotNil(t, c)
-	batch := makeThriftBatch()
-	require.NoError(t, c.EmitBatch(context.Background(), batch))
-
-	// test metrics
-	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_distributor_spans_received_total"))
-
-	hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
-
-	// test echo
-	assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
-
-	// ensure trace is created in ingester (trace_idle_time has passed)
-	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
-
-	// query an in-memory trace
-	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
-
-	// flush trace to backend
-	res, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
-	require.NoError(t, err)
-	require.Equal(t, 204, res.StatusCode)
-
-	// sleep for one maintenance cycle
-	time.Sleep(5 * time.Second)
-
-	// force clear completed block
-	res, err = cortex_e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
-	require.NoError(t, err)
-	require.Equal(t, 204, res.StatusCode)
-
-	// test metrics
-	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-	require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
-
-	// query trace - should fetch from backend
-	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
-
-}
 func TestMicroservices(t *testing.T) {
 	s, err := cortex_e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
