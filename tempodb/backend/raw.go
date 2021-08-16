@@ -140,7 +140,7 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, erro
 	// translate everything to UUIDs, if we see a bucket index we can skip that
 	blockIDs := make([]uuid.UUID, 0, len(objects))
 	for _, id := range objects {
-		if id == TenantIndexName {
+		if id == TenantIndexName || id == "" {
 			continue
 		}
 		uuid, err := uuid.Parse(id)
