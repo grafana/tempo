@@ -9,7 +9,7 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/alecthomas/kong v0.2.11
 	github.com/cespare/xxhash v1.1.0
-	github.com/cortexproject/cortex v1.9.1-0.20210726155107-a4bf10354786
+	github.com/cortexproject/cortex v1.10.1-0.20210816080356-090988c40f3e
 	github.com/cristalhq/hedgedhttp v0.6.0
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.0.0
@@ -28,7 +28,7 @@ require (
 	github.com/hashicorp/go-plugin v1.3.0 // indirect
 	github.com/jaegertracing/jaeger v1.21.0
 	github.com/jsternberg/zap-logfmt v1.2.0
-	github.com/klauspost/compress v1.11.13
+	github.com/klauspost/compress v1.13.1
 	github.com/minio/minio-go/v7 v7.0.10
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/opentracing/opentracing-go v1.2.0
