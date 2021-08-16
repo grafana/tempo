@@ -12,7 +12,7 @@ services:
 
   # And put them in an OTEL collector pipeline...
   otel-collector:
-    image: otel/opentelemetry-collector:0.27.0
+    image: otel/opentelemetry-collector:0.32.0
     command: [ "--config=/etc/otel-collector.yaml" ]
     volumes:
       - ./otel-collector.multitenant.yaml:/etc/otel-collector.yaml
@@ -40,7 +40,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:7.5.7
+    image: grafana/grafana:8.1.1
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
