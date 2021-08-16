@@ -50,26 +50,15 @@ But also factor in the resources provided to the querier.
 
 ## TempoCompactorUnhealthy
 
-Tempo by default uses [Memberlist](https://github.com/hashicorp/memberlist) to persist the ring state between components.
-Occasionally this results in old components staying in the ring which particularly impacts compactors because they start
-falling behind on the blocklist.  If this occurs port-forward to 3200 on a compactor and bring up `/compactor/ring`.  Use the
-"Forget" button to drop any unhealthy compactors.
-
-If unhealthy components persist then do rollouts of the processes that participate in the memberlist cluster.  Start
-with the least impactful components to the most while attempting to forget the unhealthy compactors after each rollout.  For
-the official jsonnet this would be: queriers, compactors, distributors and then ingesters.
+If this occurs port-forward to 3200 on a compactor and bring up `/compactor/ring`.  Use the "Forget" button to drop any unhealthy 
+compactors. An unhealthy compactor or two has no immediate impact. Long term, however, it will cause the blocklist to grow
+unnecessarily long.
 
 ## TempoDistributorUnhealthy
 
-Tempo by default uses [Memberlist](https://github.com/hashicorp/memberlist) to persist the ring state between components.
-Occasionally this results in old components staying in the ring which does not impact distributors directly, but at some point
-your components will be passing around a lot of unnecessary information. It may also indicate that a component shut down
-unexpectedly and may be worth investigating. If this occurs port-forward to 3200 on a distributor and bring up `/distributor/ring`.
-Use the "Forget" button to drop any unhealthy distributors.
-
-If unhealthy components persist then do rollouts of the processes that participate in the memberlist cluster.  Start
-with the least impactful components to the most while attempting to forget the unhealthy distributors after each rollout.  For
-the official jsonnet this would be: queriers, compactors, distributors and then ingesters.
+If this occurs port-forward to 3200 on a distributor and bring up `/distributor/ring`.  Use the "Forget" button to drop any unhealthy 
+distributors. An unhealthy distributor or two has virtually no impact except to slightly increase the amount of memberlist
+traffic propagated by the cluster.
 
 ## TempoCompactionsFailing
 
