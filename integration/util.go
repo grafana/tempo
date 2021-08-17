@@ -38,13 +38,13 @@ func NewTempoAllInOne() *cortex_e2e.HTTPService {
 	return s
 }
 
-func NewAzurite() *cortex_e2e.HTTPService {
+func NewAzurite(port int) *cortex_e2e.HTTPService {
 	s := cortex_e2e.NewHTTPService(
 		"azurite",
 		azuriteImage, // Create the the azurite container
 		e2e.NewCommandWithoutEntrypoint("sh", "-c", "azurite -l /data --blobHost 0.0.0.0"),
-		e2e.NewHTTPReadinessProbe(10000, "/devstoreaccount1?comp=list", 403, 403), //If we get 403 the Azurite is ready
-		10000, // blob storage port
+		e2e.NewHTTPReadinessProbe(port, "/devstoreaccount1?comp=list", 403, 403), //If we get 403 the Azurite is ready
+		port, // blob storage port
 	)
 
 	s.SetBackoff(tempoBackoff())
