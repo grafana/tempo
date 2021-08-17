@@ -13,9 +13,15 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/azure"
 )
 
+const (
+	azuriteImage = "mcr.microsoft.com/azure-storage/azurite"
+	gcsImage     = "fsouza/fake-gcs-server"
+)
+
 func parsePort(endpoint string) (int, error) {
 	substrings := strings.Split(endpoint, ":")
-	port, err := strconv.Atoi(substrings[len(substrings)-1])
+	portStrings := strings.Split(substrings[len(substrings)-1], "/")
+	port, err := strconv.Atoi(portStrings[0])
 	if err != nil {
 		return 0, err
 	}
@@ -43,7 +49,7 @@ func New(scenario *e2e.Scenario, cfg app.Config) (*e2e.HTTPService, error) {
 		if err != nil {
 			return nil, err
 		}
-		backendService = util.NewAzurite(port)
+		backendService = NewAzurite(port)
 		err = scenario.StartAndWaitReady(backendService)
 		if err != nil {
 			return nil, err
@@ -53,7 +59,52 @@ func New(scenario *e2e.Scenario, cfg app.Config) (*e2e.HTTPService, error) {
 		if err != nil {
 			return nil, err
 		}
+	case "gcs":
+		port, err := parsePort(cfg.StorageConfig.Trace.GCS.Endpoint)
+		if err != nil {
+			return nil, err
+		}
+		backendService = NewGCS(port)
+		if backendService == nil {
+			return nil, fmt.Errorf("error creating gcs backend")
+		}
+		err = scenario.StartAndWaitReady(backendService)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return backendService, nil
+}
+
+func NewAzurite(port int) *e2e.HTTPService {
+	s := e2e.NewHTTPService(
+		"azurite",
+		azuriteImage, // Create the the azurite container
+		e2e.NewCommandWithoutEntrypoint("sh", "-c", "azurite -l /data --blobHost 0.0.0.0"),
+		e2e.NewHTTPReadinessProbe(port, "/devstoreaccount1?comp=list", 403, 403), //If we get 403 the Azurite is ready
+		port, // blob storage port
+	)
+
+	s.SetBackoff(util.TempoBackoff())
+
+	return s
+}
+
+func NewGCS(port int) *e2e.HTTPService {
+	commands := []string{
+		"mkdir -p /data/tempo",
+		"/bin/fake-gcs-server -data /data -public-host=tempo_e2e-gcs -port=4443",
+	}
+	s := e2e.NewHTTPService(
+		"gcs",
+		gcsImage, // Create the the gcs container
+		e2e.NewCommandWithoutEntrypoint("sh", "-c", strings.Join(commands, " && ")),
+		e2e.NewHTTPReadinessProbe(port, "/", 400, 400), // for lack of a better way, readiness probe does not support https at the moment
+		port,
+	)
+
+	s.SetBackoff(util.TempoBackoff())
+
+	return s
 }

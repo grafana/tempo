@@ -31,6 +31,7 @@ const (
 
 	configAllInOneS3      = "config-all-in-one-s3.yaml"
 	configAllInOneAzurite = "config-all-in-one-azurite.yaml"
+	configAllInOneGCS     = "config-all-in-one-gcs.yaml"
 )
 
 func TestAllInOne(t *testing.T) {
@@ -45,6 +46,10 @@ func TestAllInOne(t *testing.T) {
 		{
 			name:       "azure",
 			configFile: configAllInOneAzurite,
+		},
+		{
+			name:       "gcs",
+			configFile: configAllInOneGCS,
 		},
 	}
 
