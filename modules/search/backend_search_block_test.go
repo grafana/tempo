@@ -18,7 +18,7 @@ import (
 )
 
 func newBackendSearchBlockWithTraces(traceCount int, t testing.TB) *BackendSearchBlock {
-	id := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	id := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15} // 16-byte ids required
 	searchData := [][]byte{(&tempofb.SearchDataMutable{
 		Tags: tempofb.SearchDataMap{
 			"key1": {"value10", "value11"},
@@ -43,7 +43,7 @@ func newBackendSearchBlockWithTraces(traceCount int, t testing.TB) *BackendSearc
 
 	blockID := uuid.New()
 	tenantID := "fake"
-	_, err = NewBackendSearchBlock(b1, l, blockID, tenantID)
+	err = NewBackendSearchBlock(b1, l, blockID, tenantID)
 	require.NoError(t, err)
 
 	b2 := OpenBackendSearchBlock(l, blockID, tenantID)
@@ -107,8 +107,11 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 	wg.Wait()
 	elapsed := time.Since(start)
 
-	fmt.Printf("BackendSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s throughput \n",
+	fmt.Printf("BackendSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s \t %d traces = %.2fM traces/s \n",
 		elapsed,
 		float64(sr.bytesInspected.Load())/(1024*1024),
-		float64(sr.bytesInspected.Load())/(elapsed.Seconds())/(1024*1024))
+		float64(sr.bytesInspected.Load())/(elapsed.Seconds())/(1024*1024),
+		sr.TracesInspected(),
+		float64(sr.TracesInspected())/(elapsed.Seconds())/1_000_000,
+	)
 }

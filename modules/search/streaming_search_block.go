@@ -93,7 +93,7 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 // Search the streaming block.
 func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchResults) error {
 
-	buf := make([]byte, 10*1024)
+	var buf []byte
 
 	rr := s.appender.Records()
 

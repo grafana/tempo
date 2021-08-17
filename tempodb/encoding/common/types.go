@@ -67,6 +67,20 @@ type DataWriter interface {
 	Complete() error
 }
 
+// DataWriterGeneric writes objects instead of byte slices
+type DataWriterGeneric interface {
+
+	// Write writes the passed ID/obj to the current page
+	Write(context.Context, ID, interface{}) (int, error)
+
+	// CutPage completes the current page and start a new one.  It
+	//  returns the length in bytes of the cut page.
+	CutPage(context.Context) (int, error)
+
+	// Complete must be called when the operation DataWriter is done.
+	Complete(context.Context) error
+}
+
 // IndexWriter is used to write paged indexes
 type IndexWriter interface {
 	// Write returns a byte representation of the provided Records
