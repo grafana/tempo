@@ -16,8 +16,7 @@ import (
 )
 
 const (
-	image        = "tempo:latest"
-	azuriteImage = "mcr.microsoft.com/azure-storage/azurite"
+	image = "tempo:latest"
 )
 
 func NewTempoAllInOne() *cortex_e2e.HTTPService {
@@ -33,21 +32,7 @@ func NewTempoAllInOne() *cortex_e2e.HTTPService {
 		9411,  // zipkin ingest (used by load)
 	)
 
-	s.SetBackoff(tempoBackoff())
-
-	return s
-}
-
-func NewAzurite(port int) *cortex_e2e.HTTPService {
-	s := cortex_e2e.NewHTTPService(
-		"azurite",
-		azuriteImage, // Create the the azurite container
-		e2e.NewCommandWithoutEntrypoint("sh", "-c", "azurite -l /data --blobHost 0.0.0.0"),
-		e2e.NewHTTPReadinessProbe(port, "/devstoreaccount1?comp=list", 403, 403), //If we get 403 the Azurite is ready
-		port, // blob storage port
-	)
-
-	s.SetBackoff(tempoBackoff())
+	s.SetBackoff(TempoBackoff())
 
 	return s
 }
@@ -64,7 +49,7 @@ func NewTempoDistributor() *cortex_e2e.HTTPService {
 		14250,
 	)
 
-	s.SetBackoff(tempoBackoff())
+	s.SetBackoff(TempoBackoff())
 
 	return s
 }
@@ -80,7 +65,7 @@ func NewTempoIngester(replica int) *cortex_e2e.HTTPService {
 		3200,
 	)
 
-	s.SetBackoff(tempoBackoff())
+	s.SetBackoff(TempoBackoff())
 
 	return s
 }
@@ -96,7 +81,7 @@ func NewTempoQueryFrontend() *cortex_e2e.HTTPService {
 		3200,
 	)
 
-	s.SetBackoff(tempoBackoff())
+	s.SetBackoff(TempoBackoff())
 
 	return s
 }
@@ -112,7 +97,7 @@ func NewTempoQuerier() *cortex_e2e.HTTPService {
 		3200,
 	)
 
-	s.SetBackoff(tempoBackoff())
+	s.SetBackoff(TempoBackoff())
 
 	return s
 }
@@ -140,7 +125,7 @@ func CopyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
 	return WriteFileToSharedDir(s, dst, content)
 }
 
-func tempoBackoff() util.BackoffConfig {
+func TempoBackoff() util.BackoffConfig {
 	return util.BackoffConfig{
 		MinBackoff: 500 * time.Millisecond,
 		MaxBackoff: time.Second,
