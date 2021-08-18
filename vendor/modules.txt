@@ -44,6 +44,7 @@ github.com/Azure/go-autorest/tracing
 # github.com/Masterminds/squirrel v0.0.0-20161115235646-20f192218cf5
 github.com/Masterminds/squirrel
 # github.com/NYTimes/gziphandler v1.1.1
+## explicit
 github.com/NYTimes/gziphandler
 # github.com/PuerkitoBio/purell v1.1.1
 github.com/PuerkitoBio/purell

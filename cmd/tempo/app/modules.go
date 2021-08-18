@@ -158,6 +158,7 @@ func (t *App) initQuerier() (services.Service, error) {
 
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
+		httpGzipMiddleware(),
 	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 
 	t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathTraces)), tracesHandler)
@@ -187,6 +188,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	tracesHandler := middleware.Merge(
 		t.httpAuthMiddleware,
+		httpGzipMiddleware(),
 	).Wrap(cortexHandler)
 
 	// register grpc server for queriers to connect to
