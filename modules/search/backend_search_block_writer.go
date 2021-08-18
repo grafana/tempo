@@ -1,12 +1,14 @@
 package search
 
 import (
+	"bytes"
 	"context"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -24,6 +26,8 @@ type backendSearchBlockWriter struct {
 	pageEntries []flatbuffers.UOffsetT
 	pageBuf     []byte
 	tracker     backend.AppendTracker
+	finalBuf    *bytes.Buffer
+	dw          common.DataWriter
 }
 
 var _ common.DataWriterGeneric = (*backendSearchBlockWriter)(nil)
@@ -48,15 +52,24 @@ func defaultDecode(dst, src []byte) ([]byte, error) {
 	return src, nil
 }
 
-func NewBackendSearchBbackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.RawWriter) *backendSearchBlockWriter {
+func NewBackendSearchBbackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.RawWriter, enc backend.Encoding) (*backendSearchBlockWriter, error) {
+	finalBuf := &bytes.Buffer{}
+
+	dw, err := encoding.LatestEncoding().NewDataWriter(finalBuf, enc)
+	if err != nil {
+		return nil, err
+	}
+
 	return &backendSearchBlockWriter{
 		blockID:  blockID,
 		tenantID: tenantID,
 		w:        w,
 
-		pageBuf: make([]byte, 0, 1024*1024),
-		builder: flatbuffers.NewBuilder(1024),
-	}
+		pageBuf:  make([]byte, 0, 1024*1024),
+		finalBuf: finalBuf,
+		builder:  flatbuffers.NewBuilder(1024),
+		dw:       dw,
+	}, nil
 }
 
 // Write the data to the flatbuffer builder. Input must be a SearchDataMutable. Returns
@@ -91,9 +104,19 @@ func (w *backendSearchBlockWriter) CutPage(ctx context.Context) (int, error) {
 	w.builder.Finish(batch)
 	buf := w.builder.FinishedBytes()
 
-	w.pageBuf = defaultEncode(w.pageBuf, buf)
+	w.finalBuf.Reset()
+	_, err := w.dw.Write(uuid.Nil[:], buf)
+	if err != nil {
+		return 0, err
+	}
 
-	var err error
+	_, err = w.dw.CutPage()
+	if err != nil {
+		return 0, err
+	}
+
+	w.pageBuf = w.finalBuf.Bytes()
+
 	w.tracker, err = w.w.Append(ctx, "search", backend.KeyPathForBlock(w.blockID, w.tenantID), w.tracker, w.pageBuf)
 	if err != nil {
 		return 0, err
@@ -109,5 +132,10 @@ func (w *backendSearchBlockWriter) CutPage(ctx context.Context) (int, error) {
 }
 
 func (w *backendSearchBlockWriter) Complete(ctx context.Context) error {
+	err := w.dw.Complete()
+	if err != nil {
+		return err
+	}
+
 	return w.w.CloseAppend(ctx, w.tracker)
 }

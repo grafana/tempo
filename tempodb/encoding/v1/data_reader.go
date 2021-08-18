@@ -42,34 +42,36 @@ func NewNestedDataReader(r common.DataReader, encoding backend.Encoding) (common
 // Read returns the pages requested in the passed records.  It
 // assumes that if there are multiple records they are ordered
 // and contiguous
-func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer []byte) ([][]byte, []byte, error) {
-	compressedPages, buffer, err := r.dataReader.Read(ctx, records, buffer)
+func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuffer [][]byte, buffer []byte) ([][]byte, []byte, error) {
+	var err error
+	r.compressedPagesBuffer, buffer, err = r.dataReader.Read(ctx, records, r.compressedPagesBuffer, buffer)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if cap(r.compressedPagesBuffer) < len(compressedPages) {
-		// extend r.compressedPagesBuffer
-		diff := len(compressedPages) - cap(r.compressedPagesBuffer)
-		r.compressedPagesBuffer = append(r.compressedPagesBuffer[:cap(r.compressedPagesBuffer)], make([][]byte, diff)...)
-	} else {
-		r.compressedPagesBuffer = r.compressedPagesBuffer[:len(compressedPages)]
+	// Reset/resize buffer
+	if cap(pagesBuffer) < len(r.compressedPagesBuffer) {
+		pagesBuffer = make([][]byte, len(r.compressedPagesBuffer))
 	}
+	pagesBuffer = pagesBuffer[:len(r.compressedPagesBuffer)]
 
 	// now decompress
-	for i, page := range compressedPages {
+	for i, page := range r.compressedPagesBuffer {
 		reader, err := r.getCompressedReader(page)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		r.compressedPagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page), r.compressedPagesBuffer[i])
+		pagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page), pagesBuffer[i])
 		if err != nil {
 			return nil, nil, err
 		}
+		// TODO mdisibio - There is a lot of performance penalty here even with no compression.
+		// Investigate further.
+		//pagesBuffer[i] = page
 	}
 
-	return r.compressedPagesBuffer, buffer, nil
+	return pagesBuffer, buffer, nil
 }
 
 func (r *dataReader) Close() {

@@ -11,9 +11,10 @@ import (
 )
 
 type SearchBlockMeta struct {
-	Version       string `json:"version"`
-	IndexPageSize uint32 `json:"indexPageSize"`
-	IndexRecords  uint32 `json:"indexRecords"`
+	Version       string           `json:"version"`
+	Encoding      backend.Encoding `json:"encoding"` // Encoding/compression format
+	IndexPageSize uint32           `json:"indexPageSize"`
+	IndexRecords  uint32           `json:"indexRecords"`
 }
 
 const searchMetaObjectName = "search.meta.json"

@@ -3,7 +3,6 @@ package search
 import (
 	"bytes"
 	"context"
-	"io"
 
 	"github.com/google/uuid"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 var _ SearchBlock = (*BackendSearchBlock)(nil)
@@ -24,14 +24,19 @@ type BackendSearchBlock struct {
 // NewBackendSearchBlock iterates through the given WAL search data and writes it to the persistent backend
 // in a more efficient paged form. Multiple traces are written in the same page to make sure of the flatbuffer
 // CreateSharedString feature which dedupes strings across the entire buffer.
-func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockID uuid.UUID, tenantID string) error {
+func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockID uuid.UUID, tenantID string, enc backend.Encoding) error {
 	var err error
 	ctx := context.TODO()
 	indexPageSize := 100 * 1024
 	kv := &tempofb.KeyValues{} // buffer
 
 	// Copy records into the appender
-	a := encoding.NewBufferedAppenderGeneric(NewBackendSearchBbackendSearchBlockWriter(blockID, tenantID, l), 1024*1024)
+	w, err := NewBackendSearchBbackendSearchBlockWriter(blockID, tenantID, l, enc)
+	if err != nil {
+		return err
+	}
+
+	a := encoding.NewBufferedAppenderGeneric(w, 1024*1024)
 	for _, r := range input.appender.Records() {
 
 		// Read
@@ -84,6 +89,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		IndexPageSize: uint32(indexPageSize),
 		IndexRecords:  uint32(len(ir)),
 		Version:       encoding.LatestEncoding().Version(),
+		Encoding:      enc,
 	}
 	return WriteSearchBlockMeta(ctx, l, blockID, tenantID, sm)
 }
@@ -101,27 +107,36 @@ func OpenBackendSearchBlock(l *local.Backend, blockID uuid.UUID, tenantID string
 func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchResults) error {
 	var pageBuf []byte
 	var dataBuf []byte
+	var pagesBuf [][]byte
+	indexBuf := []common.Record{{}}
 	entry := &tempofb.SearchData{} // Buffer
-	keyPath := backend.KeyPathForBlock(s.id, s.tenantID)
 
 	meta, err := ReadSearchBlockMeta(ctx, s.l, s.id, s.tenantID)
 	if err != nil {
 		return err
 	}
 
-	enc, err := encoding.FromVersion(meta.Version)
+	vers, err := encoding.FromVersion(meta.Version)
 	if err != nil {
 		return err
 	}
 
 	// Read index
-	bmeta := backend.NewBlockMeta(s.tenantID, s.id, meta.Version, backend.EncNone, "")
+	bmeta := backend.NewBlockMeta(s.tenantID, s.id, meta.Version, meta.Encoding, "")
 	cr := backend.NewContextReader(bmeta, "search-index", backend.NewReader(s.l), false)
 
-	ir, err := enc.NewIndexReader(cr, int(meta.IndexPageSize), int(meta.IndexRecords))
+	ir, err := vers.NewIndexReader(cr, int(meta.IndexPageSize), int(meta.IndexRecords))
 	if err != nil {
 		return err
 	}
+
+	dcr := backend.NewContextReader(bmeta, "search", backend.NewReader(s.l), false)
+	dr, err := vers.NewDataReader(dcr, meta.Encoding)
+	if err != nil {
+		return err
+	}
+
+	or := vers.NewObjectReaderWriter()
 
 	i := -1
 
@@ -135,23 +150,13 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchR
 			return nil
 		}
 
-		// Reset/resize buffer
-		size := record.Length
-		if cap(pageBuf) < int(size) {
-			pageBuf = make([]byte, size)
-		}
-		pageBuf = pageBuf[:size]
-
-		// Read page
-		err = s.l.ReadRange(ctx, "search", keyPath, record.Start, pageBuf)
-		if err == io.EOF {
-			return nil
-		}
+		indexBuf[0] = *record
+		pagesBuf, pageBuf, err = dr.Read(ctx, indexBuf, pagesBuf, pageBuf)
 		if err != nil {
 			return err
 		}
 
-		dataBuf, err = defaultDecode(dataBuf, pageBuf)
+		pagesBuf[0], _, dataBuf, err = or.UnmarshalAndAdvanceBuffer(pagesBuf[0])
 		if err != nil {
 			return err
 		}

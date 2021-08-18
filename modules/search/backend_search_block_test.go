@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +44,7 @@ func newBackendSearchBlockWithTraces(traceCount int, t testing.TB) *BackendSearc
 
 	blockID := uuid.New()
 	tenantID := "fake"
-	err = NewBackendSearchBlock(b1, l, blockID, tenantID)
+	err = NewBackendSearchBlock(b1, l, blockID, tenantID, backend.EncNone)
 	require.NoError(t, err)
 
 	b2 := OpenBackendSearchBlock(l, blockID, tenantID)
@@ -51,7 +52,7 @@ func newBackendSearchBlockWithTraces(traceCount int, t testing.TB) *BackendSearc
 }
 
 func TestBackendSearchBlockSearch(t *testing.T) {
-	traceCount := 5
+	traceCount := 50_000
 
 	b2 := newBackendSearchBlockWithTraces(traceCount, t)
 

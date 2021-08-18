@@ -38,23 +38,25 @@ func NewDataReader(r backend.ContextReader, encoding backend.Encoding) (common.D
 }
 
 // Read implements common.DataReader
-func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer []byte) ([][]byte, []byte, error) {
-	v0Pages, buffer, err := r.dataReader.Read(ctx, records, buffer)
+func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuffer [][]byte, buffer []byte) ([][]byte, []byte, error) {
+	pagesBuffer, buffer, err := r.dataReader.Read(ctx, records, pagesBuffer, buffer)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	pages := make([][]byte, 0, len(v0Pages))
-	for _, v0Page := range v0Pages {
-		page, err := unmarshalPageFromBytes(v0Page, constDataHeader)
+	//pages := make([][]byte, 0, len(v0Pages))
+	for i := range pagesBuffer {
+		p, err := unmarshalPageFromBytes(pagesBuffer[i], constDataHeader)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		pages = append(pages, page.data)
+		//pages = append(pages, p.data)
+		//v0Pages[i] = p.data
+		pagesBuffer[i] = p.data
 	}
 
-	return pages, buffer, nil
+	return pagesBuffer, buffer, nil
 }
 
 func (r *dataReader) Close() {

@@ -45,7 +45,7 @@ func (i *recordIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if len(i.records) > 0 {
 		var pages [][]byte
 		var err error
-		pages, i.buffer, err = i.dataR.Read(ctx, i.records[:1], i.buffer)
+		pages, i.buffer, err = i.dataR.Read(ctx, i.records[:1], pages, i.buffer)
 		if err != nil {
 			return nil, nil, err
 		}
