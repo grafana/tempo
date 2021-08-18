@@ -125,7 +125,7 @@ func CopyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
 	return WriteFileToSharedDir(s, dst, content)
 }
 
-func tempoBackoff() backoff.Config {
+func TempoBackoff() backoff.Config {
 	return backoff.Config{
 		MinBackoff: 500 * time.Millisecond,
 		MaxBackoff: time.Second,
