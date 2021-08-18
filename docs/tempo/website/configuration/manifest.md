@@ -81,6 +81,8 @@ distributor:
         tls_ca_path: ""
         tls_server_name: ""
         tls_insecure_skip_verify: false
+        username: ""
+        password: ""
       multi:
         primary: ""
         secondary: ""
@@ -88,7 +90,7 @@ distributor:
         mirror_timeout: 2s
     heartbeat_period: 5s
     heartbeat_timeout: 5m0s
-    instance_id: Annanays-Mac.local
+    instance_id: hostname
     instance_interface_names:
       - eth0
       - en0
@@ -177,8 +179,8 @@ query_frontend:
   instance_interface_names: []
   address: ""
   port: 0
-  compress_responses: true
   downstream_url: ""
+  max_retries: 2
   query_shards: 2
 compactor:
   ring:
@@ -202,6 +204,8 @@ compactor:
         tls_ca_path: ""
         tls_server_name: ""
         tls_insecure_skip_verify: false
+        username: ""
+        password: ""
       multi:
         primary: ""
         secondary: ""
@@ -211,12 +215,13 @@ compactor:
     heartbeat_timeout: 1m0s
     wait_stability_min_duration: 1m0s
     wait_stability_max_duration: 5m0s
-    instance_id: Annanays-Mac.local
+    instance_id: hostname
     instance_interface_names:
       - eth0
       - en0
     instance_port: 0
     instance_addr: ""
+    wait_active_instance_timeout: 10m0s
   compaction:
     chunk_size_bytes: 10485760
     flush_size_bytes: 31457280
@@ -251,6 +256,8 @@ ingester:
           tls_ca_path: ""
           tls_server_name: ""
           tls_insecure_skip_verify: false
+          username: ""
+          password: ""
         multi:
           primary: ""
           secondary: ""
@@ -273,14 +280,14 @@ ingester:
     unregister_on_shutdown: true
     address: 127.0.0.1
     port: 0
-    id: Annanays-Mac.local
+    id: hostname
   concurrent_flushes: 16
   flush_check_period: 30s
   flush_op_timeout: 5m0s
   trace_idle_period: 30s
   max_block_duration: 1h0m0s
   max_block_bytes: 1073741824
-  complete_block_timeout: 6m0s
+  complete_block_timeout: 15m0s
   override_ring_key: ring
 storage:
   trace:
@@ -310,7 +317,7 @@ storage:
       chunk_buffer_size: 10485760
       endpoint: ""
       insecure: false
-      hedge_requests_at: 0
+      hedge_requests_at: 0s
     s3:
       bucket: ""
       endpoint: ""
@@ -319,9 +326,9 @@ storage:
       secret_key: ""
       insecure: false
       part_size: 0
+      hedge_requests_at: 0s
       signature_v2: false
       forcepathstyle: false
-      hedge_requests_at: 0
     azure:
       storage-account-name: ""
       storage-account-key: ""
@@ -329,8 +336,10 @@ storage:
       endpoint-suffix: blob.core.windows.net
       max-buffers: 4
       buffer-size: 3145728
-      hedge-requests-at: 0
+      hedge-requests-at: 0s
     cache: ""
+    cache_min_compaction_level: 0
+    cache_max_block_age: 0s
     background_cache:
       writeback_goroutines: 10
       writeback_buffer: 10000
@@ -349,13 +358,14 @@ overrides:
 memberlist:
   node_name: ""
   randomize_node_name: true
-  stream_timeout: 0s
-  retransmit_factor: 0
-  pull_push_interval: 0s
-  gossip_interval: 0s
-  gossip_nodes: 0
-  gossip_to_dead_nodes_time: 0s
+  stream_timeout: 10s
+  retransmit_factor: 2
+  pull_push_interval: 30s
+  gossip_interval: 1s
+  gossip_nodes: 2
+  gossip_to_dead_nodes_time: 30s
   dead_node_reclaim_time: 0s
+  compression_enabled: false
   join_members: []
   min_join_backoff: 1s
   max_join_backoff: 1m0s

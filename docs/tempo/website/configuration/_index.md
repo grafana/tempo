@@ -549,24 +549,24 @@ memberlist:
     [randomize_node_name: <boolean> | default = true]
     
     # The timeout for establishing a connection with a remote node, and for
-    # read/write operations. Uses memberlist LAN defaults if 0.
-    [stream_timeout: <duration> | default = 0s]
+    # read/write operations.
+    [stream_timeout: <duration> | default = 10s]
     
     # Multiplication factor used when sending out messages (factor * log(N+1)).
-    [retransmit_factor: <int> | default = 0]
+    [retransmit_factor: <int> | default = 2]
     
-    # How often to use pull/push sync. Uses memberlist LAN defaults if 0.
-    [pull_push_interval: <duration> | default = 0s]
+    # How often to use pull/push sync.
+    [pull_push_interval: <duration> | default = 30s]
     
-    # How often to gossip. Uses memberlist LAN defaults if 0.
-    [gossip_interval: <duration> | default = 0s]
+    # How often to gossip.
+    [gossip_interval: <duration> | default = 1s]
     
-    # How many nodes to gossip to. Uses memberlist LAN defaults if 0.
-    [gossip_nodes: <int> | default = 0]
+    # How many nodes to gossip to.
+    [gossip_nodes: <int> | default = 2]
     
     # How long to keep gossiping to dead nodes, to give them chance to refute their
-    # death. Uses memberlist LAN defaults if 0.
-    [gossip_to_dead_nodes_time: <duration> | default = 0s]
+    # death.
+    [gossip_to_dead_nodes_time: <duration> | default = 30s]
     
     # How soon can dead node's name be reclaimed with new address. Defaults to 0,
     # which is disabled.
