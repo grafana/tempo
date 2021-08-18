@@ -18,7 +18,11 @@ import (
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/weaveworks/common/user"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -69,78 +73,86 @@ func main() {
 
 	logger.Info("Tempo Vulture starting")
 
-	startTime := time.Now().Unix()
+	// startTime := time.Now().Unix()
 	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
 	tickerRead := time.NewTicker(tempoReadBackoffDuration)
-	interval := int64(tempoWriteBackoffDuration / time.Second)
+	// interval := int64(tempoWriteBackoffDuration / time.Second)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	otelClient, err := newOtelGRPCClient(tempoPushURL)
+	if err != nil {
+		panic(err)
+	}
+
+	otelExporter, err := otlptrace.New(ctx, otelClient)
+	if err != nil {
+		panic(err)
+	}
+
+	bsp := sdktrace.NewSimpleSpanProcessor(otelExporter)
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(bsp))
+
+	defer func() { _ = tp.Shutdown(ctx) }()
+
+	tracer := tp.Tracer("tempo-vulture")
+
+	size := (tempoReadBackoffDuration.Seconds() / tempoWriteBackoffDuration.Seconds()) * 2
+
+	idChan := make(chan trace.TraceID, int(size))
 
 	// Write
-	go func() {
-		c, err := newJaegerGRPCClient(tempoPushURL)
-		if err != nil {
-			panic(err)
-		}
-
+	go func(ctx context.Context) {
 		for {
-			<-tickerWrite.C
-
-			seed := (time.Now().Unix() / interval) * interval
-			rand.Seed(seed)
-			traceIDHigh := rand.Int63()
-			traceIDLow := rand.Int63()
-
-			logger := logger.With(
-				zap.String("org_id", tempoOrgID),
-				zap.String("write_trace_id", fmt.Sprintf("%016x%016x", traceIDLow, traceIDHigh)),
-				zap.Int64("seed", seed),
-			)
-			logger.Info("sending trace")
-
-			for i := int64(0); i < generateRandomInt(1, 100); i++ {
-				ctx := user.InjectOrgID(context.Background(), tempoOrgID)
-				ctx, err := user.InjectIntoGRPCRequest(ctx)
-				if err != nil {
-					logger.Error("error injecting org id", zap.Error(err))
-					metricErrorTotal.Inc()
-					continue
-				}
-				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow))
-				if err != nil {
-					logger.Error("error pushing batch to Tempo", zap.Error(err))
-					metricErrorTotal.Inc()
-					continue
-				}
+			select {
+			case <-tickerWrite.C:
+				spanCtx, span := tracer.Start(ctx, "write")
+				logSpan(spanCtx, tracer, span)
+				span.End()
+				idChan <- span.SpanContext().TraceID()
 			}
 		}
-	}()
+	}(ctx)
 
 	// Read
 	go func() {
 		for {
-			<-tickerRead.C
+			select {
+			case now := <-tickerRead.C:
+				time.Sleep(500 * time.Millisecond)
 
-			currentTime := time.Now().Unix()
+				readIds := 0
+				idCount := len(idChan)
+				readCtx, span := tracer.Start(ctx, "read")
 
-			// don't query traces before retention
-			if (currentTime - startTime) > int64(tempoRetentionDuration/time.Second) {
-				startTime = currentTime - int64(tempoRetentionDuration/time.Second)
+				for readIds <= idCount {
+					_, idSpan := tracer.Start(readCtx, "id")
+					id := <-idChan
+					readIds++
+
+					span.SetName(id.String())
+					span.SetAttributes(attribute.String("time", now.String()))
+
+					// query the trace
+					metrics, err := queryTempoAndAnalyze(tempoQueryURL, id)
+					if err != nil {
+						metricErrorTotal.Inc()
+					}
+
+					metricTracesInspected.Add(float64(metrics.requested))
+					metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
+					metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
+					metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
+
+					idSpan.End()
+				}
+
+				span.End()
+
+				logSpan(readCtx, tracer, span)
+				idChan <- span.SpanContext().TraceID()
 			}
-
-			// pick past interval and re-generate trace
-			seed := (generateRandomInt(startTime, currentTime) / interval) * interval
-			rand.Seed(seed)
-			hexID := fmt.Sprintf("%016x%016x", rand.Int63(), rand.Int63())
-
-			// query the trace
-			metrics, err := queryTempoAndAnalyze(tempoQueryURL, seed, hexID)
-			if err != nil {
-				metricErrorTotal.Inc()
-			}
-
-			metricTracesInspected.Add(float64(metrics.requested))
-			metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
-			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
-			metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
 		}
 	}()
 
@@ -160,6 +172,18 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 		return nil, err
 	}
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
+}
+
+func newOtelGRPCClient(endpoint string) (otlptrace.Client, error) {
+	opts := []otlptracegrpc.Option{
+		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithEndpoint(fmt.Sprintf("%s:%d", endpoint, 55680)),
+		otlptracegrpc.WithReconnectionPeriod(50 * time.Millisecond),
+	}
+
+	client := otlptracegrpc.NewClient(opts...)
+
+	return client, nil
 }
 
 func generateRandomString() string {
@@ -226,19 +250,18 @@ func generateRandomInt(min int64, max int64) int64 {
 	return number
 }
 
-func queryTempoAndAnalyze(baseURL string, seed int64, traceID string) (traceMetrics, error) {
+func queryTempoAndAnalyze(baseURL string, traceID trace.TraceID) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
 
 	logger := logger.With(
-		zap.String("query_trace_id", traceID),
-		zap.String("tempo_query_url", baseURL+"/api/traces/"+traceID),
-		zap.Int64("seed", seed),
+		zap.String("query_trace_id", traceID.String()),
+		zap.String("tempo_query_url", baseURL+"/api/traces/"+traceID.String()),
 	)
 	logger.Info("querying Tempo")
 
-	trace, err := util.QueryTrace(baseURL, traceID, tempoOrgID)
+	trace, err := util.QueryTrace(baseURL, traceID.String(), tempoOrgID)
 	if err != nil {
 		if err == util.ErrTraceNotFound {
 			tm.notFound++
@@ -298,4 +321,16 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 	}
 
 	return false
+}
+
+func logSpan(ctx context.Context, tracer trace.Tracer, span trace.Span) {
+	_, s := tracer.Start(ctx, "log")
+	defer s.End()
+
+	log := logger.With(
+		zap.String("traceID", span.SpanContext().TraceID().String()),
+		zap.String("spanID", span.SpanContext().SpanID().String()),
+	)
+
+	log.Info("span")
 }
