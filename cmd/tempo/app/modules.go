@@ -243,7 +243,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 }
 
 func (t *App) setupModuleManager() error {
-	mm := modules.NewManager()
+	mm := modules.NewManager(log.Logger)
 
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
