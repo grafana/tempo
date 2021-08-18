@@ -93,6 +93,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.MemberlistKV.RetransmitMult = 2
 	c.MemberlistKV.GossipInterval = time.Second
 	c.MemberlistKV.GossipNodes = 2
+	c.MemberlistKV.EnableCompression = false
 
 	f.Var(&c.MemberlistKV.JoinMembers, "memberlist.host-port", "Host port to connect to memberlist cluster.")
 	f.IntVar(&c.MemberlistKV.TCPTransport.BindPort, "memberlist.bind-port", 7946, "Port for memberlist to communicate on")

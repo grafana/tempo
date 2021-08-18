@@ -365,7 +365,7 @@ memberlist:
   gossip_nodes: 2
   gossip_to_dead_nodes_time: 30s
   dead_node_reclaim_time: 0s
-  compression_enabled: true
+  compression_enabled: false
   join_members: []
   min_join_backoff: 1s
   max_join_backoff: 1m0s
