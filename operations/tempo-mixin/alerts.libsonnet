@@ -82,7 +82,7 @@
             },
           },
           {
-            alert: 'TempoFlushesFailing',
+            alert: 'TempoIngesterFlushesFailing',
             expr: |||
               sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s and
               sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0
@@ -92,7 +92,7 @@
             },
             annotations: {
               message: 'Greater than %s flushes have failed in the past hour.' % $._config.alerts.flushes_per_hour_failed,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoFlushesFailing'
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterFlushesFailing'
             },
           },
           {

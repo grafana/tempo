@@ -82,22 +82,19 @@ There are several settings which can be tuned to reduce the amount of work done 
   There are platform-specific limits on how low this can go.  AWS S3 cannot be set lower than 5MB, or cause more than 10K flushes
   per block.
 
-## TempoFlushesFailing
+## TempoIngesterFlushesFailing
 
-Check ingester logs for flushes and compactor logs for compations.  Failed flushes or compactions could be caused by any number of
-different things.  Permissions issues, rate limiting, failing backend, ...  So check the logs and use your best judgement on how to
-resolve.
+Check ingester logs for flushes.  Failed flushes could be caused by any number of different things: bad block, permissions issues,
+rate limiting, failing backend,...  So check the logs and use your best judgement on how to resolve.  Tempo will continue to retry
+sending the blocks until it succeeds, but at some point your WAL files will start failing to write due to out of disk issues.
 
-In the case of failed compactions your blocklist is now growing and you may be creating a bunch of partially written "orphaned"
-blocks.  An orphaned block is a block without a `meta.json` that is not currently being created.  These will be invisible to
-Tempo and will just hang out forever (or until a bucket lifecycle policy deletes them).  First, resolve the issue so that your
-compactors can get the blocklist under control to prevent high query latencies.  Next try to identify any "orphaned" blocks and
-remove them.
+If a single block can not be flushed, this block might be corrupted.  Inspect the block manually and consider moving this file out
+of the WAL or outright deleting it. Restart the ingester to stop the retry attempts. Removing blocks from a single ingester will
+not cause data loss if replication is used and the other ingesters are flushing their blocks successfully.
+By default, the WAL is at `/var/tempo/wal/blocks`.
 
-In the case of failed flushes your local WAL disk is now filling up.  Tempo will continue to retry sending the blocks
-until it succeeds, but at some point your WAL files will start failing to write due to out of disk issues.  If the problem
-persists consider removing files from `/var/tempo/wal/blocks` and restarting the ingester or increasing the amount of disk space
-available to the ingester.
+If multiple blocks can not be flushed, the local WAL disk of the ingester will be filling up.  Consider increasing the amount of disk
+space available to the ingester.
 
 ## TempoPollsFailing
 
