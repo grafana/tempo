@@ -18,10 +18,8 @@ import (
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -73,88 +71,13 @@ func main() {
 
 	logger.Info("Tempo Vulture starting")
 
-	// startTime := time.Now().Unix()
-	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
-	tickerRead := time.NewTicker(tempoReadBackoffDuration)
-	// interval := int64(tempoWriteBackoffDuration / time.Second)
+	v, err := NewVulture(tempoWriteBackoffDuration, tempoReadBackoffDuration)
+	if err != nil {
+		panic(err)
+	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	_, cancel := v.Start()
 	defer cancel()
-
-	otelClient, err := newOtelGRPCClient(tempoPushURL)
-	if err != nil {
-		panic(err)
-	}
-
-	otelExporter, err := otlptrace.New(ctx, otelClient)
-	if err != nil {
-		panic(err)
-	}
-
-	bsp := sdktrace.NewSimpleSpanProcessor(otelExporter)
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(bsp))
-
-	defer func() { _ = tp.Shutdown(ctx) }()
-
-	tracer := tp.Tracer("tempo-vulture")
-
-	size := (tempoReadBackoffDuration.Seconds() / tempoWriteBackoffDuration.Seconds()) * 2
-
-	idChan := make(chan trace.TraceID, int(size))
-
-	// Write
-	go func(ctx context.Context) {
-		for {
-			select {
-			case <-tickerWrite.C:
-				spanCtx, span := tracer.Start(ctx, "write")
-				logSpan(spanCtx, tracer, span)
-				span.End()
-				idChan <- span.SpanContext().TraceID()
-			}
-		}
-	}(ctx)
-
-	// Read
-	go func() {
-		for {
-			select {
-			case now := <-tickerRead.C:
-				time.Sleep(500 * time.Millisecond)
-
-				readIds := 0
-				idCount := len(idChan)
-				readCtx, span := tracer.Start(ctx, "read")
-
-				for readIds <= idCount {
-					_, idSpan := tracer.Start(readCtx, "id")
-					id := <-idChan
-					readIds++
-
-					span.SetName(id.String())
-					span.SetAttributes(attribute.String("time", now.String()))
-
-					// query the trace
-					metrics, err := queryTempoAndAnalyze(tempoQueryURL, id)
-					if err != nil {
-						metricErrorTotal.Inc()
-					}
-
-					metricTracesInspected.Add(float64(metrics.requested))
-					metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
-					metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
-					metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
-
-					idSpan.End()
-				}
-
-				span.End()
-
-				logSpan(readCtx, tracer, span)
-				idChan <- span.SpanContext().TraceID()
-			}
-		}
-	}()
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
@@ -255,11 +178,11 @@ func queryTempoAndAnalyze(baseURL string, traceID trace.TraceID) (traceMetrics, 
 		requested: 1,
 	}
 
-	logger := logger.With(
+	log := logger.With(
 		zap.String("query_trace_id", traceID.String()),
 		zap.String("tempo_query_url", baseURL+"/api/traces/"+traceID.String()),
 	)
-	logger.Info("querying Tempo")
+	log.Info("querying Tempo")
 
 	trace, err := util.QueryTrace(baseURL, traceID.String(), tempoOrgID)
 	if err != nil {
@@ -268,18 +191,18 @@ func queryTempoAndAnalyze(baseURL string, traceID trace.TraceID) (traceMetrics, 
 		} else {
 			tm.requestFailed++
 		}
-		logger.Error("error querying Tempo", zap.Error(err))
+		log.Error("error querying Tempo", zap.Error(err))
 		return tm, err
 	}
 
 	if len(trace.Batches) == 0 {
-		logger.Error("trace contains 0 batches")
+		log.Error("trace contains 0 batches")
 		tm.notFound++
 	}
 
 	// iterate through
 	if hasMissingSpans(trace) {
-		logger.Error("trace has missing spans")
+		log.Error("trace has missing spans")
 		tm.missingSpans++
 	}
 
@@ -333,4 +256,9 @@ func logSpan(ctx context.Context, tracer trace.Tracer, span trace.Span) {
 	)
 
 	log.Info("span")
+}
+
+type completeValidation struct {
+	traceID   trace.TraceID
+	spanCount int
 }
