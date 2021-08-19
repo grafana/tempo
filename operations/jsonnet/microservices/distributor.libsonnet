@@ -25,7 +25,8 @@
     ]) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
-    ] + if $._config.use_overrides_configmap then [volumeMount.new(tempo_overrides_config_volume, '/overrides')] else []) +
+      volumeMount.new(tempo_overrides_config_volume, '/overrides'),
+    ]) +
     $.util.withResources($._config.distributor.resources) +
     $.util.readinessProbe,
 
@@ -47,10 +48,8 @@
     }) +
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_distributor_configmap.metadata.name),
-    ] + if $._config.use_overrides_configmap then
-	  [volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name)]
-	else []),
-
+      volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
+    ]),
 
   tempo_distributor_service:
     k.util.serviceFor($.tempo_distributor_deployment),
