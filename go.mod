@@ -58,7 +58,6 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.0.0-RC2
 	go.opentelemetry.io/otel/sdk v1.0.0-RC2
 	go.opentelemetry.io/otel/trace v1.0.0-RC2
-	go.opentelemetry.io/proto/otlp v0.9.0
 	go.uber.org/atomic v1.8.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
@@ -66,7 +65,6 @@ require (
 	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6
 	google.golang.org/api v0.48.0
 	google.golang.org/grpc v1.39.0
-	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )

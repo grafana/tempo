@@ -8,14 +8,11 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
-	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -23,7 +20,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"google.golang.org/grpc"
 )
 
 var (
@@ -88,21 +84,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
 }
 
-func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
-	// remove scheme and port
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	// new jaeger grpc exporter
-	conn, err := grpc.Dial(u.Host+":14250", grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	return jaeger_grpc.NewReporter(conn, nil, logger), err
-}
-
-func newOtelGRPCClient(endpoint string) (otlptrace.Client, error) {
+func newOtelGRPCClient(endpoint string) otlptrace.Client {
 	opts := []otlptracegrpc.Option{
 		otlptracegrpc.WithInsecure(),
 		otlptracegrpc.WithEndpoint(fmt.Sprintf("%s:%d", endpoint, 55680)),
@@ -111,63 +93,7 @@ func newOtelGRPCClient(endpoint string) (otlptrace.Client, error) {
 
 	client := otlptracegrpc.NewClient(opts...)
 
-	return client, nil
-}
-
-func generateRandomString() string {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-	s := make([]rune, generateRandomInt(5, 20))
-	for i := range s {
-		s[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(s)
-}
-
-func generateRandomTags() []*thrift.Tag {
-	var tags []*thrift.Tag
-	count := generateRandomInt(1, 5)
-	for i := int64(0); i < count; i++ {
-		value := generateRandomString()
-		tags = append(tags, &thrift.Tag{
-			Key:  generateRandomString(),
-			VStr: &value,
-		})
-	}
-	return tags
-}
-
-func generateRandomLogs() []*thrift.Log {
-	var logs []*thrift.Log
-	count := generateRandomInt(1, 5)
-	for i := int64(0); i < count; i++ {
-		logs = append(logs, &thrift.Log{
-			Timestamp: time.Now().Unix(),
-			Fields:    generateRandomTags(),
-		})
-	}
-	return logs
-}
-
-func makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift.Batch {
-	var spans []*thrift.Span
-	count := generateRandomInt(1, 5)
-	for i := int64(0); i < count; i++ {
-		spans = append(spans, &thrift.Span{
-			TraceIdLow:    TraceIDLow,
-			TraceIdHigh:   TraceIDHigh,
-			SpanId:        rand.Int63(),
-			ParentSpanId:  0,
-			OperationName: generateRandomString(),
-			References:    nil,
-			Flags:         0,
-			StartTime:     time.Now().Unix(),
-			Duration:      rand.Int63(),
-			Tags:          generateRandomTags(),
-			Logs:          generateRandomLogs(),
-		})
-	}
-	return &thrift.Batch{Spans: spans}
+	return client
 }
 
 func generateRandomInt(min int64, max int64) int64 {

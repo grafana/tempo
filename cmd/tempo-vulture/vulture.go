@@ -25,10 +25,7 @@ type Vulture struct {
 func NewVulture(writeBackoff, longWriteBackoff, readBackoff time.Duration) (*Vulture, error) {
 	ctx := context.Background()
 
-	otelClient, err := newOtelGRPCClient(tempoPushURL)
-	if err != nil {
-		return nil, err
-	}
+	otelClient := newOtelGRPCClient(tempoPushURL)
 
 	otelExporter, err := otlptrace.New(ctx, otelClient)
 	if err != nil {
@@ -72,14 +69,11 @@ func (v *Vulture) Stop() {
 func (v *Vulture) generateShortSpans(ctx context.Context, dur time.Duration) {
 	ticker := time.NewTicker(dur)
 
-	for {
-		select {
-		case <-ticker.C:
-			spanCtx, span := v.tracer.Start(ctx, "write")
-			logSpan(spanCtx, v.tracer, span)
-			span.End()
-			v.completeChan <- completeTrace{span.SpanContext().TraceID(), 1}
-		}
+	for range ticker.C {
+		spanCtx, span := v.tracer.Start(ctx, "write")
+		logSpan(spanCtx, v.tracer, span)
+		span.End()
+		v.completeChan <- completeTrace{span.SpanContext().TraceID(), 1}
 	}
 
 }
@@ -87,10 +81,10 @@ func (v *Vulture) generateShortSpans(ctx context.Context, dur time.Duration) {
 // generateLongSpans is used to create a trace that includes a number of spans
 // generated over a somewhat random time duration before being sent to Tempo.
 //
-// To work with the otel API, the End() is called on the spans, and the TraceID
-// from that span isused for a numer of following spans.  This allows the Trace
-// to be sent though it is incomplete, and should be appended to with
-// subsequent trace submissions.
+// To work with the otel API, the End() function is called on the spans, and
+// the TraceID from that span isused for a numer of following spans.  This
+// allows the Trace to be sent though it is incomplete, and should be appended
+// to with subsequent trace submissions using the same TraceID.
 func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 	ticker := time.NewTicker(dur)
 
@@ -106,50 +100,47 @@ func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 		zap.String("method", "long"),
 	)
 
-	for {
-		select {
-		case <-ticker.C:
-			if longSpan == nil {
-				c, s := v.tracer.Start(ctx, "longWrite")
-				// longSpanContext = s.SpanContext()
-				s.End()
+	for range ticker.C {
+		if longSpan == nil {
+			c, s := v.tracer.Start(ctx, "longWrite")
+			// longSpanContext = s.SpanContext()
+			s.End()
 
-				longSpan = &s
-				longSpanCtx = c
+			longSpan = &s
+			longSpanCtx = c
 
-				log = log.With(
-					zap.String("traceID", s.SpanContext().TraceID().String()),
-				)
+			log = log.With(
+				zap.String("traceID", s.SpanContext().TraceID().String()),
+			)
 
-				log.Info("started new long span")
-			}
+			log.Info("started new long span")
+		}
 
-			span := *longSpan
+		span := *longSpan
 
-			longSpanCount++
+		longSpanCount++
 
-			// create a span for this itteration
-			_, x := v.tracer.Start(longSpanCtx, fmt.Sprintf("itteration: %d", longSpanCount))
-			x.End()
+		// create a span for this itteration
+		_, x := v.tracer.Start(longSpanCtx, fmt.Sprintf("itteration: %d", longSpanCount))
+		x.End()
 
-			if longSpanCount > highWaterMark {
-				// logSpan(longSpanCtx, v.tracer, span)
-				// span.End()
-				// the number of itterations +1 for the logSpan() call.
-				v.completeChan <- completeTrace{span.SpanContext().TraceID(), int(longSpanCount) + 1}
+		if longSpanCount > highWaterMark {
+			// logSpan(longSpanCtx, v.tracer, span)
+			// span.End()
+			// the number of itterations +1 for the logSpan() call.
+			v.completeChan <- completeTrace{span.SpanContext().TraceID(), int(longSpanCount) + 1}
 
-				log.Info("finished long span")
-				// reset
-				longSpanCount = 0
-				longSpan = nil
+			log.Info("finished long span")
+			// reset
+			longSpanCount = 0
+			longSpan = nil
 
-				highWaterMark = generateRandomInt(1, 50)
+			highWaterMark = generateRandomInt(1, 50)
 
-				log = logger.With(
-					zap.Int64("high_water_mark", highWaterMark),
-					zap.String("method", "long"),
-				)
-			}
+			log = logger.With(
+				zap.Int64("high_water_mark", highWaterMark),
+				zap.String("method", "long"),
+			)
 		}
 	}
 }
@@ -157,43 +148,40 @@ func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 func (v *Vulture) validateSpans(ctx context.Context, dur time.Duration) {
 	ticker := time.NewTicker(dur)
 
-	for {
-		select {
-		case now := <-ticker.C:
-			time.Sleep(500 * time.Millisecond)
+	for now := range ticker.C {
+		time.Sleep(500 * time.Millisecond)
 
-			readIds := 0
-			idCount := len(v.completeChan)
-			readCtx, span := v.tracer.Start(ctx, "read")
+		readIds := 0
+		idCount := len(v.completeChan)
+		readCtx, span := v.tracer.Start(ctx, "read")
 
-			for readIds <= idCount {
-				readIds++
+		for readIds <= idCount {
+			readIds++
 
-				completeTrace := <-v.completeChan
-				_, idSpan := v.tracer.Start(readCtx, completeTrace.traceID.String())
+			completeTrace := <-v.completeChan
+			_, idSpan := v.tracer.Start(readCtx, completeTrace.traceID.String())
 
-				span.SetName(completeTrace.traceID.String())
-				span.SetAttributes(attribute.String("time", now.String()))
+			span.SetName(completeTrace.traceID.String())
+			span.SetAttributes(attribute.String("time", now.String()))
 
-				// query the trace
-				metrics, err := queryTempoAndAnalyze(tempoQueryURL, completeTrace)
-				if err != nil {
-					metricErrorTotal.Inc()
-				}
-
-				metricTracesInspected.Add(float64(metrics.requested))
-				metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
-				metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
-				metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
-				metricTracesErrors.WithLabelValues("incorrectspancount").Add(float64(metrics.incorrectSpanCount))
-
-				idSpan.End()
+			// query the trace
+			metrics, err := queryTempoAndAnalyze(tempoQueryURL, completeTrace)
+			if err != nil {
+				metricErrorTotal.Inc()
 			}
 
-			logSpan(readCtx, v.tracer, span)
-			span.End()
-			// the numebr of itterations +1 for the logSpan() call
-			v.completeChan <- completeTrace{span.SpanContext().TraceID(), readIds + 1}
+			metricTracesInspected.Add(float64(metrics.requested))
+			metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
+			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
+			metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
+			metricTracesErrors.WithLabelValues("incorrectspancount").Add(float64(metrics.incorrectSpanCount))
+
+			idSpan.End()
 		}
+
+		logSpan(readCtx, v.tracer, span)
+		span.End()
+		// the numebr of itterations +1 for the logSpan() call
+		v.completeChan <- completeTrace{span.SpanContext().TraceID(), readIds + 1}
 	}
 }

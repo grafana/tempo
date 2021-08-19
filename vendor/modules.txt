@@ -1226,7 +1226,6 @@ go.opentelemetry.io/otel/sdk/export/metric/aggregation
 ## explicit
 go.opentelemetry.io/otel/trace
 # go.opentelemetry.io/proto/otlp v0.9.0
-## explicit
 go.opentelemetry.io/proto/otlp/collector/trace/v1
 go.opentelemetry.io/proto/otlp/common/v1
 go.opentelemetry.io/proto/otlp/resource/v1
@@ -1433,7 +1432,6 @@ google.golang.org/grpc/stats
 google.golang.org/grpc/status
 google.golang.org/grpc/tap
 # google.golang.org/protobuf v1.27.1
-## explicit
 google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo
 google.golang.org/protobuf/compiler/protogen
 google.golang.org/protobuf/encoding/protojson
