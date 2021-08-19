@@ -53,7 +53,7 @@ func (v *Vulture) Start() (context.Context, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go v.generateShortSpans(ctx, v.writeBackoff)
-	go v.generateLongSpans(ctx, v.writeBackoff)
+	go v.generateLongSpans(ctx, 57*time.Second)
 	go v.validateSpans(ctx, v.readBackoff)
 
 	return ctx, cancel
@@ -79,13 +79,19 @@ func (v *Vulture) generateShortSpans(ctx context.Context, dur time.Duration) {
 
 }
 
-// generateLongSpans is used to create a trace that includes a number of spands
+// generateLongSpans is used to create a trace that includes a number of spans
 // generated over a somewhat random time duration before being sent to Tempo.
+//
+// To work with the otel API, the End() is called on the spans, and the TraceID
+// from that span isused for a numer of following spans.  This allows the Trace
+// to be sent though it is incomplete, and should be appended to with
+// subsequent trace submissions.
 func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 	ticker := time.NewTicker(dur)
 
 	var longSpan *trace.Span
 	var longSpanCtx context.Context
+	// var longSpanContext trace.SpanContext
 	var longSpanCount int64
 
 	highWaterMark := generateRandomInt(1, 25)
@@ -100,6 +106,9 @@ func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 		case <-ticker.C:
 			if longSpan == nil {
 				c, s := v.tracer.Start(ctx, "longWrite")
+				// longSpanContext = s.SpanContext()
+				s.End()
+
 				longSpan = &s
 				longSpanCtx = c
 
@@ -111,6 +120,7 @@ func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 			}
 
 			span := *longSpan
+
 			longSpanCount++
 
 			// create a span for this itteration
@@ -118,11 +128,10 @@ func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 			x.End()
 
 			if longSpanCount > highWaterMark {
-				logSpan(longSpanCtx, v.tracer, span)
-				span.End()
-				traceID := span.SpanContext().TraceID()
+				// logSpan(longSpanCtx, v.tracer, span)
+				// span.End()
 				// the number of itterations +1 for the logSpan() call.
-				v.completeChan <- completeTrace{traceID, int(longSpanCount) + 1}
+				v.completeChan <- completeTrace{span.SpanContext().TraceID(), int(longSpanCount) + 1}
 
 				log.Info("finished long span")
 				// reset
