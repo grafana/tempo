@@ -14,7 +14,7 @@ import (
 
 // Vulture is used to send traces to Tempo, and then read those traces back out to verify that the service is operating correctly.
 type Vulture struct {
-	completeChan chan completeValidation
+	completeChan chan completeTrace
 	tracer       trace.Tracer
 	writeBackoff time.Duration
 	readBackoff  time.Duration
@@ -40,7 +40,7 @@ func NewVulture(writeBackoff, readBackoff time.Duration) (*Vulture, error) {
 	tracer := tp.Tracer("tempo-vulture")
 
 	v := Vulture{
-		completeChan: make(chan completeValidation, 100),
+		completeChan: make(chan completeTrace, 100),
 		writeBackoff: writeBackoff,
 		readBackoff:  readBackoff,
 		tracer:       tracer,
@@ -63,6 +63,7 @@ func (v *Vulture) Stop() {
 	// defer func() { _ = tp.Shutdown(ctx) }()
 }
 
+// generateShortSpans is sued to create a trace that includes a single span.
 func (v *Vulture) generateShortSpans(ctx context.Context, dur time.Duration) {
 	ticker := time.NewTicker(dur)
 
@@ -72,13 +73,14 @@ func (v *Vulture) generateShortSpans(ctx context.Context, dur time.Duration) {
 			spanCtx, span := v.tracer.Start(ctx, "write")
 			logSpan(spanCtx, v.tracer, span)
 			span.End()
-			traceID := span.SpanContext().TraceID()
-			v.completeChan <- completeValidation{traceID, 1}
+			v.completeChan <- completeTrace{span.SpanContext().TraceID(), 1}
 		}
 	}
 
 }
 
+// generateLongSpans is used to create a trace that includes a number of spands
+// generated over a somewhat random time duration before being sent to Tempo.
 func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 	ticker := time.NewTicker(dur)
 
@@ -119,7 +121,8 @@ func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 				logSpan(longSpanCtx, v.tracer, span)
 				span.End()
 				traceID := span.SpanContext().TraceID()
-				v.completeChan <- completeValidation{traceID, int(highWaterMark)}
+				// the number of itterations +1 for the logSpan() call.
+				v.completeChan <- completeTrace{traceID, int(longSpanCount) + 1}
 
 				log.Info("finished long span")
 				// reset
@@ -135,7 +138,6 @@ func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 			}
 		}
 	}
-
 }
 
 func (v *Vulture) validateSpans(ctx context.Context, dur time.Duration) {
@@ -151,15 +153,16 @@ func (v *Vulture) validateSpans(ctx context.Context, dur time.Duration) {
 			readCtx, span := v.tracer.Start(ctx, "read")
 
 			for readIds <= idCount {
-				_, idSpan := v.tracer.Start(readCtx, "id")
-				completeTrace := <-v.completeChan
 				readIds++
+
+				completeTrace := <-v.completeChan
+				_, idSpan := v.tracer.Start(readCtx, completeTrace.traceID.String())
 
 				span.SetName(completeTrace.traceID.String())
 				span.SetAttributes(attribute.String("time", now.String()))
 
 				// query the trace
-				metrics, err := queryTempoAndAnalyze(tempoQueryURL, completeTrace.traceID)
+				metrics, err := queryTempoAndAnalyze(tempoQueryURL, completeTrace)
 				if err != nil {
 					metricErrorTotal.Inc()
 				}
@@ -168,14 +171,15 @@ func (v *Vulture) validateSpans(ctx context.Context, dur time.Duration) {
 				metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
 				metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
 				metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
+				metricTracesErrors.WithLabelValues("incorrectspancount").Add(float64(metrics.incorrectSpanCount))
 
 				idSpan.End()
 			}
 
-			span.End()
 			logSpan(readCtx, v.tracer, span)
-			traceID := span.SpanContext().TraceID()
-			v.completeChan <- completeValidation{traceID, 1}
+			span.End()
+			// the numebr of itterations +1 for the logSpan() call
+			v.completeChan <- completeTrace{span.SpanContext().TraceID(), readIds + 1}
 		}
 	}
 }

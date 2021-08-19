@@ -41,10 +41,11 @@ var (
 )
 
 type traceMetrics struct {
-	requested     int
-	requestFailed int
-	notFound      int
-	missingSpans  int
+	requested          int
+	requestFailed      int
+	notFound           int
+	missingSpans       int
+	incorrectSpanCount int
 }
 
 func init() {
@@ -173,10 +174,12 @@ func generateRandomInt(min int64, max int64) int64 {
 	return number
 }
 
-func queryTempoAndAnalyze(baseURL string, traceID trace.TraceID) (traceMetrics, error) {
+func queryTempoAndAnalyze(baseURL string, complete completeTrace) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
+
+	traceID := complete.traceID
 
 	log := logger.With(
 		zap.String("query_trace_id", traceID.String()),
@@ -206,7 +209,29 @@ func queryTempoAndAnalyze(baseURL string, traceID trace.TraceID) (traceMetrics, 
 		tm.missingSpans++
 	}
 
+	count := spanCount(trace)
+	if count != complete.spanCount {
+		log.Error(fmt.Sprintf("trace has incorrect span count; expected %d, have %d", complete.spanCount, count))
+		tm.incorrectSpanCount++
+	}
+
 	return tm, nil
+}
+
+func spanCount(t *tempopb.Trace) int {
+	count := 0
+
+	for _, b := range t.Batches {
+		for _, ils := range b.InstrumentationLibrarySpans {
+			for _, s := range ils.Spans {
+				if len(s.ParentSpanId) > 0 {
+					count++
+				}
+			}
+		}
+	}
+
+	return count
 }
 
 func hasMissingSpans(t *tempopb.Trace) bool {
@@ -258,7 +283,7 @@ func logSpan(ctx context.Context, tracer trace.Tracer, span trace.Span) {
 	log.Info("span")
 }
 
-type completeValidation struct {
+type completeTrace struct {
 	traceID   trace.TraceID
 	spanCount int
 }
