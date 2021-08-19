@@ -97,6 +97,10 @@
     backend: error 'Must specify a backend',  // gcs|s3
     bucket: error 'Must specify a bucket',
 
+    // Eventually, once we enable it everywhere, we remove this and default will be true.
+    use_overrides_configmap: false,
+    overrides_configmap_name: 'overrides',
+
     overrides+:: {
       super_user:: {
         max_traces_per_user: 100000,

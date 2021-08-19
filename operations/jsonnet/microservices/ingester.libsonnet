@@ -12,6 +12,7 @@
   local target_name = 'ingester',
   local tempo_config_volume = 'tempo-conf',
   local tempo_data_volume = 'ingester-data',
+  local tempo_overrides_config_volume = 'overrides',
 
   tempo_ingester_pvc::
     pvc.new()
@@ -35,7 +36,7 @@
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
       volumeMount.new(tempo_data_volume, '/var/tempo'),
-    ]) +
+    ] + if $._config.use_overrides_configmap then [volumeMount.new(tempo_overrides_config_volume, '/overrides')] else []) +
     $.util.withResources($._config.ingester.resources) +
     $.util.readinessProbe,
 
@@ -57,7 +58,10 @@
     })
     + statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_ingester_configmap.metadata.name),
-    ]),
+    ]+ if $._config.use_overrides_configmap then
+	  [volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name)]
+	else []),
+
 
   tempo_ingester_service:
     k.util.serviceFor($.tempo_ingester_statefulset),
