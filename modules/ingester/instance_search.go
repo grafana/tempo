@@ -19,8 +19,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		maxResults = int(req.Limit)
 	}
 
-	var results []*tempopb.TraceSearchMetadata
-
 	p := search.NewSearchPipeline(req)
 
 	sr := search.NewSearchResults()
@@ -32,20 +30,30 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	sr.AllWorkersStarted()
 
+	resultsMap := map[string]*tempopb.TraceSearchMetadata{}
+
 	for result := range sr.Results() {
-		results = append(results, result)
+		// Dedupe/combine results
+		if existing := resultsMap[result.TraceID]; existing != nil {
+			search.CombineSearchResults(existing, result)
+		} else {
+			resultsMap[result.TraceID] = result
+		}
 
-		// Sort, dedupe and limit results
-		sort.Slice(results, func(i, j int) bool {
-			return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
-		})
-
-		results = dedupeResults(results)
-
-		if len(results) >= maxResults {
+		if len(resultsMap) >= maxResults {
 			break
 		}
 	}
+
+	results := make([]*tempopb.TraceSearchMetadata, 0, len(resultsMap))
+	for _, result := range resultsMap {
+		results = append(results, result)
+	}
+
+	// Sort
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
+	})
 
 	return &tempopb.SearchResponse{
 		Traces: results,
@@ -72,18 +80,23 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 
 			sr.AddTraceInspected()
 
+			result := &tempopb.TraceSearchMetadata{}
+			matched := false
+
+			// Search and combine from all segments for the trace.
 			for _, s := range t.searchData {
 				sr.AddBytesInspected(uint64(len(s)))
 
 				searchData := tempofb.SearchDataFromBytes(s)
-				if p.Matches(searchData) {
-					result := search.GetSearchResultFromData(searchData)
+				matched := p.Matches(searchData)
+				if matched {
+					search.CombineSearchResults(result, search.GetSearchResultFromData(searchData))
+				}
+			}
 
-					if quit := sr.AddResult(ctx, result); quit {
-						return
-					}
-
-					continue
+			if matched {
+				if quit := sr.AddResult(ctx, result); quit {
+					return
 				}
 			}
 		}
@@ -135,18 +148,6 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 			}
 		}(b, e)
 	}
-}
-
-func dedupeResults(results []*tempopb.TraceSearchMetadata) []*tempopb.TraceSearchMetadata {
-	for i := range results {
-		for j := i + 1; j < len(results); j++ {
-			if results[i].TraceID == results[j].TraceID {
-				results = append(results[:j], results[j+1:]...)
-				j--
-			}
-		}
-	}
-	return results
 }
 
 func (i *instance) GetSearchTags() []string {
