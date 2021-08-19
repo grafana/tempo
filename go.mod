@@ -54,8 +54,11 @@ require (
 	go.opentelemetry.io/otel/bridge/opencensus v0.21.0
 	go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
 	go.opentelemetry.io/otel/exporters/jaeger v1.0.0-RC2
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.0.0-RC2
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.0.0-RC2
 	go.opentelemetry.io/otel/sdk v1.0.0-RC2
 	go.opentelemetry.io/otel/trace v1.0.0-RC2
+	go.opentelemetry.io/proto/otlp v0.9.0
 	go.uber.org/atomic v1.8.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
