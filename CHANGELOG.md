@@ -3,6 +3,7 @@
 * [BUGFIX] Update port spec for GCS docker-compose example [#869](https://github.com/grafana/tempo/pull/869) (@zalegrala)
 * [BUGFIX] Cortex upgrade to fix an issue where unhealthy compactors can't be forgotten [#878](https://github.com/grafana/tempo/pull/878) (@joe-elliott)
 * [ENHANCEMENT] Added "query blocks" cli option. [#876](https://github.com/grafana/tempo/pull/876) (@joe-elliott)
+* [ENHANCEMENT] Add middleware to compress HTTP responses with gzip if requested [#891](https://github.com/grafana/tempo/pull/891) (@kvrhdn)
 
 ## v1.1.0-rc.0 / 2021-08-11
 
