@@ -97,6 +97,7 @@
     backend: error 'Must specify a backend',  // gcs|s3
     bucket: error 'Must specify a bucket',
 
+    // `use_overrides_configmap` enables the tempo workloads read `overrides.yaml` from single configmap
     // Eventually, once we enable it everywhere, we remove this and default will be true.
     use_overrides_configmap: false,
     overrides_configmap_name: 'overrides',

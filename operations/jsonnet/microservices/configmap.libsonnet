@@ -99,6 +99,7 @@
 
   tempo_query_frontend_config:: $.tempo_config{},
 
+  // This will be the single configmap that stores `overrides.yaml`.
   overrides_configmap: if $._config.use_overrides_configmap then
     configMap.new('overrides') +
     configMap.withDataMixin({
