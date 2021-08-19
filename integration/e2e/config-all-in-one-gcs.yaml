@@ -1,0 +1,36 @@
+target: all
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  trace_idle_period: 100ms
+  max_block_bytes: 1
+  max_block_duration: 2s
+  complete_block_timeout: 1s
+  flush_check_period: 1s
+
+storage:
+  trace:
+    blocklist_poll: 2s
+    backend: gcs
+    gcs:
+      bucket_name: tempo
+      endpoint: https://tempo_e2e-gcs:4443/storage/v1/
+      insecure: true
+    pool:
+      max_workers: 10
+      queue_depth: 1000

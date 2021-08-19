@@ -35,7 +35,7 @@ const (
 func NewTripperware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (queryrange.Tripperware, error) {
 	level.Info(logger).Log("msg", "creating tripperware in query frontend")
 
-	tracesTripperware := NewTracesTripperware(cfg, logger)
+	tracesTripperware := NewTracesTripperware(cfg, logger, registerer)
 	searchTripperware := NewSearchTripperware()
 
 	return func(next http.RoundTripper) http.RoundTripper {
@@ -145,13 +145,13 @@ func getOperation(prefix, path string) RequestOp {
 }
 
 // NewTracesTripperware creates a new frontend tripperware responsible for handling get traces requests.
-func NewTracesTripperware(cfg Config, logger log.Logger) func(next http.RoundTripper) http.RoundTripper {
+func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) func(next http.RoundTripper) http.RoundTripper {
 	return func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
-		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, logger))
+		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, registerer))
 
 		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
 			// don't start a new span, this is already handled by frontendRoundTripper

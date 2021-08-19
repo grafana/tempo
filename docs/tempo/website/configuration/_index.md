@@ -15,6 +15,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [compactor](#compactor)
   - [storage](#storage)
   - [memberlist](#memberlist)
+  - [polling](#polling)
 
 #### Use environment variables in the configuration
 
@@ -88,8 +89,8 @@ For more information on configuration options, see [here](https://github.com/gra
 
 Distributors receive spans and forward them to the appropriate ingesters.
 
-The following configuration enables all available receivers. For a production deployment, enable only the receivers you need.
-Additional documentation about the receiver is available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
+The following configuration enables all available receivers with their default configuration. For a production deployment, enable only the receivers you need.
+Additional documentation and more advanced configuration options are available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
 
 ```
 # Distributor config block
@@ -164,7 +165,7 @@ The Query Frontend is responsible for sharding incoming requests for faster proc
 query_frontend:
 
     # number of times to retry a request sent to a querier
-    # (default: 5)
+    # (default: 2)
     [max_retries: <int>]
 
     # number of shards to split the query into
@@ -368,9 +369,27 @@ storage:
         # Number of blocks to process in parallel during polling. Default is 50.
         [blocklist_poll_concurrency: <int>]
 
+        # By default components will pull the blocklist from the tenant index. If that fails the component can
+        # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
+        [blocklist_poll_fallback: <bool>]
+
+        # Maximum number of compactors that should build the tenant index. All other components will download 
+        # the index.  Default 2.
+        [blocklist_poll_tenant_index_builders: <int>]
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         [cache: <string>]
+
+        # Minimum compaction level of block to qualify for bloom filter caching. Default is 0 (disabled), meaning
+        # that compaction level is not used to determine if the bloom filter should be cached.
+        # Example: "cache_min_compaction_level: 2"
+        [cache_min_compaction_level: <int>]
+
+        # Max block age to qualify for bloom filter caching. Default is 0 (disabled), meaning that block age is not
+        # used to determine if the bloom filter should be cached.
+        # Example: "cache_max_block_age: 48h"
+        [cache_max_block_age: <duration>]
 
         # Cortex Background cache configuration. Requires having a cache configured.
         background_cache:
@@ -530,24 +549,24 @@ memberlist:
     [randomize_node_name: <boolean> | default = true]
     
     # The timeout for establishing a connection with a remote node, and for
-    # read/write operations. Uses memberlist LAN defaults if 0.
-    [stream_timeout: <duration> | default = 0s]
+    # read/write operations.
+    [stream_timeout: <duration> | default = 10s]
     
     # Multiplication factor used when sending out messages (factor * log(N+1)).
-    [retransmit_factor: <int> | default = 0]
+    [retransmit_factor: <int> | default = 2]
     
-    # How often to use pull/push sync. Uses memberlist LAN defaults if 0.
-    [pull_push_interval: <duration> | default = 0s]
+    # How often to use pull/push sync.
+    [pull_push_interval: <duration> | default = 30s]
     
-    # How often to gossip. Uses memberlist LAN defaults if 0.
-    [gossip_interval: <duration> | default = 0s]
+    # How often to gossip.
+    [gossip_interval: <duration> | default = 1s]
     
-    # How many nodes to gossip to. Uses memberlist LAN defaults if 0.
-    [gossip_nodes: <int> | default = 0]
+    # How many nodes to gossip to.
+    [gossip_nodes: <int> | default = 2]
     
     # How long to keep gossiping to dead nodes, to give them chance to refute their
-    # death. Uses memberlist LAN defaults if 0.
-    [gossip_to_dead_nodes_time: <duration> | default = 0s]
+    # death.
+    [gossip_to_dead_nodes_time: <duration> | default = 30s]
     
     # How soon can dead node's name be reclaimed with new address. Defaults to 0,
     # which is disabled.

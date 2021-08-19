@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
@@ -47,6 +48,7 @@ type Config struct {
 	MultitenancyEnabled bool   `yaml:"multitenancy_enabled,omitempty"`
 	SearchEnabled       bool   `yaml:"search_enabled,omitempty"`
 	HTTPAPIPrefix       string `yaml:"http_api_prefix"`
+	UseOTelTracer       bool   `yaml:"use_otel_tracer,omitempty"`
 
 	Server         server.Config          `yaml:"server,omitempty"`
 	Distributor    distributor.Config     `yaml:"distributor,omitempty"`
@@ -69,6 +71,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
 	f.BoolVar(&c.SearchEnabled, "search.enabled", false, "Set to true to enable search (unstable).")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
+	f.BoolVar(&c.UseOTelTracer, "use-otel-tracer", false, "Set to true to replace the OpenTracing tracer with the OpenTelemetry tracer")
 
 	// Server settings
 	flagext.DefaultValues(&c.Server)
@@ -84,9 +87,16 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
 
 	// Memberlist settings
-	fs := flag.NewFlagSet("", flag.PanicOnError)
+	fs := flag.NewFlagSet("", flag.PanicOnError) // create a new flag set b/c we don't want all of the memberlist settings in our flags. we're just doing this to get defaults
 	c.MemberlistKV.RegisterFlags(fs)
 	_ = fs.Parse([]string{})
+	// these defaults were chosen to balance resource usage vs. ring propagation speed. they are a "toned down" version of
+	// the memberlist defaults
+	c.MemberlistKV.RetransmitMult = 2
+	c.MemberlistKV.GossipInterval = time.Second
+	c.MemberlistKV.GossipNodes = 2
+	c.MemberlistKV.EnableCompression = false
+
 	f.Var(&c.MemberlistKV.JoinMembers, "memberlist.host-port", "Host port to connect to memberlist cluster.")
 	f.IntVar(&c.MemberlistKV.TCPTransport.BindPort, "memberlist.bind-port", 7946, "Port for memberlist to communicate on")
 
@@ -236,6 +246,7 @@ func (t *App) Run() error {
 	// before starting servers, register /ready handler and gRPC health check service.
 	t.Server.HTTP.Path("/config").Handler(t.configHandler())
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
+	t.Server.HTTP.Path("/services").Handler(t.servicesHandler())
 	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, healthcheck.New(sm))
 
 	// Let's listen for events from this manager, and log them.
@@ -329,5 +340,33 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 		}
 
 		http.Error(w, "ready", http.StatusOK)
+	}
+}
+
+func (t *App) servicesHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		msg := bytes.Buffer{}
+
+		svcNames := make([]string, 0, len(t.serviceMap))
+		for name := range t.serviceMap {
+			svcNames = append(svcNames, name)
+		}
+
+		sort.Strings(svcNames)
+
+		for _, name := range svcNames {
+			service := t.serviceMap[name]
+
+			msg.WriteString(fmt.Sprintf("%s: %s\n", name, service.State()))
+			if err := service.FailureCase(); err != nil {
+				msg.WriteString(fmt.Sprintf("  Failure case: %s\n", err))
+			}
+		}
+
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write(msg.Bytes()); err != nil {
+			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
+		}
 	}
 }

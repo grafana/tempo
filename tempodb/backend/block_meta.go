@@ -10,7 +10,7 @@ import (
 type CompactedBlockMeta struct {
 	BlockMeta
 
-	CompactedTime time.Time `json:"-"`
+	CompactedTime time.Time `json:"compactedTime"`
 }
 
 type BlockMeta struct {
@@ -19,7 +19,7 @@ type BlockMeta struct {
 	MinID           []byte    `json:"minID"`           // Minimum object id stored in this block
 	MaxID           []byte    `json:"maxID"`           // Maximum object id stored in this block
 	TenantID        string    `json:"tenantID"`        // ID of tehant to which this block belongs
-	StartTime       time.Time `json:"startTime"`       // Currently mostly meaningless but roughly matches to the time the first obj was written to this block
+	StartTime       time.Time `json:"startTime"`       // Roughly matches when the first obj was written to this block. Used to determine block age for different purposes (cacheing, etc)
 	EndTime         time.Time `json:"endTime"`         // Currently mostly meaningless but roughly matches to the time the last obj was written to this block
 	TotalObjects    int       `json:"totalObjects"`    // Total objects in this block
 	Size            uint64    `json:"size"`            // Total size in bytes of the data object

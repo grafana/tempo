@@ -1,7 +1,9 @@
 ## S3
+
 In this example tempo is configured to write data to S3 via MinIO which presents an S3 compatible API.
 
-1. First start up the s3 stack.
+1. First start up the S3 stack.
+
 ```console
 docker-compose up -d
 ```

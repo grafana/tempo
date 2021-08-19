@@ -2,6 +2,7 @@ package ingester
 
 import (
 	"context"
+	"encoding/hex"
 	"time"
 
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
@@ -43,7 +44,7 @@ func (t *trace) Push(_ context.Context, trace []byte, searchData []byte) error {
 	if t.maxBytes != 0 {
 		reqSize := len(trace)
 		if t.currentBytes+reqSize > t.maxBytes {
-			return status.Errorf(codes.FailedPrecondition, "%s max size of trace (%d) exceeded while adding %d bytes", overrides.ErrorPrefixTraceTooLarge, t.maxBytes, reqSize)
+			return status.Errorf(codes.FailedPrecondition, "%s max size of trace (%d) exceeded while adding %d bytes to trace %s", overrides.ErrorPrefixTraceTooLarge, t.maxBytes, reqSize, hex.EncodeToString(t.traceID))
 		}
 
 		t.currentBytes += reqSize

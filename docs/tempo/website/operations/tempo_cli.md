@@ -48,10 +48,10 @@ The backend can be configured in a few ways:
 
 Each option applies only to the command in which it is used. For example, `--backend <value>` does not permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 
-## Query Command
+## Query API Command
 Call the tempo API and retrieve a trace by ID.
 ```bash
-tempo-cli query <api-endpoint> <trace-id>
+tempo-cli query api <api-endpoint> <trace-id>
 ```
 
 Arguments:
@@ -63,7 +63,26 @@ Options:
 
 **Example:**
 ```bash
-tempo-cli query http://tempo:3200 f1cfe82a8eef933b
+tempo-cli query api http://tempo:3200 f1cfe82a8eef933b
+```
+
+## Query Blocks Command
+Iterate over all backend blocks and dump all data found for a given trace id.
+```bash
+tempo-cli query blocks <trace-id> <tenant-id>
+```
+ **Note:** can be intense as it downloads every bloom filter and some percentage of indexes/trace data.
+
+Arguments:
+- `trace-id` Trace ID as a hexadecimal string.
+- `tenant-id` Tenant to search.
+
+Options:
+See backend options above.
+
+**Example:**
+```bash
+tempo-cli query blocks f1cfe82a8eef933b single-tenant
 ```
 
 ## List Blocks
@@ -131,6 +150,22 @@ Arguments:
 **Example:**
 ```bash
 tempo-cli list compaction-summary -c ./tempo.yaml single-tenant
+```
+
+## List Cache Summary
+Prints information about the number of bloom filter shards per day per compaction level. This command is useful to
+estimate and fine-tune cache storage. Read the [caching topic](../caching) for more information.
+
+```bash
+tempo-cli list cache-summary <tenant-id>
+```
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+
+**Example:**
+```bash
+tempo-cli list cache-summary -c ./tempo.yaml single-tenant
 ```
 
 ## List Index

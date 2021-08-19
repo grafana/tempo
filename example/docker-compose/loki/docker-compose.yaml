@@ -15,7 +15,7 @@ services:
         loki-url: 'http://localhost:3100/api/prom/push'
 
   loki:
-    image: grafana/loki:2.1.0
+    image: grafana/loki:2.3.0
     command: [ "-config.file=/etc/loki/local-config.yaml" ]
     ports:
       - "3100:3100"                                   # loki needs to be exposed so it receives logs
@@ -42,9 +42,9 @@ services:
         loki-url: 'http://localhost:3100/api/prom/push'
 
   grafana:
-    image: grafana/grafana:7.5.7
+    image: grafana/grafana:8.1.1
     volumes:
-      - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin

@@ -65,7 +65,8 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader,
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
-	copy := func(name string) error {
+	// Copy streams, efficient but can't cache.
+	copyStream := func(name string) error {
 		reader, size, err := src.StreamReader(ctx, name, blockID, tenantID)
 		if err != nil {
 			return errors.Wrapf(err, "error reading %s", name)
@@ -75,8 +76,18 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader,
 		return dest.StreamWriter(ctx, name, blockID, tenantID, reader, size)
 	}
 
+	// Read entire object and attempt to cache
+	copy := func(name string) error {
+		b, err := src.Read(ctx, name, blockID, tenantID, true)
+		if err != nil {
+			return errors.Wrapf(err, "error reading %s", name)
+		}
+
+		return dest.Write(ctx, name, blockID, tenantID, b, true)
+	}
+
 	// Data
-	err := copy(nameObjects)
+	err := copyStream(nameObjects)
 	if err != nil {
 		return err
 	}
@@ -90,7 +101,7 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader,
 	}
 
 	// Index
-	err = copy(nameIndex)
+	err = copyStream(nameIndex)
 	if err != nil {
 		return err
 	}

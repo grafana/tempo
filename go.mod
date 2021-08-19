@@ -9,7 +9,7 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/alecthomas/kong v0.2.11
 	github.com/cespare/xxhash v1.1.0
-	github.com/cortexproject/cortex v1.9.1-0.20210726155107-a4bf10354786
+	github.com/cortexproject/cortex v1.10.1-0.20210816080356-090988c40f3e
 	github.com/cristalhq/hedgedhttp v0.6.0
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.0.0
@@ -20,6 +20,7 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.3
 	github.com/google/flatbuffers v2.0.0+incompatible
+	github.com/google/go-cmp v0.5.6
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340 // indirect
@@ -28,7 +29,7 @@ require (
 	github.com/hashicorp/go-plugin v1.3.0
 	github.com/jaegertracing/jaeger v1.21.0
 	github.com/jsternberg/zap-logfmt v1.2.0
-	github.com/klauspost/compress v1.11.13
+	github.com/klauspost/compress v1.13.1
 	github.com/minio/minio-go/v7 v7.0.10
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e
@@ -51,6 +52,12 @@ require (
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.21.0
+	go.opentelemetry.io/otel v1.0.0-RC2
+	go.opentelemetry.io/otel/bridge/opencensus v0.21.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2
+	go.opentelemetry.io/otel/exporters/jaeger v1.0.0-RC2
+	go.opentelemetry.io/otel/sdk v1.0.0-RC2
+	go.opentelemetry.io/otel/trace v1.0.0-RC2
 	go.uber.org/atomic v1.8.0
 	go.uber.org/goleak v1.1.10
 	go.uber.org/zap v1.16.0
@@ -71,6 +78,9 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.20.4
 )
 
+// Use a more recent version of go-redis that does not depend on OpenTelemetry anymore
+replace github.com/go-redis/redis/v8 => github.com/go-redis/redis/v8 v8.11.0
+
 // Pin to the latest release of grpc-go with GenerateAndRegisterManualResolver
 // This function is used by jeagertracing/jaeger, but we can't update jaeger
 // without updating the open-telemetry/collector as well
@@ -80,3 +90,7 @@ replace google.golang.org/grpc => google.golang.org/grpc v1.33.3
 // Before v0.1.5 it contained examples in the root folder that imported grpc without a version,
 // and therefore were importing grpc latest (which is problematic because we need <v1.29.1)
 replace github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
+
+// Fix for injecting and extracting the propagation context
+// Can be removed when https://github.com/open-telemetry/opentelemetry-go/pull/2141 is merged
+replace go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348

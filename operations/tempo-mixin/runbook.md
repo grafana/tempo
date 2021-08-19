@@ -50,26 +50,15 @@ But also factor in the resources provided to the querier.
 
 ## TempoCompactorUnhealthy
 
-Tempo by default uses [Memberlist](https://github.com/hashicorp/memberlist) to persist the ring state between components.
-Occasionally this results in old components staying in the ring which particularly impacts compactors because they start
-falling behind on the blocklist.  If this occurs port-forward to 3200 on a compactor and bring up `/compactor/ring`.  Use the
-"Forget" button to drop any unhealthy compactors.
-
-If unhealthy components persist then do rollouts of the processes that participate in the memberlist cluster.  Start
-with the least impactful components to the most while attempting to forget the unhealthy compactors after each rollout.  For
-the official jsonnet this would be: queriers, compactors, distributors and then ingesters.
+If this occurs port-forward to 3200 on a compactor and bring up `/compactor/ring`.  Use the "Forget" button to drop any unhealthy 
+compactors. An unhealthy compactor or two has no immediate impact. Long term, however, it will cause the blocklist to grow
+unnecessarily long.
 
 ## TempoDistributorUnhealthy
 
-Tempo by default uses [Memberlist](https://github.com/hashicorp/memberlist) to persist the ring state between components.
-Occasionally this results in old components staying in the ring which does not impact distributors directly, but at some point
-your components will be passing around a lot of unnecessary information. It may also indicate that a component shut down
-unexpectedly and may be worth investigating. If this occurs port-forward to 3200 on a distributor and bring up `/distributor/ring`.
-Use the "Forget" button to drop any unhealthy distributors.
-
-If unhealthy components persist then do rollouts of the processes that participate in the memberlist cluster.  Start
-with the least impactful components to the most while attempting to forget the unhealthy distributors after each rollout.  For
-the official jsonnet this would be: queriers, compactors, distributors and then ingesters.
+If this occurs port-forward to 3200 on a distributor and bring up `/distributor/ring`.  Use the "Forget" button to drop any unhealthy 
+distributors. An unhealthy distributor or two has virtually no impact except to slightly increase the amount of memberlist
+traffic propagated by the cluster.
 
 ## TempoCompactionsFailing
 
@@ -93,25 +82,77 @@ There are several settings which can be tuned to reduce the amount of work done 
   There are platform-specific limits on how low this can go.  AWS S3 cannot be set lower than 5MB, or cause more than 10K flushes
   per block.
 
-## TempoFlushesFailing
+## TempoIngesterFlushesFailing
 
-Check ingester logs for flushes and compactor logs for compations.  Failed flushes or compactions could be caused by any number of
-different things.  Permissions issues, rate limiting, failing backend, ...  So check the logs and use your best judgement on how to
-resolve.
+Check ingester logs for flushes.  Failed flushes could be caused by any number of different things: bad block, permissions issues,
+rate limiting, failing backend,...  So check the logs and use your best judgement on how to resolve.  Tempo will continue to retry
+sending the blocks until it succeeds, but at some point your WAL files will start failing to write due to out of disk issues.
 
-In the case of failed compactions your blocklist is now growing and you may be creating a bunch of partially written "orphaned"
-blocks.  An orphaned block is a block without a `meta.json` that is not currently being created.  These will be invisible to
-Tempo and will just hang out forever (or until a bucket lifecycle policy deletes them).  First, resolve the issue so that your
-compactors can get the blocklist under control to prevent high query latencies.  Next try to identify any "orphaned" blocks and
-remove them.
+If a single block can not be flushed, this block might be corrupted.  Inspect the block manually and consider moving this file out
+of the WAL or outright deleting it. Restart the ingester to stop the retry attempts. Removing blocks from a single ingester will
+not cause data loss if replication is used and the other ingesters are flushing their blocks successfully.
+By default, the WAL is at `/var/tempo/wal/blocks`.
 
-In the case of failed flushes your local WAL disk is now filling up.  Tempo will continue to retry sending the blocks
-until it succeeds, but at some point your WAL files will start failing to write due to out of disk issues.  If the problem
-persists consider killing the block that's failing to upload in `/var/tempo/wal` and restarting the ingester.
+If multiple blocks can not be flushed, the local WAL disk of the ingester will be filling up.  Consider increasing the amount of disk
+space available to the ingester.
 
 ## TempoPollsFailing
 
-If polls are failing check the component that is raising this metric and look for any obvious logs that may indicate a quick fix.
+See [Polling Issues](#polling-issues) below for general information.
 
-Generally, failure to poll just means that the component is not aware of the current state of the backend but will continue working
-otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale.
+If polls are failing check the component that is raising this metric and look for any obvious logs that may indicate a quick fix.
+We have only seen polling failures occur due to intermittent backend issues.
+
+## TempoTenantIndexFailures
+
+See [Polling Issues](#polling-issues) below for general information.
+
+If the following is being logged then things are stable (due to polling fallback) and we just need to review the logs to determine why 
+there is an issue with the index and correct.
+```
+failed to pull bucket index for tenant. falling back to polling
+```
+
+If the following (or other errors) are being logged repeatedly then the tenant index is not being updated and more direct action is necessary.
+If the core issue can not be resolved one option is to delete all tenant indexes which will force the components to fallback to 
+scanning the entire bucket.
+```
+failed to write tenant index
+```
+
+## TempoNoTenantIndexBuilders
+
+See [Polling Issues](#polling-issues) below for general information.
+
+If a cluster has no tenant index builders then nothing is refreshing the per tenant indexes. This can be dangerous
+b/c other components will not be aware there is an issue as they repeatedly download a stale tenant index. In Tempo the compactors
+play the role of building the tenant index. Ways to address this issue in order of preference:
+
+- Find and forget all unhealthy compactors.
+- Increase the number of compactors that attempt to build the index.
+  ```
+  storage:
+    trace:
+      blocklist_poll_tenant_index_builders: 2  # <- increase this value
+  ```
+- Delete tenant index files to force other components to fallback to scanning the entire bucket. They are located at 
+  `/<tenant>/index.json.gz`
+
+## TempoTenantIndexTooOld
+
+See [Polling Issues](#polling-issues) below for general information.
+
+If the tenant indexes are too old we need to review the compactor logs to determine why they are failing to update. Compactors
+with `tempodb_blocklist_tenant_index_builder` set to 1 are expected to be creating the tenant indexes are should be checked
+first. If no compactors are creating tenant indexes refer to [TempoNoTenantIndexBuilders](#temponotenantindexbuilders) above.
+
+Additionally the metric `tempodb_blocklist_tenant_index_age_seconds` can be grouped by the `tenant` label. If only one (or few) 
+indexes are lagging these can be deleted to force components to manually rescan the bucket.
+
+### Polling Issues
+
+In the case of all polling issues intermittent issues are not concerning. Sustained polling issues need to be addressed.  
+
+Failure to poll just means that the component is not aware of the current state of the backend but will continue working
+otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale. 
+Compactors will attempt to compact blocks that don't exist.

@@ -24,6 +24,23 @@ github.com/Azure/azure-pipeline-go/pipeline
 # github.com/Azure/azure-storage-blob-go v0.8.0
 ## explicit
 github.com/Azure/azure-storage-blob-go/azblob
+# github.com/Azure/go-autorest v14.2.0+incompatible
+github.com/Azure/go-autorest
+# github.com/Azure/go-autorest/autorest v0.11.19
+github.com/Azure/go-autorest/autorest
+github.com/Azure/go-autorest/autorest/azure
+# github.com/Azure/go-autorest/autorest/adal v0.9.14
+github.com/Azure/go-autorest/autorest/adal
+# github.com/Azure/go-autorest/autorest/azure/auth v0.5.8
+github.com/Azure/go-autorest/autorest/azure/auth
+# github.com/Azure/go-autorest/autorest/azure/cli v0.4.2
+github.com/Azure/go-autorest/autorest/azure/cli
+# github.com/Azure/go-autorest/autorest/date v0.3.0
+github.com/Azure/go-autorest/autorest/date
+# github.com/Azure/go-autorest/logger v0.2.1
+github.com/Azure/go-autorest/logger
+# github.com/Azure/go-autorest/tracing v0.6.0
+github.com/Azure/go-autorest/tracing
 # github.com/Masterminds/squirrel v0.0.0-20161115235646-20f192218cf5
 github.com/Masterminds/squirrel
 # github.com/NYTimes/gziphandler v1.1.1
@@ -101,12 +118,15 @@ github.com/aws/aws-sdk-go/service/dynamodb
 github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface
 github.com/aws/aws-sdk-go/service/s3
 github.com/aws/aws-sdk-go/service/s3/s3iface
+github.com/aws/aws-sdk-go/service/sns
 github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
+# github.com/blang/semver/v4 v4.0.0
+github.com/blang/semver/v4
 # github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
 github.com/bradfitz/gomemcache/memcache
 # github.com/cenkalti/backoff v2.2.1+incompatible
@@ -135,7 +155,7 @@ github.com/coreos/go-systemd/journal
 github.com/coreos/go-systemd/v22/journal
 # github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 github.com/coreos/pkg/capnslog
-# github.com/cortexproject/cortex v1.9.1-0.20210726155107-a4bf10354786
+# github.com/cortexproject/cortex v1.10.1-0.20210816080356-090988c40f3e
 ## explicit
 github.com/cortexproject/cortex/integration/e2e
 github.com/cortexproject/cortex/integration/e2e/db
@@ -260,6 +280,8 @@ github.com/cristalhq/hedgedhttp
 github.com/davecgh/go-spew/spew
 # github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
 github.com/dgryski/go-rendezvous
+# github.com/dimchansky/utfbom v1.1.1
+github.com/dimchansky/utfbom
 # github.com/docker/go-units v0.4.0
 github.com/docker/go-units
 # github.com/drone/envsubst v1.0.3
@@ -334,7 +356,7 @@ github.com/go-openapi/strfmt
 github.com/go-openapi/swag
 # github.com/go-openapi/validate v0.20.2
 github.com/go-openapi/validate
-# github.com/go-redis/redis/v8 v8.9.0
+# github.com/go-redis/redis/v8 v8.9.0 => github.com/go-redis/redis/v8 v8.11.0
 github.com/go-redis/redis/v8
 github.com/go-redis/redis/v8/internal
 github.com/go-redis/redis/v8/internal/hashtag
@@ -403,6 +425,7 @@ github.com/google/btree
 ## explicit
 github.com/google/flatbuffers/go
 # github.com/google/go-cmp v0.5.6
+## explicit
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
@@ -606,13 +629,12 @@ github.com/jstemmer/go-junit-report/parser
 github.com/jsternberg/zap-logfmt
 # github.com/julienschmidt/httprouter v1.3.0
 github.com/julienschmidt/httprouter
-# github.com/klauspost/compress v1.11.13
+# github.com/klauspost/compress v1.13.1
 ## explicit
 github.com/klauspost/compress/flate
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/gzip
 github.com/klauspost/compress/huff0
-github.com/klauspost/compress/snappy
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/klauspost/cpuid v1.3.1
@@ -714,7 +736,7 @@ github.com/pmezard/go-difflib/difflib
 # github.com/pquerna/cachecontrol v0.0.0-20200819021114-67c6ae64274f
 github.com/pquerna/cachecontrol
 github.com/pquerna/cachecontrol/cacheobject
-# github.com/prometheus/alertmanager v0.22.3-0.20210628111558-8491f816296b
+# github.com/prometheus/alertmanager v0.22.3-0.20210726110322-3d86bd709df8
 github.com/prometheus/alertmanager/api
 github.com/prometheus/alertmanager/api/metrics
 github.com/prometheus/alertmanager/api/v1
@@ -741,6 +763,7 @@ github.com/prometheus/alertmanager/notify/opsgenie
 github.com/prometheus/alertmanager/notify/pagerduty
 github.com/prometheus/alertmanager/notify/pushover
 github.com/prometheus/alertmanager/notify/slack
+github.com/prometheus/alertmanager/notify/sns
 github.com/prometheus/alertmanager/notify/victorops
 github.com/prometheus/alertmanager/notify/webhook
 github.com/prometheus/alertmanager/notify/wechat
@@ -774,6 +797,8 @@ github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
 github.com/prometheus/common/route
 github.com/prometheus/common/version
+# github.com/prometheus/common/sigv4 v0.1.0
+github.com/prometheus/common/sigv4
 # github.com/prometheus/node_exporter v1.0.0-rc.0.0.20200428091818-01054558c289
 github.com/prometheus/node_exporter/https
 # github.com/prometheus/procfs v0.7.1
@@ -881,7 +906,7 @@ github.com/stretchr/testify/mock
 github.com/stretchr/testify/require
 # github.com/subosito/gotenv v1.2.0
 github.com/subosito/gotenv
-# github.com/thanos-io/thanos v0.19.1-0.20210427154226-d5bd651319d2
+# github.com/thanos-io/thanos v0.19.1-0.20210729154440-aa148f8fdb28
 github.com/thanos-io/thanos/pkg/block
 github.com/thanos-io/thanos/pkg/block/indexheader
 github.com/thanos-io/thanos/pkg/block/metadata
@@ -1151,22 +1176,48 @@ go.opentelemetry.io/collector/translator/internaldata
 go.opentelemetry.io/collector/translator/trace
 go.opentelemetry.io/collector/translator/trace/jaeger
 go.opentelemetry.io/collector/translator/trace/zipkin
-# go.opentelemetry.io/otel v0.20.0
+# go.opentelemetry.io/otel v1.0.0-RC2
+## explicit
 go.opentelemetry.io/otel
 go.opentelemetry.io/otel/attribute
+go.opentelemetry.io/otel/baggage
 go.opentelemetry.io/otel/codes
 go.opentelemetry.io/otel/internal
 go.opentelemetry.io/otel/internal/baggage
 go.opentelemetry.io/otel/internal/global
 go.opentelemetry.io/otel/internal/trace/noop
 go.opentelemetry.io/otel/propagation
-go.opentelemetry.io/otel/unit
-# go.opentelemetry.io/otel/metric v0.20.0
+go.opentelemetry.io/otel/semconv/v1.4.0
+# go.opentelemetry.io/otel/bridge/opencensus v0.21.0
+## explicit
+go.opentelemetry.io/otel/bridge/opencensus
+go.opentelemetry.io/otel/bridge/opencensus/utils
+# go.opentelemetry.io/otel/bridge/opentracing v1.0.0-RC2 => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
+## explicit
+go.opentelemetry.io/otel/bridge/opentracing
+go.opentelemetry.io/otel/bridge/opentracing/migration
+# go.opentelemetry.io/otel/exporters/jaeger v1.0.0-RC2
+## explicit
+go.opentelemetry.io/otel/exporters/jaeger
+go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/agent
+go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/jaeger
+go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/zipkincore
+go.opentelemetry.io/otel/exporters/jaeger/internal/third_party/thrift/lib/go/thrift
+# go.opentelemetry.io/otel/metric v0.21.0
 go.opentelemetry.io/otel/metric
-go.opentelemetry.io/otel/metric/global
 go.opentelemetry.io/otel/metric/number
-go.opentelemetry.io/otel/metric/registry
-# go.opentelemetry.io/otel/trace v0.20.0
+go.opentelemetry.io/otel/metric/unit
+# go.opentelemetry.io/otel/sdk v1.0.0-RC2
+## explicit
+go.opentelemetry.io/otel/sdk/instrumentation
+go.opentelemetry.io/otel/sdk/internal
+go.opentelemetry.io/otel/sdk/resource
+go.opentelemetry.io/otel/sdk/trace
+# go.opentelemetry.io/otel/sdk/export/metric v0.21.0
+go.opentelemetry.io/otel/sdk/export/metric
+go.opentelemetry.io/otel/sdk/export/metric/aggregation
+# go.opentelemetry.io/otel/trace v1.0.0-RC2
+## explicit
 go.opentelemetry.io/otel/trace
 # go.uber.org/atomic v1.8.0
 ## explicit
@@ -1194,6 +1245,8 @@ golang.org/x/crypto/ed25519
 golang.org/x/crypto/ed25519/internal/edwards25519
 golang.org/x/crypto/md4
 golang.org/x/crypto/pbkdf2
+golang.org/x/crypto/pkcs12
+golang.org/x/crypto/pkcs12/internal/rc2
 # golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
 golang.org/x/lint
 golang.org/x/lint/golint
@@ -1434,5 +1487,7 @@ sigs.k8s.io/yaml
 # github.com/gocql/gocql => github.com/grafana/gocql v0.0.0-20200605141915-ba5dc39ece85
 # k8s.io/api => k8s.io/api v0.20.4
 # k8s.io/client-go => k8s.io/client-go v0.20.4
+# github.com/go-redis/redis/v8 => github.com/go-redis/redis/v8 v8.11.0
 # google.golang.org/grpc => google.golang.org/grpc v1.33.3
 # github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
+# go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
