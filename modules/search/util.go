@@ -28,6 +28,10 @@ func GetSearchResultFromData(s *tempofb.SearchData) *tempopb.TraceSearchMetadata
 // for the following reason:  a trace may be present in multiple blocks, or in partial segments
 // in live traces.  The results should reflect elements of all segments.
 func CombineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempopb.TraceSearchMetadata) {
+	if existing.TraceID == "" {
+		existing.TraceID = incoming.TraceID
+	}
+
 	if existing.RootServiceName == "" {
 		existing.RootServiceName = incoming.RootServiceName
 	}

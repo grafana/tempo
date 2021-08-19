@@ -80,21 +80,24 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 
 			sr.AddTraceInspected()
 
-			result := &tempopb.TraceSearchMetadata{}
-			matched := false
+			var result *tempopb.TraceSearchMetadata
 
 			// Search and combine from all segments for the trace.
 			for _, s := range t.searchData {
 				sr.AddBytesInspected(uint64(len(s)))
 
 				searchData := tempofb.SearchDataFromBytes(s)
-				matched := p.Matches(searchData)
-				if matched {
-					search.CombineSearchResults(result, search.GetSearchResultFromData(searchData))
+				if p.Matches(searchData) {
+					newResult := search.GetSearchResultFromData(searchData)
+					if result != nil {
+						search.CombineSearchResults(result, newResult)
+					} else {
+						result = newResult
+					}
 				}
 			}
 
-			if matched {
+			if result != nil {
 				if quit := sr.AddResult(ctx, result); quit {
 					return
 				}
