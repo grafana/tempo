@@ -14,14 +14,15 @@ import (
 
 // Vulture is used to send traces to Tempo, and then read those traces back out to verify that the service is operating correctly.
 type Vulture struct {
-	completeChan chan completeTrace
-	tracer       trace.Tracer
-	writeBackoff time.Duration
-	readBackoff  time.Duration
+	completeChan     chan completeTrace
+	tracer           trace.Tracer
+	writeBackoff     time.Duration
+	longWriteBackoff time.Duration
+	readBackoff      time.Duration
 }
 
 // NewVulture creates a new Vulture, or an error if any.
-func NewVulture(writeBackoff, readBackoff time.Duration) (*Vulture, error) {
+func NewVulture(writeBackoff, longWriteBackoff, readBackoff time.Duration) (*Vulture, error) {
 	ctx := context.Background()
 
 	otelClient, err := newOtelGRPCClient(tempoPushURL)
@@ -40,10 +41,11 @@ func NewVulture(writeBackoff, readBackoff time.Duration) (*Vulture, error) {
 	tracer := tp.Tracer("tempo-vulture")
 
 	v := Vulture{
-		completeChan: make(chan completeTrace, 100),
-		writeBackoff: writeBackoff,
-		readBackoff:  readBackoff,
-		tracer:       tracer,
+		completeChan:     make(chan completeTrace, 100),
+		writeBackoff:     writeBackoff,
+		longWriteBackoff: longWriteBackoff,
+		readBackoff:      readBackoff,
+		tracer:           tracer,
 	}
 
 	return &v, nil
@@ -53,8 +55,11 @@ func (v *Vulture) Start() (context.Context, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go v.generateShortSpans(ctx, v.writeBackoff)
-	go v.generateLongSpans(ctx, 57*time.Second)
 	go v.validateSpans(ctx, v.readBackoff)
+
+	if tempoIncludeLongTraces {
+		go v.generateLongSpans(ctx, v.longWriteBackoff)
+	}
 
 	return ctx, cancel
 }

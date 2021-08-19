@@ -30,12 +30,14 @@ var (
 	prometheusListenAddress string
 	prometheusPath          string
 
-	tempoQueryURL             string
-	tempoPushURL              string
-	tempoOrgID                string
-	tempoWriteBackoffDuration time.Duration
-	tempoReadBackoffDuration  time.Duration
-	tempoRetentionDuration    time.Duration
+	tempoQueryURL                 string
+	tempoPushURL                  string
+	tempoOrgID                    string
+	tempoWriteBackoffDuration     time.Duration
+	tempoLongWriteBackoffDuration time.Duration
+	tempoReadBackoffDuration      time.Duration
+	tempoRetentionDuration        time.Duration
+	tempoIncludeLongTraces        bool
 
 	logger *zap.Logger
 )
@@ -56,8 +58,10 @@ func init() {
 	flag.StringVar(&tempoPushURL, "tempo-push-url", "", "The URL (scheme://hostname:port) at which to push traces to Tempo.")
 	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
 	flag.DurationVar(&tempoWriteBackoffDuration, "tempo-write-backoff-duration", 15*time.Second, "The amount of time to pause between write Tempo calls")
+	flag.DurationVar(&tempoLongWriteBackoffDuration, "tempo-long-write-backoff-duration", 45*time.Second, "The amount of time to pause between appending spans to long running traces")
 	flag.DurationVar(&tempoReadBackoffDuration, "tempo-read-backoff-duration", 30*time.Second, "The amount of time to pause between read Tempo calls")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
+	flag.BoolVar(&tempoIncludeLongTraces, "long-traces", false, "Include sending of long running traces")
 }
 
 func main() {
@@ -72,7 +76,7 @@ func main() {
 
 	logger.Info("Tempo Vulture starting")
 
-	v, err := NewVulture(tempoWriteBackoffDuration, tempoReadBackoffDuration)
+	v, err := NewVulture(tempoWriteBackoffDuration, tempoLongWriteBackoffDuration, tempoReadBackoffDuration)
 	if err != nil {
 		panic(err)
 	}
