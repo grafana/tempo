@@ -32,27 +32,7 @@ type backendSearchBlockWriter struct {
 
 var _ common.DataWriterGeneric = (*backendSearchBlockWriter)(nil)
 
-/*
-// snappy
-func defaultEncode(dst []byte, src []byte) []byte {
-	dst = dst[:0]
-	return snappy.Encode(dst, src)
-}
-func defaultDecode(dst []byte, src []byte) ([]byte, error) {
-	dst = dst[:0]
-	return snappy.Decode(dst, src)
-}
-*/
-
-// none
-func defaultEncode(dst, src []byte) []byte {
-	return src
-}
-func defaultDecode(dst, src []byte) ([]byte, error) {
-	return src, nil
-}
-
-func NewBackendSearchBbackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.RawWriter, enc backend.Encoding) (*backendSearchBlockWriter, error) {
+func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.RawWriter, enc backend.Encoding) (*backendSearchBlockWriter, error) {
 	finalBuf := &bytes.Buffer{}
 
 	dw, err := encoding.LatestEncoding().NewDataWriter(finalBuf, enc)

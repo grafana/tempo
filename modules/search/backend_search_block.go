@@ -31,7 +31,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 	kv := &tempofb.KeyValues{} // buffer
 
 	// Copy records into the appender
-	w, err := NewBackendSearchBbackendSearchBlockWriter(blockID, tenantID, l, enc)
+	w, err := newBackendSearchBlockWriter(blockID, tenantID, l, enc)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 	}
 
 	// Write meta
-	sm := &SearchBlockMeta{
+	sm := &BlockMeta{
 		IndexPageSize: uint32(indexPageSize),
 		IndexRecords:  uint32(len(ir)),
 		Version:       encoding.LatestEncoding().Version(),

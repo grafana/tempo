@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-type SearchBlockMeta struct {
+type BlockMeta struct {
 	Version       string           `json:"version"`
 	Encoding      backend.Encoding `json:"encoding"` // Encoding/compression format
 	IndexPageSize uint32           `json:"indexPageSize"`
@@ -19,17 +19,17 @@ type SearchBlockMeta struct {
 
 const searchMetaObjectName = "search.meta.json"
 
-func WriteSearchBlockMeta(ctx context.Context, w backend.RawWriter, blockID uuid.UUID, tenantID string, sm *SearchBlockMeta) error {
-	metaJson, err := json.Marshal(sm)
+func WriteSearchBlockMeta(ctx context.Context, w backend.RawWriter, blockID uuid.UUID, tenantID string, sm *BlockMeta) error {
+	metaBytes, err := json.Marshal(sm)
 	if err != nil {
 		return err
 	}
 
-	err = w.Write(ctx, searchMetaObjectName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(metaJson), int64(len(metaJson)), false)
+	err = w.Write(ctx, searchMetaObjectName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(metaBytes), int64(len(metaBytes)), false)
 	return err
 }
 
-func ReadSearchBlockMeta(ctx context.Context, r backend.RawReader, blockID uuid.UUID, tenantID string) (*SearchBlockMeta, error) {
+func ReadSearchBlockMeta(ctx context.Context, r backend.RawReader, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
 	metaReader, size, err := r.Read(ctx, searchMetaObjectName, backend.KeyPathForBlock(blockID, tenantID), false)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func ReadSearchBlockMeta(ctx context.Context, r backend.RawReader, blockID uuid.
 		return nil, err
 	}
 
-	meta := &SearchBlockMeta{}
+	meta := &BlockMeta{}
 	err = json.Unmarshal(metaBytes, meta)
 	if err != nil {
 		return nil, err
