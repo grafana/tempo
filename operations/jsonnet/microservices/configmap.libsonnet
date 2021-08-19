@@ -101,7 +101,7 @@
 
   // This will be the single configmap that stores `overrides.yaml`.
   overrides_configmap:
-    configMap.new('overrides') +
+    configMap.new($._config.overrides_configmap_name) +
     configMap.withData({
       'overrides.yaml': k.util.manifestYaml({
         overrides: $._config.overrides,
