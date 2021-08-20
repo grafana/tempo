@@ -106,8 +106,8 @@ func (sr *SearchResults) TracesInspected() uint32 {
 	return sr.tracesInspected.Load()
 }
 
-func (sr *SearchResults) AddTraceInspected() {
-	sr.tracesInspected.Inc()
+func (sr *SearchResults) AddTraceInspected(c uint32) {
+	sr.tracesInspected.Add(c)
 }
 
 func (sr *SearchResults) BytesInspected() uint64 {

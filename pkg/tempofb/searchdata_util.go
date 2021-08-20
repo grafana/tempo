@@ -31,6 +31,48 @@ func (s SearchDataMap) Add(k, v string) {
 	s[k] = append(vs, v)
 }
 
+func (s SearchDataMap) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
+	offsets := make([]flatbuffers.UOffsetT, 0, len(s))
+
+	// Sort keys
+	keys := make([]string, 0, len(s))
+	for k := range s {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		ko := b.CreateSharedString(strings.ToLower(k))
+
+		// Sort values
+		v := s[k]
+		sort.Strings(v)
+
+		valueStrings := make([]flatbuffers.UOffsetT, len(v))
+		for i := range v {
+			valueStrings[i] = b.CreateSharedString(strings.ToLower(v[i]))
+		}
+
+		KeyValuesStartValueVector(b, len(valueStrings))
+		for _, vs := range valueStrings {
+			b.PrependUOffsetT(vs)
+		}
+		valueVector := b.EndVector(len(valueStrings))
+
+		KeyValuesStart(b)
+		KeyValuesAddKey(b, ko)
+		KeyValuesAddValue(b, valueVector)
+		offsets = append(offsets, KeyValuesEnd(b))
+	}
+
+	SearchDataStartTagsVector(b, len(offsets))
+	for _, kvo := range offsets {
+		b.PrependUOffsetT(kvo)
+	}
+	keyValueVector := b.EndVector((len(offsets)))
+	return keyValueVector
+}
+
 // SearchDataMutable is a mutable form of the flatbuffer-compiled SearchData struct, to make building and transporting.
 type SearchDataMutable struct {
 	TraceID           common.ID
@@ -69,53 +111,80 @@ func (s *SearchDataMutable) ToBytes() []byte {
 }
 
 func (s *SearchDataMutable) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
-	keyValueOffsets := make([]flatbuffers.UOffsetT, 0, len(s.Tags))
 
 	idOffset := b.CreateByteString(s.TraceID)
 
-	// Sort keys
-	keys := make([]string, 0, len(s.Tags))
-	for k := range s.Tags {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
-		ko := b.CreateSharedString(strings.ToLower(k))
-
-		// Sort values
-		v := s.Tags[k]
-		sort.Strings(v)
-
-		valueStrings := make([]flatbuffers.UOffsetT, len(v))
-		for i := range v {
-			valueStrings[i] = b.CreateSharedString(strings.ToLower(v[i]))
-		}
-
-		KeyValuesStartValueVector(b, len(valueStrings))
-		for _, vs := range valueStrings {
-			b.PrependUOffsetT(vs)
-		}
-		valueVector := b.EndVector(len(valueStrings))
-
-		KeyValuesStart(b)
-		KeyValuesAddKey(b, ko)
-		KeyValuesAddValue(b, valueVector)
-		keyValueOffsets = append(keyValueOffsets, KeyValuesEnd(b))
-	}
-
-	SearchDataStartTagsVector(b, len(keyValueOffsets))
-	for _, kvo := range keyValueOffsets {
-		b.PrependUOffsetT(kvo)
-	}
-	keyValueVector := b.EndVector((len(keyValueOffsets)))
+	tagOffset := s.Tags.WriteToBuilder(b)
 
 	SearchDataStart(b)
 	SearchDataAddId(b, idOffset)
 	SearchDataAddStartTimeUnixNano(b, s.StartTimeUnixNano)
 	SearchDataAddEndTimeUnixNano(b, s.EndTimeUnixNano)
-	SearchDataAddTags(b, keyValueVector)
+	SearchDataAddTags(b, tagOffset)
 	return SearchDataEnd(b)
+}
+
+type BatchSearchDataBuilder struct {
+	builder     *flatbuffers.Builder
+	allTags     SearchDataMap
+	pageEntries []flatbuffers.UOffsetT
+}
+
+func NewBatchSearchDataBuilder() *BatchSearchDataBuilder {
+	return &BatchSearchDataBuilder{
+		builder: flatbuffers.NewBuilder(1024),
+		allTags: SearchDataMap{},
+	}
+}
+
+func (b *BatchSearchDataBuilder) AddData(data *SearchDataMutable) int {
+	for k, vv := range data.Tags {
+		for _, v := range vv {
+			b.allTags.Add(k, v)
+		}
+	}
+
+	oldOffset := b.builder.Offset()
+	offset := data.WriteToBuilder(b.builder)
+	b.pageEntries = append(b.pageEntries, offset)
+
+	// bytes written
+	return int(offset - oldOffset)
+}
+
+func (b *BatchSearchDataBuilder) Finish() []byte {
+	// At this point all individual entries have been written
+	// to the fb builder. Now we need to wrap them up in the final
+	// batch object.
+
+	// Create vector
+	BatchSearchDataStartEntriesVector(b.builder, len(b.pageEntries))
+	for _, entry := range b.pageEntries {
+		b.builder.PrependUOffsetT(entry)
+	}
+	entryVector := b.builder.EndVector(len(b.pageEntries))
+
+	// Create tags
+	tagOffset := b.allTags.WriteToBuilder(b.builder)
+	SearchDataStart(b.builder)
+	SearchDataAddTags(b.builder, tagOffset)
+	allOffset := SearchDataEnd(b.builder)
+
+	// Write final batch object
+	BatchSearchDataStart(b.builder)
+	BatchSearchDataAddEntries(b.builder, entryVector)
+	BatchSearchDataAddAll(b.builder, allOffset)
+	batch := BatchSearchDataEnd(b.builder)
+	b.builder.Finish(batch)
+	buf := b.builder.FinishedBytes()
+
+	return buf
+}
+
+func (b *BatchSearchDataBuilder) Reset() {
+	b.builder.Reset()
+	b.pageEntries = b.pageEntries[:0]
+	b.allTags = SearchDataMap{}
 }
 
 // SearchDataGet searches SearchData and returns the first value found for the given key.

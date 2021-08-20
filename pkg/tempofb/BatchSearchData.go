@@ -33,8 +33,21 @@ func (rcv *BatchSearchData) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-func (rcv *BatchSearchData) Entries(obj *SearchData, j int) bool {
+func (rcv *BatchSearchData) All(obj *SearchData) *SearchData {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
+	if o != 0 {
+		x := rcv._tab.Indirect(o + rcv._tab.Pos)
+		if obj == nil {
+			obj = new(SearchData)
+		}
+		obj.Init(rcv._tab.Bytes, x)
+		return obj
+	}
+	return nil
+}
+
+func (rcv *BatchSearchData) Entries(obj *SearchData, j int) bool {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		x := rcv._tab.Vector(o)
 		x += flatbuffers.UOffsetT(j) * 4
@@ -46,7 +59,7 @@ func (rcv *BatchSearchData) Entries(obj *SearchData, j int) bool {
 }
 
 func (rcv *BatchSearchData) EntriesLength() int {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		return rcv._tab.VectorLen(o)
 	}
@@ -54,10 +67,13 @@ func (rcv *BatchSearchData) EntriesLength() int {
 }
 
 func BatchSearchDataStart(builder *flatbuffers.Builder) {
-	builder.StartObject(1)
+	builder.StartObject(2)
+}
+func BatchSearchDataAddAll(builder *flatbuffers.Builder, all flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(all), 0)
 }
 func BatchSearchDataAddEntries(builder *flatbuffers.Builder, entries flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(entries), 0)
+	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(entries), 0)
 }
 func BatchSearchDataStartEntriesVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(4, numElems, 4)

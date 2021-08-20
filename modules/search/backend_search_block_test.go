@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newBackendSearchBlockWithTraces(traceCount int, t testing.TB) *BackendSearchBlock {
+func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.Encoding) *BackendSearchBlock {
 	id := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15} // 16-byte ids required
 	searchData := [][]byte{(&tempofb.SearchDataMutable{
 		Tags: tempofb.SearchDataMap{
@@ -44,7 +44,7 @@ func newBackendSearchBlockWithTraces(traceCount int, t testing.TB) *BackendSearc
 
 	blockID := uuid.New()
 	tenantID := "fake"
-	err = NewBackendSearchBlock(b1, l, blockID, tenantID, backend.EncNone)
+	err = NewBackendSearchBlock(b1, l, blockID, tenantID, enc)
 	require.NoError(t, err)
 
 	b2 := OpenBackendSearchBlock(l, blockID, tenantID)
@@ -54,7 +54,7 @@ func newBackendSearchBlockWithTraces(traceCount int, t testing.TB) *BackendSearc
 func TestBackendSearchBlockSearch(t *testing.T) {
 	traceCount := 50_000
 
-	b2 := newBackendSearchBlockWithTraces(traceCount, t)
+	b2 := newBackendSearchBlockWithTraces(t, traceCount, backend.EncNone)
 
 	// Matches every trace
 	p := NewSearchPipeline(&tempopb.SearchRequest{
@@ -80,39 +80,44 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 }
 
 func BenchmarkBackendSearchBlockSearch(b *testing.B) {
-	b2 := newBackendSearchBlockWithTraces(b.N, b)
+	for _, enc := range backend.SupportedEncoding {
+		b.Run(enc.String(), func(b *testing.B) {
 
-	// Matches nothing, will perform an exhaustive search.
-	p := NewSearchPipeline(&tempopb.SearchRequest{
-		Tags: map[string]string{"nomatch": "nomatch"},
-	})
+			b2 := newBackendSearchBlockWithTraces(b, b.N, enc)
 
-	sr := NewSearchResults()
+			// Matches nothing, will perform an exhaustive search.
+			p := NewSearchPipeline(&tempopb.SearchRequest{
+				Tags: map[string]string{"nomatch": "nomatch"},
+			})
 
-	b.ResetTimer()
-	start := time.Now()
-	// Search 10x10 because reading the search data is much faster than creating it, but we need
-	// to spend at least 1 second to satisfy go bench minimum elapsed time requirement.
-	loops := 10
-	wg := &sync.WaitGroup{}
-	for i := 0; i < loops; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < loops; j++ {
-				err := b2.Search(context.TODO(), p, sr)
-				require.NoError(b, err)
+			sr := NewSearchResults()
+
+			b.ResetTimer()
+			start := time.Now()
+			// Search 10x10 because reading the search data is much faster than creating it, but we need
+			// to spend at least 1 second to satisfy go bench minimum elapsed time requirement.
+			loops := 10
+			wg := &sync.WaitGroup{}
+			for i := 0; i < loops; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					for j := 0; j < loops; j++ {
+						err := b2.Search(context.TODO(), p, sr)
+						require.NoError(b, err)
+					}
+				}()
 			}
-		}()
-	}
-	wg.Wait()
-	elapsed := time.Since(start)
+			wg.Wait()
+			elapsed := time.Since(start)
 
-	fmt.Printf("BackendSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s \t %d traces = %.2fM traces/s \n",
-		elapsed,
-		float64(sr.bytesInspected.Load())/(1024*1024),
-		float64(sr.bytesInspected.Load())/(elapsed.Seconds())/(1024*1024),
-		sr.TracesInspected(),
-		float64(sr.TracesInspected())/(elapsed.Seconds())/1_000_000,
-	)
+			fmt.Printf("BackendSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s \t %d traces = %.2fM traces/s \n",
+				elapsed,
+				float64(sr.bytesInspected.Load())/(1024*1024),
+				float64(sr.bytesInspected.Load())/(elapsed.Seconds())/(1024*1024),
+				sr.TracesInspected(),
+				float64(sr.TracesInspected())/(elapsed.Seconds())/1_000_000,
+			)
+		})
+	}
 }

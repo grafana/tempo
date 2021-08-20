@@ -78,7 +78,7 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 				return
 			}
 
-			sr.AddTraceInspected()
+			sr.AddTraceInspected(1)
 
 			var result *tempopb.TraceSearchMetadata
 

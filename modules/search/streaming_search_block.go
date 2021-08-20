@@ -115,7 +115,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Searc
 		}
 
 		sr.AddBytesInspected(uint64(r.Length))
-		sr.AddTraceInspected()
+		sr.AddTraceInspected(1)
 
 		searchData := tempofb.SearchDataFromBytes(buf)
 

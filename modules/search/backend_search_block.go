@@ -164,9 +164,18 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchR
 		sr.AddBytesInspected(uint64(len(dataBuf)))
 
 		datas := tempofb.GetRootAsBatchSearchData(dataBuf, 0)
+
+		// Verify something in the block matches
+		datas.All(entry)
+		if !p.Matches(entry) {
+			// Increment metric still
+			sr.AddTraceInspected(uint32(datas.EntriesLength()))
+			continue
+		}
+
 		l := datas.EntriesLength()
 		for j := 0; j < l; j++ {
-			sr.AddTraceInspected()
+			sr.AddTraceInspected(1)
 
 			datas.Entries(entry, j)
 

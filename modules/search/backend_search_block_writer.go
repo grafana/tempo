@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 
-	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -22,12 +21,11 @@ type backendSearchBlockWriter struct {
 	w        backend.RawWriter
 
 	// vars
-	builder     *flatbuffers.Builder
-	pageEntries []flatbuffers.UOffsetT
-	pageBuf     []byte
-	tracker     backend.AppendTracker
-	finalBuf    *bytes.Buffer
-	dw          common.DataWriter
+	builder  *tempofb.BatchSearchDataBuilder
+	pageBuf  []byte
+	tracker  backend.AppendTracker
+	finalBuf *bytes.Buffer
+	dw       common.DataWriter
 }
 
 var _ common.DataWriterGeneric = (*backendSearchBlockWriter)(nil)
@@ -47,7 +45,7 @@ func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.R
 
 		pageBuf:  make([]byte, 0, 1024*1024),
 		finalBuf: finalBuf,
-		builder:  flatbuffers.NewBuilder(1024),
+		builder:  tempofb.NewBatchSearchDataBuilder(),
 		dw:       dw,
 	}, nil
 }
@@ -55,35 +53,17 @@ func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.R
 // Write the data to the flatbuffer builder. Input must be a SearchDataMutable. Returns
 // the number of bytes written, which is determined from the current object in the builder.
 func (w *backendSearchBlockWriter) Write(ctx context.Context, ID common.ID, i interface{}) (int, error) {
-	oldOffset := w.builder.Offset()
-
 	data := i.(*tempofb.SearchDataMutable)
-	offset := data.WriteToBuilder(w.builder)
-	w.pageEntries = append(w.pageEntries, offset)
-
-	return int(offset - oldOffset), nil
+	bytesWritten := w.builder.AddData(data)
+	return bytesWritten, nil
 }
 
 func (w *backendSearchBlockWriter) CutPage(ctx context.Context) (int, error) {
 
-	// At this point all individual search entries have been written
-	// to the fb builder. Now we need to wrap them up in the final
-	// batch object.
+	// Finish fb page
+	buf := w.builder.Finish()
 
-	// Create vector
-	tempofb.BatchSearchDataStartEntriesVector(w.builder, len(w.pageEntries))
-	for _, entry := range w.pageEntries {
-		w.builder.PrependUOffsetT(entry)
-	}
-	entryVector := w.builder.EndVector(len(w.pageEntries))
-
-	// Write final batch object
-	tempofb.BatchSearchDataStart(w.builder)
-	tempofb.BatchSearchDataAddEntries(w.builder, entryVector)
-	batch := tempofb.BatchSearchDataEnd(w.builder)
-	w.builder.Finish(batch)
-	buf := w.builder.FinishedBytes()
-
+	// Write to data writer and cut which will encode/compress
 	w.finalBuf.Reset()
 	_, err := w.dw.Write(uuid.Nil[:], buf)
 	if err != nil {
@@ -97,6 +77,7 @@ func (w *backendSearchBlockWriter) CutPage(ctx context.Context) (int, error) {
 
 	w.pageBuf = w.finalBuf.Bytes()
 
+	// Append to backend
 	w.tracker, err = w.w.Append(ctx, "search", backend.KeyPathForBlock(w.blockID, w.tenantID), w.tracker, w.pageBuf)
 	if err != nil {
 		return 0, err
@@ -106,7 +87,6 @@ func (w *backendSearchBlockWriter) CutPage(ctx context.Context) (int, error) {
 
 	// Reset for next page
 	w.builder.Reset()
-	w.pageEntries = w.pageEntries[:0]
 
 	return bytesFlushed, nil
 }
