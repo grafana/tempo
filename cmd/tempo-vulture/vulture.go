@@ -69,11 +69,15 @@ func (v *Vulture) Stop() {
 func (v *Vulture) generateShortSpans(ctx context.Context, dur time.Duration) {
 	ticker := time.NewTicker(dur)
 
-	for range ticker.C {
-		spanCtx, span := v.tracer.Start(ctx, "write")
+	for now := range ticker.C {
+		attributes := []attribute.KeyValue{
+			attribute.String("time", now.String()),
+			attribute.String("random", generateRandomString()),
+		}
+		spanCtx, span := v.tracer.Start(ctx, "write", trace.WithAttributes(attributes...))
 		logSpan(spanCtx, v.tracer, span)
 		span.End()
-		v.completeChan <- completeTrace{span.SpanContext().TraceID(), 1}
+		v.completeChan <- completeTrace{span.SpanContext().TraceID(), 1, attributes}
 	}
 
 }
@@ -92,6 +96,7 @@ func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 	var longSpanCtx context.Context
 	// var longSpanContext trace.SpanContext
 	var longSpanCount int64
+	var longAttributes []attribute.KeyValue
 
 	highWaterMark := generateRandomInt(1, 25)
 
@@ -100,9 +105,15 @@ func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 		zap.String("method", "long"),
 	)
 
-	for range ticker.C {
+	for now := range ticker.C {
 		if longSpan == nil {
-			c, s := v.tracer.Start(ctx, "longWrite")
+			attributes := []attribute.KeyValue{
+				attribute.String("time", now.String()),
+				attribute.String("random", generateRandomString()),
+			}
+			longAttributes = attributes
+
+			c, s := v.tracer.Start(ctx, "longWrite", trace.WithAttributes(attributes...))
 			// longSpanContext = s.SpanContext()
 			s.End()
 
@@ -125,10 +136,8 @@ func (v *Vulture) generateLongSpans(ctx context.Context, dur time.Duration) {
 		x.End()
 
 		if longSpanCount > highWaterMark {
-			// logSpan(longSpanCtx, v.tracer, span)
-			// span.End()
 			// the number of itterations +1 for the logSpan() call.
-			v.completeChan <- completeTrace{span.SpanContext().TraceID(), int(longSpanCount) + 1}
+			v.completeChan <- completeTrace{span.SpanContext().TraceID(), int(longSpanCount) + 1, longAttributes}
 
 			log.Info("finished long span")
 			// reset
@@ -153,7 +162,11 @@ func (v *Vulture) validateSpans(ctx context.Context, dur time.Duration) {
 
 		readIds := 0
 		idCount := len(v.completeChan)
-		readCtx, span := v.tracer.Start(ctx, "read")
+		attributes := []attribute.KeyValue{
+			attribute.String("time", now.String()),
+			attribute.String("random", generateRandomString()),
+		}
+		readCtx, span := v.tracer.Start(ctx, "read", trace.WithAttributes(attribute.String("time", now.String())), trace.WithAttributes(attributes...))
 
 		for readIds <= idCount {
 			readIds++
@@ -162,7 +175,6 @@ func (v *Vulture) validateSpans(ctx context.Context, dur time.Duration) {
 			_, idSpan := v.tracer.Start(readCtx, completeTrace.traceID.String())
 
 			span.SetName(completeTrace.traceID.String())
-			span.SetAttributes(attribute.String("time", now.String()))
 
 			// query the trace
 			metrics, err := queryTempoAndAnalyze(tempoQueryURL, completeTrace)
@@ -175,6 +187,7 @@ func (v *Vulture) validateSpans(ctx context.Context, dur time.Duration) {
 			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
 			metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
 			metricTracesErrors.WithLabelValues("incorrectspancount").Add(float64(metrics.incorrectSpanCount))
+			metricTracesErrors.WithLabelValues("incorrectattribute").Add(float64(metrics.incorrectAttribute))
 
 			idSpan.End()
 		}
@@ -182,6 +195,6 @@ func (v *Vulture) validateSpans(ctx context.Context, dur time.Duration) {
 		logSpan(readCtx, v.tracer, span)
 		span.End()
 		// the numebr of itterations +1 for the logSpan() call
-		v.completeChan <- completeTrace{span.SpanContext().TraceID(), readIds + 1}
+		v.completeChan <- completeTrace{span.SpanContext().TraceID(), readIds + 1, attributes}
 	}
 }

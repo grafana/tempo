@@ -9,12 +9,15 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/trace"
@@ -44,6 +47,7 @@ type traceMetrics struct {
 	notFound           int
 	missingSpans       int
 	incorrectSpanCount int
+	incorrectAttribute int
 }
 
 func init() {
@@ -96,6 +100,16 @@ func newOtelGRPCClient(endpoint string) otlptrace.Client {
 	return client
 }
 
+func generateRandomString() string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+	s := make([]rune, generateRandomInt(5, 20))
+	for i := range s {
+		s[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(s)
+}
+
 func generateRandomInt(min int64, max int64) int64 {
 	number := min + rand.Int63n(max-min)
 	if number == min {
@@ -145,7 +159,54 @@ func queryTempoAndAnalyze(baseURL string, complete completeTrace) (traceMetrics,
 		tm.incorrectSpanCount++
 	}
 
+	if !equalSpanAttributes(trace, complete) {
+		tm.incorrectAttribute++
+	}
+
 	return tm, nil
+}
+
+func equalSpanAttributes(t *tempopb.Trace, complete completeTrace) bool {
+	for _, b := range t.Batches {
+		for _, ils := range b.InstrumentationLibrarySpans {
+			for _, s := range ils.Spans {
+				if len(s.ParentSpanId) > 0 {
+					continue
+				}
+
+				if len(s.Attributes) != len(complete.attributes) {
+					return false
+				}
+
+				attrs := pbToAttributes(s.Attributes)
+				if reflect.DeepEqual(attrs, complete.attributes) {
+					return true
+				}
+
+			}
+		}
+	}
+
+	return false
+}
+
+func pbToAttributes(attrs []*v1.KeyValue) []attribute.KeyValue {
+	traceAttrs := []attribute.KeyValue{}
+
+	for _, a := range attrs {
+		switch a.Value.Value.(type) {
+		case *v1.AnyValue_StringValue:
+			traceAttrs = append(traceAttrs, attribute.String(a.Key, a.Value.GetStringValue()))
+		case *v1.AnyValue_IntValue:
+			traceAttrs = append(traceAttrs, attribute.Int64(a.Key, a.Value.GetIntValue()))
+		case *v1.AnyValue_BoolValue:
+			traceAttrs = append(traceAttrs, attribute.Bool(a.Key, a.Value.GetBoolValue()))
+		case *v1.AnyValue_DoubleValue:
+			traceAttrs = append(traceAttrs, attribute.Float64(a.Key, a.Value.GetDoubleValue()))
+		}
+	}
+
+	return traceAttrs
 }
 
 func spanCount(t *tempopb.Trace) int {
@@ -214,6 +275,7 @@ func logSpan(ctx context.Context, tracer trace.Tracer, span trace.Span) {
 }
 
 type completeTrace struct {
-	traceID   trace.TraceID
-	spanCount int
+	traceID    trace.TraceID
+	spanCount  int
+	attributes []attribute.KeyValue
 }
