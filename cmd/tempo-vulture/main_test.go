@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 
@@ -62,6 +63,8 @@ func TestHasMissingSpans(t *testing.T) {
 }
 
 func TestGenerateRandomInt(t *testing.T) {
+	r := rand.New(rand.NewSource(1))
+
 	cases := []struct {
 		min    int64
 		max    int64
@@ -85,58 +88,67 @@ func TestGenerateRandomInt(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		result := generateRandomInt(tc.min, tc.max)
+		result := generateRandomInt(tc.min, tc.max, r)
 		require.Equal(t, tc.result, result)
 	}
 }
 
 func TestGenerateRandomString(t *testing.T) {
+	r := rand.New(rand.NewSource(1))
 
 	strings := []string{
-		"zgbaiCMRAjWwhTHc",
+		"XVlBzgbaiC",
 	}
 
 	for _, s := range strings {
-		result := generateRandomString()
+		result := generateRandomString(r)
 		require.Equal(t, s, result)
 	}
 }
 
 func TestGenerateRandomTags(t *testing.T) {
+	r := rand.New(rand.NewSource(1))
+
 	expected := []*thrift.Tag{
 		{
-			Key:  "cXoEFfRsWxPLDnJOb",
-			VStr: stringPointer("uAxhxKQFDaFpLSjF"),
+			Key:  "hTHctcuAxhx",
+			VStr: stringPointer("MRAjWw"),
 		},
 		{
-			Key:  "eQYhYzRyWJjP",
-			VStr: stringPointer("sNVlgTeMaPEZQ"),
+			Key:  "FfRsWxP",
+			VStr: stringPointer("KQFDaFpLSjFbcXoE"),
+		},
+		{
+			Key:  "lgTeMaPE",
+			VStr: stringPointer("LDnJObCsNV"),
 		},
 	}
-	result := generateRandomTags()
+	result := generateRandomTags(r)
 	require.Equal(t, expected, result)
 }
 
 func TestGenerateRandomLogs(t *testing.T) {
+	r := rand.New(rand.NewSource(1))
+
 	expected := []*thrift.Log{
 		{
 			Timestamp: time.Now().Unix(),
 			Fields: []*thrift.Tag{
 				{
-					Key:  "tHsbZRjxAwnwekrBEmf",
-					VStr: stringPointer("fRFEgmotaF"),
+					Key:  "WJjPjzpfRFEgmota",
+					VStr: stringPointer("ZQleQYhYzRy"),
 				},
 				{
-					Key:  "QZLCtTMt",
-					VStr: stringPointer("zdcEkXBAk"),
+					Key:  "RjxAwnwekr",
+					VStr: stringPointer("FetHsbZ"),
 				},
 				{
-					Key:  "AReKJy",
-					VStr: stringPointer("CoaNatyyiN"),
+					Key:  "EkXBAkjQZLCtT",
+					VStr: stringPointer("BEmfdzdc"),
 				},
 				{
-					Key:  "ussVma",
-					VStr: stringPointer("XJrscctNswYNsG"),
+					Key:  "eKJyiXJrscctNswYNsG",
+					VStr: stringPointer("MtTCoaNatyyiNKAR"),
 				},
 			},
 		},
@@ -144,21 +156,38 @@ func TestGenerateRandomLogs(t *testing.T) {
 			Timestamp: time.Now().Unix(),
 			Fields: []*thrift.Tag{
 				{
-					Key:  "GZsnwTKSmVoiG",
-					VStr: stringPointer("FZBsbOJiF"),
+					Key:  "FZBsbOJiFQG",
+					VStr: stringPointer("RussVmaoz"),
 				},
 				{
-					Key:  "VjaRzLNTXYeUCWKs",
-					VStr: stringPointer("OpbUOpEdKupdOMe"),
+					Key:  "iGLOpbUOpEdKu",
+					VStr: stringPointer("ZsnwTKSmVo"),
 				},
 				{
-					Key:  "LbtZsyMGeu",
-					VStr: stringPointer("bGyRAOmBTvKSJfjz"),
+					Key:  "TXYeUC",
+					VStr: stringPointer("pdOMeRVjaRzLN"),
+				},
+				{
+					Key:  "mBTvKSJfjza",
+					VStr: stringPointer("WKsXbGyRAO"),
+				},
+			},
+		},
+		{
+			Timestamp: time.Now().Unix(),
+			Fields: []*thrift.Tag{
+				{
+					Key:  "DQiYCOhgHOv",
+					VStr: stringPointer("LbtZsyMGeuDtRzQM"),
+				},
+				{
+					Key:  "fNjJhhjUVRuSqfgqVM",
+					VStr: stringPointer("gSeycJPJHYNu"),
 				},
 			},
 		},
 	}
-	result := generateRandomLogs()
+	result := generateRandomLogs(r)
 	require.Equal(t, expected, result)
 }
 

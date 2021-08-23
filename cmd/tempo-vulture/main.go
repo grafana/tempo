@@ -85,7 +85,7 @@ func main() {
 			<-tickerWrite.C
 
 			seed := (time.Now().Unix() / interval) * interval
-			rand.Seed(seed)
+			r := rand.New(rand.NewSource(seed))
 			traceIDHigh := rand.Int63()
 			traceIDLow := rand.Int63()
 
@@ -96,7 +96,7 @@ func main() {
 			)
 			logger.Info("sending trace")
 
-			for i := int64(0); i < generateRandomInt(1, 100); i++ {
+			for i := int64(0); i < generateRandomInt(1, 100, r); i++ {
 				ctx := user.InjectOrgID(context.Background(), tempoOrgID)
 				ctx, err := user.InjectIntoGRPCRequest(ctx)
 				if err != nil {
@@ -104,7 +104,7 @@ func main() {
 					metricErrorTotal.Inc()
 					continue
 				}
-				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow))
+				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow, r))
 				if err != nil {
 					logger.Error("error pushing batch to Tempo", zap.Error(err))
 					metricErrorTotal.Inc()
@@ -127,7 +127,7 @@ func main() {
 			}
 
 			// pick past interval and re-generate trace
-			seed := (generateRandomInt(startTime, currentTime) / interval) * interval
+			seed := (generateRandomInt(startTime, currentTime, rand.New(rand.NewSource(1))) / interval) * interval
 			rand.Seed(seed)
 			hexID := fmt.Sprintf("%016x%016x", rand.Int63(), rand.Int63())
 
@@ -162,66 +162,66 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
-func generateRandomString() string {
+func generateRandomString(r *rand.Rand) string {
 	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-	s := make([]rune, generateRandomInt(5, 20))
+	s := make([]rune, generateRandomInt(5, 20, r))
 	for i := range s {
 		s[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(s)
 }
 
-func generateRandomTags() []*thrift.Tag {
+func generateRandomTags(r *rand.Rand) []*thrift.Tag {
 	var tags []*thrift.Tag
-	count := generateRandomInt(1, 5)
+	count := generateRandomInt(1, 5, r)
 	for i := int64(0); i < count; i++ {
-		value := generateRandomString()
+		value := generateRandomString(r)
 		tags = append(tags, &thrift.Tag{
-			Key:  generateRandomString(),
+			Key:  generateRandomString(r),
 			VStr: &value,
 		})
 	}
 	return tags
 }
 
-func generateRandomLogs() []*thrift.Log {
+func generateRandomLogs(r *rand.Rand) []*thrift.Log {
 	var logs []*thrift.Log
-	count := generateRandomInt(1, 5)
+	count := generateRandomInt(1, 5, r)
 	for i := int64(0); i < count; i++ {
 		logs = append(logs, &thrift.Log{
 			Timestamp: time.Now().Unix(),
-			Fields:    generateRandomTags(),
+			Fields:    generateRandomTags(r),
 		})
 	}
 	return logs
 }
 
-func makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift.Batch {
+func makeThriftBatch(TraceIDHigh int64, TraceIDLow int64, r *rand.Rand) *thrift.Batch {
 	var spans []*thrift.Span
-	count := generateRandomInt(1, 5)
+	count := generateRandomInt(1, 5, r)
 	for i := int64(0); i < count; i++ {
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    TraceIDLow,
 			TraceIdHigh:   TraceIDHigh,
 			SpanId:        rand.Int63(),
 			ParentSpanId:  0,
-			OperationName: generateRandomString(),
+			OperationName: generateRandomString(r),
 			References:    nil,
 			Flags:         0,
 			StartTime:     time.Now().Unix(),
 			Duration:      rand.Int63(),
-			Tags:          generateRandomTags(),
-			Logs:          generateRandomLogs(),
+			Tags:          generateRandomTags(r),
+			Logs:          generateRandomLogs(r),
 		})
 	}
 	return &thrift.Batch{Spans: spans}
 }
 
-func generateRandomInt(min int64, max int64) int64 {
-	number := min + rand.Int63n(max-min)
+func generateRandomInt(min int64, max int64, r *rand.Rand) int64 {
+	number := min + r.Int63n(max-min)
 	if number == min {
-		return generateRandomInt(min, max)
+		return generateRandomInt(min, max, r)
 	}
 	return number
 }
