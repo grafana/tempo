@@ -199,3 +199,12 @@ Arguments:
 ```bash
 tempo-cli view index -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```
+
+## Generate Index
+
+To generate the index/bloom for a block if the files were deleted/corrupted.
+
+**Example:**
+```bash
+tempo-cli gen gen-index -c ./tempo.yaml single-tenant b18beca6-4d7f-4464-9f72-f343e688a4a0
+```

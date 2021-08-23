@@ -23,7 +23,7 @@ func (cmd *listIndexCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	r, _, err := loadBackend(&cmd.backendOptions, ctx)
+	r, _, _, err := loadBackend(&cmd.backendOptions, ctx)
 	if err != nil {
 		return err
 	}
