@@ -92,7 +92,7 @@ func (cmd *genIndexCmd) Run(ctx *globalOptions) error {
 	}
 
 	// replay file to extract records
-	records, warning, err := ReplayBlockAndGetRecords(meta, "./cmd/tempo-cli/test-data/" + cmd.TenantID + "/" + cmd.BlockID + "/data")
+	records, warning, err := ReplayBlockAndGetRecords(meta, "./cmd/tempo-cli/test-data/"+cmd.TenantID+"/"+cmd.BlockID+"/data")
 	if warning != nil || err != nil {
 		fmt.Println("error replaying block", warning, err)
 		return nil
