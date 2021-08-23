@@ -15,6 +15,8 @@ import (
 
 var _ SearchBlock = (*BackendSearchBlock)(nil)
 
+const defaultBackendSearchBlockPageSize = 1024 * 1024
+
 type BackendSearchBlock struct {
 	id       uuid.UUID
 	tenantID string
@@ -24,11 +26,15 @@ type BackendSearchBlock struct {
 // NewBackendSearchBlock iterates through the given WAL search data and writes it to the persistent backend
 // in a more efficient paged form. Multiple traces are written in the same page to make sure of the flatbuffer
 // CreateSharedString feature which dedupes strings across the entire buffer.
-func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockID uuid.UUID, tenantID string, enc backend.Encoding) error {
+func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockID uuid.UUID, tenantID string, enc backend.Encoding, pageSizeBytes int) error {
 	var err error
 	ctx := context.TODO()
 	indexPageSize := 100 * 1024
 	kv := &tempofb.KeyValues{} // buffer
+
+	if pageSizeBytes <= 0 {
+		pageSizeBytes = defaultBackendSearchBlockPageSize
+	}
 
 	// Copy records into the appender
 	w, err := newBackendSearchBlockWriter(blockID, tenantID, l, enc)
@@ -36,7 +42,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		return err
 	}
 
-	a := encoding.NewBufferedAppenderGeneric(w, 1024*1024)
+	a := encoding.NewBufferedAppenderGeneric(w, pageSizeBytes)
 	for _, r := range input.appender.Records() {
 
 		// Read
