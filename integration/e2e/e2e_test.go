@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"testing"
@@ -261,12 +262,17 @@ func assertEcho(t *testing.T, url string) {
 func queryAndAssertTrace(t *testing.T, url string, expectedName string, expectedBatches int) {
 	res, err := cortex_e2e.GetRequest(url)
 	require.NoError(t, err)
+	defer res.Body.Close()
+
+	assertTrace(t, res.Body, expectedBatches, expectedName)
+}
+
+func assertTrace(t *testing.T, reader io.Reader, expectedBatches int, expectedName string) {
 	out := &tempopb.Trace{}
 	unmarshaller := &jsonpb.Unmarshaler{}
-	require.NoError(t, unmarshaller.Unmarshal(res.Body, out))
+	require.NoError(t, unmarshaller.Unmarshal(reader, out))
 	require.Len(t, out.Batches, expectedBatches)
 	assert.Equal(t, expectedName, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name)
-	defer res.Body.Close()
 }
 
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
