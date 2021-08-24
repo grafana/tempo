@@ -26,8 +26,9 @@ import (
 )
 
 const (
-	s3KeyDoesNotExist  = "The specified key does not exist."
-	uptoHedgedRequests = 2
+	s3KeyDoesNotExist     = "The specified key does not exist."
+	s3KeyDoesNotExistCode = "NoSuchKey"
+	uptoHedgedRequests    = 2
 )
 
 // readerWriter can read/write from an s3 backend
@@ -360,6 +361,10 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 
 func readError(err error) error {
 	if err != nil && err.Error() == s3KeyDoesNotExist {
+		return backend.ErrDoesNotExist
+	}
+
+	if err != nil && minio.ToErrorResponse(err).Code == s3KeyDoesNotExistCode {
 		return backend.ErrDoesNotExist
 	}
 
