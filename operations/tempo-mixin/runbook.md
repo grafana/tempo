@@ -6,10 +6,7 @@ This document should help with remediating operational issues in Tempo.
 ## TempoRequestLatency
 
 Aside from obvious errors in the logs the only real lever you can pull here is scaling.  Use the Reads or Writes dashboard
-to identify the component that is struggling and scale it up.  It should be noted that right now quickly scaling the
-Ingester component can cause 404s on traces until they are flushed to the backend.  For safety you may only want to
-scale one per hour.  However, if Ingesters are falling over, it's better to scale fast, ingest successfully and throw 404s
-on query than to have an unstable ingest path.  Make the call!
+to identify the component that is struggling and scale it up.
 
 The Query path is instrumented with tracing (!) and this can be used to diagnose issues with higher latency. View the logs of
 the Query Frontend, where you can find an info level message for every request. Filter for requests with high latency and view traces.

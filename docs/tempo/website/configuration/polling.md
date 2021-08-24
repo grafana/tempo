@@ -37,7 +37,8 @@ ingester:
 
 The compactor `compacted_block_retention` is used to keep a block in the backend for a given period of time
 after it has been compacted and the data is no longer needed. This allows queriers with a stale blocklist to access
-these blocks successfully until they complete their polling cycles and have up to date blocklists.
+these blocks successfully until they complete their polling cycles and have up to date blocklists. Like the 
+`complete_block_timeout` this should be at a minimum 2x the configurated `blocklist_poll` duration.
 
 ```
 compactor:
@@ -45,3 +46,7 @@ compactor:
     # How long to leave a block in the backend after it has been compacted successfully.  Default is 1h
     [compacted_block_retention: <duration>]
 ```
+
+Additionally, it is important that the querier `blocklist_poll` duration is greater than or equal to the compactor 
+`blocklist_poll` duration. Otherwise a querier may not correctly check all assigned blocks and incorrectly return 404. 
+It is recommended to simply set both components to use the same poll duration.
