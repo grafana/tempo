@@ -191,4 +191,82 @@ func TestGenerateRandomLogs(t *testing.T) {
 	require.Equal(t, expected, result)
 }
 
+func TestIntervalsBetween(t *testing.T) {
+	now := time.Now()
+	cases := []struct {
+		start    time.Time
+		stop     time.Time
+		interval time.Duration
+		count    int
+	}{
+		{
+			start:    now.Add(-1 * time.Minute),
+			stop:     now,
+			interval: 11 * time.Second,
+			count:    6,
+		},
+		{
+			start:    now.Add(-1 * time.Hour),
+			stop:     now,
+			interval: 33 * time.Second,
+			count:    110,
+		},
+	}
+
+	for _, tc := range cases {
+		result := intervalsBetween(tc.start, tc.stop, tc.interval)
+		require.Equal(t, tc.count, len(result))
+
+		if tc.count > 0 {
+			require.Equal(t, tc.start, result[0])
+			require.True(t, result[len(result)-1].Before(tc.stop))
+		}
+	}
+}
+
+func TestTrimOutdatedIntervals(t *testing.T) {
+	now := time.Now()
+
+	cases := []struct {
+		start     time.Time
+		stop      time.Time
+		interval  time.Duration
+		retention time.Duration
+		count     int
+	}{
+		{
+			start:     now.Add(-1 * time.Minute),
+			stop:      now,
+			interval:  11 * time.Second,
+			count:     3,
+			retention: 30 * time.Second,
+		},
+		{
+			start:     now.Add(-1 * time.Hour),
+			stop:      now,
+			interval:  33 * time.Second,
+			count:     110,
+			retention: 24 * time.Hour,
+		},
+		{
+			start:     now.Add(-25 * time.Hour),
+			stop:      now,
+			interval:  33 * time.Second,
+			count:     2619,
+			retention: 24 * time.Hour,
+		},
+	}
+
+	for _, tc := range cases {
+		intervals := intervalsBetween(tc.start, tc.stop, tc.interval)
+		intervals = trimOutdatedIntervals(intervals, tc.retention)
+
+		require.NotNil(t, intervals)
+		require.Equal(t, tc.count, len(intervals))
+
+		require.True(t, intervals[len(intervals)-1].Before(tc.stop))
+	}
+
+}
+
 func stringPointer(s string) *string { return &s }

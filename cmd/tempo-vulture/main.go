@@ -69,10 +69,10 @@ func main() {
 
 	logger.Info("Tempo Vulture starting")
 
-	startTime := time.Now().Unix()
+	startTime := time.Now()
 	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
 	tickerRead := time.NewTicker(tempoReadBackoffDuration)
-	interval := int64(tempoWriteBackoffDuration / time.Second)
+	interval := tempoWriteBackoffDuration
 
 	// Write
 	go func() {
@@ -81,32 +81,30 @@ func main() {
 			panic(err)
 		}
 
-		for {
-			<-tickerWrite.C
+		for now := range tickerWrite.C {
+			r := newRand(now)
 
-			seed := (time.Now().Unix() / interval) * interval
-			r := rand.New(rand.NewSource(seed))
-			traceIDHigh := rand.Int63()
-			traceIDLow := rand.Int63()
+			traceIDHigh := r.Int63()
+			traceIDLow := r.Int63()
 
-			logger := logger.With(
+			log := logger.With(
 				zap.String("org_id", tempoOrgID),
 				zap.String("write_trace_id", fmt.Sprintf("%016x%016x", traceIDLow, traceIDHigh)),
-				zap.Int64("seed", seed),
+				zap.Int64("seed", now.Unix()),
 			)
-			logger.Info("sending trace")
+			log.Info("sending trace")
 
 			for i := int64(0); i < generateRandomInt(1, 100, r); i++ {
 				ctx := user.InjectOrgID(context.Background(), tempoOrgID)
 				ctx, err := user.InjectIntoGRPCRequest(ctx)
 				if err != nil {
-					logger.Error("error injecting org id", zap.Error(err))
+					log.Error("error injecting org id", zap.Error(err))
 					metricErrorTotal.Inc()
 					continue
 				}
 				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow, r))
 				if err != nil {
-					logger.Error("error pushing batch to Tempo", zap.Error(err))
+					log.Error("error pushing batch to Tempo", zap.Error(err))
 					metricErrorTotal.Inc()
 					continue
 				}
@@ -116,20 +114,17 @@ func main() {
 
 	// Read
 	go func() {
-		for {
-			<-tickerRead.C
+		for now := range tickerRead.C {
 
-			currentTime := time.Now().Unix()
-
-			// don't query traces before retention
-			if (currentTime - startTime) > int64(tempoRetentionDuration/time.Second) {
-				startTime = currentTime - int64(tempoRetentionDuration/time.Second)
-			}
+			intervals := intervalsBetween(startTime, now, interval)
+			intervals = trimOutdatedIntervals(intervals, tempoRetentionDuration)
 
 			// pick past interval and re-generate trace
-			seed := (generateRandomInt(startTime, currentTime, rand.New(rand.NewSource(1))) / interval) * interval
-			rand.Seed(seed)
-			hexID := fmt.Sprintf("%016x%016x", rand.Int63(), rand.Int63())
+			pick := generateRandomInt(0, int64(len(intervals)), newRand(now))
+			seed := intervals[pick]
+
+			r := newRand(seed)
+			hexID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
 
 			// query the trace
 			metrics, err := queryTempoAndAnalyze(tempoQueryURL, seed, hexID)
@@ -148,18 +143,63 @@ func main() {
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
 }
 
+func intervalsBetween(start, stop time.Time, interval time.Duration) []time.Time {
+	if stop.Before(start) {
+		return nil
+	}
+
+	intervals := []time.Time{start}
+	next := start.Add(interval)
+
+	for next.Before(stop) {
+		intervals = append(intervals, next)
+		next = next.Add(interval)
+	}
+
+	return intervals
+}
+
+func trimOutdatedIntervals(intervals []time.Time, lookBehind time.Duration) []time.Time {
+	if len(intervals) == 0 {
+		return nil
+	}
+
+	oldest := intervals[len(intervals)-1].Add(-lookBehind)
+
+	for i, t := range intervals {
+		if t.Before(oldest) {
+			continue
+		}
+
+		if t.After(oldest) {
+			return intervals[i:]
+		}
+	}
+
+	return nil
+}
+
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	// remove scheme and port
 	u, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, err
 	}
+
+	logger.Info("dialing grpc",
+		zap.String("endpoint", fmt.Sprintf("%s:14250", u.Host)),
+	)
+
 	// new jaeger grpc exporter
 	conn, err := grpc.Dial(u.Host+":14250", grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
+}
+
+func newRand(t time.Time) *rand.Rand {
+	return rand.New(rand.NewSource(t.Unix()))
 }
 
 func generateRandomString(r *rand.Rand) string {
@@ -226,7 +266,7 @@ func generateRandomInt(min int64, max int64, r *rand.Rand) int64 {
 	return number
 }
 
-func queryTempoAndAnalyze(baseURL string, seed int64, traceID string) (traceMetrics, error) {
+func queryTempoAndAnalyze(baseURL string, seed time.Time, traceID string) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -234,7 +274,8 @@ func queryTempoAndAnalyze(baseURL string, seed int64, traceID string) (traceMetr
 	logger := logger.With(
 		zap.String("query_trace_id", traceID),
 		zap.String("tempo_query_url", baseURL+"/api/traces/"+traceID),
-		zap.Int64("seed", seed),
+		zap.Int64("seed", seed.Unix()),
+		zap.Duration("ago", time.Since(seed)),
 	)
 	logger.Info("querying Tempo")
 
