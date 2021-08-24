@@ -3,7 +3,6 @@ package e2e
 import (
 	"compress/gzip"
 	"context"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -36,18 +35,14 @@ func TestCompression(t *testing.T) {
 	batch := makeThriftBatch()
 	require.NoError(t, c.EmitBatch(context.Background(), batch))
 
-	hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
-
-	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
+	hexID := extractHexID(batch)
 	assert.False(t, queryAndAssertTraceCompression(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1))
 
 	// send a large trace, response should be compressed
 	batch = makeThriftBatchWithSpanCount(50) // one span is ~70 bytes, 50 spans is ~3500 bytes
 	require.NoError(t, c.EmitBatch(context.Background(), batch))
 
-	hexID = fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
-
-	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
+	hexID = extractHexID(batch)
 	assert.True(t, queryAndAssertTraceCompression(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1))
 }
 

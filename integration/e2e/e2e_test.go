@@ -2,20 +2,14 @@ package e2e
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"io/ioutil"
-	"math/rand"
 	"testing"
 	"time"
 
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
-	"github.com/gogo/protobuf/jsonpb"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -24,7 +18,6 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
@@ -83,7 +76,7 @@ func TestAllInOne(t *testing.T) {
 			// test metrics
 			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_distributor_spans_received_total"))
 
-			hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+			hexID := extractHexID(batch)
 
 			// test echo
 			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
@@ -163,7 +156,7 @@ func TestMicroservices(t *testing.T) {
 	// test metrics
 	require.NoError(t, tempoDistributor.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_distributor_spans_received_total"))
 
-	hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+	hexID := extractHexID(batch)
 
 	// test echo
 	assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
@@ -211,7 +204,7 @@ func TestMicroservices(t *testing.T) {
 
 	batch = makeThriftBatch()
 	require.NoError(t, c.EmitBatch(context.Background(), batch))
-	hexID = fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+	hexID = extractHexID(batch)
 
 	// query an in-memory trace
 	queryAndAssertTrace(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
@@ -222,33 +215,6 @@ func TestMicroservices(t *testing.T) {
 
 	batch = makeThriftBatch()
 	require.Error(t, c.EmitBatch(context.Background(), batch))
-}
-
-func makeThriftBatch() *thrift.Batch {
-	return makeThriftBatchWithSpanCount(1)
-}
-
-func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
-	var spans []*thrift.Span
-
-	traceIDLow := rand.Int63()
-	traceIDHigh := rand.Int63()
-	for i := 0; i < n; i++ {
-		spans = append(spans, &thrift.Span{
-			TraceIdLow:    traceIDLow,
-			TraceIdHigh:   traceIDHigh,
-			SpanId:        rand.Int63(),
-			ParentSpanId:  0,
-			OperationName: "my operation",
-			References:    nil,
-			Flags:         0,
-			StartTime:     time.Now().Unix(),
-			Duration:      1,
-			Tags:          nil,
-			Logs:          nil,
-		})
-	}
-	return &thrift.Batch{Spans: spans}
 }
 
 func assertEcho(t *testing.T, url string) {
@@ -265,14 +231,6 @@ func queryAndAssertTrace(t *testing.T, url string, expectedName string, expected
 	defer res.Body.Close()
 
 	assertTrace(t, res.Body, expectedBatches, expectedName)
-}
-
-func assertTrace(t *testing.T, reader io.Reader, expectedBatches int, expectedName string) {
-	out := &tempopb.Trace{}
-	unmarshaller := &jsonpb.Unmarshaler{}
-	require.NoError(t, unmarshaller.Unmarshal(reader, out))
-	require.Len(t, out.Batches, expectedBatches)
-	assert.Equal(t, expectedName, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name)
 }
 
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
