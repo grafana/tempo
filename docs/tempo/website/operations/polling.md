@@ -14,7 +14,9 @@ what's called a tenant index. The tenant index is a gzip'ed json file located at
 an entry for every block and compacted block for that tenant. This is done once every `blocklist_poll` duration.
 
 All other compactors and all queriers then rely on downloading this file, unzipping it and using the contained list. 
-Again this is done once every `blocklist_poll` duration.
+Again this is done once every `blocklist_poll` duration. **NOTE** It is important that the querier `blocklist_poll` duration 
+is greater than or equal to the compactor `blocklist_poll` duration. Otherwise a querier may not correctly check
+all assigned blocks and incorrectly return 404.
 
 Due to this behavior a given compactor or querier will often have an out of date blocklist. During normal operation
 it will stale by at most 2x the configured `blocklist_poll`. See [configuration]({{< relref "../configuration/polling" >}})
