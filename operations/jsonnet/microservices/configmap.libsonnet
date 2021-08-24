@@ -42,7 +42,7 @@
       },
     },
     overrides: {
-      per_tenant_override_config: '/conf/overrides.yaml',
+      per_tenant_override_config: '/overrides/overrides.yaml',
     },
     memberlist: {
       abort_if_cluster_join_fails: false,
@@ -99,37 +99,31 @@
 
   tempo_query_frontend_config:: $.tempo_config{},
 
+  // This will be the single configmap that stores `overrides.yaml`.
+  overrides_configmap:
+    configMap.new($._config.overrides_configmap_name) +
+    configMap.withData({
+      'overrides.yaml': k.util.manifestYaml({
+        overrides: $._config.overrides,
+      }),
+    }),
+
   tempo_distributor_configmap:
     configMap.new('tempo-distributor') +
     configMap.withData({
       'tempo.yaml': k.util.manifestYaml($.tempo_distributor_config),
-    }) +
-    configMap.withDataMixin({
-      'overrides.yaml': k.util.manifestYaml({
-        overrides: $._config.overrides,
-      }),
     }),
 
   tempo_ingester_configmap:
     configMap.new('tempo-ingester') +
     configMap.withData({
       'tempo.yaml': k.util.manifestYaml($.tempo_ingester_config),
-    }) +
-    configMap.withDataMixin({
-      'overrides.yaml': k.util.manifestYaml({
-        overrides: $._config.overrides,
-      }),
     }),
 
   tempo_compactor_configmap:
     configMap.new('tempo-compactor') +
     configMap.withData({
       'tempo.yaml': k.util.manifestYaml($.tempo_compactor_config),
-    }) +
-    configMap.withDataMixin({
-      'overrides.yaml': k.util.manifestYaml({
-        overrides: $._config.overrides,
-      }),
     }),
 
   tempo_querier_configmap:
