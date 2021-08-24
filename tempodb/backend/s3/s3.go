@@ -265,6 +265,8 @@ func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]
 	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
 	if err != nil && err.Error() == s3KeyDoesNotExist {
 		return nil, minio.ObjectInfo{}, backend.ErrDoesNotExist
+	} else if err != nil && minio.ToErrorResponse(err).Code == s3KeyDoesNotExistCode {
+		return nil, minio.ObjectInfo{}, backend.ErrDoesNotExist
 	} else if err != nil {
 		return nil, minio.ObjectInfo{}, errors.Wrap(err, "error fetching object from s3 backend")
 	}
