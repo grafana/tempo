@@ -117,7 +117,7 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 				"traceID", traceID,
 				"url", r.URL.RequestURI(),
 				"duration", time.Since(start).String(),
-				"response_size", contentLength,
+				"response_size_uncompressed", contentLength,
 				"status", statusCode,
 			)
 
