@@ -9,9 +9,11 @@ import (
 )
 
 type tracefilter func(header *tempofb.SearchData) (matches bool)
+type tagfilter func(c tempofb.TagContainer) (matches bool)
 
 type Pipeline struct {
-	filters []tracefilter
+	tagfilters   []tagfilter
+	tracefilters []tracefilter
 }
 
 func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
@@ -19,14 +21,14 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 
 	if req.MinDurationMs > 0 {
 		minDuration := req.MinDurationMs * uint32(time.Millisecond)
-		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+		p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchData) bool {
 			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) >= uint64(minDuration)
 		})
 	}
 
 	if req.MaxDurationMs > 0 {
 		maxDuration := req.MaxDurationMs * uint32(time.Millisecond)
-		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+		p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchData) bool {
 			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) <= uint64(maxDuration)
 		})
 	}
@@ -41,13 +43,13 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 			vb = append(vb, []byte(strings.ToLower(v)))
 		}
 
-		p.filters = append(p.filters, func(s *tempofb.SearchData) bool {
+		p.tagfilters = append(p.tagfilters, func(s tempofb.TagContainer) bool {
 			// Buffer is allocated here so function is thread-safe
 			buffer := &tempofb.KeyValues{}
 
 			// Must match all
 			for i := range kb {
-				if !s.Contains(buffer, kb[i], vb[i]) {
+				if !tempofb.ContainsTag(s, buffer, kb[i], vb[i]) {
 					return false
 				}
 			}
@@ -60,7 +62,13 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 
 func (p *Pipeline) Matches(header *tempofb.SearchData) bool {
 
-	for _, f := range p.filters {
+	for _, f := range p.tracefilters {
+		if !f(header) {
+			return false
+		}
+	}
+
+	for _, f := range p.tagfilters {
 		if !f(header) {
 			return false
 		}
@@ -69,20 +77,13 @@ func (p *Pipeline) Matches(header *tempofb.SearchData) bool {
 	return true
 }
 
-func (p *Pipeline) MatchesAny(headers []*tempofb.SearchData) bool {
+func (p *Pipeline) MatchesTags(c tempofb.TagContainer) bool {
 
-	if len(p.filters) == 0 {
-		// Empty pipeline matches everything
-		return true
-	}
-
-	for _, h := range headers {
-		for _, f := range p.filters {
-			if f(h) {
-				return true
-			}
+	for _, f := range p.tagfilters {
+		if !f(c) {
+			return false
 		}
 	}
 
-	return false
+	return true
 }

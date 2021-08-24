@@ -16,7 +16,8 @@ table BatchSearchData {
     // This is a rollup of all distinct tags/values in the
     // page for quick elimination.  It reuses the SearchData
     // struct to be searchable by the existing filters.
-    all: SearchData;
+    //all: SearchData;
+    tags : [KeyValues];
 
     // Trace entries
     entries : [SearchData];

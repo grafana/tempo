@@ -9,6 +9,16 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// TagContainer is anything with KeyValues (tags). This is implemented by both
+// BatchSearchData and SearchData.
+type TagContainer interface {
+	Tags(obj *KeyValues, j int) bool
+	TagsLength() int
+}
+
+var _ TagContainer = (*BatchSearchData)(nil)
+var _ TagContainer = (*SearchData)(nil)
+
 type SearchDataMap map[string][]string
 
 func (s SearchDataMap) Add(k, v string) {
@@ -42,6 +52,11 @@ func (s SearchDataMap) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffse
 	sort.Strings(keys)
 
 	for _, k := range keys {
+		// Skip empty keys
+		if len(s[k]) <= 0 {
+			continue
+		}
+
 		ko := b.CreateSharedString(strings.ToLower(k))
 
 		// Sort values
@@ -164,16 +179,13 @@ func (b *BatchSearchDataBuilder) Finish() []byte {
 	}
 	entryVector := b.builder.EndVector(len(b.pageEntries))
 
-	// Create tags
+	// Create batch-level tags
 	tagOffset := b.allTags.WriteToBuilder(b.builder)
-	SearchDataStart(b.builder)
-	SearchDataAddTags(b.builder, tagOffset)
-	allOffset := SearchDataEnd(b.builder)
 
 	// Write final batch object
 	BatchSearchDataStart(b.builder)
 	BatchSearchDataAddEntries(b.builder, entryVector)
-	BatchSearchDataAddAll(b.builder, allOffset)
+	BatchSearchDataAddTags(b.builder, tagOffset)
 	batch := BatchSearchDataEnd(b.builder)
 	b.builder.Finish(batch)
 	buf := b.builder.FinishedBytes()
@@ -243,4 +255,38 @@ func (s *SearchData) Contains(kv *KeyValues, k []byte, v []byte) bool {
 
 func SearchDataFromBytes(b []byte) *SearchData {
 	return GetRootAsSearchData(b, 0)
+}
+
+func ContainsTag(s TagContainer, kv *KeyValues, k []byte, v []byte) bool {
+
+	matched := -1
+
+	// Binary search for keys. Flatbuffers are written backwards so
+	// keys are descending (the comparison is reversed).
+	// TODO - We only want exact matches, sort.Search has to make an
+	// extra comparison. We should fork it to make use of the full
+	// tri-state response from bytes.Compare
+	sort.Search(s.TagsLength(), func(i int) bool {
+		s.Tags(kv, i)
+		comparison := bytes.Compare(k, kv.Key())
+		if comparison == 0 {
+			matched = i
+			// TODO it'd be great to exit here and retain the data in kv buffer
+		}
+		return comparison >= 0
+	})
+
+	if matched >= 0 {
+		s.Tags(kv, matched)
+
+		// Linear search for matching values
+		l := kv.ValueLength()
+		for j := 0; j < l; j++ {
+			if bytes.Contains(kv.Value(j), v) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
