@@ -73,7 +73,7 @@
     },
     storage+: {
       trace+: {
-        blocklist_poll: '10m',
+        blocklist_poll: '5m',
       },
     },
   },
