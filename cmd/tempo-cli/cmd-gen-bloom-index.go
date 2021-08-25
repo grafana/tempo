@@ -31,7 +31,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 		return nil, nil, err
 	}
 
-	var warning error
+	var replayError error
 	// replay file to extract records
 	f, err := os.OpenFile(filepath, os.O_RDONLY, 0644)
 	if err != nil {
@@ -54,7 +54,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 			break
 		}
 		if err != nil {
-			warning = err
+			replayError = err
 			break
 		}
 
@@ -71,7 +71,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 		}
 
 		if iterErr != io.EOF {
-			warning = iterErr
+			replayError = iterErr
 			break
 		}
 
@@ -85,7 +85,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 		currentOffset += uint64(pageLen)
 	}
 
-	return records, warning, nil
+	return records, replayError, nil
 }
 
 func VerifyIndex(indexReader common.IndexReader, dataReader common.DataReader) error {
@@ -106,6 +106,7 @@ func VerifyIndex(indexReader common.IndexReader, dataReader common.DataReader) e
 			return err
 		}
 	}
+	return nil
 }
 
 func (cmd *indexCmd) Run(ctx *globalOptions) error {
@@ -125,28 +126,35 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 	}
 
 	// replay file to extract records
-	records, warning, err := ReplayBlockAndGetRecords(meta, cmd.backendOptions.Bucket+cmd.TenantID+"/"+cmd.BlockID+"/"+dataFilename)
-	if warning != nil || err != nil {
-		fmt.Println("error replaying block", warning, err)
-		return nil
+	records, replayError, err := ReplayBlockAndGetRecords(meta, cmd.backendOptions.Bucket+cmd.TenantID+"/"+cmd.BlockID+"/"+dataFilename)
+	if replayError != nil {
+		fmt.Println("error replaying block. data file likely corrupt", replayError)
+		return replayError
+	}
+	if err != nil {
+		fmt.Println("error accessing data/meta file")
+		return err
 	}
 
 	// write using IndexWriter
 	v, err := encoding.FromVersion(meta.Version)
 	if err != nil {
 		fmt.Println("error creating versioned encoding", err)
+		return err
 	}
 
 	indexWriter := v.NewIndexWriter(int(meta.IndexPageSize))
 	indexBytes, err := indexWriter.Write(records)
 	if err != nil {
 		fmt.Println("error writing records to indexWriter", err)
+		return err
 	}
 
 	// write to the local backend
 	err = w.Write(context.TODO(), "index", blockID, cmd.TenantID, indexBytes, false)
 	if err != nil {
 		fmt.Println("error writing index to backend", err)
+		return err
 	}
 
 	fmt.Println("index written to backend successfully")
@@ -157,11 +165,13 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 	indexFilePath := cmd.backendOptions.Bucket + cmd.TenantID + "/" + cmd.BlockID + "/" + indexFilename
 	indexFile, err := os.OpenFile(indexFilePath, os.O_RDONLY, 0644)
 	if err != nil {
+		fmt.Println("error opening index file")
 		return err
 	}
 
 	indexReader, err := v.NewIndexReader(backend.NewContextReaderWithAllReader(indexFile), int(meta.IndexPageSize), len(records))
 	if err != nil {
+		fmt.Println("error reading index file")
 		return err
 	}
 
@@ -169,11 +179,13 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 	dataFilePath := cmd.backendOptions.Bucket + cmd.TenantID + "/" + cmd.BlockID + "/" + dataFilename
 	dataFile, err := os.OpenFile(dataFilePath, os.O_RDONLY, 0644)
 	if err != nil {
+		fmt.Println("error opening data file")
 		return err
 	}
 
 	dataReader, err := v.NewDataReader(backend.NewContextReaderWithAllReader(dataFile), meta.Encoding)
 	if err != nil {
+		fmt.Println("error reading data file")
 		return err
 	}
 	defer dataReader.Close()

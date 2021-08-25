@@ -15,10 +15,22 @@ This might indicate that there is a bad (corrupted) block in the backend.
 
 A block can get corrupted if the ingester crashed while flushing the block to the backend.
 
+## Fixing bad blocks
+
+At the moment, a backend block can be fixed if either the index or bloom-filter is corrupt/deleted.
+
+To fix such a block, first download it onto a machine where you can run the `tempo-cli`.
+
+Next run the `tempo-cli`'s `gen index` / `gen bloom` commands depending on which file is corrupt/deleted.
+The command will create a fresh index/bloom-filter from the data file.
+To read all the options for this command, check the [cli docs](../../operations/tempo_cli).
+
+Finally, upload the generated bloom-filter or index onto the object store backend under the folder for the block.
+
 ## Removing bad blocks
 
-At this moment it's not possible to repair a bad block.
-The only solution is to remove the block, which can result in some loss of data.
+If the above step on fixing bad blocks reveals that the data file is corrupt, the only remaining solution is to delete
+the block, which can result in some loss of data.
 
 The mechanism to remove a block from the backend is backend-specific, but the block to remove will be at:
 
