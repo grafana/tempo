@@ -22,7 +22,7 @@ type globalOptions struct {
 
 type backendOptions struct {
 	Backend string `help:"backend to connect to (s3/gcs/local/azure), optional, overrides backend in config file" enum:",s3,gcs,local,azure"`
-	Bucket  string `help:"bucket to scan, optional, overrides bucket in config file"`
+	Bucket  string `help:"bucket (or path on local backend) to scan, optional, overrides bucket in config file"`
 
 	S3Endpoint string `name:"s3-endpoint" help:"s3 endpoint (s3.dualstack.us-east-2.amazonaws.com), optional, overrides endpoint in config file"`
 	S3User     string `name:"s3-user" help:"s3 username, optional, overrides username in config file"`
@@ -45,7 +45,7 @@ var cli struct {
 	} `cmd:""`
 
 	Gen struct {
-		GenIndex genIndexCmd `cmd:"" help:"Generate bloom/index for a block"`
+		Index indexCmd `cmd:"" help:"Generate bloom/index for a block"`
 	} `cmd:""`
 
 	Query struct {

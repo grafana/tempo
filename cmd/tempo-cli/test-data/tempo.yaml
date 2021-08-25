@@ -1,5 +1,0 @@
-storage:
-  trace:
-    backend: local
-    local:
-      path: ./cmd/tempo-cli/test-data/

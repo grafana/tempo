@@ -14,7 +14,11 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type genIndexCmd struct {
+const (
+	dataFilename = "data"
+)
+
+type indexCmd struct {
 	TenantID string `arg:"" help:"tenant-id within the bucket"`
 	BlockID  string `arg:"" help:"block ID to list"`
 	backendOptions
@@ -83,7 +87,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 	return records, warning, nil
 }
 
-func (cmd *genIndexCmd) Run(ctx *globalOptions) error {
+func (cmd *indexCmd) Run(ctx *globalOptions) error {
 	blockID, err := uuid.Parse(cmd.BlockID)
 	if err != nil {
 		return err
@@ -100,7 +104,7 @@ func (cmd *genIndexCmd) Run(ctx *globalOptions) error {
 	}
 
 	// replay file to extract records
-	records, warning, err := ReplayBlockAndGetRecords(meta, "./cmd/tempo-cli/test-data/"+cmd.TenantID+"/"+cmd.BlockID+"/data")
+	records, warning, err := ReplayBlockAndGetRecords(meta, cmd.backendOptions.Bucket+cmd.TenantID+"/"+cmd.BlockID+"/"+dataFilename)
 	if warning != nil || err != nil {
 		fmt.Println("error replaying block", warning, err)
 		return nil
