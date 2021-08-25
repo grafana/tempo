@@ -132,6 +132,7 @@ func TestStreamingBlockAddObject(t *testing.T) {
 }
 
 func TestStreamingBlockAll(t *testing.T) {
+	// jpe extend this test to use some random values below
 	for _, enc := range backend.SupportedEncoding {
 		t.Run(enc.String(), func(t *testing.T) {
 			testStreamingBlockToBackendBlock(t,
