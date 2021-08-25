@@ -88,6 +88,26 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 	return records, warning, nil
 }
 
+func VerifyIndex(indexReader common.IndexReader, dataReader common.DataReader) error {
+	for i := 0; ; i++ {
+		record, err := indexReader.At(context.TODO(), i)
+		if err != nil {
+			return err
+		}
+
+		if record == nil {
+			break
+		}
+
+		// read data file at record position
+		_, _, err = dataReader.Read(context.TODO(), []common.Record{*record}, nil)
+		if err != nil {
+			fmt.Println("index/data is corrupt, record/data mismatch")
+			return err
+		}
+	}
+}
+
 func (cmd *indexCmd) Run(ctx *globalOptions) error {
 	blockID, err := uuid.Parse(cmd.BlockID)
 	if err != nil {
@@ -158,22 +178,9 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 	}
 	defer dataReader.Close()
 
-	for i := 0; ; i++ {
-		record, err := indexReader.At(context.TODO(), i)
-		if err != nil {
-			return err
-		}
-
-		if record == nil {
-			break
-		}
-
-		// read data file at this position
-		_, _, err = dataReader.Read(context.TODO(), []common.Record{*record}, nil)
-		if err != nil {
-			fmt.Println("index/data is corrupt, record/data mismatch")
-			return err
-		}
+	err = VerifyIndex(indexReader, dataReader)
+	if err != nil {
+		return err
 	}
 
 	fmt.Println("index verified!")
