@@ -41,7 +41,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 
 	var buffer []byte
 	var records []common.Record
-	objectReader := v.NewObjectReaderWriter()
+	objectRW := v.NewObjectReaderWriter()
 	currentOffset := uint64(0)
 	for {
 		buffer, pageLen, err := dataReader.NextPage(buffer)
@@ -53,15 +53,25 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 			break
 		}
 
-		reader := bytes.NewReader(buffer)
-		id, _, err := objectReader.UnmarshalObjectFromReader(reader)
-		if err != nil {
-			warning = err
+		iter := encoding.NewIterator(bytes.NewReader(buffer), objectRW)
+		var lastId common.ID
+		var iterErr error
+		for {
+			var id common.ID
+			id, _, iterErr = iter.Next(context.TODO())
+			if iterErr != nil {
+				break
+			}
+			lastId = id
+		}
+
+		if iterErr != io.EOF {
+			warning = iterErr
 			break
 		}
 
 		// make a copy so we don't hold onto the iterator buffer
-		recordID := append([]byte(nil), id...)
+		recordID := append([]byte(nil), lastId...)
 		records = append(records, common.Record{
 			ID:     recordID,
 			Start:  currentOffset,
@@ -69,8 +79,6 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 		})
 		currentOffset += uint64(pageLen)
 	}
-
-	common.SortRecords(records)
 
 	return records, warning, nil
 }
