@@ -16,6 +16,7 @@ import (
 
 const (
 	dataFilename = "data"
+	indexFilename = "index"
 )
 
 type indexCmd struct {
@@ -58,7 +59,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 		}
 
 		iter := encoding.NewIterator(bytes.NewReader(buffer), objectRW)
-		var lastId common.ID
+		var lastID common.ID
 		var iterErr error
 		for {
 			var id common.ID
@@ -66,7 +67,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 			if iterErr != nil {
 				break
 			}
-			lastId = id
+			lastID = id
 		}
 
 		if iterErr != io.EOF {
@@ -75,7 +76,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 		}
 
 		// make a copy so we don't hold onto the iterator buffer
-		recordID := append([]byte(nil), lastId...)
+		recordID := append([]byte(nil), lastID...)
 		records = append(records, common.Record{
 			ID:     recordID,
 			Start:  currentOffset,
@@ -130,5 +131,51 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 
 	fmt.Println("index written to backend successfully")
 
+	// verify generated index
+
+	// get index file with records
+	indexFilePath := cmd.backendOptions.Bucket+cmd.TenantID+"/"+cmd.BlockID+"/"+indexFilename
+	indexFile, err := os.OpenFile(indexFilePath, os.O_RDONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	indexReader, err := v.NewIndexReader(backend.NewContextReaderWithAllReader(indexFile), int(meta.IndexPageSize), len(records))
+	if err != nil {
+		return err
+	}
+
+	// data reader
+	dataFilePath := cmd.backendOptions.Bucket+cmd.TenantID+"/"+cmd.BlockID+"/"+dataFilename
+	dataFile, err := os.OpenFile(dataFilePath, os.O_RDONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	dataReader, err := v.NewDataReader(backend.NewContextReaderWithAllReader(dataFile), meta.Encoding)
+	if err != nil {
+		return err
+	}
+	defer dataReader.Close()
+
+	for i := 0; ; i++ {
+		record, err := indexReader.At(context.TODO(), i)
+		if err != nil {
+			return err
+		}
+
+		if record == nil {
+			break
+		}
+
+		// read data file at this position
+		_, _, err = dataReader.Read(context.TODO(), []common.Record{*record}, nil)
+		if err != nil {
+			fmt.Println("index/data is corrupt, record/data mismatch")
+			return err
+		}
+	}
+
+	fmt.Println("index verified!")
 	return nil
 }
