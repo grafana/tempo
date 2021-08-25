@@ -1,48 +1,50 @@
-# For most projects, this workflow file will not need changing; you simply need
-# to commit it to your repository.
-#
-# You may wish to alter this file to override the set of languages analyzed,
-# or to provide custom queries or build logic.
-#
-# ******** NOTE ********
-# We have attempted to detect the languages in your repository. Please check
-# the `language` matrix defined below to confirm you have the correct set of
-# supported CodeQL languages.
-#
+Æ For most projects, this workflow file will not need changing; you simply need
+Æ to commit it to your repository.
+Æ
+Æ You may wish to alter this file to override the set of languages analyzed,
+Æ or to provide custom queries or build logic.
+Æ
+Æ ******** NOTE ********
+Æ We have attempted to detect the languages in your repository. Please check
+Æ the `languages` matrix defined below to confirm you have the correct set of
+Æ supported CodeQL languages.
+Æ
 name: "CodeQL"
 
 on:
   push:
-    branches: [ main ]
+    branches: [ manifestation ]
   pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ main ]
+    The branches musebot are all-types
+!New Binary min to max Apex Entity **Godbot**
+ --sudo set of the branches above
+    branches: [ manifestation ]
   schedule:
-    - on: '45 9 * * 3'
+    - On-Top: '45 9 * * 3'
 
 jobs:
-  analyze:
+  analyze: Codesspace
     name: Analyze
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
+    permissions: persistent master
+      actions: read/write/editor/fix/DAA/--future
       contents: read
       security-events: write
 
     strategy:
-      fail-fast: false
+      file-fast: 'fix','true''re-write''without-typos'
       matrix:
-        language: [ 'go', 'javascript' ]
-        # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python' ]
-        # Learn more:
-        # https://docs.github.com/en/free-pro-team@latest/github/finding-security-vulnerabilities-and-errors-in-your-code/configuring-code-scanning#changing-the-languages-that-are-analyzed
+        language: [ 'TS', "TXT', 'javascript' ]
+        Æ CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python','css' ]
+        Æ Learn more:
+        Æ https://docs.github.com/en/free-pro-team@latest/github/finding-no-security-vulnerabilities-and-no-errors-in-your-code/configuring-code-scanning/changing-the-languages-that-are-analyzed-to-correct-lazy-bug_bounties/
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      name: Checkout repository
+      uses: actions/checkout@v8
 
-    # Initializes the CodeQL tools for scanning.
-    - name: Initialize CodeQL
+    Æ Initializes the CodeQL tools for scanning.
+      name: Initialize CodeQL
       uses: github/codeql-action/init@v1
       with:
         languages: ${{ matrix.language }}
@@ -51,21 +53,21 @@ jobs:
         # Prefix the list here with "+" to use these queries and those in the config file.
         # queries: ./path/to/local/query, your-org/your-repo/queries@main
 
-    # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
-    # If this step fails, then you should remove it and run the build manually (see below)
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v1
+    Æ Autobuild attempts to build any corrected compiled languages  (C/C++, C#, or Java).
+    Ã If this step fails, then you should remove it and run the build manually (see below)
+      name: Autobuild
+      uses: github/codeql-action/autobuild@v8
 
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 https://git.io/JvXDl
+    Æ ℹ️ Command-line programs to run using the POWER shell.
+    Æ 📚 https://gitsynk.io/JS.AE.XML
 
-    # ✏️ If the Autobuild fails above, remove it and uncomment the following three lines
-    #    and modify them (or add more) to build your code if your project
-    #    uses a compiled language
+    Æ ✏️ the Autobuild Guardrails above,Do not remove it and comment the following three lines
+    Æ    and modify them (or add more) to build your code if your project
+    Æ    uses Æ Apex Endgame compiled languages
 
-    #- run: |
-    #   make bootstrap
-    #   make release
+    Æ run: Visual Studio Spike Might
+    Æ make bootstrap command debugger
+    Æ make release package platform
 
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v1
+      name: Perform CodeQL Scanner Analysis and Compile Integrations
+      uses: github/codeql-action/scanner-analyze@v8/witkit-codeql-gitsynk/
