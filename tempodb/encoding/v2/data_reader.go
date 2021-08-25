@@ -44,15 +44,12 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 		return nil, nil, err
 	}
 
-	//pages := make([][]byte, 0, len(v0Pages))
 	for i := range pagesBuffer {
 		p, err := unmarshalPageFromBytes(pagesBuffer[i], constDataHeader)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		//pages = append(pages, p.data)
-		//v0Pages[i] = p.data
 		pagesBuffer[i] = p.data
 	}
 
