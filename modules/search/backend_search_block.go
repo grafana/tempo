@@ -117,6 +117,8 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchR
 	indexBuf := []common.Record{{}}
 	entry := &tempofb.SearchData{} // Buffer
 
+	sr.AddBlockInspected()
+
 	meta, err := ReadSearchBlockMeta(ctx, s.l, s.id, s.tenantID)
 	if err != nil {
 		return err
@@ -172,7 +174,6 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchR
 		batch := tempofb.GetRootAsBatchSearchData(dataBuf, 0)
 
 		// Verify something in the batch matches
-		//datas.All(entry)
 		if !p.MatchesTags(batch) {
 			// Increment metric still
 			sr.AddTraceInspected(uint32(batch.EntriesLength()))

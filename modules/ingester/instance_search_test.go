@@ -364,9 +364,11 @@ func TestInstanceSearchMetrics(t *testing.T) {
 		return sr.Metrics
 	}
 
+	// Live traces
 	m := search()
 	require.Equal(t, numTraces, m.InspectedTraces)
 	require.Equal(t, numBytes, m.InspectedBytes)
+	require.Equal(t, uint32(1), m.InspectedBlocks) // 1 head block
 
 	// Test after appending to WAL
 	err := i.CutCompleteTraces(0, true)
@@ -374,6 +376,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	m = search()
 	require.Equal(t, numTraces, m.InspectedTraces)
 	require.Equal(t, numBytes, m.InspectedBytes)
+	require.Equal(t, uint32(1), m.InspectedBlocks) // 1 head block
 
 	// Test after cutting new headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
@@ -381,6 +384,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	m = search()
 	require.Equal(t, numTraces, m.InspectedTraces)
 	require.Equal(t, numBytes, m.InspectedBytes)
+	require.Equal(t, uint32(2), m.InspectedBlocks) // 1 head block, 1 completing block
 
 	// Test after completing a block
 	err = i.CompleteBlock(blockID)
@@ -391,6 +395,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	m = search()
 	require.Equal(t, numTraces, m.InspectedTraces)
 	require.Less(t, m.InspectedBytes, numBytes)
+	require.Equal(t, uint32(2), m.InspectedBlocks) // 1 head block, 1 complete block
 }
 
 func BenchmarkInstanceSearchUnderLoad(b *testing.B) {

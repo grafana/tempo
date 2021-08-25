@@ -20,6 +20,7 @@ type SearchResults struct {
 
 	tracesInspected atomic.Uint32
 	bytesInspected  atomic.Uint64
+	blocksInspected atomic.Uint32
 }
 
 func NewSearchResults() *SearchResults {
@@ -116,4 +117,12 @@ func (sr *SearchResults) BytesInspected() uint64 {
 
 func (sr *SearchResults) AddBytesInspected(c uint64) {
 	sr.bytesInspected.Add(c)
+}
+
+func (sr *SearchResults) AddBlockInspected() {
+	sr.blocksInspected.Inc()
+}
+
+func (sr *SearchResults) BlocksInspected() uint32 {
+	return sr.blocksInspected.Load()
 }

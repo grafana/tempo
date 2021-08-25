@@ -374,6 +374,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 		if sr.Metrics != nil {
 			response.Metrics.InspectedBytes += sr.Metrics.InspectedBytes
 			response.Metrics.InspectedTraces += sr.Metrics.InspectedTraces
+			response.Metrics.InspectedBlocks += sr.Metrics.InspectedBlocks
 		}
 	}
 

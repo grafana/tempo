@@ -53,6 +53,7 @@ message TraceSearchMetadata {
 message SearchMetrics {
   uint32 inspectedTraces = 1;
   uint64 inspectedBytes = 2;
+  uint32 inspectedBlocks = 3;
 }
 
 message SearchTagsRequest {

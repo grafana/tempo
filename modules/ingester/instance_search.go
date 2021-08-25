@@ -60,6 +60,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		Metrics: &tempopb.SearchMetrics{
 			InspectedTraces: sr.TracesInspected(),
 			InspectedBytes:  sr.BytesInspected(),
+			InspectedBlocks: sr.BlocksInspected(),
 		},
 	}, nil
 }

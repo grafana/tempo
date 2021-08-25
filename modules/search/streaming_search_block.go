@@ -95,6 +95,8 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Searc
 
 	var buf []byte
 
+	sr.AddBlockInspected()
+
 	rr := s.appender.Records()
 
 	for _, r := range rr {
