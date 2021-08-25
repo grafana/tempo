@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	dataFilename = "data"
+	dataFilename  = "data"
 	indexFilename = "index"
 )
 
@@ -154,7 +154,7 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 	// verify generated index
 
 	// get index file with records
-	indexFilePath := cmd.backendOptions.Bucket+cmd.TenantID+"/"+cmd.BlockID+"/"+indexFilename
+	indexFilePath := cmd.backendOptions.Bucket + cmd.TenantID + "/" + cmd.BlockID + "/" + indexFilename
 	indexFile, err := os.OpenFile(indexFilePath, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
@@ -166,7 +166,7 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 	}
 
 	// data reader
-	dataFilePath := cmd.backendOptions.Bucket+cmd.TenantID+"/"+cmd.BlockID+"/"+dataFilename
+	dataFilePath := cmd.backendOptions.Bucket + cmd.TenantID + "/" + cmd.BlockID + "/" + dataFilename
 	dataFile, err := os.OpenFile(dataFilePath, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
