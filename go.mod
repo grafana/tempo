@@ -15,6 +15,7 @@ require (
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-kit/kit v0.11.0
+	github.com/go-test/deep v1.0.7
 	github.com/gogo/protobuf v1.3.2
 	github.com/gogo/status v1.0.3
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
