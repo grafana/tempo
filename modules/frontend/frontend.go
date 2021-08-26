@@ -73,6 +73,8 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 
 			// Enforce all communication internal to Tempo to be in protobuf bytes
 			r.Header.Set(util.AcceptHeaderKey, util.ProtobufTypeHeaderValue)
+			// clear any requested compression, gzip doesn't gel well with protobuf/grpc
+			r.Header.Del(util.AcceptEncodingHeaderKey)
 
 			resp, err := rt.RoundTrip(r)
 

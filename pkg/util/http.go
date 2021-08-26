@@ -15,6 +15,7 @@ const (
 	AcceptHeaderKey         = "Accept"
 	ProtobufTypeHeaderValue = "application/protobuf"
 	JSONTypeHeaderValue     = "application/json"
+	AcceptEncodingHeaderKey = "Accept-Encoding"
 )
 
 func ParseTraceID(r *http.Request) ([]byte, error) {
