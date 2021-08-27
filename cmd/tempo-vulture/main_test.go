@@ -9,9 +9,7 @@ import (
 	"github.com/go-test/deep"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -208,40 +206,7 @@ func TestGenerateRandomLogs(t *testing.T) {
 }
 
 func TestIntervalsBetween(t *testing.T) {
-	now := time.Now()
-	cases := []struct {
-		start    time.Time
-		stop     time.Time
-		interval time.Duration
-		count    int
-	}{
-		{
-			start:    now.Add(-1 * time.Minute),
-			stop:     now,
-			interval: 11 * time.Second,
-			count:    6,
-		},
-		{
-			start:    now.Add(-1 * time.Hour),
-			stop:     now,
-			interval: 33 * time.Second,
-			count:    110,
-		},
-	}
-
-	for _, tc := range cases {
-		result := intervalsBetween(tc.start, tc.stop, tc.interval)
-		require.Equal(t, tc.count, len(result))
-
-		if tc.count > 0 {
-			require.Equal(t, tc.start, result[0])
-			require.True(t, result[len(result)-1].Before(tc.stop))
-		}
-	}
-}
-
-func TestTrimOutdatedIntervals(t *testing.T) {
-	now := time.Now()
+	nowish := time.Unix(1630010049, 0)
 
 	cases := []struct {
 		start     time.Time
@@ -251,36 +216,29 @@ func TestTrimOutdatedIntervals(t *testing.T) {
 		count     int
 	}{
 		{
-			start:     now.Add(-1 * time.Minute),
-			stop:      now,
+			start:     nowish.Add(-1 * time.Minute),
+			stop:      nowish,
 			interval:  11 * time.Second,
-			count:     3,
-			retention: 30 * time.Second,
+			retention: 1 * time.Hour,
+			count:     7,
 		},
 		{
-			start:     now.Add(-1 * time.Hour),
-			stop:      now,
+			start:     nowish.Add(-1 * time.Hour),
+			stop:      nowish,
 			interval:  33 * time.Second,
+			retention: 1 * time.Hour,
 			count:     110,
-			retention: 24 * time.Hour,
-		},
-		{
-			start:     now.Add(-25 * time.Hour),
-			stop:      now,
-			interval:  33 * time.Second,
-			count:     2619,
-			retention: 24 * time.Hour,
 		},
 	}
 
 	for _, tc := range cases {
-		intervals := intervalsBetween(tc.start, tc.stop, tc.interval)
-		intervals = trimOutdatedIntervals(intervals, tc.retention)
+		result := intervalsBetween(tc.start, tc.stop, tc.interval, tc.retention)
+		require.Equal(t, tc.count, len(result))
 
-		require.NotNil(t, intervals)
-		require.Equal(t, tc.count, len(intervals))
-
-		require.True(t, intervals[len(intervals)-1].Before(tc.stop))
+		if tc.count > 0 {
+			require.Equal(t, tc.start, result[0])
+			require.True(t, result[len(result)-1].Before(tc.stop))
+		}
 	}
 }
 
@@ -299,219 +257,6 @@ func TestEqualTraces(t *testing.T) {
 
 	require.Equal(t, pb1, pb2)
 	require.True(t, equalTraces(pb1, pb2))
-}
-
-func TestJagerBatchToPbTrace(t *testing.T) {
-	nowish, err := time.Parse(time.RFC3339, "2021-08-25T10:15:31-06:00")
-	require.NoError(t, err)
-	r1 := newRand(nowish)
-
-	cases := []struct {
-		batch    *jaeger.Batch
-		expected *tempopb.Trace
-	}{
-		{
-			batch: makeThriftBatch(r1.Int63(), r1.Int63(), r1, nowish),
-			expected: &tempopb.Trace{
-				Batches: []*v1.ResourceSpans{
-					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
-							{
-								Spans: []*v1.Span{
-									{
-										Name:    "tgvrGx",
-										TraceId: []byte("0855b1342fd8f95914c1a43aae1b6c73"),
-										SpanId:  []byte("39d2aec5556367e6"),
-										Events: []*v1.Span_Event{
-											{
-												TimeUnixNano: 1629908131,
-												Attributes: []*v1common.KeyValue{
-													{
-														Key: "fQKOABsE",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "rcEoMvnzLV"},
-														},
-													},
-													{
-														Key: "IAeBiaSjF",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "YRmKJvUVSWD"},
-														},
-													},
-												},
-											},
-											{
-												TimeUnixNano: 1629908131,
-												Attributes: []*v1common.KeyValue{
-													{
-														Key: "hirzqJYPlSpH",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "GNowiq"},
-														},
-													},
-													{
-														Key: "obDItNCcENJowMkHL",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "xmcFdTYhG"},
-														},
-													},
-												},
-											},
-											{
-												TimeUnixNano: 1629908131,
-												Attributes: []*v1common.KeyValue{
-													{
-														Key: "GrGxVkxyURMAFXv",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "dZiIwT"},
-														},
-													},
-													{
-														Key: "HXfssLZ",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "njhpnYnxIaSiU"},
-														},
-													},
-													{
-														Key: "kvuXiofamXq",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "bcxZfGtAvySamMkU"},
-														},
-													},
-													{
-														Key: "AlSiwOjoJRVL",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "KiEJFRaxYF"},
-														},
-													},
-												},
-											},
-										},
-										Attributes: []*v1common.KeyValue{
-											{
-												Key: "yZJMlOghq",
-												Value: &v1common.AnyValue{
-													Value: &v1common.AnyValue_StringValue{StringValue: "paPjzXSe"},
-												},
-											},
-											{
-												Key: "QDbZDAMYeQ",
-												Value: &v1common.AnyValue{
-													Value: &v1common.AnyValue_StringValue{StringValue: "rXBYKuwWuCS"},
-												},
-											},
-										},
-									},
-									{
-										Name:    "BUZFbNNaAauNncS",
-										TraceId: []byte("0855b1342fd8f95914c1a43aae1b6c73"),
-										SpanId:  []byte("3d278f63b44225b7"),
-										Events: []*v1.Span_Event{
-											{
-												TimeUnixNano: 1629908131,
-												Attributes: []*v1common.KeyValue{
-													{
-														Key: "KwxnCyqkJ",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "CfZmobCxYfqCkWR"},
-														},
-													},
-													{
-														Key: "KQWDjfuUkSsLnxecMIC",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "zSgonMaGYEhS"},
-														},
-													},
-													{
-														Key: "yOuqOyqCOvsdFGfW",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "ueDVCAMFiqMNPTr"},
-														},
-													},
-												},
-											},
-											{
-												TimeUnixNano: 1629908131,
-												Attributes: []*v1common.KeyValue{
-													{
-														Key: "vbgCDBMw",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "NnCdKhtWYsLq"},
-														},
-													},
-													{
-														Key: "qborQobPng",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "jKsNTBoFbpvlaKkS"},
-														},
-													},
-													{
-														Key: "FDRdKcKVtOAUvtKHnA",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "wrqriKCgwG"},
-														},
-													},
-													{
-														Key: "IFSlfd",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "LbsCDuTrkW"},
-														},
-													},
-												},
-											},
-											{
-												TimeUnixNano: 1629908131,
-												Attributes: []*v1common.KeyValue{
-													{
-														Key: "iPSWrw",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "VOHOFrBpolYmHozHW"},
-														},
-													},
-													{
-														Key: "HoUnCBfEAQMFGW",
-														Value: &v1common.AnyValue{
-															Value: &v1common.AnyValue_StringValue{StringValue: "pncMfPLHwyqA"},
-														},
-													},
-												},
-											},
-										},
-										Attributes: []*v1common.KeyValue{
-											{
-												Key: "XfdGaWAVs",
-												Value: &v1common.AnyValue{
-													Value: &v1common.AnyValue_StringValue{StringValue: "NEoskqRbDSmtzKvZkp"},
-												},
-											},
-											{
-												Key: "VLqUydNkPt",
-												Value: &v1common.AnyValue{
-													Value: &v1common.AnyValue_StringValue{StringValue: "vPxSkJq"},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		result := jaegerBatchToPbTrace(tc.batch)
-		if diff := deep.Equal(tc.expected, result); diff != nil {
-			t.Logf("expected: %+v", tc.expected)
-			t.Logf("result: %+v", result)
-			for _, d := range diff {
-				t.Error(d)
-			}
-		}
-		// require.Equal(t, tc.expected, result)
-	}
 }
 
 func TestNewRand(t *testing.T) {
@@ -559,7 +304,6 @@ func TestResponseFixture(t *testing.T) {
 			t.Error(d)
 		}
 	}
-
 }
 
 func stringPointer(s string) *string { return &s }

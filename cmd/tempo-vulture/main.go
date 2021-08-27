@@ -91,7 +91,7 @@ func main() {
 		}
 
 		for now := range tickerWrite.C {
-			r := newRand(now)
+			r := newRand(now.Round(interval))
 
 			traceIDHigh := r.Int63()
 			traceIDLow := r.Int63()
@@ -124,9 +124,7 @@ func main() {
 	// Read
 	go func() {
 		for now := range tickerRead.C {
-
-			intervals := intervalsBetween(startTime, now, interval)
-			intervals = trimOutdatedIntervals(intervals, tempoRetentionDuration)
+			intervals := intervalsBetween(startTime, now, interval, tempoRetentionDuration)
 			startTime = intervals[0]
 
 			// pick past interval and re-generate trace
@@ -154,25 +152,17 @@ func main() {
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
 }
 
-func intervalsBetween(start, stop time.Time, interval time.Duration) []time.Time {
+func intervalsBetween(start, stop time.Time, interval time.Duration, retention time.Duration) []time.Time {
 	if stop.Before(start) {
 		return nil
 	}
 
 	intervals := []time.Time{start}
-	next := start.Add(interval)
+	next := start.Round(interval)
 
 	for next.Before(stop) {
 		intervals = append(intervals, next)
 		next = next.Add(interval)
-	}
-
-	return intervals
-}
-
-func trimOutdatedIntervals(intervals []time.Time, retention time.Duration) []time.Time {
-	if len(intervals) == 0 {
-		return nil
 	}
 
 	oldest := intervals[len(intervals)-1].Add(-retention)
@@ -187,7 +177,7 @@ func trimOutdatedIntervals(intervals []time.Time, retention time.Duration) []tim
 		}
 	}
 
-	return nil
+	return intervals
 }
 
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
