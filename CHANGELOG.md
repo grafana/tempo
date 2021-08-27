@@ -7,7 +7,7 @@
 * [ENHANCEMENT] Add support to tempo workloads to `overrides` from single configmap in microservice mode. [#896](https://github.com/grafana/tempo/pull/896) (@kavirajk)
 * [ENHANCEMENT] Make `overrides_config` block name consistent with Loki and Cortex in microservice mode. [#906](https://github.com/grafana/tempo/pull/906) (@kavirajk)
 * [ENHANCEMENT] Make `overrides_config` mount name static `tempo-overrides` in the tempo workloads in microservice mode. [#906](https://github.com/grafana/tempo/pull/914) (@kavirajk)
-
+* [ENHANCEMENT] Reduce compactor memory usage by forcing garbage collection. [#915](https://github.com/grafana/tempo/pull/915) (@joe-elliott)
 
 ## v1.1.0-rc.0 / 2021-08-11
 
