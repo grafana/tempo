@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/minio/minio-go/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -103,7 +105,9 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 }
 
 func TestReadError(t *testing.T) {
-	errA := fmt.Errorf(s3KeyDoesNotExist)
+	errA := minio.ErrorResponse{
+		Code: s3.ErrCodeNoSuchKey,
+	}
 	errB := readError(errA)
 	assert.Equal(t, backend.ErrDoesNotExist, errB)
 
