@@ -73,7 +73,7 @@
     },
     storage+: {
       trace+: {
-        blocklist_poll: '10m',
+        blocklist_poll: '5m',
       },
     },
   },
@@ -100,7 +100,7 @@
   tempo_query_frontend_config:: $.tempo_config{},
 
   // This will be the single configmap that stores `overrides.yaml`.
-  overrides_configmap:
+  overrides_config:
     configMap.new($._config.overrides_configmap_name) +
     configMap.withData({
       'overrides.yaml': k.util.manifestYaml({

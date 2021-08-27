@@ -12,7 +12,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://localhost:3100/api/prom/push'
+        loki-url: 'http://localhost:3100/loki/api/v1/push'
 
   loki:
     image: grafana/loki:2.3.0
@@ -27,7 +27,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://localhost:3100/api/prom/push'
+        loki-url: 'http://localhost:3100/loki/api/v1/push'
 
   prometheus:
     image: prom/prometheus:latest
@@ -39,7 +39,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://localhost:3100/api/prom/push'
+        loki-url: 'http://localhost:3100/loki/api/v1/push'
 
   grafana:
     image: grafana/grafana:8.1.1
@@ -54,4 +54,4 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: 'http://localhost:3100/api/prom/push'
+        loki-url: 'http://localhost:3100/loki/api/v1/push'
