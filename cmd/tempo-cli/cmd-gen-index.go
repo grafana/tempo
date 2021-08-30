@@ -14,11 +14,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-const (
-	dataFilename  = "data"
-	indexFilename = "index"
-)
-
 type indexCmd struct {
 	TenantID string `arg:"" help:"tenant-id within the bucket"`
 	BlockID  string `arg:"" help:"block ID to list"`
