@@ -51,7 +51,10 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer [
 		length += record.Length
 	}
 
-	buffer = make([]byte, length)
+	if cap(buffer) < int(length) {
+		buffer = make([]byte, length)
+	}
+	buffer = buffer[:length]
 	_, err := r.contextReader.ReadAt(ctx, buffer, int64(start))
 	if err != nil {
 		return nil, nil, err
