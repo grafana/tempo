@@ -91,7 +91,8 @@ func main() {
 		}
 
 		for now := range tickerWrite.C {
-			r := newRand(now.Round(interval))
+			timestamp := now.Round(interval)
+			r := newRand(timestamp)
 
 			traceIDHigh := r.Int63()
 			traceIDLow := r.Int63()
@@ -99,7 +100,7 @@ func main() {
 			log := logger.With(
 				zap.String("org_id", tempoOrgID),
 				zap.String("write_trace_id", fmt.Sprintf("%016x%016x", traceIDHigh, traceIDLow)),
-				zap.Int64("seed", now.Unix()),
+				zap.Int64("seed", timestamp.Unix()),
 			)
 			log.Info("sending trace")
 
@@ -111,7 +112,7 @@ func main() {
 					metricErrorTotal.Inc()
 					continue
 				}
-				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow, r, now))
+				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow, r, timestamp))
 				if err != nil {
 					log.Error("error pushing batch to Tempo", zap.Error(err))
 					metricErrorTotal.Inc()
