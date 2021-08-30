@@ -16,7 +16,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ## Complete Configuration
 
-> **Note**: This manifest was generated on 7th of June 2021.
+> **Note**: This manifest was generated on 2021-08-25.
 
 ```yaml
 target: all
@@ -181,7 +181,7 @@ query_frontend:
   port: 0
   downstream_url: ""
   max_retries: 2
-  query_shards: 2
+  query_shards: 20
 compactor:
   ring:
     kvstore:
@@ -223,9 +223,9 @@ compactor:
     instance_addr: ""
     wait_active_instance_timeout: 10m0s
   compaction:
-    chunk_size_bytes: 10485760
+    chunk_size_bytes: 5242880
     flush_size_bytes: 31457280
-    compaction_window: 4h0m0s
+    compaction_window: 1h0m0s
     max_compaction_objects: 6000000
     max_block_bytes: 107374182400
     block_retention: 336h0m0s
@@ -282,9 +282,9 @@ ingester:
     port: 0
     id: hostname
   concurrent_flushes: 16
-  flush_check_period: 30s
+  flush_check_period: 10s
   flush_op_timeout: 5m0s
-  trace_idle_period: 30s
+  trace_idle_period: 10s
   max_block_duration: 1h0m0s
   max_block_bytes: 1073741824
   complete_block_timeout: 15m0s
@@ -298,12 +298,12 @@ storage:
       path: /tmp/tempo/wal
       completedfilepath: /tmp/tempo/wal/completed
       blocksfilepath: /tmp/tempo/wal/blocks
-      encoding: none
+      encoding: snappy
     block:
       index_downsample_bytes: 1048576
       index_page_size_bytes: 256000
-      bloom_filter_false_positive: 0.05
-      bloom_filter_shard_size_bytes: 256000
+      bloom_filter_false_positive: 0.01
+      bloom_filter_shard_size_bytes: 102400
       encoding: zstd
     blocklist_poll: 5m0s
     blocklist_poll_concurrency: 50
