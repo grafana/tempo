@@ -17,11 +17,10 @@ import (
 )
 
 const (
-	dataFilename  = "data"
-	indexFilename = "index"
+	dataFilename    = "data"
+	indexFilename   = "index"
 	bloomFilePrefix = "bloom-"
 )
-
 
 type globalOptions struct {
 	ConfigFile string `type:"path" short:"c" help:"Path to tempo config file"`

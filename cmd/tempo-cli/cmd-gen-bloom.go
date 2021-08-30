@@ -17,10 +17,10 @@ import (
 )
 
 type bloomCmd struct {
-	TenantID string `arg:"" help:"tenant-id within the bucket"`
-	BlockID  string `arg:"" help:"block ID to list"`
-	BloomFP  float64 `arg:"" help:"bloom filter false positive rate (use prod settings!)"`
-	BloomShardSize  int `arg:"" help:"bloom filter shard size (use prod settings!)"`
+	TenantID       string  `arg:"" help:"tenant-id within the bucket"`
+	BlockID        string  `arg:"" help:"block ID to list"`
+	BloomFP        float64 `arg:"" help:"bloom filter false positive rate (use prod settings!)"`
+	BloomShardSize int     `arg:"" help:"bloom filter shard size (use prod settings!)"`
 	backendOptions
 }
 
