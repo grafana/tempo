@@ -67,6 +67,7 @@ func BenchmarkWriter(b *testing.B) {
 	}
 }
 
+// nolint:unparam
 func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, ids [][]byte, objs [][]byte, buffer []byte) {
 	reader := bytes.NewReader(buffer)
 	r, err := NewDataReader(backend.NewContextReaderWithAllReader(reader), enc)
@@ -99,6 +100,7 @@ func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, id
 	assert.Equal(t, totalObjects, i)
 }
 
+// nolint:unparam
 func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids [][]byte, objs [][]byte, buffer []byte, recs common.Records) {
 	reader := bytes.NewReader(buffer)
 	r, err := NewDataReader(backend.NewContextReaderWithAllReader(reader), enc)
@@ -132,12 +134,12 @@ func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids []
 	assert.Equal(t, totalObjects, i)
 }
 
+// nolint:unparam
 func createTestData(t require.TestingT, totalObjects int, objsPerPage int, enc backend.Encoding) ([][]byte, [][]byte, []byte, common.Records) {
 	buffer := &bytes.Buffer{}
 
 	w, err := NewDataWriter(buffer, enc)
 	require.NoError(t, err)
-	defer w.Complete()
 
 	bytesWritten := 0
 
@@ -170,6 +172,8 @@ func createTestData(t require.TestingT, totalObjects int, objsPerPage int, enc b
 			bytesWritten += count
 		}
 	}
+	err = w.Complete()
+	require.NoError(t, err)
 
 	return ids, objs, buffer.Bytes(), recs
 }
