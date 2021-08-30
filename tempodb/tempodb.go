@@ -291,15 +291,19 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	blocklist := rw.blocklist.Metas(tenantID)
 	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
+	blocksSearched := 0
+	compactedBlocksSearched := 0
 
 	for _, b := range blocklist {
 		if includeBlock(b, id, blockStartBytes, blockEndBytes) {
 			copiedBlocklist = append(copiedBlocklist, b)
+			blocksSearched++
 		}
 	}
 	for _, c := range compactedBlocklist {
 		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
+			compactedBlocksSearched++
 		}
 	}
 	if len(copiedBlocklist) == 0 {
@@ -325,7 +329,12 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 			ot_log.String("msg", "searching for trace in block"),
 			ot_log.String("blockID", meta.BlockID.String()),
 			ot_log.Bool("found", foundObject != nil),
-			ot_log.Int("bytes", len(foundObject)))
+			ot_log.Int("bytes", len(foundObject)),
+			ot_log.Int("live blocks", len(blocklist)),
+			ot_log.Int("live blocks searched", blocksSearched),
+			ot_log.Int("compacted blocks", len(compactedBlocklist)),
+			ot_log.Int("compacted blocks searched", compactedBlocksSearched),
+		)
 
 		return foundObject, meta.DataEncoding, nil
 	})

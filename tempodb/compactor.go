@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 	"sort"
 	"strconv"
 	"time"
@@ -211,6 +212,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 		// write partial block
 		if currentBlock.CurrentBufferLength() >= int(rw.compactorCfg.FlushSizeBytes) {
+			runtime.GC()
 			tracker, err = appendBlock(rw, tracker, currentBlock)
 			if err != nil {
 				return errors.Wrap(err, "error writing partial block")

@@ -1,11 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
@@ -44,29 +45,34 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	var combinedTrace *tempopb.Trace
+	var (
+		combinedTrace *tempopb.Trace
+		marshaller    = new(jsonpb.Marshaler)
+		jsonBytes     = bytes.Buffer{}
+	)
 
 	fmt.Println()
 	for _, result := range results {
 		fmt.Println(result.blockID, ":")
 
-		jsonBytes, err := json.Marshal(result.trace)
+		err := marshaller.Marshal(&jsonBytes, result.trace)
 		if err != nil {
 			fmt.Println("failed to marshal to json: ", err)
 			continue
 		}
 
-		fmt.Println(string(jsonBytes))
+		fmt.Println(jsonBytes.String())
+		jsonBytes.Reset()
 		combinedTrace, _, _, _ = model.CombineTraceProtos(result.trace, combinedTrace)
 	}
 
 	fmt.Println("combined:")
-	jsonBytes, err := json.Marshal(combinedTrace)
+	err = marshaller.Marshal(&jsonBytes, combinedTrace)
 	if err != nil {
 		fmt.Println("failed to marshal to json: ", err)
 		return nil
 	}
-	fmt.Println(string(jsonBytes))
+	fmt.Println(jsonBytes.String())
 	return nil
 }
 
