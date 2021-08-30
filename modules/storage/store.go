@@ -3,8 +3,9 @@ package storage
 import (
 	"context"
 
-	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log"
+	"github.com/grafana/dskit/services"
+
 	"github.com/grafana/tempo/tempodb"
 )
 

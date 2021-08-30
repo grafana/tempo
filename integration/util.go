@@ -11,7 +11,7 @@ import (
 
 	"github.com/cortexproject/cortex/integration/e2e"
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/grafana/dskit/backoff"
 	"github.com/pkg/errors"
 )
 
@@ -125,8 +125,8 @@ func CopyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
 	return WriteFileToSharedDir(s, dst, content)
 }
 
-func TempoBackoff() util.BackoffConfig {
-	return util.BackoffConfig{
+func TempoBackoff() backoff.Config {
+	return backoff.Config{
 		MinBackoff: 500 * time.Millisecond,
 		MaxBackoff: time.Second,
 		MaxRetries: 300, // Sometimes the CI is slow ¯\_(ツ)_/¯
