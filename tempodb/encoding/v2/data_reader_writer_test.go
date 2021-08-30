@@ -2,22 +2,33 @@ package v2
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"math/rand"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNextPage(t *testing.T) {
+func TestReaderNextPage(t *testing.T) {
 	totalObjects := 10000
 	objsPerPage := 100
 	enc := backend.EncZstd
 
-	ids, objs, buffer := createTestData(t, totalObjects, objsPerPage, enc)
+	ids, objs, buffer, _ := createTestData(t, totalObjects, objsPerPage, enc)
 	testNextPage(t, totalObjects, enc, ids, objs, buffer)
+}
+
+func TestReaderRead(t *testing.T) {
+	totalObjects := 10000
+	objsPerPage := 100
+	enc := backend.EncZstd
+
+	ids, objs, buffer, recs := createTestData(t, totalObjects, objsPerPage, enc)
+	testRead(t, totalObjects, enc, ids, objs, buffer, recs)
 }
 
 func BenchmarkReaderNextPage(b *testing.B) {
@@ -25,7 +36,7 @@ func BenchmarkReaderNextPage(b *testing.B) {
 	objsPerPage := 100
 	enc := backend.EncZstd
 
-	ids, objs, buffer := createTestData(b, totalObjects, objsPerPage, enc)
+	ids, objs, buffer, _ := createTestData(b, totalObjects, objsPerPage, enc)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -39,7 +50,7 @@ func BenchmarkWriter(b *testing.B) {
 	enc := backend.EncZstd
 
 	for i := 0; i < b.N; i++ {
-		_, _, _ = createTestData(b, totalObjects, objsPerPage, enc)
+		_, _, _, _ = createTestData(b, totalObjects, objsPerPage, enc)
 	}
 }
 
@@ -75,13 +86,49 @@ func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, id
 	assert.Equal(t, totalObjects, i)
 }
 
-func createTestData(t require.TestingT, totalObjects int, objsPerPage int, enc backend.Encoding) ([][]byte, [][]byte, []byte) {
+func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids [][]byte, objs [][]byte, buffer []byte, recs common.Records) {
+	reader := bytes.NewReader(buffer)
+	r, err := NewDataReader(backend.NewContextReaderWithAllReader(reader), enc)
+	require.NoError(t, err)
+	defer r.Close()
+
+	var pages [][]byte
+	ctx := context.Background()
+	tempBuffer := []byte{}
+	o := NewObjectReaderWriter()
+	i := 0
+	for j := 0; j < len(recs); j++ {
+		pages, tempBuffer, err = r.Read(ctx, []common.Record{recs[j]}, tempBuffer)
+		require.NoError(t, err)
+		require.Len(t, pages, 1)
+
+		var id, obj []byte
+		page := pages[0]
+		for {
+			page, id, obj, err = o.UnmarshalAndAdvanceBuffer(page)
+			if err == io.EOF {
+				break
+			}
+
+			assert.Equal(t, ids[i], id)
+			assert.Equal(t, objs[i], obj)
+			i++
+		}
+	}
+
+	assert.Equal(t, totalObjects, i)
+}
+
+func createTestData(t require.TestingT, totalObjects int, objsPerPage int, enc backend.Encoding) ([][]byte, [][]byte, []byte, common.Records) {
 	buffer := &bytes.Buffer{}
 
 	w, err := NewDataWriter(buffer, enc)
 	require.NoError(t, err)
 	defer w.Complete()
 
+	bytesWritten := 0
+
+	recs := common.Records{}
 	ids := [][]byte{}
 	objs := [][]byte{}
 	for i := 0; i < totalObjects; i++ {
@@ -100,10 +147,16 @@ func createTestData(t require.TestingT, totalObjects int, objsPerPage int, enc b
 		objs = append(objs, obj)
 
 		if (i+1)%objsPerPage == 0 || i == (totalObjects-1) {
-			_, err := w.CutPage()
+			count, err := w.CutPage()
 			require.NoError(t, err)
+
+			recs = append(recs, common.Record{
+				Start:  uint64(bytesWritten),
+				Length: uint32(count),
+			})
+			bytesWritten += count
 		}
 	}
 
-	return ids, objs, buffer.Bytes()
+	return ids, objs, buffer.Bytes(), recs
 }
