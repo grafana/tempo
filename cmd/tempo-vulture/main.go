@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -17,16 +16,14 @@ import (
 	"github.com/go-test/deep"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
+
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/weaveworks/common/user"
+	jaegerTrans "go.opentelemetry.io/collector/translator/trace/jaeger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -261,82 +258,6 @@ func makeThriftBatch(TraceIDHigh int64, TraceIDLow int64, r *rand.Rand, now time
 	return &thrift.Batch{Spans: spans}
 }
 
-func jaegerBatchToPbTrace(batch *jaeger.Batch) *tempopb.Trace {
-	trace := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{},
-	}
-	libs := []*v1.InstrumentationLibrarySpans{
-		{
-			InstrumentationLibrary: &v1common.InstrumentationLibrary{},
-		},
-	}
-
-	for _, s := range batch.Spans {
-		traceIDHex := fmt.Sprintf("%016x%016x", s.TraceIdHigh, s.TraceIdLow)
-		traceID, err := util.HexStringToTraceID(traceIDHex)
-		if err != nil {
-			logger.Error(err.Error())
-		}
-
-		spanIDHex := fmt.Sprintf("%016x", s.SpanId)
-		spanID, err := hex.DecodeString(spanIDHex)
-		if err != nil {
-			logger.Error(err.Error())
-		}
-
-		startTime := time.Unix(s.StartTime, 0)
-		stopTime := startTime.Add(time.Duration(s.Duration) * time.Second)
-
-		span := &v1.Span{
-			TraceId: traceID,
-			SpanId:  spanID,
-			Name:    s.OperationName,
-			// TODO use time.UnixMilli() when upgraded to Go 1.17
-			StartTimeUnixNano: uint64(startTime.UnixNano() / int64(time.Millisecond)),
-			EndTimeUnixNano:   uint64(stopTime.UnixNano() / int64(time.Millisecond)),
-			Status:            &v1.Status{},
-		}
-
-		for _, tag := range s.Tags {
-			span.Attributes = append(span.Attributes, &v1common.KeyValue{
-				Key: tag.Key,
-				Value: &v1common.AnyValue{
-					Value: &v1common.AnyValue_StringValue{StringValue: *tag.VStr},
-				},
-			})
-		}
-
-		for _, event := range s.Logs {
-			attrs := []*v1common.KeyValue{}
-
-			for _, tag := range event.Fields {
-				attrs = append(attrs, &v1common.KeyValue{
-					Key: tag.Key,
-					Value: &v1common.AnyValue{
-						Value: &v1common.AnyValue_StringValue{StringValue: *tag.VStr},
-					},
-				})
-			}
-
-			t := time.Unix(event.Timestamp, 0)
-
-			span.Events = append(span.Events, &v1.Span_Event{
-				// TODO use time.UnixMilli() when upgraded to Go 1.17
-				TimeUnixNano: uint64(t.UnixNano() / int64(time.Millisecond)),
-				Attributes:   attrs,
-			})
-		}
-		libs[0].Spans = append(libs[0].Spans, span)
-	}
-
-	trace.Batches = append(trace.Batches, &v1.ResourceSpans{
-		Resource:                    &v1resource.Resource{},
-		InstrumentationLibrarySpans: libs,
-	})
-
-	return trace
-}
-
 func generateRandomInt(min int64, max int64, r *rand.Rand) int64 {
 	min++
 	number := min + r.Int63n(max-min)
@@ -449,8 +370,33 @@ func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 
 	for i := int64(0); i < generateRandomInt(1, 100, r); i++ {
 		batch := makeThriftBatch(traceIDHigh, traceIDLow, r, epoch)
-		result := jaegerBatchToPbTrace(batch)
-		trace.Batches = append(trace.Batches, result.Batches...)
+		internalTrace := jaegerTrans.ThriftBatchToInternalTraces(batch)
+		conv, err := internalTrace.ToOtlpProtoBytes()
+		if err != nil {
+			logger.Error(err.Error())
+		}
+
+		t := tempopb.Trace{}
+		err = t.Unmarshal(conv)
+		if err != nil {
+			logger.Error(err.Error())
+		}
+
+		// Due to the several transforms above, some manual mangling is required to
+		// get the parentSpanID to match.  In the case of an empty []byte in place
+		// for the ParentSpanId, we set to nil here to ensure that the final result
+		// matches the json.Unmarshal value when tempo is queried.
+		for ib, b := range t.Batches {
+			for il, l := range b.InstrumentationLibrarySpans {
+				for is, s := range l.Spans {
+					if len(s.GetParentSpanId()) == 0 {
+						t.Batches[ib].InstrumentationLibrarySpans[il].Spans[is].ParentSpanId = nil
+					}
+				}
+			}
+		}
+
+		trace.Batches = append(trace.Batches, t.Batches...)
 	}
 
 	return trace

@@ -243,23 +243,6 @@ func TestIntervalsBetween(t *testing.T) {
 	}
 }
 
-func TestEqualTraces(t *testing.T) {
-	now := time.Now()
-
-	require.Equal(t, newRand(now).Int(), newRand(now).Int())
-
-	r1 := newRand(now)
-	batch1 := makeThriftBatch(r1.Int63(), r1.Int63(), r1, now)
-	pb1 := jaegerBatchToPbTrace(batch1)
-
-	r2 := newRand(now)
-	batch2 := makeThriftBatch(r2.Int63(), r2.Int63(), r2, now)
-	pb2 := jaegerBatchToPbTrace(batch2)
-
-	require.Equal(t, pb1, pb2)
-	require.True(t, equalTraces(pb1, pb2))
-}
-
 func TestNewRand(t *testing.T) {
 	now := time.Now()
 
