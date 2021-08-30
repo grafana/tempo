@@ -9,6 +9,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestEncodeDecodeRecord(t *testing.T) {
+	expected, err := makeRecord(t)
+	assert.NoError(t, err, "unexpected error making trace record")
+
+	buff := make([]byte, recordLength)
+
+	r := record{}
+	marshalRecord(expected, buff)
+	actual := r.UnmarshalRecord(buff)
+
+	assert.Equal(t, expected, actual)
+}
+
 func TestSortRecord(t *testing.T) {
 	numRecords := 10
 	expected := make([]common.Record, 0, numRecords)
@@ -39,8 +52,9 @@ func makeRecord(t *testing.T) (common.Record, error) {
 	t.Helper()
 
 	r := common.Record{
-		Start:  rand.Uint64(),
-		Length: rand.Uint32(),
+		ID:     make([]byte, 16), // 128 bits
+		Start:  0,
+		Length: 0,
 	}
 
 	_, err := rand.Read(r.ID)
