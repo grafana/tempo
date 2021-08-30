@@ -12,20 +12,18 @@ import (
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
-	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/cortexproject/cortex/pkg/util/grpc/healthcheck"
 	"github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/cortexproject/cortex/pkg/util/modules"
-	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
-	"gopkg.in/yaml.v3"
-
+	"github.com/grafana/dskit/modules"
+	"github.com/grafana/dskit/services"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 	"github.com/weaveworks/common/signals"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -257,7 +255,7 @@ func (t *App) Run() error {
 		// let's find out which module failed
 		for m, s := range serviceMap {
 			if s == service {
-				if service.FailureCase() == util.ErrStopProcess {
+				if service.FailureCase() == modules.ErrStopProcess {
 					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", service.FailureCase())
 				} else {
 					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", service.FailureCase())

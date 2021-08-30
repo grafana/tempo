@@ -6,8 +6,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cortexproject/cortex/pkg/ring"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/status"
+	"github.com/grafana/dskit/services"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
@@ -16,9 +19,6 @@ import (
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/codes"
 
-	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/flushqueues"

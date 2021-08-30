@@ -11,9 +11,9 @@ import (
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/limiter"
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/status"
+	"github.com/grafana/dskit/services"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/pkg/errors"

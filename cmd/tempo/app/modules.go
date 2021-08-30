@@ -13,9 +13,9 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring/kv/codec"
 	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
 	"github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/cortexproject/cortex/pkg/util/modules"
-	"github.com/cortexproject/cortex/pkg/util/services"
 	"github.com/go-kit/kit/log/level"
+	"github.com/grafana/dskit/modules"
+	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
@@ -243,7 +243,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 }
 
 func (t *App) setupModuleManager() error {
-	mm := modules.NewManager()
+	mm := modules.NewManager(log.Logger)
 
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
