@@ -12,6 +12,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
+	"github.com/aws/aws-sdk-go/service/s3"
 	log_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cristalhq/hedgedhttp"
 	"github.com/go-kit/kit/log"
@@ -26,7 +27,6 @@ import (
 )
 
 const (
-	s3KeyDoesNotExist  = "The specified key does not exist."
 	uptoHedgedRequests = 2
 )
 
@@ -262,7 +262,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
 	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
-	if err != nil && err.Error() == s3KeyDoesNotExist {
+	if err != nil && minio.ToErrorResponse(err).Code == s3.ErrCodeNoSuchKey {
 		return nil, minio.ObjectInfo{}, backend.ErrDoesNotExist
 	} else if err != nil {
 		return nil, minio.ObjectInfo{}, errors.Wrap(err, "error fetching object from s3 backend")
@@ -359,9 +359,8 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 }
 
 func readError(err error) error {
-	if err != nil && err.Error() == s3KeyDoesNotExist {
+	if err != nil && minio.ToErrorResponse(err).Code == s3.ErrCodeNoSuchKey {
 		return backend.ErrDoesNotExist
 	}
-
 	return err
 }

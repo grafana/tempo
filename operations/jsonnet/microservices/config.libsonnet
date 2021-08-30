@@ -97,6 +97,7 @@
     backend: error 'Must specify a backend',  // gcs|s3
     bucket: error 'Must specify a bucket',
 
+    overrides_configmap_name: 'tempo-overrides',
     overrides+:: {
       super_user:: {
         max_traces_per_user: 100000,
