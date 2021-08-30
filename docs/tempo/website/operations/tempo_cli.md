@@ -204,6 +204,8 @@ tempo-cli view index -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0
 
 To generate the bloom filter for a block if the files were deleted/corrupted.
 
+**Note:** ensure that the block is in a local backend in the expected directory hierarchy, i.e. `path / tenant / blocks`.
+
 Arguments:
 - `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
 - `block-id` The block ID as UUID string.
@@ -220,6 +222,8 @@ The bloom filter will be generated at the required location under the block fold
 ## Generate Index
 
 To generate the index/bloom for a block if the files were deleted/corrupted.
+
+**Note:** ensure that the block is in a local backend in the expected directory hierarchy, i.e. `path / tenant / blocks`.
 
 Arguments:
 - `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
