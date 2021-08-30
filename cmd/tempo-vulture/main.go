@@ -159,7 +159,9 @@ func intervalsBetween(start, stop time.Time, interval time.Duration, retention t
 	next := start.Round(interval)
 
 	for next.Before(stop) {
-		intervals = append(intervals, next)
+		if next.After(start) {
+			intervals = append(intervals, next)
+		}
 		next = next.Add(interval)
 	}
 

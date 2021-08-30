@@ -221,7 +221,7 @@ func TestIntervalsBetween(t *testing.T) {
 			stop:      nowish,
 			interval:  11 * time.Second,
 			retention: 1 * time.Hour,
-			count:     7,
+			count:     6,
 		},
 		{
 			start:     nowish.Add(-1 * time.Hour),
