@@ -77,12 +77,12 @@ func TestGenerateRandomInt(t *testing.T) {
 		{
 			min:    1,
 			max:    5,
-			result: 3,
+			result: 4,
 		},
 		{
 			min:    10,
 			max:    50,
-			result: 41,
+			result: 33,
 		},
 		{
 			min:    1,
@@ -101,7 +101,7 @@ func TestGenerateRandomString(t *testing.T) {
 	r := rand.New(rand.NewSource(1))
 
 	strings := []string{
-		"VlBzgbaiCM",
+		"VlBzgbaiCMRAjWwhTH",
 	}
 
 	for _, s := range strings {
@@ -115,16 +115,20 @@ func TestGenerateRandomTags(t *testing.T) {
 
 	expected := []*thrift.Tag{
 		{
-			Key:  "CMRAjWwhTHctcuAx",
-			VStr: stringPointer("lBzgba"),
+			Key:  "tcuAxhxKQ",
+			VStr: stringPointer("lBzgbaiCMRAjWwhTH"),
 		},
 		{
-			Key:  "oEFfRsWxPLDnJOb",
-			VStr: stringPointer("xKQFDaFpLSjFbc"),
+			Key:  "sWxPLDnJObCsN",
+			VStr: stringPointer("DaFpLSjFbcXoEFf"),
 		},
 		{
-			Key:  "eQYhYzRyWJjP",
-			VStr: stringPointer("sNVlgTeMaPEZQ"),
+			Key:  "EZQleQYhYzR",
+			VStr: stringPointer("lgTeMa"),
+		},
+		{
+			Key:  "FetHsbZR",
+			VStr: stringPointer("WJjPjzpfRFEgmot"),
 		},
 	}
 	result := generateRandomTags(r)
@@ -141,20 +145,16 @@ func TestGenerateRandomLogs(t *testing.T) {
 			Timestamp: now.Unix(),
 			Fields: []*thrift.Tag{
 				{
-					Key:  "whTHctcuAx",
-					VStr: stringPointer("BzgbaiCMRAj"),
+					Key:  "THctcuAxhxKQFD",
+					VStr: stringPointer("BzgbaiCMRAjWw"),
 				},
 				{
-					Key:  "oEFfRsWxPLDnJOb",
-					VStr: stringPointer("xKQFDaFpLSjFbc"),
+					Key:  "LDnJObCsNVlgTeMaP",
+					VStr: stringPointer("FpLSjFbcXoEFfRsWx"),
 				},
 				{
-					Key:  "eQYhYzRyWJjP",
-					VStr: stringPointer("sNVlgTeMaPEZQ"),
-				},
-				{
-					Key:  "ZRjxAwnwekrBEmf",
-					VStr: stringPointer("zpfRFEgmotaFetHs"),
+					Key:  "PjzpfRFEgmotaFetHsb",
+					VStr: stringPointer("ZQleQYhYzRyWJ"),
 				},
 			},
 		},
@@ -162,20 +162,12 @@ func TestGenerateRandomLogs(t *testing.T) {
 			Timestamp: now.Unix(),
 			Fields: []*thrift.Tag{
 				{
-					Key:  "TMtTCoaN",
-					VStr: stringPointer("cEkXBAkjQZLC"),
+					Key:  "BAkjQZLCtTMtTCoa",
+					VStr: stringPointer("jxAwnwekrBEmfdzdcEk"),
 				},
 				{
-					Key:  "tNswYNsGRussVmaozFZ",
-					VStr: stringPointer("tyyiNKAReKJyiXJrsc"),
-				},
-				{
-					Key:  "GLOpbU",
-					VStr: stringPointer("sbOJiFQGZsnwTKSmVo"),
-				},
-				{
-					Key:  "VjaRzLNTXYeUCWKs",
-					VStr: stringPointer("pEdKupdOMe"),
+					Key:  "cctNswYN",
+					VStr: stringPointer("atyyiNKAReKJyiXJr"),
 				},
 			},
 		},
@@ -183,20 +175,29 @@ func TestGenerateRandomLogs(t *testing.T) {
 			Timestamp: now.Unix(),
 			Fields: []*thrift.Tag{
 				{
-					Key:  "SJfjzaLbtZsyMGe",
-					VStr: stringPointer("yRAOmBTv"),
+					Key:  "OJiFQG",
+					VStr: stringPointer("RussVmaozFZBs"),
 				},
 				{
-					Key:  "HOvgSeycJPJHYNufN",
-					VStr: stringPointer("DtRzQMDQiYCOh"),
+					Key:  "KupdOMeRVja",
+					VStr: stringPointer("snwTKSmVoiGLOpbUOpE"),
 				},
 				{
-					Key:  "qfgqVMkPYVkU",
-					VStr: stringPointer("JhhjUVRu"),
+					Key:  "WKsXbGyRA",
+					VStr: stringPointer("zLNTXYeU"),
+				},
+			},
+		},
+		{
+			Timestamp: now.Unix(),
+			Fields: []*thrift.Tag{
+				{
+					Key:  "yMGeuDtRzQMDQ",
+					VStr: stringPointer("BTvKSJfjzaLbtZ"),
 				},
 				{
-					Key:  "rKCtzkjkZIvaBj",
-					VStr: stringPointer("UpiFvIZRgBmy"),
+					Key:  "HYNufNjJhhjUVRu",
+					VStr: stringPointer("YCOhgHOvgSeycJP"),
 				},
 			},
 		},
@@ -294,7 +295,7 @@ func TestResponseFixture(t *testing.T) {
 	err = jsonpb.Unmarshal(f, response)
 	require.NoError(t, err)
 
-	seed := time.Unix(1630010049, 0)
+	seed := time.Unix(1630337285, 0)
 	expected := constructTraceFromEpoch(seed)
 
 	assert.True(t, equalTraces(expected, response))

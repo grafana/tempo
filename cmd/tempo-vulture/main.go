@@ -338,10 +338,8 @@ func jaegerBatchToPbTrace(batch *jaeger.Batch) *tempopb.Trace {
 }
 
 func generateRandomInt(min int64, max int64, r *rand.Rand) int64 {
+	min++
 	number := min + r.Int63n(max-min)
-	if number == min {
-		return generateRandomInt(min, max, r)
-	}
 	return number
 }
 
