@@ -199,3 +199,39 @@ Arguments:
 ```bash
 tempo-cli view index -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```
+
+## Generate Bloom Filter
+
+To generate the bloom filter for a block if the files were deleted/corrupted.
+
+**Note:** ensure that the block is in a local backend in the expected directory hierarchy, i.e. `path / tenant / blocks`.
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `block-id` The block ID as UUID string.
+- `bloom-fp` The false positive to be used for the bloom filter.
+- `bloom-shard-size` The shard size to be used for the bloom filter.
+
+**Example:**
+```bash
+tempo-cli gen bloom --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant b18beca6-4d7f-4464-9f72-f343e688a4a0 0.05 100000
+```
+
+The bloom filter will be generated at the required location under the block folder.
+
+## Generate Index
+
+To generate the index/bloom for a block if the files were deleted/corrupted.
+
+**Note:** ensure that the block is in a local backend in the expected directory hierarchy, i.e. `path / tenant / blocks`.
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `block-id` The block ID as UUID string.
+
+**Example:**
+```bash
+tempo-cli gen index --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant b18beca6-4d7f-4464-9f72-f343e688a4a0
+```
+
+The index will be generated at the required location under the block folder.

@@ -8,6 +8,7 @@ require (
 	github.com/Azure/azure-pipeline-go v0.2.2
 	github.com/Azure/azure-storage-blob-go v0.8.0
 	github.com/alecthomas/kong v0.2.11
+	github.com/aws/aws-sdk-go v1.38.60
 	github.com/cespare/xxhash v1.1.0
 	github.com/cortexproject/cortex v1.10.1-0.20210816080356-090988c40f3e
 	github.com/cristalhq/hedgedhttp v0.6.0
