@@ -31,6 +31,19 @@ func TestReaderRead(t *testing.T) {
 	testRead(t, totalObjects, enc, ids, objs, buffer, recs)
 }
 
+func BenchmarkReaderRead(b *testing.B) {
+	totalObjects := 10000
+	objsPerPage := 100
+	enc := backend.EncZstd
+
+	ids, objs, buffer, recs := createTestData(b, totalObjects, objsPerPage, enc)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		testRead(b, totalObjects, enc, ids, objs, buffer, recs)
+	}
+}
+
 func BenchmarkReaderNextPage(b *testing.B) {
 	totalObjects := 10000
 	objsPerPage := 100
