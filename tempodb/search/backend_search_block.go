@@ -15,7 +15,7 @@ import (
 
 var _ SearchableBlock = (*BackendSearchBlock)(nil)
 
-const defaultBackendSearchBlockPageSize = 1024 * 1024
+const defaultBackendSearchBlockPageSize = 2 * 1024 * 1024
 
 type BackendSearchBlock struct {
 	id       uuid.UUID
