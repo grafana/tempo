@@ -22,7 +22,7 @@ At the moment, a backend block can be fixed if either the index or bloom-filter 
 To fix such a block, first download it onto a machine where you can run the `tempo-cli`.
 
 Next run the `tempo-cli`'s `gen index` / `gen bloom` commands depending on which file is corrupt/deleted.
-The command will create a fresh index/bloom-filter from the data file.
+The command will create a fresh index/bloom-filter from the data file at the required location (in the block folder).
 To read all the options for this command, check the [cli docs](../../operations/tempo_cli).
 
 Finally, upload the generated index or bloom-filter onto the object store backend under the folder for the block.

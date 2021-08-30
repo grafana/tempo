@@ -215,6 +215,8 @@ Arguments:
 tempo-cli gen bloom --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant b18beca6-4d7f-4464-9f72-f343e688a4a0 0.05 100000
 ```
 
+The bloom filter will be generated at the required location under the block folder.
+
 ## Generate Index
 
 To generate the index/bloom for a block if the files were deleted/corrupted.
@@ -227,3 +229,5 @@ Arguments:
 ```bash
 tempo-cli gen index --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant b18beca6-4d7f-4464-9f72-f343e688a4a0
 ```
+
+The index will be generated at the required location under the block folder.
