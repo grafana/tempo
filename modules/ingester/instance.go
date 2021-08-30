@@ -154,7 +154,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	}
 
 	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, buffer, nil)
+	return trace.Push(ctx, i.instanceID, buffer, nil)
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
@@ -177,7 +177,7 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 	defer i.tracesMtx.Unlock()
 
 	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, traceBytes, searchData)
+	return trace.Push(ctx, i.instanceID, traceBytes, searchData)
 }
 
 // Moves any complete traces out of the map to complete traces
