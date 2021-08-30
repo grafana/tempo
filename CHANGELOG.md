@@ -23,10 +23,11 @@
   compactor:
     compaction:
       chunk_size_bytes: 10 MiB => 5 MiB  # will reduce compactor memory needs
-      compaction_window: 4h => 1h # will allow more compactors to participate in compaction without substantially increasing blocks
+      compaction_window: 4h => 1h        # will allow more compactors to participate in compaction without substantially increasing blocks
   ```
 * [ENHANCEMENT] Make s3 backend readError logic more robust [#905](https://github.com/grafana/tempo/pull/905) (@wei840222)
 * [ENHANCEMENT] Include additional detail when searching for traces [#916](https://github.com/grafana/tempo/pull/916) (@zalegrala)
+* [ENHANCEMENT] Add `gen index` and `gen bloom` commands to tempo-cli. [#903](https://github.com/grafana/tempo/pull/903) (@annanay25)
 
 ## v1.1.0 / 2021-08-26
 
