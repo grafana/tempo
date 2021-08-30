@@ -219,6 +219,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			traceCountTotal++
 
 			span.LogFields(ot_log.String("msg", "combined trace protos from store"),
+				ot_log.Bool("found", completeTrace != nil),
 				ot_log.Int("combinedSpans", spanCountTotal),
 				ot_log.Int("combinedTraces", traceCountTotal))
 		}

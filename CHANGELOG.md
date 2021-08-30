@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [ENHANCEMENT] Make s3 backend readError logic more robust [#905](https://github.com/grafana/tempo/pull/905) (@wei840222)
+* [ENHANCEMENT] Include additional detail when searching for traces [#916](https://github.com/grafana/tempo/pull/916) (@zalegrala)
 
 ## v1.1.0 / 2021-08-26
 
