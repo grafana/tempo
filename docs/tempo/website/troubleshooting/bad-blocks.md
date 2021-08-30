@@ -25,7 +25,7 @@ Next run the `tempo-cli`'s `gen index` / `gen bloom` commands depending on which
 The command will create a fresh index/bloom-filter from the data file.
 To read all the options for this command, check the [cli docs](../../operations/tempo_cli).
 
-Finally, upload the generated bloom-filter or index onto the object store backend under the folder for the block.
+Finally, upload the generated index or bloom-filter onto the object store backend under the folder for the block.
 
 ## Removing bad blocks
 
