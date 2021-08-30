@@ -9,7 +9,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var _ SearchBlock = (*StreamingSearchBlock)(nil)
+var _ SearchableBlock = (*StreamingSearchBlock)(nil)
 var _ common.DataWriter = (*StreamingSearchBlock)(nil)
 
 // StreamingSearchBlock is search data that is read/write, i.e. for traces in the WAL.
@@ -91,7 +91,7 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 }
 
 // Search the streaming block.
-func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchResults) error {
+func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results) error {
 
 	var buf []byte
 

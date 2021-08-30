@@ -21,7 +21,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	p := search.NewSearchPipeline(req)
 
-	sr := search.NewSearchResults()
+	sr := search.NewResults()
 	defer sr.Close()
 
 	i.searchLiveTraces(ctx, p, sr)
@@ -65,7 +65,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	}, nil
 }
 
-func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *search.SearchResults) {
+func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *search.Results) {
 	sr.StartWorker()
 
 	go func() {
@@ -107,7 +107,7 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 	}()
 }
 
-func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.SearchResults) {
+func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.Results) {
 	searchFunc := func(k *wal.AppendBlock, e *searchStreamingBlockEntry) {
 		defer sr.FinishWorker()
 
@@ -134,7 +134,7 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 	}
 }
 
-func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr *search.SearchResults) {
+func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr *search.Results) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 

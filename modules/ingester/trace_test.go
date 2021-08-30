@@ -15,7 +15,8 @@ func TestTraceMaxSearchBytes(t *testing.T) {
 
 	getMetric := func() float64 {
 		m := &prom_dto.Metric{}
-		metricTraceSearchBytesDiscardedTotal.WithLabelValues(tenantID).Write(m)
+		err := metricTraceSearchBytesDiscardedTotal.WithLabelValues(tenantID).Write(m)
+		require.NoError(t, err)
 		return m.Counter.GetValue()
 	}
 

@@ -93,7 +93,7 @@ type searchStreamingBlockEntry struct {
 }
 
 type searchLocalBlockEntry struct {
-	b   search.SearchBlock
+	b   search.SearchableBlock
 	mtx sync.RWMutex
 }
 
@@ -267,7 +267,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	oldSearch := i.searchAppendBlocks[completingBlock]
 	i.blocksMtx.Unlock()
 
-	var newSearch search.SearchBlock
+	var newSearch search.SearchableBlock
 	if oldSearch != nil {
 		err = search.NewBackendSearchBlock(oldSearch.b, i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID, backend.EncSnappy, 0)
 		if err != nil {
@@ -290,7 +290,6 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	return nil
 }
 
-// nolint:interfacer
 func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()

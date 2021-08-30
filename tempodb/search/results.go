@@ -7,11 +7,10 @@ import (
 	"go.uber.org/atomic"
 )
 
-// SearchResults eases performing a highly parallel search by funneling all results into a single
+// Results eases performing a highly parallel search by funneling all results into a single
 // channel that is easy to consume, signaling workers to quit early as needed, and collecting
 // metrics.
-// nolint:golint
-type SearchResults struct {
+type Results struct {
 	resultsCh   chan *tempopb.TraceSearchMetadata
 	doneCh      chan struct{}
 	quit        atomic.Bool
@@ -23,8 +22,8 @@ type SearchResults struct {
 	blocksInspected atomic.Uint32
 }
 
-func NewSearchResults() *SearchResults {
-	return &SearchResults{
+func NewResults() *Results {
+	return &Results{
 		resultsCh: make(chan *tempopb.TraceSearchMetadata),
 		doneCh:    make(chan struct{}),
 	}
@@ -34,7 +33,7 @@ func NewSearchResults() *SearchResults {
 // the search results, i.e. the initiator of the search.  This function blocks until there
 // is buffer space in the results channel or if the task should stop searching because the
 // receiver went away or the given context is done. In this case true is returned.
-func (sr *SearchResults) AddResult(ctx context.Context, r *tempopb.TraceSearchMetadata) (quit bool) {
+func (sr *Results) AddResult(ctx context.Context, r *tempopb.TraceSearchMetadata) (quit bool) {
 	select {
 	case sr.resultsCh <- r:
 		return false
@@ -48,14 +47,14 @@ func (sr *SearchResults) AddResult(ctx context.Context, r *tempopb.TraceSearchMe
 
 // Quit returns if search tasks should quit early. This can occur due to max results
 // already found, or other errors such as timeout, etc.
-func (sr *SearchResults) Quit() bool {
+func (sr *Results) Quit() bool {
 	return sr.quit.Load()
 }
 
 // Results returns the results channel. Channel is closed when the search is complete.
 // Can be iterated by range like:
 //   for res := range sr.Results()
-func (sr *SearchResults) Results() <-chan *tempopb.TraceSearchMetadata {
+func (sr *Results) Results() <-chan *tempopb.TraceSearchMetadata {
 	return sr.resultsCh
 }
 
@@ -63,7 +62,7 @@ func (sr *SearchResults) Results() <-chan *tempopb.TraceSearchMetadata {
 // Called by the initiator of the search in a defer statement like:
 //     sr := NewSearchResults()
 //     defer sr.Close()
-func (sr *SearchResults) Close() {
+func (sr *Results) Close() {
 	// Closing done channel makes all subsequent and blocked calls to AddResult return
 	// quit immediately.
 	close(sr.doneCh)
@@ -75,14 +74,14 @@ func (sr *SearchResults) Close() {
 //   sr.StartWorker()
 //   go func() {
 //      defer sr.FinishWorker()
-func (sr *SearchResults) StartWorker() {
+func (sr *Results) StartWorker() {
 	sr.workerCount.Inc()
 }
 
 // AllWorkersStarted indicates that no more workers (senders) will be launched, and the
 // results channel can be closed once the number of workers reaches zero.  This function
 // call occurs after all calls to StartWorker.
-func (sr *SearchResults) AllWorkersStarted() {
+func (sr *Results) AllWorkersStarted() {
 	sr.started.Store(true)
 	sr.checkCleanup(sr.workerCount.Load())
 }
@@ -90,12 +89,12 @@ func (sr *SearchResults) AllWorkersStarted() {
 // FinishWorker indicates a sender (goroutine) is done searching and will not
 // send any more search results. When the last sender is finished, the results
 // channel is closed.
-func (sr *SearchResults) FinishWorker() {
+func (sr *Results) FinishWorker() {
 	newCount := sr.workerCount.Dec()
 	sr.checkCleanup(newCount)
 }
 
-func (sr *SearchResults) checkCleanup(workerCount int32) {
+func (sr *Results) checkCleanup(workerCount int32) {
 	if sr.started.Load() && workerCount == 0 {
 		// No more senders. This ends the receiver that is iterating
 		// the results channel.
@@ -103,26 +102,26 @@ func (sr *SearchResults) checkCleanup(workerCount int32) {
 	}
 }
 
-func (sr *SearchResults) TracesInspected() uint32 {
+func (sr *Results) TracesInspected() uint32 {
 	return sr.tracesInspected.Load()
 }
 
-func (sr *SearchResults) AddTraceInspected(c uint32) {
+func (sr *Results) AddTraceInspected(c uint32) {
 	sr.tracesInspected.Add(c)
 }
 
-func (sr *SearchResults) BytesInspected() uint64 {
+func (sr *Results) BytesInspected() uint64 {
 	return sr.bytesInspected.Load()
 }
 
-func (sr *SearchResults) AddBytesInspected(c uint64) {
+func (sr *Results) AddBytesInspected(c uint64) {
 	sr.bytesInspected.Add(c)
 }
 
-func (sr *SearchResults) AddBlockInspected() {
+func (sr *Results) AddBlockInspected() {
 	sr.blocksInspected.Inc()
 }
 
-func (sr *SearchResults) BlocksInspected() uint32 {
+func (sr *Results) BlocksInspected() uint32 {
 	return sr.blocksInspected.Load()
 }

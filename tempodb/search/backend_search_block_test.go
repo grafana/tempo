@@ -61,7 +61,7 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 		Tags: map[string]string{"key1": "value10"},
 	})
 
-	sr := NewSearchResults()
+	sr := NewResults()
 
 	sr.StartWorker()
 	go func() {
@@ -93,7 +93,7 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 					Tags: map[string]string{"nomatch": "nomatch"},
 				})
 
-				sr := NewSearchResults()
+				sr := NewResults()
 
 				b.ResetTimer()
 				start := time.Now()

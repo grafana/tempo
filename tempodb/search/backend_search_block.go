@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var _ SearchBlock = (*BackendSearchBlock)(nil)
+var _ SearchableBlock = (*BackendSearchBlock)(nil)
 
 const defaultBackendSearchBlockPageSize = 1024 * 1024
 
@@ -110,7 +110,7 @@ func OpenBackendSearchBlock(l *local.Backend, blockID uuid.UUID, tenantID string
 }
 
 // Search iterates through the block looking for matches.
-func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *SearchResults) error {
+func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results) error {
 	var pageBuf []byte
 	var dataBuf []byte
 	var pagesBuf [][]byte
