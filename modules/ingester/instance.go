@@ -269,7 +269,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	var newSearch search.SearchBlock
 	if oldSearch != nil {
-		err = search.NewBackendSearchBlock(oldSearch.b, i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID, backend.EncNone, 0)
+		err = search.NewBackendSearchBlock(oldSearch.b, i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID, backend.EncSnappy, 0)
 		if err != nil {
 			return err
 		}
