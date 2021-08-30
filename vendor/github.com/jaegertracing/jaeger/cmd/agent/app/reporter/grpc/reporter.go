@@ -49,7 +49,6 @@ func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap
 }
 
 // EmitBatch implements EmitBatch() of Reporter
-
 func (r *Reporter) EmitBatch(ctx context.Context, b *thrift.Batch) error {
 	return r.send(ctx, jConverter.ToDomain(b.Spans, nil), jConverter.ToDomainProcess(b.Process))
 }

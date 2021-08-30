@@ -122,12 +122,8 @@ func main() {
 	// Read
 	go func() {
 		for now := range tickerRead.C {
-			intervals := intervalsBetween(startTime, now, interval, tempoRetentionDuration)
-			startTime = intervals[0]
-
-			// pick past interval and re-generate trace
-			pick := generateRandomInt(0, int64(len(intervals)), newRand(now))
-			seed := intervals[pick]
+			var seed time.Time
+			startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration)
 
 			r := newRand(seed)
 			hexID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
@@ -148,6 +144,13 @@ func main() {
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
+}
+
+func selectPastTimestamp(start, stop time.Time, interval time.Duration, retention time.Duration) (newStart, ts time.Time) {
+	intervals := intervalsBetween(start, stop, interval, retention)
+	// pick past interval and re-generate trace
+	pick := generateRandomInt(0, int64(len(intervals)), newRand(intervals[0]))
+	return intervals[0], intervals[pick]
 }
 
 func intervalsBetween(start, stop time.Time, interval time.Duration, retention time.Duration) []time.Time {
