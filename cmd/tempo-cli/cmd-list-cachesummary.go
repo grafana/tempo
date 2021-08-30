@@ -14,7 +14,7 @@ type listCacheSummaryCmd struct {
 }
 
 func (l *listCacheSummaryCmd) Run(ctx *globalOptions) error {
-	r, c, err := loadBackend(&l.backendOptions, ctx)
+	r, _, c, err := loadBackend(&l.backendOptions, ctx)
 	if err != nil {
 		return err
 	}

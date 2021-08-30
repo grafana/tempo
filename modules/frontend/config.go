@@ -18,7 +18,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Config.Handler.LogQueriesLongerThan = 0
 	cfg.Config.FrontendV1.MaxOutstandingPerTenant = 100
 	cfg.MaxRetries = 2
-	cfg.QueryShards = 2
+	cfg.QueryShards = 20
 }
 
 type CortexNoQuerierLimits struct{}

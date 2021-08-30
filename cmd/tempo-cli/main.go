@@ -16,13 +16,19 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/s3"
 )
 
+const (
+	dataFilename    = "data"
+	indexFilename   = "index"
+	bloomFilePrefix = "bloom-"
+)
+
 type globalOptions struct {
 	ConfigFile string `type:"path" short:"c" help:"Path to tempo config file"`
 }
 
 type backendOptions struct {
 	Backend string `help:"backend to connect to (s3/gcs/local/azure), optional, overrides backend in config file" enum:",s3,gcs,local,azure"`
-	Bucket  string `help:"bucket to scan, optional, overrides bucket in config file"`
+	Bucket  string `help:"bucket (or path on local backend) to scan, optional, overrides bucket in config file"`
 
 	S3Endpoint string `name:"s3-endpoint" help:"s3 endpoint (s3.dualstack.us-east-2.amazonaws.com), optional, overrides endpoint in config file"`
 	S3User     string `name:"s3-user" help:"s3 username, optional, overrides username in config file"`
@@ -44,6 +50,11 @@ var cli struct {
 		Index viewIndexCmd `cmd:"" help:"View contents of block index"`
 	} `cmd:""`
 
+	Gen struct {
+		Index indexCmd `cmd:"" help:"Generate index for a block"`
+		Bloom bloomCmd `cmd:"" help:"Generate bloom for a block"`
+	} `cmd:""`
+
 	Query struct {
 		API    queryCmd       `cmd:"" help:"query tempo http api"`
 		Blocks queryBlocksCmd `cmd:"" help:"query for a traceid directly from backend blocks"`
@@ -61,7 +72,7 @@ func main() {
 	ctx.FatalIfErrorf(err)
 }
 
-func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.Compactor, error) {
+func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.Writer, backend.Compactor, error) {
 	// Defaults
 	cfg := app.Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
@@ -70,12 +81,12 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.C
 	if g.ConfigFile != "" {
 		buff, err := ioutil.ReadFile(g.ConfigFile)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read configFile %s: %w", g.ConfigFile, err)
+			return nil, nil, nil, fmt.Errorf("failed to read configFile %s: %w", g.ConfigFile, err)
 		}
 
 		err = yaml.UnmarshalStrict(buff, &cfg)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse configFile %s: %w", g.ConfigFile, err)
+			return nil, nil, nil, fmt.Errorf("failed to parse configFile %s: %w", g.ConfigFile, err)
 		}
 	}
 
@@ -97,24 +108,25 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.C
 
 	var err error
 	var r backend.RawReader
+	var w backend.RawWriter
 	var c backend.Compactor
 
 	switch cfg.StorageConfig.Trace.Backend {
 	case "local":
-		r, _, c, err = local.New(cfg.StorageConfig.Trace.Local)
+		r, w, c, err = local.New(cfg.StorageConfig.Trace.Local)
 	case "gcs":
-		r, _, c, err = gcs.New(cfg.StorageConfig.Trace.GCS)
+		r, w, c, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 	case "s3":
-		r, _, c, err = s3.New(cfg.StorageConfig.Trace.S3)
+		r, w, c, err = s3.New(cfg.StorageConfig.Trace.S3)
 	case "azure":
-		r, _, c, err = azure.New(cfg.StorageConfig.Trace.Azure)
+		r, w, c, err = azure.New(cfg.StorageConfig.Trace.Azure)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.StorageConfig.Trace.Backend)
 	}
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return backend.NewReader(r), c, nil
+	return backend.NewReader(r), backend.NewWriter(w), c, nil
 }

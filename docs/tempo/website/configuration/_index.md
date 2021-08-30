@@ -142,9 +142,13 @@ ingester:
             # number of replicas of each span to make while pushing to the backend
             replication_factor: 3
 
-    # amount of time before considering a trace complete and flushing it to a block
-    # (default: 30s)
+    # amount of time a trace must be idle before flushing it to the wal.
+    # (default: 10s)
     [trace_idle_period: <duration>]
+
+    # how often to sweep all tenants and move traces from live -> wal -> completed blocks.
+    # (default: 10s)
+    [flush_check_period: <duration>]
 
     # maximum size of a block before cutting it
     # (default: 1073741824 = 1GB)
@@ -169,7 +173,7 @@ query_frontend:
     [max_retries: <int>]
 
     # number of shards to split the query into
-    # (default: 2)
+    # (default: 20)
     [query_shards: <int>]
 ```
 
@@ -218,10 +222,10 @@ compactor:
         # Optional. Duration to keep blocks that have been compacted elsewhere. Default is 1h.
         [compacted_block_retention: <duration>]
 
-        # Optional. Blocks in this time window will be compacted together. Default is 4h.
+        # Optional. Blocks in this time window will be compacted together. Default is 1h.
         [compaction_window: <duration>]
 
-        # Optional. Amount of data to buffer from input blocks. Default is 10 MB.
+        # Optional. Amount of data to buffer from input blocks. Default is 5 MiB.
         [chunk_size_bytes: <int>]
 
         # Optional. Flush data to backend when buffer is this large. Default is 30 MB.
@@ -518,19 +522,24 @@ storage:
             # Example: "wal: /var/tempo/wal"
             [path: <string>] 
 
-            # (experimental) wal encoding/compression.
+            # wal encoding/compression.
             # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd
+            # (default: snappy)
             [encoding: <string>]
 
         # block configuration
         block:
 
             # bloom filter false positive rate.  lower values create larger filters but fewer false positives
-            # (default: .05)
+            # (default: .01)
             [bloom_filter_false_positive: <float>]
 
+            # maximum size of each bloom filter shard
+            # (default: 100 KiB)
+            [bloom_filter_shard_size_bytes: <int>]
+
             # number of bytes per index record
-            # (defaultL 1MB)
+            # (default: 1MiB)
             [index_downsample_bytes: <uint64>]
 
             # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd
