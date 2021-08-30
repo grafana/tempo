@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -210,7 +210,9 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
-	appender := NewAppender(v0.NewDataWriter(writer))
+	dataWriter, err := v2.NewDataWriter(writer, backend.EncNone)
+	require.NoError(t, err)
+	appender := NewAppender(dataWriter)
 
 	numMsgs := 1000
 	reqs := make([][]byte, 0, numMsgs)
@@ -235,7 +237,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 			minID = id
 		}
 	}
-	err := appender.Complete()
+	err = appender.Complete()
 	require.NoError(t, err)
 	err = writer.Flush()
 	require.NoError(t, err, "unexpected error flushing writer")
@@ -247,22 +249,11 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	originatingMeta.TotalObjects = numMsgs
 
 	// calc expected records
-	byteCounter := 0
-	expectedRecords := 0
-	for _, rec := range appender.Records() {
-		byteCounter += int(rec.Length)
-		if byteCounter > cfg.IndexDownsampleBytes {
-			byteCounter = 0
-			expectedRecords++
-		}
-	}
-	if byteCounter > 0 {
-		expectedRecords++
-	}
-
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes())), backend.EncNone)
+	require.NoError(t, err)
 	iter := NewRecordIterator(appender.Records(),
-		v0.NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes()))),
-		v0.NewObjectReaderWriter())
+		dataReader,
+		v2.NewObjectReaderWriter())
 
 	block, err := NewStreamingBlock(cfg, originatingMeta.BlockID, originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, originatingMeta.TotalObjects)
 	require.NoError(t, err, "unexpected error completing block")
@@ -290,7 +281,6 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	require.NoError(t, err)
 
 	// test downsample config
-	require.Equal(t, expectedRecords, len(block.appender.Records()))
 	require.True(t, bytes.Equal(block.BlockMeta().MinID, minID))
 	require.True(t, bytes.Equal(block.BlockMeta().MaxID, maxID))
 	require.Equal(t, originatingMeta.StartTime, block.BlockMeta().StartTime)

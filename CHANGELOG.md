@@ -6,6 +6,7 @@
 * [ENHANCEMENT] Added traceid to `trace too large message`. [#888](https://github.com/grafana/tempo/pull/888) (@mritunjaysharma394)
 * [ENHANCEMENT] Add support to tempo workloads to `overrides` from single configmap in microservice mode. [#896](https://github.com/grafana/tempo/pull/896) (@kavirajk)
 * [ENHANCEMENT] Make `overrides_config` block name consistent with Loki and Cortex in microservice mode. [#906](https://github.com/grafana/tempo/pull/906) (@kavirajk)
+* [CHANGE] **BREAKING CHANGE** Drop support for v0 and v1 blocks. See 1.1 changelog for details [#919](https://github.com/grafana/tempo/pull/919) (@joe-elliott)
 
 ## v1.1.0-rc.0 / 2021-08-11
 
