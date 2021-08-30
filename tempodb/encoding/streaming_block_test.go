@@ -132,19 +132,25 @@ func TestStreamingBlockAddObject(t *testing.T) {
 }
 
 func TestStreamingBlockAll(t *testing.T) {
-	// jpe extend this test to use some random values below
-	for _, enc := range backend.SupportedEncoding {
-		t.Run(enc.String(), func(t *testing.T) {
-			testStreamingBlockToBackendBlock(t,
-				&BlockConfig{
-					IndexDownsampleBytes: 1000,
-					BloomFP:              .01,
-					BloomShardSizeBytes:  10_000,
-					Encoding:             enc,
-					IndexPageSizeBytes:   1000,
-				},
-			)
-		})
+	for i := 0; i < 10; i++ {
+		indexDownsampleBytes := rand.Intn(5000) + 1000
+		bloomFP := float64(rand.Intn(99)+1) / 100.0
+		bloomShardSize := rand.Intn(10_000) + 10_000
+		indexPageSize := rand.Intn(5000) + 1000
+
+		for _, enc := range backend.SupportedEncoding {
+			t.Run(enc.String(), func(t *testing.T) {
+				testStreamingBlockToBackendBlock(t,
+					&BlockConfig{
+						IndexDownsampleBytes: indexDownsampleBytes,
+						BloomFP:              bloomFP,
+						BloomShardSizeBytes:  bloomShardSize,
+						Encoding:             enc,
+						IndexPageSizeBytes:   indexPageSize,
+					},
+				)
+			})
+		}
 	}
 }
 
