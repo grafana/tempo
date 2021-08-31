@@ -15,7 +15,6 @@ type dataReader struct {
 	contextReader backend.ContextReader
 
 	pageBuffer []byte
-	buffer     []byte
 
 	pool                  ReaderPool
 	compressedReader      io.Reader
