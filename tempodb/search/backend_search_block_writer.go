@@ -30,10 +30,10 @@ type backendSearchBlockWriter struct {
 
 var _ common.DataWriterGeneric = (*backendSearchBlockWriter)(nil)
 
-func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.RawWriter, enc backend.Encoding) (*backendSearchBlockWriter, error) {
+func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.RawWriter, v encoding.VersionedEncoding, enc backend.Encoding) (*backendSearchBlockWriter, error) {
 	finalBuf := &bytes.Buffer{}
 
-	dw, err := encoding.LatestEncoding().NewDataWriter(finalBuf, enc)
+	dw, err := v.NewDataWriter(finalBuf, enc)
 	if err != nil {
 		return nil, err
 	}

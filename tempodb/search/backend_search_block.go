@@ -32,12 +32,18 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 	indexPageSize := 100 * 1024
 	kv := &tempofb.KeyValues{} // buffer
 
+	// Pinning specific version instead of latest for safety
+	version, err := encoding.FromVersion("v2")
+	if err != nil {
+		return err
+	}
+
 	if pageSizeBytes <= 0 {
 		pageSizeBytes = defaultBackendSearchBlockPageSize
 	}
 
 	// Copy records into the appender
-	w, err := newBackendSearchBlockWriter(blockID, tenantID, l, enc)
+	w, err := newBackendSearchBlockWriter(blockID, tenantID, l, version, enc)
 	if err != nil {
 		return err
 	}
@@ -80,7 +86,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 
 	// Write index
 	ir := a.Records()
-	i := encoding.LatestEncoding().NewIndexWriter(indexPageSize)
+	i := version.NewIndexWriter(indexPageSize)
 	indexBytes, err := i.Write(ir)
 	if err != nil {
 		return err
@@ -94,7 +100,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 	sm := &BlockMeta{
 		IndexPageSize: uint32(indexPageSize),
 		IndexRecords:  uint32(len(ir)),
-		Version:       encoding.LatestEncoding().Version(),
+		Version:       version.Version(),
 		Encoding:      enc,
 	}
 	return WriteSearchBlockMeta(ctx, l, blockID, tenantID, sm)
