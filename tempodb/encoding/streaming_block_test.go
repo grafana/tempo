@@ -344,7 +344,7 @@ func BenchmarkReadZstd(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncZstd, benchDownsample, true)
 }
 
-// Download a block from your backend and place in ./benchmark_block/fake/<guid>
+// Download a block from your backend and place in ./benchmark_block/<tenant id>/<guid>
 //nolint:unparam
 func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsample int, benchRead bool) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
@@ -357,7 +357,10 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	require.NoError(b, err, "error creating backend")
 
 	r := backend.NewReader(rawR)
-	backendBlock, err := NewBackendBlock(backend.NewBlockMeta("fake", uuid.MustParse("9f15417a-1242-40e4-9de3-a057d3b176c1"), "v0", backend.EncNone, ""), r)
+	meta, err := r.BlockMeta(context.Background(), uuid.MustParse("00006e9d-94f0-4487-8e62-99f951be9349"), "1")
+	require.NoError(b, err)
+
+	backendBlock, err := NewBackendBlock(meta, r)
 	require.NoError(b, err, "error creating backend block")
 
 	iter, err := backendBlock.Iterator(10 * 1024 * 1024)
@@ -413,21 +416,30 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		return
 	}
 
-	// b.ResetTimer() todo : restore
+	// todo: restore read benchmarks
+	// b.ResetTimer()
 
-	// file, err := os.Open(StreamingBlock.fullFilename())
+	// file, err := os.Open(block.fullFilename())
 	// require.NoError(b, err)
-	// pr, err := v2.NewDataReader(v0.NewDataReader(backend.NewContextReaderWithAllReader(file)), encoding)
+	// pr, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), encoding)
 	// require.NoError(b, err)
-	// iterator = newPagedIterator(10*1024*1024, common.Records(cb.records), pr, backendBlock.encoding.newObjectReaderWriter())
 
+	// var tempBuffer []byte
+	// o := v2.NewObjectReaderWriter()
 	// for {
-	// 	id, _, err := iterator.Next(context.Background())
-	// 	if err != io.EOF {
-	// 		require.NoError(b, err)
-	// 	}
-	// 	if id == nil {
+	// 	tempBuffer, _, err = pr.NextPage(tempBuffer)
+	// 	if err == io.EOF {
 	// 		break
+	// 	}
+	// 	require.NoError(b, err)
+
+	// 	bufferReader := bytes.NewReader(tempBuffer)
+
+	// 	for {
+	// 		_, _, err = o.UnmarshalObjectFromReader(bufferReader)
+	// 		if err == io.EOF {
+	// 			break
+	// 		}
 	// 	}
 	// }
 }
