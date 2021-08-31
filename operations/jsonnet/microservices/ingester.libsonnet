@@ -60,7 +60,8 @@
     + statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_ingester_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
-    ]),
+    ])
+    + statefulset.mixin.spec.withPodManagementPolicy('Parallel'),
 
   tempo_ingester_service:
     k.util.serviceFor($.tempo_ingester_statefulset),
