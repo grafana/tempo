@@ -52,8 +52,8 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 			return err
 		}
 
-		s := tempofb.SearchDataFromBytes(buf)
-		data := &tempofb.SearchDataMutable{
+		s := tempofb.SearchEntryFromBytes(buf)
+		data := &tempofb.SearchEntryMutable{
 			TraceID:           r.ID,
 			StartTimeUnixNano: s.StartTimeUnixNano(),
 			EndTimeUnixNano:   s.EndTimeUnixNano(),
@@ -115,7 +115,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	var dataBuf []byte
 	var pagesBuf [][]byte
 	indexBuf := []common.Record{{}}
-	entry := &tempofb.SearchData{} // Buffer
+	entry := &tempofb.SearchEntry{} // Buffer
 
 	sr.AddBlockInspected()
 
@@ -171,7 +171,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 
 		sr.AddBytesInspected(uint64(len(dataBuf)))
 
-		batch := tempofb.GetRootAsBatchSearchData(dataBuf, 0)
+		batch := tempofb.GetRootAsSearchPage(dataBuf, 0)
 
 		// Verify something in the batch matches
 		if !p.MatchesTags(batch) {

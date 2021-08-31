@@ -10,14 +10,14 @@ import (
 )
 
 // TagContainer is anything with KeyValues (tags). This is implemented by both
-// BatchSearchData and SearchData.
+// SearchPage and SearchEntry.
 type TagContainer interface {
 	Tags(obj *KeyValues, j int) bool
 	TagsLength() int
 }
 
-var _ TagContainer = (*BatchSearchData)(nil)
-var _ TagContainer = (*SearchData)(nil)
+var _ TagContainer = (*SearchPage)(nil)
+var _ TagContainer = (*SearchEntry)(nil)
 
 type SearchDataMap map[string][]string
 
@@ -80,7 +80,7 @@ func (s SearchDataMap) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffse
 		offsets = append(offsets, KeyValuesEnd(b))
 	}
 
-	SearchDataStartTagsVector(b, len(offsets))
+	SearchEntryStartTagsVector(b, len(offsets))
 	for _, kvo := range offsets {
 		b.PrependUOffsetT(kvo)
 	}
@@ -88,8 +88,8 @@ func (s SearchDataMap) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffse
 	return keyValueVector
 }
 
-// SearchDataMutable is a mutable form of the flatbuffer-compiled SearchData struct, to make building and transporting.
-type SearchDataMutable struct {
+// SearchEntryMutable is a mutable form of the flatbuffer-compiled SearchEntry struct to make building and transporting easier.
+type SearchEntryMutable struct {
 	TraceID           common.ID
 	Tags              SearchDataMap
 	StartTimeUnixNano uint64
@@ -97,7 +97,7 @@ type SearchDataMutable struct {
 }
 
 // AddTag adds the unique tag name and value to the search data. No effect if the pair is already present.
-func (s *SearchDataMutable) AddTag(k string, v string) {
+func (s *SearchEntryMutable) AddTag(k string, v string) {
 	if s.Tags == nil {
 		s.Tags = SearchDataMap{}
 	}
@@ -105,54 +105,54 @@ func (s *SearchDataMutable) AddTag(k string, v string) {
 }
 
 // SetStartTimeUnixNano records the earliest of all timestamps passed to this function.
-func (s *SearchDataMutable) SetStartTimeUnixNano(t uint64) {
+func (s *SearchEntryMutable) SetStartTimeUnixNano(t uint64) {
 	if t > 0 && s.StartTimeUnixNano == 0 || s.StartTimeUnixNano > t {
 		s.StartTimeUnixNano = t
 	}
 }
 
 // SetEndTimeUnixNano records the latest of all timestamps passed to this function.
-func (s *SearchDataMutable) SetEndTimeUnixNano(t uint64) {
+func (s *SearchEntryMutable) SetEndTimeUnixNano(t uint64) {
 	if t > 0 && t > s.EndTimeUnixNano {
 		s.EndTimeUnixNano = t
 	}
 }
 
-func (s *SearchDataMutable) ToBytes() []byte {
+func (s *SearchEntryMutable) ToBytes() []byte {
 	b := flatbuffers.NewBuilder(2048)
 	offset := s.WriteToBuilder(b)
 	b.Finish(offset)
 	return b.FinishedBytes()
 }
 
-func (s *SearchDataMutable) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
+func (s *SearchEntryMutable) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
 
 	idOffset := b.CreateByteString(s.TraceID)
 
 	tagOffset := s.Tags.WriteToBuilder(b)
 
-	SearchDataStart(b)
-	SearchDataAddId(b, idOffset)
-	SearchDataAddStartTimeUnixNano(b, s.StartTimeUnixNano)
-	SearchDataAddEndTimeUnixNano(b, s.EndTimeUnixNano)
-	SearchDataAddTags(b, tagOffset)
-	return SearchDataEnd(b)
+	SearchEntryStart(b)
+	SearchEntryAddId(b, idOffset)
+	SearchEntryAddStartTimeUnixNano(b, s.StartTimeUnixNano)
+	SearchEntryAddEndTimeUnixNano(b, s.EndTimeUnixNano)
+	SearchEntryAddTags(b, tagOffset)
+	return SearchEntryEnd(b)
 }
 
-type BatchSearchDataBuilder struct {
+type SearchPageBuilder struct {
 	builder     *flatbuffers.Builder
 	allTags     SearchDataMap
 	pageEntries []flatbuffers.UOffsetT
 }
 
-func NewBatchSearchDataBuilder() *BatchSearchDataBuilder {
-	return &BatchSearchDataBuilder{
+func NewSearchPageBuilder() *SearchPageBuilder {
+	return &SearchPageBuilder{
 		builder: flatbuffers.NewBuilder(1024),
 		allTags: SearchDataMap{},
 	}
 }
 
-func (b *BatchSearchDataBuilder) AddData(data *SearchDataMutable) int {
+func (b *SearchPageBuilder) AddData(data *SearchEntryMutable) int {
 	for k, vv := range data.Tags {
 		for _, v := range vv {
 			b.allTags.Add(k, v)
@@ -167,13 +167,13 @@ func (b *BatchSearchDataBuilder) AddData(data *SearchDataMutable) int {
 	return int(offset - oldOffset)
 }
 
-func (b *BatchSearchDataBuilder) Finish() []byte {
+func (b *SearchPageBuilder) Finish() []byte {
 	// At this point all individual entries have been written
 	// to the fb builder. Now we need to wrap them up in the final
 	// batch object.
 
 	// Create vector
-	BatchSearchDataStartEntriesVector(b.builder, len(b.pageEntries))
+	SearchPageStartEntriesVector(b.builder, len(b.pageEntries))
 	for _, entry := range b.pageEntries {
 		b.builder.PrependUOffsetT(entry)
 	}
@@ -183,24 +183,24 @@ func (b *BatchSearchDataBuilder) Finish() []byte {
 	tagOffset := b.allTags.WriteToBuilder(b.builder)
 
 	// Write final batch object
-	BatchSearchDataStart(b.builder)
-	BatchSearchDataAddEntries(b.builder, entryVector)
-	BatchSearchDataAddTags(b.builder, tagOffset)
-	batch := BatchSearchDataEnd(b.builder)
+	SearchPageStart(b.builder)
+	SearchPageAddEntries(b.builder, entryVector)
+	SearchPageAddTags(b.builder, tagOffset)
+	batch := SearchPageEnd(b.builder)
 	b.builder.Finish(batch)
 	buf := b.builder.FinishedBytes()
 
 	return buf
 }
 
-func (b *BatchSearchDataBuilder) Reset() {
+func (b *SearchPageBuilder) Reset() {
 	b.builder.Reset()
 	b.pageEntries = b.pageEntries[:0]
 	b.allTags = SearchDataMap{}
 }
 
-// SearchDataGet searches SearchData and returns the first value found for the given key.
-func (s *SearchData) Get(k string) string {
+// Get searches the entry and returns the first value found for the given key.
+func (s *SearchEntry) Get(k string) string {
 	kv := &KeyValues{}
 	kb := bytes.ToLower([]byte(k))
 
@@ -215,11 +215,11 @@ func (s *SearchData) Get(k string) string {
 	return ""
 }
 
-// SearchDataContains returns true if the key and value are found in the search data.
+// Contains returns true if the key and value are found in the search data.
 // Buffer KeyValue object can be passed to reduce allocations. Key and value must be
 // already converted to byte slices which match the nature of the flatbuffer data
 // which reduces allocations even further.
-func (s *SearchData) Contains(kv *KeyValues, k []byte, v []byte) bool {
+func (s *SearchEntry) Contains(kv *KeyValues, k []byte, v []byte) bool {
 
 	matched := -1
 
@@ -253,8 +253,8 @@ func (s *SearchData) Contains(kv *KeyValues, k []byte, v []byte) bool {
 	return false
 }
 
-func SearchDataFromBytes(b []byte) *SearchData {
-	return GetRootAsSearchData(b, 0)
+func SearchEntryFromBytes(b []byte) *SearchEntry {
+	return GetRootAsSearchEntry(b, 0)
 }
 
 func ContainsTag(s TagContainer, kv *KeyValues, k []byte, v []byte) bool {

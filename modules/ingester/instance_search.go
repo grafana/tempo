@@ -87,9 +87,9 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 			for _, s := range t.searchData {
 				sr.AddBytesInspected(uint64(len(s)))
 
-				searchData := tempofb.SearchDataFromBytes(s)
-				if p.Matches(searchData) {
-					newResult := search.GetSearchResultFromData(searchData)
+				entry := tempofb.SearchEntryFromBytes(s)
+				if p.Matches(entry) {
+					newResult := search.GetSearchResultFromData(entry)
 					if result != nil {
 						search.CombineSearchResults(result, newResult)
 					} else {
@@ -163,7 +163,7 @@ func (i *instance) GetSearchTagValues(tagName string) []string {
 }
 
 func (i *instance) RecordSearchLookupValues(b []byte) {
-	s := tempofb.SearchDataFromBytes(b)
+	s := tempofb.SearchEntryFromBytes(b)
 	i.searchTagCache.SetData(time.Now(), s)
 }
 

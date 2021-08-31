@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-type tracefilter func(header *tempofb.SearchData) (matches bool)
+type tracefilter func(header *tempofb.SearchEntry) (matches bool)
 type tagfilter func(c tempofb.TagContainer) (matches bool)
 
 type Pipeline struct {
@@ -21,14 +21,14 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 
 	if req.MinDurationMs > 0 {
 		minDuration := req.MinDurationMs * uint32(time.Millisecond)
-		p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchData) bool {
+		p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchEntry) bool {
 			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) >= uint64(minDuration)
 		})
 	}
 
 	if req.MaxDurationMs > 0 {
 		maxDuration := req.MaxDurationMs * uint32(time.Millisecond)
-		p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchData) bool {
+		p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchEntry) bool {
 			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) <= uint64(maxDuration)
 		})
 	}
@@ -60,7 +60,7 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 	return p
 }
 
-func (p *Pipeline) Matches(header *tempofb.SearchData) bool {
+func (p *Pipeline) Matches(header *tempofb.SearchEntry) bool {
 
 	for _, f := range p.tracefilters {
 		if !f(header) {

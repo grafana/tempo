@@ -20,7 +20,7 @@ func TestExtractSearchData(t *testing.T) {
 		name       string
 		trace      *tempopb.Trace
 		id         []byte
-		searchData *tempofb.SearchDataMutable
+		searchData *tempofb.SearchEntryMutable
 	}{
 		{
 			name: "trace with root span",
@@ -60,7 +60,7 @@ func TestExtractSearchData(t *testing.T) {
 				},
 			},
 			id: traceIDA,
-			searchData: &tempofb.SearchDataMutable{
+			searchData: &tempofb.SearchEntryMutable{
 				TraceID: traceIDA,
 				Tags: tempofb.SearchDataMap{
 					"foo":                         []string{"bar"},

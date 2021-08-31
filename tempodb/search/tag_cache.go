@@ -54,7 +54,7 @@ func (s *TagCache) GetValues(tagName string) []string {
 	return vals
 }
 
-func (s *TagCache) SetData(ts time.Time, data *tempofb.SearchData) {
+func (s *TagCache) SetData(ts time.Time, data *tempofb.SearchEntry) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 

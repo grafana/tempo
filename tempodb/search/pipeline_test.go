@@ -52,10 +52,10 @@ func TestPipelineMatchesTags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			p := NewSearchPipeline(&tempopb.SearchRequest{Tags: tc.request})
-			data := tempofb.SearchDataMutable{
+			data := tempofb.SearchEntryMutable{
 				Tags: tc.searchData,
 			}
-			sd := tempofb.SearchDataFromBytes(data.ToBytes())
+			sd := tempofb.SearchEntryFromBytes(data.ToBytes())
 			matches := p.Matches(sd)
 
 			require.Equal(t, tc.shouldMatch, matches)
@@ -65,7 +65,7 @@ func TestPipelineMatchesTags(t *testing.T) {
 
 func BenchmarkPipelineMatches(b *testing.B) {
 
-	searchData := tempofb.SearchDataFromBytes((&tempofb.SearchDataMutable{
+	entry := tempofb.SearchEntryFromBytes((&tempofb.SearchEntryMutable{
 		StartTimeUnixNano: 0,
 		EndTimeUnixNano:   uint64(500 * time.Millisecond / time.Nanosecond), //500ms in nanoseconds
 		Tags: tempofb.SearchDataMap{
@@ -115,7 +115,7 @@ func BenchmarkPipelineMatches(b *testing.B) {
 			pipeline := NewSearchPipeline(tc.req)
 
 			for i := 0; i < b.N; i++ {
-				pipeline.Matches(searchData)
+				pipeline.Matches(entry)
 			}
 		})
 	}

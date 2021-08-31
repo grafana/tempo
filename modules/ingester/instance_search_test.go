@@ -69,7 +69,7 @@ func TestInstanceSearch(t *testing.T) {
 		// annotate just a fraction of traces with search data
 		var searchData []byte
 		if j%searchAnnotatedFractionDenominator == 0 {
-			data := &tempofb.SearchDataMutable{}
+			data := &tempofb.SearchEntryMutable{}
 			data.TraceID = id
 			data.AddTag(tagKey, tagValue)
 			searchData = data.ToBytes()
@@ -200,7 +200,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		traceBytes, err := trace.Marshal()
 		require.NoError(t, err)
 
-		searchData := &tempofb.SearchDataMutable{}
+		searchData := &tempofb.SearchEntryMutable{}
 		searchData.TraceID = id
 		searchData.AddTag(tagKey, tagValue)
 		searchBytes := searchData.ToBytes()
@@ -290,12 +290,11 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 		traceBytes, err := trace.Marshal()
 		require.NoError(t, err)
 
-		searchData := &tempofb.SearchDataMutable{}
-		searchData.TraceID = id
-		searchData.AddTag("foo", "bar")
-		searchBytes := searchData.ToBytes()
+		entry := &tempofb.SearchEntryMutable{}
+		entry.TraceID = id
+		entry.AddTag("foo", "bar")
+		searchBytes := entry.ToBytes()
 
-		// searchData will be nil if not
 		err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
 		require.NoError(t, err)
 	}
@@ -343,7 +342,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 		traceBytes, err := trace.Marshal()
 		require.NoError(t, err)
 
-		data := &tempofb.SearchDataMutable{}
+		data := &tempofb.SearchEntryMutable{}
 		data.TraceID = id
 		data.AddTag("foo", "bar")
 		searchData := data.ToBytes()
@@ -425,7 +424,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 		traceBytes, err := trace.Marshal()
 		require.NoError(b, err)
 
-		searchData := &tempofb.SearchDataMutable{}
+		searchData := &tempofb.SearchEntryMutable{}
 		searchData.TraceID = id
 		searchData.AddTag("foo", "bar")
 		searchBytes := searchData.ToBytes()

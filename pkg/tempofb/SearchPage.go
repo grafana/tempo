@@ -6,34 +6,34 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
-type BatchSearchData struct {
+type SearchPage struct {
 	_tab flatbuffers.Table
 }
 
-func GetRootAsBatchSearchData(buf []byte, offset flatbuffers.UOffsetT) *BatchSearchData {
+func GetRootAsSearchPage(buf []byte, offset flatbuffers.UOffsetT) *SearchPage {
 	n := flatbuffers.GetUOffsetT(buf[offset:])
-	x := &BatchSearchData{}
+	x := &SearchPage{}
 	x.Init(buf, n+offset)
 	return x
 }
 
-func GetSizePrefixedRootAsBatchSearchData(buf []byte, offset flatbuffers.UOffsetT) *BatchSearchData {
+func GetSizePrefixedRootAsSearchPage(buf []byte, offset flatbuffers.UOffsetT) *SearchPage {
 	n := flatbuffers.GetUOffsetT(buf[offset+flatbuffers.SizeUint32:])
-	x := &BatchSearchData{}
+	x := &SearchPage{}
 	x.Init(buf, n+offset+flatbuffers.SizeUint32)
 	return x
 }
 
-func (rcv *BatchSearchData) Init(buf []byte, i flatbuffers.UOffsetT) {
+func (rcv *SearchPage) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i
 }
 
-func (rcv *BatchSearchData) Table() flatbuffers.Table {
+func (rcv *SearchPage) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-func (rcv *BatchSearchData) Tags(obj *KeyValues, j int) bool {
+func (rcv *SearchPage) Tags(obj *KeyValues, j int) bool {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
 		x := rcv._tab.Vector(o)
@@ -45,7 +45,7 @@ func (rcv *BatchSearchData) Tags(obj *KeyValues, j int) bool {
 	return false
 }
 
-func (rcv *BatchSearchData) TagsLength() int {
+func (rcv *SearchPage) TagsLength() int {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
 		return rcv._tab.VectorLen(o)
@@ -53,7 +53,7 @@ func (rcv *BatchSearchData) TagsLength() int {
 	return 0
 }
 
-func (rcv *BatchSearchData) Entries(obj *SearchData, j int) bool {
+func (rcv *SearchPage) Entries(obj *SearchEntry, j int) bool {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		x := rcv._tab.Vector(o)
@@ -65,7 +65,7 @@ func (rcv *BatchSearchData) Entries(obj *SearchData, j int) bool {
 	return false
 }
 
-func (rcv *BatchSearchData) EntriesLength() int {
+func (rcv *SearchPage) EntriesLength() int {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		return rcv._tab.VectorLen(o)
@@ -73,21 +73,21 @@ func (rcv *BatchSearchData) EntriesLength() int {
 	return 0
 }
 
-func BatchSearchDataStart(builder *flatbuffers.Builder) {
+func SearchPageStart(builder *flatbuffers.Builder) {
 	builder.StartObject(2)
 }
-func BatchSearchDataAddTags(builder *flatbuffers.Builder, tags flatbuffers.UOffsetT) {
+func SearchPageAddTags(builder *flatbuffers.Builder, tags flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(tags), 0)
 }
-func BatchSearchDataStartTagsVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
+func SearchPageStartTagsVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(4, numElems, 4)
 }
-func BatchSearchDataAddEntries(builder *flatbuffers.Builder, entries flatbuffers.UOffsetT) {
+func SearchPageAddEntries(builder *flatbuffers.Builder, entries flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(entries), 0)
 }
-func BatchSearchDataStartEntriesVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
+func SearchPageStartEntriesVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(4, numElems, 4)
 }
-func BatchSearchDataEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
+func SearchPageEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }

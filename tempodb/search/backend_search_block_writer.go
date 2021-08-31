@@ -21,7 +21,7 @@ type backendSearchBlockWriter struct {
 	w        backend.RawWriter
 
 	// vars
-	builder  *tempofb.BatchSearchDataBuilder
+	builder  *tempofb.SearchPageBuilder
 	pageBuf  []byte
 	tracker  backend.AppendTracker
 	finalBuf *bytes.Buffer
@@ -45,15 +45,15 @@ func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.R
 
 		pageBuf:  make([]byte, 0, 1024*1024),
 		finalBuf: finalBuf,
-		builder:  tempofb.NewBatchSearchDataBuilder(),
+		builder:  tempofb.NewSearchPageBuilder(),
 		dw:       dw,
 	}, nil
 }
 
-// Write the data to the flatbuffer builder. Input must be a SearchDataMutable. Returns
+// Write the data to the flatbuffer builder. Input must be a SearchEntryMutable. Returns
 // the number of bytes written, which is determined from the current object in the builder.
 func (w *backendSearchBlockWriter) Write(ctx context.Context, ID common.ID, i interface{}) (int, error) {
-	data := i.(*tempofb.SearchDataMutable)
+	data := i.(*tempofb.SearchEntryMutable)
 	bytesWritten := w.builder.AddData(data)
 	return bytesWritten, nil
 }

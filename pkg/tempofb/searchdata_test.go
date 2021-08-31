@@ -6,10 +6,10 @@ import (
 )
 
 func sizeWithCounts(traceCount, tagCount, valueCount int) int {
-	b := NewBatchSearchDataBuilder()
+	b := NewSearchPageBuilder()
 
 	for t := 0; t < traceCount; t++ {
-		sd := &SearchDataMutable{}
+		sd := &SearchEntryMutable{}
 		for g := 0; g < tagCount; g++ {
 			for v := 0; v < valueCount; v++ {
 				sd.AddTag(fmt.Sprintf("tag%d", g), fmt.Sprintf("value%d", v))

@@ -14,7 +14,7 @@ const (
 	SpanNameTag        = "name"
 )
 
-func GetSearchResultFromData(s *tempofb.SearchData) *tempopb.TraceSearchMetadata {
+func GetSearchResultFromData(s *tempofb.SearchEntry) *tempopb.TraceSearchMetadata {
 	return &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(s.Id()),
 		RootServiceName:   s.Get(RootServiceNameTag),

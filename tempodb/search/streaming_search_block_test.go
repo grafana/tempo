@@ -16,7 +16,7 @@ import (
 
 func newStreamingSearchBlockWithTraces(traceCount int, t testing.TB) *StreamingSearchBlock {
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8}
-	searchData := [][]byte{(&tempofb.SearchDataMutable{
+	searchData := [][]byte{(&tempofb.SearchEntryMutable{
 		Tags: tempofb.SearchDataMap{
 			"key1": {"value10", "value11"},
 			"key2": {"value20", "value21"},

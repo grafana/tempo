@@ -25,7 +25,7 @@ func extractSearchDataAll(traces []*tempopb.Trace, ids [][]byte) [][]byte {
 // in the distributor because this is the only place on the ingest path where the trace is available
 // in object form.
 func extractSearchData(trace *tempopb.Trace, id []byte) []byte {
-	data := &tempofb.SearchDataMutable{}
+	data := &tempofb.SearchEntryMutable{}
 
 	data.TraceID = id
 

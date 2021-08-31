@@ -20,7 +20,7 @@ import (
 
 func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.Encoding, pageSizeBytes int) *BackendSearchBlock {
 	id := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15} // 16-byte ids required
-	searchData := [][]byte{(&tempofb.SearchDataMutable{
+	searchData := [][]byte{(&tempofb.SearchEntryMutable{
 		Tags: tempofb.SearchDataMap{
 			"key1": {"value10", "value11"},
 			"key2": {"value20", "value21"},
