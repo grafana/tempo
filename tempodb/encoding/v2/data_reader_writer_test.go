@@ -74,7 +74,7 @@ func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, id
 	require.NoError(t, err)
 	defer r.Close()
 
-	tempBuffer := []byte{}
+	var tempBuffer []byte
 	o := NewObjectReaderWriter()
 	i := 0
 	for {
@@ -85,8 +85,10 @@ func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, id
 		require.NoError(t, err)
 
 		var id, obj []byte
+		bufferReader := bytes.NewReader(tempBuffer)
+
 		for {
-			tempBuffer, id, obj, err = o.UnmarshalAndAdvanceBuffer(tempBuffer)
+			id, obj, err = o.UnmarshalObjectFromReader(bufferReader)
 			if err == io.EOF {
 				break
 			}

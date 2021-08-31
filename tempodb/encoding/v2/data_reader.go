@@ -15,6 +15,7 @@ type dataReader struct {
 	contextReader backend.ContextReader
 
 	pageBuffer []byte
+	buffer     []byte
 
 	pool                  ReaderPool
 	compressedReader      io.Reader
@@ -121,7 +122,7 @@ func (r *dataReader) Close() {
 }
 
 // NextPage implements common.DataReader
-func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) { // jpe what do with buffer?
+func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 	reader, err := r.contextReader.Reader()
 	if err != nil {
 		return nil, 0, err
@@ -131,14 +132,14 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) { // jpe wh
 	if err != nil {
 		return nil, 0, err
 	}
-	r.pageBuffer = page.data // jpe eep these buffers
+	r.pageBuffer = page.data
 
 	compressedReader, err := r.getCompressedReader(page.data)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	buffer, err = tempo_io.ReadAllWithBuffer(compressedReader, len(page.data), buffer) // jpe eep these buffers
+	buffer, err = tempo_io.ReadAllWithBuffer(compressedReader, len(page.data), buffer)
 	if err != nil {
 		return nil, 0, err
 	}
