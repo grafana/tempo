@@ -37,8 +37,8 @@
                      $.tempo_compactor_container,
                    ],
                    { app: target_name }) +
-    deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(0) +
-    deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
+    deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge('50%') +
+    deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable('100%') +
     deployment.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_compactor_configmap.data['tempo.yaml'])),
     }) +
