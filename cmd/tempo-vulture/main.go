@@ -132,6 +132,11 @@ func main() {
 				continue
 			}
 
+			// Don't attempt to read future traces.
+			if seed.After(now) {
+				continue
+			}
+
 			r := newRand(seed)
 			hexID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
 
@@ -154,40 +159,17 @@ func main() {
 }
 
 func selectPastTimestamp(start, stop time.Time, interval time.Duration, retention time.Duration) (newStart, ts time.Time) {
-	intervals := intervalsBetween(start, stop, interval, retention)
-	// pick past interval and re-generate trace
-	pick := generateRandomInt(0, int64(len(intervals)), newRand(intervals[0]))
-	return intervals[0], intervals[pick]
-}
+	oldest := stop.Add(-retention)
 
-func intervalsBetween(start, stop time.Time, interval time.Duration, retention time.Duration) []time.Time {
-	if stop.Before(start) {
-		return nil
+	if oldest.After(start) {
+		newStart = oldest
+	} else {
+		newStart = start
 	}
 
-	intervals := []time.Time{start}
-	next := start.Round(interval)
+	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix(), newRand(start)), 0)
 
-	for next.Before(stop) {
-		if next.After(start) {
-			intervals = append(intervals, next)
-		}
-		next = next.Add(interval)
-	}
-
-	oldest := intervals[len(intervals)-1].Add(-retention)
-
-	for i, t := range intervals {
-		if t.Before(oldest) {
-			continue
-		}
-
-		if t.After(oldest) {
-			return intervals[i:]
-		}
-	}
-
-	return intervals
+	return newStart.Round(interval), ts.Round(interval)
 }
 
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {

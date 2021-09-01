@@ -206,43 +206,6 @@ func TestGenerateRandomLogs(t *testing.T) {
 	require.Equal(t, expected, result)
 }
 
-func TestIntervalsBetween(t *testing.T) {
-	nowish := time.Unix(1630010049, 0)
-
-	cases := []struct {
-		start     time.Time
-		stop      time.Time
-		interval  time.Duration
-		retention time.Duration
-		count     int
-	}{
-		{
-			start:     nowish.Add(-1 * time.Minute),
-			stop:      nowish,
-			interval:  11 * time.Second,
-			retention: 1 * time.Hour,
-			count:     6,
-		},
-		{
-			start:     nowish.Add(-1 * time.Hour),
-			stop:      nowish,
-			interval:  33 * time.Second,
-			retention: 1 * time.Hour,
-			count:     110,
-		},
-	}
-
-	for _, tc := range cases {
-		result := intervalsBetween(tc.start, tc.stop, tc.interval, tc.retention)
-		require.Equal(t, tc.count, len(result))
-
-		if tc.count > 0 {
-			require.Equal(t, tc.start, result[0])
-			require.True(t, result[len(result)-1].Before(tc.stop))
-		}
-	}
-}
-
 func TestNewRand(t *testing.T) {
 	now := time.Now()
 
