@@ -16,9 +16,8 @@ type dataReader struct {
 
 	pageBuffer []byte
 
-	pool                  ReaderPool
-	compressedReader      io.Reader
-	compressedPagesBuffer [][]byte
+	pool             ReaderPool
+	compressedReader io.Reader
 }
 
 // constDataHeader is a singleton data header.  the data header is
@@ -60,10 +59,7 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 		return nil, nil, err
 	}
 
-	if cap(r.compressedPagesBuffer) < len(records) {
-		r.compressedPagesBuffer = make([][]byte, len(records))
-	}
-	r.compressedPagesBuffer = r.compressedPagesBuffer[:len(records)]
+	compressedPagesBuffer := make([][]byte, len(records))
 
 	cursor := uint32(0)
 	previousEnd := uint64(0)
@@ -77,14 +73,14 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 			return nil, nil, fmt.Errorf("non-contiguous pages requested from dataReader: %d, %+v", previousEnd, record)
 		}
 
-		r.compressedPagesBuffer[i] = buffer[cursor:end]
+		compressedPagesBuffer[i] = buffer[cursor:end]
 		cursor += record.Length
 		previousEnd = record.Start + uint64(record.Length)
 	}
 
 	// read and strip page data
-	compressedPages := make([][]byte, 0, len(r.compressedPagesBuffer))
-	for _, v0Page := range r.compressedPagesBuffer {
+	compressedPages := make([][]byte, 0, len(compressedPagesBuffer))
+	for _, v0Page := range compressedPagesBuffer {
 		page, err := unmarshalPageFromBytes(v0Page, constDataHeader)
 		if err != nil {
 			return nil, nil, err
