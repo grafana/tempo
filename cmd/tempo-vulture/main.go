@@ -75,7 +75,8 @@ func main() {
 
 	logger.Info("Tempo Vulture starting")
 
-	startTime := time.Now()
+	actualStartTime := time.Now()
+	startTime := actualStartTime
 	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
 	tickerRead := time.NewTicker(tempoReadBackoffDuration)
 	interval := tempoWriteBackoffDuration
@@ -124,6 +125,12 @@ func main() {
 		for now := range tickerRead.C {
 			var seed time.Time
 			startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration)
+
+			// Don't attempt to read on the first itteration if we can't reasonably
+			// expect the write loop to have fired yet.
+			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration)) {
+				continue
+			}
 
 			r := newRand(seed)
 			hexID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
