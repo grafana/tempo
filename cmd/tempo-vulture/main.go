@@ -296,12 +296,14 @@ func queryTempoAndAnalyze(baseURL string, seed time.Time, traceID string) (trace
 	if len(trace.Batches) == 0 {
 		logger.Error("trace contains 0 batches")
 		tm.notFound++
+		return tm, nil
 	}
 
 	// iterate through
 	if hasMissingSpans(trace) {
 		logger.Error("trace has missing spans")
 		tm.missingSpans++
+		return tm, nil
 	}
 
 	// Get the expected
@@ -317,6 +319,7 @@ func queryTempoAndAnalyze(baseURL string, seed time.Time, traceID string) (trace
 				)
 			}
 		}
+		return tm, nil
 	}
 
 	return tm, nil
