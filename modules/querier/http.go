@@ -5,11 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -26,6 +28,10 @@ const (
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"
 	QueryModeAll       = "all"
+
+	urlParamMinDuration = "minDuration"
+	urlParamMaxDuration = "maxDuration"
+	urlParamLimit       = "limit"
 )
 
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
@@ -140,4 +146,122 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, string, error)
 	}
 
 	return start, end, queryMode, nil
+}
+
+func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchHandler")
+	defer span.Finish()
+
+	req := &tempopb.SearchRequest{
+		Tags: map[string]string{},
+	}
+
+	for k, v := range r.URL.Query() {
+		// Skip known values
+		if k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit {
+			continue
+		}
+
+		if len(v) > 0 && v[0] != "" {
+			req.Tags[k] = v[0]
+		}
+	}
+
+	if s := r.URL.Query().Get(urlParamMinDuration); s != "" {
+		dur, err := time.ParseDuration(s)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+		req.MinDurationMs = uint32(dur.Milliseconds())
+	}
+
+	if s := r.URL.Query().Get(urlParamMaxDuration); s != "" {
+		dur, err := time.ParseDuration(s)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+		req.MaxDurationMs = uint32(dur.Milliseconds())
+	}
+
+	if s := r.URL.Query().Get(urlParamLimit); s != "" {
+		limit, err := strconv.Atoi(s)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		req.Limit = uint32(limit)
+	}
+
+	resp, err := q.Search(ctx, req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagsHandler")
+	defer span.Finish()
+
+	req := &tempopb.SearchTagsRequest{}
+
+	resp, err := q.SearchTags(ctx, req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")
+	defer span.Finish()
+
+	vars := mux.Vars(r)
+	tagName, ok := vars["tagName"]
+	if !ok {
+		http.Error(w, "please provide a tagName", http.StatusBadRequest)
+		return
+	}
+	req := &tempopb.SearchTagValuesRequest{
+		TagName: tagName,
+	}
+
+	resp, err := q.SearchTagValues(ctx, req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }

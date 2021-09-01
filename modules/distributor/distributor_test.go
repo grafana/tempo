@@ -428,7 +428,7 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distrib
 
 	l := logging.Level{}
 	_ = l.Set("error")
-	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, true, l)
+	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, true, l, false)
 	require.NoError(t, err)
 
 	return d

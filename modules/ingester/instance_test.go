@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/go-kit/kit/log"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
@@ -22,9 +24,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type ringCountMock struct {
@@ -111,7 +110,7 @@ func TestInstanceFind(t *testing.T) {
 		traceBytes, err := trace.Marshal()
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), id, traceBytes)
+		err = i.PushBytes(context.Background(), id, traceBytes, nil)
 		require.NoError(t, err)
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
@@ -129,7 +128,7 @@ func TestInstanceFind(t *testing.T) {
 		traceBytes, err := traces[j].Marshal()
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), ids[j], traceBytes)
+		err = i.PushBytes(context.Background(), ids[j], traceBytes, nil)
 		require.NoError(t, err)
 	}
 

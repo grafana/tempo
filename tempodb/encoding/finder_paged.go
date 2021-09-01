@@ -77,7 +77,7 @@ func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
 }
 
 func (f *pagedFinder) findOne(ctx context.Context, id common.ID, record common.Record) ([]byte, error) {
-	pages, _, err := f.r.Read(ctx, []common.Record{record}, nil)
+	pages, _, err := f.r.Read(ctx, []common.Record{record}, nil, nil)
 	if err != nil {
 		return nil, err
 	}

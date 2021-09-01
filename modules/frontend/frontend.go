@@ -19,21 +19,133 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
+	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 )
 
-// NewTripperware returns a Tripperware configured with a middleware to split requests
-func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) (queryrange.Tripperware, error) {
-	level.Info(logger).Log("msg", "creating tripperware in query frontend to shard queries")
+const (
+	apiPathTraces = "/api/traces"
+	apiPathSearch = "/api/search"
+)
+
+// NewTripperware returns a Tripperware configured with a middleware to route, split and dedupe requests.
+func NewTripperware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (queryrange.Tripperware, error) {
+	level.Info(logger).Log("msg", "creating tripperware in query frontend")
+
+	tracesTripperware := NewTracesTripperware(cfg, logger, registerer)
+	searchTripperware := NewSearchTripperware()
+
+	return func(next http.RoundTripper) http.RoundTripper {
+		traces := tracesTripperware(next)
+		search := searchTripperware(next)
+
+		return newFrontendRoundTripper(apiPrefix, next, traces, search, logger, registerer)
+	}, nil
+}
+
+type frontendRoundTripper struct {
+	apiPrefix            string
+	next, traces, search http.RoundTripper
+	logger               log.Logger
+	queriesPerTenant     *prometheus.CounterVec
+}
+
+func newFrontendRoundTripper(apiPrefix string, next, traces, search http.RoundTripper, logger log.Logger, registerer prometheus.Registerer) frontendRoundTripper {
 	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_total",
 		Help:      "Total queries received per tenant.",
 	}, []string{"tenant"})
 
+	return frontendRoundTripper{
+		apiPrefix:        apiPrefix,
+		next:             next,
+		traces:           traces,
+		search:           search,
+		logger:           logger,
+		queriesPerTenant: queriesPerTenant,
+	}
+}
+
+func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response, err error) {
+	start := time.Now()
+	// tracing instrumentation
+	span, ctx := opentracing.StartSpanFromContext(req.Context(), "frontend.Tripperware")
+	defer span.Finish()
+
+	orgID, _ := user.ExtractOrgID(req.Context())
+	r.queriesPerTenant.WithLabelValues(orgID).Inc()
+	span.SetTag("orgID", orgID)
+
+	// for context propagation with traceID set
+	req = req.WithContext(ctx)
+
+	// route the request to the appropriate RoundTripper
+	switch op := getOperation(r.apiPrefix, req.URL.Path); op {
+	case TracesOp:
+		resp, err = r.traces.RoundTrip(req)
+	case SearchOp:
+		resp, err = r.search.RoundTrip(req)
+	default:
+		// should never be called
+		level.Warn(r.logger).Log("msg", "unknown path called in frontend roundtripper", "path", req.URL.Path)
+		resp, err = r.next.RoundTrip(req)
+	}
+
+	traceID, _ := middleware.ExtractTraceID(ctx)
+	statusCode := 500
+	var contentLength int64 = 0
+	if resp != nil {
+		statusCode = resp.StatusCode
+		contentLength = resp.ContentLength
+	} else if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
+		statusCode = int(httpResp.Code)
+		contentLength = int64(len(httpResp.Body))
+	}
+
+	level.Info(r.logger).Log(
+		"tenant", orgID,
+		"method", req.Method,
+		"traceID", traceID,
+		"url", req.URL.RequestURI(),
+		"duration", time.Since(start).String(),
+		"response_size", contentLength,
+		"status", statusCode,
+	)
+
+	return
+}
+
+type RequestOp string
+
+const (
+	TracesOp RequestOp = "traces"
+	SearchOp RequestOp = "search"
+)
+
+func getOperation(prefix, path string) RequestOp {
+	if !strings.HasPrefix(path, prefix) {
+		return ""
+	}
+
+	// remove prefix from path
+	path = path[len(prefix):]
+
+	switch {
+	case strings.HasPrefix(path, apiPathTraces):
+		return TracesOp
+	case strings.HasPrefix(path, apiPathSearch):
+		return SearchOp
+	default:
+		return ""
+	}
+}
+
+// NewTracesTripperware creates a new frontend tripperware responsible for handling get traces requests.
+func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) func(next http.RoundTripper) http.RoundTripper {
 	return func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support
@@ -42,14 +154,8 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, registerer))
 
 		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
-			start := time.Now()
-			// tracing instrumentation
-			span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.Tripperware")
-			defer span.Finish()
-
-			orgID, _ := user.ExtractOrgID(r.Context())
-			queriesPerTenant.WithLabelValues(orgID).Inc()
-			span.SetTag("orgID", orgID)
+			// don't start a new span, this is already handled by frontendRoundTripper
+			span := opentracing.SpanFromContext(r.Context())
 
 			// validate traceID
 			_, err := util.ParseTraceID(r)
@@ -67,9 +173,6 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 			if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
 				marshallingFormat = util.ProtobufTypeHeaderValue
 			}
-
-			// for context propagation with traceID set
-			r = r.WithContext(ctx)
 
 			// Enforce all communication internal to Tempo to be in protobuf bytes
 			r.Header.Set(util.AcceptHeaderKey, util.ProtobufTypeHeaderValue)
@@ -97,79 +200,25 @@ func NewTripperware(cfg Config, logger log.Logger, registerer prometheus.Registe
 				}
 				resp.Body = ioutil.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
 			}
-
 			span.SetTag("response marshalling format", marshallingFormat)
-
-			traceID, _ := util.ExtractTraceID(ctx)
-			statusCode := 500
-			var contentLength int64 = 0
-			if resp != nil {
-				statusCode = resp.StatusCode
-				contentLength = resp.ContentLength
-			} else if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
-				statusCode = int(httpResp.Code)
-				contentLength = int64(len(httpResp.Body))
-			}
-
-			level.Info(logger).Log(
-				"tenant", orgID,
-				"method", r.Method,
-				"traceID", traceID,
-				"url", r.URL.RequestURI(),
-				"duration", time.Since(start).String(),
-				"response_size", contentLength,
-				"status", statusCode,
-			)
 
 			return resp, err
 		})
-	}, nil
-}
-
-type Handler interface {
-	Do(*http.Request) (*http.Response, error)
-}
-
-type Middleware interface {
-	Wrap(Handler) Handler
-}
-
-// MiddlewareFunc is like http.HandlerFunc, but for Middleware.
-type MiddlewareFunc func(Handler) Handler
-
-// Wrap implements Middleware.
-func (q MiddlewareFunc) Wrap(h Handler) Handler {
-	return q(h)
-}
-
-func MergeMiddlewares(middleware ...Middleware) Middleware {
-	return MiddlewareFunc(func(next Handler) Handler {
-		for i := len(middleware) - 1; i >= 0; i-- {
-			next = middleware[i].Wrap(next)
-		}
-		return next
-	})
-}
-
-type roundTripper struct {
-	next    http.RoundTripper
-	handler Handler
-}
-
-// NewRoundTripper merges a set of middlewares into an handler, then inject it into the `next` roundtripper
-func NewRoundTripper(next http.RoundTripper, middlewares ...Middleware) http.RoundTripper {
-	transport := roundTripper{
-		next: next,
 	}
-	transport.handler = MergeMiddlewares(middlewares...).Wrap(&transport)
-	return transport
 }
 
-func (q roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
-	return q.handler.Do(r)
-}
+// NewSearchTripperware creates a new frontend tripperware to handle search and search tags requests.
+func NewSearchTripperware() queryrange.Tripperware {
+	return func(rt http.RoundTripper) http.RoundTripper {
+		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
+			orgID, _ := user.ExtractOrgID(r.Context())
 
-// Do implements Handler.
-func (q roundTripper) Do(r *http.Request) (*http.Response, error) {
-	return q.next.RoundTrip(r)
+			r.Header.Set(user.OrgIDHeaderName, orgID)
+			r.RequestURI = querierPrefix + r.RequestURI
+
+			resp, err := rt.RoundTrip(r)
+
+			return resp, err
+		})
+	}
 }

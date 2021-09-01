@@ -48,7 +48,7 @@ func TestAllEncodings(t *testing.T) {
 						Start:  0,
 						Length: uint32(mw.bytesWritten),
 					},
-				}, nil)
+				}, nil, nil)
 
 				assert.NoError(t, err)
 				assert.Len(t, actual, 1)
