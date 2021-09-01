@@ -27,15 +27,27 @@ This allows searching by those key-value pairs in Loki.
 To configure it, you need to select your preferred backend and what trace data to log.
 To see all the available config options, refer to the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration/tempo-config.md).
 
+This simple example logs trace roots to stdout and is a good way to get started using automatic logging:
 ```
 tempo:
   configs:
   - name: default
     ...
     automatic_logging:
-      backend: loki
-      loki_name: default
-      spans: true
+      backend: stdout
+      roots: true
+```
+
+If you would like to push logs directly to a Loki instance also configured in the same Grafana Agent you would do something like this:
+```
+tempo:
+  configs:
+  - name: default
+    ...
+    automatic_logging:
+      backend: logs_instance
+      logs_instance_name: default
+      roots: true
 ```
 
 ## Example

@@ -129,6 +129,20 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*App
 	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding)
 }
 
+func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string, name string) (*os.File, error) {
+	p := filepath.Join(w.c.Filepath, dir)
+	err := os.MkdirAll(p, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	return os.OpenFile(filepath.Join(p, fmt.Sprintf("%v:%v:%v", blockid, tenantid, name)), os.O_CREATE|os.O_RDWR, 0644)
+}
+
+func (w *WAL) ClearFolder(dir string) error {
+	p := filepath.Join(w.c.Filepath, dir)
+	return os.RemoveAll(p)
+}
+
 func (w *WAL) LocalBackend() *local.Backend {
 	return w.l
 }

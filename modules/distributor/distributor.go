@@ -94,6 +94,7 @@ type Distributor struct {
 	ingestersRing   ring.ReadRing
 	pool            *ring_client.Pool
 	DistributorRing *ring.Ring
+	searchEnabled   bool
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -104,7 +105,7 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, multitenancyEnabled bool, level logging.Level) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, multitenancyEnabled bool, level logging.Level, searchEnabled bool) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -153,6 +154,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		pool:                 pool,
 		DistributorRing:      distributorRing,
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
+		searchEnabled:        searchEnabled,
 	}
 
 	cfgReceivers := cfg.Receivers
@@ -247,7 +249,13 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, traces, keys, ids)
+	//var
+	var searchData [][]byte
+	if d.searchEnabled {
+		searchData = extractSearchDataAll(traces, ids)
+	}
+
+	err = d.sendToIngestersViaBytes(ctx, userID, traces, searchData, keys, ids)
 	if err != nil {
 		recordDiscaredSpans(err, userID, spanCount)
 	}
@@ -255,7 +263,7 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, keys []uint32, ids [][]byte) error {
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, searchData [][]byte, keys []uint32, ids [][]byte) error {
 	// Marshal to bytes once
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
@@ -277,13 +285,19 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := tempopb.PushBytesRequest{
-			Traces: make([]tempopb.PreallocBytes, len(indexes)),
-			Ids:    make([]tempopb.PreallocBytes, len(indexes)),
+			Traces:     make([]tempopb.PreallocBytes, len(indexes)),
+			Ids:        make([]tempopb.PreallocBytes, len(indexes)),
+			SearchData: make([]tempopb.PreallocBytes, len(indexes)),
 		}
 
 		for i, j := range indexes {
 			req.Traces[i].Slice = marshalledTraces[j][0:]
 			req.Ids[i].Slice = ids[j]
+
+			// Search data optional
+			if len(searchData) > j {
+				req.SearchData[i].Slice = searchData[j]
+			}
 		}
 
 		c, err := d.pool.GetClientFor(ingester.Addr)

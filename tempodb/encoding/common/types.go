@@ -36,7 +36,7 @@ type ObjectCombiner interface {
 // DataReader is the primary abstraction point for supporting multiple data
 // formats.
 type DataReader interface {
-	Read(context.Context, []Record, []byte) ([][]byte, []byte, error)
+	Read(context.Context, []Record, [][]byte, []byte) ([][]byte, []byte, error)
 	Close()
 
 	// NextPage can be used to iterate at a page at a time. May return ErrUnsupported for older formats
@@ -65,6 +65,20 @@ type DataWriter interface {
 	CutPage() (int, error)
 	// Complete must be called when the operation DataWriter is done.
 	Complete() error
+}
+
+// DataWriterGeneric writes objects instead of byte slices
+type DataWriterGeneric interface {
+
+	// Write writes the passed ID/obj to the current page
+	Write(context.Context, ID, interface{}) (int, error)
+
+	// CutPage completes the current page and start a new one.  It
+	//  returns the length in bytes of the cut page.
+	CutPage(context.Context) (int, error)
+
+	// Complete must be called when the operation DataWriter is done.
+	Complete(context.Context) error
 }
 
 // IndexWriter is used to write paged indexes

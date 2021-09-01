@@ -44,6 +44,7 @@ type Config struct {
 	Target              string `yaml:"target,omitempty"`
 	AuthEnabled         bool   `yaml:"auth_enabled,omitempty"`
 	MultitenancyEnabled bool   `yaml:"multitenancy_enabled,omitempty"`
+	SearchEnabled       bool   `yaml:"search_enabled,omitempty"`
 	HTTPAPIPrefix       string `yaml:"http_api_prefix"`
 	UseOTelTracer       bool   `yaml:"use_otel_tracer,omitempty"`
 
@@ -66,6 +67,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.Target, "target", All, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
 	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
+	f.BoolVar(&c.SearchEnabled, "search.enabled", false, "Set to true to enable search (unstable).")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 	f.BoolVar(&c.UseOTelTracer, "use-otel-tracer", false, "Set to true to replace the OpenTracing tracer with the OpenTelemetry tracer")
 

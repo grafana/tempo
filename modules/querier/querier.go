@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -52,7 +53,7 @@ type Querier struct {
 
 type responseFromIngesters struct {
 	addr     string
-	response *tempopb.TraceByIDResponse
+	response interface{}
 }
 
 // New makes a new Querier.
@@ -163,7 +164,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 		span.LogFields(ot_log.String("msg", "searching ingesters"))
 		// get responses from all ingesters in parallel
-		responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (*tempopb.TraceByIDResponse, error) {
+		responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
 			return client.FindTraceByID(opentracing.ContextWithSpan(ctx, span), req)
 		})
 		if err != nil {
@@ -171,7 +172,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		for _, r := range responses {
-			trace := r.response.Trace
+			trace := r.response.(*tempopb.TraceByIDResponse).Trace
 			if trace != nil {
 				completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, trace)
 				spanCountTotal += spanCount
@@ -230,7 +231,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 }
 
 // forGivenIngesters runs f, in parallel, for given ingesters
-func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (*tempopb.TraceByIDResponse, error)) ([]responseFromIngesters, error) {
+func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(client tempopb.QuerierClient) (interface{}, error)) ([]responseFromIngesters, error) {
 	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
 		client, err := q.pool.GetClientFor(ingester.Addr)
 		if err != nil {
@@ -254,6 +255,142 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 	}
 
 	return responses, err
+}
+
+func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+	_, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
+	}
+
+	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.Search")
+	}
+
+	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
+		return client.Search(ctx, req)
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.Search")
+	}
+
+	return q.postProcessSearchResults(req, responses), nil
+}
+
+func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
+	_, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTags")
+	}
+
+	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTags")
+	}
+
+	// Get results from all ingesters
+	lookupResults, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
+		return client.SearchTags(ctx, req)
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTags")
+	}
+
+	// Collect only unique values
+	uniqueMap := map[string]struct{}{}
+	for _, resp := range lookupResults {
+		for _, res := range resp.response.(*tempopb.SearchTagsResponse).TagNames {
+			uniqueMap[res] = struct{}{}
+		}
+	}
+
+	// Final response (sorted)
+	resp := &tempopb.SearchTagsResponse{
+		TagNames: make([]string, 0, len(uniqueMap)),
+	}
+	for k := range uniqueMap {
+		resp.TagNames = append(resp.TagNames, k)
+	}
+	sort.Strings(resp.TagNames)
+
+	return resp, nil
+}
+
+func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
+	_, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTagValues")
+	}
+
+	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
+	}
+
+	// Get results from all ingesters
+	lookupResults, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
+		return client.SearchTagValues(ctx, req)
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTagValues")
+	}
+
+	// Collect only unique values
+	uniqueMap := map[string]struct{}{}
+	for _, resp := range lookupResults {
+		for _, res := range resp.response.(*tempopb.SearchTagValuesResponse).TagValues {
+			uniqueMap[res] = struct{}{}
+		}
+	}
+
+	// Final response (sorted)
+	resp := &tempopb.SearchTagValuesResponse{
+		TagValues: make([]string, 0, len(uniqueMap)),
+	}
+	for k := range uniqueMap {
+		resp.TagValues = append(resp.TagValues, k)
+	}
+	sort.Strings(resp.TagValues)
+
+	return resp, nil
+}
+
+func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {
+	response := &tempopb.SearchResponse{
+		Metrics: &tempopb.SearchMetrics{},
+	}
+
+	traces := map[string]*tempopb.TraceSearchMetadata{}
+
+	for _, r := range rr {
+		sr := r.response.(*tempopb.SearchResponse)
+		for _, t := range sr.Traces {
+			// Just simply take first result for each trace
+			if _, ok := traces[t.TraceID]; !ok {
+				traces[t.TraceID] = t
+			}
+		}
+		if sr.Metrics != nil {
+			response.Metrics.InspectedBytes += sr.Metrics.InspectedBytes
+			response.Metrics.InspectedTraces += sr.Metrics.InspectedTraces
+			response.Metrics.InspectedBlocks += sr.Metrics.InspectedBlocks
+		}
+	}
+
+	for _, t := range traces {
+		response.Traces = append(response.Traces, t)
+	}
+
+	// Sort and limit results
+	sort.Slice(response.Traces, func(i, j int) bool {
+		return response.Traces[i].StartTimeUnixNano > response.Traces[j].StartTimeUnixNano
+	})
+	if req.Limit != 0 && int(req.Limit) < len(response.Traces) {
+		response.Traces = response.Traces[:req.Limit]
+	}
+
+	return response
 }
 
 // implements blocklist.JobSharder. Queriers rely on compactors to build the tenant

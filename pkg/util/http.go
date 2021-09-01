@@ -66,3 +66,11 @@ func HexStringToTraceID(id string) ([]byte, error) {
 
 	return byteID, nil
 }
+
+// TraceIDToHexString converts a trace ID to its string representation and removes any leading zeros.
+func TraceIDToHexString(byteID []byte) string {
+	id := hex.EncodeToString(byteID)
+	// remove leading zeros
+	id = strings.TrimLeft(id, "0")
+	return id
+}

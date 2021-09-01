@@ -115,7 +115,7 @@ func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids []
 	o := NewObjectReaderWriter()
 	i := 0
 	for j := 0; j < len(recs); j++ {
-		pages, tempBuffer, err = r.Read(ctx, []common.Record{recs[j]}, tempBuffer)
+		pages, tempBuffer, err = r.Read(ctx, []common.Record{recs[j]}, pages, tempBuffer)
 		require.NoError(t, err)
 		require.Len(t, pages, 1)
 

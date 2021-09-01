@@ -40,7 +40,7 @@ func NewDataReader(r backend.ContextReader, encoding backend.Encoding) (common.D
 }
 
 // Read implements common.DataReader
-func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer []byte) ([][]byte, []byte, error) {
+func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuffer [][]byte, buffer []byte) ([][]byte, []byte, error) {
 	if len(records) == 0 {
 		return nil, buffer, nil
 	}
@@ -60,10 +60,14 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer [
 		return nil, nil, err
 	}
 
-	slicePages := make([][]byte, 0, len(records))
+	if cap(pagesBuffer) < len(records) {
+		pagesBuffer = make([][]byte, len(records))
+	}
+	pagesBuffer = pagesBuffer[:len(records)]
+
 	cursor := uint32(0)
 	previousEnd := uint64(0)
-	for _, record := range records {
+	for i, record := range records {
 		end := cursor + record.Length
 		if end > uint32(len(buffer)) {
 			return nil, nil, fmt.Errorf("record out of bounds while reading pages: %d, %d, %d, %d", cursor, record.Length, end, len(buffer))
@@ -73,14 +77,14 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, buffer [
 			return nil, nil, fmt.Errorf("non-contiguous pages requested from dataReader: %d, %+v", previousEnd, record)
 		}
 
-		slicePages = append(slicePages, buffer[cursor:end])
+		pagesBuffer[i] = buffer[cursor:end]
 		cursor += record.Length
 		previousEnd = record.Start + uint64(record.Length)
 	}
 
 	// read and strip page data
-	compressedPages := make([][]byte, 0, len(slicePages))
-	for _, v0Page := range slicePages {
+	compressedPages := make([][]byte, 0, len(pagesBuffer))
+	for _, v0Page := range pagesBuffer {
 		page, err := unmarshalPageFromBytes(v0Page, constDataHeader)
 		if err != nil {
 			return nil, nil, err

@@ -66,7 +66,7 @@ func testDataWriterReader(t *testing.T, v VersionedEncoding, e backend.Encoding)
 				Start:  0,
 				Length: uint32(bytesWritten),
 			},
-		}, nil)
+		}, nil, nil)
 		require.NoError(t, err)
 		require.Len(t, actual, 1)
 

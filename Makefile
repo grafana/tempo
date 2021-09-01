@@ -167,13 +167,18 @@ gen-proto:
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
+.PHONY: gen-flat
+gen-flat:
+	# -o /pkg generates into same folder as tempo.fbs for simpler imports.
+	docker run -v${PWD}:/opt/src neomantra/flatbuffers flatc --go -o /opt/src/pkg /opt/src/pkg/tempofb/tempo.fbs
 
 ### Check vendored files and generated proto
 .PHONY: vendor-check
-vendor-check: gen-proto
+vendor-check: gen-proto gen-flat
 	go mod vendor
 	go mod tidy -e
-	git diff --exit-code -- go.sum go.mod vendor/ pkg/tempopb/
+	git diff --exit-code -- go.sum go.mod vendor/ pkg/tempopb/ pkg/tempofb/
+
 
 ### Release (intended to be used in the .github/workflows/images.yml)
 $(GORELEASER):

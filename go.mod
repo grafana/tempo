@@ -20,6 +20,7 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.3
+	github.com/google/flatbuffers v2.0.0+incompatible
 	github.com/google/go-cmp v0.5.6
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
@@ -27,12 +28,13 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340 // indirect
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v0.14.0
-	github.com/hashicorp/go-plugin v1.3.0 // indirect
+	github.com/hashicorp/go-plugin v1.3.0
 	github.com/jaegertracing/jaeger v1.21.0
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/klauspost/compress v1.13.1
 	github.com/minio/minio-go/v7 v7.0.10
 	github.com/olekukonko/tablewriter v0.0.2
+	github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.3
 	github.com/pkg/errors v0.9.1

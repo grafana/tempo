@@ -95,7 +95,7 @@ func VerifyIndex(indexReader common.IndexReader, dataReader common.DataReader) e
 		}
 
 		// read data file at record position
-		_, _, err = dataReader.Read(context.TODO(), []common.Record{*record}, nil)
+		_, _, err = dataReader.Read(context.TODO(), []common.Record{*record}, nil, nil)
 		if err != nil {
 			fmt.Println("index/data is corrupt, record/data mismatch")
 			return err

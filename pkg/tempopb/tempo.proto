@@ -12,6 +12,9 @@ service Pusher {
 
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
+  rpc Search(SearchRequest) returns (SearchResponse) {};
+  rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {};
+  rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {};
 }
 
 // Read
@@ -24,6 +27,48 @@ message TraceByIDRequest {
 
 message TraceByIDResponse {
   Trace trace = 1;
+}
+
+message SearchRequest {
+  // case insensitive partial match
+  map<string, string> Tags = 1 [(gogoproto.nullable) = false];
+  uint32 MinDurationMs = 2;
+  uint32 MaxDurationMs = 3;
+  uint32 Limit = 4;
+}
+
+message SearchResponse {
+  repeated TraceSearchMetadata traces = 1;
+  SearchMetrics metrics = 2;
+}
+
+message TraceSearchMetadata {
+  string traceID = 1;
+  string rootServiceName = 2;
+  string rootTraceName = 3;
+  uint64 startTimeUnixNano = 4;
+  uint32 durationMs = 5;
+}
+
+message SearchMetrics {
+  uint32 inspectedTraces = 1;
+  uint64 inspectedBytes = 2;
+  uint32 inspectedBlocks = 3;
+}
+
+message SearchTagsRequest {
+}
+
+message SearchTagsResponse {
+  repeated string tagNames = 1;
+}
+
+message SearchTagValuesRequest {
+  string tagName = 1;
+}
+
+message SearchTagValuesResponse {
+  repeated string tagValues = 1;
 }
 
 message Trace {
@@ -46,7 +91,20 @@ message PushBytesRequest {
   repeated bytes traces = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
   // trace ids. length must match traces
   repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+  // search data, length must match traces
+  repeated bytes searchData = 4 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+  //repeated SearchData searchData = 4 [(gogoproto.nullable) = false];
 }
+
+/*message SearchData {
+  map<string, string> RootData = 1 [(gogoproto.nullable) = false];
+}*/
+
+
+/*message TraceHeader {
+  string rootSpanName = 1;
+  map<string, string> rootSpanTags = 2; 
+}*/
 
 message TraceBytes {
   // pre-marshalled Traces

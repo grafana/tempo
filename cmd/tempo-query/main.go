@@ -5,15 +5,19 @@ import (
 	"io"
 	"strings"
 
-	"github.com/spf13/viper"
-
-	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 	"github.com/hashicorp/go-hclog"
+	hcplugin "github.com/hashicorp/go-plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	otgrpc "github.com/opentracing-contrib/go-grpc"
+	"github.com/opentracing/opentracing-go"
+	"github.com/spf13/viper"
 	jaeger_config "github.com/uber/jaeger-client-go/config"
+	google_grpc "google.golang.org/grpc"
+
+	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 )
 
 func main() {
@@ -51,8 +55,13 @@ func main() {
 
 	backend := tempo.New(cfg)
 	plugin := &plugin{backend: backend}
-	grpc.Serve(&shared.PluginServices{
+	grpc.ServeWithGRPCServer(&shared.PluginServices{
 		Store: plugin,
+	}, func(options []google_grpc.ServerOption) *google_grpc.Server {
+		return hcplugin.DefaultGRPCServer([]google_grpc.ServerOption{
+			google_grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer())),
+			google_grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(opentracing.GlobalTracer())),
+		})
 	})
 }
 

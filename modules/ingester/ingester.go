@@ -106,6 +106,9 @@ func (i *Ingester) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to rediscover local blocks %w", err)
 	}
 
+	// Search data is considered experimental and removed on every startup.
+	i.clearSearchData()
+
 	// Now that user states have been created, we can start the lifecycler.
 	// Important: we want to keep lifecycler running until we ask it to stop, so we need to give it independent context
 	if err := i.lifecycler.StartAsync(context.Background()); err != nil {
@@ -217,7 +220,14 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 
 	// Unmarshal and push each trace
 	for i := range req.Traces {
-		err := instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice)
+
+		// Search data is optional.
+		var searchData []byte
+		if len(req.SearchData) > i && len(req.SearchData[i].Slice) > 0 {
+			searchData = req.SearchData[i].Slice
+		}
+
+		err := instance.PushBytes(ctx, req.Ids[i].Slice, req.Traces[i].Slice, searchData)
 		if err != nil {
 			return nil, err
 		}

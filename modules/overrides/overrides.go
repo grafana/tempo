@@ -147,6 +147,11 @@ func (o *Overrides) MaxBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).MaxBytesPerTrace
 }
 
+// MaxSearchBytesPerTrace returns the maximum size of search data for trace (in bytes) allowed for a user.
+func (o *Overrides) MaxSearchBytesPerTrace(userID string) int {
+	return o.getOverridesForUser(userID).MaxSearchBytesPerTrace
+}
+
 // IngestionRateSpans is the number of spans per second allowed for this tenant
 func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
 	return float64(o.getOverridesForUser(userID).IngestionRateLimitBytes)

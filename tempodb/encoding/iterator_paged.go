@@ -88,7 +88,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		}
 	}
 
-	i.pages, i.buffer, err = i.dataReader.Read(ctx, records, i.buffer)
+	i.pages, i.buffer, err = i.dataReader.Read(ctx, records, i.pages, i.buffer)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading objects for records, blockID: %s, err: %w", i.meta.BlockID.String(), err)
 	}
