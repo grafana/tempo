@@ -60,10 +60,10 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 		return nil, nil, err
 	}
 
-	if cap(pagesBuffer) < len(records) {
-		pagesBuffer = make([][]byte, len(records))
+	if cap(r.compressedPagesBuffer) < len(records) {
+		r.compressedPagesBuffer = make([][]byte, len(records))
 	}
-	pagesBuffer = pagesBuffer[:len(records)]
+	r.compressedPagesBuffer = r.compressedPagesBuffer[:len(records)]
 
 	cursor := uint32(0)
 	previousEnd := uint64(0)
@@ -77,14 +77,14 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 			return nil, nil, fmt.Errorf("non-contiguous pages requested from dataReader: %d, %+v", previousEnd, record)
 		}
 
-		pagesBuffer[i] = buffer[cursor:end]
+		r.compressedPagesBuffer[i] = buffer[cursor:end]
 		cursor += record.Length
 		previousEnd = record.Start + uint64(record.Length)
 	}
 
 	// read and strip page data
-	compressedPages := make([][]byte, 0, len(pagesBuffer))
-	for _, v0Page := range pagesBuffer {
+	compressedPages := make([][]byte, 0, len(r.compressedPagesBuffer))
+	for _, v0Page := range r.compressedPagesBuffer {
 		page, err := unmarshalPageFromBytes(v0Page, constDataHeader)
 		if err != nil {
 			return nil, nil, err
@@ -93,13 +93,13 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 		compressedPages = append(compressedPages, page.data)
 	}
 
-	// prepare compressed pages buffer
-	if cap(r.compressedPagesBuffer) < len(compressedPages) {
-		// extend r.compressedPagesBuffer
-		diff := len(compressedPages) - cap(r.compressedPagesBuffer)
-		r.compressedPagesBuffer = append(r.compressedPagesBuffer[:cap(r.compressedPagesBuffer)], make([][]byte, diff)...)
+	// prepare pagesBuffer
+	if cap(pagesBuffer) < len(compressedPages) {
+		// extend pagesBuffer
+		diff := len(compressedPages) - cap(pagesBuffer)
+		pagesBuffer = append(pagesBuffer[:cap(pagesBuffer)], make([][]byte, diff)...)
 	} else {
-		r.compressedPagesBuffer = r.compressedPagesBuffer[:len(compressedPages)]
+		pagesBuffer = pagesBuffer[:len(compressedPages)]
 	}
 
 	// now decompress
@@ -109,13 +109,13 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 			return nil, nil, err
 		}
 
-		r.compressedPagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page), r.compressedPagesBuffer[i])
+		pagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page), pagesBuffer[i])
 		if err != nil {
 			return nil, nil, err
 		}
 	}
 
-	return r.compressedPagesBuffer, buffer, nil
+	return pagesBuffer, buffer, nil
 }
 
 func (r *dataReader) Close() {
