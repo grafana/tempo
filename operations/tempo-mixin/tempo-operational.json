@@ -1721,7 +1721,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Queries/Sec (cortex-gw)",
+      "title": "Search Queries/Sec (cortex-gw)",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -2113,7 +2113,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Queries/Sec (Query Frontend)",
+      "title": "Search Queries/Sec (Query Frontend)",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -2503,7 +2503,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Queries/Sec (Querier)",
+      "title": "Search Queries/Sec (Querier)",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -2893,7 +2893,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Queries/Sec (Ingester)",
+      "title": "Search Queries/Sec (Ingester)",
       "tooltip": {
         "shared": true,
         "sort": 0,
