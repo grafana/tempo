@@ -67,11 +67,19 @@ func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
 // Append the given search data to the streaming block. Multiple byte buffers of search data for
 // the same trace can be passed and are merged into one entry.
 func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
-	data := tempofb.SearchEntryMutable{}
 
-	kv := &tempofb.KeyValues{}
+	if len(searchData) <= 0 {
+		return nil
+	}
+
+	if len(searchData) == 1 {
+		return s.appender.Append(id, searchData[0])
+	}
 
 	// Squash all datas into 1
+	data := tempofb.SearchEntryMutable{}
+	data.TraceID = id
+	kv := &tempofb.KeyValues{} // buffer
 	for _, sb := range searchData {
 		sd := tempofb.SearchEntryFromBytes(sb)
 		for i := 0; i < sd.TagsLength(); i++ {
@@ -83,7 +91,6 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 		data.SetStartTimeUnixNano(sd.StartTimeUnixNano())
 		data.SetEndTimeUnixNano(sd.EndTimeUnixNano())
 	}
-	data.TraceID = id
 
 	buf := data.ToBytes()
 

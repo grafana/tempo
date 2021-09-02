@@ -106,7 +106,7 @@ func (s *SearchEntryMutable) AddTag(k string, v string) {
 
 // SetStartTimeUnixNano records the earliest of all timestamps passed to this function.
 func (s *SearchEntryMutable) SetStartTimeUnixNano(t uint64) {
-	if t > 0 && s.StartTimeUnixNano == 0 || s.StartTimeUnixNano > t {
+	if t > 0 && (s.StartTimeUnixNano == 0 || s.StartTimeUnixNano > t) {
 		s.StartTimeUnixNano = t
 	}
 }
