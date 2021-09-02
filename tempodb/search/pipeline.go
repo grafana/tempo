@@ -20,16 +20,16 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 	p := Pipeline{}
 
 	if req.MinDurationMs > 0 {
-		minDuration := req.MinDurationMs * uint32(time.Millisecond)
+		minDuration := uint64(time.Duration(req.MinDurationMs) * time.Millisecond)
 		p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchEntry) bool {
-			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) >= uint64(minDuration)
+			return (s.EndTimeUnixNano() - s.StartTimeUnixNano()) >= minDuration
 		})
 	}
 
 	if req.MaxDurationMs > 0 {
-		maxDuration := req.MaxDurationMs * uint32(time.Millisecond)
+		maxDuration := uint64(time.Duration(req.MaxDurationMs) * time.Millisecond)
 		p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchEntry) bool {
-			return (s.EndTimeUnixNano()-s.StartTimeUnixNano())*uint64(time.Nanosecond) <= uint64(maxDuration)
+			return (s.EndTimeUnixNano() - s.StartTimeUnixNano()) <= maxDuration
 		})
 	}
 

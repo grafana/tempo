@@ -63,6 +63,76 @@ func TestPipelineMatchesTags(t *testing.T) {
 	}
 }
 
+func TestPipelineMatchesDuratiob(t *testing.T) {
+
+	testCases := []struct {
+		name          string
+		spanStart     int64
+		spanEnd       int64
+		minDurationMs uint32
+		maxDurationMs uint32
+		shouldMatch   bool
+	}{
+		{
+			name:          "no filtering",
+			spanStart:     time.Now().UnixNano(),
+			spanEnd:       time.Now().UnixNano(),
+			minDurationMs: 0,
+			maxDurationMs: 0,
+			shouldMatch:   true,
+		},
+		{
+			name:          "match both filters",
+			minDurationMs: 10,
+			maxDurationMs: 100,
+			spanStart:     time.Now().UnixNano(),
+			spanEnd:       time.Now().Add(50 * time.Millisecond).UnixNano(),
+			shouldMatch:   true,
+		},
+		{
+			name:          "no match either filter",
+			minDurationMs: 10,
+			maxDurationMs: 100,
+			spanStart:     time.Now().UnixNano(),
+			spanEnd:       time.Now().Add(200 * time.Millisecond).UnixNano(),
+			shouldMatch:   false,
+		},
+		{
+			// 4 billion nanoseconds = 4s
+			name:          "match more than 32-bits of nanoseconds",
+			minDurationMs: 30_000, // 30s
+			maxDurationMs: 90_000, // 90s,
+			spanStart:     time.Now().UnixNano(),
+			spanEnd:       time.Now().Add(time.Minute).UnixNano(),
+			shouldMatch:   true,
+		},
+		{
+			// 4 billion nanoseconds = 4s
+			name:          "no match more than 32-bits of nanoseconds",
+			minDurationMs: 30_000, // 30s
+			maxDurationMs: 90_000, // 90s,
+			spanStart:     time.Now().UnixNano(),
+			spanEnd:       time.Now().Add(15 * time.Second).UnixNano(),
+			shouldMatch:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			p := NewSearchPipeline(&tempopb.SearchRequest{MinDurationMs: tc.minDurationMs, MaxDurationMs: tc.maxDurationMs})
+			data := tempofb.SearchEntryMutable{
+				StartTimeUnixNano: uint64(tc.spanStart),
+				EndTimeUnixNano:   uint64(tc.spanEnd),
+			}
+			sd := tempofb.SearchEntryFromBytes(data.ToBytes())
+			matches := p.Matches(sd)
+
+			require.Equal(t, tc.shouldMatch, matches)
+		})
+	}
+}
+
 func BenchmarkPipelineMatches(b *testing.B) {
 
 	entry := tempofb.SearchEntryFromBytes((&tempofb.SearchEntryMutable{
