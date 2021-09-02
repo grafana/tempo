@@ -3,6 +3,8 @@ package tempofb
 import (
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func sizeWithCounts(traceCount, tagCount, valueCount int) int {
@@ -20,6 +22,54 @@ func sizeWithCounts(traceCount, tagCount, valueCount int) int {
 	}
 
 	return len(b.Finish())
+}
+
+func TestSearchEntryMutableSetStartTimeUnixNano(t *testing.T) {
+
+	testCases := []struct {
+		name     string
+		inputs   []uint64
+		expected uint64
+	}{
+		{"save smallest", []uint64{2, 1, 3}, 1},
+		{"don't save zeros", []uint64{1000, 0}, 1000},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &SearchEntryMutable{}
+
+			for _, i := range tc.inputs {
+				e.SetStartTimeUnixNano(i)
+			}
+
+			require.Equal(t, tc.expected, e.StartTimeUnixNano)
+		})
+	}
+}
+
+func TestSearchEntryMutableSetEndTimeUnixNano(t *testing.T) {
+
+	testCases := []struct {
+		name     string
+		inputs   []uint64
+		expected uint64
+	}{
+		{"save largest", []uint64{2, 3, 1}, 3},
+		{"don't save zeros", []uint64{1000, 0}, 1000},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &SearchEntryMutable{}
+
+			for _, i := range tc.inputs {
+				e.SetEndTimeUnixNano(i)
+			}
+
+			require.Equal(t, tc.expected, e.EndTimeUnixNano)
+		})
+	}
 }
 
 func TestEncodingSize(t *testing.T) {
