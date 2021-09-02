@@ -253,4 +253,11 @@ func TestResponseFixture(t *testing.T) {
 	}
 }
 
+func TestEqualTraces(t *testing.T) {
+	seed := time.Now()
+	a := constructTraceFromEpoch(seed)
+	b := constructTraceFromEpoch(seed)
+	require.True(t, equalTraces(a, b))
+}
+
 func stringPointer(s string) *string { return &s }

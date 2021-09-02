@@ -383,11 +383,11 @@ func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 		// get the parentSpanID to match.  In the case of an empty []byte in place
 		// for the ParentSpanId, we set to nil here to ensure that the final result
 		// matches the json.Unmarshal value when tempo is queried.
-		for ib, b := range t.Batches {
-			for il, l := range b.InstrumentationLibrarySpans {
-				for is, s := range l.Spans {
+		for _, b := range t.Batches {
+			for _, l := range b.InstrumentationLibrarySpans {
+				for _, s := range l.Spans {
 					if len(s.GetParentSpanId()) == 0 {
-						t.Batches[ib].InstrumentationLibrarySpans[il].Spans[is].ParentSpanId = nil
+						s.ParentSpanId = nil
 					}
 				}
 			}
