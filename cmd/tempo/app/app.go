@@ -158,7 +158,7 @@ type App struct {
 	store        storage.Store
 	memberlistKV *memberlist.KVInitService
 
-	httpAuthMiddleware middleware.Interface
+	HttpAuthMiddleware middleware.Interface
 	ModuleManager      *modules.Manager
 	serviceMap         map[string]services.Service
 }
@@ -207,7 +207,7 @@ func (t *App) setupAuthMiddleware() {
 				return middleware.StreamServerUserHeaderInterceptor(srv, ss, info, handler)
 			},
 		}
-		t.httpAuthMiddleware = middleware.AuthenticateUser
+		t.HttpAuthMiddleware = middleware.AuthenticateUser
 	} else {
 		t.cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
 			fakeGRPCAuthUniaryMiddleware,
@@ -215,7 +215,7 @@ func (t *App) setupAuthMiddleware() {
 		t.cfg.Server.GRPCStreamMiddleware = []grpc.StreamServerInterceptor{
 			fakeGRPCAuthStreamMiddleware,
 		}
-		t.httpAuthMiddleware = fakeHTTPAuthMiddleware
+		t.HttpAuthMiddleware = fakeHTTPAuthMiddleware
 	}
 }
 
