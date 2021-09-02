@@ -159,9 +159,9 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 	t.querier = querier
 
-	tracesHandler := middleware.Merge(
+	middleware := middleware.Merge(
 		t.HTTPAuthMiddleware,
-	).Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
+	)
 
 	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 	t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathTraces)), tracesHandler)
@@ -199,9 +199,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	frontendHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, roundTripper, log.Logger, prometheus.DefaultRegisterer)
 
-	tracesHandler := middleware.Merge(
+	frontendHandler = middleware.Merge(
 		t.HTTPAuthMiddleware,
-	).Wrap(cortexHandler)
+	).Wrap(frontendHandler)
 
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
