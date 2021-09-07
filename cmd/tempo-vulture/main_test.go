@@ -3,6 +3,7 @@ package main
 import (
 	"math/rand"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,97 +114,24 @@ func TestGenerateRandomString(t *testing.T) {
 func TestGenerateRandomTags(t *testing.T) {
 	r := rand.New(rand.NewSource(1))
 
-	expected := []*thrift.Tag{
-		{
-			Key:  "tcuAxhxKQ",
-			VStr: stringPointer("lBzgbaiCMRAjWwhTH"),
-		},
-		{
-			Key:  "sWxPLDnJObCsN",
-			VStr: stringPointer("DaFpLSjFbcXoEFf"),
-		},
-		{
-			Key:  "EZQleQYhYzR",
-			VStr: stringPointer("lgTeMa"),
-		},
-		{
-			Key:  "FetHsbZR",
-			VStr: stringPointer("WJjPjzpfRFEgmot"),
-		},
-	}
 	result := generateRandomTags(r)
-	require.Equal(t, expected, result)
+
+	for _, k := range result {
+		assertStandardVultureKey(t, k)
+	}
 }
 
 func TestGenerateRandomLogs(t *testing.T) {
 	now := time.Now()
-
 	r := rand.New(rand.NewSource(1))
-
-	expected := []*thrift.Log{
-		{
-			Timestamp: now.Unix(),
-			Fields: []*thrift.Tag{
-				{
-					Key:  "THctcuAxhxKQFD",
-					VStr: stringPointer("BzgbaiCMRAjWw"),
-				},
-				{
-					Key:  "LDnJObCsNVlgTeMaP",
-					VStr: stringPointer("FpLSjFbcXoEFfRsWx"),
-				},
-				{
-					Key:  "PjzpfRFEgmotaFetHsb",
-					VStr: stringPointer("ZQleQYhYzRyWJ"),
-				},
-			},
-		},
-		{
-			Timestamp: now.Unix(),
-			Fields: []*thrift.Tag{
-				{
-					Key:  "BAkjQZLCtTMtTCoa",
-					VStr: stringPointer("jxAwnwekrBEmfdzdcEk"),
-				},
-				{
-					Key:  "cctNswYN",
-					VStr: stringPointer("atyyiNKAReKJyiXJr"),
-				},
-			},
-		},
-		{
-			Timestamp: now.Unix(),
-			Fields: []*thrift.Tag{
-				{
-					Key:  "OJiFQG",
-					VStr: stringPointer("RussVmaozFZBs"),
-				},
-				{
-					Key:  "KupdOMeRVja",
-					VStr: stringPointer("snwTKSmVoiGLOpbUOpE"),
-				},
-				{
-					Key:  "WKsXbGyRA",
-					VStr: stringPointer("zLNTXYeU"),
-				},
-			},
-		},
-		{
-			Timestamp: now.Unix(),
-			Fields: []*thrift.Tag{
-				{
-					Key:  "yMGeuDtRzQMDQ",
-					VStr: stringPointer("BTvKSJfjzaLbtZ"),
-				},
-				{
-					Key:  "HYNufNjJhhjUVRu",
-					VStr: stringPointer("YCOhgHOvgSeycJP"),
-				},
-			},
-		},
-	}
 	result := generateRandomLogs(r, now)
-	require.Equal(t, expected, result)
+
+	for _, l := range result {
+		require.NotNil(t, l.Timestamp)
+		for _, f := range l.Fields {
+			assertStandardVultureKey(t, f)
+		}
+	}
 }
 
 func TestNewRand(t *testing.T) {
@@ -241,7 +169,7 @@ func TestResponseFixture(t *testing.T) {
 	err = jsonpb.Unmarshal(f, response)
 	require.NoError(t, err)
 
-	seed := time.Unix(1630337285, 0)
+	seed := time.Unix(1630624480, 0)
 	expected := constructTraceFromEpoch(seed)
 
 	assert.True(t, equalTraces(expected, response))
@@ -260,4 +188,12 @@ func TestEqualTraces(t *testing.T) {
 	require.True(t, equalTraces(a, b))
 }
 
-func stringPointer(s string) *string { return &s }
+func assertStandardVultureKey(t *testing.T, tag *thrift.Tag) {
+	if !strings.HasPrefix(tag.Key, "vulture-") {
+		t.Errorf("prefix vulture- is wanted, have: %s", tag.Key)
+	}
+
+	require.NotNil(t, tag.VStr)
+	require.GreaterOrEqual(t, len(tag.VType.String()), 5)
+	require.LessOrEqual(t, len(tag.VType.String()), 20)
+}
