@@ -212,6 +212,39 @@ func TestWal(t *testing.T) {
 	}
 }
 
+// TestWalReplayDeletesLocalBlocks simulates the condition where an ingester restarts after a wal is completed
+// to the local disk, but before the wal is deleted. On startup both blocks exist, and the ingester now errs
+// on the side of caution and chooses to replay the wal instead of rediscovering the local block.
+func TestWalReplayDeletesLocalBlocks(t *testing.T) {
+	ctx := context.TODO()
+
+	i, _, _ := defaultIngester(t, t.TempDir())
+	i.flushQueues.Stop() // No async activity interfering with test
+
+	inst, ok := i.getInstanceByID("test")
+	require.True(t, ok)
+
+	// Write wal
+	err := inst.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	blockID, err := inst.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+
+	// Complete block
+	err = inst.CompleteBlock(blockID)
+	require.NoError(t, err)
+
+	// At this point both wal and complete block exist.
+	// Simulate a restart.
+	inst.completeBlocks = []*wal.LocalBlock{}
+	inst.completingBlocks = []*wal.AppendBlock{}
+	i.starting(ctx)
+
+	// After restart we only have the 1 wal block
+	require.Len(t, inst.completingBlocks, 1)
+	require.Len(t, inst.completeBlocks, 0)
+}
+
 func TestFlush(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("/tmp", "")
 	require.NoError(t, err, "unexpected error getting tempdir")

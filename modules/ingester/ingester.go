@@ -343,6 +343,17 @@ func (i *Ingester) replayWal() error {
 			return err
 		}
 
+		// Delete anything remaining for the completed version of this
+		// wal block. This handles the case where a wal file is partially
+		// or fully completed to the local store, but the wal file wasn't
+		// deleted (because it wa rescanned above). This can happen for reasons
+		// such as a crash or restart. In this situation we err on the side of
+		// caution and replay the wal block.
+		err = instance.local.ClearBlock(b.Meta().BlockID, tenantID)
+		if err != nil {
+			return err
+		}
+
 		instance.AddCompletingBlock(b)
 
 		i.enqueue(&flushOp{
