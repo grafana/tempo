@@ -238,7 +238,8 @@ func TestWalReplayDeletesLocalBlocks(t *testing.T) {
 	// Simulate a restart.
 	inst.completeBlocks = []*wal.LocalBlock{}
 	inst.completingBlocks = []*wal.AppendBlock{}
-	i.starting(ctx)
+	err = i.starting(ctx)
+	require.NoError(t, err)
 
 	// After restart we only have the 1 wal block
 	require.Len(t, inst.completingBlocks, 1)
