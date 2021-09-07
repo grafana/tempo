@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
+	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
@@ -37,13 +39,18 @@ func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
 	return overrides, nil
 }
 
+type Config struct {
+	Defaults           *Limits             `yaml:"defaults"`
+	PerTenantOverrides *perTenantOverrides `yaml:"overrides,omitempty"`
+}
+
 // Overrides periodically fetch a set of per-user overrides, and provides convenience
 // functions for fetching the correct value.
 type Overrides struct {
 	services.Service
 
-	defaultLimits *Limits
-	tenantLimits  TenantLimits
+	config       *Config
+	tenantLimits TenantLimits
 
 	// Manager for subservices
 	subservices        *services.Manager
@@ -55,7 +62,13 @@ type Overrides struct {
 // are defaulted to those values.  As such, the last call to NewOverrides will
 // become the new global defaults.
 func NewOverrides(defaults Limits) (*Overrides, error) {
-	var tenantLimits TenantLimits
+	var (
+		tenantLimits TenantLimits
+		config       = &Config{
+			Defaults:           &defaults,
+			PerTenantOverrides: &perTenantOverrides{TenantLimits: make(map[string]*Limits)},
+		}
+	)
 	subservices := []services.Service(nil)
 
 	if defaults.PerTenantOverrideConfig != "" {
@@ -68,13 +81,17 @@ func NewOverrides(defaults Limits) (*Overrides, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create runtime config manager %w", err)
 		}
+		perTenantOverrides, ok := runtimeCfgMgr.GetConfig().(*perTenantOverrides)
+		if ok && perTenantOverrides != nil {
+			config.PerTenantOverrides = perTenantOverrides
+		}
 		tenantLimits = tenantLimitsFromRuntimeConfig(runtimeCfgMgr)
 		subservices = append(subservices, runtimeCfgMgr)
 	}
 
 	o := &Overrides{
-		tenantLimits:  tenantLimits,
-		defaultLimits: &defaults,
+		tenantLimits: tenantLimits,
+		config:       config,
 	}
 
 	if len(subservices) > 0 {
@@ -121,6 +138,46 @@ func (o *Overrides) stopping(_ error) error {
 		return services.StopManagerAndAwaitStopped(context.Background(), o.subservices)
 	}
 	return nil
+}
+
+func (o *Overrides) Handler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var output interface{}
+		cfg := o.config
+		switch r.URL.Query().Get("mode") {
+		case "diff":
+			// Default runtime config is just empty struct, but to make diff work,
+			// we set defaultLimits for every tenant that exists in runtime config.
+			defaultCfg := perTenantOverrides{}
+			defaultCfg.TenantLimits = map[string]*Limits{}
+			for k, v := range o.config.PerTenantOverrides.TenantLimits {
+				if v != nil {
+					defaultCfg.TenantLimits[k] = o.config.Defaults
+				}
+			}
+
+			cfgYaml, err := util.YAMLMarshalUnmarshal(cfg)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			defaultCfgYaml, err := util.YAMLMarshalUnmarshal(cfg)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			output, err = util.DiffConfig(defaultCfgYaml, cfgYaml)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		default:
+			output = cfg
+		}
+		util.WriteYAMLResponse(w, output)
+	}
 }
 
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
@@ -179,7 +236,7 @@ func (o *Overrides) getOverridesForUser(userID string) *Limits {
 			return l
 		}
 	}
-	return o.defaultLimits
+	return o.config.Defaults
 }
 
 func tenantLimitsFromRuntimeConfig(c *runtimeconfig.Manager) TenantLimits {

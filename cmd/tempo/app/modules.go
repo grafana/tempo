@@ -102,6 +102,8 @@ func (t *App) initOverrides() (services.Service, error) {
 	}
 	t.overrides = overrides
 
+	t.Server.HTTP.Handle("/runtime_config", overrides.Handler())
+
 	return t.overrides, nil
 }
 
