@@ -16,8 +16,10 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/grpc/healthcheck"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/modules"
 	"github.com/grafana/dskit/services"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 	"github.com/weaveworks/common/signals"
@@ -38,6 +40,7 @@ import (
 )
 
 const metricsNamespace = "tempo"
+const apiDocs = "https://grafana.com/docs/tempo/latest/api_docs/"
 
 // Config is the root config for App.
 type Config struct {
@@ -245,6 +248,7 @@ func (t *App) Run() error {
 	t.Server.HTTP.Path("/config").Handler(t.configHandler())
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
 	t.Server.HTTP.Path("/services").Handler(t.servicesHandler())
+	t.Server.HTTP.Path("/status").Handler(t.statusHandler())
 	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, healthcheck.New(sm))
 
 	// Let's listen for events from this manager, and log them.
@@ -338,6 +342,65 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 		}
 
 		http.Error(w, "ready", http.StatusOK)
+	}
+}
+
+func (t *App) statusHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		msg := bytes.Buffer{}
+
+		type endpoint struct {
+			name  string
+			regex string
+		}
+
+		endpoints := []endpoint{}
+
+		err := t.Server.HTTP.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+			e := endpoint{}
+
+			pathTemplate, err := route.GetPathTemplate()
+			if err == nil {
+				e.name = pathTemplate
+			}
+
+			pathRegexp, err := route.GetPathRegexp()
+			if err == nil {
+				e.regex = pathRegexp
+			}
+
+			endpoints = append(endpoints, e)
+
+			return nil
+		})
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "error walking routes", "err", err)
+		}
+
+		sort.Slice(endpoints[:], func(i, j int) bool {
+			return endpoints[i].name < endpoints[j].name
+		})
+
+		msg.WriteString(fmt.Sprintf("API documentation: %s\n", apiDocs))
+
+		t := table.NewWriter()
+		t.SetOutputMirror(&msg)
+		t.AppendHeader(table.Row{"name", "regex"})
+
+		for _, e := range endpoints {
+			t.AppendRows([]table.Row{
+				{e.name, e.regex},
+			})
+		}
+
+		t.AppendSeparator()
+		t.Render()
+
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write(msg.Bytes()); err != nil {
+			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
+		}
 	}
 }
 
