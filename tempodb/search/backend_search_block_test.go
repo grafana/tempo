@@ -21,12 +21,18 @@ import (
 func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.Encoding, pageSizeBytes int) *BackendSearchBlock {
 	id := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15} // 16-byte ids required
 	searchData := [][]byte{(&tempofb.SearchEntryMutable{
+		TraceID: id,
 		Tags: tempofb.SearchDataMap{
 			"key1": {"value10", "value11"},
 			"key2": {"value20", "value21"},
 			"key3": {"value30", "value31"},
 			"key4": {"value40", "value41"},
-		}}).ToBytes()}
+		}}).ToBytes(),
+		(&tempofb.SearchEntryMutable{
+			TraceID: id,
+			Tags: tempofb.SearchDataMap{
+				"key5": {"value50", "value51"},
+			}}).ToBytes()}
 
 	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
@@ -58,7 +64,7 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 
 	// Matches every trace
 	p := NewSearchPipeline(&tempopb.SearchRequest{
-		Tags: map[string]string{"key1": "value10"},
+		Tags: map[string]string{"key1": "value10", "key5": "value50"},
 	})
 
 	sr := NewResults()
@@ -75,8 +81,8 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 	for r := range sr.Results() {
 		results = append(results, r)
 	}
-	require.Equal(t, traceCount, len(results))
-	require.Equal(t, traceCount, int(sr.TracesInspected()))
+	require.Equal(t, 1, len(results))
+	require.Equal(t, 1, int(sr.TracesInspected()))
 }
 
 func BenchmarkBackendSearchBlockSearch(b *testing.B) {
