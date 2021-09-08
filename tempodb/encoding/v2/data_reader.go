@@ -9,6 +9,7 @@ import (
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/klauspost/compress/zstd"
 )
 
 type dataReader struct {
@@ -105,7 +106,12 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 			return nil, nil, err
 		}
 
-		pagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page), pagesBuffer[i])
+		decoder, ok := reader.(*zstd.Decoder)
+		if ok {
+			pagesBuffer[i], err = decoder.DecodeAll(page, pagesBuffer[i][:0])
+		} else {
+			pagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page), pagesBuffer[i])
+		}
 		if err != nil {
 			return nil, nil, err
 		}
@@ -138,7 +144,13 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 		return nil, 0, err
 	}
 
-	buffer, err = tempo_io.ReadAllWithBuffer(compressedReader, len(page.data), buffer)
+	decoder, ok := reader.(*zstd.Decoder)
+	if ok {
+		buffer, err = decoder.DecodeAll(page.data, buffer[:0])
+	} else {
+		buffer, err = tempo_io.ReadAllWithBuffer(compressedReader, len(page.data), buffer)
+	}
+
 	if err != nil {
 		return nil, 0, err
 	}
