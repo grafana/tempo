@@ -254,15 +254,15 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 		ring.GetCodec(),
 	}
 
-	t.memberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger)
+	t.MemberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger)
 
-	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
-	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
-	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
+	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
-	t.Server.HTTP.Handle("/memberlist", t.memberlistKV)
+	t.Server.HTTP.Handle("/memberlist", t.MemberlistKV)
 
-	return t.memberlistKV, nil
+	return t.MemberlistKV, nil
 }
 
 func (t *App) setupModuleManager() error {
