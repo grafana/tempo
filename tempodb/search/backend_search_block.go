@@ -3,7 +3,6 @@ package search
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 
@@ -67,19 +66,23 @@ type SearchDataReader struct {
 }
 
 func (s *SearchDataReader) Read(ctx context.Context, records []common.Record, pagesBuffer [][]byte, buffer []byte) ([][]byte, []byte, error) {
-	//Reset/resize buffer
+	// Reset/resize buffer
 	if cap(pagesBuffer) < len(records) {
 		pagesBuffer = make([][]byte, 0, len(records))
 	}
 	pagesBuffer = pagesBuffer[:len(records)]
 
 	for i, r := range records {
-		buf := make([]byte, r.Length)
-		_, err := s.file.ReadAt(buf, int64(r.Start))
-		if err != nil {
-			return nil, nil, fmt.Errorf("error reading search file: %w", err)
+		// Reset/resize buffer
+		if cap(buffer) < int(r.Length) {
+			buffer = make([]byte, r.Length)
 		}
-		pagesBuffer[i] = buf
+		buffer = buffer[:r.Length]
+		_, err := s.file.ReadAt(buffer, int64(r.Start))
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "error reading search file")
+		}
+		pagesBuffer[i] = buffer
 	}
 	return pagesBuffer, buffer, nil
 }

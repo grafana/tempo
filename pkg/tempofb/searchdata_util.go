@@ -290,29 +290,3 @@ func ContainsTag(s TagContainer, kv *KeyValues, k []byte, v []byte) bool {
 
 	return false
 }
-
-func SearchEntryToSearchEntryMutable(entry *SearchEntry) *SearchEntryMutable {
-	m := &SearchEntryMutable{
-		Tags: SearchDataMap{},
-	}
-
-	// TraceID
-	m.TraceID = entry.Id()
-
-	// Tags
-	kv := &KeyValues{}
-	for i := 0; i < entry.TagsLength(); i++ {
-		entry.Tags(kv, i)
-		for j := 0; j < kv.ValueLength(); j++ {
-			m.Tags.Add(string(kv.Key()), string(kv.Value(j)))
-		}
-	}
-
-	// Start time
-	m.StartTimeUnixNano = entry.StartTimeUnixNano()
-
-	// End time
-	m.EndTimeUnixNano = entry.EndTimeUnixNano()
-
-	return m
-}
