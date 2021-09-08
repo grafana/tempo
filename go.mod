@@ -32,7 +32,7 @@ require (
 	github.com/hashicorp/go-plugin v1.3.0
 	github.com/jaegertracing/jaeger v1.21.0
 	github.com/jsternberg/zap-logfmt v1.2.0
-	github.com/klauspost/compress v1.13.1
+	github.com/klauspost/compress v1.13.5
 	github.com/minio/minio-go/v7 v7.0.10
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e
