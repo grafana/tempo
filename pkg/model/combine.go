@@ -7,6 +7,8 @@ import (
 	"hash"
 	"hash/fnv"
 
+	"github.com/grafana/tempo/tempodb/encoding/common"
+
 	"github.com/go-kit/kit/log/level"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/pkg/errors"
@@ -18,12 +20,29 @@ type objectCombiner struct{}
 
 var ObjectCombiner = objectCombiner{}
 
+var _ common.ObjectCombiner = (*objectCombiner)(nil)
+
 // Combine implements tempodb/encoding/common.ObjectCombiner
-func (o objectCombiner) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
-	combinedTrace, wasCombined, err := CombineTraceBytes(objA, objB, dataEncoding, dataEncoding)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
+func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
+	if len(objs) <= 0 {
+		return nil, false
 	}
+
+	if len(objs) == 1 {
+		return objs[0], false
+	}
+
+	combinedTrace := objs[0]
+	var wasCombined bool
+	var err error
+	for _, obj := range objs[1:] {
+		combinedTrace, wasCombined, err = CombineTraceBytes(combinedTrace, obj, dataEncoding, dataEncoding)
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
+			break
+		}
+	}
+
 	return combinedTrace, wasCombined
 }
 

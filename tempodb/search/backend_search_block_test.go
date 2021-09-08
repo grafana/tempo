@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -18,21 +19,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func genSearchData(traceID []byte, i int) [][]byte {
+	return [][]byte{(&tempofb.SearchEntryMutable{
+		TraceID: traceID,
+		Tags: tempofb.SearchDataMap{
+			"key" + strconv.Itoa(i): {"value_A_" + strconv.Itoa(i), "value_B_" + strconv.Itoa(i)},
+		}}).ToBytes()}
+}
+
 func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.Encoding, pageSizeBytes int) *BackendSearchBlock {
 	id := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15} // 16-byte ids required
-	searchData := [][]byte{(&tempofb.SearchEntryMutable{
-		TraceID: id,
-		Tags: tempofb.SearchDataMap{
-			"key1": {"value10", "value11"},
-			"key2": {"value20", "value21"},
-			"key3": {"value30", "value31"},
-			"key4": {"value40", "value41"},
-		}}).ToBytes(),
-		(&tempofb.SearchEntryMutable{
-			TraceID: id,
-			Tags: tempofb.SearchDataMap{
-				"key5": {"value50", "value51"},
-			}}).ToBytes()}
 
 	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
@@ -40,7 +36,7 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 	b1, err := NewStreamingSearchBlockForFile(f)
 	require.NoError(t, err)
 	for i := 0; i < traceCount; i++ {
-		assert.NoError(t, b1.Append(context.Background(), id, searchData))
+		assert.NoError(t, b1.Append(context.Background(), id, genSearchData(id, i)))
 	}
 
 	l, err := local.NewBackend(&local.Config{
@@ -58,13 +54,12 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 }
 
 func TestBackendSearchBlockSearch(t *testing.T) {
-	traceCount := 50_000
+	traceCount := 1_000
 
 	b2 := newBackendSearchBlockWithTraces(t, traceCount, backend.EncNone, 0)
 
-	// Matches every trace
 	p := NewSearchPipeline(&tempopb.SearchRequest{
-		Tags: map[string]string{"key1": "value10", "key5": "value50"},
+		Tags: map[string]string{"key1": "value_A_1"},
 	})
 
 	sr := NewResults()

@@ -27,39 +27,41 @@ type BackendSearchBlock struct {
 	l        *local.Backend
 }
 
+//nolint:golint
 type SearchDataCombiner struct{}
 
-// TODO: turn objA and objB into interface{} ?
-func (*SearchDataCombiner) Combine(objA []byte, objB []byte, _ string) ([]byte, bool) {
-	if bytes.Equal(objA, objB) {
-		return objA, false
+func (*SearchDataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool) {
+
+	if len(searchData) <= 0 {
+		return nil, false
 	}
 
-	mutableEntryA := tempofb.SearchEntryToSearchEntryMutable(tempofb.SearchEntryFromBytes(objA))
-	mutableEntryB := tempofb.SearchEntryToSearchEntryMutable(tempofb.SearchEntryFromBytes(objB))
+	if len(searchData) == 1 {
+		return searchData[0], false
+	}
 
-	// Tags
-	for key, values := range mutableEntryB.Tags {
-		for _, value := range values {
-			mutableEntryA.Tags.Add(key, value) // duplicates are handled by Add
+	// Squash all datas into 1
+	data := tempofb.SearchEntryMutable{}
+	kv := &tempofb.KeyValues{} // buffer
+	for _, sb := range searchData {
+		sd := tempofb.SearchEntryFromBytes(sb)
+		for i := 0; i < sd.TagsLength(); i++ {
+			sd.Tags(kv, i)
+			for j := 0; j < kv.ValueLength(); j++ {
+				data.AddTag(string(kv.Key()), string(kv.Value(j)))
+			}
 		}
+		data.SetStartTimeUnixNano(sd.StartTimeUnixNano())
+		data.SetEndTimeUnixNano(sd.EndTimeUnixNano())
+		data.TraceID = sd.Id()
 	}
 
-	// Start time
-	if mutableEntryB.StartTimeUnixNano < mutableEntryA.StartTimeUnixNano {
-		mutableEntryA.StartTimeUnixNano = mutableEntryB.StartTimeUnixNano
-	}
-
-	// End time
-	if mutableEntryB.EndTimeUnixNano > mutableEntryA.EndTimeUnixNano {
-		mutableEntryA.EndTimeUnixNano = mutableEntryB.EndTimeUnixNano
-	}
-
-	return mutableEntryA.ToBytes(), true
+	return data.ToBytes(), true
 }
 
 var _ common.ObjectCombiner = (*SearchDataCombiner)(nil)
 
+//nolint:golint
 type SearchDataReader struct {
 	file *os.File
 }
@@ -91,6 +93,7 @@ func (*SearchDataReader) NextPage([]byte) ([]byte, uint32, error) {
 
 var _ common.DataReader = (*SearchDataReader)(nil)
 
+//nolint:golint
 type SearchObjectReaderWriter struct{}
 
 func (*SearchObjectReaderWriter) MarshalObjectToWriter(id common.ID, b []byte, w io.Writer) (int, error) {

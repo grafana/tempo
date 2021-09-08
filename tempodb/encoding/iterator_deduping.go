@@ -58,7 +58,7 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 		}
 
 		i.currentID = id
-		i.currentObject, _ = i.combiner.Combine(i.currentObject, obj, i.dataEncoding)
+		i.currentObject, _ = i.combiner.Combine(i.dataEncoding, i.currentObject, obj)
 	}
 
 	return dedupedID, dedupedObject, nil
