@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -132,18 +132,25 @@ func TestStreamingBlockAddObject(t *testing.T) {
 }
 
 func TestStreamingBlockAll(t *testing.T) {
-	for _, enc := range backend.SupportedEncoding {
-		t.Run(enc.String(), func(t *testing.T) {
-			testStreamingBlockToBackendBlock(t,
-				&BlockConfig{
-					IndexDownsampleBytes: 1000,
-					BloomFP:              .01,
-					BloomShardSizeBytes:  10_000,
-					Encoding:             enc,
-					IndexPageSizeBytes:   1000,
-				},
-			)
-		})
+	for i := 0; i < 10; i++ {
+		indexDownsampleBytes := rand.Intn(5000) + 1000
+		bloomFP := float64(rand.Intn(99)+1) / 100.0
+		bloomShardSize := rand.Intn(10_000) + 10_000
+		indexPageSize := rand.Intn(5000) + 1000
+
+		for _, enc := range backend.SupportedEncoding {
+			t.Run(enc.String(), func(t *testing.T) {
+				testStreamingBlockToBackendBlock(t,
+					&BlockConfig{
+						IndexDownsampleBytes: indexDownsampleBytes,
+						BloomFP:              bloomFP,
+						BloomShardSizeBytes:  bloomShardSize,
+						Encoding:             enc,
+						IndexPageSizeBytes:   indexPageSize,
+					},
+				)
+			})
+		}
 	}
 }
 
@@ -209,7 +216,9 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
-	appender := NewAppender(v0.NewDataWriter(writer))
+	dataWriter, err := v2.NewDataWriter(writer, backend.EncNone)
+	require.NoError(t, err)
+	appender := NewAppender(dataWriter)
 
 	numMsgs := 1000
 	reqs := make([][]byte, 0, numMsgs)
@@ -234,7 +243,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 			minID = id
 		}
 	}
-	err := appender.Complete()
+	err = appender.Complete()
 	require.NoError(t, err)
 	err = writer.Flush()
 	require.NoError(t, err, "unexpected error flushing writer")
@@ -246,22 +255,11 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	originatingMeta.TotalObjects = numMsgs
 
 	// calc expected records
-	byteCounter := 0
-	expectedRecords := 0
-	for _, rec := range appender.Records() {
-		byteCounter += int(rec.Length)
-		if byteCounter > cfg.IndexDownsampleBytes {
-			byteCounter = 0
-			expectedRecords++
-		}
-	}
-	if byteCounter > 0 {
-		expectedRecords++
-	}
-
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes())), backend.EncNone)
+	require.NoError(t, err)
 	iter := NewRecordIterator(appender.Records(),
-		v0.NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes()))),
-		v0.NewObjectReaderWriter())
+		dataReader,
+		v2.NewObjectReaderWriter())
 
 	block, err := NewStreamingBlock(cfg, originatingMeta.BlockID, originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, originatingMeta.TotalObjects)
 	require.NoError(t, err, "unexpected error completing block")
@@ -289,7 +287,6 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	require.NoError(t, err)
 
 	// test downsample config
-	require.Equal(t, expectedRecords, len(block.appender.Records()))
 	require.True(t, bytes.Equal(block.BlockMeta().MinID, minID))
 	require.True(t, bytes.Equal(block.BlockMeta().MaxID, maxID))
 	require.Equal(t, originatingMeta.StartTime, block.BlockMeta().StartTime)
@@ -347,7 +344,7 @@ func BenchmarkReadZstd(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncZstd, benchDownsample, true)
 }
 
-// Download a block from your backend and place in ./benchmark_block/fake/<guid>
+// Download a block from your backend and place in ./benchmark_block/<tenant id>/<guid>
 //nolint:unparam
 func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsample int, benchRead bool) {
 	tempDir, err := ioutil.TempDir("/tmp", "")
@@ -360,7 +357,10 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	require.NoError(b, err, "error creating backend")
 
 	r := backend.NewReader(rawR)
-	backendBlock, err := NewBackendBlock(backend.NewBlockMeta("fake", uuid.MustParse("9f15417a-1242-40e4-9de3-a057d3b176c1"), "v0", backend.EncNone, ""), r)
+	meta, err := r.BlockMeta(context.Background(), uuid.MustParse("00006e9d-94f0-4487-8e62-99f951be9349"), "1")
+	require.NoError(b, err)
+
+	backendBlock, err := NewBackendBlock(meta, r)
 	require.NoError(b, err, "error creating backend block")
 
 	iter, err := backendBlock.Iterator(10 * 1024 * 1024)
@@ -416,21 +416,30 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		return
 	}
 
-	// b.ResetTimer() todo : restore
+	// todo: restore read benchmarks
+	// b.ResetTimer()
 
-	// file, err := os.Open(StreamingBlock.fullFilename())
+	// file, err := os.Open(block.fullFilename())
 	// require.NoError(b, err)
-	// pr, err := v2.NewDataReader(v0.NewDataReader(backend.NewContextReaderWithAllReader(file)), encoding)
+	// pr, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), encoding)
 	// require.NoError(b, err)
-	// iterator = newPagedIterator(10*1024*1024, common.Records(cb.records), pr, backendBlock.encoding.newObjectReaderWriter())
 
+	// var tempBuffer []byte
+	// o := v2.NewObjectReaderWriter()
 	// for {
-	// 	id, _, err := iterator.Next(context.Background())
-	// 	if err != io.EOF {
-	// 		require.NoError(b, err)
-	// 	}
-	// 	if id == nil {
+	// 	tempBuffer, _, err = pr.NextPage(tempBuffer)
+	// 	if err == io.EOF {
 	// 		break
+	// 	}
+	// 	require.NoError(b, err)
+
+	// 	bufferReader := bytes.NewReader(tempBuffer)
+
+	// 	for {
+	// 		_, _, err = o.UnmarshalObjectFromReader(bufferReader)
+	// 		if err == io.EOF {
+	// 			break
+	// 		}
 	// 	}
 	// }
 }

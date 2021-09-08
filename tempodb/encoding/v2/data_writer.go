@@ -6,54 +6,82 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v1 "github.com/grafana/tempo/tempodb/encoding/v1"
 )
 
 type dataWriter struct {
-	v1Writer common.DataWriter
-	v1Buffer *bytes.Buffer
-
 	outputWriter io.Writer
+
+	pool              WriterPool
+	compressedBuffer  *bytes.Buffer
+	compressionWriter io.WriteCloser
+
+	objectRW     common.ObjectReaderWriter
+	objectBuffer *bytes.Buffer
 }
 
 // NewDataWriter creates a paged page writer
 func NewDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWriter, error) {
-	v1Buffer := &bytes.Buffer{}
-	v1Writer, err := v1.NewDataWriter(v1Buffer, encoding)
+	pool, err := GetWriterPool(encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	compressedBuffer := &bytes.Buffer{}
+	compressionWriter, err := pool.GetWriter(compressedBuffer)
 	if err != nil {
 		return nil, err
 	}
 
 	return &dataWriter{
-		v1Writer:     v1Writer,
-		v1Buffer:     v1Buffer,
-		outputWriter: writer,
+		outputWriter:      writer,
+		pool:              pool,
+		compressionWriter: compressionWriter,
+		compressedBuffer:  compressedBuffer,
+		objectRW:          NewObjectReaderWriter(),
+		objectBuffer:      &bytes.Buffer{},
 	}, nil
 }
 
 // Write implements DataWriter
 func (p *dataWriter) Write(id common.ID, obj []byte) (int, error) {
-	return p.v1Writer.Write(id, obj)
+	return p.objectRW.MarshalObjectToWriter(id, obj, p.objectBuffer)
 }
 
 // CutPage implements DataWriter
 func (p *dataWriter) CutPage() (int, error) {
-	_, err := p.v1Writer.CutPage()
+	// compress the raw object buffer
+	buffer := p.objectBuffer.Bytes()
+	_, err := p.compressionWriter.Write(buffer)
 	if err != nil {
 		return 0, err
 	}
 
-	// v1Buffer currently has all of the v1 bytes. let's wrap it in our page and write
-	bytesWritten, err := marshalPageToWriter(p.v1Buffer.Bytes(), p.outputWriter, constDataHeader)
+	// force flush everything
+	p.compressionWriter.Close()
+
+	// now marshal the buffer as a page to the output
+	bytesWritten, err := marshalPageToWriter(p.compressedBuffer.Bytes(), p.outputWriter, constDataHeader)
 	if err != nil {
 		return 0, err
 	}
-	p.v1Buffer.Reset()
+
+	// reset buffers for the next write
+	p.objectBuffer.Reset()
+	p.compressedBuffer.Reset()
+	p.compressionWriter, err = p.pool.ResetWriter(p.compressedBuffer, p.compressionWriter)
+	if err != nil {
+		return 0, err
+	}
 
 	return bytesWritten, err
 }
 
 // Complete implements DataWriter
 func (p *dataWriter) Complete() error {
-	return p.v1Writer.Complete()
+	if p.compressionWriter != nil {
+		p.pool.PutWriter(p.compressionWriter)
+		p.compressionWriter = nil
+	}
+
+	return nil
 }
