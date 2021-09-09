@@ -139,6 +139,10 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 			break
 		}
 
+		if len(data) == 0 {
+			continue
+		}
+
 		s := tempofb.SearchEntryFromBytes(data)
 		entry := &tempofb.SearchEntryMutable{
 			TraceID:           id,

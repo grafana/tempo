@@ -36,6 +36,8 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 	var wasCombined bool
 	var err error
 	for _, obj := range objs[1:] {
+		// Todo: Find an efficient way to combine all objs in a single step
+		// However, this is ok for now because Combine() is never called with len(objs) > 2
 		combinedTrace, wasCombined, err = CombineTraceBytes(combinedTrace, obj, dataEncoding, dataEncoding)
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
