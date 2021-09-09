@@ -284,8 +284,8 @@ func (t *App) setupModuleManager() error {
 
 	deps := map[string][]string{
 		// Server:       nil,
-		// Overrides:    nil,
 		// Store:        nil,
+		Overrides:     {Server},
 		MemberlistKV:  {Server},
 		QueryFrontend: {Server},
 		Ring:          {Server, MemberlistKV},
