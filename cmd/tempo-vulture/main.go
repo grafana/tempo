@@ -33,22 +33,25 @@ var (
 	prometheusListenAddress string
 	prometheusPath          string
 
-	tempoQueryURL             string
-	tempoPushURL              string
-	tempoOrgID                string
-	tempoWriteBackoffDuration time.Duration
-	tempoReadBackoffDuration  time.Duration
-	tempoRetentionDuration    time.Duration
+	tempoQueryURL                string
+	tempoPushURL                 string
+	tempoOrgID                   string
+	tempoWriteBackoffDuration    time.Duration
+	tempoReadBackoffDuration     time.Duration
+	tempoSearchBackoffDuration   time.Duration
+	tempoRetentionDuration       time.Duration
+	tempoSearchRetentionDuration time.Duration
 
 	logger *zap.Logger
 )
 
 type traceMetrics struct {
-	requested       int
-	requestFailed   int
-	notFound        int
-	missingSpans    int
-	incorrectResult int
+	requested                 int
+	requestFailed             int
+	notFound                  int
+	missingSpans              int
+	traceMissingFromTagSearch int
+	incorrectResult           int
 }
 
 func init() {
@@ -60,7 +63,9 @@ func init() {
 	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
 	flag.DurationVar(&tempoWriteBackoffDuration, "tempo-write-backoff-duration", 15*time.Second, "The amount of time to pause between write Tempo calls")
 	flag.DurationVar(&tempoReadBackoffDuration, "tempo-read-backoff-duration", 30*time.Second, "The amount of time to pause between read Tempo calls")
+	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
+	flag.DurationVar(&tempoSearchRetentionDuration, "tempo-search-retention-duration", 10*time.Minute, "The ingester retention we expect to be able to search within")
 }
 
 func main() {
@@ -79,6 +84,7 @@ func main() {
 	startTime := actualStartTime
 	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
 	tickerRead := time.NewTicker(tempoReadBackoffDuration)
+	tickerSearch := time.NewTicker(tempoSearchBackoffDuration)
 	interval := tempoWriteBackoffDuration
 
 	// Write
@@ -137,25 +143,69 @@ func main() {
 				continue
 			}
 
-			r := newRand(seed)
-			hexID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
+			log := logger.With(
+				zap.String("org_id", tempoOrgID),
+			)
+
+			client := util.NewClient(tempoQueryURL, tempoOrgID, log)
 
 			// query the trace
-			metrics, err := queryTempoAndAnalyze(tempoQueryURL, seed, hexID)
+			queryMetrics, err := queryTrace(client, seed)
 			if err != nil {
 				metricErrorTotal.Inc()
+				log.Error("query for metrics failed",
+					zap.Error(err),
+				)
+			}
+			pushMetrics(queryMetrics)
+		}
+	}()
+
+	// Search
+	go func() {
+		for now := range tickerSearch.C {
+			_, seed := selectPastTimestamp(startTime, now, interval, tempoSearchRetentionDuration)
+
+			// Don't attempt to read on the first itteration if we can't reasonably
+			// expect the write loop to have fired yet.
+			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration)) {
+				continue
 			}
 
-			metricTracesInspected.Add(float64(metrics.requested))
-			metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
-			metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
-			metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
-			metricTracesErrors.WithLabelValues("incorrectresult").Add(float64(metrics.incorrectResult))
+			// Don't attempt to read future traces.
+			if seed.After(now) {
+				continue
+			}
+
+			log := logger.With(
+				zap.String("org_id", tempoOrgID),
+			)
+
+			client := util.NewClient(tempoQueryURL, tempoOrgID, log)
+
+			// query a tag we expect the trace to be found within
+			searchMetrics, err := searchTag(client, seed)
+			if err != nil {
+				metricErrorTotal.Inc()
+				log.Error("search for metrics failed",
+					zap.Error(err),
+				)
+			}
+			pushMetrics(searchMetrics)
 		}
 	}()
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
+}
+
+func pushMetrics(metrics traceMetrics) {
+	metricTracesInspected.Add(float64(metrics.requested))
+	metricTracesErrors.WithLabelValues("incorrectresult").Add(float64(metrics.incorrectResult))
+	metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
+	metricTracesErrors.WithLabelValues("tracemissingfromtagsearch").Add(float64(metrics.traceMissingFromTagSearch))
+	metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
+	metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
 }
 
 func selectPastTimestamp(start, stop time.Time, interval time.Duration, retention time.Duration) (newStart, ts time.Time) {
@@ -258,20 +308,78 @@ func generateRandomInt(min int64, max int64, r *rand.Rand) int64 {
 	return number
 }
 
-func queryTempoAndAnalyze(baseURL string, seed time.Time, traceID string) (traceMetrics, error) {
+func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
 
+	r := newRand(seed)
+	hexID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
+
+	// Get the expected
+	expected := constructTraceFromEpoch(seed)
+
+	traceInTraces := func(traceID string, traces []*tempopb.TraceSearchMetadata) bool {
+		for _, t := range traces {
+			if t.TraceID == traceID {
+				return true
+			}
+		}
+
+		return false
+	}
+
 	logger := logger.With(
-		zap.String("query_trace_id", traceID),
-		zap.String("tempo_query_url", baseURL+"/api/traces/"+traceID),
+		// zap.String("query_trace_id", traceID),
 		zap.Int64("seed", seed.Unix()),
+		zap.String("hexID", hexID),
+		zap.Duration("ago", time.Since(seed)),
+	)
+	logger.Info("searching Tempo")
+
+	// Use the search API to find details about the expected trace
+	for _, expectedBatch := range expected.Batches {
+		for _, expectedSpans := range expectedBatch.InstrumentationLibrarySpans {
+			for _, expectedSpan := range expectedSpans.Spans {
+				for _, t := range expectedSpan.Attributes {
+
+					resp, err := client.SearchTag(t.Key, t.Value.GetStringValue())
+					if err != nil {
+						logger.Error(fmt.Sprintf("failed to query tag values for %s: %s", t.Key, err.Error()))
+						tm.requestFailed++
+						return tm, err
+					}
+
+					if !traceInTraces(hexID, resp.Traces) {
+						tm.traceMissingFromTagSearch++
+						return tm, nil
+					}
+
+				}
+			}
+		}
+	}
+
+	return tm, nil
+}
+
+func queryTrace(client *util.Client, seed time.Time) (traceMetrics, error) {
+	tm := traceMetrics{
+		requested: 1,
+	}
+
+	r := newRand(seed)
+	hexID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
+
+	logger := logger.With(
+		// zap.String("query_trace_id", traceID),
+		zap.Int64("seed", seed.Unix()),
+		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(seed)),
 	)
 	logger.Info("querying Tempo")
 
-	trace, err := util.QueryTrace(baseURL, traceID, tempoOrgID)
+	trace, err := client.QueryTrace(hexID)
 	if err != nil {
 		if err == util.ErrTraceNotFound {
 			tm.notFound++
@@ -397,4 +505,13 @@ func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 	}
 
 	return trace
+}
+
+func stringInStrings(s string, ss []string) bool {
+	for _, x := range ss {
+		if s == x {
+			return true
+		}
+	}
+	return false
 }
