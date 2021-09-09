@@ -61,65 +61,34 @@ func (*SearchDataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool
 var _ common.ObjectCombiner = (*SearchDataCombiner)(nil)
 
 //nolint:golint
-type SearchDataReader struct {
-	file *os.File
+type SearchDataIterator struct {
+	currentIndex int
+	records      []common.Record
+	file         *os.File
 }
 
-func (s *SearchDataReader) Read(ctx context.Context, records []common.Record, pagesBuffer [][]byte, buffer []byte) ([][]byte, []byte, error) {
-	// Reset/resize buffer
-	if cap(pagesBuffer) < len(records) {
-		pagesBuffer = make([][]byte, 0, len(records))
-	}
-	pagesBuffer = pagesBuffer[:len(records)]
-
-	for i, r := range records {
-		// Reset/resize buffer
-		if cap(buffer) < int(r.Length) {
-			buffer = make([]byte, r.Length)
-		}
-		buffer = buffer[:r.Length]
-		_, err := s.file.ReadAt(buffer, int64(r.Start))
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "error reading search file")
-		}
-		pagesBuffer[i] = buffer
-	}
-	return pagesBuffer, buffer, nil
-}
-
-func (*SearchDataReader) Close() {
-}
-
-func (*SearchDataReader) NextPage([]byte) ([]byte, uint32, error) {
-	panic("should not be used")
-}
-
-var _ common.DataReader = (*SearchDataReader)(nil)
-
-//nolint:golint
-type SearchObjectReaderWriter struct{}
-
-func (*SearchObjectReaderWriter) MarshalObjectToWriter(id common.ID, b []byte, w io.Writer) (int, error) {
-	panic("should not be called")
-}
-
-func (*SearchObjectReaderWriter) UnmarshalObjectFromReader(r io.Reader) (common.ID, []byte, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(data) == 0 {
+func (s *SearchDataIterator) Next(_ context.Context) (common.ID, []byte, error) {
+	if s.currentIndex >= len(s.records) {
 		return nil, nil, io.EOF
 	}
-	entry := tempofb.SearchEntryFromBytes(data)
-	return entry.Id(), data, nil
+
+	currentRecord := s.records[s.currentIndex]
+	buffer := make([]byte, currentRecord.Length)
+	_, err := s.file.ReadAt(buffer, int64(currentRecord.Start))
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "error reading search file")
+	}
+
+	s.currentIndex++
+
+	return currentRecord.ID, buffer, nil
 }
 
-func (*SearchObjectReaderWriter) UnmarshalAndAdvanceBuffer(buffer []byte) ([]byte, common.ID, []byte, error) {
-	panic("should not be called")
+func (*SearchDataIterator) Close() {
+	// file will be closed by StreamingSearchBlock
 }
 
-var _ common.ObjectReaderWriter = (*SearchObjectReaderWriter)(nil)
+var _ encoding.Iterator = (*SearchDataIterator)(nil)
 
 // NewBackendSearchBlock iterates through the given WAL search data and writes it to the persistent backend
 // in a more efficient paged form. Multiple traces are written in the same page to make sure of the flatbuffer
@@ -147,11 +116,11 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 
 	// set up deduping iterator for streaming search block
 	combiner := &SearchDataCombiner{}
-	dataReader := &SearchDataReader{
-		file: input.file,
+	searchIterator := &SearchDataIterator{
+		records: input.appender.Records(),
+		file:    input.file,
 	}
-	recordIterator := encoding.NewRecordIterator(input.appender.Records(), dataReader, &SearchObjectReaderWriter{})
-	iter, err := encoding.NewDedupingIterator(recordIterator, combiner, "")
+	iter, err := encoding.NewDedupingIterator(searchIterator, combiner, "")
 	if err != nil {
 		return errors.Wrap(err, "error creating deduping iterator")
 	}
