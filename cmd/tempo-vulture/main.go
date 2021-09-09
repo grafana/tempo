@@ -135,7 +135,7 @@ func main() {
 			// Don't attempt to read on the first itteration if we can't reasonably
 			// expect the write loop to have fired yet.  Double the duration here to
 			// avoid a race.
-			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration * 2)) {
+			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration).Add(tempoWriteBackoffDuration)) {
 				continue
 			}
 
@@ -170,7 +170,7 @@ func main() {
 			// Don't attempt to read on the first itteration if we can't reasonably
 			// expect the write loop to have fired yet.  Double the duration here to
 			// avoid a race.
-			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration * 2)) {
+			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration).Add(tempoWriteBackoffDuration)) {
 				continue
 			}
 
@@ -316,7 +316,13 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	}
 
 	r := newRand(seed)
-	hexID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
+	seedHex := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
+	traceID, err := util.HexStringToTraceID(seedHex)
+	if err != nil {
+		return tm, err
+	}
+
+	hexID := util.TraceIDToHexString(traceID)
 
 	// Get the expected
 	expected := constructTraceFromEpoch(seed)
@@ -354,7 +360,7 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 
 					if !traceInTraces(hexID, resp.Traces) {
 						tm.traceMissingFromTagSearch++
-						return tm, nil
+						return tm, fmt.Errorf("trace %s not found in search response: %+v", hexID, resp.Traces)
 					}
 
 				}
