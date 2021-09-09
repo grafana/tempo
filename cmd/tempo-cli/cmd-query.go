@@ -15,9 +15,10 @@ type queryCmd struct {
 }
 
 func (cmd *queryCmd) Run(_ *globalOptions) error {
+	client := util.NewClient(cmd.APIEndpoint, cmd.OrgID, nil)
 
 	// util.QueryTrace will only add orgID header if len(orgID) > 0
-	trace, err := util.QueryTrace(cmd.APIEndpoint, cmd.TraceID, cmd.OrgID)
+	trace, err := client.QueryTrace(cmd.TraceID)
 	if err != nil {
 		return err
 	}
