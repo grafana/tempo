@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -42,6 +43,8 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		pageSizeBytes = defaultBackendSearchBlockPageSize
 	}
 
+	header := tempofb.NewSearchBlockHeaderBuilder()
+
 	// Copy records into the appender
 	w, err := newBackendSearchBlockWriter(blockID, tenantID, l, version, enc)
 	if err != nil {
@@ -59,6 +62,9 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		}
 
 		s := tempofb.SearchEntryFromBytes(buf)
+
+		header.AddEntry(s)
+
 		data := &tempofb.SearchEntryMutable{
 			TraceID:           r.ID,
 			StartTimeUnixNano: s.StartTimeUnixNano(),
@@ -92,6 +98,13 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		return err
 	}
 	err = l.Write(ctx, "search-index", backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(indexBytes), int64(len(indexBytes)), true)
+	if err != nil {
+		return err
+	}
+
+	// Write header
+	hb := header.ToBytes()
+	err = l.Write(ctx, "search-header", backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(hb), int64(len(hb)), true)
 	if err != nil {
 		return err
 	}
@@ -133,6 +146,27 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	vers, err := encoding.FromVersion(meta.Version)
 	if err != nil {
 		return err
+	}
+
+	// Read header
+	// Verify something in the block matches by checking the header
+	hbr, hbrlen, err := s.l.Read(ctx, "search-header", backend.KeyPathForBlock(s.id, s.tenantID), true)
+	if err != nil {
+		return err
+	}
+
+	sr.bytesInspected.Add(uint64(hbrlen))
+
+	hb, err := tempo_io.ReadAllWithEstimate(hbr, hbrlen)
+	if err != nil {
+		return err
+	}
+
+	header := tempofb.GetRootAsSearchBlockHeader(hb, 0)
+	if !p.MatchesBlock(header) {
+		// Block filtered out
+		// TODO - metrics ?
+		return nil
 	}
 
 	// Read index
@@ -177,20 +211,19 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 
 		sr.AddBytesInspected(uint64(len(dataBuf)))
 
-		batch := tempofb.GetRootAsSearchPage(dataBuf, 0)
-
-		// Verify something in the batch matches
-		if !p.MatchesTags(batch) {
+		page := tempofb.GetRootAsSearchPage(dataBuf, 0)
+		if !p.MatchesPage(page) {
+			// Nothing in the page matches
 			// Increment metric still
-			sr.AddTraceInspected(uint32(batch.EntriesLength()))
+			sr.AddTraceInspected(uint32(page.EntriesLength()))
 			continue
 		}
 
-		l := batch.EntriesLength()
+		l := page.EntriesLength()
 		for j := 0; j < l; j++ {
 			sr.AddTraceInspected(1)
 
-			batch.Entries(entry, j)
+			page.Entries(entry, j)
 
 			if !p.Matches(entry) {
 				continue

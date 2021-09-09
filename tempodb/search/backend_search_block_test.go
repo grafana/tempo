@@ -14,7 +14,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,8 +32,9 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 
 	b1, err := NewStreamingSearchBlockForFile(f)
 	require.NoError(t, err)
+
 	for i := 0; i < traceCount; i++ {
-		assert.NoError(t, b1.Append(context.Background(), id, searchData))
+		require.NoError(t, b1.Append(context.Background(), id, searchData))
 	}
 
 	l, err := local.NewBackend(&local.Config{
@@ -88,9 +88,9 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 
 				b2 := newBackendSearchBlockWithTraces(b, b.N, enc, int(sz*1024*1024))
 
-				// Matches nothing, will perform an exhaustive search.
+				// Use secret tag to perform exhaustive search
 				p := NewSearchPipeline(&tempopb.SearchRequest{
-					Tags: map[string]string{"nomatch": "nomatch"},
+					Tags: map[string]string{SecretExhaustiveSearchTag: "!"},
 				})
 
 				sr := NewResults()
