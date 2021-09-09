@@ -48,9 +48,10 @@ func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
 	return overrides, nil
 }
 
+// Config
 type Config struct {
-	Defaults           *Limits             `yaml:"defaults"`
-	PerTenantOverrides *perTenantOverrides `yaml:"overrides"`
+	Defaults           *Limits            `yaml:"defaults"`
+	PerTenantOverrides perTenantOverrides `yaml:",inline"`
 }
 
 // Overrides periodically fetch a set of per-user overrides, and provides convenience
@@ -141,10 +142,14 @@ func (o *Overrides) stopping(_ error) error {
 
 func (o *Overrides) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var tenantOverrides perTenantOverrides
+		if o.tenantOverrides != nil && o.tenantOverrides() != nil {
+			tenantOverrides = *o.tenantOverrides()
+		}
 		var output interface{}
 		cfg := Config{
 			Defaults:           o.defaultLimits,
-			PerTenantOverrides: o.tenantOverrides(),
+			PerTenantOverrides: tenantOverrides,
 		}
 		switch r.URL.Query().Get("mode") {
 		case "diff":
