@@ -133,8 +133,9 @@ func main() {
 			startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration)
 
 			// Don't attempt to read on the first itteration if we can't reasonably
-			// expect the write loop to have fired yet.
-			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration)) {
+			// expect the write loop to have fired yet.  Double the duration here to
+			// avoid a race.
+			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration * 2)) {
 				continue
 			}
 
@@ -167,8 +168,9 @@ func main() {
 			_, seed := selectPastTimestamp(startTime, now, interval, tempoSearchRetentionDuration)
 
 			// Don't attempt to read on the first itteration if we can't reasonably
-			// expect the write loop to have fired yet.
-			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration)) {
+			// expect the write loop to have fired yet.  Double the duration here to
+			// avoid a race.
+			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration * 2)) {
 				continue
 			}
 
