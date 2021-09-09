@@ -519,12 +519,3 @@ func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 
 	return trace
 }
-
-func stringInStrings(s string, ss []string) bool {
-	for _, x := range ss {
-		if s == x {
-			return true
-		}
-	}
-	return false
-}
