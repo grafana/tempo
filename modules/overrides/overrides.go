@@ -48,7 +48,7 @@ func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
 	return overrides, nil
 }
 
-// Config
+// Config is a struct used to print the complete runtime config (defaults + overrides)
 type Config struct {
 	Defaults           *Limits            `yaml:"defaults"`
 	PerTenantOverrides perTenantOverrides `yaml:",inline"`
