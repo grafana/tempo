@@ -6,7 +6,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util/runtimeconfig"
+	"github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
@@ -58,12 +59,12 @@ func NewOverrides(defaults Limits) (*Overrides, error) {
 	subservices := []services.Service(nil)
 
 	if defaults.PerTenantOverrideConfig != "" {
-		runtimeCfg := runtimeconfig.ManagerConfig{
+		runtimeCfg := runtimeconfig.Config{
 			LoadPath:     defaults.PerTenantOverrideConfig,
 			ReloadPeriod: time.Duration(defaults.PerTenantOverridePeriod),
 			Loader:       loadPerTenantOverrides,
 		}
-		runtimeCfgMgr, err := runtimeconfig.NewRuntimeConfigManager(runtimeCfg, prometheus.DefaultRegisterer)
+		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, prometheus.WrapRegistererWithPrefix("cortex_", prometheus.DefaultRegisterer), log.Logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create runtime config manager %w", err)
 		}
