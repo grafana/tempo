@@ -86,6 +86,10 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 			return nil
 		}
 
+		if r.Length == 0 {
+			continue
+		}
+
 		// Reset/resize buffer
 		if cap(buf) < int(r.Length) {
 			buf = make([]byte, r.Length)
