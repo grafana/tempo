@@ -74,3 +74,29 @@ func TraceIDToHexString(byteID []byte) string {
 	id = strings.TrimLeft(id, "0")
 	return id
 }
+
+// EqualHexStringTraceIDs compares two trace ID strings and compares the
+// resulting bytes after padding.  Returns true unless there is a reason not
+// to.
+func EqualHexStringTraceIDs(a, b string) (bool, error) {
+	aa, err := HexStringToTraceID(a)
+	if err != nil {
+		return false, err
+	}
+	bb, err := HexStringToTraceID(b)
+	if err != nil {
+		return false, err
+	}
+
+	if len(aa) != len(bb) {
+		return false, nil
+	}
+
+	for i, x := range aa {
+		if x != bb[i] {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}

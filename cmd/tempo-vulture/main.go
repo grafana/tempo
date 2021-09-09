@@ -329,8 +329,15 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 
 	traceInTraces := func(traceID string, traces []*tempopb.TraceSearchMetadata) bool {
 		for _, t := range traces {
-			if t.TraceID == traceID {
+			equal, err := util.EqualHexStringTraceIDs(t.TraceID, traceID)
+			if err != nil {
+				logger.Error("error comparing trace IDs", zap.Error(err))
+				continue
+			}
+
+			if equal {
 				return true
+
 			}
 		}
 
@@ -338,7 +345,6 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	}
 
 	logger := logger.With(
-		// zap.String("query_trace_id", traceID),
 		zap.Int64("seed", seed.Unix()),
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(seed)),
@@ -380,7 +386,6 @@ func queryTrace(client *util.Client, seed time.Time) (traceMetrics, error) {
 	hexID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
 
 	logger := logger.With(
-		// zap.String("query_trace_id", traceID),
 		zap.Int64("seed", seed.Unix()),
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(seed)),
