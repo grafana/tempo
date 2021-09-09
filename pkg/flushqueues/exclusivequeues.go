@@ -11,7 +11,7 @@ type ExclusiveQueues struct {
 	queues     []*PriorityQueue
 	index      *atomic.Int32
 	activeKeys sync.Map
-	stopped    bool
+	stopped    atomic.Bool
 }
 
 // New creates a new set of flush queues with a prom gauge to track current depth
@@ -70,7 +70,7 @@ func (f *ExclusiveQueues) IsEmpty() bool {
 
 // Stop closes all queues
 func (f *ExclusiveQueues) Stop() {
-	f.stopped = true
+	f.stopped.Store(true)
 
 	for _, q := range f.queues {
 		q.Close()
@@ -78,5 +78,5 @@ func (f *ExclusiveQueues) Stop() {
 }
 
 func (f *ExclusiveQueues) IsStopped() bool {
-	return f.stopped
+	return f.stopped.Load()
 }

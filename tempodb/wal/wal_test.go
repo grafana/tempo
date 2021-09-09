@@ -174,7 +174,7 @@ func TestErrorConditions(t *testing.T) {
 func TestAppendReplayFind(t *testing.T) {
 	for _, e := range backend.SupportedEncoding {
 		t.Run(e.String(), func(t *testing.T) {
-			testAppendReplayFind(t, e)
+			testAppendReplayFind(t, backend.EncZstd)
 		})
 	}
 }

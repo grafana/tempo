@@ -211,7 +211,7 @@ func generateRandomTags(r *rand.Rand) []*thrift.Tag {
 	for i := int64(0); i < count; i++ {
 		value := generateRandomString(r)
 		tags = append(tags, &thrift.Tag{
-			Key:  generateRandomString(r),
+			Key:  fmt.Sprintf("vulture-%d", i),
 			VStr: &value,
 		})
 	}

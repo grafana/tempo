@@ -559,7 +559,27 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 		return err
 	}
 
+	hasWal := func(id uuid.UUID) bool {
+		i.blocksMtx.RLock()
+		defer i.blocksMtx.RUnlock()
+		for _, b := range i.completingBlocks {
+			if b.BlockID() == id {
+				return true
+			}
+		}
+		return false
+	}
+
 	for _, id := range ids {
+
+		// Ignore blocks that have a matching wal. The wal will be replayed and the local block recreated.
+		// NOTE - Wal replay must be done beforehand.
+		if hasWal(id) {
+			continue
+		}
+
+		// See if block is intact by checking for meta, which is written last.
+		// If meta missing then block was not successfully written.
 		meta, err := i.localReader.BlockMeta(ctx, id, i.instanceID)
 		if err != nil {
 			if err == backend.ErrDoesNotExist {

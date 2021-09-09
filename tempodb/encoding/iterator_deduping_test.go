@@ -6,13 +6,13 @@ import (
 	"io"
 	"testing"
 
-	v0 "github.com/grafana/tempo/tempodb/encoding/v0"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestEmptyNestedIterator(t *testing.T) {
 	r := bytes.NewReader([]byte{})
-	i := NewIterator(r, v0.NewObjectReaderWriter())
+	i := NewIterator(r, v2.NewObjectReaderWriter())
 
 	id, obj, err := i.Next(context.Background())
 	assert.Nil(t, id)
