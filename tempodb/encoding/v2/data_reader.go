@@ -17,6 +17,7 @@ type dataReader struct {
 
 	pageBuffer []byte
 
+	encoding         backend.Encoding
 	pool             ReaderPool
 	compressedReader io.Reader
 }
@@ -34,6 +35,7 @@ func NewDataReader(r backend.ContextReader, encoding backend.Encoding) (common.D
 	}
 
 	return &dataReader{
+		encoding:      encoding,
 		contextReader: r,
 		pool:          pool,
 	}, nil
@@ -144,7 +146,7 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 		return nil, 0, err
 	}
 
-	decoder, ok := reader.(*zstd.Decoder)
+	decoder, ok := compressedReader.(*zstd.Decoder)
 	if ok {
 		buffer, err = decoder.DecodeAll(page.data, buffer[:0])
 	} else {
@@ -160,10 +162,15 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 
 func (r *dataReader) getCompressedReader(page []byte) (io.Reader, error) {
 	var err error
+	var reader io.Reader
+	if r.encoding != backend.EncZstd {
+		reader = bytes.NewReader(page)
+	}
+
 	if r.compressedReader == nil {
-		r.compressedReader, err = r.pool.GetReader(bytes.NewReader(page))
+		r.compressedReader, err = r.pool.GetReader(reader)
 	} else {
-		r.compressedReader, err = r.pool.ResetReader(bytes.NewReader(page), r.compressedReader)
+		r.compressedReader, err = r.pool.ResetReader(reader, r.compressedReader)
 	}
 	return r.compressedReader, err
 }
