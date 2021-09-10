@@ -10,7 +10,7 @@
 * [ENHANCEMENT] Add support to tempo workloads to `overrides` from single configmap in microservice mode. [#896](https://github.com/grafana/tempo/pull/896) (@kavirajk)
 * [ENHANCEMENT] Make `overrides_config` block name consistent with Loki and Cortex in microservice mode. [#906](https://github.com/grafana/tempo/pull/906) (@kavirajk)
 * [ENHANCEMENT] Updated config defaults to reflect better capture operational knowledge. [#913](https://github.com/grafana/tempo/pull/913) (@joe-elliott)
-* [ENHANCEMENT] Make tempo use `runtimeconfig` package from `dskit` module. [#945](https://github.com/grafana/tempo/pull/945) (@kavirajk)
+* [ENHANCEMENT] Make tempo use `runtimeconfig` package from `dskit` module. This also changes the metrics name from `cortex_runtime_config_last_reload_successful` to `tempo_runtime_config_last_reload_successful` [#945](https://github.com/grafana/tempo/pull/945) (@kavirajk)
   ```
   ingester:
     trace_idle_period: 30s => 10s  # reduce ingester memory requirements with little impact on querying
