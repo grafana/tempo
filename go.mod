@@ -31,6 +31,7 @@ require (
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/hashicorp/go-plugin v1.3.0
 	github.com/jaegertracing/jaeger v1.21.0
+	github.com/jedib0t/go-pretty/v6 v6.2.4
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/klauspost/compress v1.13.1
 	github.com/minio/minio-go/v7 v7.0.10

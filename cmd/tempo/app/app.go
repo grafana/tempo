@@ -381,8 +381,6 @@ func (t *App) statusHandler() http.HandlerFunc {
 			return endpoints[i].name < endpoints[j].name
 		})
 
-		msg.WriteString(fmt.Sprintf("API documentation: %s\n", apiDocs))
-
 		t := table.NewWriter()
 		t.SetOutputMirror(&msg)
 		t.AppendHeader(table.Row{"name", "regex"})
@@ -395,6 +393,8 @@ func (t *App) statusHandler() http.HandlerFunc {
 
 		t.AppendSeparator()
 		t.Render()
+
+		msg.WriteString(fmt.Sprintf("\nAPI documentation: %s\n", apiDocs))
 
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
