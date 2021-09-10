@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/cortexproject/cortex/pkg/ring/kv/consul"
-	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/go-kit/kit/log"
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/dskit/kv/consul"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
@@ -354,11 +354,16 @@ func defaultIngesterTestConfig() Config {
 	cfg := Config{}
 
 	flagext.DefaultValues(&cfg.LifecyclerConfig)
+	mockStore, _ := consul.NewInMemoryClient(
+		ring.GetCodec(),
+		log.NewNopLogger(),
+		nil,
+	)
 
 	cfg.FlushCheckPeriod = 99999 * time.Hour
 	cfg.MaxTraceIdle = 99999 * time.Hour
 	cfg.ConcurrentFlushes = 1
-	cfg.LifecyclerConfig.RingConfig.KVStore.Mock = consul.NewInMemoryClient(ring.GetCodec())
+	cfg.LifecyclerConfig.RingConfig.KVStore.Mock = mockStore
 	cfg.LifecyclerConfig.NumTokens = 1
 	cfg.LifecyclerConfig.ListenPort = 0
 	cfg.LifecyclerConfig.Addr = "localhost"

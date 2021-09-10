@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/cortexproject/cortex/pkg/util/flagext"
+	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/minio/minio-go/v7"
 	"github.com/stretchr/testify/assert"

@@ -19,7 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
-	"github.com/weaveworks/common/middleware"
+	"github.com/weaveworks/common/tracing"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -95,7 +95,7 @@ func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response,
 		resp, err = r.next.RoundTrip(req)
 	}
 
-	traceID, _ := middleware.ExtractTraceID(ctx)
+	traceID, _ := tracing.ExtractTraceID(ctx)
 	statusCode := 500
 	var contentLength int64 = 0
 	if resp != nil {
