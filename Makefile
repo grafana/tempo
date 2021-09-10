@@ -23,7 +23,7 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 # ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
-GO_OPT= -mod vendor -tags 'netgo osusergo nethttpomithttp2' -ldflags "-X main.Branch=$(GIT_BRANCH) -X main.Revision=$(GIT_REVISION) -X main.Version=$(VERSION) -s -w -extldflags '-static'"
+GO_OPT= -mod vendor -ldflags "-X main.Branch=$(GIT_BRANCH) -X main.Revision=$(GIT_REVISION) -X main.Version=$(VERSION)"
 GOTEST_OPT?= -race -timeout 10m -count=1
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
@@ -40,7 +40,7 @@ FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./opentelemetry-p
 
 .PHONY: tempo
 tempo:
-	GO111MODULE=on CGO_ENABLED=1 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-$(GOARCH) $(BUILD_INFO) ./cmd/tempo
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-$(GOARCH) $(BUILD_INFO) ./cmd/tempo
 
 .PHONY: tempo-query
 tempo-query:

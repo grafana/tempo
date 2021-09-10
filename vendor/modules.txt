@@ -41,9 +41,6 @@ github.com/Azure/go-autorest/autorest/date
 github.com/Azure/go-autorest/logger
 # github.com/Azure/go-autorest/tracing v0.6.0
 github.com/Azure/go-autorest/tracing
-# github.com/DataDog/zstd v1.4.8
-## explicit
-github.com/DataDog/zstd
 # github.com/Masterminds/squirrel v0.0.0-20161115235646-20f192218cf5
 github.com/Masterminds/squirrel
 # github.com/NYTimes/gziphandler v1.1.1
