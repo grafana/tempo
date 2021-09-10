@@ -15,10 +15,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// TenantOverrides is a function that returns limits per tenant, or
-// nil, if there are no overrides.
-type TenantOverrides func() *perTenantOverrides
-
 const wildcardTenant = "*"
 
 // perTenantOverrides represents the overrides config file
@@ -26,8 +22,8 @@ type perTenantOverrides struct {
 	TenantLimits map[string]*Limits `yaml:"overrides"`
 }
 
-// ForUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
-func (o *perTenantOverrides) ForUser(userID string) *Limits {
+// forUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
+func (o *perTenantOverrides) forUser(userID string) *Limits {
 	l, ok := o.TenantLimits[userID]
 	if !ok || l == nil {
 		return nil
@@ -59,8 +55,8 @@ type Config struct {
 type Overrides struct {
 	services.Service
 
-	defaultLimits   *Limits
-	tenantOverrides TenantOverrides
+	defaultLimits    *Limits
+	runtimeConfigMgr *runtimeconfig.Manager
 
 	// Manager for subservices
 	subservices        *services.Manager
@@ -72,7 +68,7 @@ type Overrides struct {
 // are defaulted to those values.  As such, the last call to NewOverrides will
 // become the new global defaults.
 func NewOverrides(defaults Limits) (*Overrides, error) {
-	var perTenantOverrides TenantOverrides
+	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
 	if defaults.PerTenantOverrideConfig != "" {
@@ -85,13 +81,13 @@ func NewOverrides(defaults Limits) (*Overrides, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create runtime config manager %w", err)
 		}
-		perTenantOverrides = tenantOverridesFromRuntimeConfig(runtimeCfgMgr)
+		manager = runtimeCfgMgr
 		subservices = append(subservices, runtimeCfgMgr)
 	}
 
 	o := &Overrides{
-		tenantOverrides: perTenantOverrides,
-		defaultLimits:   &defaults,
+		runtimeConfigMgr: manager,
+		defaultLimits:    &defaults,
 	}
 
 	if len(subservices) > 0 {
@@ -140,11 +136,23 @@ func (o *Overrides) stopping(_ error) error {
 	return nil
 }
 
+func (o *Overrides) TenantOverrides() *perTenantOverrides {
+	if o.runtimeConfigMgr == nil {
+		return nil
+	}
+	cfg, ok := o.runtimeConfigMgr.GetConfig().(*perTenantOverrides)
+	if !ok || cfg == nil {
+		return nil
+	}
+
+	return cfg
+}
+
 func (o *Overrides) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var tenantOverrides perTenantOverrides
-		if o.tenantOverrides != nil && o.tenantOverrides() != nil {
-			tenantOverrides = *o.tenantOverrides()
+		if o.TenantOverrides() != nil {
+			tenantOverrides = *o.TenantOverrides()
 		}
 		var output interface{}
 		cfg := Config{
@@ -157,7 +165,7 @@ func (o *Overrides) Handler() http.HandlerFunc {
 			// we set defaultLimits for every tenant that exists in runtime config.
 			defaultCfg := perTenantOverrides{TenantLimits: map[string]*Limits{}}
 			defaultCfg.TenantLimits = map[string]*Limits{}
-			for k, v := range o.tenantOverrides().TenantLimits {
+			for k, v := range tenantOverrides.TenantLimits {
 				if v != nil {
 					defaultCfg.TenantLimits[k] = o.defaultLimits
 				}
@@ -217,48 +225,34 @@ func (o *Overrides) MaxSearchBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).MaxSearchBytesPerTrace
 }
 
-// IngestionRateSpans is the number of spans per second allowed for this tenant
+// IngestionRateLimitBytes is the number of spans per second allowed for this tenant
 func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
 	return float64(o.getOverridesForUser(userID).IngestionRateLimitBytes)
 }
 
-// IngestionBurstSize is the burst size in spans allowed for this tenant
+// IngestionBurstSizeBytes is the burst size in spans allowed for this tenant
 func (o *Overrides) IngestionBurstSizeBytes(userID string) int {
 	return o.getOverridesForUser(userID).IngestionBurstSizeBytes
 }
 
+// BlockRetention is the duration of the block retention for this tenant
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
 }
 
 func (o *Overrides) getOverridesForUser(userID string) *Limits {
-	if o.tenantOverrides == nil || o.tenantOverrides() == nil {
-		return o.defaultLimits
-	}
-	l := o.tenantOverrides().ForUser(userID)
-	if l != nil {
-		return l
-	}
+	if tenantOverrides := o.TenantOverrides(); tenantOverrides != nil {
+		l := tenantOverrides.forUser(userID)
+		if l != nil {
+			return l
+		}
 
-	l = o.tenantOverrides().ForUser(wildcardTenant)
-	if l != nil {
-		return l
+		l = tenantOverrides.forUser(wildcardTenant)
+		if l != nil {
+			return l
+		}
+
 	}
 
 	return o.defaultLimits
-}
-
-func tenantOverridesFromRuntimeConfig(c *runtimeconfig.Manager) TenantOverrides {
-	if c == nil {
-		return nil
-	}
-	return func() *perTenantOverrides {
-		cfg, ok := c.GetConfig().(*perTenantOverrides)
-		if !ok || cfg == nil {
-			return nil
-		}
-
-		return cfg
-	}
-
 }
