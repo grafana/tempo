@@ -35,8 +35,11 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
-	combined, wasCombined, _ := model.CombineTraceBytes(objA, objB, dataEncoding, dataEncoding)
+func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
+	if len(objs) != 2 {
+		return nil, false
+	}
+	combined, wasCombined, _ := model.CombineTraceBytes(objs[0], objs[1], dataEncoding, dataEncoding)
 	return combined, wasCombined
 }
 

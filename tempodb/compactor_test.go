@@ -32,17 +32,21 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
+func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
+	if len(objs) != 2 {
+		return nil, false
+	}
+
+	if len(objs[0]) > len(objs[1]) {
+		return objs[0], true
+	}
+
+	return objs[1], true
+}
+
 type mockJobSharder struct{}
 
 func (m *mockJobSharder) Owns(_ string) bool { return true }
-
-func (m *mockSharder) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
-	if len(objA) > len(objB) {
-		return objA, true
-	}
-
-	return objB, true
-}
 
 type mockOverrides struct {
 	blockRetention time.Duration
