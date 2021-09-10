@@ -136,7 +136,7 @@ func (o *Overrides) stopping(_ error) error {
 	return nil
 }
 
-func (o *Overrides) TenantOverrides() *perTenantOverrides {
+func (o *Overrides) tenantOverrides() *perTenantOverrides {
 	if o.runtimeConfigMgr == nil {
 		return nil
 	}
@@ -151,8 +151,8 @@ func (o *Overrides) TenantOverrides() *perTenantOverrides {
 func (o *Overrides) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var tenantOverrides perTenantOverrides
-		if o.TenantOverrides() != nil {
-			tenantOverrides = *o.TenantOverrides()
+		if o.tenantOverrides() != nil {
+			tenantOverrides = *o.tenantOverrides()
 		}
 		var output interface{}
 		cfg := Config{
@@ -241,7 +241,7 @@ func (o *Overrides) BlockRetention(userID string) time.Duration {
 }
 
 func (o *Overrides) getOverridesForUser(userID string) *Limits {
-	if tenantOverrides := o.TenantOverrides(); tenantOverrides != nil {
+	if tenantOverrides := o.tenantOverrides(); tenantOverrides != nil {
 		l := tenantOverrides.forUser(userID)
 		if l != nil {
 			return l
