@@ -59,7 +59,7 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 	b2 := newBackendSearchBlockWithTraces(t, traceCount, backend.EncNone, 0)
 
 	p := NewSearchPipeline(&tempopb.SearchRequest{
-		Tags: map[string]string{"key1": "value_A_1"},
+		Tags: map[string]string{"key1": "value_A_1", "key20": "value_B_20"},
 	})
 
 	sr := NewResults()

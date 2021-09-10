@@ -65,6 +65,8 @@ type SearchDataIterator struct {
 	currentIndex int
 	records      []common.Record
 	file         *os.File
+
+	buffer []byte
 }
 
 func (s *SearchDataIterator) Next(_ context.Context) (common.ID, []byte, error) {
@@ -73,15 +75,21 @@ func (s *SearchDataIterator) Next(_ context.Context) (common.ID, []byte, error) 
 	}
 
 	currentRecord := s.records[s.currentIndex]
-	buffer := make([]byte, currentRecord.Length)
-	_, err := s.file.ReadAt(buffer, int64(currentRecord.Start))
+
+	// resize/extend buffer
+	if cap(s.buffer) < int(currentRecord.Length) {
+		s.buffer = make([]byte, currentRecord.Length)
+	}
+	s.buffer = s.buffer[:currentRecord.Length]
+
+	_, err := s.file.ReadAt(s.buffer, int64(currentRecord.Start))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error reading search file")
 	}
 
 	s.currentIndex++
 
-	return currentRecord.ID, buffer, nil
+	return currentRecord.ID, s.buffer, nil
 }
 
 func (*SearchDataIterator) Close() {
