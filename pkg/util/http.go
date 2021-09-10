@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -88,15 +89,5 @@ func EqualHexStringTraceIDs(a, b string) (bool, error) {
 		return false, err
 	}
 
-	if len(aa) != len(bb) {
-		return false, nil
-	}
-
-	for i, x := range aa {
-		if x != bb[i] {
-			return false, nil
-		}
-	}
-
-	return true, nil
+	return bytes.Equal(aa, bb), nil
 }

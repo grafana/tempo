@@ -30,7 +30,7 @@ func NewClient(baseURL, orgID string, log *zap.Logger) *Client {
 	}
 }
 
-func (c *Client) GetFor(url string, m proto.Message) error {
+func (c *Client) getFor(url string, m proto.Message) error {
 	log := c.logger.With(
 		zap.String("query_url", url),
 		zap.String("message", reflect.TypeOf(m).String()),
@@ -71,7 +71,7 @@ func (c *Client) GetFor(url string, m proto.Message) error {
 func (c *Client) SearchTag(key, value string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
 
-	err := c.GetFor(c.BaseURL+"/api/search?"+key+"="+value, m)
+	err := c.getFor(c.BaseURL+"/api/search?"+key+"="+value, m)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (c *Client) SearchTag(key, value string) (*tempopb.SearchResponse, error) {
 
 func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 	m := &tempopb.Trace{}
-	err := c.GetFor(c.BaseURL+"/api/traces/"+id, m)
+	err := c.getFor(c.BaseURL+"/api/traces/"+id, m)
 	if err != nil {
 		return nil, err
 	}

@@ -21,6 +21,7 @@ import (
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 
+	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/weaveworks/common/user"
 	jaegerTrans "go.opentelemetry.io/collector/translator/trace/jaeger"
@@ -46,12 +47,12 @@ var (
 )
 
 type traceMetrics struct {
-	requested                 int
-	requestFailed             int
-	notFound                  int
-	missingSpans              int
-	traceMissingFromTagSearch int
-	incorrectResult           int
+	incorrectResult int
+	missingSpans    int
+	notFoundByID    int
+	notFoundSearch  int
+	requested       int
+	requestFailed   int
 }
 
 func init() {
@@ -135,7 +136,12 @@ func main() {
 			// Don't attempt to read on the first itteration if we can't reasonably
 			// expect the write loop to have fired yet.  Double the duration here to
 			// avoid a race.
-			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration).Add(tempoWriteBackoffDuration)) {
+			if seed.Before(actualStartTime.Add(2 * tempoWriteBackoffDuration)) {
+				continue
+			}
+
+			// Do the same for the startTime we've just selected
+			if seed.Before(startTime.Add(tempoWriteBackoffDuration)) {
 				continue
 			}
 
@@ -170,7 +176,7 @@ func main() {
 			// Don't attempt to read on the first itteration if we can't reasonably
 			// expect the write loop to have fired yet.  Double the duration here to
 			// avoid a race.
-			if seed.Before(actualStartTime.Add(tempoWriteBackoffDuration).Add(tempoWriteBackoffDuration)) {
+			if seed.Before(startTime.Add(2 * tempoWriteBackoffDuration)) {
 				continue
 			}
 
@@ -205,8 +211,8 @@ func pushMetrics(metrics traceMetrics) {
 	metricTracesInspected.Add(float64(metrics.requested))
 	metricTracesErrors.WithLabelValues("incorrectresult").Add(float64(metrics.incorrectResult))
 	metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
-	metricTracesErrors.WithLabelValues("tracemissingfromtagsearch").Add(float64(metrics.traceMissingFromTagSearch))
-	metricTracesErrors.WithLabelValues("notfound").Add(float64(metrics.notFound))
+	metricTracesErrors.WithLabelValues("notfound_search").Add(float64(metrics.notFoundSearch))
+	metricTracesErrors.WithLabelValues("notfound_byid").Add(float64(metrics.notFoundByID))
 	metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
 }
 
@@ -344,34 +350,31 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 		return false
 	}
 
+	attr := randomAttrFromTrace(expected, r)
+	if attr == nil {
+		return tm, fmt.Errorf("no search attr selected from trace")
+	}
+
 	logger := logger.With(
 		zap.Int64("seed", seed.Unix()),
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(seed)),
+		zap.String("key", attr.Key),
+		zap.String("value", attr.Value.GetStringValue()),
 	)
 	logger.Info("searching Tempo")
 
 	// Use the search API to find details about the expected trace
-	for _, expectedBatch := range expected.Batches {
-		for _, expectedSpans := range expectedBatch.InstrumentationLibrarySpans {
-			for _, expectedSpan := range expectedSpans.Spans {
-				for _, t := range expectedSpan.Attributes {
+	resp, err := client.SearchTag(attr.Key, attr.Value.GetStringValue())
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to query tag values for %s: %s", attr.Key, err.Error()))
+		tm.requestFailed++
+		return tm, err
+	}
 
-					resp, err := client.SearchTag(t.Key, t.Value.GetStringValue())
-					if err != nil {
-						logger.Error(fmt.Sprintf("failed to query tag values for %s: %s", t.Key, err.Error()))
-						tm.requestFailed++
-						return tm, err
-					}
-
-					if !traceInTraces(hexID, resp.Traces) {
-						tm.traceMissingFromTagSearch++
-						return tm, fmt.Errorf("trace %s not found in search response: %+v", hexID, resp.Traces)
-					}
-
-				}
-			}
-		}
+	if !traceInTraces(hexID, resp.Traces) {
+		tm.notFoundSearch++
+		return tm, fmt.Errorf("trace %s not found in search response: %+v", hexID, resp.Traces)
 	}
 
 	return tm, nil
@@ -395,7 +398,7 @@ func queryTrace(client *util.Client, seed time.Time) (traceMetrics, error) {
 	trace, err := client.QueryTrace(hexID)
 	if err != nil {
 		if err == util.ErrTraceNotFound {
-			tm.notFound++
+			tm.notFoundByID++
 		} else {
 			tm.requestFailed++
 		}
@@ -405,7 +408,7 @@ func queryTrace(client *util.Client, seed time.Time) (traceMetrics, error) {
 
 	if len(trace.Batches) == 0 {
 		logger.Error("trace contains 0 batches")
-		tm.notFound++
+		tm.notFoundByID++
 		return tm, nil
 	}
 
@@ -433,6 +436,30 @@ func queryTrace(client *util.Client, seed time.Time) (traceMetrics, error) {
 	}
 
 	return tm, nil
+}
+
+func randomAttrFromTrace(t *tempopb.Trace, r *rand.Rand) *v1common.KeyValue {
+	if len(t.Batches) == 0 {
+		return nil
+	}
+	iBatch := r.Intn(len(t.Batches))
+
+	if len(t.Batches[iBatch].InstrumentationLibrarySpans) == 0 {
+		return nil
+	}
+	iSpans := r.Intn(len(t.Batches[iBatch].InstrumentationLibrarySpans))
+
+	if len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans) == 0 {
+		return nil
+	}
+	iSpan := r.Intn(len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans))
+
+	if len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans[iSpan].Attributes) == 0 {
+		return nil
+	}
+	iAttr := r.Intn(len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans[iSpan].Attributes))
+
+	return t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans[iSpan].Attributes[iAttr]
 }
 
 func equalTraces(a, b *tempopb.Trace) bool {
