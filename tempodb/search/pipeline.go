@@ -108,6 +108,7 @@ func (p *Pipeline) Matches(e *tempofb.SearchEntry) bool {
 	return true
 }
 
+// nolint:interfacer
 func (p *Pipeline) MatchesPage(pg *tempofb.SearchPage) bool {
 	for _, f := range p.tagfilters {
 		if !f(pg) {
