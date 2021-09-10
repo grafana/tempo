@@ -5,10 +5,10 @@ import (
 	"io"
 	"sync"
 
+	"github.com/DataDog/zstd"
 	"github.com/golang/snappy"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/klauspost/compress/gzip"
-	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
 	"github.com/prometheus/prometheus/pkg/pool"
 )
@@ -350,47 +350,35 @@ func (pool *ZstdPool) Encoding() backend.Encoding {
 
 // GetReader gets or creates a new CompressionReader and reset it to read from src
 func (pool *ZstdPool) GetReader(src io.Reader) (io.Reader, error) {
-	reader, err := zstd.NewReader(src)
-	if err != nil {
-		return nil, err
-	}
-	return reader, nil
+	return zstd.NewReader(src), nil
 }
 
 // PutReader places back in the pool a CompressionReader
 func (pool *ZstdPool) PutReader(reader io.Reader) {
-	r := reader.(*zstd.Decoder)
+	r := reader.(io.ReadCloser)
 	r.Close()
 }
 
 // ResetReader implements ReaderPool
 func (pool *ZstdPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
-	reader := resetReader.(*zstd.Decoder)
-	err := reader.Reset(src)
-	if err != nil {
-		return nil, err
-	}
-	return reader, nil
+	pool.PutReader(resetReader)
+	// there is no reset - jpe
+	return pool.GetReader(src)
 }
 
 // GetWriter gets or creates a new CompressionWriter and reset it to write to dst
 func (pool *ZstdPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
-	w, err := zstd.NewWriter(dst)
-	if err != nil {
-		return nil, err
-	}
-	return w, nil
+	return zstd.NewWriter(dst), nil
 }
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *ZstdPool) PutWriter(writer io.WriteCloser) {
-	w := writer.(*zstd.Encoder)
-	w.Close()
+	// writer.(*zstd.Writer).Flush()
+	// writer.Close()
 }
 
 // ResetWriter implements WriterPool
 func (pool *ZstdPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.WriteCloser, error) {
-	writer := resetWriter.(*zstd.Encoder)
-	writer.Reset(dst)
-	return writer, nil
+	pool.PutWriter(resetWriter)
+	return pool.GetWriter(dst)
 }
