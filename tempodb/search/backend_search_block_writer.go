@@ -12,7 +12,7 @@ import (
 )
 
 // backendSearchBlockWriter is a DataWriter for search data. Instead of receiving bytes slices, it
-// receives search data objects and combintes them into a single FlatBuffer Builder and
+// receives search data objects and combines them into a single FlatBuffer Builder and
 // flushes periodically, one page per flush.
 type backendSearchBlockWriter struct {
 	// input

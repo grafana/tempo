@@ -110,7 +110,7 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 			comparison := bytes.Compare(currentID, lowestID)
 
 			if comparison == 0 {
-				lowestObject, _ = i.combiner.Combine(currentObject, lowestObject, i.dataEncoding)
+				lowestObject, _ = i.combiner.Combine(i.dataEncoding, currentObject, lowestObject)
 				b.clear()
 			} else if len(lowestID) == 0 || comparison == -1 {
 				lowestID = currentID

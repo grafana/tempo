@@ -157,8 +157,8 @@ func (c *Compactor) Owns(hash string) bool {
 }
 
 // Combine implements common.ObjectCombiner
-func (c *Compactor) Combine(objA []byte, objB []byte, dataEncoding string) ([]byte, bool) {
-	return model.ObjectCombiner.Combine(objA, objB, dataEncoding)
+func (c *Compactor) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
+	return model.ObjectCombiner.Combine(dataEncoding, objs...)
 }
 
 // BlockRetentionForTenant implements CompactorOverrides
