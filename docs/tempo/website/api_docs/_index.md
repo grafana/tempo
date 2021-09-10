@@ -206,10 +206,7 @@ _For more information, check the page on [consistent hash ring](../operations/co
 ```
 GET /status
 ```
+Print all available information by default.
 
-The default is to print all of the information available.  Below is a list of
-arguments that may be used to constrain the output.
-
-Arguments:
-- `endpoints`
-  Prints status information about the API endpoints available.
+Query Parameter:
+- `endpoints`: Prints status information about the API endpoints.
