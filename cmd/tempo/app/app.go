@@ -156,7 +156,7 @@ type App struct {
 	compactor    *compactor.Compactor
 	ingester     *ingester.Ingester
 	store        storage.Store
-	memberlistKV *memberlist.KVInitService
+	MemberlistKV *memberlist.KVInitService
 
 	HTTPAuthMiddleware middleware.Interface
 	ModuleManager      *modules.Manager
