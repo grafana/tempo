@@ -29,6 +29,7 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 | [Distributor ring status](#distributor-ring-status) (*) | Distributor |  HTTP | `GET /distributor/ring` |
 | [Ingesters ring status](#ingesters-ring-status) | Distributor, Querier |  HTTP | `GET /ingester/ring` |
 | [Compactor ring status](#compactor-ring-status) | Compactor |  HTTP | `GET /compactor/ring` |
+| [Status](#status) | Status |  HTTP | `GET /status` |
 
 _(*) This endpoint is not always available, check the specific section for more details._
 
@@ -199,3 +200,16 @@ Displays a web page with the compactor hash ring status, including the state, he
 compactor.
 
 _For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
+
+### Status
+
+```
+GET /status
+```
+
+The default is to print all of the information available.  Below is a list of
+arguments that may be used to constrain the output.
+
+Arguments:
+- `endpoints`
+  Prints status information about the API endpoints available.
