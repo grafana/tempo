@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"path"
 	"strings"
@@ -215,21 +214,7 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 
 func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.BucketHandle, error) {
 	// start with default transport
-	//customTransport := http.DefaultTransport.(*http.Transport).Clone()
-	customTransport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          1000,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		ReadBufferSize:        10 * 1024 * 1024,
-		MaxIdleConnsPerHost:   200,
-	}
+	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 
 	// add google auth
 	transportOptions := []option.ClientOption{
@@ -264,7 +249,6 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 	if cfg.Endpoint != "" {
 		storageClientOptions = append(storageClientOptions, option.WithEndpoint(cfg.Endpoint))
 	}
-	storageClientOptions = append(storageClientOptions, option.WithTelemetryDisabled())
 	client, err := storage.NewClient(ctx, storageClientOptions...)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating storage client")
