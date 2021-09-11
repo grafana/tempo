@@ -6,14 +6,17 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/klauspost/compress/zstd"
 )
 
 type dataWriter struct {
 	outputWriter io.Writer
 
-	pool              WriterPool
-	compressedBuffer  *bytes.Buffer
-	compressionWriter io.WriteCloser
+	pool                  WriterPool
+	compressionWriter     io.WriteCloser
+	encoding              backend.Encoding
+	compressedBuffer      *bytes.Buffer
+	otherCompressedBuffer []byte
 
 	objectRW     common.ObjectReaderWriter
 	objectBuffer *bytes.Buffer
@@ -26,7 +29,10 @@ func NewDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWrit
 		return nil, err
 	}
 
-	compressedBuffer := &bytes.Buffer{}
+	var compressedBuffer *bytes.Buffer
+	if encoding != backend.EncZstd {
+		compressedBuffer = &bytes.Buffer{}
+	}
 	compressionWriter, err := pool.GetWriter(compressedBuffer)
 	if err != nil {
 		return nil, err
@@ -37,6 +43,7 @@ func NewDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWrit
 		pool:              pool,
 		compressionWriter: compressionWriter,
 		compressedBuffer:  compressedBuffer,
+		encoding:          encoding,
 		objectRW:          NewObjectReaderWriter(),
 		objectBuffer:      &bytes.Buffer{},
 	}, nil
@@ -51,26 +58,38 @@ func (p *dataWriter) Write(id common.ID, obj []byte) (int, error) {
 func (p *dataWriter) CutPage() (int, error) {
 	// compress the raw object buffer
 	buffer := p.objectBuffer.Bytes()
-	_, err := p.compressionWriter.Write(buffer)
-	if err != nil {
-		return 0, err
+
+	var uncompressedBytes []byte
+	zstdEncoder, ok := p.compressionWriter.(*zstd.Encoder)
+	if ok {
+		p.otherCompressedBuffer = zstdEncoder.EncodeAll(buffer, p.otherCompressedBuffer[:0])
+		uncompressedBytes = p.otherCompressedBuffer
+	} else {
+		_, err := p.compressionWriter.Write(buffer)
+		if err != nil {
+			return 0, err
+		}
+
+		// force flush everything
+		p.compressionWriter.Close()
+
+		uncompressedBytes = p.compressedBuffer.Bytes()
 	}
 
-	// force flush everything
-	p.compressionWriter.Close()
-
 	// now marshal the buffer as a page to the output
-	bytesWritten, err := marshalPageToWriter(p.compressedBuffer.Bytes(), p.outputWriter, constDataHeader)
+	bytesWritten, err := marshalPageToWriter(uncompressedBytes, p.outputWriter, constDataHeader)
 	if err != nil {
 		return 0, err
 	}
 
 	// reset buffers for the next write
 	p.objectBuffer.Reset()
-	p.compressedBuffer.Reset()
-	p.compressionWriter, err = p.pool.ResetWriter(p.compressedBuffer, p.compressionWriter)
-	if err != nil {
-		return 0, err
+	if !ok {
+		p.compressedBuffer.Reset()
+		p.compressionWriter, err = p.pool.ResetWriter(p.compressedBuffer, p.compressionWriter)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	return bytesWritten, err
