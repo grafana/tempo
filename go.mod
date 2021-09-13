@@ -10,22 +10,22 @@ require (
 	github.com/alecthomas/kong v0.2.11
 	github.com/aws/aws-sdk-go v1.38.68
 	github.com/cespare/xxhash v1.1.0
-	github.com/cortexproject/cortex v1.10.1-0.20210819151536-bcf15611345d
+	github.com/cortexproject/cortex v1.10.1-0.20210910135323-8250d8703a8f
 	github.com/cristalhq/hedgedhttp v0.6.0
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-kit/kit v0.11.0
 	github.com/go-test/deep v1.0.7
 	github.com/gogo/protobuf v1.3.2
-	github.com/gogo/status v1.0.3
+	github.com/gogo/status v1.1.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/protobuf v1.5.2
-	github.com/golang/snappy v0.0.3
+	github.com/golang/snappy v0.0.4
 	github.com/google/flatbuffers v2.0.0+incompatible
 	github.com/google/go-cmp v0.5.6
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
-	github.com/grafana/dskit v0.0.0-20210818123532-6645f87e9e12
+	github.com/grafana/dskit v0.0.0-20210908150159-fcf48cb19aa4
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340 // indirect
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v0.14.0
@@ -50,9 +50,10 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
+	github.com/thanos-io/thanos v0.22.0
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.29.1+incompatible
-	github.com/weaveworks/common v0.0.0-20210419092856-009d1eebd624
+	github.com/weaveworks/common v0.0.0-20210901124008-1fa3f9fa874c
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.21.0
@@ -67,7 +68,7 @@ require (
 	go.uber.org/zap v1.17.0
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
 	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6
-	google.golang.org/api v0.48.0
+	google.golang.org/api v0.50.0
 	google.golang.org/grpc v1.39.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
@@ -97,3 +98,10 @@ replace github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
 // Fix for injecting and extracting the propagation context
 // Can be removed when https://github.com/open-telemetry/opentelemetry-go/pull/2141 is merged
 replace go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
+
+// Pin to match the version used in dskit.
+// Required because of the otherwise incompatible transient dependency
+// `go.opentelemetry.io/otel`.
+// Can be removed once dskit uses an etcd version that is compatible with
+// go.opentelemetry.io/otel@v1.0.0-RC2 which is used in Tempo.
+replace go.etcd.io/etcd/server/v3 => go.etcd.io/etcd/server/v3 v3.5.0-alpha.0.0.20210225194612-fa82d11a958a

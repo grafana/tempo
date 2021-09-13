@@ -5,7 +5,8 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/cortexproject/cortex/pkg/ring/kv"
+	"github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/grafana/dskit/kv"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -26,6 +27,7 @@ func newEventuallyConsistentRing(cfg ring.Config, name, key string, reg promethe
 		cfg.KVStore,
 		codec,
 		kv.RegistererWithKVName(reg, name+"-ring"),
+		log.Logger,
 	)
 	if err != nil {
 		return nil, err
