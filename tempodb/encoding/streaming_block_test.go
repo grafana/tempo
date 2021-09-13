@@ -357,7 +357,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	require.NoError(b, err, "error creating backend")
 
 	r := backend.NewReader(rawR)
-	meta, err := r.BlockMeta(context.Background(), uuid.MustParse("00006e9d-94f0-4487-8e62-99f951be9349"), "1")
+	meta, err := r.BlockMeta(context.Background(), uuid.MustParse("20a614f8-8cda-4b9d-9789-cb626f9fab28"), "3446")
 	require.NoError(b, err)
 
 	backendBlock, err := NewBackendBlock(meta, r)
@@ -380,13 +380,12 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		b.ResetTimer()
 	}
 
-	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", encoding, "")
 	block, err := NewStreamingBlock(&BlockConfig{
 		IndexDownsampleBytes: indexDownsample,
 		BloomFP:              .05,
 		Encoding:             encoding,
 		IndexPageSizeBytes:   10 * 1024 * 1024,
-	}, originatingMeta.BlockID, originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, originatingMeta.TotalObjects)
+	}, uuid.New(), meta.TenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
 	require.NoError(b, err, "unexpected error completing block")
 
 	ctx := context.Background()
@@ -395,8 +394,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		if err != io.EOF {
 			require.NoError(b, err)
 		}
-
-		if id == nil {
+		if err == io.EOF {
 			break
 		}
 
