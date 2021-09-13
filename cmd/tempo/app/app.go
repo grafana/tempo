@@ -246,9 +246,7 @@ func (t *App) Run() error {
 	}
 
 	// before starting servers, register /ready handler and gRPC health check service.
-	t.Server.HTTP.Path("/config").Handler(t.configHandler())
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
-	t.Server.HTTP.Path("/services").Handler(t.servicesHandler())
 	t.Server.HTTP.Path("/status").Handler(t.statusHandler())
 	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, healthcheck.New(sm))
 
@@ -292,21 +290,23 @@ func (t *App) Run() error {
 	return sm.AwaitStopped(context.Background())
 }
 
-func (t *App) configHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		out, err := yaml.Marshal(t.cfg)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/yaml")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(out); err != nil {
-			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
-		}
+func (t *App) writeStatusConfig(w io.Writer) error {
+	out, err := yaml.Marshal(t.cfg)
+	if err != nil {
+		return err
 	}
 
+	_, err = w.Write([]byte("---\n"))
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(out)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
@@ -349,47 +349,80 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 func (t *App) statusHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		msg := bytes.Buffer{}
+		var err error
 
 		v := r.URL.Query()
-		_, ok := r.URL.Query()["endpoints"]
+		_, ok := v["endpoints"]
 		if len(v) == 0 || ok {
 			t.writeStatusEndpoints(&msg)
 		}
 
+		_, ok = v["services"]
+		if len(v) == 0 || ok {
+			t.writeStatusServices(&msg)
+		}
+
+		_, ok = v["config"]
+		if len(v) == 0 || ok {
+			err = t.writeStatusConfig(&msg)
+		}
+
+		level.Warn(log.Logger).Log("overrides", fmt.Sprintf("%+v", t.overrides))
+		mode, ok := v["runtime_config"]
+		if (len(v) == 0 || ok) && t.overrides != nil {
+			var m string
+			if len(mode) > 0 {
+				m = mode[0]
+			}
+			err := t.overrides.WriteStatusRuntimeConfig(&msg, m)
+			if err != nil {
+				level.Error(log.Logger).Log("msg", "error writing runtime_config status", "err", err)
+			}
+		}
+
 		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+
 		if _, err := w.Write(msg.Bytes()); err != nil {
 			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
 		}
 	}
 }
 
-func (t *App) servicesHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		msg := bytes.Buffer{}
+func (t *App) writeStatusServices(w io.Writer) {
 
-		svcNames := make([]string, 0, len(t.serviceMap))
-		for name := range t.serviceMap {
-			svcNames = append(svcNames, name)
-		}
-
-		sort.Strings(svcNames)
-
-		for _, name := range svcNames {
-			service := t.serviceMap[name]
-
-			msg.WriteString(fmt.Sprintf("%s: %s\n", name, service.State()))
-			if err := service.FailureCase(); err != nil {
-				msg.WriteString(fmt.Sprintf("  Failure case: %s\n", err))
-			}
-		}
-
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(msg.Bytes()); err != nil {
-			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
-		}
+	svcNames := make([]string, 0, len(t.serviceMap))
+	for name := range t.serviceMap {
+		svcNames = append(svcNames, name)
 	}
+
+	sort.Strings(svcNames)
+
+	x := table.NewWriter()
+	x.SetOutputMirror(w)
+	x.AppendHeader(table.Row{"service name", "status", "failure case"})
+
+	for _, name := range svcNames {
+		service := t.serviceMap[name]
+
+		var e string
+
+		if err := service.FailureCase(); err != nil {
+			e = err.Error()
+		}
+
+		x.AppendRows([]table.Row{
+			{name, service.State(), e},
+		})
+	}
+
+	x.AppendSeparator()
+	x.Render()
 }
 
 func (t *App) writeStatusEndpoints(w io.Writer) {

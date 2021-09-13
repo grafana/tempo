@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/util"
@@ -148,51 +147,57 @@ func (o *Overrides) tenantOverrides() *perTenantOverrides {
 	return cfg
 }
 
-func (o *Overrides) Handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var tenantOverrides perTenantOverrides
-		if o.tenantOverrides() != nil {
-			tenantOverrides = *o.tenantOverrides()
-		}
-		var output interface{}
-		cfg := Config{
-			Defaults:           o.defaultLimits,
-			PerTenantOverrides: tenantOverrides,
-		}
-		switch r.URL.Query().Get("mode") {
-		case "diff":
-			// Default runtime config is just empty struct, but to make diff work,
-			// we set defaultLimits for every tenant that exists in runtime config.
-			defaultCfg := perTenantOverrides{TenantLimits: map[string]*Limits{}}
-			defaultCfg.TenantLimits = map[string]*Limits{}
-			for k, v := range tenantOverrides.TenantLimits {
-				if v != nil {
-					defaultCfg.TenantLimits[k] = o.defaultLimits
-				}
-			}
-
-			cfgYaml, err := util.YAMLMarshalUnmarshal(cfg.PerTenantOverrides)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			defaultCfgYaml, err := util.YAMLMarshalUnmarshal(defaultCfg)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			output, err = util.DiffConfig(defaultCfgYaml, cfgYaml)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		default:
-			output = cfg
-		}
-		util.WriteYAMLResponse(w, output)
+func (o *Overrides) WriteStatusRuntimeConfig(w io.Writer, mode string) error {
+	var tenantOverrides perTenantOverrides
+	if o.tenantOverrides() != nil {
+		tenantOverrides = *o.tenantOverrides()
 	}
+	var output interface{}
+	cfg := Config{
+		Defaults:           o.defaultLimits,
+		PerTenantOverrides: tenantOverrides,
+	}
+	switch mode {
+	case "diff":
+		// Default runtime config is just empty struct, but to make diff work,
+		// we set defaultLimits for every tenant that exists in runtime config.
+		defaultCfg := perTenantOverrides{TenantLimits: map[string]*Limits{}}
+		defaultCfg.TenantLimits = map[string]*Limits{}
+		for k, v := range tenantOverrides.TenantLimits {
+			if v != nil {
+				defaultCfg.TenantLimits[k] = o.defaultLimits
+			}
+		}
+
+		cfgYaml, err := util.YAMLMarshalUnmarshal(cfg.PerTenantOverrides)
+		if err != nil {
+			return err
+		}
+
+		defaultCfgYaml, err := util.YAMLMarshalUnmarshal(defaultCfg)
+		if err != nil {
+			return err
+		}
+
+		output, err = util.DiffConfig(defaultCfgYaml, cfgYaml)
+		if err != nil {
+			return err
+		}
+	default:
+		output = cfg
+	}
+
+	out, err := yaml.Marshal(output)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(out)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
