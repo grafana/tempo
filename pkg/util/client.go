@@ -3,12 +3,10 @@ package util
 import (
 	"fmt"
 	"net/http"
-	"reflect"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"go.uber.org/zap"
 )
 
 const orgIDHeader = "X-Scope-OrgID"
@@ -18,24 +16,17 @@ type Client struct {
 	BaseURL string
 	OrgID   string
 	client  *http.Client
-	logger  *zap.Logger
 }
 
-func NewClient(baseURL, orgID string, log *zap.Logger) *Client {
+func NewClient(baseURL, orgID string) *Client {
 	return &Client{
 		BaseURL: baseURL,
 		OrgID:   orgID,
 		client:  http.DefaultClient,
-		logger:  log,
 	}
 }
 
 func (c *Client) getFor(url string, m proto.Message) error {
-	log := c.logger.With(
-		zap.String("query_url", url),
-		zap.String("message", reflect.TypeOf(m).String()),
-	)
-
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
@@ -50,9 +41,7 @@ func (c *Client) getFor(url string, m proto.Message) error {
 		return fmt.Errorf("error searching tempo for tag %v", err)
 	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Error("error closing body ", zap.Error(err))
-		}
+		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {

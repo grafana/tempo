@@ -150,7 +150,7 @@ func main() {
 				zap.String("org_id", tempoOrgID),
 			)
 
-			client := util.NewClient(tempoQueryURL, tempoOrgID, log)
+			client := util.NewClient(tempoQueryURL, tempoOrgID)
 
 			// query the trace
 			queryMetrics, err := queryTrace(client, seed)
@@ -186,7 +186,7 @@ func main() {
 				zap.String("org_id", tempoOrgID),
 			)
 
-			client := util.NewClient(tempoQueryURL, tempoOrgID, log)
+			client := util.NewClient(tempoQueryURL, tempoOrgID)
 
 			// query a tag we expect the trace to be found within
 			searchMetrics, err := searchTag(client, seed)
