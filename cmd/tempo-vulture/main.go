@@ -34,16 +34,23 @@ var (
 	prometheusListenAddress string
 	prometheusPath          string
 
-	tempoQueryURL                string
-	tempoPushURL                 string
-	tempoOrgID                   string
-	tempoWriteBackoffDuration    time.Duration
-	tempoReadBackoffDuration     time.Duration
-	tempoSearchBackoffDuration   time.Duration
-	tempoRetentionDuration       time.Duration
-	tempoSearchRetentionDuration time.Duration
+	tempoQueryURL                 string
+	tempoPushURL                  string
+	tempoOrgID                    string
+	tempoWriteBackoffDuration     time.Duration
+	tempoLongWriteBackoffDuration time.Duration
+	tempoReadBackoffDuration      time.Duration
+	tempoSearchBackoffDuration    time.Duration
+	tempoRetentionDuration        time.Duration
+	tempoSearchRetentionDuration  time.Duration
 
 	logger *zap.Logger
+
+	// batchHighWaterMark is used when writing and reading, and needs to match so
+	// that we get the expected number of batches on a trace.  A value larger
+	// than 25 here results in vulture writing traces that exceed the maximum
+	// trace size.
+	batchHighWaterMark int64 = 25
 )
 
 type traceMetrics struct {
@@ -56,6 +63,13 @@ type traceMetrics struct {
 	notFoundSearchAttribute int
 }
 
+type traceInfo struct {
+	timestamp   time.Time
+	r           *rand.Rand
+	traceIDHigh int64
+	traceIDLow  int64
+}
+
 func init() {
 	flag.StringVar(&prometheusPath, "prometheus-path", "/metrics", "The path to publish Prometheus metrics to.")
 	flag.StringVar(&prometheusListenAddress, "prometheus-listen-address", ":80", "The address to listen on for Prometheus scrapes.")
@@ -64,6 +78,7 @@ func init() {
 	flag.StringVar(&tempoPushURL, "tempo-push-url", "", "The URL (scheme://hostname:port) at which to push traces to Tempo.")
 	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
 	flag.DurationVar(&tempoWriteBackoffDuration, "tempo-write-backoff-duration", 15*time.Second, "The amount of time to pause between write Tempo calls")
+	flag.DurationVar(&tempoLongWriteBackoffDuration, "tempo-long-write-backoff-duration", 1*time.Minute, "The amount of time to pause between long write Tempo calls")
 	flag.DurationVar(&tempoReadBackoffDuration, "tempo-read-backoff-duration", 30*time.Second, "The amount of time to pause between read Tempo calls")
 	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
@@ -91,7 +106,7 @@ func main() {
 
 	// Write
 	go func() {
-		c, err := newJaegerGRPCClient(tempoPushURL)
+		client, err := newJaegerGRPCClient(tempoPushURL)
 		if err != nil {
 			panic(err)
 		}
@@ -103,28 +118,15 @@ func main() {
 			traceIDHigh := r.Int63()
 			traceIDLow := r.Int63()
 
-			log := logger.With(
-				zap.String("org_id", tempoOrgID),
-				zap.String("write_trace_id", fmt.Sprintf("%016x%016x", traceIDHigh, traceIDLow)),
-				zap.Int64("seed", timestamp.Unix()),
-			)
-			log.Info("sending trace")
-
-			for i := int64(0); i < generateRandomInt(1, 100, r); i++ {
-				ctx := user.InjectOrgID(context.Background(), tempoOrgID)
-				ctx, err := user.InjectIntoGRPCRequest(ctx)
-				if err != nil {
-					log.Error("error injecting org id", zap.Error(err))
-					metricErrorTotal.Inc()
-					continue
-				}
-				err = c.EmitBatch(ctx, makeThriftBatch(traceIDHigh, traceIDLow, r, timestamp))
-				if err != nil {
-					log.Error("error pushing batch to Tempo", zap.Error(err))
-					metricErrorTotal.Inc()
-					continue
-				}
+			info := &traceInfo{
+				timestamp:   timestamp,
+				r:           r,
+				traceIDHigh: traceIDHigh,
+				traceIDLow:  traceIDLow,
 			}
+
+			emitBatches(client, info)
+			queueFutureBatches(client, info)
 		}
 	}()
 
@@ -203,6 +205,54 @@ func main() {
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
+}
+
+func emitBatches(c *jaeger_grpc.Reporter, t *traceInfo) {
+	log := logger.With(
+		zap.String("org_id", tempoOrgID),
+		zap.String("write_trace_id", fmt.Sprintf("%016x%016x", t.traceIDHigh, t.traceIDLow)),
+		zap.Int64("seed", t.timestamp.Unix()),
+	)
+
+	log.Info("sending trace")
+
+	for i := int64(0); i < generateRandomInt(1, batchHighWaterMark, t.r); i++ {
+		ctx := user.InjectOrgID(context.Background(), tempoOrgID)
+		ctx, err := user.InjectIntoGRPCRequest(ctx)
+		if err != nil {
+			log.Error("error injecting org id", zap.Error(err))
+			metricErrorTotal.Inc()
+			continue
+		}
+		err = c.EmitBatch(ctx, makeThriftBatch(t.traceIDHigh, t.traceIDLow, t.r, t.timestamp))
+		if err != nil {
+			log.Error("error pushing batch to Tempo", zap.Error(err))
+			metricErrorTotal.Inc()
+			continue
+		}
+	}
+
+}
+
+func queueFutureBatches(client *jaeger_grpc.Reporter, info *traceInfo) {
+	log := logger.With(
+		zap.String("org_id", tempoOrgID),
+		zap.String("write_trace_id", fmt.Sprintf("%016x%016x", info.traceIDHigh, info.traceIDLow)),
+		zap.Int64("seed", info.timestamp.Unix()),
+	)
+
+	if maybe(info.r) {
+		log.Info("queueing future batches")
+		go func() {
+			time.Sleep(tempoLongWriteBackoffDuration)
+			emitBatches(client, info)
+			queueFutureBatches(client, info)
+		}()
+	}
+}
+
+func maybe(r *rand.Rand) bool {
+	return r.Intn(10) >= 8
 }
 
 func pushMetrics(metrics traceMetrics) {
@@ -507,40 +557,71 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 
 func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 	r := newRand(epoch)
-	traceIDHigh := r.Int63()
-	traceIDLow := r.Int63()
+
+	info := &traceInfo{
+		timestamp:   epoch,
+		r:           r,
+		traceIDHigh: r.Int63(),
+		traceIDLow:  r.Int63(),
+	}
 
 	trace := &tempopb.Trace{}
 
-	for i := int64(0); i < generateRandomInt(1, 100, r); i++ {
-		batch := makeThriftBatch(traceIDHigh, traceIDLow, r, epoch)
-		internalTrace := jaegerTrans.ThriftBatchToInternalTraces(batch)
-		conv, err := internalTrace.ToOtlpProtoBytes()
-		if err != nil {
-			logger.Error(err.Error())
-		}
+	addBatches := func(t *traceInfo, trace *tempopb.Trace) {
+		for i := int64(0); i < generateRandomInt(1, batchHighWaterMark, r); i++ {
+			batch := makeThriftBatch(t.traceIDHigh, t.traceIDLow, r, epoch)
+			internalTrace := jaegerTrans.ThriftBatchToInternalTraces(batch)
+			conv, err := internalTrace.ToOtlpProtoBytes()
+			if err != nil {
+				logger.Error(err.Error())
+			}
 
-		t := tempopb.Trace{}
-		err = t.Unmarshal(conv)
-		if err != nil {
-			logger.Error(err.Error())
-		}
+			t := tempopb.Trace{}
+			err = t.Unmarshal(conv)
+			if err != nil {
+				logger.Error(err.Error())
+			}
 
-		// Due to the several transforms above, some manual mangling is required to
-		// get the parentSpanID to match.  In the case of an empty []byte in place
-		// for the ParentSpanId, we set to nil here to ensure that the final result
-		// matches the json.Unmarshal value when tempo is queried.
-		for _, b := range t.Batches {
-			for _, l := range b.InstrumentationLibrarySpans {
-				for _, s := range l.Spans {
-					if len(s.GetParentSpanId()) == 0 {
-						s.ParentSpanId = nil
+			// Due to the several transforms above, some manual mangling is required to
+			// get the parentSpanID to match.  In the case of an empty []byte in place
+			// for the ParentSpanId, we set to nil here to ensure that the final result
+			// matches the json.Unmarshal value when tempo is queried.
+			for _, b := range t.Batches {
+				for _, l := range b.InstrumentationLibrarySpans {
+					for _, s := range l.Spans {
+						if len(s.GetParentSpanId()) == 0 {
+							s.ParentSpanId = nil
+						}
 					}
 				}
 			}
+
+			trace.Batches = append(trace.Batches, t.Batches...)
+		}
+	}
+
+	addBatches(info, trace)
+
+	lastWrite := info.timestamp
+	for maybe(info.r) {
+		lastWrite = lastWrite.Add(tempoLongWriteBackoffDuration)
+
+		log := logger.With(
+			zap.Int64("seed", info.timestamp.Unix()),
+			zap.Duration("since", time.Since(lastWrite)),
+		)
+
+		// If the last write has happened very recently, we'll wait a bit to make
+		// sure the write has taken place, and then add the batches that would have
+		// just been written.
+		if time.Since(lastWrite) < (1 * time.Second) {
+			time.Sleep(1500 * time.Millisecond)
 		}
 
-		trace.Batches = append(trace.Batches, t.Batches...)
+		if time.Since(lastWrite) > (1 * time.Second) {
+			log.Info("adding batches")
+			addBatches(info, trace)
+		}
 	}
 
 	return trace
