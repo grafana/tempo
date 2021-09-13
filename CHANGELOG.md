@@ -45,6 +45,7 @@
 * [CHANGE] Change default tempo port from 3100 to 3200 [#770](https://github.com/grafana/tempo/pull/809) (@MurzNN)
 * [CHANGE] Jsonnet: use dedicated configmaps for distributors and ingesters [#775](https://github.com/grafana/tempo/pull/775) (@kvrhdn)
 * [CHANGE] Docker images are now prefixed by their branch name [#828](https://github.com/grafana/tempo/pull/828) (@jvrplmlmn)
+* [CHANGE] Update to Go 1.16 [#???](https://github.com/grafana/tempo/pull/???)
 * [FEATURE] Added the ability to hedge requests with all backends [#750](https://github.com/grafana/tempo/pull/750) (@joe-elliott)
 * [FEATURE] Added a tenant index to reduce bucket polling. [#834](https://github.com/grafana/tempo/pull/834) (@joe-elliott)
 * [ENHANCEMENT] Added hedged request metric `tempodb_backend_hedged_roundtrips_total` and a new storage agnostic `tempodb_backend_request_duration_seconds` metric that
