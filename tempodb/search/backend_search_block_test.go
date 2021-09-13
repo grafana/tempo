@@ -28,8 +28,6 @@ func genSearchData(traceID []byte, i int) [][]byte {
 }
 
 func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.Encoding, pageSizeBytes int) *BackendSearchBlock {
-	//id := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} // 16-byte ids required
-
 	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 

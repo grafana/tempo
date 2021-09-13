@@ -45,12 +45,13 @@ func (*SearchDataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool
 	kv := &tempofb.KeyValues{} // buffer
 	for _, sb := range searchData {
 		sd := tempofb.SearchEntryFromBytes(sb)
-		for i := 0; i < sd.TagsLength(); i++ {
+		for i, ii := 0, sd.TagsLength(); i < ii; i++ {
 			sd.Tags(kv, i)
-			for j := 0; j < kv.ValueLength(); j++ {
+			for j, jj := 0, kv.ValueLength(); j < jj; j++ {
 				data.AddTag(string(kv.Key()), string(kv.Value(j)))
 			}
 		}
+
 		data.SetStartTimeUnixNano(sd.StartTimeUnixNano())
 		data.SetEndTimeUnixNano(sd.EndTimeUnixNano())
 		data.TraceID = sd.Id()
@@ -66,8 +67,6 @@ type SearchDataIterator struct {
 	currentIndex int
 	records      []common.Record
 	file         *os.File
-
-	buffer []byte
 }
 
 func (s *SearchDataIterator) Next(_ context.Context) (common.ID, []byte, error) {
@@ -77,20 +76,17 @@ func (s *SearchDataIterator) Next(_ context.Context) (common.ID, []byte, error) 
 
 	currentRecord := s.records[s.currentIndex]
 
-	// resize/extend buffer
-	if cap(s.buffer) < int(currentRecord.Length) {
-		s.buffer = make([]byte, currentRecord.Length)
-	}
-	s.buffer = s.buffer[:currentRecord.Length]
-
-	_, err := s.file.ReadAt(s.buffer, int64(currentRecord.Start))
+	// Use unique buffer that can be returned to the caller.
+	// This is primarily for DedupingIterator which uses 2 buffers at once.
+	buffer := make([]byte, currentRecord.Length)
+	_, err := s.file.ReadAt(buffer, int64(currentRecord.Start))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error reading search file")
 	}
 
 	s.currentIndex++
 
-	return currentRecord.ID, s.buffer, nil
+	return currentRecord.ID, buffer, nil
 }
 
 func (*SearchDataIterator) Close() {
@@ -140,7 +136,6 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 
 	// Copy records into the appender
 	for {
-
 		// Read
 		id, data, err := iter.Next(ctx)
 		if err != nil && err != io.EOF {
@@ -165,10 +160,9 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 			EndTimeUnixNano:   s.EndTimeUnixNano(),
 		}
 
-		l := s.TagsLength()
-		for i := 0; i < l; i++ {
+		for i, l := 0, s.TagsLength(); i < l; i++ {
 			s.Tags(kv, i)
-			for j := 0; j < kv.ValueLength(); j++ {
+			for j, ll := 0, kv.ValueLength(); j < ll; j++ {
 				entry.AddTag(string(kv.Key()), string(kv.Value(j)))
 			}
 		}
