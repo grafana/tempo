@@ -33,16 +33,6 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 
 _(*) This endpoint is not always available, check the specific section for more details._
 
-### Configuration
-
-```
-GET /config
-```
-
-Displays the configuration currently applied to Tempo (in YAML format), including default values and settings via CLI flags.
-Sensitive data is masked. Please be aware that the exported configuration **doesn't include the per-tenant overrides**.
-
-
 ### Readiness probe
 
 ```
@@ -50,14 +40,6 @@ GET /ready
 ```
 
 Returns status code 200 when Tempo is ready to serve traffic.
-
-### Services
-
-```
-GET /services
-```
-
-Displays a list of services and their status. If a service failed it will show the failure case.
 
 ### Metrics
 
@@ -209,4 +191,8 @@ GET /status
 Print all available information by default.
 
 Query Parameter:
-- `endpoints`: Prints status information about the API endpoints.
+- `endpoints`: Displays status information about the API endpoints.
+- `config`: Displays the configuration currently applied to Tempo (in YAML format), including default values and settings via CLI flags.
+Sensitive data is masked. Please be aware that the exported configuration **doesn't include the per-tenant overrides**.
+- `services`: Displays a list of services and their status. If a service failed it will show the failure case.
+- `runtime_config = (diff)`: Displays the override configuration.  Optionally setting a value of `diff` can be used to show the difference between defaults and overrides.
