@@ -108,6 +108,7 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 			return nil, nil, err
 		}
 
+		// zstd decoder is ~10-20% faster then the streaming io.Reader interface so prefer that
 		decoder, ok := reader.(*zstd.Decoder)
 		if ok {
 			pagesBuffer[i], err = decoder.DecodeAll(page, pagesBuffer[i][:0])
@@ -146,6 +147,7 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 		return nil, 0, err
 	}
 
+	// zstd decoder is ~10-20% faster then the streaming io.Reader interface so prefer that
 	decoder, ok := compressedReader.(*zstd.Decoder)
 	if ok {
 		buffer, err = decoder.DecodeAll(page.data, buffer[:0])
@@ -163,6 +165,9 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 func (r *dataReader) getCompressedReader(page []byte) (io.Reader, error) {
 	var err error
 	var reader io.Reader
+	// we are going to use the stateless zstd decoding functionality. if you pass
+	// a non-nil reader to .GetReader() and then use .DecodeAll() the process hangs
+	// for unknown reasons. so don't do that.
 	if r.encoding != backend.EncZstd {
 		reader = bytes.NewReader(page)
 	}
