@@ -5,19 +5,22 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"time"
 
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
 	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
-	"github.com/cortexproject/cortex/pkg/util/flagext"
 	"github.com/cortexproject/cortex/pkg/util/grpc/healthcheck"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/gorilla/mux"
+	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/modules"
 	"github.com/grafana/dskit/services"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 	"github.com/weaveworks/common/signals"
@@ -38,6 +41,7 @@ import (
 )
 
 const metricsNamespace = "tempo"
+const apiDocs = "https://grafana.com/docs/tempo/latest/api_docs/"
 
 // Config is the root config for App.
 type Config struct {
@@ -156,7 +160,7 @@ type App struct {
 	compactor    *compactor.Compactor
 	ingester     *ingester.Ingester
 	store        storage.Store
-	memberlistKV *memberlist.KVInitService
+	MemberlistKV *memberlist.KVInitService
 
 	HTTPAuthMiddleware middleware.Interface
 	ModuleManager      *modules.Manager
@@ -245,6 +249,7 @@ func (t *App) Run() error {
 	t.Server.HTTP.Path("/config").Handler(t.configHandler())
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
 	t.Server.HTTP.Path("/services").Handler(t.servicesHandler())
+	t.Server.HTTP.Path("/status").Handler(t.statusHandler())
 	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, healthcheck.New(sm))
 
 	// Let's listen for events from this manager, and log them.
@@ -341,6 +346,24 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 	}
 }
 
+func (t *App) statusHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		msg := bytes.Buffer{}
+
+		v := r.URL.Query()
+		_, ok := r.URL.Query()["endpoints"]
+		if len(v) == 0 || ok {
+			t.writeStatusEndpoints(&msg)
+		}
+
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write(msg.Bytes()); err != nil {
+			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
+		}
+	}
+}
+
 func (t *App) servicesHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		msg := bytes.Buffer{}
@@ -366,5 +389,57 @@ func (t *App) servicesHandler() http.HandlerFunc {
 		if _, err := w.Write(msg.Bytes()); err != nil {
 			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
 		}
+	}
+}
+
+func (t *App) writeStatusEndpoints(w io.Writer) {
+	type endpoint struct {
+		name  string
+		regex string
+	}
+
+	endpoints := []endpoint{}
+
+	err := t.Server.HTTP.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+		e := endpoint{}
+
+		pathTemplate, err := route.GetPathTemplate()
+		if err == nil {
+			e.name = pathTemplate
+		}
+
+		pathRegexp, err := route.GetPathRegexp()
+		if err == nil {
+			e.regex = pathRegexp
+		}
+
+		endpoints = append(endpoints, e)
+
+		return nil
+	})
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "error walking routes", "err", err)
+	}
+
+	sort.Slice(endpoints[:], func(i, j int) bool {
+		return endpoints[i].name < endpoints[j].name
+	})
+
+	x := table.NewWriter()
+	x.SetOutputMirror(w)
+	x.AppendHeader(table.Row{"name", "regex"})
+
+	for _, e := range endpoints {
+		x.AppendRows([]table.Row{
+			{e.name, e.regex},
+		})
+	}
+
+	x.AppendSeparator()
+	x.Render()
+
+	_, err = w.Write([]byte(fmt.Sprintf("\nAPI documentation: %s\n", apiDocs)))
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "error writing response", "err", err)
 	}
 }

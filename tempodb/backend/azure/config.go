@@ -3,7 +3,7 @@ package azure
 import (
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util/flagext"
+	"github.com/grafana/dskit/flagext"
 )
 
 type Config struct {

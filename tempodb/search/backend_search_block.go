@@ -3,8 +3,11 @@ package search
 import (
 	"bytes"
 	"context"
+	"io"
+	"os"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -22,6 +25,78 @@ type BackendSearchBlock struct {
 	tenantID string
 	l        *local.Backend
 }
+
+//nolint:golint
+type SearchDataCombiner struct{}
+
+func (*SearchDataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool) {
+
+	if len(searchData) <= 0 {
+		return nil, false
+	}
+
+	if len(searchData) == 1 {
+		return searchData[0], false
+	}
+
+	// Squash all datas into 1
+	data := tempofb.SearchEntryMutable{}
+	kv := &tempofb.KeyValues{} // buffer
+	for _, sb := range searchData {
+		sd := tempofb.SearchEntryFromBytes(sb)
+		for i := 0; i < sd.TagsLength(); i++ {
+			sd.Tags(kv, i)
+			for j := 0; j < kv.ValueLength(); j++ {
+				data.AddTag(string(kv.Key()), string(kv.Value(j)))
+			}
+		}
+		data.SetStartTimeUnixNano(sd.StartTimeUnixNano())
+		data.SetEndTimeUnixNano(sd.EndTimeUnixNano())
+		data.TraceID = sd.Id()
+	}
+
+	return data.ToBytes(), true
+}
+
+var _ common.ObjectCombiner = (*SearchDataCombiner)(nil)
+
+//nolint:golint
+type SearchDataIterator struct {
+	currentIndex int
+	records      []common.Record
+	file         *os.File
+
+	buffer []byte
+}
+
+func (s *SearchDataIterator) Next(_ context.Context) (common.ID, []byte, error) {
+	if s.currentIndex >= len(s.records) {
+		return nil, nil, io.EOF
+	}
+
+	currentRecord := s.records[s.currentIndex]
+
+	// resize/extend buffer
+	if cap(s.buffer) < int(currentRecord.Length) {
+		s.buffer = make([]byte, currentRecord.Length)
+	}
+	s.buffer = s.buffer[:currentRecord.Length]
+
+	_, err := s.file.ReadAt(s.buffer, int64(currentRecord.Start))
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "error reading search file")
+	}
+
+	s.currentIndex++
+
+	return currentRecord.ID, s.buffer, nil
+}
+
+func (*SearchDataIterator) Close() {
+	// file will be closed by StreamingSearchBlock
+}
+
+var _ encoding.Iterator = (*SearchDataIterator)(nil)
 
 // NewBackendSearchBlock iterates through the given WAL search data and writes it to the persistent backend
 // in a more efficient paged form. Multiple traces are written in the same page to make sure of the flatbuffer
@@ -42,25 +117,43 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		pageSizeBytes = defaultBackendSearchBlockPageSize
 	}
 
-	// Copy records into the appender
 	w, err := newBackendSearchBlockWriter(blockID, tenantID, l, version, enc)
 	if err != nil {
 		return err
 	}
 
+	// set up deduping iterator for streaming search block
+	combiner := &SearchDataCombiner{}
+	searchIterator := &SearchDataIterator{
+		records: input.appender.Records(),
+		file:    input.file,
+	}
+	iter, err := encoding.NewDedupingIterator(searchIterator, combiner, "")
+	if err != nil {
+		return errors.Wrap(err, "error creating deduping iterator")
+	}
 	a := encoding.NewBufferedAppenderGeneric(w, pageSizeBytes)
-	for _, r := range input.appender.Records() {
+
+	// Copy records into the appender
+	for {
 
 		// Read
-		buf := make([]byte, r.Length)
-		_, err = input.file.ReadAt(buf, int64(r.Start))
-		if err != nil {
-			return err
+		id, data, err := iter.Next(ctx)
+		if err != nil && err != io.EOF {
+			return errors.Wrap(err, "error iterating")
 		}
 
-		s := tempofb.SearchEntryFromBytes(buf)
-		data := &tempofb.SearchEntryMutable{
-			TraceID:           r.ID,
+		if id == nil {
+			break
+		}
+
+		if len(data) == 0 {
+			continue
+		}
+
+		s := tempofb.SearchEntryFromBytes(data)
+		entry := &tempofb.SearchEntryMutable{
+			TraceID:           id,
 			StartTimeUnixNano: s.StartTimeUnixNano(),
 			EndTimeUnixNano:   s.EndTimeUnixNano(),
 		}
@@ -69,13 +162,13 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		for i := 0; i < l; i++ {
 			s.Tags(kv, i)
 			for j := 0; j < kv.ValueLength(); j++ {
-				data.AddTag(string(kv.Key()), string(kv.Value(j)))
+				entry.AddTag(string(kv.Key()), string(kv.Value(j)))
 			}
 		}
 
-		err = a.Append(ctx, r.ID, data)
+		err = a.Append(ctx, id, entry)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "error appending to backend block")
 		}
 	}
 

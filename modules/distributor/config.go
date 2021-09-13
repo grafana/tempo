@@ -7,7 +7,7 @@ import (
 	cortex_distributor "github.com/cortexproject/cortex/pkg/distributor"
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
-	"github.com/cortexproject/cortex/pkg/util/flagext"
+	"github.com/grafana/dskit/flagext"
 )
 
 var defaultReceivers = map[string]interface{}{
