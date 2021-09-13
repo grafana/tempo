@@ -140,13 +140,9 @@ func main() {
 				continue
 			}
 
-			// Do the same for the startTime we've just selected
-			if seed.Before(startTime.Add(tempoWriteBackoffDuration)) {
-				continue
-			}
-
-			// Don't attempt to read future traces.
-			if seed.After(now) {
+			// Don't use the last time interval to allow the write loop to finish
+			// before we try to read it.
+			if seed.After(now.Add(-tempoWriteBackoffDuration)) {
 				continue
 			}
 
@@ -180,8 +176,9 @@ func main() {
 				continue
 			}
 
-			// Don't attempt to read future traces.
-			if seed.After(now) {
+			// Don't use the last time interval to allow the write loop to finish
+			// before we try to read it.
+			if seed.After(now.Add(-tempoWriteBackoffDuration)) {
 				continue
 			}
 
