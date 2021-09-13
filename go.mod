@@ -99,9 +99,9 @@ replace github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
 // Can be removed when https://github.com/open-telemetry/opentelemetry-go/pull/2141 is merged
 replace go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
 
-// Pin to to match the version used in dskit.
+// Pin to match the version used in dskit.
 // Required because of the otherwise incompatible transient dependency
 // `go.opentelemetry.io/otel`.
 // Can be removed once dskit uses an etcd version that is compatible with
-// go.opentelemetry.io/otel@v1.0.0-RC2// which is used in Tempo.
+// go.opentelemetry.io/otel@v1.0.0-RC2 which is used in Tempo.
 replace go.etcd.io/etcd/server/v3 => go.etcd.io/etcd/server/v3 v3.5.0-alpha.0.0.20210225194612-fa82d11a958a
