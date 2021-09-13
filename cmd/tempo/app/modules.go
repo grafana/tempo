@@ -257,7 +257,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	}
 
 	dnsProviderReg := prometheus.WrapRegistererWithPrefix(
-		"cortex_",
+		"tempo_",
 		prometheus.WrapRegistererWith(
 			prometheus.Labels{"name": "memberlist"},
 			reg,
