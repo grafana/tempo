@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"path"
 	"sort"
 	"testing"
 	"time"
@@ -301,7 +302,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	return block, ids, reqs
 }
 
-const benchDownsample = 200
+const benchDownsample = 1024 * 1024
 
 func BenchmarkWriteGzip(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncGZIP, benchDownsample, false)
@@ -385,6 +386,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		BloomFP:              .05,
 		Encoding:             encoding,
 		IndexPageSizeBytes:   10 * 1024 * 1024,
+		BloomShardSizeBytes:  100000,
 	}, uuid.New(), meta.TenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
 	require.NoError(b, err, "unexpected error completing block")
 
@@ -414,30 +416,30 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		return
 	}
 
-	// todo: restore read benchmarks
-	// b.ResetTimer()
+	b.ResetTimer()
 
-	// file, err := os.Open(block.fullFilename())
-	// require.NoError(b, err)
-	// pr, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), encoding)
-	// require.NoError(b, err)
+	fullFilename := path.Join(backendTmpDir, block.compactedMeta.TenantID, block.compactedMeta.BlockID.String(), "data")
+	file, err := os.Open(fullFilename)
+	require.NoError(b, err)
+	pr, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), encoding)
+	require.NoError(b, err)
 
-	// var tempBuffer []byte
-	// o := v2.NewObjectReaderWriter()
-	// for {
-	// 	tempBuffer, _, err = pr.NextPage(tempBuffer)
-	// 	if err == io.EOF {
-	// 		break
-	// 	}
-	// 	require.NoError(b, err)
+	var tempBuffer []byte
+	o := v2.NewObjectReaderWriter()
+	for {
+		tempBuffer, _, err = pr.NextPage(tempBuffer)
+		if err == io.EOF {
+			break
+		}
+		require.NoError(b, err)
 
-	// 	bufferReader := bytes.NewReader(tempBuffer)
+		bufferReader := bytes.NewReader(tempBuffer)
 
-	// 	for {
-	// 		_, _, err = o.UnmarshalObjectFromReader(bufferReader)
-	// 		if err == io.EOF {
-	// 			break
-	// 		}
-	// 	}
-	// }
+		for {
+			_, _, err = o.UnmarshalObjectFromReader(bufferReader)
+			if err == io.EOF {
+				break
+			}
+		}
+	}
 }
