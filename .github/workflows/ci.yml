@@ -53,7 +53,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install jsonnet-bundler
-        run: go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.4.0
+        run: go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.4.0
 
       - name: Check tempo-mixin
         run: make tempo-mixin-check

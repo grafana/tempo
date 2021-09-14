@@ -9,5 +9,5 @@ To regenerate dashboards, rule and alerts, run `make all`.
 This requires jsonnet-bundler to be installed, install it with the following command:
 
 ```console
-go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.4.0
+go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.4.0
 ```
