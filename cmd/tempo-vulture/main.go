@@ -47,12 +47,13 @@ var (
 )
 
 type traceMetrics struct {
-	incorrectResult int
-	missingSpans    int
-	notFoundByID    int
-	notFoundSearch  int
-	requested       int
-	requestFailed   int
+	incorrectResult         int
+	missingSpans            int
+	notFoundByID            int
+	notFoundSearch          int
+	requested               int
+	requestFailed           int
+	notFoundSearchAttribute int
 }
 
 func init() {
@@ -211,6 +212,7 @@ func pushMetrics(metrics traceMetrics) {
 	metricTracesErrors.WithLabelValues("notfound_search").Add(float64(metrics.notFoundSearch))
 	metricTracesErrors.WithLabelValues("notfound_byid").Add(float64(metrics.notFoundByID))
 	metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
+	metricTracesErrors.WithLabelValues("notfound_search_attribute").Add(float64(metrics.notFoundSearchAttribute))
 }
 
 func selectPastTimestamp(start, stop time.Time, interval time.Duration, retention time.Duration) (newStart, ts time.Time) {
@@ -340,7 +342,6 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 
 			if equal {
 				return true
-
 			}
 		}
 
@@ -349,6 +350,7 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 
 	attr := randomAttrFromTrace(expected, r)
 	if attr == nil {
+		tm.notFoundSearchAttribute++
 		return tm, fmt.Errorf("no search attr selected from trace")
 	}
 
