@@ -6,7 +6,7 @@ dashboard_utils {
   grafanaDashboards+: {
     'tempo-operational.json': import './tempo-operational.json',
     'tempo-reads.json':
-      $.dashboard('Tempo / Reads')
+      $.dashboard('Tempo')
       .addClusterSelectorTemplates()
       .addRow(
         g.row('Gateway')
