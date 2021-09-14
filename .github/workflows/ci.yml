@@ -56,7 +56,7 @@ jobs:
 
       - name: Install jsonnet & jsonnet-bundler
         run: |
-          go install github.com/google/go-jsonnet/cmd/jsonnet@v0.17.0
+          brew install jsonnet
           go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.4.0
 
       - name: Check out code
