@@ -215,7 +215,6 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.BucketHandle, error) {
 	// start with default transport
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
-	customTransport.DisableCompression = true
 
 	// add google auth
 	transportOptions := []option.ClientOption{
