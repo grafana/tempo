@@ -21,6 +21,8 @@ import (
 	"github.com/grafana/dskit/modules"
 	"github.com/grafana/dskit/services"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/pkg/errors"
+	"github.com/prometheus/common/version"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 	"github.com/weaveworks/common/signals"
@@ -247,7 +249,8 @@ func (t *App) Run() error {
 
 	// before starting servers, register /ready handler and gRPC health check service.
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
-	t.Server.HTTP.Path("/status").Handler(t.statusHandler())
+	t.Server.HTTP.Path("/status").Handler(t.statusHandler()).Methods("GET")
+	t.Server.HTTP.Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
 	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, healthcheck.New(sm))
 
 	// Let's listen for events from this manager, and log them.
@@ -288,6 +291,15 @@ func (t *App) Run() error {
 	}
 
 	return sm.AwaitStopped(context.Background())
+}
+
+func (t *App) writeStatusVersion(w io.Writer) error {
+	_, err := w.Write([]byte(version.Print("tempo") + "\n"))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (t *App) writeStatusConfig(w io.Writer) error {
@@ -348,40 +360,63 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 
 func (t *App) statusHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var errs []error
 		msg := bytes.Buffer{}
-		var err error
 
-		v := r.URL.Query()
-		_, ok := v["endpoints"]
-		if len(v) == 0 || ok {
-			t.writeStatusEndpoints(&msg)
+		simpleEndpoints := map[string]func(io.Writer) error{
+			"version":   t.writeStatusVersion,
+			"services":  t.writeStatusServices,
+			"endpoints": t.writeStatusEndpoints,
+			// "runtime_config": t.overrides.WriteStatusRuntimeConfig,
+			"config": t.writeStatusConfig,
 		}
 
-		_, ok = v["services"]
-		if len(v) == 0 || ok {
-			t.writeStatusServices(&msg)
-		}
+		wrapStatus := func(endpoint string) {
+			msg.WriteString("GET /status/" + endpoint + "\n")
 
-		_, ok = v["config"]
-		if len(v) == 0 || ok {
-			err = t.writeStatusConfig(&msg)
-		}
-
-		level.Warn(log.Logger).Log("overrides", fmt.Sprintf("%+v", t.overrides))
-		mode, ok := v["runtime_config"]
-		if (len(v) == 0 || ok) && t.overrides != nil {
-			var m string
-			if len(mode) > 0 {
-				m = mode[0]
+			switch endpoint {
+			case "runtime_config":
+				err := t.overrides.WriteStatusRuntimeConfig(&msg, r)
+				if err != nil {
+					errs = append(errs, err)
+				}
+			default:
+				err := simpleEndpoints[endpoint](&msg)
+				if err != nil {
+					errs = append(errs, err)
+				}
 			}
-			err := t.overrides.WriteStatusRuntimeConfig(&msg, m)
-			if err != nil {
-				level.Error(log.Logger).Log("msg", "error writing runtime_config status", "err", err)
-			}
+		}
+
+		vars := mux.Vars(r)
+
+		if endpoint, ok := vars["endpoint"]; ok {
+			wrapStatus(endpoint)
+		} else {
+			wrapStatus("version")
+			wrapStatus("services")
+			wrapStatus("endpoints")
+			wrapStatus("runtime_config")
+			wrapStatus("config")
 		}
 
 		w.Header().Set("Content-Type", "text/plain")
 
+		joinErrors := func(errs []error) error {
+			if len(errs) == 0 {
+				return nil
+			}
+			var err error
+
+			for _, e := range errs {
+				if e != nil {
+					err = errors.Wrap(err, e.Error())
+				}
+			}
+			return err
+		}
+
+		err := joinErrors(errs)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		} else {
@@ -394,8 +429,7 @@ func (t *App) statusHandler() http.HandlerFunc {
 	}
 }
 
-func (t *App) writeStatusServices(w io.Writer) {
-
+func (t *App) writeStatusServices(w io.Writer) error {
 	svcNames := make([]string, 0, len(t.serviceMap))
 	for name := range t.serviceMap {
 		svcNames = append(svcNames, name)
@@ -423,9 +457,11 @@ func (t *App) writeStatusServices(w io.Writer) {
 
 	x.AppendSeparator()
 	x.Render()
+
+	return nil
 }
 
-func (t *App) writeStatusEndpoints(w io.Writer) {
+func (t *App) writeStatusEndpoints(w io.Writer) error {
 	type endpoint struct {
 		name  string
 		regex string
@@ -451,7 +487,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) {
 		return nil
 	})
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error walking routes", "err", err)
+		return errors.Wrap(err, "error walking routes")
 	}
 
 	sort.Slice(endpoints[:], func(i, j int) bool {
@@ -471,8 +507,10 @@ func (t *App) writeStatusEndpoints(w io.Writer) {
 	x.AppendSeparator()
 	x.Render()
 
-	_, err = w.Write([]byte(fmt.Sprintf("\nAPI documentation: %s\n", apiDocs)))
+	_, err = w.Write([]byte(fmt.Sprintf("\nAPI documentation: %s\n\n", apiDocs)))
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error writing response", "err", err)
+		return errors.Wrap(err, "error writing status endpoints")
 	}
+
+	return nil
 }

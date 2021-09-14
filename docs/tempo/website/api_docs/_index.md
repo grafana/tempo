@@ -190,9 +190,36 @@ GET /status
 ```
 Print all available information by default.
 
+```
+GET /status/version
+```
+
+Print the version information.
+
+```
+GET /status/services
+```
+
+Displays a list of services and their status. If a service failed it will show the failure case.
+
+```
+GET /status/endpoints
+```
+
+Displays status information about the API endpoints.
+
+```
+GET /status/runtime_config
+```
+
+Displays the override configuration.
+
 Query Parameter:
-- `endpoints`: Displays status information about the API endpoints.
-- `config`: Displays the configuration currently applied to Tempo (in YAML format), including default values and settings via CLI flags.
+- `mode = (diff)`: Used to show the difference between defaults and overrides.
+
+```
+GET /status/runtime_config
+```
+
+Displays the configuration currently applied to Tempo (in YAML format), including default values and settings via CLI flags.
 Sensitive data is masked. Please be aware that the exported configuration **doesn't include the per-tenant overrides**.
-- `services`: Displays a list of services and their status. If a service failed it will show the failure case.
-- `runtime_config = (diff)`: Displays the override configuration.  Optionally setting a value of `diff` can be used to show the difference between defaults and overrides.

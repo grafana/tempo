@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/util"
@@ -147,7 +148,7 @@ func (o *Overrides) tenantOverrides() *perTenantOverrides {
 	return cfg
 }
 
-func (o *Overrides) WriteStatusRuntimeConfig(w io.Writer, mode string) error {
+func (o *Overrides) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
 	var tenantOverrides perTenantOverrides
 	if o.tenantOverrides() != nil {
 		tenantOverrides = *o.tenantOverrides()
@@ -157,6 +158,8 @@ func (o *Overrides) WriteStatusRuntimeConfig(w io.Writer, mode string) error {
 		Defaults:           o.defaultLimits,
 		PerTenantOverrides: tenantOverrides,
 	}
+
+	mode := r.URL.Query().Get("mode")
 	switch mode {
 	case "diff":
 		// Default runtime config is just empty struct, but to make diff work,
