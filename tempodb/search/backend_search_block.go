@@ -148,8 +148,6 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	indexBuf := []common.Record{{}}
 	entry := &tempofb.SearchEntry{} // Buffer
 
-	sr.AddBlockInspected()
-
 	meta, err := ReadSearchBlockMeta(ctx, s.l, s.id, s.tenantID)
 	if err != nil {
 		return err
@@ -177,9 +175,11 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	header := tempofb.GetRootAsSearchBlockHeader(hb, 0)
 	if !p.MatchesBlock(header) {
 		// Block filtered out
-		// TODO - metrics ?
+		sr.AddBlockSkipped()
 		return nil
 	}
+
+	sr.AddBlockInspected()
 
 	// Read index
 	bmeta := backend.NewBlockMeta(s.tenantID, s.id, meta.Version, meta.Encoding, "")
