@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"os"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -27,74 +26,6 @@ type BackendSearchBlock struct {
 	l        *local.Backend
 }
 
-//nolint:golint
-type SearchDataCombiner struct{}
-
-func (*SearchDataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool) {
-
-	if len(searchData) <= 0 {
-		return nil, false
-	}
-
-	if len(searchData) == 1 {
-		return searchData[0], false
-	}
-
-	// Squash all datas into 1
-	data := tempofb.SearchEntryMutable{}
-	kv := &tempofb.KeyValues{} // buffer
-	for _, sb := range searchData {
-		sd := tempofb.SearchEntryFromBytes(sb)
-		for i, ii := 0, sd.TagsLength(); i < ii; i++ {
-			sd.Tags(kv, i)
-			for j, jj := 0, kv.ValueLength(); j < jj; j++ {
-				data.AddTag(string(kv.Key()), string(kv.Value(j)))
-			}
-		}
-
-		data.SetStartTimeUnixNano(sd.StartTimeUnixNano())
-		data.SetEndTimeUnixNano(sd.EndTimeUnixNano())
-		data.TraceID = sd.Id()
-	}
-
-	return data.ToBytes(), true
-}
-
-var _ common.ObjectCombiner = (*SearchDataCombiner)(nil)
-
-//nolint:golint
-type SearchDataIterator struct {
-	currentIndex int
-	records      []common.Record
-	file         *os.File
-}
-
-func (s *SearchDataIterator) Next(_ context.Context) (common.ID, []byte, error) {
-	if s.currentIndex >= len(s.records) {
-		return nil, nil, io.EOF
-	}
-
-	currentRecord := s.records[s.currentIndex]
-
-	// Use unique buffer that can be returned to the caller.
-	// This is primarily for DedupingIterator which uses 2 buffers at once.
-	buffer := make([]byte, currentRecord.Length)
-	_, err := s.file.ReadAt(buffer, int64(currentRecord.Start))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error reading search file")
-	}
-
-	s.currentIndex++
-
-	return currentRecord.ID, buffer, nil
-}
-
-func (*SearchDataIterator) Close() {
-	// file will be closed by StreamingSearchBlock
-}
-
-var _ encoding.Iterator = (*SearchDataIterator)(nil)
-
 // NewBackendSearchBlock iterates through the given WAL search data and writes it to the persistent backend
 // in a more efficient paged form. Multiple traces are written in the same page to make sure of the flatbuffer
 // CreateSharedString feature which dedupes strings across the entire buffer.
@@ -116,23 +47,16 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 
 	header := tempofb.NewSearchBlockHeaderBuilder()
 
-	// Copy records into the appender
 	w, err := newBackendSearchBlockWriter(blockID, tenantID, l, version, enc)
 	if err != nil {
 		return err
 	}
-
-	// set up deduping iterator for streaming search block
-	combiner := &SearchDataCombiner{}
-	searchIterator := &SearchDataIterator{
-		records: input.appender.Records(),
-		file:    input.file,
-	}
-	iter, err := encoding.NewDedupingIterator(searchIterator, combiner, "")
-	if err != nil {
-		return errors.Wrap(err, "error creating deduping iterator")
-	}
 	a := encoding.NewBufferedAppenderGeneric(w, pageSizeBytes)
+
+	iter, err := input.Iterator()
+	if err != nil {
+		return errors.Wrap(err, "error getting streaming search block iterator")
+	}
 
 	// Copy records into the appender
 	for {
