@@ -60,5 +60,8 @@ jobs:
       - name: Install jsonnet-bundler
         run: go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.4.0
 
+      - name: Set up Jsonnet
+        uses: zendesk/setup-jsonnet@v1
+
       - name: Check tempo-mixin
         run: make tempo-mixin-check
