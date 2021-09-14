@@ -135,7 +135,6 @@ func (s *StreamingSearchBlock) Iterator() (encoding.Iterator, error) {
 	return encoding.NewDedupingIterator(iter, combiner, "")
 }
 
-//nolint:golint
 type streamingSearchBlockIterator struct {
 	currentIndex int
 	records      []common.Record

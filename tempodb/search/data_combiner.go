@@ -5,7 +5,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-//nolint:golint
 type DataCombiner struct{}
 
 var _ common.ObjectCombiner = (*DataCombiner)(nil)
