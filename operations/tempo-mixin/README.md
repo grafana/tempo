@@ -1,17 +1,5 @@
-Dashboards, rules and alerts are in the `yamls` folder. Use them directly in Prometheus & Grafana to monitor Tempo.
+# tempo-mixin
 
-To generate dashboards with this mixin use:
+Dashboards, rules and alerts are in the [`yamls`](./yamls) folder. Use them directly in Prometheus & Grafana to monitor Tempo.
 
-```console
-jb install && jsonnet -J vendor -S dashboards.jsonnet -m yamls
-```
-
-To generate alerts, use:
-```console
-jsonnet -J vendor -S alerts.jsonnet > yamls/alerts.yaml
-```
-
-To generate recording rules, use:
-```console
-jsonnet -J vendor -S rules.jsonnet > yamls/rules.yaml
-```
+To generate dashboards, rule and alerts, run `make all`.
