@@ -108,6 +108,7 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 			return nil, nil, err
 		}
 
+		// TODO: leaky abstraction. can a real programmer fix this in the future?
 		// zstd decoder is ~10-20% faster then the streaming io.Reader interface so prefer that
 		decoder, ok := reader.(*zstd.Decoder)
 		if ok {
@@ -147,6 +148,7 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 		return nil, 0, err
 	}
 
+	// TODO: leaky abstraction. can a real programmer fix this in the future?
 	// zstd decoder is ~10-20% faster then the streaming io.Reader interface so prefer that
 	decoder, ok := compressedReader.(*zstd.Decoder)
 	if ok {
