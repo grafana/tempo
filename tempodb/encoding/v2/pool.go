@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/prometheus/pkg/pool"
 )
 
-const maxEncoding = backend.EncZstd
+const maxEncoding = backend.EncS2
 
 // WriterPool is a pool of io.Writer
 // This is used by every chunk to avoid unnecessary allocations.
