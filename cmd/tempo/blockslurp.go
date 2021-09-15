@@ -33,6 +33,14 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 		os.Exit(1)
 	}
 
+	start := time.Now()
+	_, err = r.Read(ctx, "data", meta.BlockID, meta.TenantID, false)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "megaslurp", "err", err)
+		os.Exit(1)
+	}
+	fmt.Println("megaslurp", time.Since(start))
+
 	block, err := encoding.NewBackendBlock(meta, r)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "block", "err", err)
@@ -52,7 +60,7 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 	time.Sleep(3 * time.Second)
 
 	count := 0
-	start := time.Now()
+	start = time.Now()
 	prev := start
 	for {
 		_, obj, err := prefetchIter.Next(ctx)
