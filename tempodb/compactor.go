@@ -195,6 +195,9 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 			return errors.Wrap(err, "error iterating input blocks")
 		}
 
+		id = append([]byte(nil), id...)
+		body = append([]byte(nil), body...)
+
 		// make a new block if necessary
 		if currentBlock == nil {
 			currentBlock, err = encoding.NewStreamingBlock(rw.cfg.Block, uuid.New(), tenantID, blockMetas, recordsPerBlock)

@@ -7,17 +7,17 @@ import (
 	"io/ioutil"
 	"os"
 	"reflect"
-	"runtime"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/cmd/tempo/build"
+	_ "github.com/grafana/tempo/cmd/tempo/build"
 	"gopkg.in/yaml.v2"
 
 	"github.com/go-kit/kit/log/level"
 
 	"github.com/drone/envsubst"
-	"github.com/grafana/dskit/flagext"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -35,6 +35,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 
 	"github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/grafana/dskit/flagext"
 )
 
 const appName = "tempo"
@@ -55,8 +56,8 @@ func init() {
 
 func main() {
 	printVersion := flag.Bool("version", false, "Print this builds version information")
-	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
-	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Enable mutex profiling.")
+	blockID := flag.String("uuid", "", "")
+	chunkSizeBytes := flag.Int("chunk", 10485760, "")
 
 	config, err := loadConfig()
 	if err != nil {
@@ -75,45 +76,9 @@ func main() {
 	}
 	log.InitLogger(&config.Server)
 
-	// Init tracer
-	var shutdownTracer func()
-	if config.UseOTelTracer {
-		shutdownTracer, err = installOpenTelemetryTracer(config)
-	} else {
-		shutdownTracer, err = installOpenTracingTracer(config)
-	}
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
-		os.Exit(1)
-	}
-	defer shutdownTracer()
-
-	if *mutexProfileFraction > 0 {
-		runtime.SetMutexProfileFraction(*mutexProfileFraction)
-	}
-
-	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
-	ballast := make([]byte, *ballastMBs*1024*1024)
-
-	// Warn the user for suspect configurations
-	config.CheckConfig()
-
-	// Start Tempo
-	t, err := app.New(*config)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "error initialising Tempo", "err", err)
-		os.Exit(1)
-	}
-
-	level.Info(log.Logger).Log("msg", "Starting Tempo", "version", version.Info())
-
-	if err := t.Run(); err != nil {
-		level.Error(log.Logger).Log("msg", "error running Tempo", "err", err)
-		os.Exit(1)
-	}
-	runtime.KeepAlive(ballast)
-
-	level.Info(log.Logger).Log("msg", "Tempo running")
+	blockSlurp("jpe-test", uuid.MustParse(*blockID), "3446", uint32(*chunkSizeBytes))
+	// blockDeslurp("jpe-test", uuid.MustParse(*blockID), "1", uint32(*chunkSizeBytes))
+	os.Exit(0)
 }
 
 func loadConfig() (*app.Config, error) {

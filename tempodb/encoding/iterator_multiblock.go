@@ -126,8 +126,8 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 
 		// Copy slices allows data to escape the iterators
 		res := iteratorResult{
-			id:     append([]byte(nil), lowestID...),
-			object: append([]byte(nil), lowestObject...),
+			id:     lowestID,
+			object: lowestObject,
 		}
 
 		lowestBookmark.clear()
