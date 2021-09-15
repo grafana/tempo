@@ -19,7 +19,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
-func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32) {
+func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32, slurpBuffer int) {
 	ctx := context.Background()
 	r, _, _, err := loadBackend(bucket)
 	if err != nil {
@@ -46,7 +46,7 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32)
 	}
 	defer iter.Close()
 
-	prefetchIter := encoding.NewMultiblockIterator(ctx, []encoding.Iterator{iter}, 1000000, nil, meta.DataEncoding)
+	prefetchIter := encoding.NewMultiblockIterator(ctx, []encoding.Iterator{iter}, slurpBuffer, nil, meta.DataEncoding)
 	defer prefetchIter.Close()
 
 	count := 0

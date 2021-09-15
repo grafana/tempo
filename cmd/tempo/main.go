@@ -58,6 +58,7 @@ func main() {
 	printVersion := flag.Bool("version", false, "Print this builds version information")
 	blockID := flag.String("uuid", "", "")
 	chunkSizeBytes := flag.Int("chunk", 10485760, "")
+	slurpBuffer := flag.Int("slurp-buffer", 1000, "")
 
 	config, err := loadConfig()
 	if err != nil {
@@ -76,7 +77,7 @@ func main() {
 	}
 	log.InitLogger(&config.Server)
 
-	blockSlurp("jpe-test", uuid.MustParse(*blockID), "3446", uint32(*chunkSizeBytes))
+	blockSlurp("jpe-test", uuid.MustParse(*blockID), "3446", uint32(*chunkSizeBytes), *slurpBuffer)
 	// blockDeslurp("jpe-test", uuid.MustParse(*blockID), "1", uint32(*chunkSizeBytes))
 	os.Exit(0)
 }
