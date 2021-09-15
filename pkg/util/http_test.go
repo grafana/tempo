@@ -97,3 +97,12 @@ func TestEquality(t *testing.T) {
 	assert.Equal(t, AcceptHeaderKey, tempo.AcceptHeaderKey)
 	assert.Equal(t, ProtobufTypeHeaderValue, tempo.ProtobufTypeHeaderValue)
 }
+
+func TestEqualHexStringTraceIDs(t *testing.T) {
+	a := "82f6471b46d25e23418a0a99d4c2cda"
+	b := "082f6471b46d25e23418a0a99d4c2cda"
+
+	v, err := EqualHexStringTraceIDs(a, b)
+	assert.Nil(t, err)
+	assert.True(t, v)
+}
