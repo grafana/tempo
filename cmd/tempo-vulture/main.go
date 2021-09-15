@@ -606,10 +606,10 @@ func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 	for maybe(info.r) {
 		lastWrite = lastWrite.Add(tempoLongWriteBackoffDuration)
 
-		log := logger.With(
-			zap.Int64("seed", info.timestamp.Unix()),
-			zap.Duration("since", time.Since(lastWrite)),
-		)
+		// log := logger.With(
+		// 	zap.Int64("seed", info.timestamp.Unix()),
+		// 	zap.Duration("since", time.Since(lastWrite)),
+		// )
 
 		// If the last write has happened very recently, we'll wait a bit to make
 		// sure the write has taken place, and then add the batches that would have
@@ -619,7 +619,7 @@ func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 		}
 
 		if time.Since(lastWrite) > (1 * time.Second) {
-			log.Info("adding batches")
+			// log.Info("adding batches")
 			addBatches(info, trace)
 		}
 	}
