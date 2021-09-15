@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: jpe-test
+  name: jpe-test
+spec:
+  containers:
+  - args:
+    - -uuid=6926c0bd-faa4-46ab-b8df-7c7d3572d229
+    # - -mem-ballast-size-mbs=1024
+    env:
+    - name: GOOGLE_APPLICATION_CREDENTIALS
+      value: /var/secrets/google/credentials.json
+    image: joeelliott/canary-frigg:1529536d
+    name: jpe-test
+    resources:
+      limits:
+        memory: 16Gi
+      requests:
+        cpu: 1400m
+        memory: 5Gi
+    volumeMounts:
+    - mountPath: /var/secrets/google/
+      name: gcs-credentials
+      readOnly: true
+  volumes:
+  - name: gcs-credentials
+    secret:
+      defaultMode: 420
+      secretName: gcs-credentials
