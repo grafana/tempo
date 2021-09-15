@@ -57,7 +57,7 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 	prefetchIter := encoding.NewPrefetchIterator(ctx, iter, slurpBuffer)
 	defer prefetchIter.Close()
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	count := 0
 	start := time.Now()
