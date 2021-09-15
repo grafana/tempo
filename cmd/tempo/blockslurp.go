@@ -46,7 +46,7 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 	}
 	defer iter.Close()
 
-	prefetchIter := encoding.NewMultiblockIterator(ctx, []encoding.Iterator{iter}, slurpBuffer, nil, meta.DataEncoding)
+	prefetchIter := encoding.NewPrefetchIterator(ctx, iter, slurpBuffer)
 	defer prefetchIter.Close()
 
 	count := 0
