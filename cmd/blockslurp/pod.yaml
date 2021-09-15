@@ -7,12 +7,14 @@ metadata:
 spec:
   containers:
   - args:
-    - -uuid=6926c0bd-faa4-46ab-b8df-7c7d3572d229
+    # - -uuid=6926c0bd-faa4-46ab-b8df-7c7d3572d229 zstd 23s
     # - -mem-ballast-size-mbs=1024
+    # - -uuid=4fe45f13-a189-4cee-b905-431937fe7dba lz4-im 31s
+    - -uuid=812d0426-e4b3-4f3e-9bc1-e74e82b6ba24
     env:
     - name: GOOGLE_APPLICATION_CREDENTIALS
       value: /var/secrets/google/credentials.json
-    image: joeelliott/canary-frigg:1529536d
+    image: joeelliott/canary-frigg:467f17fa
     name: jpe-test
     resources:
       limits:
