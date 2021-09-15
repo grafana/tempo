@@ -200,3 +200,11 @@ docs:
 docs-test:
 	docker pull ${DOCS_IMAGE}
 	docker run -v ${PWD}/docs/tempo/website:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'
+
+### tempo-mixin
+.PHONY: tempo-mixin tempo-mixin-check
+tempo-mixin:
+	$(MAKE) -C operations/tempo-mixin all
+
+tempo-mixin-check:
+	$(MAKE) -C operations/tempo-mixin check

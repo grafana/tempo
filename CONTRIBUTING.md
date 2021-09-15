@@ -8,7 +8,7 @@ Tempo uses GitHub to manage reviews of pull requests:
 ## Dependency management
 
 We use [Go modules](https://golang.org/cmd/go/#hdr-Modules__module_versions__and_more) to manage dependencies on external packages.
-This requires a working Go environment with version 1.16 or greater and git installed.
+This requires a working Go environment with version 1.17 or greater and git installed.
 
 To add or update a new dependency, use the `go get` command:
 

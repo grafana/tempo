@@ -54,6 +54,7 @@ message SearchMetrics {
   uint32 inspectedTraces = 1;
   uint64 inspectedBytes = 2;
   uint32 inspectedBlocks = 3;
+  uint32 skippedBlocks = 4;
 }
 
 message SearchTagsRequest {
@@ -93,18 +94,8 @@ message PushBytesRequest {
   repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
   // search data, length must match traces
   repeated bytes searchData = 4 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
-  //repeated SearchData searchData = 4 [(gogoproto.nullable) = false];
 }
 
-/*message SearchData {
-  map<string, string> RootData = 1 [(gogoproto.nullable) = false];
-}*/
-
-
-/*message TraceHeader {
-  string rootSpanName = 1;
-  map<string, string> rootSpanTags = 2; 
-}*/
 
 message TraceBytes {
   // pre-marshalled Traces

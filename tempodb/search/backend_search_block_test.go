@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path"
@@ -15,7 +16,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,15 +28,16 @@ func genSearchData(traceID []byte, i int) [][]byte {
 }
 
 func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.Encoding, pageSizeBytes int) *BackendSearchBlock {
-	id := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15} // 16-byte ids required
-
 	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
 	b1, err := NewStreamingSearchBlockForFile(f)
 	require.NoError(t, err)
+
 	for i := 0; i < traceCount; i++ {
-		assert.NoError(t, b1.Append(context.Background(), id, genSearchData(id, i)))
+		id := make([]byte, 16)
+		binary.LittleEndian.PutUint32(id, uint32(i))
+		require.NoError(t, b1.Append(context.Background(), id, genSearchData(id, i)))
 	}
 
 	l, err := local.NewBackend(&local.Config{
@@ -54,12 +55,12 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 }
 
 func TestBackendSearchBlockSearch(t *testing.T) {
-	traceCount := 1_000
+	traceCount := 50_000
 
 	b2 := newBackendSearchBlockWithTraces(t, traceCount, backend.EncNone, 0)
 
 	p := NewSearchPipeline(&tempopb.SearchRequest{
-		Tags: map[string]string{"key1": "value_A_1", "key20": "value_B_20"},
+		Tags: map[string]string{"key20": "value_B_20"},
 	})
 
 	sr := NewResults()
@@ -77,7 +78,7 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 		results = append(results, r)
 	}
 	require.Equal(t, 1, len(results))
-	require.Equal(t, 1, int(sr.TracesInspected()))
+	require.Equal(t, traceCount, int(sr.TracesInspected()))
 }
 
 func BenchmarkBackendSearchBlockSearch(b *testing.B) {
@@ -89,9 +90,9 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 
 				b2 := newBackendSearchBlockWithTraces(b, b.N, enc, int(sz*1024*1024))
 
-				// Matches nothing, will perform an exhaustive search.
+				// Use secret tag to perform exhaustive search
 				p := NewSearchPipeline(&tempopb.SearchRequest{
-					Tags: map[string]string{"nomatch": "nomatch"},
+					Tags: map[string]string{SecretExhaustiveSearchTag: "!"},
 				})
 
 				sr := NewResults()
@@ -114,7 +115,6 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 				}
 				wg.Wait()
 				elapsed := time.Since(start)
-
 				fmt.Printf("BackendSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s \t %d traces = %.2fM traces/s \n",
 					elapsed,
 					float64(sr.bytesInspected.Load())/(1024*1024),

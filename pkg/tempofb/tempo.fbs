@@ -23,3 +23,15 @@ table SearchPage {
     // Trace entries
     entries : [SearchEntry];
 }
+
+table SearchBlockHeader {
+    // This is a rollup of all distinct tags/values in the
+    // block for quick elimination.
+    tags : [KeyValues];
+
+    // Smallest trace duration in the block
+    min_duration_nanos: uint64;
+
+    // Largest trace duration in the block
+    max_duration_nanos: uint64;
+}
