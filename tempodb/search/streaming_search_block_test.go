@@ -37,32 +37,59 @@ func newStreamingSearchBlockWithTraces(traceCount int, t testing.TB) *StreamingS
 	return sb
 }
 
-func TestStreamingSearchBlockSearch(t *testing.T) {
+func TestStreamingSearchBlockSearchBlock(t *testing.T) {
 	traceCount := 10
-
 	sb := newStreamingSearchBlockWithTraces(traceCount, t)
 
-	// Matches every trace
-	p := NewSearchPipeline(&tempopb.SearchRequest{
-		Tags: map[string]string{"key1": "value10"},
-	})
-
-	sr := NewResults()
-
-	sr.StartWorker()
-	go func() {
-		defer sr.FinishWorker()
-		err := sb.Search(context.TODO(), p, sr)
-		require.NoError(t, err)
-	}()
-	sr.AllWorkersStarted()
-
-	var results []*tempopb.TraceSearchMetadata
-	for r := range sr.Results() {
-		results = append(results, r)
+	testCases := []struct {
+		name                    string
+		req                     map[string]string
+		expectedResultLen       int
+		expectedBlocksInspected int
+		expectedTracesInspected int
+		expectedBlocksSkipped   int
+	}{
+		{
+			name:                    "matches every trace",
+			req:                     map[string]string{"key1": "value10"},
+			expectedResultLen:       traceCount,
+			expectedBlocksInspected: 1,
+			expectedTracesInspected: traceCount,
+		},
+		{
+			name:                  "skips block",
+			req:                   map[string]string{"nomatch": "nomatch"},
+			expectedBlocksSkipped: 1,
+		},
 	}
-	require.Equal(t, traceCount, len(results))
-	require.Equal(t, traceCount, int(sr.TracesInspected()))
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			p := NewSearchPipeline(&tempopb.SearchRequest{
+				Tags: tc.req,
+			})
+
+			sr := NewResults()
+
+			sr.StartWorker()
+			go func() {
+				defer sr.FinishWorker()
+				err := sb.Search(context.TODO(), p, sr)
+				require.NoError(t, err)
+			}()
+			sr.AllWorkersStarted()
+
+			var results []*tempopb.TraceSearchMetadata
+			for r := range sr.Results() {
+				results = append(results, r)
+			}
+			require.Equal(t, tc.expectedResultLen, len(results))
+			require.Equal(t, tc.expectedBlocksInspected, int(sr.BlocksInspected()))
+			require.Equal(t, tc.expectedTracesInspected, int(sr.TracesInspected()))
+			require.Equal(t, tc.expectedBlocksSkipped, int(sr.BlocksSkipped()))
+		})
+	}
 }
 
 func BenchmarkStreamingSearchBlockSearch(b *testing.B) {

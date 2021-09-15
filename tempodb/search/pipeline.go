@@ -10,9 +10,9 @@ import (
 
 const SecretExhaustiveSearchTag = "x-dbg-exhaustive"
 
-type tracefilter func(entry *tempofb.SearchEntry) (matches bool)
+type tracefilter func(entry tempofb.Trace) (matches bool)
 type tagfilter func(page tempofb.TagContainer) (matches bool)
-type blockfilter func(header *tempofb.SearchBlockHeader) (matches bool)
+type blockfilter func(header tempofb.Block) (matches bool)
 
 type Pipeline struct {
 	blockfilters []blockfilter
@@ -26,13 +26,13 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 	if req.MinDurationMs > 0 {
 		minDurationNanos := uint64(time.Duration(req.MinDurationMs) * time.Millisecond)
 
-		p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchEntry) bool {
+		p.tracefilters = append(p.tracefilters, func(s tempofb.Trace) bool {
 			et := s.EndTimeUnixNano()
 			st := s.StartTimeUnixNano()
 			return (et - st) >= minDurationNanos
 		})
 
-		p.blockfilters = append(p.blockfilters, func(s *tempofb.SearchBlockHeader) bool {
+		p.blockfilters = append(p.blockfilters, func(s tempofb.Block) bool {
 			max := s.MaxDurationNanos()
 			return max >= minDurationNanos
 		})
@@ -41,13 +41,13 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 	if req.MaxDurationMs > 0 {
 		maxDurationNanos := uint64(time.Duration(req.MaxDurationMs) * time.Millisecond)
 
-		p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchEntry) bool {
+		p.tracefilters = append(p.tracefilters, func(s tempofb.Trace) bool {
 			et := s.EndTimeUnixNano()
 			st := s.StartTimeUnixNano()
 			return (et - st) <= maxDurationNanos
 		})
 
-		p.blockfilters = append(p.blockfilters, func(s *tempofb.SearchBlockHeader) bool {
+		p.blockfilters = append(p.blockfilters, func(s tempofb.Block) bool {
 			min := s.MinDurationNanos()
 			return min <= maxDurationNanos
 		})
@@ -64,7 +64,7 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 				// * no block or page filters means all blocks and pages match
 				// * substitute this trace filter instead rejects everything. therefore it never
 				//   quits early due to enough results
-				p.tracefilters = append(p.tracefilters, func(s *tempofb.SearchEntry) bool {
+				p.tracefilters = append(p.tracefilters, func(s tempofb.Trace) bool {
 					return false
 				})
 				continue
@@ -75,12 +75,12 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 		}
 
 		p.tagfilters = append(p.tagfilters, func(s tempofb.TagContainer) bool {
-			// Buffer is allocated here so function is thread-safe
+			// Buffer is allocated here so pipeline can be used concurrently.
 			buffer := &tempofb.KeyValues{}
 
 			// Must match all
 			for i := range kb {
-				if !tempofb.ContainsTag(s, buffer, kb[i], vb[i]) {
+				if !s.Contains(kb[i], vb[i], buffer) {
 					return false
 				}
 			}
@@ -91,7 +91,7 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 	return p
 }
 
-func (p *Pipeline) Matches(e *tempofb.SearchEntry) bool {
+func (p *Pipeline) Matches(e tempofb.Trace) bool {
 
 	for _, f := range p.tracefilters {
 		if !f(e) {
@@ -109,7 +109,7 @@ func (p *Pipeline) Matches(e *tempofb.SearchEntry) bool {
 }
 
 // nolint:interfacer
-func (p *Pipeline) MatchesPage(pg *tempofb.SearchPage) bool {
+func (p *Pipeline) MatchesPage(pg tempofb.Page) bool {
 	for _, f := range p.tagfilters {
 		if !f(pg) {
 			return false
@@ -119,7 +119,7 @@ func (p *Pipeline) MatchesPage(pg *tempofb.SearchPage) bool {
 	return true
 }
 
-func (p *Pipeline) MatchesBlock(block *tempofb.SearchBlockHeader) bool {
+func (p *Pipeline) MatchesBlock(block tempofb.Block) bool {
 	for _, f := range p.blockfilters {
 		if !f(block) {
 			return false

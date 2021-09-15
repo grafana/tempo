@@ -19,6 +19,7 @@ type StreamingSearchBlock struct {
 	appender     encoding.Appender
 	file         *os.File
 	bytesWritten int
+	header       *tempofb.SearchBlockHeaderMutable
 }
 
 // Clear deletes the files for this block.
@@ -56,7 +57,8 @@ func (s *StreamingSearchBlock) Write(id common.ID, obj []byte) (int, error) {
 // File must be opened for read/write permissions.
 func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
 	s := &StreamingSearchBlock{
-		file: f,
+		file:   f,
+		header: tempofb.NewSearchBlockHeaderMutable(),
 	}
 
 	// Entries are not paged, use non paged appender.
@@ -70,11 +72,23 @@ func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
 // the same trace can be passed and are merged into one entry.
 func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
 	combined, _ := staticCombiner.Combine("", searchData...)
+
+	if len(combined) <= 0 {
+		return nil
+	}
+
+	s.header.AddEntry(tempofb.SearchEntryFromBytes(combined))
+
 	return s.appender.Append(id, combined)
 }
 
 // Search the streaming block.
 func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results) error {
+
+	if !p.MatchesBlock(s.header) {
+		sr.AddBlockSkipped()
+		return nil
+	}
 
 	var buf []byte
 
