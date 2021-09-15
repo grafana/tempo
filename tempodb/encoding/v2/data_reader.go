@@ -9,6 +9,7 @@ import (
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/klauspost/compress/zstd"
 )
 
 type dataReader struct {
@@ -16,6 +17,7 @@ type dataReader struct {
 
 	pageBuffer []byte
 
+	encoding         backend.Encoding
 	pool             ReaderPool
 	compressedReader io.Reader
 }
@@ -33,6 +35,7 @@ func NewDataReader(r backend.ContextReader, encoding backend.Encoding) (common.D
 	}
 
 	return &dataReader{
+		encoding:      encoding,
 		contextReader: r,
 		pool:          pool,
 	}, nil
@@ -105,7 +108,14 @@ func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuf
 			return nil, nil, err
 		}
 
-		pagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page), pagesBuffer[i])
+		// TODO: leaky abstraction. can a real programmer fix this in the future?
+		// zstd decoder is ~10-20% faster then the streaming io.Reader interface so prefer that
+		decoder, ok := reader.(*zstd.Decoder)
+		if ok {
+			pagesBuffer[i], err = decoder.DecodeAll(page, pagesBuffer[i][:0])
+		} else {
+			pagesBuffer[i], err = tempo_io.ReadAllWithBuffer(reader, len(page), pagesBuffer[i])
+		}
 		if err != nil {
 			return nil, nil, err
 		}
@@ -138,7 +148,15 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 		return nil, 0, err
 	}
 
-	buffer, err = tempo_io.ReadAllWithBuffer(compressedReader, len(page.data), buffer)
+	// TODO: leaky abstraction. can a real programmer fix this in the future?
+	// zstd decoder is ~10-20% faster then the streaming io.Reader interface so prefer that
+	decoder, ok := compressedReader.(*zstd.Decoder)
+	if ok {
+		buffer, err = decoder.DecodeAll(page.data, buffer[:0])
+	} else {
+		buffer, err = tempo_io.ReadAllWithBuffer(compressedReader, len(page.data), buffer)
+	}
+
 	if err != nil {
 		return nil, 0, err
 	}
@@ -148,10 +166,18 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 
 func (r *dataReader) getCompressedReader(page []byte) (io.Reader, error) {
 	var err error
+	var reader io.Reader
+	// we are going to use the stateless zstd decoding functionality. if you pass
+	// a non-nil reader to .GetReader() and then use .DecodeAll() the process hangs
+	// for unknown reasons. so don't do that.
+	if r.encoding != backend.EncZstd {
+		reader = bytes.NewReader(page)
+	}
+
 	if r.compressedReader == nil {
-		r.compressedReader, err = r.pool.GetReader(bytes.NewReader(page))
+		r.compressedReader, err = r.pool.GetReader(reader)
 	} else {
-		r.compressedReader, err = r.pool.ResetReader(bytes.NewReader(page), r.compressedReader)
+		r.compressedReader, err = r.pool.ResetReader(reader, r.compressedReader)
 	}
 	return r.compressedReader, err
 }
