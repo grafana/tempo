@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/grafana/tempo/pkg/flushqueues"
@@ -57,11 +58,11 @@ func (i *prefetchIterator) iterate(ctx context.Context) {
 	for {
 		id, obj, err := i.iter.Next(ctx)
 		if err == io.EOF {
-			return
+			break
 		}
 		if err != nil {
 			i.err.Store(err)
-			return
+			break
 		}
 
 		res := iteratorResult{
@@ -71,4 +72,6 @@ func (i *prefetchIterator) iterate(ctx context.Context) {
 
 		i.q.Push(res)
 	}
+
+	fmt.Println("done with this garbage")
 }
