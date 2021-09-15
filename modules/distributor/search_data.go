@@ -11,11 +11,11 @@ import (
 )
 
 // extractSearchDataAll returns flatbuffer search data for every trace.
-func extractSearchDataAll(traces []*tempopb.Trace, ids [][]byte) [][]byte {
+func extractSearchDataAll(traces []*tempopb.Trace, ids [][]byte, tagsToDrop map[string]struct{}) [][]byte {
 	headers := make([][]byte, len(traces))
 
 	for i, t := range traces {
-		headers[i] = extractSearchData(t, ids[i])
+		headers[i] = extractSearchData(t, ids[i], tagsToDrop)
 	}
 
 	return headers
@@ -24,7 +24,7 @@ func extractSearchDataAll(traces []*tempopb.Trace, ids [][]byte) [][]byte {
 // extractSearchData returns the flatbuffer search data for the given trace.  It is extracted here
 // in the distributor because this is the only place on the ingest path where the trace is available
 // in object form.
-func extractSearchData(trace *tempopb.Trace, id []byte) []byte {
+func extractSearchData(trace *tempopb.Trace, id []byte, tagsToDrop map[string]struct{}) []byte {
 	data := &tempofb.SearchEntryMutable{}
 
 	data.TraceID = id
@@ -33,6 +33,9 @@ func extractSearchData(trace *tempopb.Trace, id []byte) []byte {
 		// Batch attrs
 		if b.Resource != nil {
 			for _, a := range b.Resource.Attributes {
+				if _, exists := tagsToDrop[a.Key]; exists {
+					continue
+				}
 				if s, ok := extractValueAsString(a.Value); ok {
 					data.AddTag(a.Key, s)
 				}
@@ -49,6 +52,9 @@ func extractSearchData(trace *tempopb.Trace, id []byte) []byte {
 
 					// Span attrs
 					for _, a := range s.Attributes {
+						if _, exists := tagsToDrop[a.Key]; exists {
+							continue
+						}
 						if s, ok := extractValueAsString(a.Value); ok {
 							data.AddTag(fmt.Sprint(search.RootSpanPrefix, a.Key), s)
 						}
@@ -57,6 +63,9 @@ func extractSearchData(trace *tempopb.Trace, id []byte) []byte {
 					// Batch attrs
 					if b.Resource != nil {
 						for _, a := range b.Resource.Attributes {
+							if _, exists := tagsToDrop[a.Key]; exists {
+								continue
+							}
 							if s, ok := extractValueAsString(a.Value); ok {
 								data.AddTag(fmt.Sprint(search.RootSpanPrefix, a.Key), s)
 							}
@@ -70,6 +79,9 @@ func extractSearchData(trace *tempopb.Trace, id []byte) []byte {
 				data.SetEndTimeUnixNano(s.EndTimeUnixNano)
 
 				for _, a := range s.Attributes {
+					if _, exists := tagsToDrop[a.Key]; exists {
+						continue
+					}
 					if s, ok := extractValueAsString(a.Value); ok {
 						data.AddTag(a.Key, s)
 					}

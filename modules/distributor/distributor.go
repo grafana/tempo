@@ -94,7 +94,10 @@ type Distributor struct {
 	ingestersRing   ring.ReadRing
 	pool            *ring_client.Pool
 	DistributorRing *ring.Ring
-	searchEnabled   bool
+
+	// search
+	searchEnabled bool
+	tagsToDrop    map[string]struct{}
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -147,6 +150,12 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	subservices = append(subservices, pool)
 
+	// turn list into map for efficient checking
+	tagsToDrop := map[string]struct{}{}
+	for _, tag := range cfg.SearchTagsDenyList {
+		tagsToDrop[tag] = struct{}{}
+	}
+
 	d := &Distributor{
 		cfg:                  cfg,
 		clientCfg:            clientCfg,
@@ -155,6 +164,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		DistributorRing:      distributorRing,
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 		searchEnabled:        searchEnabled,
+		tagsToDrop:           tagsToDrop,
 	}
 
 	cfgReceivers := cfg.Receivers
@@ -249,10 +259,9 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
-	//var
 	var searchData [][]byte
 	if d.searchEnabled {
-		searchData = extractSearchDataAll(traces, ids)
+		searchData = extractSearchDataAll(traces, ids, d.tagsToDrop)
 	}
 
 	err = d.sendToIngestersViaBytes(ctx, userID, traces, searchData, keys, ids)
