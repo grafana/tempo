@@ -362,7 +362,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	require.NoError(b, err, "error creating backend")
 
 	r := backend.NewReader(rawR)
-	meta, err := r.BlockMeta(context.Background(), uuid.MustParse("20a614f8-8cda-4b9d-9789-cb626f9fab28"), "3446")
+	meta, err := r.BlockMeta(context.Background(), uuid.MustParse("20a614f8-8cda-4b9d-9789-cb626f9fab28"), "1")
 	require.NoError(b, err)
 
 	backendBlock, err := NewBackendBlock(meta, r)
