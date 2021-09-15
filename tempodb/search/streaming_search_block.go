@@ -2,11 +2,13 @@ package search
 
 import (
 	"context"
+	"io"
 	"os"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/pkg/errors"
 )
 
 var _ SearchableBlock = (*StreamingSearchBlock)(nil)
@@ -67,7 +69,7 @@ func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
 // Append the given search data to the streaming block. Multiple byte buffers of search data for
 // the same trace can be passed and are merged into one entry.
 func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
-	combined, _ := (&SearchDataCombiner{}).Combine("", searchData...)
+	combined, _ := staticCombiner.Combine("", searchData...)
 	return s.appender.Append(id, combined)
 }
 
@@ -119,4 +121,48 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 	}
 
 	return nil
+}
+
+func (s *StreamingSearchBlock) Iterator() (encoding.Iterator, error) {
+	iter := &streamingSearchBlockIterator{
+		records: s.appender.Records(),
+		file:    s.file,
+	}
+
+	combiner := &DataCombiner{}
+
+	// Streaming (wal) blocks have to be deduped.
+	return encoding.NewDedupingIterator(iter, combiner, "")
+}
+
+type streamingSearchBlockIterator struct {
+	currentIndex int
+	records      []common.Record
+	file         *os.File
+}
+
+var _ encoding.Iterator = (*streamingSearchBlockIterator)(nil)
+
+func (s *streamingSearchBlockIterator) Next(_ context.Context) (common.ID, []byte, error) {
+	if s.currentIndex >= len(s.records) {
+		return nil, nil, io.EOF
+	}
+
+	currentRecord := s.records[s.currentIndex]
+
+	// Use unique buffer that can be returned to the caller.
+	// This is primarily for DedupingIterator which uses 2 buffers at once.
+	buffer := make([]byte, currentRecord.Length)
+	_, err := s.file.ReadAt(buffer, int64(currentRecord.Start))
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "error reading search file")
+	}
+
+	s.currentIndex++
+
+	return currentRecord.ID, buffer, nil
+}
+
+func (*streamingSearchBlockIterator) Close() {
+	// file will be closed by StreamingSearchBlock
 }

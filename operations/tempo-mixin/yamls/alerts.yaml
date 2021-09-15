@@ -47,14 +47,52 @@
       "message": "Greater than 2 compactions have failed in the past hour."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactionsFailing"
     "expr": |
-      sum by (cluster, namespace) (increase(tempodb_compaction_errors_total{}[1h])) > 2
+      sum by (cluster, namespace) (increase(tempodb_compaction_errors_total{}[1h])) > 2 and
+      sum by (cluster, namespace) (increase(tempodb_compaction_errors_total{}[5m])) > 0
     "labels":
       "severity": "critical"
-  - "alert": "TempoFlushesFailing"
+  - "alert": "TempoIngesterFlushesFailing"
     "annotations":
       "message": "Greater than 2 flushes have failed in the past hour."
-      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoFlushesFailing"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterFlushesFailing"
     "expr": |
-      sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[1h])) > 2
+      sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[1h])) > 2 and
+      sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0
+    "labels":
+      "severity": "critical"
+  - "alert": "TempoPollsFailing"
+    "annotations":
+      "message": "Greater than 2 polls have failed in the past hour."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPollsFailing"
+    "expr": |
+      sum by (cluster, namespace) (increase(tempodb_blocklist_poll_errors_total{}[1h])) > 2 and
+      sum by (cluster, namespace) (increase(tempodb_blocklist_poll_errors_total{}[5m])) > 0
+    "labels":
+      "severity": "critical"
+  - "alert": "TempoTenantIndexFailures"
+    "annotations":
+      "message": "Greater than 2 tenant index failures in the past hour."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexFailures"
+    "expr": |
+      sum by (cluster, namespace) (increase(tempodb_blocklist_tenant_index_errors_total{}[1h])) > 2 and
+      sum by (cluster, namespace) (increase(tempodb_blocklist_tenant_index_errors_total{}[5m])) > 0
+    "labels":
+      "severity": "critical"
+  - "alert": "TempoNoTenantIndexBuilders"
+    "annotations":
+      "message": "No tenant index builders. Tenant index is out of date."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoNoTenantIndexBuilders"
+    "expr": |
+      sum by (cluster, namespace) (tempodb_blocklist_tenant_index_builder{}) == 0
+    "for": "5m"
+    "labels":
+      "severity": "critical"
+  - "alert": "TempoTenantIndexTooOld"
+    "annotations":
+      "message": "Tenant index age is 600 seconds old."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexTooOld"
+    "expr": |
+      max by (cluster, namespace) (tempodb_blocklist_tenant_index_age_seconds{}) > 600
+    "for": "5m"
     "labels":
       "severity": "critical"

@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/search"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -357,7 +358,8 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	search := func() *tempopb.SearchMetrics {
 		sr, err := i.Search(context.Background(), &tempopb.SearchRequest{
-			Tags: map[string]string{"nomatch": "nomatch"},
+			// Exhaustive search
+			Tags: map[string]string{search.SecretExhaustiveSearchTag: "!"},
 		})
 		require.NoError(t, err)
 		return sr.Metrics

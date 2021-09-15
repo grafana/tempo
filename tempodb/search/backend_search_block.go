@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"os"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -25,78 +25,6 @@ type BackendSearchBlock struct {
 	tenantID string
 	l        *local.Backend
 }
-
-//nolint:golint
-type SearchDataCombiner struct{}
-
-func (*SearchDataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool) {
-
-	if len(searchData) <= 0 {
-		return nil, false
-	}
-
-	if len(searchData) == 1 {
-		return searchData[0], false
-	}
-
-	// Squash all datas into 1
-	data := tempofb.SearchEntryMutable{}
-	kv := &tempofb.KeyValues{} // buffer
-	for _, sb := range searchData {
-		sd := tempofb.SearchEntryFromBytes(sb)
-		for i := 0; i < sd.TagsLength(); i++ {
-			sd.Tags(kv, i)
-			for j := 0; j < kv.ValueLength(); j++ {
-				data.AddTag(string(kv.Key()), string(kv.Value(j)))
-			}
-		}
-		data.SetStartTimeUnixNano(sd.StartTimeUnixNano())
-		data.SetEndTimeUnixNano(sd.EndTimeUnixNano())
-		data.TraceID = sd.Id()
-	}
-
-	return data.ToBytes(), true
-}
-
-var _ common.ObjectCombiner = (*SearchDataCombiner)(nil)
-
-//nolint:golint
-type SearchDataIterator struct {
-	currentIndex int
-	records      []common.Record
-	file         *os.File
-
-	buffer []byte
-}
-
-func (s *SearchDataIterator) Next(_ context.Context) (common.ID, []byte, error) {
-	if s.currentIndex >= len(s.records) {
-		return nil, nil, io.EOF
-	}
-
-	currentRecord := s.records[s.currentIndex]
-
-	// resize/extend buffer
-	if cap(s.buffer) < int(currentRecord.Length) {
-		s.buffer = make([]byte, currentRecord.Length)
-	}
-	s.buffer = s.buffer[:currentRecord.Length]
-
-	_, err := s.file.ReadAt(s.buffer, int64(currentRecord.Start))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error reading search file")
-	}
-
-	s.currentIndex++
-
-	return currentRecord.ID, s.buffer, nil
-}
-
-func (*SearchDataIterator) Close() {
-	// file will be closed by StreamingSearchBlock
-}
-
-var _ encoding.Iterator = (*SearchDataIterator)(nil)
 
 // NewBackendSearchBlock iterates through the given WAL search data and writes it to the persistent backend
 // in a more efficient paged form. Multiple traces are written in the same page to make sure of the flatbuffer
@@ -117,26 +45,21 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		pageSizeBytes = defaultBackendSearchBlockPageSize
 	}
 
+	header := tempofb.NewSearchBlockHeaderBuilder()
+
 	w, err := newBackendSearchBlockWriter(blockID, tenantID, l, version, enc)
 	if err != nil {
 		return err
 	}
-
-	// set up deduping iterator for streaming search block
-	combiner := &SearchDataCombiner{}
-	searchIterator := &SearchDataIterator{
-		records: input.appender.Records(),
-		file:    input.file,
-	}
-	iter, err := encoding.NewDedupingIterator(searchIterator, combiner, "")
-	if err != nil {
-		return errors.Wrap(err, "error creating deduping iterator")
-	}
 	a := encoding.NewBufferedAppenderGeneric(w, pageSizeBytes)
+
+	iter, err := input.Iterator()
+	if err != nil {
+		return errors.Wrap(err, "error getting streaming search block iterator")
+	}
 
 	// Copy records into the appender
 	for {
-
 		// Read
 		id, data, err := iter.Next(ctx)
 		if err != nil && err != io.EOF {
@@ -152,16 +75,18 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		}
 
 		s := tempofb.SearchEntryFromBytes(data)
+
+		header.AddEntry(s)
+
 		entry := &tempofb.SearchEntryMutable{
 			TraceID:           id,
 			StartTimeUnixNano: s.StartTimeUnixNano(),
 			EndTimeUnixNano:   s.EndTimeUnixNano(),
 		}
 
-		l := s.TagsLength()
-		for i := 0; i < l; i++ {
+		for i, l := 0, s.TagsLength(); i < l; i++ {
 			s.Tags(kv, i)
-			for j := 0; j < kv.ValueLength(); j++ {
+			for j, ll := 0, kv.ValueLength(); j < ll; j++ {
 				entry.AddTag(string(kv.Key()), string(kv.Value(j)))
 			}
 		}
@@ -185,6 +110,13 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		return err
 	}
 	err = l.Write(ctx, "search-index", backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(indexBytes), int64(len(indexBytes)), true)
+	if err != nil {
+		return err
+	}
+
+	// Write header
+	hb := header.ToBytes()
+	err = l.Write(ctx, "search-header", backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(hb), int64(len(hb)), true)
 	if err != nil {
 		return err
 	}
@@ -216,8 +148,6 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	indexBuf := []common.Record{{}}
 	entry := &tempofb.SearchEntry{} // Buffer
 
-	sr.AddBlockInspected()
-
 	meta, err := ReadSearchBlockMeta(ctx, s.l, s.id, s.tenantID)
 	if err != nil {
 		return err
@@ -227,6 +157,29 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	if err != nil {
 		return err
 	}
+
+	// Read header
+	// Verify something in the block matches by checking the header
+	hbr, hbrlen, err := s.l.Read(ctx, "search-header", backend.KeyPathForBlock(s.id, s.tenantID), true)
+	if err != nil {
+		return err
+	}
+
+	sr.bytesInspected.Add(uint64(hbrlen))
+
+	hb, err := tempo_io.ReadAllWithEstimate(hbr, hbrlen)
+	if err != nil {
+		return err
+	}
+
+	header := tempofb.GetRootAsSearchBlockHeader(hb, 0)
+	if !p.MatchesBlock(header) {
+		// Block filtered out
+		sr.AddBlockSkipped()
+		return nil
+	}
+
+	sr.AddBlockInspected()
 
 	// Read index
 	bmeta := backend.NewBlockMeta(s.tenantID, s.id, meta.Version, meta.Encoding, "")
@@ -270,20 +223,19 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 
 		sr.AddBytesInspected(uint64(len(dataBuf)))
 
-		batch := tempofb.GetRootAsSearchPage(dataBuf, 0)
-
-		// Verify something in the batch matches
-		if !p.MatchesTags(batch) {
+		page := tempofb.GetRootAsSearchPage(dataBuf, 0)
+		if !p.MatchesPage(page) {
+			// Nothing in the page matches
 			// Increment metric still
-			sr.AddTraceInspected(uint32(batch.EntriesLength()))
+			sr.AddTraceInspected(uint32(page.EntriesLength()))
 			continue
 		}
 
-		l := batch.EntriesLength()
+		l := page.EntriesLength()
 		for j := 0; j < l; j++ {
 			sr.AddTraceInspected(1)
 
-			batch.Entries(entry, j)
+			page.Entries(entry, j)
 
 			if !p.Matches(entry) {
 				continue

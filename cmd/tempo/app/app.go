@@ -21,6 +21,8 @@ import (
 	"github.com/grafana/dskit/modules"
 	"github.com/grafana/dskit/services"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/pkg/errors"
+	"github.com/prometheus/common/version"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 	"github.com/weaveworks/common/signals"
@@ -246,10 +248,9 @@ func (t *App) Run() error {
 	}
 
 	// before starting servers, register /ready handler and gRPC health check service.
-	t.Server.HTTP.Path("/config").Handler(t.configHandler())
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
-	t.Server.HTTP.Path("/services").Handler(t.servicesHandler())
-	t.Server.HTTP.Path("/status").Handler(t.statusHandler())
+	t.Server.HTTP.Path("/status").Handler(t.statusHandler()).Methods("GET")
+	t.Server.HTTP.Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
 	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, healthcheck.New(sm))
 
 	// Let's listen for events from this manager, and log them.
@@ -292,21 +293,32 @@ func (t *App) Run() error {
 	return sm.AwaitStopped(context.Background())
 }
 
-func (t *App) configHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		out, err := yaml.Marshal(t.cfg)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/yaml")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(out); err != nil {
-			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
-		}
+func (t *App) writeStatusVersion(w io.Writer) error {
+	_, err := w.Write([]byte(version.Print("tempo") + "\n"))
+	if err != nil {
+		return err
 	}
 
+	return nil
+}
+
+func (t *App) writeStatusConfig(w io.Writer) error {
+	out, err := yaml.Marshal(t.cfg)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write([]byte("---\n"))
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(out)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
@@ -348,51 +360,108 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 
 func (t *App) statusHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var errs []error
 		msg := bytes.Buffer{}
 
-		v := r.URL.Query()
-		_, ok := r.URL.Query()["endpoints"]
-		if len(v) == 0 || ok {
-			t.writeStatusEndpoints(&msg)
+		simpleEndpoints := map[string]func(io.Writer) error{
+			"version":   t.writeStatusVersion,
+			"services":  t.writeStatusServices,
+			"endpoints": t.writeStatusEndpoints,
+			// "runtime_config": t.overrides.WriteStatusRuntimeConfig,
+			"config": t.writeStatusConfig,
 		}
 
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(msg.Bytes()); err != nil {
-			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
-		}
-	}
-}
+		wrapStatus := func(endpoint string) {
+			msg.WriteString("GET /status/" + endpoint + "\n")
 
-func (t *App) servicesHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		msg := bytes.Buffer{}
-
-		svcNames := make([]string, 0, len(t.serviceMap))
-		for name := range t.serviceMap {
-			svcNames = append(svcNames, name)
-		}
-
-		sort.Strings(svcNames)
-
-		for _, name := range svcNames {
-			service := t.serviceMap[name]
-
-			msg.WriteString(fmt.Sprintf("%s: %s\n", name, service.State()))
-			if err := service.FailureCase(); err != nil {
-				msg.WriteString(fmt.Sprintf("  Failure case: %s\n", err))
+			switch endpoint {
+			case "runtime_config":
+				err := t.overrides.WriteStatusRuntimeConfig(&msg, r)
+				if err != nil {
+					errs = append(errs, err)
+				}
+			default:
+				err := simpleEndpoints[endpoint](&msg)
+				if err != nil {
+					errs = append(errs, err)
+				}
 			}
 		}
 
+		vars := mux.Vars(r)
+
+		if endpoint, ok := vars["endpoint"]; ok {
+			wrapStatus(endpoint)
+		} else {
+			wrapStatus("version")
+			wrapStatus("services")
+			wrapStatus("endpoints")
+			wrapStatus("runtime_config")
+			wrapStatus("config")
+		}
+
 		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
+
+		joinErrors := func(errs []error) error {
+			if len(errs) == 0 {
+				return nil
+			}
+			var err error
+
+			for _, e := range errs {
+				if e != nil {
+					err = errors.Wrap(err, e.Error())
+				}
+			}
+			return err
+		}
+
+		err := joinErrors(errs)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+
 		if _, err := w.Write(msg.Bytes()); err != nil {
 			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
 		}
 	}
 }
 
-func (t *App) writeStatusEndpoints(w io.Writer) {
+func (t *App) writeStatusServices(w io.Writer) error {
+	svcNames := make([]string, 0, len(t.serviceMap))
+	for name := range t.serviceMap {
+		svcNames = append(svcNames, name)
+	}
+
+	sort.Strings(svcNames)
+
+	x := table.NewWriter()
+	x.SetOutputMirror(w)
+	x.AppendHeader(table.Row{"service name", "status", "failure case"})
+
+	for _, name := range svcNames {
+		service := t.serviceMap[name]
+
+		var e string
+
+		if err := service.FailureCase(); err != nil {
+			e = err.Error()
+		}
+
+		x.AppendRows([]table.Row{
+			{name, service.State(), e},
+		})
+	}
+
+	x.AppendSeparator()
+	x.Render()
+
+	return nil
+}
+
+func (t *App) writeStatusEndpoints(w io.Writer) error {
 	type endpoint struct {
 		name  string
 		regex string
@@ -418,7 +487,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) {
 		return nil
 	})
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error walking routes", "err", err)
+		return errors.Wrap(err, "error walking routes")
 	}
 
 	sort.Slice(endpoints[:], func(i, j int) bool {
@@ -438,8 +507,10 @@ func (t *App) writeStatusEndpoints(w io.Writer) {
 	x.AppendSeparator()
 	x.Render()
 
-	_, err = w.Write([]byte(fmt.Sprintf("\nAPI documentation: %s\n", apiDocs)))
+	_, err = w.Write([]byte(fmt.Sprintf("\nAPI documentation: %s\n\n", apiDocs)))
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "error writing response", "err", err)
+		return errors.Wrap(err, "error writing status endpoints")
 	}
+
+	return nil
 }
