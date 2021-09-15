@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"path"
 	"sort"
 	"testing"
 	"time"
@@ -301,7 +302,7 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	return block, ids, reqs
 }
 
-const benchDownsample = 200
+const benchDownsample = 1024 * 1024
 
 func BenchmarkWriteGzip(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncGZIP, benchDownsample, false)
@@ -319,9 +320,11 @@ func BenchmarkWriteLZ41M(b *testing.B) {
 func BenchmarkWriteNone(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, false)
 }
-
 func BenchmarkWriteZstd(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncZstd, benchDownsample, false)
+}
+func BenchmarkWriteS2(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncS2, benchDownsample, false)
 }
 
 func BenchmarkReadGzip(b *testing.B) {
@@ -339,9 +342,11 @@ func BenchmarkReadLZ41M(b *testing.B) {
 func BenchmarkReadNone(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, true)
 }
-
 func BenchmarkReadZstd(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncZstd, benchDownsample, true)
+}
+func BenchmarkReadS2(b *testing.B) {
+	benchmarkCompressBlock(b, backend.EncS2, benchDownsample, true)
 }
 
 // Download a block from your backend and place in ./benchmark_block/<tenant id>/<guid>
@@ -357,7 +362,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	require.NoError(b, err, "error creating backend")
 
 	r := backend.NewReader(rawR)
-	meta, err := r.BlockMeta(context.Background(), uuid.MustParse("00006e9d-94f0-4487-8e62-99f951be9349"), "1")
+	meta, err := r.BlockMeta(context.Background(), uuid.MustParse("20a614f8-8cda-4b9d-9789-cb626f9fab28"), "1")
 	require.NoError(b, err)
 
 	backendBlock, err := NewBackendBlock(meta, r)
@@ -380,13 +385,13 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		b.ResetTimer()
 	}
 
-	originatingMeta := backend.NewBlockMeta(testTenantID, uuid.New(), "should_be_ignored", encoding, "")
 	block, err := NewStreamingBlock(&BlockConfig{
 		IndexDownsampleBytes: indexDownsample,
 		BloomFP:              .05,
 		Encoding:             encoding,
 		IndexPageSizeBytes:   10 * 1024 * 1024,
-	}, originatingMeta.BlockID, originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, originatingMeta.TotalObjects)
+		BloomShardSizeBytes:  100000,
+	}, uuid.New(), meta.TenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
 	require.NoError(b, err, "unexpected error completing block")
 
 	ctx := context.Background()
@@ -395,8 +400,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		if err != io.EOF {
 			require.NoError(b, err)
 		}
-
-		if id == nil {
+		if err == io.EOF {
 			break
 		}
 
@@ -416,30 +420,30 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		return
 	}
 
-	// todo: restore read benchmarks
-	// b.ResetTimer()
+	b.ResetTimer()
 
-	// file, err := os.Open(block.fullFilename())
-	// require.NoError(b, err)
-	// pr, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), encoding)
-	// require.NoError(b, err)
+	fullFilename := path.Join(backendTmpDir, block.compactedMeta.TenantID, block.compactedMeta.BlockID.String(), "data")
+	file, err := os.Open(fullFilename)
+	require.NoError(b, err)
+	pr, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), encoding)
+	require.NoError(b, err)
 
-	// var tempBuffer []byte
-	// o := v2.NewObjectReaderWriter()
-	// for {
-	// 	tempBuffer, _, err = pr.NextPage(tempBuffer)
-	// 	if err == io.EOF {
-	// 		break
-	// 	}
-	// 	require.NoError(b, err)
+	var tempBuffer []byte
+	o := v2.NewObjectReaderWriter()
+	for {
+		tempBuffer, _, err = pr.NextPage(tempBuffer)
+		if err == io.EOF {
+			break
+		}
+		require.NoError(b, err)
 
-	// 	bufferReader := bytes.NewReader(tempBuffer)
+		bufferReader := bytes.NewReader(tempBuffer)
 
-	// 	for {
-	// 		_, _, err = o.UnmarshalObjectFromReader(bufferReader)
-	// 		if err == io.EOF {
-	// 			break
-	// 		}
-	// 	}
-	// }
+		for {
+			_, _, err = o.UnmarshalObjectFromReader(bufferReader)
+			if err == io.EOF {
+				break
+			}
+		}
+	}
 }
