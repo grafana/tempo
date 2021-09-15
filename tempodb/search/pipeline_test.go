@@ -63,7 +63,7 @@ func TestPipelineMatchesTags(t *testing.T) {
 	}
 }
 
-func TestPipelineMatchesDuratiob(t *testing.T) {
+func TestPipelineMatchesTraceDuration(t *testing.T) {
 
 	testCases := []struct {
 		name          string
@@ -128,6 +128,56 @@ func TestPipelineMatchesDuratiob(t *testing.T) {
 			sd := tempofb.SearchEntryFromBytes(data.ToBytes())
 			matches := p.Matches(sd)
 
+			require.Equal(t, tc.shouldMatch, matches)
+		})
+	}
+}
+
+func TestPipelineMatchesBlock(t *testing.T) {
+
+	// Run all tests against this header
+	commonBlock := tempofb.NewSearchBlockHeaderBuilder()
+	commonBlock.AddTag("tag", "value")
+	commonBlock.MinDur = uint64(1 * time.Second)
+	commonBlock.MaxDur = uint64(10 * time.Second)
+	header := tempofb.GetRootAsSearchBlockHeader(commonBlock.ToBytes(), 0)
+
+	testCases := []struct {
+		name        string
+		request     tempopb.SearchRequest
+		shouldMatch bool
+	}{
+		{
+			name:        "no filters",
+			request:     tempopb.SearchRequest{},
+			shouldMatch: true,
+		},
+		{
+			name:        "matches all",
+			request:     tempopb.SearchRequest{Tags: map[string]string{"tag": "value"}, MinDurationMs: 5000, MaxDurationMs: 6000},
+			shouldMatch: true,
+		},
+		{
+			name:        "no matching tag",
+			request:     tempopb.SearchRequest{Tags: map[string]string{"nomatch": "value"}},
+			shouldMatch: false,
+		},
+		{
+			name:        "no matching min duration",
+			request:     tempopb.SearchRequest{MinDurationMs: 20000}, // Above max duration in block
+			shouldMatch: false,
+		},
+		{
+			name:        "no matching max duration",
+			request:     tempopb.SearchRequest{MaxDurationMs: 500}, // Below smallest duration in block
+			shouldMatch: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := NewSearchPipeline(&tc.request)
+			matches := p.MatchesBlock(header)
 			require.Equal(t, tc.shouldMatch, matches)
 		})
 	}
