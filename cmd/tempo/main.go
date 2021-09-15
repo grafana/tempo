@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"reflect"
+	"runtime"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,6 +59,7 @@ func main() {
 	printVersion := flag.Bool("version", false, "Print this builds version information")
 	blockID := flag.String("uuid", "", "")
 	chunkSizeBytes := flag.Int("chunk", 10485760, "")
+	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
 	slurpBuffer := flag.Int("slurp-buffer", 1000, "")
 
 	config, err := loadConfig()
@@ -70,6 +72,8 @@ func main() {
 		os.Exit(0)
 	}
 
+	ballast := make([]byte, *ballastMBs*1024*1024)
+
 	// Init the logger which will honor the log level set in config.Server
 	if reflect.DeepEqual(&config.Server.LogLevel, &logging.Level{}) {
 		level.Error(log.Logger).Log("msg", "invalid log level")
@@ -78,6 +82,8 @@ func main() {
 	log.InitLogger(&config.Server)
 
 	blockSlurp("jpe-test", uuid.MustParse(*blockID), "3446", uint32(*chunkSizeBytes), *slurpBuffer)
+	runtime.KeepAlive(ballast)
+
 	// blockDeslurp("jpe-test", uuid.MustParse(*blockID), "1", uint32(*chunkSizeBytes))
 	os.Exit(0)
 }
