@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-    - name: Set up Go 1.16
+    - name: Set up Go 1.17
       uses: actions/setup-go@v2
       with:
-        go-version: 1.16
+        go-version: 1.17
       id: go
 
     - name: Check out code into the Go module directory
@@ -43,3 +43,24 @@ jobs:
 
     - name: Build Tempo-Query
       run: make tempo-query
+
+  tempo-mixin:
+    name: Check tempo-mixin
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Set up Go 1.16
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+
+      - name: Install jsonnet & jsonnet-bundler
+        run: |
+          brew install jsonnet
+          go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.4.0
+
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Check tempo-mixin
+        run: make tempo-mixin-check

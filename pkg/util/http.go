@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -73,4 +74,20 @@ func TraceIDToHexString(byteID []byte) string {
 	// remove leading zeros
 	id = strings.TrimLeft(id, "0")
 	return id
+}
+
+// EqualHexStringTraceIDs compares two trace ID strings and compares the
+// resulting bytes after padding.  Returns true unless there is a reason not
+// to.
+func EqualHexStringTraceIDs(a, b string) (bool, error) {
+	aa, err := HexStringToTraceID(a)
+	if err != nil {
+		return false, err
+	}
+	bb, err := HexStringToTraceID(b)
+	if err != nil {
+		return false, err
+	}
+
+	return bytes.Equal(aa, bb), nil
 }
