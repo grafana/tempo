@@ -293,7 +293,6 @@ func (pool *SnappyPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *SnappyPool) PutWriter(writer io.WriteCloser) {
-	// jpe - test, need call close?
 	pool.writers.Put(writer)
 }
 
@@ -424,7 +423,7 @@ func (pool *S2Pool) GetReader(src io.Reader) (io.Reader, error) {
 
 // PutReader places back in the pool a CompressionReader
 func (pool *S2Pool) PutReader(reader io.Reader) {
-	pool.readers.Put(reader) // jpe close?
+	pool.readers.Put(reader)
 }
 
 // ResetReader implements ReaderPool
@@ -446,7 +445,6 @@ func (pool *S2Pool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *S2Pool) PutWriter(writer io.WriteCloser) {
-	// jpe - test, need call close?
 	pool.writers.Put(writer)
 }
 
