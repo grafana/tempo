@@ -7,16 +7,17 @@ metadata:
 spec:
   containers:
   - args:
-    - -uuid=6926c0bd-faa4-46ab-b8df-7c7d3572d229 # zstd 23s  14MB/s :( => 108 MB/s :|
+    # - -uuid=6926c0bd-faa4-46ab-b8df-7c7d3572d229 # zstd 23s
     - -slurp-buffer=10000000
     - -chunk=107374182
     - -mem-ballast-size-mbs=1024
-    # - -uuid=4fe45f13-a189-4cee-b905-431937fe7dba lz4-im 31s
-    # - -uuid=812d0426-e4b3-4f3e-9bc1-e74e82b6ba24 s2 24s
+    - -parse=false
+    - -uuid=4fe45f13-a189-4cee-b905-431937fe7dba # lz4-im 31s
+    # - -uuid=812d0426-e4b3-4f3e-9bc1-e74e82b6ba24 # s2 24s
     env:
     - name: GOOGLE_APPLICATION_CREDENTIALS
       value: /var/secrets/google/credentials.json
-    image: joeelliott/canary-frigg:a6da2fdd
+    image: joeelliott/canary-frigg:0ece3377
     name: jpe-test
     resources:
       limits:
@@ -35,7 +36,5 @@ spec:
       secretName: gcs-credentials
 
 
-#
-# slurp:   3s => 100MB/s
-# deslurp: 8s => 40MB/s
-#
+# 
+# https://docs.google.com/spreadsheets/d/11HCHxxkIFWziwjprBtUAryiiMliYfyqzXhd_LKaaxr0/edit#gid=0

@@ -16,9 +16,10 @@ type pagedIterator struct {
 	objectRW     common.ObjectReaderWriter
 	currentIndex int
 
-	chunkSizeBytes uint32
-	pages          [][]byte
-	activePage     []byte
+	currentChunkSize  uint32
+	maxChunkSizeBytes uint32
+	pages             [][]byte
+	activePage        []byte
 
 	buffer []byte
 }
@@ -27,11 +28,12 @@ type pagedIterator struct {
 //  through objects stored in object storage.
 func newPagedIterator(meta *backend.BlockMeta, chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter) Iterator {
 	return &pagedIterator{
-		meta:           meta,
-		dataReader:     dataReader,
-		indexReader:    indexReader,
-		chunkSizeBytes: chunkSizeBytes,
-		objectRW:       objectRW,
+		meta:              meta,
+		dataReader:        dataReader,
+		indexReader:       indexReader,
+		currentChunkSize:  1024,
+		maxChunkSizeBytes: chunkSizeBytes,
+		objectRW:          objectRW,
 	}
 }
 
@@ -72,8 +74,16 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	records := make([]common.Record, 0, 5) // 5?  why not?
 	for currentRecord != nil {
 		// see if we can fit this record in.  we have to get at least one record in
-		if length+currentRecord.Length > i.chunkSizeBytes && len(records) != 0 {
+		if length+currentRecord.Length > i.currentChunkSize && len(records) != 0 {
 			break
+		}
+
+		// increase currentChunkSize JPE you added this
+		if i.currentChunkSize < i.maxChunkSizeBytes {
+			i.currentChunkSize = i.currentChunkSize * 2
+			if i.currentChunkSize > i.maxChunkSizeBytes {
+				i.currentChunkSize = i.maxChunkSizeBytes
+			}
 		}
 
 		// add currentRecord to the batch

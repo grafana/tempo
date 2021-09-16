@@ -56,7 +56,7 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 		os.Exit(1)
 	}
 
-	iter, err := block.Iterator(chunk)
+	iter, err := block.Iterator(chunk) // graduated chunk size to get going faster?
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "iter", "err", err)
 		os.Exit(1)
