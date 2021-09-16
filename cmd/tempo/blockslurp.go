@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
-func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32, slurpBuffer int) {
+func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32, slurpBuffer int, parse bool) {
 	ctx := context.Background()
 	r, w, _, err := loadBackend(bucket)
 	if err != nil {
@@ -79,20 +79,22 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 			os.Exit(1)
 		}
 
-		// marshal
-		trace, err := model.Unmarshal(obj, meta.DataEncoding)
-		if err != nil {
-			level.Error(log.Logger).Log("msg", "unmarshal", "err", err)
-			os.Exit(1)
-		}
+		if parse {
+			// marshal
+			trace, err := model.Unmarshal(obj, meta.DataEncoding)
+			if err != nil {
+				level.Error(log.Logger).Log("msg", "unmarshal", "err", err)
+				os.Exit(1)
+			}
 
-		// pretend to look for something
-		for _, b := range trace.Batches {
-			for _, ils := range b.InstrumentationLibrarySpans {
-				for _, s := range ils.Spans {
-					for _, a := range s.Attributes {
-						if a.Key == "asdfasdfasdf" && a.Value.GetStringValue() == "asdfasdfs" {
-							fmt.Println("this exists?")
+			// pretend to look for something
+			for _, b := range trace.Batches {
+				for _, ils := range b.InstrumentationLibrarySpans {
+					for _, s := range ils.Spans {
+						for _, a := range s.Attributes {
+							if a.Key == "asdfasdfasdf" && a.Value.GetStringValue() == "asdfasdfs" {
+								fmt.Println("this exists?")
+							}
 						}
 					}
 				}

@@ -16,7 +16,7 @@ spec:
     env:
     - name: GOOGLE_APPLICATION_CREDENTIALS
       value: /var/secrets/google/credentials.json
-    image: joeelliott/canary-frigg:ef2136cb
+    image: joeelliott/canary-frigg:a6da2fdd
     name: jpe-test
     resources:
       limits:
@@ -33,3 +33,9 @@ spec:
     secret:
       defaultMode: 420
       secretName: gcs-credentials
+
+
+#
+# slurp:   3s => 100MB/s
+# deslurp: 8s => 40MB/s
+#

@@ -61,6 +61,7 @@ func main() {
 	chunkSizeBytes := flag.Int("chunk", 10485760, "")
 	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
 	slurpBuffer := flag.Int("slurp-buffer", 1000, "")
+	parse := flag.Bool("parse", true, "")
 
 	config, err := loadConfig()
 	if err != nil {
@@ -81,7 +82,7 @@ func main() {
 	}
 	log.InitLogger(&config.Server)
 
-	blockSlurp("jpe-test", uuid.MustParse(*blockID), "3446", uint32(*chunkSizeBytes), *slurpBuffer)
+	blockSlurp("jpe-test", uuid.MustParse(*blockID), "3446", uint32(*chunkSizeBytes), *slurpBuffer, *parse)
 	runtime.KeepAlive(ballast)
 
 	// blockDeslurp("jpe-test", uuid.MustParse(*blockID), "1", uint32(*chunkSizeBytes))
