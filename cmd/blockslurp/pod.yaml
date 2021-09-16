@@ -9,15 +9,15 @@ spec:
   - args:
     # - -uuid=6926c0bd-faa4-46ab-b8df-7c7d3572d229 # zstd 23s
     - -slurp-buffer=10000000
-    - -chunk=107374182
+    - -chunk=307374182
     - -mem-ballast-size-mbs=1024
-    - -parse=false
+    - -parse=true
     - -uuid=4fe45f13-a189-4cee-b905-431937fe7dba # lz4-im 31s
     # - -uuid=812d0426-e4b3-4f3e-9bc1-e74e82b6ba24 # s2 24s
     env:
     - name: GOOGLE_APPLICATION_CREDENTIALS
       value: /var/secrets/google/credentials.json
-    image: joeelliott/canary-frigg:0ece3377
+    image: joeelliott/canary-frigg:f57824f1
     name: jpe-test
     resources:
       limits:

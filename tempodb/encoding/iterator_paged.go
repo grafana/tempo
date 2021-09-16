@@ -31,7 +31,7 @@ func newPagedIterator(meta *backend.BlockMeta, chunkSizeBytes uint32, indexReade
 		meta:              meta,
 		dataReader:        dataReader,
 		indexReader:       indexReader,
-		currentChunkSize:  1024,
+		currentChunkSize:  10000,
 		maxChunkSizeBytes: chunkSizeBytes,
 		objectRW:          objectRW,
 	}
