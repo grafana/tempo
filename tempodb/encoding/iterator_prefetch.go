@@ -14,7 +14,7 @@ import (
 type prefetchIterator struct {
 	iter Iterator
 	q    *flushqueues.Queueimpl7
-	done atomic.Bool
+	done atomic.Bool // jpe - replace with a single mutex (and remove thread safety in queueimpl7)
 	err  atomic.Error
 }
 

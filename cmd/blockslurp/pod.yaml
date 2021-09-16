@@ -7,7 +7,7 @@ metadata:
 spec:
   containers:
   - args:
-    - -uuid=6926c0bd-faa4-46ab-b8df-7c7d3572d229 # zstd 23s  14MB/s :(
+    - -uuid=6926c0bd-faa4-46ab-b8df-7c7d3572d229 # zstd 23s  14MB/s :( => 108 MB/s :|
     - -slurp-buffer=10000000
     - -chunk=107374182
     - -mem-ballast-size-mbs=1024
@@ -16,7 +16,7 @@ spec:
     env:
     - name: GOOGLE_APPLICATION_CREDENTIALS
       value: /var/secrets/google/credentials.json
-    image: joeelliott/canary-frigg:ea22333f
+    image: joeelliott/canary-frigg:ef2136cb
     name: jpe-test
     resources:
       limits:

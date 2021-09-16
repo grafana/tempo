@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -21,7 +22,7 @@ import (
 
 func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32, slurpBuffer int) {
 	ctx := context.Background()
-	r, _, _, err := loadBackend(bucket)
+	r, w, _, err := loadBackend(bucket)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "backend", "err", err)
 		os.Exit(1)
@@ -33,13 +34,21 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 		os.Exit(1)
 	}
 
-	// start := time.Now()
-	// _, err = r.Read(ctx, "data", meta.BlockID, meta.TenantID, false)
-	// if err != nil {
-	// 	level.Error(log.Logger).Log("msg", "megaslurp", "err", err)
-	// 	os.Exit(1)
-	// }
-	// fmt.Println("megaslurp", time.Since(start))
+	start := time.Now()
+	data, err := r.Read(ctx, "data", meta.BlockID, meta.TenantID, false)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "megaslurp", "err", err)
+		os.Exit(1)
+	}
+	fmt.Println("megaslurp", time.Since(start))
+
+	start = time.Now()
+	w.Write(ctx, "data-deslurp", meta.BlockID, meta.TenantID, data, false)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "megadeslurp", "err", err)
+		os.Exit(1)
+	}
+	fmt.Println("megadeslurp", time.Since(start))
 
 	block, err := encoding.NewBackendBlock(meta, r)
 	if err != nil {
@@ -54,16 +63,14 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 	}
 	defer iter.Close()
 
-	prefetchIter := encoding.NewPrefetchIterator(ctx, iter, slurpBuffer)
+	prefetchIter := encoding.NewPrefetchIteratorChannel(ctx, iter, slurpBuffer)
 	defer prefetchIter.Close()
 
-	time.Sleep(5 * time.Second)
-
 	count := 0
-	start := time.Now()
+	start = time.Now()
 	prev := start
 	for {
-		_, obj, err := prefetchIter.Next(ctx)
+		id, obj, err := prefetchIter.Next(ctx)
 		if err == io.EOF {
 			break
 		}
@@ -94,7 +101,7 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 
 		count++
 		if count%1000 == 0 {
-			fmt.Println("count", count, time.Since(prev))
+			fmt.Println("count", count, time.Since(prev), "id", hex.EncodeToString(id))
 			prev = time.Now()
 		}
 	}
