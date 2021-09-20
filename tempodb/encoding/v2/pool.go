@@ -276,7 +276,7 @@ func (pool *SnappyPool) PutReader(reader io.Reader) {
 
 // ResetReader implements ReaderPool
 func (pool *SnappyPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
-	reader := resetReader.(*s2.Reader)
+	reader := resetReader.(*snappy.Reader)
 	reader.Reset(src)
 	return reader, nil
 }
@@ -293,7 +293,7 @@ func (pool *SnappyPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *SnappyPool) PutWriter(writer io.WriteCloser) {
-	writer.(*s2.Writer).Close()
+	writer.(*snappy.Writer).Close()
 	pool.writers.Put(writer)
 }
 
