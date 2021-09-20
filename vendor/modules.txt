@@ -174,7 +174,7 @@ github.com/cespare/xxhash
 # github.com/cespare/xxhash/v2 v2.1.1
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/coreos/etcd v3.3.13+incompatible
+# github.com/coreos/etcd v3.3.25+incompatible
 ## explicit
 github.com/coreos/etcd/pkg/fileutil
 github.com/coreos/etcd/pkg/tlsutil
@@ -349,7 +349,7 @@ github.com/felixge/fgprof
 # github.com/felixge/httpsnoop v1.0.1
 ## explicit; go 1.13
 github.com/felixge/httpsnoop
-# github.com/form3tech-oss/jwt-go v3.2.2+incompatible
+# github.com/form3tech-oss/jwt-go v3.2.3+incompatible
 ## explicit
 github.com/form3tech-oss/jwt-go
 # github.com/fsnotify/fsnotify v1.4.9
@@ -482,8 +482,8 @@ github.com/golang/protobuf/ptypes/wrappers
 # github.com/golang/snappy v0.0.4
 ## explicit
 github.com/golang/snappy
-# github.com/google/btree v1.0.0
-## explicit
+# github.com/google/btree v1.0.1
+## explicit; go 1.12
 github.com/google/btree
 # github.com/google/flatbuffers v2.0.0+incompatible
 ## explicit
@@ -510,10 +510,7 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.0
 ## explicit; go 1.12
 github.com/gorilla/mux
-# github.com/gorilla/websocket v1.4.2
-## explicit; go 1.12
-github.com/gorilla/websocket
-# github.com/grafana/dskit v0.0.0-20210908150159-fcf48cb19aa4
+# github.com/grafana/dskit v0.0.0-20210920134249-30d62063c034
 ## explicit; go 1.16
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/closer
@@ -545,10 +542,6 @@ github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors
 github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/tags
 github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/tracing
 github.com/grpc-ecosystem/go-grpc-middleware/v2/util/metautils
-# github.com/grpc-ecosystem/go-grpc-prometheus v1.2.1-0.20191002090509-6af20e3a5340
-## explicit
-github.com/grpc-ecosystem/go-grpc-prometheus
-github.com/grpc-ecosystem/go-grpc-prometheus/packages/grpcstatus
 # github.com/grpc-ecosystem/grpc-gateway v1.16.0
 ## explicit; go 1.14
 github.com/grpc-ecosystem/grpc-gateway/internal
@@ -725,9 +718,6 @@ github.com/jessevdk/go-flags
 # github.com/jmespath/go-jmespath v0.4.0
 ## explicit; go 1.14
 github.com/jmespath/go-jmespath
-# github.com/jonboulle/clockwork v0.2.2
-## explicit; go 1.13
-github.com/jonboulle/clockwork
 # github.com/josharian/intern v1.0.0
 ## explicit; go 1.5
 github.com/josharian/intern
@@ -1039,7 +1029,7 @@ github.com/shurcooL/vfsgen
 # github.com/sirupsen/logrus v1.8.1
 ## explicit; go 1.13
 github.com/sirupsen/logrus
-# github.com/soheilhy/cmux v0.1.5-0.20210205191134-5ec6847320e5 => github.com/soheilhy/cmux v0.1.5
+# github.com/soheilhy/cmux v0.1.5 => github.com/soheilhy/cmux v0.1.5
 ## explicit; go 1.11
 github.com/soheilhy/cmux
 # github.com/sony/gobreaker v0.4.1
@@ -1120,9 +1110,6 @@ github.com/thanos-io/thanos/pkg/strutil
 github.com/thanos-io/thanos/pkg/targets/targetspb
 github.com/thanos-io/thanos/pkg/testutil
 github.com/thanos-io/thanos/pkg/tracing
-# github.com/tmc/grpc-websocket-proxy v0.0.0-20200427203606-3cfed13b9966
-## explicit
-github.com/tmc/grpc-websocket-proxy/wsproxy
 # github.com/uber-go/atomic v1.4.0
 ## explicit
 github.com/uber-go/atomic
@@ -1187,9 +1174,6 @@ github.com/xdg-go/scram
 # github.com/xdg-go/stringprep v1.0.2
 ## explicit; go 1.11
 github.com/xdg-go/stringprep
-# github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2
-## explicit
-github.com/xiang90/probing
 # go.etcd.io/bbolt v1.3.6
 ## explicit; go 1.12
 go.etcd.io/bbolt
@@ -1200,7 +1184,6 @@ go.etcd.io/etcd/pkg/transport
 ## explicit; go 1.16
 go.etcd.io/etcd/api/v3/authpb
 go.etcd.io/etcd/api/v3/etcdserverpb
-go.etcd.io/etcd/api/v3/etcdserverpb/gw
 go.etcd.io/etcd/api/v3/membershippb
 go.etcd.io/etcd/api/v3/mvccpb
 go.etcd.io/etcd/api/v3/v3rpc/rpctypes
@@ -1208,89 +1191,14 @@ go.etcd.io/etcd/api/v3/version
 # go.etcd.io/etcd/client/pkg/v3 v3.5.0
 ## explicit; go 1.16
 go.etcd.io/etcd/client/pkg/v3/logutil
-go.etcd.io/etcd/client/pkg/v3/pathutil
-go.etcd.io/etcd/client/pkg/v3/srv
 go.etcd.io/etcd/client/pkg/v3/systemd
 go.etcd.io/etcd/client/pkg/v3/types
-# go.etcd.io/etcd/client/v2 v2.305.0
-## explicit; go 1.16
-go.etcd.io/etcd/client/v2
 # go.etcd.io/etcd/client/v3 v3.5.0
 ## explicit; go 1.16
 go.etcd.io/etcd/client/v3
-go.etcd.io/etcd/client/v3/concurrency
 go.etcd.io/etcd/client/v3/credentials
 go.etcd.io/etcd/client/v3/internal/endpoint
 go.etcd.io/etcd/client/v3/internal/resolver
-# go.etcd.io/etcd/pkg/v3 v3.5.0-alpha.0
-## explicit; go 1.15
-go.etcd.io/etcd/pkg/v3/adt
-go.etcd.io/etcd/pkg/v3/contention
-go.etcd.io/etcd/pkg/v3/cpuutil
-go.etcd.io/etcd/pkg/v3/crc
-go.etcd.io/etcd/pkg/v3/debugutil
-go.etcd.io/etcd/pkg/v3/fileutil
-go.etcd.io/etcd/pkg/v3/flags
-go.etcd.io/etcd/pkg/v3/httputil
-go.etcd.io/etcd/pkg/v3/idutil
-go.etcd.io/etcd/pkg/v3/ioutil
-go.etcd.io/etcd/pkg/v3/logutil
-go.etcd.io/etcd/pkg/v3/netutil
-go.etcd.io/etcd/pkg/v3/pbutil
-go.etcd.io/etcd/pkg/v3/runtime
-go.etcd.io/etcd/pkg/v3/schedule
-go.etcd.io/etcd/pkg/v3/srv
-go.etcd.io/etcd/pkg/v3/systemd
-go.etcd.io/etcd/pkg/v3/tlsutil
-go.etcd.io/etcd/pkg/v3/traceutil
-go.etcd.io/etcd/pkg/v3/transport
-go.etcd.io/etcd/pkg/v3/types
-go.etcd.io/etcd/pkg/v3/wait
-# go.etcd.io/etcd/raft/v3 v3.5.0-alpha.0
-## explicit; go 1.15
-go.etcd.io/etcd/raft/v3
-go.etcd.io/etcd/raft/v3/confchange
-go.etcd.io/etcd/raft/v3/quorum
-go.etcd.io/etcd/raft/v3/raftpb
-go.etcd.io/etcd/raft/v3/tracker
-# go.etcd.io/etcd/server/v3 v3.5.0 => go.etcd.io/etcd/server/v3 v3.5.0-alpha.0.0.20210225194612-fa82d11a958a
-## explicit; go 1.15
-go.etcd.io/etcd/server/v3/auth
-go.etcd.io/etcd/server/v3/embed
-go.etcd.io/etcd/server/v3/etcdserver
-go.etcd.io/etcd/server/v3/etcdserver/api
-go.etcd.io/etcd/server/v3/etcdserver/api/etcdhttp
-go.etcd.io/etcd/server/v3/etcdserver/api/membership
-go.etcd.io/etcd/server/v3/etcdserver/api/rafthttp
-go.etcd.io/etcd/server/v3/etcdserver/api/snap
-go.etcd.io/etcd/server/v3/etcdserver/api/snap/snappb
-go.etcd.io/etcd/server/v3/etcdserver/api/v2auth
-go.etcd.io/etcd/server/v3/etcdserver/api/v2discovery
-go.etcd.io/etcd/server/v3/etcdserver/api/v2error
-go.etcd.io/etcd/server/v3/etcdserver/api/v2http
-go.etcd.io/etcd/server/v3/etcdserver/api/v2http/httptypes
-go.etcd.io/etcd/server/v3/etcdserver/api/v2stats
-go.etcd.io/etcd/server/v3/etcdserver/api/v2store
-go.etcd.io/etcd/server/v3/etcdserver/api/v2v3
-go.etcd.io/etcd/server/v3/etcdserver/api/v3alarm
-go.etcd.io/etcd/server/v3/etcdserver/api/v3client
-go.etcd.io/etcd/server/v3/etcdserver/api/v3compactor
-go.etcd.io/etcd/server/v3/etcdserver/api/v3election
-go.etcd.io/etcd/server/v3/etcdserver/api/v3election/v3electionpb
-go.etcd.io/etcd/server/v3/etcdserver/api/v3election/v3electionpb/gw
-go.etcd.io/etcd/server/v3/etcdserver/api/v3lock
-go.etcd.io/etcd/server/v3/etcdserver/api/v3lock/v3lockpb
-go.etcd.io/etcd/server/v3/etcdserver/api/v3lock/v3lockpb/gw
-go.etcd.io/etcd/server/v3/etcdserver/api/v3rpc
-go.etcd.io/etcd/server/v3/etcdserver/cindex
-go.etcd.io/etcd/server/v3/lease
-go.etcd.io/etcd/server/v3/lease/leasehttp
-go.etcd.io/etcd/server/v3/lease/leasepb
-go.etcd.io/etcd/server/v3/mvcc
-go.etcd.io/etcd/server/v3/mvcc/backend
-go.etcd.io/etcd/server/v3/proxy/grpcproxy/adapter
-go.etcd.io/etcd/server/v3/wal
-go.etcd.io/etcd/server/v3/wal/walpb
 # go.mongodb.org/mongo-driver v1.5.1
 ## explicit; go 1.10
 go.mongodb.org/mongo-driver/bson
@@ -1437,9 +1345,7 @@ go.uber.org/zap/zapgrpc
 # golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
 ## explicit; go 1.17
 golang.org/x/crypto/argon2
-golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blake2b
-golang.org/x/crypto/blowfish
 golang.org/x/crypto/ed25519
 golang.org/x/crypto/ed25519/internal/edwards25519
 golang.org/x/crypto/md4
@@ -1696,9 +1602,6 @@ gopkg.in/yaml.v3
 ## explicit; go 1.12
 rsc.io/binaryregexp
 rsc.io/binaryregexp/syntax
-# sigs.k8s.io/yaml v1.2.0
-## explicit; go 1.12
-sigs.k8s.io/yaml
 # github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
 # github.com/gocql/gocql => github.com/grafana/gocql v0.0.0-20200605141915-ba5dc39ece85
 # k8s.io/api => k8s.io/api v0.20.4
@@ -1707,4 +1610,3 @@ sigs.k8s.io/yaml
 # google.golang.org/grpc => google.golang.org/grpc v1.33.3
 # github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
 # go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
-# go.etcd.io/etcd/server/v3 => go.etcd.io/etcd/server/v3 v3.5.0-alpha.0.0.20210225194612-fa82d11a958a

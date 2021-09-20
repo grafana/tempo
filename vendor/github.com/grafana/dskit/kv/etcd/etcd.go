@@ -31,12 +31,23 @@ type Config struct {
 	Password string `yaml:"password"`
 }
 
+// Clientv3Facade is a subset of all Etcd client operations that are required
+// to implement an Etcd version of kv.Client
+type Clientv3Facade interface {
+	clientv3.KV
+	clientv3.Watcher
+}
+
 // Client implements ring.KVClient for etcd.
 type Client struct {
 	cfg    Config
 	codec  codec.Codec
-	cli    *clientv3.Client
+	cli    Clientv3Facade
 	logger log.Logger
+}
+
+func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
+	cfg.RegisterFlagsWithPrefix(f, "")
 }
 
 // RegisterFlagsWithPrefix adds the flags required to config this to the given FlagSet.
