@@ -85,17 +85,17 @@ func TestBackendSearchBlockDedupesWAL(t *testing.T) {
 	traceCount := 1_000
 
 	testCases := []struct {
-		name       string
-		searchDataGenerator func(traceID []byte, i int) [][]byte
-		searchTags map[string]string
-		expectedLenResults int
+		name                 string
+		searchDataGenerator  func(traceID []byte, i int) [][]byte
+		searchTags           map[string]string
+		expectedLenResults   int
 		expectedLenInspected int
 	}{
 		{
-			name: "distinct traces",
-			searchDataGenerator: genSearchData,
-			searchTags: map[string]string{"key10" : "value_A_10", "key20": "value_B_20"},
-			expectedLenResults: 1,
+			name:                 "distinct traces",
+			searchDataGenerator:  genSearchData,
+			searchTags:           map[string]string{"key10": "value_A_10", "key20": "value_B_20"},
+			expectedLenResults:   1,
 			expectedLenInspected: 1,
 		},
 		{
@@ -103,8 +103,8 @@ func TestBackendSearchBlockDedupesWAL(t *testing.T) {
 			searchDataGenerator: func(traceID []byte, i int) [][]byte {
 				return [][]byte{}
 			},
-			searchTags: map[string]string{"key10" : "value_A_10"},
-			expectedLenResults: 0,
+			searchTags:           map[string]string{"key10": "value_A_10"},
+			expectedLenResults:   0,
 			expectedLenInspected: 0,
 		},
 	}
