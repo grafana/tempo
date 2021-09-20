@@ -248,7 +248,8 @@ func (pool *LZ4Pool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.
 	return writer, nil
 }
 
-// SnappyPool is a really cool looking pool.  Dang that pool is _snappy_.
+// SnappyPool is a really cool looking pool.  Dang that pool is _snappy_. Reusing readers/writers causes a memory leak. So the pool acts more like
+// a traditional factory.
 type SnappyPool struct {
 }
 
@@ -387,7 +388,8 @@ func (pool *ZstdPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io
 	return writer, nil
 }
 
-// S2Pool is one s short of s3
+// S2Pool is one s short of S3Pool. Reusing readers/writers causes a memory leak. So the pool acts more like
+// a traditional factory.
 type S2Pool struct {
 }
 
