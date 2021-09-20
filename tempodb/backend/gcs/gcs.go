@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -145,7 +144,6 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 
 // ReadRange implements backend.Reader
 func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
-	fmt.Println("readrange", name, offset, offset+uint64(len(buffer)))
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.ReadRange")
 	defer span.Finish()
 

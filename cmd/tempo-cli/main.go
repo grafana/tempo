@@ -59,6 +59,10 @@ var cli struct {
 		API    queryCmd       `cmd:"" help:"query tempo http api"`
 		Blocks queryBlocksCmd `cmd:"" help:"query for a traceid directly from backend blocks"`
 	} `cmd:""`
+
+	Search struct {
+		Blocks searchBlocksCmd `cmd:"" help:"search for a traceid directly from backend blocks"`
+	} `cmd:""`
 }
 
 func main() {

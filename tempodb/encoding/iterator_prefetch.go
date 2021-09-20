@@ -67,6 +67,7 @@ func (i *prefetchIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 
 func (i *prefetchIterator) iterate(ctx context.Context) {
 	defer close(i.resultsCh)
+	defer i.iter.Close()
 
 	for {
 		id, obj, err := i.iter.Next(ctx)

@@ -2,143 +2,162 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
-	"time"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32, slurpBuffer int, parse bool) {
+type searchBlocksCmd struct {
+	backendOptions
+
+	Name     string `arg:"" help:"attribute name to search for"`
+	Value    string `arg:"" help:"attribute value to search for"`
+	Start    int64  `arg:"" help:"start of time range to search (unix epoch)"`
+	End      int64  `arg:"" help:"end of time range to search (unix epoch)"`
+	Limit    int    `arg:"" help:"maximum number of results to return"`
+	TenantID string `arg:"" help:"tenant ID to search"`
+}
+
+func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
+	r, _, _, err := loadBackend(&cmd.backendOptions, opts)
+	if err != nil {
+		return err
+	}
+
 	ctx := context.Background()
-	r, w, _, err := loadBackend(bucket)
+
+	blockIDs, err := r.Blocks(ctx, cmd.TenantID)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "backend", "err", err)
-		os.Exit(1)
+		return err
 	}
 
-	meta, err := r.BlockMeta(ctx, blockID, tenantID)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "meta", "err", err)
-		os.Exit(1)
+	fmt.Println("Total Blocks:", len(blockIDs))
+
+	// Load in parallel
+	wg := boundedwaitgroup.New(20)
+	resultsCh := make(chan *backend.BlockMeta, len(blockIDs))
+	for blockNum, id := range blockIDs {
+		wg.Add(1)
+
+		go func(blockNum2 int, id2 uuid.UUID) {
+			defer wg.Done()
+
+			// search here
+			meta, err := r.BlockMeta(ctx, id, cmd.TenantID)
+			if err == backend.ErrDoesNotExist {
+				return
+			}
+			if err != nil {
+				fmt.Println("Error querying block:", err)
+				return
+			}
+			if meta.StartTime.Unix() <= cmd.End &&
+				meta.EndTime.Unix() >= cmd.Start {
+				resultsCh <- meta
+			}
+		}(blockNum, id)
 	}
 
-	block, err := encoding.NewBackendBlock(meta, r)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "block", "err", err)
-		os.Exit(1)
+	wg.Wait()
+	close(resultsCh)
+
+	blockmetas := []*backend.BlockMeta{}
+	for q := range resultsCh {
+		blockmetas = append(blockmetas, q)
 	}
 
-	iter, err := block.Iterator(chunk) // graduated chunk size to get going faster?
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "iter", "err", err)
-		os.Exit(1)
+	fmt.Println("Blocks In Range:", len(blockmetas))
+	foundids := []common.ID{}
+	for _, meta := range blockmetas {
+		block, err := encoding.NewBackendBlock(meta, r)
+		if err != nil {
+			return err
+		}
+
+		// todo : graduated chunk sizes will increase throughput
+		iter, err := block.Iterator(10 * 1024 * 1024) // jpe: param chunk size
+		if err != nil {
+			return err
+		}
+
+		prefetchIter := encoding.NewPrefetchIterator(ctx, iter, 1000) // jpe : param iterator buffer
+		ids, err := searchIterator(iter, meta.DataEncoding, cmd.Name, cmd.Value, cmd.Limit)
+		prefetchIter.Close()
+		if err != nil {
+			return err
+		}
+
+		foundids = append(foundids, ids...)
+		if len(foundids) >= cmd.Limit {
+			break
+		}
 	}
-	defer iter.Close()
 
-	prefetchIter := encoding.NewPrefetchIterator(ctx, iter, slurpBuffer)
-	defer prefetchIter.Close()
+	fmt.Println("Matching Traces:", len(foundids))
+	for _, id := range foundids {
+		fmt.Println("  ", util.TraceIDToHexString(id))
+	}
 
-	count := 0
-	start := time.Now()
-	prev := start
+	return nil
+}
+
+func searchIterator(iter encoding.Iterator, dataEncoding string, name string, value string, limit int) ([]common.ID, error) {
+	ctx := context.Background()
+	found := []common.ID{}
+
 	for {
-		id, obj, err := prefetchIter.Next(ctx)
+		id, obj, err := iter.Next(ctx)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "next", "err", err)
-			os.Exit(1)
+			return nil, err
 		}
 
-		if parse { // jpe - use goroutines to speed up
-			// marshal
-			trace, err := model.Unmarshal(obj, meta.DataEncoding)
-			if err != nil {
-				level.Error(log.Logger).Log("msg", "unmarshal", "err", err)
-				os.Exit(1)
-			}
+		trace, err := model.Unmarshal(obj, dataEncoding)
+		if err != nil {
+			return nil, err
+		}
 
-			// pretend to look for something
-			for _, b := range trace.Batches {
-				for _, ils := range b.InstrumentationLibrarySpans {
-					for _, s := range ils.Spans {
-						for _, a := range s.Attributes {
-							if a.Key == "asdfasdfasdf" && a.Value.GetStringValue() == "asdfasdfs" {
-								fmt.Println("this exists?")
-							}
-						}
+		if traceContainsKeyValue(trace, name, value) {
+			found = append(found, id)
+		}
+
+		if len(found) >= limit {
+			break
+		}
+	}
+
+	return found, nil
+}
+
+func traceContainsKeyValue(trace *tempopb.Trace, name string, value string) bool {
+	// jpe : only works for string values
+	for _, b := range trace.Batches {
+		for _, a := range b.Resource.Attributes {
+			if a.Key == name && a.Value.GetStringValue() == value {
+				return true
+			}
+		}
+
+		for _, ils := range b.InstrumentationLibrarySpans {
+			for _, s := range ils.Spans {
+				for _, a := range s.Attributes {
+					if a.Key == name && a.Value.GetStringValue() == value {
+						return true
 					}
 				}
 			}
 		}
-
-		count++
-		if count%1000 == 0 {
-			fmt.Println("count", count, time.Since(prev), "id", hex.EncodeToString(id))
-			prev = time.Now()
-		}
 	}
 
-	fmt.Println("meta:", meta)
-	fmt.Println("count:", count)
-	fmt.Println("time:", time.Since(start))
-}
-
-func blockDeslurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32) {
-	ctx := context.Background()
-	_, w, _, err := loadBackend(bucket)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "backend", "err", err)
-		os.Exit(1)
-	}
-
-	meta := backend.NewBlockMeta(tenantID, blockID, "v2", backend.EncNone, "blerg")
-
-	block, err := encoding.NewStreamingBlock(&encoding.BlockConfig{
-		IndexDownsampleBytes: 1024 * 1024,
-		BloomFP:              .05,
-		Encoding:             backend.EncNone,
-		IndexPageSizeBytes:   1024,
-		BloomShardSizeBytes:  100000,
-	}, blockID, tenantID, []*backend.BlockMeta{meta}, 10)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "block", "err", err)
-		os.Exit(1)
-	}
-
-	for i := 0; i < 10; i++ {
-		id := make([]byte, 16)
-		obj := make([]byte, 10)
-
-		rand.Read(id)
-		rand.Read(obj)
-
-		err = block.AddObject(id, obj)
-		if err != nil {
-			level.Error(log.Logger).Log("msg", "add", "err", err)
-			os.Exit(1)
-		}
-	}
-
-	var tracker backend.AppendTracker
-	tracker, _, err = block.FlushBuffer(ctx, tracker, w)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "flush", "err", err)
-		os.Exit(1)
-	}
-	_, err = block.Complete(ctx, tracker, w)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "complete", "err", err)
-		os.Exit(1)
-	}
+	return false
 }
