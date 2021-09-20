@@ -79,7 +79,7 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 			os.Exit(1)
 		}
 
-		if parse {
+		if parse { // jpe - use goroutines to speed up
 			// marshal
 			trace, err := model.Unmarshal(obj, meta.DataEncoding)
 			if err != nil {

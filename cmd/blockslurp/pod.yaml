@@ -17,7 +17,7 @@ spec:
     env:
     - name: GOOGLE_APPLICATION_CREDENTIALS
       value: /var/secrets/google/credentials.json
-    image: joeelliott/canary-frigg:f57824f1
+    image: joeelliott/canary-frigg:26b00cfb
     name: jpe-test
     resources:
       limits:
