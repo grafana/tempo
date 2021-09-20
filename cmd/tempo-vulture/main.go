@@ -51,6 +51,8 @@ var (
 	// than 25 here results in vulture writing traces that exceed the maximum
 	// trace size.
 	batchHighWaterMark int64 = 25
+
+	longWriteBatchChance int64 = 3
 )
 
 type traceMetrics struct {
@@ -64,10 +66,11 @@ type traceMetrics struct {
 }
 
 type traceInfo struct {
-	timestamp   time.Time
-	r           *rand.Rand
-	traceIDHigh int64
-	traceIDLow  int64
+	timestamp           time.Time
+	r                   *rand.Rand
+	traceIDHigh         int64
+	traceIDLow          int64
+	longWritesRemaining int64
 }
 
 func init() {
@@ -115,14 +118,12 @@ func main() {
 			timestamp := now.Round(interval)
 			r := newRand(timestamp)
 
-			traceIDHigh := r.Int63()
-			traceIDLow := r.Int63()
-
 			info := &traceInfo{
-				timestamp:   timestamp,
-				r:           r,
-				traceIDHigh: traceIDHigh,
-				traceIDLow:  traceIDLow,
+				timestamp:           timestamp,
+				r:                   r,
+				traceIDHigh:         r.Int63(),
+				traceIDLow:          r.Int63(),
+				longWritesRemaining: r.Int63n(longWriteBatchChance),
 			}
 
 			emitBatches(client, info)
@@ -235,24 +236,24 @@ func emitBatches(c *jaeger_grpc.Reporter, t *traceInfo) {
 }
 
 func queueFutureBatches(client *jaeger_grpc.Reporter, info *traceInfo) {
+	if info.longWritesRemaining == 0 {
+		return
+	}
 	log := logger.With(
 		zap.String("org_id", tempoOrgID),
 		zap.String("write_trace_id", fmt.Sprintf("%016x%016x", info.traceIDHigh, info.traceIDLow)),
 		zap.Int64("seed", info.timestamp.Unix()),
+		zap.Int64("longWritesRemaining", info.longWritesRemaining),
 	)
 
-	if maybe(info.r) {
-		log.Info("queueing future batches")
-		go func() {
-			time.Sleep(tempoLongWriteBackoffDuration)
-			emitBatches(client, info)
-			queueFutureBatches(client, info)
-		}()
-	}
-}
+	info.longWritesRemaining--
 
-func maybe(r *rand.Rand) bool {
-	return r.Intn(10) >= 8
+	log.Info("queueing future batches")
+	go func() {
+		time.Sleep(tempoLongWriteBackoffDuration)
+		emitBatches(client, info)
+		queueFutureBatches(client, info)
+	}()
 }
 
 func pushMetrics(metrics traceMetrics) {
@@ -559,10 +560,11 @@ func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 	r := newRand(epoch)
 
 	info := &traceInfo{
-		timestamp:   epoch,
-		r:           r,
-		traceIDHigh: r.Int63(),
-		traceIDLow:  r.Int63(),
+		timestamp:           epoch,
+		r:                   r,
+		traceIDHigh:         r.Int63(),
+		traceIDLow:          r.Int63(),
+		longWritesRemaining: r.Int63n(longWriteBatchChance),
 	}
 
 	trace := &tempopb.Trace{}
@@ -603,13 +605,11 @@ func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 	addBatches(info, trace)
 
 	lastWrite := info.timestamp
-	for maybe(info.r) {
-		lastWrite = lastWrite.Add(tempoLongWriteBackoffDuration)
 
-		// log := logger.With(
-		// 	zap.Int64("seed", info.timestamp.Unix()),
-		// 	zap.Duration("since", time.Since(lastWrite)),
-		// )
+	for info.longWritesRemaining > 0 {
+		info.longWritesRemaining--
+
+		lastWrite = lastWrite.Add(tempoLongWriteBackoffDuration)
 
 		// If the last write has happened very recently, we'll wait a bit to make
 		// sure the write has taken place, and then add the batches that would have

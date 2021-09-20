@@ -169,7 +169,7 @@ func TestResponseFixture(t *testing.T) {
 	err = jsonpb.Unmarshal(f, response)
 	require.NoError(t, err)
 
-	seed := time.Unix(1631740780, 0)
+	seed := time.Unix(1632146180, 0)
 	expected := constructTraceFromEpoch(seed)
 
 	assert.True(t, equalTraces(expected, response))
