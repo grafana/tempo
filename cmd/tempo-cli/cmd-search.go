@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -13,10 +12,8 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/encoding"
 )
 
@@ -34,22 +31,6 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 		os.Exit(1)
 	}
 
-	start := time.Now()
-	data, err := r.Read(ctx, "data", meta.BlockID, meta.TenantID, false)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "megaslurp", "err", err)
-		os.Exit(1)
-	}
-	fmt.Println("megaslurp", time.Since(start))
-
-	start = time.Now()
-	w.Write(ctx, "data-deslurp", meta.BlockID, meta.TenantID, data, false)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "megadeslurp", "err", err)
-		os.Exit(1)
-	}
-	fmt.Println("megadeslurp", time.Since(start))
-
 	block, err := encoding.NewBackendBlock(meta, r)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "block", "err", err)
@@ -63,11 +44,11 @@ func blockSlurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint32,
 	}
 	defer iter.Close()
 
-	prefetchIter := encoding.NewPrefetchIteratorChannel(ctx, iter, slurpBuffer)
+	prefetchIter := encoding.NewPrefetchIterator(ctx, iter, slurpBuffer)
 	defer prefetchIter.Close()
 
 	count := 0
-	start = time.Now()
+	start := time.Now()
 	prev := start
 	for {
 		id, obj, err := prefetchIter.Next(ctx)
@@ -160,20 +141,4 @@ func blockDeslurp(bucket string, blockID uuid.UUID, tenantID string, chunk uint3
 		level.Error(log.Logger).Log("msg", "complete", "err", err)
 		os.Exit(1)
 	}
-}
-
-func loadBackend(bucket string) (backend.Reader, backend.Writer, backend.Compactor, error) {
-	// Defaults
-	cfg := app.Config{}
-	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-
-	cfg.StorageConfig.Trace.Backend = "gcs"
-	cfg.StorageConfig.Trace.GCS.BucketName = bucket
-
-	r, w, c, err := gcs.New(cfg.StorageConfig.Trace.GCS)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return backend.NewReader(r), backend.NewWriter(w), c, nil
 }
