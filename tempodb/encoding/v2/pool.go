@@ -250,8 +250,6 @@ func (pool *LZ4Pool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.
 
 // SnappyPool is a really cool looking pool.  Dang that pool is _snappy_.
 type SnappyPool struct {
-	readers sync.Pool
-	writers sync.Pool
 }
 
 // Encoding implements WriterPool and ReaderPool
@@ -261,17 +259,11 @@ func (pool *SnappyPool) Encoding() backend.Encoding {
 
 // GetReader gets or creates a new CompressionReader and reset it to read from src
 func (pool *SnappyPool) GetReader(src io.Reader) (io.Reader, error) {
-	if r := pool.readers.Get(); r != nil {
-		reader := r.(*s2.Reader)
-		reader.Reset(src)
-		return reader, nil
-	}
 	return snappy.NewReader(src), nil
 }
 
 // PutReader places back in the pool a CompressionReader
 func (pool *SnappyPool) PutReader(reader io.Reader) {
-	pool.readers.Put(reader)
 }
 
 // ResetReader implements ReaderPool
@@ -283,20 +275,12 @@ func (pool *SnappyPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Re
 
 // GetWriter gets or creates a new CompressionWriter and reset it to write to dst
 func (pool *SnappyPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
-	if w := pool.writers.Get(); w != nil {
-		writer := w.(*s2.Writer)
-		writer.Reset(dst)
-		return writer, nil
-	}
 	return snappy.NewBufferedWriter(dst), nil
 }
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *SnappyPool) PutWriter(writer io.WriteCloser) {
-	// only put the writer back in the pool if close succeeds (in case erroring puts it in a bad state)
-	if err := writer.(*snappy.Writer).Close(); err == nil {
-		pool.writers.Put(writer)
-	}
+	_ = writer.(*snappy.Writer).Close()
 }
 
 // ResetWriter implements WriterPool
@@ -405,8 +389,6 @@ func (pool *ZstdPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io
 
 // S2Pool is one s short of s3
 type S2Pool struct {
-	readers sync.Pool
-	writers sync.Pool
 }
 
 // Encoding implements WriterPool and ReaderPool
@@ -416,17 +398,11 @@ func (pool *S2Pool) Encoding() backend.Encoding {
 
 // GetReader gets or creates a new CompressionReader and reset it to read from src
 func (pool *S2Pool) GetReader(src io.Reader) (io.Reader, error) {
-	if r := pool.readers.Get(); r != nil {
-		reader := r.(*s2.Reader)
-		reader.Reset(src)
-		return reader, nil
-	}
 	return s2.NewReader(src), nil
 }
 
 // PutReader places back in the pool a CompressionReader
 func (pool *S2Pool) PutReader(reader io.Reader) {
-	pool.readers.Put(reader)
 }
 
 // ResetReader implements ReaderPool
@@ -438,20 +414,13 @@ func (pool *S2Pool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader
 
 // GetWriter gets or creates a new CompressionWriter and reset it to write to dst
 func (pool *S2Pool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
-	if w := pool.writers.Get(); w != nil {
-		writer := w.(*s2.Writer)
-		writer.Reset(dst)
-		return writer, nil
-	}
 	return s2.NewWriter(dst), nil
 }
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *S2Pool) PutWriter(writer io.WriteCloser) {
 	// only put the writer back in the pool if close succeeds (in case erroring puts it in a bad state)
-	if err := writer.(*s2.Writer).Close(); err == nil {
-		pool.writers.Put(writer)
-	}
+	_ = writer.(*s2.Writer).Close()
 }
 
 // ResetWriter implements WriterPool
