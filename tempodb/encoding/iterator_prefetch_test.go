@@ -84,7 +84,7 @@ func TestPrefetchPrefetches(t *testing.T) {
 
 	_ = NewPrefetchIterator(ctx, iter, 10)
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, 3, iter.i) // prefetch all 3
+	assert.Equal(t, int32(3), iter.i.Load()) // prefetch all 3
 
 	iter = &testIterator{}
 	iter.Add([]byte{0x01}, []byte{0x01}, nil)
@@ -95,8 +95,8 @@ func TestPrefetchPrefetches(t *testing.T) {
 
 	prefetchIter := NewPrefetchIterator(ctx, iter, 3)
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, 4, iter.i) // prefetch only the buffer. this happens to be 1 more than the passed buffer. maybe one day we will "correct" that
+	assert.Equal(t, int32(4), iter.i.Load()) // prefetch only the buffer. this happens to be 1 more than the passed buffer. maybe one day we will "correct" that
 	_, _, _ = prefetchIter.Next(ctx)
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, 5, iter.i) // get all
+	assert.Equal(t, int32(5), iter.i.Load()) // get all
 }
