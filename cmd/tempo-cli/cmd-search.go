@@ -15,6 +15,12 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+const (
+	layoutString   = "2006-01-02T15:04:05.000Z"
+	chunkSize      = 10 * 1024 * 1024
+	iteratorBuffer = 10000
+)
+
 type searchBlocksCmd struct {
 	backendOptions
 
@@ -82,13 +88,14 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 			return err
 		}
 
-		// todo : graduated chunk sizes will increase throughput
-		iter, err := block.Iterator(10 * 1024 * 1024) // jpe: param chunk size
+		// todo : graduated chunk sizes will increase throughput. i.e. first request should be small to feed the below parsing faster
+		//  later queries should use larger chunk sizes to be more efficient
+		iter, err := block.Iterator(chunkSize)
 		if err != nil {
 			return err
 		}
 
-		prefetchIter := encoding.NewPrefetchIterator(ctx, iter, 1000) // jpe : param iterator buffer
+		prefetchIter := encoding.NewPrefetchIterator(ctx, iter, iteratorBuffer)
 		ids, err := searchIterator(iter, meta.DataEncoding, cmd.Name, cmd.Value, cmd.Limit)
 		prefetchIter.Close()
 		if err != nil {
@@ -140,7 +147,7 @@ func searchIterator(iter encoding.Iterator, dataEncoding string, name string, va
 }
 
 func traceContainsKeyValue(trace *tempopb.Trace, name string, value string) bool {
-	// jpe : only works for string values
+	// todo : support other attribute types besides string
 	for _, b := range trace.Batches {
 		for _, a := range b.Resource.Attributes {
 			if a.Key == name && a.Value.GetStringValue() == value {
