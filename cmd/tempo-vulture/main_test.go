@@ -188,6 +188,15 @@ func TestEqualTraces(t *testing.T) {
 	require.True(t, equalTraces(a, b))
 }
 
+func TestTraceInfo(t *testing.T) {
+	seed := time.Unix(1632146180, 0)
+	info := newTraceInfo(seed)
+	assert.False(t, info.ready(seed))
+	assert.False(t, info.ready(seed.Add(tempoLongWriteBackoffDuration)))
+	assert.False(t, info.ready(seed.Add(tempoLongWriteBackoffDuration).Add(1*time.Second)))
+	assert.True(t, info.ready(seed.Add(2*tempoLongWriteBackoffDuration)))
+}
+
 func assertStandardVultureKey(t *testing.T, tag *thrift.Tag) {
 	if !strings.HasPrefix(tag.Key, "vulture-") {
 		t.Errorf("prefix vulture- is wanted, have: %s", tag.Key)

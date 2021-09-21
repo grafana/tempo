@@ -46,13 +46,13 @@ var (
 
 	logger *zap.Logger
 
-	// batchHighWaterMark is used when writing and reading, and needs to match so
+	// maxBatchesPerWrite is used when writing and reading, and needs to match so
 	// that we get the expected number of batches on a trace.  A value larger
 	// than 25 here results in vulture writing traces that exceed the maximum
 	// trace size.
-	batchHighWaterMark int64 = 25
+	maxBatchesPerWrite int64 = 25
 
-	longWriteBatchChance int64 = 3
+	maxLongWritesPerTrace int64 = 3
 )
 
 type traceMetrics struct {
@@ -71,6 +71,30 @@ type traceInfo struct {
 	traceIDHigh         int64
 	traceIDLow          int64
 	longWritesRemaining int64
+}
+
+func newTraceInfo(timestamp time.Time) *traceInfo {
+	r := newRand(timestamp)
+
+	return &traceInfo{
+		timestamp:           timestamp,
+		r:                   r,
+		traceIDHigh:         r.Int63(),
+		traceIDLow:          r.Int63(),
+		longWritesRemaining: r.Int63n(maxLongWritesPerTrace),
+	}
+}
+
+func (t *traceInfo) ready(now time.Time) bool {
+	// Don't use the last time interval to allow the write loop to finish before we try to read it.
+	if t.timestamp.After(now.Add(-tempoWriteBackoffDuration)) {
+		return false
+	}
+
+	// We are not ready if not all writes have had a chance to send.
+	totalWrites := newTraceInfo(t.timestamp).longWritesRemaining
+	lastWrite := t.timestamp.Add(time.Duration(totalWrites) * tempoLongWriteBackoffDuration)
+	return !now.Before(lastWrite.Add(tempoLongWriteBackoffDuration))
 }
 
 func init() {
@@ -107,6 +131,17 @@ func main() {
 	tickerSearch := time.NewTicker(tempoSearchBackoffDuration)
 	interval := tempoWriteBackoffDuration
 
+	ready := func(info *traceInfo, now time.Time) bool {
+		// Don't attempt to read on the first itteration if we can't reasonably
+		// expect the write loop to have fired yet.  Double the duration here to
+		// avoid a race.
+		if info.timestamp.Before(actualStartTime.Add(2 * tempoWriteBackoffDuration)) {
+			return false
+		}
+
+		return info.ready(now)
+	}
+
 	// Write
 	go func() {
 		client, err := newJaegerGRPCClient(tempoPushURL)
@@ -116,16 +151,7 @@ func main() {
 
 		for now := range tickerWrite.C {
 			timestamp := now.Round(interval)
-			r := newRand(timestamp)
-
-			info := &traceInfo{
-				timestamp:           timestamp,
-				r:                   r,
-				traceIDHigh:         r.Int63(),
-				traceIDLow:          r.Int63(),
-				longWritesRemaining: r.Int63n(longWriteBatchChance),
-			}
-
+			info := newTraceInfo(timestamp)
 			emitBatches(client, info)
 			queueFutureBatches(client, info)
 		}
@@ -137,22 +163,17 @@ func main() {
 			var seed time.Time
 			startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration)
 
-			// Don't attempt to read on the first itteration if we can't reasonably
-			// expect the write loop to have fired yet.  Double the duration here to
-			// avoid a race.
-			if seed.Before(actualStartTime.Add(2 * tempoWriteBackoffDuration)) {
-				continue
-			}
-
-			// Don't use the last time interval to allow the write loop to finish
-			// before we try to read it.
-			if seed.After(now.Add(-tempoWriteBackoffDuration)) {
-				continue
-			}
-
 			log := logger.With(
 				zap.String("org_id", tempoOrgID),
+				zap.Int64("seed", seed.Unix()),
 			)
+
+			info := newTraceInfo(seed)
+
+			// Don't query for a trace we don't expect to be complete
+			if !ready(info, now) {
+				continue
+			}
 
 			client := util.NewClient(tempoQueryURL, tempoOrgID)
 
@@ -172,23 +193,16 @@ func main() {
 	go func() {
 		for now := range tickerSearch.C {
 			_, seed := selectPastTimestamp(startTime, now, interval, tempoSearchRetentionDuration)
-
-			// Don't attempt to read on the first itteration if we can't reasonably
-			// expect the write loop to have fired yet.  Double the duration here to
-			// avoid a race.
-			if seed.Before(startTime.Add(2 * tempoWriteBackoffDuration)) {
-				continue
-			}
-
-			// Don't use the last time interval to allow the write loop to finish
-			// before we try to read it.
-			if seed.After(now.Add(-tempoWriteBackoffDuration)) {
-				continue
-			}
-
 			log := logger.With(
 				zap.String("org_id", tempoOrgID),
+				zap.Int64("seed", seed.Unix()),
 			)
+
+			info := newTraceInfo(seed)
+
+			if !ready(info, now) {
+				continue
+			}
 
 			client := util.NewClient(tempoQueryURL, tempoOrgID)
 
@@ -217,7 +231,7 @@ func emitBatches(c *jaeger_grpc.Reporter, t *traceInfo) {
 
 	log.Info("sending trace")
 
-	for i := int64(0); i < generateRandomInt(1, batchHighWaterMark, t.r); i++ {
+	for i := int64(0); i < generateRandomInt(1, maxBatchesPerWrite, t.r); i++ {
 		ctx := user.InjectOrgID(context.Background(), tempoOrgID)
 		ctx, err := user.InjectIntoGRPCRequest(ctx)
 		if err != nil {
@@ -564,13 +578,13 @@ func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 		r:                   r,
 		traceIDHigh:         r.Int63(),
 		traceIDLow:          r.Int63(),
-		longWritesRemaining: r.Int63n(longWriteBatchChance),
+		longWritesRemaining: r.Int63n(maxLongWritesPerTrace),
 	}
 
 	trace := &tempopb.Trace{}
 
 	addBatches := func(t *traceInfo, trace *tempopb.Trace) {
-		for i := int64(0); i < generateRandomInt(1, batchHighWaterMark, r); i++ {
+		for i := int64(0); i < generateRandomInt(1, maxBatchesPerWrite, r); i++ {
 			batch := makeThriftBatch(t.traceIDHigh, t.traceIDLow, r, epoch)
 			internalTrace := jaegerTrans.ThriftBatchToInternalTraces(batch)
 			conv, err := internalTrace.ToOtlpProtoBytes()
@@ -604,24 +618,9 @@ func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
 
 	addBatches(info, trace)
 
-	lastWrite := info.timestamp
-
 	for info.longWritesRemaining > 0 {
 		info.longWritesRemaining--
-
-		lastWrite = lastWrite.Add(tempoLongWriteBackoffDuration)
-
-		// If the last write has happened very recently, we'll wait a bit to make
-		// sure the write has taken place, and then add the batches that would have
-		// just been written.
-		if time.Since(lastWrite) < (1 * time.Second) {
-			time.Sleep(1500 * time.Millisecond)
-		}
-
-		if time.Since(lastWrite) > (1 * time.Second) {
-			// log.Info("adding batches")
-			addBatches(info, trace)
-		}
+		addBatches(info, trace)
 	}
 
 	return trace
