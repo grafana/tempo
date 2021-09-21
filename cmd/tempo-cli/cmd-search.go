@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -16,9 +17,10 @@ import (
 )
 
 const (
-	layoutString   = "2006-01-02T15:04:05.000Z"
+	layoutString   = "2006-01-02T15:04:05"
 	chunkSize      = 10 * 1024 * 1024
 	iteratorBuffer = 10000
+	limit          = 20
 )
 
 type searchBlocksCmd struct {
@@ -26,14 +28,22 @@ type searchBlocksCmd struct {
 
 	Name     string `arg:"" help:"attribute name to search for"`
 	Value    string `arg:"" help:"attribute value to search for"`
-	Start    int64  `arg:"" help:"start of time range to search (unix epoch)"`
-	End      int64  `arg:"" help:"end of time range to search (unix epoch)"`
-	Limit    int    `arg:"" help:"maximum number of results to return"`
+	Start    string `arg:"" help:"start of time range to search (YYYY-MM-DDThh:mm:ss)"`
+	End      string `arg:"" help:"end of time range to search (YYYY-MM-DDThh:mm:ss)"`
 	TenantID string `arg:"" help:"tenant ID to search"`
 }
 
 func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 	r, _, _, err := loadBackend(&cmd.backendOptions, opts)
+	if err != nil {
+		return err
+	}
+
+	startTime, err := time.Parse(layoutString, cmd.Start)
+	if err != nil {
+		return err
+	}
+	endTime, err := time.Parse(layoutString, cmd.End)
 	if err != nil {
 		return err
 	}
@@ -65,8 +75,8 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 				fmt.Println("Error querying block:", err)
 				return
 			}
-			if meta.StartTime.Unix() <= cmd.End &&
-				meta.EndTime.Unix() >= cmd.Start {
+			if meta.StartTime.Unix() <= endTime.Unix() &&
+				meta.EndTime.Unix() >= startTime.Unix() {
 				resultsCh <- meta
 			}
 		}(blockNum, id)
@@ -96,14 +106,14 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 		}
 
 		prefetchIter := encoding.NewPrefetchIterator(ctx, iter, iteratorBuffer)
-		ids, err := searchIterator(iter, meta.DataEncoding, cmd.Name, cmd.Value, cmd.Limit)
+		ids, err := searchIterator(prefetchIter, meta.DataEncoding, cmd.Name, cmd.Value, limit)
 		prefetchIter.Close()
 		if err != nil {
 			return err
 		}
 
 		foundids = append(foundids, ids...)
-		if len(foundids) >= cmd.Limit {
+		if len(foundids) >= limit {
 			break
 		}
 	}
