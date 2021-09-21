@@ -81,6 +81,84 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 	require.Equal(t, traceCount, int(sr.TracesInspected()))
 }
 
+func TestBackendSearchBlockDedupesWAL(t *testing.T) {
+	traceCount := 1_000
+
+	testCases := []struct {
+		name                 string
+		searchDataGenerator  func(traceID []byte, i int) [][]byte
+		searchTags           map[string]string
+		expectedLenResults   int
+		expectedLenInspected int
+	}{
+		{
+			name:                 "distinct traces",
+			searchDataGenerator:  genSearchData,
+			searchTags:           map[string]string{"key10": "value_A_10", "key20": "value_B_20"},
+			expectedLenResults:   1,
+			expectedLenInspected: 1,
+		},
+		{
+			name: "empty traces",
+			searchDataGenerator: func(traceID []byte, i int) [][]byte {
+				return [][]byte{}
+			},
+			searchTags:           map[string]string{"key10": "value_A_10"},
+			expectedLenResults:   0,
+			expectedLenInspected: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
+			require.NoError(t, err)
+
+			b1, err := NewStreamingSearchBlockForFile(f)
+			require.NoError(t, err)
+
+			id := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+			for i := 0; i < traceCount; i++ {
+				require.NoError(t, b1.Append(context.Background(), id, tc.searchDataGenerator(id, i)))
+			}
+
+			l, err := local.NewBackend(&local.Config{
+				Path: t.TempDir(),
+			})
+			require.NoError(t, err)
+
+			blockID := uuid.New()
+			tenantID := "fake"
+			err = NewBackendSearchBlock(b1, l, blockID, tenantID, backend.EncNone, 0)
+			require.NoError(t, err)
+
+			b2 := OpenBackendSearchBlock(l, blockID, tenantID)
+
+			p := NewSearchPipeline(&tempopb.SearchRequest{
+				Tags: tc.searchTags,
+			})
+
+			sr := NewResults()
+
+			sr.StartWorker()
+			go func() {
+				defer sr.FinishWorker()
+				err := b2.Search(context.TODO(), p, sr)
+				require.NoError(t, err)
+			}()
+			sr.AllWorkersStarted()
+
+			var results []*tempopb.TraceSearchMetadata
+			for r := range sr.Results() {
+				results = append(results, r)
+			}
+			require.Equal(t, tc.expectedLenResults, len(results))
+			require.Equal(t, tc.expectedLenInspected, int(sr.TracesInspected()))
+		})
+	}
+
+}
+
 func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 	pageSizesMB := []float32{0.5, 1, 2}
 
