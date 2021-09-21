@@ -41,7 +41,7 @@ func TestPrefetchIterates(t *testing.T) {
 				{0x06},
 				{0x06},
 			},
-			err: errors.New("!!"),
+			err: errors.New("wups"),
 		},
 	}
 

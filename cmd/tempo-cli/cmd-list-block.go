@@ -257,9 +257,8 @@ func stringVal(v *v1.AnyValue) (string, bool) {
 	if bVal, ok := v.Value.(*v1.AnyValue_BoolValue); ok {
 		if bVal.BoolValue {
 			return "true", true
-		} else {
-			return "false", true
 		}
+		return "false", true
 	}
 	// todo? add support for these?
 	// if kVal, ok := v.Value.(*v1.AnyValue_KvlistValue); ok {

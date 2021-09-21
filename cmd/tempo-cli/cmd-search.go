@@ -60,14 +60,14 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 	// Load in parallel
 	wg := boundedwaitgroup.New(20)
 	resultsCh := make(chan *backend.BlockMeta, len(blockIDs))
-	for blockNum, id := range blockIDs {
+	for _, id := range blockIDs {
 		wg.Add(1)
 
-		go func(blockNum2 int, id2 uuid.UUID) {
+		go func(id2 uuid.UUID) {
 			defer wg.Done()
 
 			// search here
-			meta, err := r.BlockMeta(ctx, id, cmd.TenantID)
+			meta, err := r.BlockMeta(ctx, id2, cmd.TenantID)
 			if err == backend.ErrDoesNotExist {
 				return
 			}
@@ -79,7 +79,7 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 				meta.EndTime.Unix() >= startTime.Unix() {
 				resultsCh <- meta
 			}
-		}(blockNum, id)
+		}(id)
 	}
 
 	wg.Wait()
