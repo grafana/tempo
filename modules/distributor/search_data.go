@@ -10,12 +10,14 @@ import (
 	"github.com/grafana/tempo/tempodb/search"
 )
 
+type extractTagFunc func(tag string) bool
+
 // extractSearchDataAll returns flatbuffer search data for every trace.
-func extractSearchDataAll(traces []*tempopb.Trace, ids [][]byte, tagsToDrop map[string]struct{}) [][]byte {
+func extractSearchDataAll(traces []*tempopb.Trace, ids [][]byte, extractTag extractTagFunc) [][]byte {
 	headers := make([][]byte, len(traces))
 
 	for i, t := range traces {
-		headers[i] = extractSearchData(t, ids[i], tagsToDrop)
+		headers[i] = extractSearchData(t, ids[i], extractTag)
 	}
 
 	return headers
@@ -24,7 +26,7 @@ func extractSearchDataAll(traces []*tempopb.Trace, ids [][]byte, tagsToDrop map[
 // extractSearchData returns the flatbuffer search data for the given trace.  It is extracted here
 // in the distributor because this is the only place on the ingest path where the trace is available
 // in object form.
-func extractSearchData(trace *tempopb.Trace, id []byte, tagsToDrop map[string]struct{}) []byte {
+func extractSearchData(trace *tempopb.Trace, id []byte, extractTag extractTagFunc) []byte {
 	data := &tempofb.SearchEntryMutable{}
 
 	data.TraceID = id
@@ -33,7 +35,7 @@ func extractSearchData(trace *tempopb.Trace, id []byte, tagsToDrop map[string]st
 		// Batch attrs
 		if b.Resource != nil {
 			for _, a := range b.Resource.Attributes {
-				if _, exists := tagsToDrop[a.Key]; exists {
+				if !extractTag(a.Key) {
 					continue
 				}
 				if s, ok := extractValueAsString(a.Value); ok {
@@ -52,7 +54,7 @@ func extractSearchData(trace *tempopb.Trace, id []byte, tagsToDrop map[string]st
 
 					// Span attrs
 					for _, a := range s.Attributes {
-						if _, exists := tagsToDrop[a.Key]; exists {
+						if !extractTag(a.Key) {
 							continue
 						}
 						if s, ok := extractValueAsString(a.Value); ok {
@@ -63,7 +65,7 @@ func extractSearchData(trace *tempopb.Trace, id []byte, tagsToDrop map[string]st
 					// Batch attrs
 					if b.Resource != nil {
 						for _, a := range b.Resource.Attributes {
-							if _, exists := tagsToDrop[a.Key]; exists {
+							if !extractTag(a.Key) {
 								continue
 							}
 							if s, ok := extractValueAsString(a.Value); ok {
@@ -79,7 +81,7 @@ func extractSearchData(trace *tempopb.Trace, id []byte, tagsToDrop map[string]st
 				data.SetEndTimeUnixNano(s.EndTimeUnixNano)
 
 				for _, a := range s.Attributes {
-					if _, exists := tagsToDrop[a.Key]; exists {
+					if !extractTag(a.Key) {
 						continue
 					}
 					if s, ok := extractValueAsString(a.Value); ok {
