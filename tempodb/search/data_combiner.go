@@ -25,6 +25,7 @@ func (*DataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool) {
 	data := tempofb.SearchEntryMutable{}
 	kv := &tempofb.KeyValues{} // buffer
 	for _, sb := range searchData {
+		// we append zero-length entries to the WAL even when search is disabled. skipping to prevent unmarshalling and panik :)
 		if len(sb) == 0 {
 			continue
 		}
