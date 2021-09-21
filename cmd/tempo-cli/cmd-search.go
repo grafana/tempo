@@ -139,6 +139,7 @@ func searchIterator(iter encoding.Iterator, dataEncoding string, name string, va
 			return nil, err
 		}
 
+		// todo : parrallelize unmarshal and search
 		trace, err := model.Unmarshal(obj, dataEncoding)
 		if err != nil {
 			return nil, err
