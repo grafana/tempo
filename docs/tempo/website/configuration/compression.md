@@ -29,7 +29,6 @@ The following options are supported:
 - lz4
 - snappy
 - zstd
-- s2
 
 It is important to note that although all of these compression formats are supported in Tempo, at Grafana
 we use zstd and it's possible/probable that the other compression algorithms may have issue at scale.  Please 
