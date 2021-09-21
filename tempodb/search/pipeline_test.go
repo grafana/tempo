@@ -136,7 +136,7 @@ func TestPipelineMatchesTraceDuration(t *testing.T) {
 func TestPipelineMatchesBlock(t *testing.T) {
 
 	// Run all tests against this header
-	commonBlock := tempofb.NewSearchBlockHeaderBuilder()
+	commonBlock := tempofb.NewSearchBlockHeaderMutable()
 	commonBlock.AddTag("tag", "value")
 	commonBlock.MinDur = uint64(1 * time.Second)
 	commonBlock.MaxDur = uint64(10 * time.Second)

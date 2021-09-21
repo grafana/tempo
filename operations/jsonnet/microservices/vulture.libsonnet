@@ -16,7 +16,6 @@
       '-prometheus-listen-address=:' + port,
       '-tempo-push-url=' + $._config.vulture.tempoPushUrl,
       '-tempo-query-url=' + $._config.vulture.tempoQueryUrl,
-      '-logtostderr=true',
       '-tempo-org-id=' + $._config.vulture.tempoOrgId,
     ]) +
     k.util.resourcesRequests('50m', '100Mi') +
