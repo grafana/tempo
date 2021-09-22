@@ -5,10 +5,10 @@ import (
 	"io"
 	"sync"
 
+	"github.com/golang/snappy"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/klauspost/compress/gzip"
 	"github.com/klauspost/compress/s2"
-	"github.com/klauspost/compress/snappy"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
 	"github.com/prometheus/prometheus/pkg/pool"
@@ -441,7 +441,11 @@ func (pool *S2Pool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 		writer.Reset(dst)
 		return writer, nil
 	}
-	return s2.NewWriter(dst, s2.WriterConcurrency(1), s2.WriterBlockSize(10*1024)), nil
+	// todo: review options and tune for wal compression? i.e. tons of small writes
+	// consider:
+	//  s2.WriterConcurrency(1)     - disables concurrency, given that we write and immediately force flush with Close, this might be preferable
+	//  s2.WriterBlockSize(10*1024) - default block size is 1MB which is much larger than a normal write
+	return s2.NewWriter(dst), nil
 }
 
 // PutWriter places back in the pool a CompressionWriter
