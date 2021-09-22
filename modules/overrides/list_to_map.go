@@ -22,8 +22,10 @@ func (l ListToMap) MarshalYAML() (interface{}, error) {
 		list = append(list, k)
 	}
 
-	b, err := yaml.Marshal(&list)
-	return b, err
+	if len(list) == 0 {
+		return nil, nil
+	}
+	return list, nil
 }
 
 // UnmarshalYAML implements the Unmarshaler interface of the yaml pkg.
@@ -67,5 +69,8 @@ func (l *ListToMap) UnmarshalJSON(b []byte) error {
 }
 
 func (l *ListToMap) GetMap() map[string]struct{} {
+	if l.m == nil {
+		l.m = map[string]struct{}{}
+	}
 	return l.m
 }
