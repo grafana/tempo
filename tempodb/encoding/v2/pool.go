@@ -441,7 +441,7 @@ func (pool *S2Pool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 		writer.Reset(dst)
 		return writer, nil
 	}
-	return s2.NewWriter(dst, s2.WriterConcurrency(1)), nil
+	return s2.NewWriter(dst, s2.WriterConcurrency(1), s2.WriterBlockSize(10*1024)), nil
 }
 
 // PutWriter places back in the pool a CompressionWriter
