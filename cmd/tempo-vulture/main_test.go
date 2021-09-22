@@ -169,7 +169,7 @@ func TestResponseFixture(t *testing.T) {
 	err = jsonpb.Unmarshal(f, response)
 	require.NoError(t, err)
 
-	seed := time.Unix(1630624480, 0)
+	seed := time.Unix(1632146180, 0)
 	expected := constructTraceFromEpoch(seed)
 
 	assert.True(t, equalTraces(expected, response))
@@ -186,6 +186,15 @@ func TestEqualTraces(t *testing.T) {
 	a := constructTraceFromEpoch(seed)
 	b := constructTraceFromEpoch(seed)
 	require.True(t, equalTraces(a, b))
+}
+
+func TestTraceInfo(t *testing.T) {
+	seed := time.Unix(1632146180, 0)
+	info := newTraceInfo(seed)
+	assert.False(t, info.ready(seed))
+	assert.False(t, info.ready(seed.Add(tempoLongWriteBackoffDuration)))
+	assert.False(t, info.ready(seed.Add(tempoLongWriteBackoffDuration).Add(1*time.Second)))
+	assert.True(t, info.ready(seed.Add(2*tempoLongWriteBackoffDuration)))
 }
 
 func assertStandardVultureKey(t *testing.T, tag *thrift.Tag) {
