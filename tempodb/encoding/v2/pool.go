@@ -293,7 +293,7 @@ func (pool *SnappyPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *SnappyPool) PutWriter(writer io.WriteCloser) {
-	writer.(*snappy.Writer).Close()
+	_ = writer.(*snappy.Writer).Close()
 	pool.writers.Put(writer)
 }
 
@@ -450,7 +450,7 @@ func (pool *S2Pool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *S2Pool) PutWriter(writer io.WriteCloser) {
-	writer.(*s2.Writer).Close()
+	_ = writer.(*s2.Writer).Close()
 	pool.writers.Put(writer)
 }
 
