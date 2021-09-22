@@ -24,6 +24,7 @@ import (
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
 	"github.com/grafana/tempo/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -215,6 +216,9 @@ func TestMicroservices(t *testing.T) {
 	// query an in-memory trace
 	queryAndAssertTrace(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
 
+	// search an in-memory trace
+	searchAndAssertTrace(t, "http://"+tempoQueryFrontend.Endpoint(3200), batch.Spans[0].Tags[0].Key, batch.Spans[0].Tags[0].GetVStr(), hexID)
+
 	// stop another ingester and confirm things fail
 	err = tempoIngester1.Stop()
 	require.NoError(t, err)
@@ -232,6 +236,7 @@ func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
 
 	traceIDLow := rand.Int63()
 	traceIDHigh := rand.Int63()
+	tagValue := "y"
 	for i := 0; i < n; i++ {
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    traceIDLow,
@@ -243,8 +248,13 @@ func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
 			Flags:         0,
 			StartTime:     time.Now().Unix(),
 			Duration:      1,
-			Tags:          nil,
-			Logs:          nil,
+			Tags: []*thrift.Tag{
+				{
+					Key:  "x",
+					VStr: &tagValue,
+				},
+			},
+			Logs: nil,
 		})
 	}
 	return &thrift.Batch{Spans: spans}
@@ -267,6 +277,26 @@ func queryAndAssertTrace(t *testing.T, url string, expectedName string, expected
 	require.Len(t, out.Batches, expectedBatches)
 	assert.Equal(t, expectedName, out.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name)
 	defer res.Body.Close()
+}
+
+func searchAndAssertTrace(t *testing.T, baseURL, key, value, expectedHex string) {
+	c := tempoUtil.NewClient(baseURL, "")
+	resp, err := c.SearchTag(key, value)
+	require.NoError(t, err)
+
+	hasHex := func(hexId string) bool {
+		for _, s := range resp.Traces {
+			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
+			require.NoError(t, err)
+			if equal {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	require.True(t, hasHex(expectedHex))
 }
 
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
