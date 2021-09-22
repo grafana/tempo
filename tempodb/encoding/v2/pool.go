@@ -262,7 +262,7 @@ func (pool *SnappyPool) Encoding() backend.Encoding {
 // GetReader gets or creates a new CompressionReader and reset it to read from src
 func (pool *SnappyPool) GetReader(src io.Reader) (io.Reader, error) {
 	if r := pool.readers.Get(); r != nil {
-		reader := r.(*s2.Reader)
+		reader := r.(*snappy.Reader)
 		reader.Reset(src)
 		return reader, nil
 	}
@@ -276,7 +276,7 @@ func (pool *SnappyPool) PutReader(reader io.Reader) {
 
 // ResetReader implements ReaderPool
 func (pool *SnappyPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
-	reader := resetReader.(*s2.Reader)
+	reader := resetReader.(*snappy.Reader)
 	reader.Reset(src)
 	return reader, nil
 }
@@ -284,7 +284,7 @@ func (pool *SnappyPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Re
 // GetWriter gets or creates a new CompressionWriter and reset it to write to dst
 func (pool *SnappyPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 	if w := pool.writers.Get(); w != nil {
-		writer := w.(*s2.Writer)
+		writer := w.(*snappy.Writer)
 		writer.Reset(dst)
 		return writer, nil
 	}
