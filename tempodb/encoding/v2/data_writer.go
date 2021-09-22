@@ -49,9 +49,17 @@ func (p *dataWriter) Write(id common.ID, obj []byte) (int, error) {
 
 // CutPage implements DataWriter
 func (p *dataWriter) CutPage() (int, error) {
+	var err error
+	// reset buffers for the write
+	p.compressedBuffer.Reset()
+	p.compressionWriter, err = p.pool.ResetWriter(p.compressedBuffer, p.compressionWriter)
+	if err != nil {
+		return 0, err
+	}
+
 	// compress the raw object buffer
 	buffer := p.objectBuffer.Bytes()
-	_, err := p.compressionWriter.Write(buffer)
+	_, err = p.compressionWriter.Write(buffer)
 	if err != nil {
 		return 0, err
 	}
@@ -67,11 +75,6 @@ func (p *dataWriter) CutPage() (int, error) {
 
 	// reset buffers for the next write
 	p.objectBuffer.Reset()
-	p.compressedBuffer.Reset()
-	p.compressionWriter, err = p.pool.ResetWriter(p.compressedBuffer, p.compressionWriter)
-	if err != nil {
-		return 0, err
-	}
 
 	return bytesWritten, err
 }
