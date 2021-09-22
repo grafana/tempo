@@ -17,8 +17,10 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/pkg/util"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type valueStats struct {
@@ -99,6 +101,8 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 		dupe := 0
 		maxObjSize := 0
 		minObjSize := 0
+		maxObjID := common.ID{}
+		minObjID := common.ID{}
 
 		allKVP := kvPairs{}
 		printStats := func() {
@@ -106,8 +110,8 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 			fmt.Println("Scanning results:")
 			fmt.Println("Objects scanned : ", i)
 			fmt.Println("Duplicates      : ", dupe)
-			fmt.Println("Smallest object : ", humanize.Bytes(uint64(minObjSize)))
-			fmt.Println("Largest object  : ", humanize.Bytes(uint64(maxObjSize)))
+			fmt.Println("Smallest object : ", humanize.Bytes(uint64(minObjSize)), " : ", util.TraceIDToHexString(minObjID))
+			fmt.Println("Largest object  : ", humanize.Bytes(uint64(maxObjSize)), " : ", util.TraceIDToHexString(maxObjID))
 			fmt.Println("")
 			printKVPairs(allKVP)
 		}
@@ -134,10 +138,12 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 
 			if len(obj) > maxObjSize {
 				maxObjSize = len(obj)
+				maxObjID = objID
 			}
 
 			if len(obj) < minObjSize || minObjSize == 0 {
 				minObjSize = len(obj)
+				minObjID = objID
 			}
 
 			if bytes.Equal(objID, prevID) {
