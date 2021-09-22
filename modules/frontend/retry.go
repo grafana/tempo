@@ -37,6 +37,7 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.Retry")
 	defer span.Finish()
+	span.SetTag("span.kind", "client")
 
 	// context propagation
 	req = req.WithContext(ctx)
