@@ -55,6 +55,11 @@ var (
 		Name:      "ingester_blocks_cleared_total",
 		Help:      "The total number of blocks cleared.",
 	})
+	metricBytesReceivedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "ingester_bytes_received_total",
+		Help:      "The total bytes received per tenant.",
+	}, []string{"tenant"})
 )
 
 type instance struct {
@@ -77,6 +82,7 @@ type instance struct {
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	bytesWrittenTotal  prometheus.Counter
+	bytesReceivedTotal prometheus.Counter
 	limiter            *Limiter
 	writer             tempodb.Writer
 
@@ -107,6 +113,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
 		bytesWrittenTotal:  metricBytesWrittenTotal.WithLabelValues(instanceID),
+		bytesReceivedTotal: metricBytesReceivedTotal.WithLabelValues(instanceID),
 		limiter:            limiter,
 		writer:             writer,
 
@@ -159,6 +166,12 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
 func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, searchData []byte) error {
+	// measure received bytes as sum of slice capacities
+	// type byte is guaranteed to be 1 byte in size
+	// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
+	size := cap(id) + cap(traceBytes) + cap(searchData)
+	i.bytesReceivedTotal.Add(float64(size))
+
 	if !validation.ValidTraceID(id) {
 		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
 	}
