@@ -8,6 +8,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 var _ Iterator = (*testIterator)(nil)
@@ -17,7 +18,7 @@ type testIterator struct {
 	ids    []common.ID
 	data   [][]byte
 	errors []error
-	i      int
+	i      atomic.Int32
 }
 
 func (i *testIterator) Add(id common.ID, data []byte, err error) {
@@ -27,14 +28,16 @@ func (i *testIterator) Add(id common.ID, data []byte, err error) {
 }
 
 func (i *testIterator) Next(context.Context) (common.ID, []byte, error) {
-	if i.i == len(i.ids) {
+	idx := int(i.i.Load())
+
+	if idx == len(i.ids) {
 		return nil, nil, io.EOF
 	}
 
-	id := i.ids[i.i]
-	data := i.data[i.i]
-	err := i.errors[i.i]
-	i.i++
+	id := i.ids[idx]
+	data := i.data[idx]
+	err := i.errors[idx]
+	i.i.Inc()
 
 	return id, data, err
 }

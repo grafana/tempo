@@ -235,3 +235,25 @@ tempo-cli gen index --backend=local --bucket=./cmd/tempo-cli/test-data/ single-t
 ```
 
 The index will be generated at the required location under the block folder.
+
+## Search Blocks Command
+Search blocks in a given time range for a specific key/value pair.
+```bash
+tempo-cli search blocks <name> <value> <start> <end> <tenant-id>
+```
+ **Note:** can be intense as it downloads all relevant blocks and iterates through them.
+
+Arguments:
+- `name` Name of the attribute to search for e.g. `http.post`
+- `value` Value of the attribute to search for e.g. `GET`
+- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `tenant-id` Tenant to search.
+
+Options:
+See backend options above.
+
+**Example:**
+```bash
+tempo-cli search blocks http.post GET 2021-09-21T00:00:00 2021-09-21T00:05:00 single-tenant --backend=gcs --bucket=tempo-trace-data
+```
