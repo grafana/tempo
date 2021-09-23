@@ -6,9 +6,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type ListToMap struct {
-	m map[string]struct{}
-}
+type ListToMap map[string]struct{}
 
 var _ yaml.Marshaler = (*ListToMap)(nil)
 var _ yaml.Unmarshaler = (*ListToMap)(nil)
@@ -18,7 +16,7 @@ var _ json.Unmarshaler = (*ListToMap)(nil)
 // MarshalYAML implements the Marshal interface of the yaml pkg.
 func (l ListToMap) MarshalYAML() (interface{}, error) {
 	list := make([]string, 0)
-	for k := range l.m {
+	for k := range l {
 		list = append(list, k)
 	}
 
@@ -36,9 +34,9 @@ func (l *ListToMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	l.m = make(map[string]struct{})
+	*l = make(map[string]struct{})
 	for _, element := range list {
-		l.m[element] = struct{}{}
+		(*l)[element] = struct{}{}
 	}
 	return nil
 }
@@ -46,7 +44,7 @@ func (l *ListToMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // MarshalJSON implements the Marshal interface of the json pkg.
 func (l ListToMap) MarshalJSON() ([]byte, error) {
 	list := make([]string, 0)
-	for k := range l.m {
+	for k := range l {
 		list = append(list, k)
 	}
 
@@ -61,16 +59,16 @@ func (l *ListToMap) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	l.m = make(map[string]struct{})
+	*l = make(map[string]struct{})
 	for _, element := range list {
-		l.m[element] = struct{}{}
+		(*l)[element] = struct{}{}
 	}
 	return nil
 }
 
 func (l *ListToMap) GetMap() map[string]struct{} {
-	if l.m == nil {
-		l.m = map[string]struct{}{}
+	if *l == nil {
+		*l = map[string]struct{}{}
 	}
-	return l.m
+	return *l
 }

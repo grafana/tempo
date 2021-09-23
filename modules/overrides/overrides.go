@@ -244,8 +244,8 @@ func (o *Overrides) IngestionBurstSizeBytes(userID string) int {
 }
 
 // SearchTagsAllowList is the list of tags to be extracted for search, for this tenant
-func (o *Overrides) SearchTagsAllowList(userID string) *ListToMap {
-	return &o.getOverridesForUser(userID).SearchTagsAllowList
+func (o *Overrides) SearchTagsAllowList(userID string) map[string]struct{} {
+	return o.getOverridesForUser(userID).SearchTagsAllowList.GetMap()
 }
 
 // BlockRetention is the duration of the block retention for this tenant

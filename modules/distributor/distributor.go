@@ -266,7 +266,7 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID)
 		searchData = extractSearchDataAll(traces, ids, func(tag string) bool {
 			// if in per tenant override, extract
-			if _, ok := perTenantAllowedTags.GetMap()[tag]; ok {
+			if _, ok := perTenantAllowedTags[tag]; ok {
 				return true
 			}
 			// if in global deny list, drop
