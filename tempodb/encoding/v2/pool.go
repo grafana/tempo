@@ -5,10 +5,10 @@ import (
 	"io"
 	"sync"
 
+	"github.com/golang/snappy"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/klauspost/compress/gzip"
 	"github.com/klauspost/compress/s2"
-	"github.com/klauspost/compress/snappy"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
 	"github.com/prometheus/prometheus/pkg/pool"
@@ -262,7 +262,7 @@ func (pool *SnappyPool) Encoding() backend.Encoding {
 // GetReader gets or creates a new CompressionReader and reset it to read from src
 func (pool *SnappyPool) GetReader(src io.Reader) (io.Reader, error) {
 	if r := pool.readers.Get(); r != nil {
-		reader := r.(*s2.Reader)
+		reader := r.(*snappy.Reader)
 		reader.Reset(src)
 		return reader, nil
 	}
@@ -276,7 +276,7 @@ func (pool *SnappyPool) PutReader(reader io.Reader) {
 
 // ResetReader implements ReaderPool
 func (pool *SnappyPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
-	reader := resetReader.(*s2.Reader)
+	reader := resetReader.(*snappy.Reader)
 	reader.Reset(src)
 	return reader, nil
 }
@@ -284,7 +284,7 @@ func (pool *SnappyPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Re
 // GetWriter gets or creates a new CompressionWriter and reset it to write to dst
 func (pool *SnappyPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 	if w := pool.writers.Get(); w != nil {
-		writer := w.(*s2.Writer)
+		writer := w.(*snappy.Writer)
 		writer.Reset(dst)
 		return writer, nil
 	}
@@ -293,6 +293,7 @@ func (pool *SnappyPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *SnappyPool) PutWriter(writer io.WriteCloser) {
+	_ = writer.(*snappy.Writer).Close()
 	pool.writers.Put(writer)
 }
 
@@ -440,11 +441,16 @@ func (pool *S2Pool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 		writer.Reset(dst)
 		return writer, nil
 	}
+	// todo: review options and tune for wal compression? i.e. tons of small writes
+	// consider:
+	//  s2.WriterConcurrency(1)     - disables concurrency, given that we write and immediately force flush with Close, this might be preferable
+	//  s2.WriterBlockSize(10*1024) - default block size is 1MB which is much larger than a normal write
 	return s2.NewWriter(dst), nil
 }
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *S2Pool) PutWriter(writer io.WriteCloser) {
+	_ = writer.(*s2.Writer).Close()
 	pool.writers.Put(writer)
 }
 
