@@ -37,7 +37,7 @@ const (
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
 func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceIDQueryTimeout))
 	defer cancel()
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandler")
@@ -150,7 +150,7 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, string, error)
 
 func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
 	defer cancel()
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchHandler")
@@ -212,7 +212,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
 	defer cancel()
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagsHandler")
@@ -236,7 +236,7 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.QueryTimeout))
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
 	defer cancel()
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")
