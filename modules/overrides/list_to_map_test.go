@@ -29,6 +29,14 @@ func TestListToMapMarshalOperationsYAML(t *testing.T) {
 			},
 			marshalledYAML: "- foo\n",
 		},
+		{
+			name:      "explicit string entries",
+			inputYAML: "- \"foo\"",
+			expectedListToMapYAML: ListToMap{
+				"foo": {},
+			},
+			marshalledYAML: "- foo\n",
+		},
 	}
 
 	for _, tc := range testCases {
