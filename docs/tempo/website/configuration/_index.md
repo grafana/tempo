@@ -123,6 +123,10 @@ distributor:
     #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
     [extend_writes: <bool>]
 
+    # Optional.
+    # List of tags that will **not** be extracted from trace data for search lookups
+    # This is a global config that will apply to all tenants
+    [search_tags_deny_list: <list of string> | default = ]
 ```
 
 ## Ingester

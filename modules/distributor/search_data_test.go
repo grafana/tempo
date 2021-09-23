@@ -20,10 +20,11 @@ func TestExtractSearchData(t *testing.T) {
 		name       string
 		trace      *tempopb.Trace
 		id         []byte
+		extractTag extractTagFunc
 		searchData *tempofb.SearchEntryMutable
 	}{
 		{
-			name: "trace with root span",
+			name: "extracts search tags",
 			trace: &tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
@@ -73,12 +74,52 @@ func TestExtractSearchData(t *testing.T) {
 				StartTimeUnixNano: 0,
 				EndTimeUnixNano:   0,
 			},
+			extractTag: func(tag string) bool {
+				return true
+			},
+		},
+		{
+			name: "drops tags in deny list",
+			trace: &tempopb.Trace{
+				Batches: []*v1.ResourceSpans{
+					{
+						Resource: &v1_resource.Resource{
+							Attributes: []*v1_common.KeyValue{
+								{
+									Key: "foo",
+									Value: &v1_common.AnyValue{
+										Value: &v1_common.AnyValue_StringValue{StringValue: "bar"},
+									},
+								},
+								{
+									Key: "bar",
+									Value: &v1_common.AnyValue{
+										Value: &v1_common.AnyValue_StringValue{StringValue: "baz"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			id: traceIDA,
+			searchData: &tempofb.SearchEntryMutable{
+				TraceID: traceIDA,
+				Tags: tempofb.SearchDataMap{
+					"bar": []string{"baz"},
+				},
+				StartTimeUnixNano: 0,
+				EndTimeUnixNano:   0,
+			},
+			extractTag: func(tag string) bool {
+				return tag != "foo"
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.searchData.ToBytes(), extractSearchData(tc.trace, tc.id))
+			assert.Equal(t, tc.searchData.ToBytes(), extractSearchData(tc.trace, tc.id, tc.extractTag))
 		})
 	}
 }

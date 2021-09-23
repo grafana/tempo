@@ -94,7 +94,11 @@ type Distributor struct {
 	ingestersRing   ring.ReadRing
 	pool            *ring_client.Pool
 	DistributorRing *ring.Ring
-	searchEnabled   bool
+	overrides       *overrides.Overrides
+
+	// search
+	searchEnabled    bool
+	globalTagsToDrop map[string]struct{}
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -147,6 +151,12 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	subservices = append(subservices, pool)
 
+	// turn list into map for efficient checking
+	tagsToDrop := map[string]struct{}{}
+	for _, tag := range cfg.SearchTagsDenyList {
+		tagsToDrop[tag] = struct{}{}
+	}
+
 	d := &Distributor{
 		cfg:                  cfg,
 		clientCfg:            clientCfg,
@@ -155,6 +165,8 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		DistributorRing:      distributorRing,
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 		searchEnabled:        searchEnabled,
+		globalTagsToDrop:     tagsToDrop,
+		overrides:            o,
 	}
 
 	cfgReceivers := cfg.Receivers
@@ -249,10 +261,21 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 		return nil, err
 	}
 
-	//var
 	var searchData [][]byte
 	if d.searchEnabled {
-		searchData = extractSearchDataAll(traces, ids)
+		perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID)
+		searchData = extractSearchDataAll(traces, ids, func(tag string) bool {
+			// if in per tenant override, extract
+			if _, ok := perTenantAllowedTags[tag]; ok {
+				return true
+			}
+			// if in global deny list, drop
+			if _, ok := d.globalTagsToDrop[tag]; ok {
+				return false
+			}
+			// allow otherwise
+			return true
+		})
 	}
 
 	err = d.sendToIngestersViaBytes(ctx, userID, traces, searchData, keys, ids)

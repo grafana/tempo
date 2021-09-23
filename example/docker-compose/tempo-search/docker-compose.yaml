@@ -5,21 +5,24 @@ services:
     image: grafana/tempo:latest
     command: [ "-search.enabled=true", "-config.file=/etc/tempo.yaml" ]
     volumes:
-      - ../local/tempo-local.yaml:/etc/tempo.yaml
+      - ./tempo.yaml:/etc/tempo.yaml
+      - ./overrides.yaml:/etc/overrides.yaml
       - ./tempo-data/:/tmp/tempo
     ports:
       - "3200:3200"   # tempo
       - "14268"  # jaeger ingest
 
-  tempo-query:
-    image: grafana/tempo-query:latest
-    command: [ "--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml" ]
-    volumes:
-      - ./tempo-query.yaml:/etc/tempo-query.yaml
-    ports:
-      - "16686:16686"  # jaeger-ui
-    depends_on:
-      - tempo
+#  Commenting out because Grafana UI has search enabled. Uncomment if you want to use the Jaeger UI!
+#
+#  tempo-query:
+#    image: grafana/tempo-query:latest
+#    command: [ "--grpc-storage-plugin.configuration-file=/etc/tempo-query.yaml" ]
+#    volumes:
+#      - ./tempo-query.yaml:/etc/tempo-query.yaml
+#    ports:
+#      - "16686:16686"  # jaeger-ui
+#    depends_on:
+#      - tempo
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
