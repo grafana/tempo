@@ -37,7 +37,7 @@ const (
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
 func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceIDQueryTimeout))
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceLookupQueryTimeout))
 	defer cancel()
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandler")
