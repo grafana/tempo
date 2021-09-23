@@ -16,6 +16,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [storage](#storage)
   - [memberlist](#memberlist)
   - [polling](#polling)
+  - [overrides](#overrides)
 
 #### Use environment variables in the configuration
 
@@ -634,3 +635,67 @@ memberlist:
     [packet_write_timeout: <duration> | default = 5s]
 
 ```
+
+## Overrides
+Tempo provides a overrides module for user to set global or per-tenant override settings.   
+**Currenly only ingestion limits can be overrided.**
+
+### Ingestion limits
+The default limits in Tempo may not be sufficient in high volume tracing environments. 
+```
+# Overrides configuration
+overrides:
+    
+    # Global ingestion limits configurations
+
+    # Burst size (bytes) used in ingestion.
+    # (Default: `20,000,000` ~20MB )
+    [ingestion_burst_size_bytes: <int>]     # RATE_LIMITED Error when exceeded
+
+    # Per-user ingestion rate limit (bytes) used in ingestion. 
+    # (Default: `15,000,000` ~15MB)
+    [ingestion_rate_limit_bytes: <int>]     # RATE_LIMITED Error when exceeded
+    
+    # Maximum size of a single trace in bytes.  `0` to disable. 
+    # (Default: `5,000,000` ~5MB)
+    [max_bytes_per_trace: <int>]            # TRACE_TOO_LARGE Error when exceeded
+
+    # Maximum number of active traces per user, per ingester. `0` to disable. 
+    # (Default: `10,000`)
+    [max_traces_per_user: <int> ]           # LIVE_TRACES_EXCEEDED Error when exceeded
+
+
+    # Tenant-specific overrides
+
+    # tenant-specific overrides settings config file
+    [per_tenant_override_config: /conf/overrides.yaml]
+
+    # Ingestion strategy, default is `local`.
+    [ingestion_rate_strategy: <global|local>]
+```
+
+
+### Tenant-specific overrides
+
+You can set tenant-specific overrides settings in a separate file and point `per_tenant_override_config` to it. This overrides file is dynamically loaded.  It can be changed at runtime and will be reloaded by Tempo without restarting the application.
+
+```
+# Tenant-specific overrides configuration
+# /conf/overrides.yaml
+overrides:
+    
+    # "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
+    "<tenant id>":
+        [ingestion_burst_size_bytes: <int>]
+        [ingestion_rate_limit_bytes: <int>]
+        [max_bytes_per_trace: <int>]
+        [max_traces_per_user: <int>]
+```
+
+### Override strategies
+
+The trace limits specified by the various parameters are, by default, applied as per-distributor limits. For example, a `max_traces_per_user` setting of 10000 means that each distributor within the cluster has a limit of 10000 traces per user. This is known as a `local` strategy in that the specified trace limits are local to each distributor.
+
+A setting that applies at a local level is quite helpful in ensuring that each distributor independently can process traces up to the limit without affecting the tracing limits on other distributors.
+
+However, as a cluster grows quite large, this can lead to quite a large quantity of traces. An alternative strategy may be to set a `global` trace limit that establishes a total budget of all traces across all distributors in the cluster. The global limit is averaged across all distributors by using the distributor ring.
