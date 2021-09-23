@@ -39,6 +39,11 @@ var (
 	ErrTraceMissing = errors.New("Trace missing")
 )
 
+const (
+	traceDataType  = "trace"
+	searchDataType = "search"
+)
+
 var (
 	metricTracesCreatedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -59,7 +64,7 @@ var (
 		Namespace: "tempo",
 		Name:      "ingester_bytes_received_total",
 		Help:      "The total bytes received per tenant.",
-	}, []string{"tenant"})
+	}, []string{"tenant", "data_type"})
 )
 
 type instance struct {
@@ -82,7 +87,7 @@ type instance struct {
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	bytesWrittenTotal  prometheus.Counter
-	bytesReceivedTotal prometheus.Counter
+	bytesReceivedTotal *prometheus.CounterVec
 	limiter            *Limiter
 	writer             tempodb.Writer
 
@@ -113,7 +118,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
 		bytesWrittenTotal:  metricBytesWrittenTotal.WithLabelValues(instanceID),
-		bytesReceivedTotal: metricBytesReceivedTotal.WithLabelValues(instanceID),
+		bytesReceivedTotal: metricBytesReceivedTotal,
 		limiter:            limiter,
 		writer:             writer,
 
@@ -166,11 +171,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
 func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, searchData []byte) error {
-	// measure received bytes as sum of slice capacities
-	// type byte is guaranteed to be 1 byte in size
-	// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
-	size := cap(id) + cap(traceBytes) + cap(searchData)
-	i.bytesReceivedTotal.Add(float64(size))
+	i.measureReceivedBytes(traceBytes, searchData)
 
 	if !validation.ValidTraceID(id) {
 		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
@@ -191,6 +192,14 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 
 	trace := i.getOrCreateTrace(id)
 	return trace.Push(ctx, i.instanceID, traceBytes, searchData)
+}
+
+func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
+	// measure received bytes as sum of slice lengths
+	// type byte is guaranteed to be 1 byte in size
+	// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
+	i.bytesReceivedTotal.WithLabelValues(i.instanceID, traceDataType).Add(float64(len(traceBytes)))
+	i.bytesReceivedTotal.WithLabelValues(i.instanceID, searchDataType).Add(float64(len(searchData)))
 }
 
 // Moves any complete traces out of the map to complete traces
