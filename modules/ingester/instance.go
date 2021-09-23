@@ -50,11 +50,6 @@ var (
 		Name:      "ingester_traces_created_total",
 		Help:      "The total number of traces created per tenant.",
 	}, []string{"tenant"})
-	metricBytesWrittenTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "ingester_bytes_written_total",
-		Help:      "The total bytes written per tenant.",
-	}, []string{"tenant"})
 	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "ingester_blocks_cleared_total",
@@ -86,7 +81,6 @@ type instance struct {
 
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
-	bytesWrittenTotal  prometheus.Counter
 	bytesReceivedTotal *prometheus.CounterVec
 	limiter            *Limiter
 	writer             tempodb.Writer
@@ -117,7 +111,6 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
-		bytesWrittenTotal:  metricBytesWrittenTotal.WithLabelValues(instanceID),
 		bytesReceivedTotal: metricBytesReceivedTotal,
 		limiter:            limiter,
 		writer:             writer,
@@ -218,7 +211,6 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		if err != nil {
 			return err
 		}
-		i.bytesWrittenTotal.Add(float64(len(out)))
 
 		// return trace byte slices to be reused by proto marshalling
 		//  WARNING: can't reuse traceid's b/c the appender takes ownership of byte slices that are passed to it
