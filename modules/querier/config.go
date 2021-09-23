@@ -11,8 +11,7 @@ import (
 
 // Config for a querier.
 type Config struct {
-	TraceIDQueryTimeout  time.Duration        `yaml:"query_timeout"`
-	SearchQueryTimeout   time.Duration        `yaml:"search_query_timeout"`
+	QueryTimeout         time.Duration        `yaml:"query_timeout"`
 	ExtraQueryDelay      time.Duration        `yaml:"extra_query_delay,omitempty"`
 	MaxConcurrentQueries int                  `yaml:"max_concurrent_queries"`
 	Worker               cortex_worker.Config `yaml:"frontend_worker"`
@@ -20,8 +19,7 @@ type Config struct {
 
 // RegisterFlagsAndApplyDefaults register flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	cfg.TraceIDQueryTimeout = 10 * time.Second
-	cfg.SearchQueryTimeout = 30 * time.Second
+	cfg.QueryTimeout = 10 * time.Second
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 5
 	cfg.Worker = cortex_worker.Config{
