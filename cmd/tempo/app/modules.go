@@ -299,7 +299,7 @@ func (t *App) setupModuleManager() error {
 		QueryFrontend: {Server},
 		Ring:          {Server, MemberlistKV},
 		Distributor:   {Ring, Server, Overrides},
-		Ingester:      {Store, Server, Overrides, MemberlistKV},
+		Ingester:      {Store, Overrides, Ring},
 		Querier:       {Store, Ring},
 		Compactor:     {Store, Server, Overrides, MemberlistKV},
 		All:           {Compactor, QueryFrontend, Querier, Ingester, Distributor},

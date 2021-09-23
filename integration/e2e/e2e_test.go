@@ -151,6 +151,11 @@ func TestMicroservices(t *testing.T) {
 	}
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
 
+	// Ensure the /ingester/ring endpoint is registered when running ingester target
+	res, err := cortex_e2e.GetRequest("http://" + tempoIngester1.Endpoint(3200) + "/ingester/ring")
+	require.NoError(t, err)
+	require.Equal(t, 200, res.StatusCode)
+
 	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
 	require.NoError(t, err)
@@ -176,7 +181,7 @@ func TestMicroservices(t *testing.T) {
 	queryAndAssertTrace(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
 
 	// flush trace to backend
-	res, err := cortex_e2e.GetRequest("http://" + tempoIngester1.Endpoint(3200) + "/flush")
+	res, err = cortex_e2e.GetRequest("http://" + tempoIngester1.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
