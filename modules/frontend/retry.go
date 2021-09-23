@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -37,7 +38,7 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.Retry")
 	defer span.Finish()
-	span.SetTag("span.kind", "client")
+	ext.SpanKindRPCClient.Set(span)
 
 	// context propagation
 	req = req.WithContext(ctx)
