@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/multierr"
 )
 
 func TestResults(t *testing.T) {
@@ -34,8 +35,9 @@ func TestResults(t *testing.T) {
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, dataEncoding, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, dataEncoding, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.NoError(t, err)
+	assert.NoError(t, multierr.Combine(blockErrs...))
 	require.Len(t, msg, 1)
 	assert.Equal(t, ret, msg[0])
 	require.Len(t, dataEncoding, 1)
@@ -60,9 +62,10 @@ func TestNoResults(t *testing.T) {
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
+	assert.NoError(t, multierr.Combine(blockErrs...))
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
@@ -84,12 +87,13 @@ func TestMultipleHits(t *testing.T) {
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	require.Len(t, msg, 5)
 	for i := range payloads {
 		assert.Equal(t, ret, msg[i])
 	}
-	assert.Nil(t, err)
+	assert.NoError(t, err)
+	assert.NoError(t, multierr.Combine(blockErrs...))
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
@@ -116,9 +120,10 @@ func TestError(t *testing.T) {
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
-	assert.Equal(t, ret, err)
+	assert.Equal(t, ret, multierr.Combine(blockErrs...))
+	assert.NoError(t, err)
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
@@ -134,15 +139,18 @@ func TestMultipleErrors(t *testing.T) {
 	})
 	opts := goleak.IgnoreCurrent()
 
+	var expErr error
 	ret := fmt.Errorf("blerg")
 	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
+		expErr = multierr.Append(expErr, ret)
 		return nil, "", ret
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
-	assert.Equal(t, ret, err)
+	assert.NoError(t, err)
+	assert.Equal(t, expErr, multierr.Combine(blockErrs...))
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
@@ -163,9 +171,10 @@ func TestTooManyJobs(t *testing.T) {
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
 	assert.Error(t, err)
+	assert.Nil(t, blockErrs)
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
@@ -192,10 +201,11 @@ func TestOneWorker(t *testing.T) {
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.NoError(t, err)
 	require.Len(t, msg, 1)
 	assert.Equal(t, ret, msg[0])
+	assert.NoError(t, multierr.Combine(blockErrs...))
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
@@ -228,8 +238,9 @@ func TestGoingHam(t *testing.T) {
 			}
 			payloads := []interface{}{1, 2, 3, 4, 5}
 
-			msg, _, err := p.RunJobs(context.Background(), payloads, fn)
+			msg, _, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 			assert.NoError(t, err)
+			assert.NoError(t, multierr.Combine(blockErrs...))
 			require.Len(t, msg, 1)
 			assert.Equal(t, ret, msg[0])
 			wg.Done()
@@ -262,7 +273,7 @@ func TestOverloadingASmallPool(t *testing.T) {
 				return nil, "", nil
 			}
 			payloads := []interface{}{1, 2}
-			_, _, _ = p.RunJobs(context.Background(), payloads, fn)
+			_, _, _, _ = p.RunJobs(context.Background(), payloads, fn)
 
 			wg.Done()
 		}()
@@ -292,14 +303,15 @@ func TestShutdown(t *testing.T) {
 		return nil, "", nil
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5}
-	_, _, _ = p.RunJobs(context.Background(), payloads, fn)
+	_, _, _, _ = p.RunJobs(context.Background(), payloads, fn)
 	p.Shutdown()
 	goleak.VerifyNone(t, prePoolOpts)
 
 	opts := goleak.IgnoreCurrent()
-	msg, _, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, _, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
 	assert.Error(t, err)
+	assert.NoError(t, multierr.Combine(blockErrs...))
 	goleak.VerifyNone(t, opts)
 }
 
@@ -318,7 +330,7 @@ func TestDataEncodings(t *testing.T) {
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
-	msg, dataEncodings, err := p.RunJobs(context.Background(), payloads, fn)
+	msg, dataEncodings, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	require.Len(t, msg, 5)
 	for i := range payloads {
 		assert.Equal(t, ret, msg[i])
@@ -327,6 +339,7 @@ func TestDataEncodings(t *testing.T) {
 		assert.Equal(t, hex.EncodeToString(ret), dataEncodings[i])
 	}
 	assert.Nil(t, err)
+	assert.NoError(t, multierr.Combine(blockErrs...))
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
