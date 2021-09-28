@@ -1,10 +1,9 @@
 package e2e
 
 import (
-	"context"
-	"fmt"
 	"math/rand"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -22,6 +20,8 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
+	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
@@ -75,13 +75,15 @@ func TestAllInOne(t *testing.T) {
 			c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
 			require.NoError(t, err)
 			require.NotNil(t, c)
-			batch := makeThriftBatch()
-			require.NoError(t, c.EmitBatch(context.Background(), batch))
+
+			info := tempoUtil.NewTraceInfo(time.Now(), "")
+			require.NoError(t, info.EmitAllBatches(c))
+
+			expected, err := info.ConstructTraceFromEpoch()
+			require.NoError(t, err)
 
 			// test metrics
-			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_distributor_spans_received_total"))
-
-			hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
 
 			// test echo
 			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
@@ -89,10 +91,13 @@ func TestAllInOne(t *testing.T) {
 			// ensure trace is created in ingester (trace_idle_time has passed)
 			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
-			// query an in-memory trace
 			apiClient := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), "")
-			queryAndAssertTrace(t, apiClient, hexID, "my operation", 1)
-			searchAndAssertTrace(t, apiClient, batch.Spans[0].Tags[0].Key, batch.Spans[0].Tags[0].GetVStr(), hexID)
+
+			// query an in-memory trace
+			queryAndAssertTrace(t, apiClient, info)
+
+			// search an in-memory trace
+			searchAndAssertTrace(t, apiClient, info)
 
 			// flush trace to backend
 			res, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
@@ -110,10 +115,13 @@ func TestAllInOne(t *testing.T) {
 			// test metrics
 			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
-			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_query_frontend_queries_total"))
+			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(2), "tempo_query_frontend_queries_total"))
 
 			// query trace - should fetch from backend
-			queryAndAssertTrace(t, apiClient, hexID, "my operation", 1)
+			queryAndAssertTrace(t, apiClient, info)
+
+			// TODO: when search is implemented in the backend, add search
+			//searchAndAssertTrace(t, apiClient, info)
 		})
 	}
 }
@@ -137,8 +145,6 @@ func TestMicroservices(t *testing.T) {
 	tempoQuerier := util.NewTempoQuerier()
 	require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoIngester3, tempoDistributor, tempoQueryFrontend, tempoQuerier))
 
-	apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
-
 	// wait for 2 active ingesters
 	time.Sleep(1 * time.Second)
 	matchers := []*labels.Matcher{
@@ -159,14 +165,15 @@ func TestMicroservices(t *testing.T) {
 	c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
-	batch := makeThriftBatch()
 
-	require.NoError(t, c.EmitBatch(context.Background(), batch))
+	info := tempoUtil.NewTraceInfo(time.Now(), "")
+	require.NoError(t, info.EmitAllBatches(c))
+
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
 
 	// test metrics
-	require.NoError(t, tempoDistributor.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_distributor_spans_received_total"))
-
-	hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+	require.NoError(t, tempoDistributor.WaitSumMetrics(cortex_e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
 
 	// test echo
 	assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
@@ -176,8 +183,13 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 	require.NoError(t, tempoIngester3.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
+	apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
+
 	// query an in-memory trace
-	queryAndAssertTrace(t, apiClient, hexID, "my operation", 1)
+	queryAndAssertTrace(t, apiClient, info)
+
+	// search an in-memory trace
+	searchAndAssertTrace(t, apiClient, info)
 
 	// flush trace to backend
 	res, err := cortex_e2e.GetRequest("http://" + tempoIngester1.Endpoint(3200) + "/flush")
@@ -200,10 +212,10 @@ func TestMicroservices(t *testing.T) {
 		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	}
 	require.NoError(t, tempoQuerier.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
-	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_query_frontend_queries_total"))
+	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(2), "tempo_query_frontend_queries_total"))
 
 	// query trace - should fetch from backend
-	queryAndAssertTrace(t, apiClient, hexID, "my operation", 1)
+	queryAndAssertTrace(t, apiClient, info)
 
 	// stop an ingester and confirm we can still write and query
 	err = tempoIngester2.Stop()
@@ -212,22 +224,20 @@ func TestMicroservices(t *testing.T) {
 	// sleep for heartbeat timeout
 	time.Sleep(1 * time.Second)
 
-	batch = makeThriftBatch()
-	require.NoError(t, c.EmitBatch(context.Background(), batch))
-	hexID = fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+	info = tempoUtil.NewTraceInfo(time.Now(), "")
+	require.NoError(t, info.EmitAllBatches(c))
 
 	// query an in-memory trace
-	queryAndAssertTrace(t, apiClient, hexID, "my operation", 1)
+	queryAndAssertTrace(t, apiClient, info)
 
 	// search an in-memory trace
-	searchAndAssertTrace(t, apiClient, batch.Spans[0].Tags[0].Key, batch.Spans[0].Tags[0].GetVStr(), hexID)
+	searchAndAssertTrace(t, apiClient, info)
 
 	// stop another ingester and confirm things fail
 	err = tempoIngester1.Stop()
 	require.NoError(t, err)
 
-	batch = makeThriftBatch()
-	require.Error(t, c.EmitBatch(context.Background(), batch))
+	require.Error(t, info.EmitBatches(c))
 }
 
 func makeThriftBatch() *thrift.Batch {
@@ -260,6 +270,7 @@ func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
 			Logs: nil,
 		})
 	}
+
 	return &thrift.Batch{Spans: spans}
 }
 
@@ -271,19 +282,26 @@ func assertEcho(t *testing.T, url string) {
 }
 
 //nolint:unparam
-func queryAndAssertTrace(t *testing.T, client *tempoUtil.Client, hexID string, expectedName string, expectedBatches int) {
-	resp, err := client.QueryTrace(hexID)
+func queryAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+	resp, err := client.QueryTrace(info.HexID())
 	require.NoError(t, err)
 
-	require.Len(t, resp.Batches, expectedBatches)
-	assert.Equal(t, expectedName, resp.Batches[0].InstrumentationLibrarySpans[0].Spans[0].Name)
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	require.True(t, equalTraces(resp, expected))
 }
 
-func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, key, value, expectedHex string) {
-	resp, err := client.SearchTag(key, value)
+func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
-	hasHex := func(hexId string) bool {
+	attr := tempoUtil.RandomAttrFromTrace(expected)
+
+	resp, err := client.SearchTag(attr.GetKey(), attr.GetValue().GetStringValue())
+	require.NoError(t, err)
+
+	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
 		for _, s := range resp.Traces {
 			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
 			require.NoError(t, err)
@@ -295,7 +313,7 @@ func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, key, value, ex
 		return false
 	}
 
-	require.True(t, hasHex(expectedHex))
+	require.True(t, hasHex(info.HexID(), resp))
 }
 
 func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
@@ -309,4 +327,22 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 		return nil, err
 	}
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
+}
+
+func equalTraces(a, b *tempopb.Trace) bool {
+	model.SortTrace(a)
+	model.SortTrace(b)
+
+	return reflect.DeepEqual(a, b)
+}
+
+func spanCount(a *tempopb.Trace) float64 {
+	count := 0
+	for _, batch := range a.Batches {
+		for _, spans := range batch.InstrumentationLibrarySpans {
+			count += len(spans.Spans)
+		}
+	}
+
+	return float64(count)
 }

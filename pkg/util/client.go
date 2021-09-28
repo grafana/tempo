@@ -45,7 +45,7 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	}()
 
 	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		return resp, fmt.Errorf("request failed with response: %d", resp.StatusCode)
+		return resp, fmt.Errorf("GET request to %s failed with response: %d", req.URL.String(), resp.StatusCode)
 	}
 
 	unmarshaller := &jsonpb.Unmarshaler{}

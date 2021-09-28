@@ -1,3 +1,5 @@
+search_enabled: true
+
 target: all
 
 server:

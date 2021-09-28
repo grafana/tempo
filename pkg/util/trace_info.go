@@ -25,8 +25,7 @@ var (
 	maxLongWritesPerTrace int64 = 3
 )
 
-// TraceInfo is some information that is used to keep track of a somewhat
-// randomly generated trace.
+// TraceInfo is used to construct synthetic traces and manage the expectations.
 type TraceInfo struct {
 	timestamp           time.Time
 	r                   *rand.Rand
@@ -36,6 +35,7 @@ type TraceInfo struct {
 	tempoOrgID          string
 }
 
+// NewTraceInfo is used to produce a new TraceInfo.
 func NewTraceInfo(timestamp time.Time, tempoOrgID string) *TraceInfo {
 	r := newRand(timestamp)
 
@@ -53,7 +53,6 @@ func (t *TraceInfo) Ready(now time.Time, writeBackoff, longWriteBackoff time.Dur
 
 	// Don't use the last time interval to allow the write loop to finish before
 	// we try to read it.
-
 	if t.timestamp.After(now.Add(-writeBackoff)) {
 		return false
 	}
@@ -92,6 +91,7 @@ func (t *TraceInfo) EmitBatches(c *jaeger_grpc.Reporter) error {
 		if err != nil {
 			return fmt.Errorf("error injecting org id: %w", err)
 		}
+
 		err = c.EmitBatch(ctx, t.makeThriftBatch(t.traceIDHigh, t.traceIDLow))
 		if err != nil {
 			return fmt.Errorf("error pushing batch to Tempo: %w", err)
@@ -101,13 +101,15 @@ func (t *TraceInfo) EmitBatches(c *jaeger_grpc.Reporter) error {
 	return nil
 }
 
+// EmitAllBatches sends all the batches that would normally be sent at some
+// interval when using EmitBatches.
 func (t *TraceInfo) EmitAllBatches(c *jaeger_grpc.Reporter) error {
-
 	err := t.EmitBatches(c)
 	if err != nil {
 		return err
 	}
-	for t.longWritesRemaining > 0 {
+
+	for t.LongWritesRemaining() > 0 {
 		t.Done()
 
 		err := t.EmitBatches(c)
