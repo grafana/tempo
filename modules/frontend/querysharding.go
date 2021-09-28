@@ -29,6 +29,7 @@ const (
 	querierPrefix  = "/querier"
 	queryDelimiter = "?"
 
+	// todo: make configurable
 	maxBlockErrCount = 5
 )
 
@@ -189,10 +190,6 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 				combinedTrace = resp.Trace
 			} else {
 				combinedTrace, _, _, _ = model.CombineTraceProtos(combinedTrace, resp.Trace)
-				if err != nil {
-					// will result in a 500 internal server error
-					return nil, errors.Wrap(err, "error combining traces at query frontend")
-				}
 			}
 		} else if rr.Response.StatusCode != http.StatusNotFound {
 			errCode = rr.Response.StatusCode
@@ -218,10 +215,15 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 		}, nil
 	}
 
-	// todo: signal partial content to upstream
 	if errCode == http.StatusOK {
+		statusCode := http.StatusOK
+		if totalBlockErrCount > 0 {
+			// If there are failed blocks, and we haven't returned with an error,
+			// signal the upstream that the result contains partial results.
+			statusCode = http.StatusPartialContent
+		}
 		return &http.Response{
-			StatusCode: http.StatusOK,
+			StatusCode: statusCode,
 			Body:       ioutil.NopCloser(bytes.NewReader(combinedTraceBytes)),
 			// ContentLength header is added to log the size of response in the Tripperware in frontend.go
 			// This could be overwritten if the query client and Tempo negotiate compression
