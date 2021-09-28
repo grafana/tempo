@@ -97,7 +97,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	span.SetTag("response marshalling format", util.JSONTypeHeaderValue)
 	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp.Trace)
+	err = marshaller.Marshal(w, resp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

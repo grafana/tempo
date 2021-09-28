@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/go-kit/kit/log"
+	"github.com/golang/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
@@ -154,9 +156,11 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 
 	var errCode = http.StatusOK
 	var errBody io.ReadCloser
-	var combinedTrace []byte
+	var combinedTrace *tempopb.Trace
+	var combinedTraceBytes []byte
 	var shardMissCount = 0
 	for _, rr := range rrs {
+		// todo: handle status partial content (206)
 		if rr.Response.StatusCode == http.StatusOK {
 			body, err := io.ReadAll(rr.Response.Body)
 			rr.Response.Body.Close()
@@ -164,10 +168,16 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 				return nil, errors.Wrap(err, "error reading response body at query frontend")
 			}
 
-			if len(combinedTrace) == 0 {
-				combinedTrace = body
+			var resp tempopb.TraceByIDResponse
+			err = proto.Unmarshal(body, &resp)
+			if err != nil {
+				return nil, errors.Wrap(err, "error reading response body at query frontend")
+			}
+
+			if combinedTrace == nil {
+				combinedTrace = resp.Trace
 			} else {
-				combinedTrace, _, err = model.CombineTraceBytes(combinedTrace, body, model.TracePBEncoding, model.TracePBEncoding)
+				combinedTrace, _, _, _ = model.CombineTraceProtos(combinedTrace, resp.Trace)
 				if err != nil {
 					// will result in a 500 internal server error
 					return nil, errors.Wrap(err, "error combining traces at query frontend")
@@ -178,6 +188,14 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 			errBody = rr.Response.Body
 		} else {
 			shardMissCount++
+		}
+	}
+
+	if combinedTrace != nil {
+		var err error
+		combinedTraceBytes, err = combinedTrace.Marshal()
+		if err != nil {
+			return nil, errors.Wrap(err, "error marshaling combined trace at query frontend")
 		}
 	}
 
@@ -192,10 +210,10 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 	if errCode == http.StatusOK {
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
+			Body:       ioutil.NopCloser(bytes.NewReader(combinedTraceBytes)),
 			// ContentLength header is added to log the size of response in the Tripperware in frontend.go
 			// This could be overwritten if the query client and Tempo negotiate compression
-			ContentLength: int64(len(combinedTrace)),
+			ContentLength: int64(len(combinedTraceBytes)),
 			Header:        http.Header{},
 		}, nil
 	}

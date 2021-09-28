@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/pkg/model"
@@ -57,12 +58,20 @@ func TestMergeResponses(t *testing.T) {
 	t1 := test.MakeTrace(10, []byte{0x01, 0x02})
 	t2 := test.MakeTrace(10, []byte{0x01, 0x03})
 
-	b1, err := proto.Marshal(t1)
+	bt1, err := proto.Marshal(t1)
 	assert.NoError(t, err)
-	b2, err := proto.Marshal(t2)
+	bt2, err := proto.Marshal(t2)
 	assert.NoError(t, err)
 
-	combinedTrace, _, err := model.CombineTraceBytes(b1, b2, model.TracePBEncoding, model.TracePBEncoding)
+	r1 := &tempopb.TraceByIDResponse{Trace: t1, BlockErrCount: 1}
+	r2 := &tempopb.TraceByIDResponse{Trace: t2, BlockErrCount: 2}
+
+	br1, err := proto.Marshal(r1)
+	assert.NoError(t, err)
+	br2, err := proto.Marshal(r2)
+	assert.NoError(t, err)
+
+	combinedTrace, _, err := model.CombineTraceBytes(bt1, bt2, model.TracePBEncoding, model.TracePBEncoding)
 	assert.NoError(t, err)
 
 	tests := []struct {
@@ -76,13 +85,13 @@ func TestMergeResponses(t *testing.T) {
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(b1)),
+						Body:       ioutil.NopCloser(bytes.NewReader(br1)),
 					},
 				},
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(b2)),
+						Body:       ioutil.NopCloser(bytes.NewReader(br2)),
 					},
 				},
 				{
@@ -104,7 +113,7 @@ func TestMergeResponses(t *testing.T) {
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(b1)),
+						Body:       ioutil.NopCloser(bytes.NewReader(br1)),
 					},
 				},
 				{
@@ -146,7 +155,7 @@ func TestMergeResponses(t *testing.T) {
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(b1)),
+						Body:       ioutil.NopCloser(bytes.NewReader(br1)),
 					},
 				},
 				{
