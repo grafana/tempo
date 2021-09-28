@@ -27,6 +27,7 @@ message TraceByIDRequest {
 
 message TraceByIDResponse {
   Trace trace = 1;
+  uint32 blockErrCount = 2;
 }
 
 message SearchRequest {
