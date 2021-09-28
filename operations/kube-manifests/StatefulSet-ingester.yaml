@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 0bf23ab3d6ba5b97313fcc0c4b845a33
+        config_hash: 48de574bb668780f2434f8e3d827b9ef
       labels:
         app: ingester
         name: ingester
@@ -57,10 +57,15 @@ spec:
           name: tempo-conf
         - mountPath: /var/tempo
           name: ingester-data
+        - mountPath: /overrides
+          name: overrides
       volumes:
       - configMap:
           name: tempo-ingester
         name: tempo-conf
+      - configMap:
+          name: tempo-overrides
+        name: overrides
   updateStrategy:
     type: RollingUpdate
   volumeClaimTemplates:

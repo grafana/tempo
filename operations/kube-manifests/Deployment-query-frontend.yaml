@@ -18,7 +18,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 0bf23ab3d6ba5b97313fcc0c4b845a33
+        config_hash: 48de574bb668780f2434f8e3d827b9ef
       labels:
         app: query-frontend
         name: query-frontend
@@ -54,9 +54,6 @@ spec:
         - --query.base-path=/tempo
         - --grpc-storage-plugin.configuration-file=/conf/tempo-query.yaml
         - --query.bearer-token-propagation=true
-        env:
-        - name: JAEGER_DISABLED
-          value: "true"
         image: grafana/tempo-query:latest
         imagePullPolicy: IfNotPresent
         name: tempo-query
