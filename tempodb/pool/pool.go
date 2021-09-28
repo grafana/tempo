@@ -34,6 +34,7 @@ type JobFunc func(ctx context.Context, payload interface{}) ([]byte, string, err
 type result struct {
 	data []byte
 	enc  string
+	err  error
 }
 
 type job struct {
@@ -45,7 +46,6 @@ type job struct {
 	wg        *sync.WaitGroup
 	resultsCh chan result
 	stop      *atomic.Bool
-	err       chan error
 }
 
 type Pool struct {
@@ -94,7 +94,6 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	}
 
 	resultsCh := make(chan result, totalJobs) // way for jobs to send back results
-	errCh := make(chan error, totalJobs)      // way for jobs to send back an error
 	stop := atomic.NewBool(false)             // way to signal to the jobs to quit
 	wg := &sync.WaitGroup{}                   // way to wait for all jobs to complete
 
@@ -109,7 +108,6 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 			wg:        wg,
 			resultsCh: resultsCh,
 			stop:      stop,
-			err:       errCh,
 		}
 
 		select {
@@ -125,25 +123,20 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	// wait for all jobs to finish
 	wg.Wait()
 
-	// close resultsCh and errCh
+	// close resultsCh
 	close(resultsCh)
-	close(errCh)
 
 	// read all from results channel
 	var data [][]byte
 	var enc []string
-	if l := len(resultsCh); l > 0 {
-		data = make([][]byte, 0, l)
-		enc = make([]string, 0, l)
-	}
+	var fnErrs []error
 	for res := range resultsCh {
-		data = append(data, res.data)
-		enc = append(enc, res.enc)
-	}
-
-	fnErrs := make([]error, 0, len(errCh))
-	for err := range errCh {
-		fnErrs = append(fnErrs, err)
+		if res.err != nil {
+			fnErrs = append(fnErrs, res.err)
+		} else {
+			data = append(data, res.data)
+			enc = append(enc, res.enc)
+		}
 	}
 
 	return data, enc, fnErrs, nil
@@ -193,7 +186,7 @@ func runJob(job *job) {
 	}
 
 	data, enc, err := job.fn(job.ctx, job.payload)
-	if data != nil {
+	if data != nil || err != nil {
 		// Commenting out job cancellations for now because of a resource leak suspected in the GCS golang client.
 		// Issue logged here: https://github.com/googleapis/google-cloud-go/issues/3018
 		// job.cancel()
@@ -201,12 +194,9 @@ func runJob(job *job) {
 		case job.resultsCh <- result{
 			data: data,
 			enc:  enc,
+			err:  err,
 		}:
 		default: // if we hit default it means that something else already returned a good result.  /shrug
 		}
-	}
-	// todo: return result or err, not both
-	if err != nil {
-		job.err <- err
 	}
 }

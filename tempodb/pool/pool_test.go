@@ -139,18 +139,21 @@ func TestMultipleErrors(t *testing.T) {
 	})
 	opts := goleak.IgnoreCurrent()
 
-	var expErr error
 	ret := fmt.Errorf("blerg")
 	fn := func(ctx context.Context, payload interface{}) ([]byte, string, error) {
-		expErr = multierr.Append(expErr, ret)
 		return nil, "", ret
 	}
 	payloads := []interface{}{1, 2, 3, 4, 5}
 
+	var expErr []error
+	for range payloads {
+		expErr = append(expErr, ret)
+	}
+
 	msg, _, blockErrs, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
 	assert.NoError(t, err)
-	assert.Equal(t, expErr, multierr.Combine(blockErrs...))
+	assert.Equal(t, expErr, blockErrs)
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()

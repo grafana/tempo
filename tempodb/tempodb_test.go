@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/multierr"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -101,8 +102,9 @@ func TestDB(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, actualDataEncoding, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		bFound, actualDataEncoding, blockErrs, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
+		assert.NoError(t, multierr.Combine(blockErrs...))
 		assert.Equal(t, []string{testDataEncoding}, actualDataEncoding)
 
 		out := &tempopb.PushRequest{}
@@ -153,8 +155,9 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case1: hit
 	blockStart := uuid.MustParse(BlockIDMin).String()
 	blockEnd := uuid.MustParse(BlockIDMax).String()
-	bFound, _, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
+	bFound, _, blockErrs, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
+	assert.NoError(t, multierr.Combine(blockErrs...))
 	assert.Greater(t, len(bFound), 0)
 
 	out := &tempopb.PushRequest{}
@@ -165,8 +168,9 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case2: miss
 	blockStart = uuid.MustParse(BlockIDMin).String()
 	blockEnd = uuid.MustParse(BlockIDMin).String()
-	bFound, _, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
+	bFound, _, blockErrs, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
+	assert.NoError(t, multierr.Combine(blockErrs...))
 	assert.Len(t, bFound, 0)
 }
 
@@ -174,9 +178,10 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 	r, _, _, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
 	defer os.RemoveAll(tempDir)
 
-	buff, _, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
+	buff, _, blockErrs, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
+	assert.Nil(t, multierr.Combine(blockErrs...))
 }
 
 func TestBlockCleanup(t *testing.T) {
@@ -516,12 +521,13 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, _, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
+		bFound, _, blockErrs, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(bFound[0], out)
 		assert.NoError(t, err)
+		assert.NoError(t, multierr.Combine(blockErrs...))
 
 		assert.True(t, proto.Equal(out, reqs[i]))
 	}
@@ -544,12 +550,13 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// find should succeed with old block range
 	for i, id := range ids {
-		bFound, _, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
+		bFound, _, blockErrs, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(bFound[0], out)
 		assert.NoError(t, err)
+		assert.NoError(t, multierr.Combine(blockErrs...))
 
 		assert.True(t, proto.Equal(out, reqs[i]))
 	}

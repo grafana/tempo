@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/multierr"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -175,12 +176,13 @@ func TestCompaction(t *testing.T) {
 
 	// now see if we can find our ids
 	for i, id := range allIds {
-		b, _, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		b, _, blockErrs, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
 
 		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(b[0], out)
 		assert.NoError(t, err)
+		assert.NoError(t, multierr.Combine(blockErrs...))
 
 		assert.True(t, proto.Equal(allReqs[i], out))
 	}
@@ -337,10 +339,11 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	// Make sure all expected traces are found.
 	for i := 0; i < blockCount; i++ {
 		for j := 0; j < recordCount; j++ {
-			trace, _, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax)
+			trace, _, blockErrs, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax)
 			assert.NotNil(t, trace)
 			assert.Greater(t, len(trace), 0)
 			assert.NoError(t, err)
+			assert.NoError(t, multierr.Combine(blockErrs...))
 		}
 	}
 }
