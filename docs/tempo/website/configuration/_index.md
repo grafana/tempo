@@ -16,6 +16,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [storage](#storage)
   - [memberlist](#memberlist)
   - [polling](#polling)
+  - [overrides](#overrides)
 
 #### Use environment variables in the configuration
 
@@ -633,4 +634,98 @@ memberlist:
     # Timeout for writing 'packet' data.
     [packet_write_timeout: <duration> | default = 5s]
 
+```
+
+## Overrides
+Tempo provides a overrides module for user to set global or per-tenant override settings.   
+**Currenly only ingestion limits can be overridden.**
+
+### Ingestion limits
+The default limits in Tempo may not be sufficient in high volume tracing environments. Errors including `RATE_LIMITED`/`TRACE_TOO_LARGE`/`LIVE_TRACES_EXCEEDED` will occur when these limits are exceeded.
+
+#### Standard overrides
+You can create an `overrides` section to configure new ingestion limits that applies to all tenants of the cluster.  
+A snippet of a config.yaml file showing how the overrides section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40).
+
+```yaml
+# Overrides configuration block
+overrides:
+    
+    # Global ingestion limits configurations
+
+    # Burst size (bytes) used in ingestion.
+    # (Default: `20,000,000` ~20MB )
+    # Results in errors like
+    #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
+    [ingestion_burst_size_bytes: <int>]
+
+    # Per-user ingestion rate limit (bytes) used in ingestion. 
+    # (Default: `15,000,000` ~15MB)
+    # Results in errors like
+    #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while 
+    [ingestion_rate_limit_bytes: <int>]
+    
+    # Maximum size of a single trace in bytes.  `0` to disable. 
+    # (Default: `5,000,000` ~5MB)
+    # Results in errors like
+    #    TRACE_TOO_LARGE: max size of trace (5000000) exceeded while adding 387 bytes
+    [max_bytes_per_trace: <int>]
+
+    # Maximum number of active traces per user, per ingester. `0` to disable. 
+    # (Default: `10,000`)
+    # Results in errors like
+    #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
+    [max_traces_per_user: <int> ]
+
+
+    # Tenant-specific overrides
+
+    # tenant-specific overrides settings config file
+    [per_tenant_override_config: /conf/overrides.yaml]
+
+    # Ingestion strategy, default is `local`.
+    [ingestion_rate_strategy: <global|local>]
+```
+
+
+#### Tenant-specific overrides
+
+You can set tenant-specific overrides settings in a separate file and point `per_tenant_override_config` to it. This overrides file is dynamically loaded.  It can be changed at runtime and will be reloaded by Tempo without restarting the application.
+```yaml
+# /conf/tempo.yaml
+# Overrides configuration block
+overrides:
+   per_tenant_override_config: /conf/overrides.yaml
+
+---
+# /conf/overrides.yaml
+# Tenant-specific overrides configuration
+overrides:
+
+    "<tenant id>":
+        [ingestion_burst_size_bytes: <int>]
+        [ingestion_rate_limit_bytes: <int>]
+        [max_bytes_per_trace: <int>]
+        [max_traces_per_user: <int>]
+
+    # A "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
+    "*":
+        [ingestion_burst_size_bytes: <int>]
+        [ingestion_rate_limit_bytes: <int>]
+        [max_bytes_per_trace: <int>]
+        [max_traces_per_user: <int>]
+```
+
+#### Override strategies
+
+The trace limits specified by the various parameters are, by default, applied as per-distributor limits. For example, a `max_traces_per_user` setting of 10000 means that each distributor within the cluster has a limit of 10000 traces per user. This is known as a `local` strategy in that the specified trace limits are local to each distributor.
+
+A setting that applies at a local level is quite helpful in ensuring that each distributor independently can process traces up to the limit without affecting the tracing limits on other distributors.
+
+However, as a cluster grows quite large, this can lead to quite a large quantity of traces. An alternative strategy may be to set a `global` trace limit that establishes a total budget of all traces across all distributors in the cluster. The global limit is averaged across all distributors by using the distributor ring.
+```yaml
+# /conf/tempo.yaml
+overrides:
+    # Ingestion strategy, default is `local`.
+    ingestion_rate_strategy: <global|local>
 ```
