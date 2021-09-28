@@ -549,6 +549,15 @@ storage:
 
             # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
             [encoding: <string>]
+
+            # search data encoding/compression. same options as blocks.
+            # (default: gzip)
+            [search_encoding: <string>]
+
+            # number of bytes per search page
+            # (default: 1MiB)
+            [search_page_size_bytes: <int>]
+
 ```
 
 ## Memberlist
