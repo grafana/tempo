@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -27,6 +28,8 @@ const (
 
 	querierPrefix  = "/querier"
 	queryDelimiter = "?"
+
+	maxBlockErrCount = 5
 )
 
 func ShardingWare(queryShards int, logger log.Logger) Middleware {
@@ -158,10 +161,11 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 	var errBody io.ReadCloser
 	var combinedTrace *tempopb.Trace
 	var combinedTraceBytes []byte
-	var shardMissCount = 0
+	var shardMissCount, totalBlockErrCount int
 	for _, rr := range rrs {
 		// todo: handle status partial content (206)
-		if rr.Response.StatusCode == http.StatusOK {
+		partialContent := rr.Response.StatusCode == http.StatusPartialContent
+		if rr.Response.StatusCode == http.StatusOK || partialContent {
 			body, err := io.ReadAll(rr.Response.Body)
 			rr.Response.Body.Close()
 			if err != nil {
@@ -172,6 +176,13 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 			err = proto.Unmarshal(body, &resp)
 			if err != nil {
 				return nil, errors.Wrap(err, "error reading response body at query frontend")
+			}
+
+			if partialContent {
+				totalBlockErrCount += int(resp.BlockErrCount)
+				if totalBlockErrCount > maxBlockErrCount {
+					return nil, fmt.Errorf("too many block queries failed (max %d)", maxBlockErrCount)
+				}
 			}
 
 			if combinedTrace == nil {
@@ -207,6 +218,7 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 		}, nil
 	}
 
+	// todo: signal partial content to upstream
 	if errCode == http.StatusOK {
 		return &http.Response{
 			StatusCode: http.StatusOK,
