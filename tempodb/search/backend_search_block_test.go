@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testTenantID = "fake"
+
 func genSearchData(traceID []byte, i int) [][]byte {
 	return [][]byte{(&tempofb.SearchEntryMutable{
 		TraceID: traceID,
@@ -46,11 +48,10 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 	require.NoError(t, err)
 
 	blockID := uuid.New()
-	tenantID := "fake"
-	err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, tenantID, enc, pageSizeBytes)
+	err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, testTenantID, enc, pageSizeBytes)
 	require.NoError(t, err)
 
-	b2 := OpenBackendSearchBlock(blockID, tenantID, backend.NewReader(l))
+	b2 := OpenBackendSearchBlock(blockID, testTenantID, backend.NewReader(l))
 	return b2
 }
 
@@ -128,11 +129,10 @@ func TestBackendSearchBlockDedupesWAL(t *testing.T) {
 			require.NoError(t, err)
 
 			blockID := uuid.New()
-			tenantID := "fake"
-			err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, tenantID, backend.EncNone, 0)
+			err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, testTenantID, backend.EncNone, 0)
 			require.NoError(t, err)
 
-			b2 := OpenBackendSearchBlock(blockID, tenantID, backend.NewReader(l))
+			b2 := OpenBackendSearchBlock(blockID, testTenantID, backend.NewReader(l))
 
 			p := NewSearchPipeline(&tempopb.SearchRequest{
 				Tags: tc.searchTags,
@@ -227,15 +227,14 @@ func TestBackendSearchBlockFinalSize(t *testing.T) {
 	require.NoError(t, err)
 
 	blockID := uuid.New()
-	tenantID := "fake"
 
 	for _, enc := range backend.SupportedEncoding {
 		for _, sz := range pageSizesMB {
 
-			err := NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, tenantID, enc, int(sz*1024*1024))
+			err := NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, testTenantID, enc, int(sz*1024*1024))
 			require.NoError(t, err)
 
-			_, len, err := l.Read(context.TODO(), "search", backend.KeyPathForBlock(blockID, tenantID), false)
+			_, len, err := l.Read(context.TODO(), "search", backend.KeyPathForBlock(blockID, testTenantID), false)
 			require.NoError(t, err)
 
 			fmt.Printf("BackendSearchBlock/%s/%.1fMiB, %d traces = %d bytes, %.2f bytes per trace \n", enc.String(), sz, traceCount, len, float32(len)/float32(traceCount))
