@@ -9,16 +9,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-// TagContainer is anything with KeyValues (tags). This is implemented by both
-// SearchPage and SearchEntry.
-type TagContainer interface {
-	Tags(obj *KeyValues, j int) bool
-	TagsLength() int
-}
-
-var _ TagContainer = (*SearchPage)(nil)
-var _ TagContainer = (*SearchEntry)(nil)
-
 type SearchDataMap map[string][]string
 
 func (s SearchDataMap) Add(k, v string) {
@@ -219,45 +209,20 @@ func (s *SearchEntry) Get(k string) string {
 // Buffer KeyValue object can be passed to reduce allocations. Key and value must be
 // already converted to byte slices which match the nature of the flatbuffer data
 // which reduces allocations even further.
-func (s *SearchEntry) Contains(kv *KeyValues, k []byte, v []byte) bool {
-
-	matched := -1
-
-	// Binary search for keys. Flatbuffers are written backwards so
-	// keys are descending (the comparison is reversed).
-	// TODO - We only want exact matches, sort.Search has to make an
-	// extra comparison. We should fork it to make use of the full
-	// tri-state response from bytes.Compare
-	sort.Search(s.TagsLength(), func(i int) bool {
-		s.Tags(kv, i)
-		comparison := bytes.Compare(k, kv.Key())
-		if comparison == 0 {
-			matched = i
-			// TODO it'd be great to exit here and retain the data in kv buffer
-		}
-		return comparison >= 0
-	})
-
-	if matched >= 0 {
-		s.Tags(kv, matched)
-
-		// Linear search for matching values
-		l := kv.ValueLength()
-		for j := 0; j < l; j++ {
-			if bytes.Contains(kv.Value(j), v) {
-				return true
-			}
-		}
-	}
-
-	return false
+func (s *SearchEntry) Contains(k []byte, v []byte, buffer *KeyValues) bool {
+	return ContainsTag(s, buffer, k, v)
 }
 
 func SearchEntryFromBytes(b []byte) *SearchEntry {
 	return GetRootAsSearchEntry(b, 0)
 }
 
-func ContainsTag(s TagContainer, kv *KeyValues, k []byte, v []byte) bool {
+type FBTagContainer interface {
+	Tags(obj *KeyValues, j int) bool
+	TagsLength() int
+}
+
+func ContainsTag(s FBTagContainer, kv *KeyValues, k []byte, v []byte) bool {
 
 	matched := -1
 

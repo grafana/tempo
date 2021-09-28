@@ -8,12 +8,13 @@ import (
 	"github.com/golang/snappy"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/s2"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
 	"github.com/prometheus/prometheus/pkg/pool"
 )
 
-const maxEncoding = backend.EncZstd
+const maxEncoding = backend.EncS2
 
 // WriterPool is a pool of io.Writer
 // This is used by every chunk to avoid unnecessary allocations.
@@ -49,6 +50,8 @@ var (
 	Noop NoopPool
 	// Zstd Pool
 	Zstd = ZstdPool{}
+	// S2 Pool
+	S2 = S2Pool{}
 
 	// BytesBufferPool is a bytes buffer used for lines decompressed.
 	// Buckets [0.5KB,1KB,2KB,4KB,8KB]
@@ -82,6 +85,8 @@ func getReaderPool(enc backend.Encoding) (ReaderPool, error) {
 		return &Snappy, nil
 	case backend.EncZstd:
 		return &Zstd, nil
+	case backend.EncS2:
+		return &S2, nil
 	default:
 		return nil, fmt.Errorf("Unknown pool encoding %d", enc)
 	}
@@ -288,6 +293,7 @@ func (pool *SnappyPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 
 // PutWriter places back in the pool a CompressionWriter
 func (pool *SnappyPool) PutWriter(writer io.WriteCloser) {
+	_ = writer.(*snappy.Writer).Close()
 	pool.writers.Put(writer)
 }
 
@@ -391,6 +397,66 @@ func (pool *ZstdPool) PutWriter(writer io.WriteCloser) {
 // ResetWriter implements WriterPool
 func (pool *ZstdPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.WriteCloser, error) {
 	writer := resetWriter.(*zstd.Encoder)
+	writer.Reset(dst)
+	return writer, nil
+}
+
+// S2Pool is one s short of s3
+type S2Pool struct {
+	readers sync.Pool
+	writers sync.Pool
+}
+
+// Encoding implements WriterPool and ReaderPool
+func (pool *S2Pool) Encoding() backend.Encoding {
+	return backend.EncS2
+}
+
+// GetReader gets or creates a new CompressionReader and reset it to read from src
+func (pool *S2Pool) GetReader(src io.Reader) (io.Reader, error) {
+	if r := pool.readers.Get(); r != nil {
+		reader := r.(*s2.Reader)
+		reader.Reset(src)
+		return reader, nil
+	}
+	return s2.NewReader(src), nil
+}
+
+// PutReader places back in the pool a CompressionReader
+func (pool *S2Pool) PutReader(reader io.Reader) {
+	pool.readers.Put(reader)
+}
+
+// ResetReader implements ReaderPool
+func (pool *S2Pool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
+	reader := resetReader.(*s2.Reader)
+	reader.Reset(src)
+	return reader, nil
+}
+
+// GetWriter gets or creates a new CompressionWriter and reset it to write to dst
+func (pool *S2Pool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
+	if w := pool.writers.Get(); w != nil {
+		writer := w.(*s2.Writer)
+		writer.Reset(dst)
+		return writer, nil
+	}
+	// todo: review options and tune for wal compression? i.e. tons of small writes
+	// consider:
+	//  s2.WriterConcurrency(1)     - disables concurrency, given that we write and immediately force flush with Close, this might be preferable
+	//  s2.WriterBlockSize(10*1024) - default block size is 1MB which is much larger than a normal write
+	return s2.NewWriter(dst), nil
+}
+
+// PutWriter places back in the pool a CompressionWriter
+func (pool *S2Pool) PutWriter(writer io.WriteCloser) {
+	_ = writer.(*s2.Writer).Close()
+	pool.writers.Put(writer)
+}
+
+// ResetWriter implements WriterPool
+func (pool *S2Pool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.WriteCloser, error) {
+	writer := resetWriter.(*s2.Writer)
 	writer.Reset(dst)
 	return writer, nil
 }

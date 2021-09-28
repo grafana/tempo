@@ -1,20 +1,28 @@
 package tempofb
 
-import flatbuffers "github.com/google/flatbuffers/go"
+import (
+	"strings"
 
-type SearchBlockHeaderBuilder struct {
+	flatbuffers "github.com/google/flatbuffers/go"
+)
+
+func (s *SearchBlockHeader) Contains(k []byte, v []byte, buffer *KeyValues) bool {
+	return ContainsTag(s, buffer, k, v)
+}
+
+type SearchBlockHeaderMutable struct {
 	Tags   SearchDataMap
 	MinDur uint64
 	MaxDur uint64
 }
 
-func NewSearchBlockHeaderBuilder() *SearchBlockHeaderBuilder {
-	return &SearchBlockHeaderBuilder{
+func NewSearchBlockHeaderMutable() *SearchBlockHeaderMutable {
+	return &SearchBlockHeaderMutable{
 		Tags: SearchDataMap{},
 	}
 }
 
-func (s *SearchBlockHeaderBuilder) AddEntry(e *SearchEntry) {
+func (s *SearchBlockHeaderMutable) AddEntry(e *SearchEntry) {
 
 	kv := &KeyValues{} //buffer
 
@@ -37,11 +45,33 @@ func (s *SearchBlockHeaderBuilder) AddEntry(e *SearchEntry) {
 }
 
 // AddTag adds the unique tag name and value to the search data. No effect if the pair is already present.
-func (s *SearchBlockHeaderBuilder) AddTag(k string, v string) {
+func (s *SearchBlockHeaderMutable) AddTag(k string, v string) {
 	s.Tags.Add(k, v)
 }
 
-func (s *SearchBlockHeaderBuilder) ToBytes() []byte {
+func (s *SearchBlockHeaderMutable) MinDurationNanos() uint64 {
+	return s.MinDur
+}
+
+func (s *SearchBlockHeaderMutable) MaxDurationNanos() uint64 {
+	return s.MaxDur
+}
+
+func (s *SearchBlockHeaderMutable) Contains(k []byte, v []byte, _ *KeyValues) bool {
+	e := s.Tags[string(k)]
+	if e != nil {
+		vv := string(v)
+		for _, s := range e {
+			if strings.Contains(s, vv) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (s *SearchBlockHeaderMutable) ToBytes() []byte {
 	b := flatbuffers.NewBuilder(1024)
 
 	tags := s.Tags.WriteToBuilder(b)

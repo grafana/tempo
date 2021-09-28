@@ -22,7 +22,6 @@ spec:
         - -prometheus-listen-address=:8080
         - -tempo-push-url=http://distributor
         - -tempo-query-url=http://query-frontend:3200/tempo
-        - -logtostderr=true
         - -tempo-org-id=1
         image: grafana/tempo-vulture:latest
         imagePullPolicy: IfNotPresent

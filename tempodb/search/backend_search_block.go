@@ -42,7 +42,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 		pageSizeBytes = defaultBackendSearchBlockPageSize
 	}
 
-	header := tempofb.NewSearchBlockHeaderBuilder()
+	header := tempofb.NewSearchBlockHeaderMutable()
 
 	w, err := newBackendSearchBlockWriter(blockID, tenantID, rw, version, enc)
 	if err != nil {

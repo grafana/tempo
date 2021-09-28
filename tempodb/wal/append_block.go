@@ -225,6 +225,9 @@ func (a *AppendBlock) Clear() error {
 		a.appendFile = nil
 	}
 
+	// ignore error, it's important to remove the file above all else
+	_ = a.appender.Complete()
+
 	name := a.fullFilename()
 	return os.Remove(name)
 }

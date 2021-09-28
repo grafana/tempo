@@ -148,51 +148,59 @@ func (o *Overrides) tenantOverrides() *perTenantOverrides {
 	return cfg
 }
 
-func (o *Overrides) Handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var tenantOverrides perTenantOverrides
-		if o.tenantOverrides() != nil {
-			tenantOverrides = *o.tenantOverrides()
-		}
-		var output interface{}
-		cfg := Config{
-			Defaults:           o.defaultLimits,
-			PerTenantOverrides: tenantOverrides,
-		}
-		switch r.URL.Query().Get("mode") {
-		case "diff":
-			// Default runtime config is just empty struct, but to make diff work,
-			// we set defaultLimits for every tenant that exists in runtime config.
-			defaultCfg := perTenantOverrides{TenantLimits: map[string]*Limits{}}
-			defaultCfg.TenantLimits = map[string]*Limits{}
-			for k, v := range tenantOverrides.TenantLimits {
-				if v != nil {
-					defaultCfg.TenantLimits[k] = o.defaultLimits
-				}
-			}
-
-			cfgYaml, err := util.YAMLMarshalUnmarshal(cfg.PerTenantOverrides)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			defaultCfgYaml, err := util.YAMLMarshalUnmarshal(defaultCfg)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			output, err = util.DiffConfig(defaultCfgYaml, cfgYaml)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		default:
-			output = cfg
-		}
-		util.WriteYAMLResponse(w, output)
+func (o *Overrides) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
+	var tenantOverrides perTenantOverrides
+	if o.tenantOverrides() != nil {
+		tenantOverrides = *o.tenantOverrides()
 	}
+	var output interface{}
+	cfg := Config{
+		Defaults:           o.defaultLimits,
+		PerTenantOverrides: tenantOverrides,
+	}
+
+	mode := r.URL.Query().Get("mode")
+	switch mode {
+	case "diff":
+		// Default runtime config is just empty struct, but to make diff work,
+		// we set defaultLimits for every tenant that exists in runtime config.
+		defaultCfg := perTenantOverrides{TenantLimits: map[string]*Limits{}}
+		defaultCfg.TenantLimits = map[string]*Limits{}
+		for k, v := range tenantOverrides.TenantLimits {
+			if v != nil {
+				defaultCfg.TenantLimits[k] = o.defaultLimits
+			}
+		}
+
+		cfgYaml, err := util.YAMLMarshalUnmarshal(cfg.PerTenantOverrides)
+		if err != nil {
+			return err
+		}
+
+		defaultCfgYaml, err := util.YAMLMarshalUnmarshal(defaultCfg)
+		if err != nil {
+			return err
+		}
+
+		output, err = util.DiffConfig(defaultCfgYaml, cfgYaml)
+		if err != nil {
+			return err
+		}
+	default:
+		output = cfg
+	}
+
+	out, err := yaml.Marshal(output)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(out)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
@@ -233,6 +241,11 @@ func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
 // IngestionBurstSizeBytes is the burst size in spans allowed for this tenant
 func (o *Overrides) IngestionBurstSizeBytes(userID string) int {
 	return o.getOverridesForUser(userID).IngestionBurstSizeBytes
+}
+
+// SearchTagsAllowList is the list of tags to be extracted for search, for this tenant
+func (o *Overrides) SearchTagsAllowList(userID string) map[string]struct{} {
+	return o.getOverridesForUser(userID).SearchTagsAllowList.GetMap()
 }
 
 // BlockRetention is the duration of the block retention for this tenant

@@ -55,7 +55,7 @@ storage:
       insecure: true
     wal:
       path: /tmp/tempo/wal             # where to store the the wal locally
-      encoding: snappy                 # wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd
+      encoding: snappy                 # wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
     local:
       path: /tmp/tempo/blocks
     pool:
