@@ -4,6 +4,7 @@ memcached {
   memcached+:: {
     cpu_limits:: null,
     connection_limit: $._config.memcached.connection_limit,
+    memory_limit_mb: $._config.memcached.memory_limit_mb,
 
     deployment: {},
 
