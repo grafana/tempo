@@ -45,7 +45,7 @@ jobs:
       run: make tempo-query
 
   tempo-mixin:
-    name: Check tempo-mixin
+    name: Check kube-manifests & tempo-mixin
     runs-on: ubuntu-latest
     steps:
 
@@ -61,6 +61,9 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v2
+
+      - name: Check kube-manifests
+        run: make kube-manifests-check
 
       - name: Check tempo-mixin
         run: make tempo-mixin-check
