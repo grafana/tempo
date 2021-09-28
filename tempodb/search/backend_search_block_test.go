@@ -47,10 +47,10 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 
 	blockID := uuid.New()
 	tenantID := "fake"
-	err = NewBackendSearchBlock(b1, l, blockID, tenantID, enc, pageSizeBytes)
+	err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, tenantID, enc, pageSizeBytes)
 	require.NoError(t, err)
 
-	b2 := OpenBackendSearchBlock(l, blockID, tenantID)
+	b2 := OpenBackendSearchBlock(blockID, tenantID, backend.NewReader(l))
 	return b2
 }
 
@@ -123,6 +123,45 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 					float64(sr.TracesInspected())/(elapsed.Seconds())/1_000_000,
 				)
 			})
+		}
+	}
+}
+
+func TestBackendSearchBlockFinalSize(t *testing.T) {
+	traceCount := 10000
+	pageSizesMB := []float32{1}
+
+	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
+	require.NoError(t, err)
+
+	b1, err := NewStreamingSearchBlockForFile(f)
+	require.NoError(t, err)
+
+	for i := 0; i < traceCount; i++ {
+		id := make([]byte, 16)
+		binary.LittleEndian.PutUint32(id, uint32(i))
+		require.NoError(t, b1.Append(context.Background(), id, genSearchData(id, i)))
+	}
+
+	l, err := local.NewBackend(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	blockID := uuid.New()
+	tenantID := "fake"
+
+	for _, enc := range backend.SupportedEncoding {
+		for _, sz := range pageSizesMB {
+
+			err := NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, tenantID, enc, int(sz*1024*1024))
+			require.NoError(t, err)
+
+			_, len, err := l.Read(context.TODO(), "search", backend.KeyPathForBlock(blockID, tenantID), false)
+			require.NoError(t, err)
+
+			fmt.Printf("BackendSearchBlock/%s/%.1fMiB, %d traces = %d bytes, %.2f bytes per trace \n", enc.String(), sz, traceCount, len, float32(len)/float32(traceCount))
+
 		}
 	}
 }

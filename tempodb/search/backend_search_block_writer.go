@@ -18,7 +18,7 @@ type backendSearchBlockWriter struct {
 	// input
 	blockID  uuid.UUID
 	tenantID string
-	w        backend.RawWriter
+	w        backend.Writer
 
 	// vars
 	builder  *tempofb.SearchPageBuilder
@@ -30,7 +30,7 @@ type backendSearchBlockWriter struct {
 
 var _ common.DataWriterGeneric = (*backendSearchBlockWriter)(nil)
 
-func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.RawWriter, v encoding.VersionedEncoding, enc backend.Encoding) (*backendSearchBlockWriter, error) {
+func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.Writer, v encoding.VersionedEncoding, enc backend.Encoding) (*backendSearchBlockWriter, error) {
 	finalBuf := &bytes.Buffer{}
 
 	dw, err := v.NewDataWriter(finalBuf, enc)
@@ -78,7 +78,7 @@ func (w *backendSearchBlockWriter) CutPage(ctx context.Context) (int, error) {
 	w.pageBuf = w.finalBuf.Bytes()
 
 	// Append to backend
-	w.tracker, err = w.w.Append(ctx, "search", backend.KeyPathForBlock(w.blockID, w.tenantID), w.tracker, w.pageBuf)
+	w.tracker, err = w.w.Append(ctx, "search", w.blockID, w.tenantID, w.tracker, w.pageBuf)
 	if err != nil {
 		return 0, err
 	}

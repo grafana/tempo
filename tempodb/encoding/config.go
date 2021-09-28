@@ -13,6 +13,8 @@ type BlockConfig struct {
 	BloomFP              float64          `yaml:"bloom_filter_false_positive"`
 	BloomShardSizeBytes  int              `yaml:"bloom_filter_shard_size_bytes"`
 	Encoding             backend.Encoding `yaml:"encoding"`
+	SearchEncoding       backend.Encoding `yaml:"search_encoding"`
+	SearchPageSizeBytes  int              `yaml:"search_page_size_bytes"`
 }
 
 // ValidateConfig returns true if the config is valid

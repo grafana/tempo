@@ -269,12 +269,10 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	var newSearch search.SearchableBlock
 	if oldSearch != nil {
-		err = search.NewBackendSearchBlock(oldSearch.b, i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID, backend.EncSnappy, 0)
+		newSearch, err = i.writer.CompleteSearchBlockWithBackend(oldSearch.b, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID, i.localReader, i.localWriter)
 		if err != nil {
 			return err
 		}
-
-		newSearch = search.OpenBackendSearchBlock(i.local, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID)
 	}
 
 	i.blocksMtx.Lock()
