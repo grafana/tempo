@@ -132,12 +132,16 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	// read all from results channel
 	var data [][]byte
 	var enc []string
+	if l := len(resultsCh); l > 0 {
+		data = make([][]byte, 0, l)
+		enc = make([]string, 0, l)
+	}
 	for res := range resultsCh {
 		data = append(data, res.data)
 		enc = append(enc, res.enc)
 	}
 
-	fnErrs := make([]error, len(errCh))
+	fnErrs := make([]error, 0, len(errCh))
 	for err := range errCh {
 		fnErrs = append(fnErrs, err)
 	}
@@ -201,6 +205,7 @@ func runJob(job *job) {
 		default: // if we hit default it means that something else already returned a good result.  /shrug
 		}
 	}
+	// todo: return result or err, not both
 	if err != nil {
 		job.err <- err
 	}

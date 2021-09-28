@@ -185,12 +185,18 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			ot_log.Int("combinedTraces", traceCountTotal))
 	}
 
+	var blockErrsCount uint32
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
-		partialTraces, dataEncodings, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+		partialTraces, dataEncodings, blockErrs, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+		// err contains unrecoverable errors
+		// errs querying blocks are contained in blockErrs
 		if err != nil {
+			// todo: change err log to specify what failed
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}
+
+		blockErrsCount = uint32(len(blockErrs))
 
 		span.LogFields(ot_log.String("msg", "done searching store"))
 
@@ -226,7 +232,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	return &tempopb.TraceByIDResponse{
-		Trace: completeTrace,
+		Trace:         completeTrace,
+		BlockErrCount: blockErrsCount,
 	}, nil
 }
 

@@ -307,6 +307,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		}
 	}
 	if len(copiedBlocklist) == 0 {
+		fmt.Println("Copied blocklist is empty")
 		return nil, nil, nil, nil
 	}
 

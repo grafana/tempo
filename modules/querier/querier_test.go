@@ -16,6 +16,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/multierr"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -106,8 +107,9 @@ func TestReturnAllHits(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// find should return both now
-	foundBytes, _, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
+	foundBytes, _, blockErrs, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
 	assert.NoError(t, err)
+	assert.NoError(t, multierr.Combine(blockErrs...))
 	require.Len(t, foundBytes, 2)
 
 	// expected trace
@@ -123,4 +125,16 @@ func TestReturnAllHits(t *testing.T) {
 
 	model.SortTrace(actualTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
+
+	// store's directory
+	err = os.RemoveAll(tempDir)
+	assert.NoError(t, err)
+
+	// it should return no results and two errors from block queries
+	foundBytes, _, blockErrs, err = r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
+	assert.Nil(t, foundBytes)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(blockErrs))
+	assert.Error(t, multierr.Combine(blockErrs...))
+
 }
