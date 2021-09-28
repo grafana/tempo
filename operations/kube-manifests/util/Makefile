@@ -8,4 +8,4 @@ gen:
 	rm -r out/
 
 check: gen
-	git diff --exit-code -- ../
+	git diff --exit-code -- ../*.yaml
