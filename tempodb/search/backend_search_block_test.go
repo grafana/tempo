@@ -129,10 +129,10 @@ func TestBackendSearchBlockDedupesWAL(t *testing.T) {
 
 			blockID := uuid.New()
 			tenantID := "fake"
-			err = NewBackendSearchBlock(b1, l, blockID, tenantID, backend.EncNone, 0)
+			err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, tenantID, backend.EncNone, 0)
 			require.NoError(t, err)
 
-			b2 := OpenBackendSearchBlock(l, blockID, tenantID)
+			b2 := OpenBackendSearchBlock(blockID, tenantID, backend.NewReader(l))
 
 			p := NewSearchPipeline(&tempopb.SearchRequest{
 				Tags: tc.searchTags,
