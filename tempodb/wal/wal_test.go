@@ -286,6 +286,10 @@ func BenchmarkWALZSTD(b *testing.B) {
 	benchmarkWriteFindReplay(b, backend.EncZstd)
 }
 
+func BenchmarkWALS2(b *testing.B) {
+	benchmarkWriteFindReplay(b, backend.EncS2)
+}
+
 func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 	objects := 1000
 	objs := make([][]byte, 0, objects)
