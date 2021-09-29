@@ -3,8 +3,6 @@ package ingester
 import (
 	"context"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/go-kit/kit/log/level"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/weaveworks/common/user"
 )
@@ -65,12 +63,4 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 	}
 
 	return resp, nil
-}
-
-func (i *Ingester) clearSearchData() {
-	// clear wal
-	err := i.store.WAL().ClearFolder(searchDir)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "error clearing search data from wal")
-	}
 }

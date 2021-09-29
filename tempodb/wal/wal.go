@@ -138,6 +138,10 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string, name strin
 	return os.OpenFile(filepath.Join(p, fmt.Sprintf("%v:%v:%v", blockid, tenantid, name)), os.O_CREATE|os.O_RDWR, 0644)
 }
 
+func (w *WAL) GetFilepath() string {
+	return w.c.Filepath
+}
+
 func (w *WAL) ClearFolder(dir string) error {
 	p := filepath.Join(w.c.Filepath, dir)
 	return os.RemoveAll(p)

@@ -3,7 +3,7 @@ package ingester
 import (
 	"context"
 	"fmt"
-	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -108,9 +108,6 @@ func (i *Ingester) starting(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to rediscover local blocks %w", err)
 	}
-
-	// Search data is considered experimental and removed on every startup.
-	i.clearSearchData()
 
 	// Now that user states have been created, we can start the lifecycler.
 	// Important: we want to keep lifecycler running until we ask it to stop, so we need to give it independent context
@@ -358,12 +355,8 @@ func (i *Ingester) replayWal() error {
 		}
 
 		// replay search WAL
-		filename := b.BlockID().String() + ":" + tenantID + ":searchdata"
-		file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
-		if err != nil {
-			return err
-		}
-		searchWALBlock, err := search.NewStreamingSearchBlockFromWALReplay(file)
+		filename := filepath.Join(i.store.WAL().GetFilepath(), searchDir, fmt.Sprintf("%v:%v:%v", b.BlockID().String(), tenantID, "seachdata"))
+		searchWALBlock, err := search.NewStreamingSearchBlockFromWALReplay(filename)
 		if err != nil {
 			return err
 		}

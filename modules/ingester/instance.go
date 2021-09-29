@@ -629,7 +629,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 
 		i.blocksMtx.Lock()
 		i.completeBlocks = append(i.completeBlocks, ib)
-		//i.searchCompleteBlocks[ib] = sb
+		//i.searchCompleteBlocks[ib] = &searchLocalBlockEntry{b: sb}
 		i.blocksMtx.Unlock()
 
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())

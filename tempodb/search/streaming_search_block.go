@@ -57,7 +57,15 @@ func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
 	return s, nil
 }
 
-func NewStreamingSearchBlockFromWALReplay(f *os.File) (*StreamingSearchBlock, error) {
+func NewStreamingSearchBlockFromWALReplay(filename string) (*StreamingSearchBlock, error) {
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	if err != nil {
+		if os.IsNotExist(err) {  // this is fine, don't return error
+			return nil, nil
+		}
+		return nil, err
+	}
+
 	// version is pinned to v2 for now
 	v, err := encoding.FromVersion("v2")
 	if err != nil {
