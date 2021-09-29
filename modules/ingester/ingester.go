@@ -3,8 +3,11 @@ package ingester
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/grafana/tempo/tempodb/search"
 
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/log"
@@ -354,7 +357,18 @@ func (i *Ingester) replayWal() error {
 			return err
 		}
 
-		instance.AddCompletingBlock(b)
+		// replay search WAL
+		filename := b.BlockID().String() + ":" + tenantID + ":searchdata"
+		file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+		if err != nil {
+			return err
+		}
+		searchWALBlock, err := search.NewStreamingSearchBlockFromWALReplay(file)
+		if err != nil {
+			return err
+		}
+
+		instance.AddCompletingBlock(b, searchWALBlock)
 
 		i.enqueue(&flushOp{
 			kind:    opKindComplete,

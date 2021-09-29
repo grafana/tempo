@@ -1,25 +1,29 @@
 package search
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
 
+	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/go-kit/log/level"
+
 	"github.com/grafana/tempo/pkg/tempofb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/pkg/errors"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 var _ SearchableBlock = (*StreamingSearchBlock)(nil)
-var _ common.DataWriter = (*StreamingSearchBlock)(nil)
 
 // StreamingSearchBlock is search data that is read/write, i.e. for traces in the WAL.
 type StreamingSearchBlock struct {
-	appender     encoding.Appender
-	file         *os.File
-	bytesWritten int
-	header       *tempofb.SearchBlockHeaderMutable
+	appender encoding.Appender
+	file     *os.File
+	header   *tempofb.SearchBlockHeaderMutable
+	encoding encoding.VersionedEncoding
 }
 
 // Clear deletes the files for this block.
@@ -28,44 +32,51 @@ func (s *StreamingSearchBlock) Clear() error {
 	return os.Remove(s.file.Name())
 }
 
-func (*StreamingSearchBlock) Complete() error {
-	return nil
-}
-
-// CutPage returns the number of bytes written previously so that the appender can build the index.
-func (s *StreamingSearchBlock) CutPage() (int, error) {
-	b := s.bytesWritten
-	s.bytesWritten = 0
-	return b, nil
-}
-
-// Write the entry to the end of the file. The number of bytes written is saved and returned through CutPage.
-func (s *StreamingSearchBlock) Write(id common.ID, obj []byte) (int, error) {
-	var err error
-
-	_, err = s.file.Write(obj)
-	if err != nil {
-		return 0, err
-	}
-
-	s.bytesWritten += len(obj)
-
-	return len(obj), err
-}
-
 // NewStreamingSearchBlockForFile creates a new streaming block that will read/write the given file.
 // File must be opened for read/write permissions.
 func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
+	v, err := encoding.FromVersion("v2")
+	if err != nil {
+		return nil, err
+	}
 	s := &StreamingSearchBlock{
-		file:   f,
-		header: tempofb.NewSearchBlockHeaderMutable(),
+		file:     f,
+		header:   tempofb.NewSearchBlockHeaderMutable(),
+		encoding: v,
 	}
 
-	// Entries are not paged, use non paged appender.
-	a := encoding.NewAppender(s)
+	// Use versioned encoding to create paged entries
+	dataWriter, err := s.encoding.NewDataWriter(f, backend.EncNone)
+	if err != nil {
+		return nil, err
+	}
+
+	a := encoding.NewAppender(dataWriter)
 	s.appender = a
 
 	return s, nil
+}
+
+func NewStreamingSearchBlockFromWALReplay(f *os.File) (*StreamingSearchBlock, error) {
+	// version is pinned to v2 for now
+	v, err := encoding.FromVersion("v2")
+	if err != nil {
+		return nil, err
+	}
+	records, warning, err := wal.ReplayWALAndGetRecords(f, v, backend.EncNone)
+	if err != nil {
+		return nil, err
+	}
+	// todo: figure out the warning/err handling and delete file if necessary
+	if warning != nil {
+		level.Warn(cortex_util.Logger).Log("msg", "received warning while replaying block. partial replay likely.", "file", f.Name(), "warning", warning, "records", len(records))
+	}
+	return &StreamingSearchBlock{
+		file:     f,
+		appender: encoding.NewRecordAppender(records),
+		header:   tempofb.NewSearchBlockHeaderMutable(),
+		encoding: v,
+	}, nil
 }
 
 // Append the given search data to the streaming block. Multiple byte buffers of search data for
@@ -94,8 +105,16 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 
 	sr.AddBlockInspected()
 
-	rr := s.appender.Records()
+	dr, err := s.encoding.NewDataReader(backend.NewContextReaderWithAllReader(s.file), backend.EncNone)
+	if err != nil {
+		return err
+	}
 
+	orw := s.encoding.NewObjectReaderWriter()
+
+	rr := s.appender.Records()
+	var pagesBuffer [][]byte
+	var buffer []byte
 	for _, r := range rr {
 
 		if sr.Quit() {
@@ -112,7 +131,12 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 		}
 		buf = buf[:r.Length]
 
-		_, err := s.file.ReadAt(buf, int64(r.Start))
+		pagesBuffer, buffer, err = dr.Read(ctx, []common.Record{r}, pagesBuffer, buffer)
+		if err != nil {
+			return err
+		}
+
+		_, pagesBuffer[0], err = orw.UnmarshalObjectFromReader(bytes.NewReader(pagesBuffer[0]))
 		if err != nil {
 			return err
 		}
@@ -120,7 +144,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 		sr.AddBytesInspected(uint64(r.Length))
 		sr.AddTraceInspected(1)
 
-		entry := tempofb.SearchEntryFromBytes(buf)
+		entry := tempofb.SearchEntryFromBytes(pagesBuffer[0])
 
 		if !p.Matches(entry) {
 			continue
@@ -143,6 +167,14 @@ func (s *StreamingSearchBlock) Iterator() (encoding.Iterator, error) {
 		file:    s.file,
 	}
 
+	dr, err := s.encoding.NewDataReader(backend.NewContextReaderWithAllReader(s.file), backend.EncNone)
+	if err != nil {
+		return nil, err
+	}
+	iter.dataReader = dr
+
+	iter.objectRW = s.encoding.NewObjectReaderWriter()
+
 	combiner := &DataCombiner{}
 
 	// Streaming (wal) blocks have to be deduped.
@@ -153,11 +185,13 @@ type streamingSearchBlockIterator struct {
 	currentIndex int
 	records      []common.Record
 	file         *os.File
+	dataReader   common.DataReader
+	objectRW     common.ObjectReaderWriter
 }
 
 var _ encoding.Iterator = (*streamingSearchBlockIterator)(nil)
 
-func (s *streamingSearchBlockIterator) Next(_ context.Context) (common.ID, []byte, error) {
+func (s *streamingSearchBlockIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if s.currentIndex >= len(s.records) {
 		return nil, nil, io.EOF
 	}
@@ -166,15 +200,22 @@ func (s *streamingSearchBlockIterator) Next(_ context.Context) (common.ID, []byt
 
 	// Use unique buffer that can be returned to the caller.
 	// This is primarily for DedupingIterator which uses 2 buffers at once.
-	buffer := make([]byte, currentRecord.Length)
-	_, err := s.file.ReadAt(buffer, int64(currentRecord.Start))
+	var buffer []byte
+	pagesBuffer := make([][]byte, 1)
+	pagesBuffer[0] = make([]byte, currentRecord.Length)
+	pagesBuffer, _, err := s.dataReader.Read(ctx, []common.Record{currentRecord}, pagesBuffer, buffer)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "error reading search file")
+		return nil, nil, err
+	}
+
+	_, pagesBuffer[0], err = s.objectRW.UnmarshalObjectFromReader(bytes.NewReader(pagesBuffer[0]))
+	if err != nil {
+		return nil, nil, err
 	}
 
 	s.currentIndex++
 
-	return currentRecord.ID, buffer, nil
+	return currentRecord.ID, pagesBuffer[0], nil
 }
 
 func (*streamingSearchBlockIterator) Close() {

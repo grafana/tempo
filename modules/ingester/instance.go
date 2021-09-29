@@ -447,11 +447,17 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
 // This is used during wal replay. It is expected that calling code will add the appropriate
 // jobs to the queue to eventually flush these.
-func (i *instance) AddCompletingBlock(b *wal.AppendBlock) {
+func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSearchBlock) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	i.completingBlocks = append(i.completingBlocks, b)
+
+	// search WAL
+	if s == nil {
+		return
+	}
+	i.searchAppendBlocks[b] = &searchStreamingBlockEntry{b: s}
 }
 
 // getOrCreateTrace will return a new trace object for the given request

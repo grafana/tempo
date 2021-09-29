@@ -1,10 +1,8 @@
 package wal
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,50 +91,10 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 		return nil, nil, err
 	}
 
-	dataReader, err := b.encoding.NewDataReader(backend.NewContextReaderWithAllReader(f), b.meta.Encoding)
+	records, warning, err := ReplayWALAndGetRecords(f, v, e)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer dataReader.Close()
-
-	var buffer []byte
-	var records []common.Record
-	objectReader := b.encoding.NewObjectReaderWriter()
-	currentOffset := uint64(0)
-	for {
-		buffer, pageLen, err := dataReader.NextPage(buffer)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			warning = err
-			break
-		}
-
-		reader := bytes.NewReader(buffer)
-		id, _, err := objectReader.UnmarshalObjectFromReader(reader)
-		if err != nil {
-			warning = err
-			break
-		}
-		// wal should only ever have one object per page, test that here
-		_, _, err = objectReader.UnmarshalObjectFromReader(reader)
-		if err != io.EOF {
-			warning = err
-			break
-		}
-
-		// make a copy so we don't hold onto the iterator buffer
-		recordID := append([]byte(nil), id...)
-		records = append(records, common.Record{
-			ID:     recordID,
-			Start:  currentOffset,
-			Length: pageLen,
-		})
-		currentOffset += uint64(pageLen)
-	}
-
-	common.SortRecords(records)
 
 	b.appender = encoding.NewRecordAppender(records)
 	b.meta.TotalObjects = b.appender.Length()
