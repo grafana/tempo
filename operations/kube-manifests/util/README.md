@@ -1,9 +1,9 @@
-To generate the manifests from this directory, run the following
+# kube-manifests
 
-```
-jb update
+Example Kubernetes manifests to deploy Tempo distributed.
 
-tk export out_dir generator --format "{{.kind}}-{{or .metadata.name .metadata.generateName}}"
-```
+### Build
 
-The manifests will be generated in the out_dir.
+To generate the manifests from this directory, run `make gen`.
+
+This requires [jsonnet-bundler](https://github.com/jsonnet-bundler/jsonnet-bundler) and [Tanka](https://tanka.dev/) to be installed.
