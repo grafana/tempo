@@ -15,7 +15,6 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 
 | API | Service | Type | Endpoint |
 | --- | ------- | ---- | -------- |
-| [Configuration](#configuration) | _All services_ |  HTTP | `GET /config` |
 | [Readiness probe](#readiness-probe) | _All services_ |  HTTP | `GET /ready` |
 | [Metrics](#metrics) | _All services_ |  HTTP | `GET /metrics` |
 | [Pprof](#pprof) | _All services_ |  HTTP | `GET /debug/pprof` |
