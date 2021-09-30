@@ -164,7 +164,6 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 	var combinedTraceBytes []byte
 	var shardMissCount, totalBlockErrCount int
 	for _, rr := range rrs {
-		// todo: handle status partial content (206)
 		partialContent := rr.Response.StatusCode == http.StatusPartialContent
 		if rr.Response.StatusCode == http.StatusOK || partialContent {
 			body, err := io.ReadAll(rr.Response.Body)
