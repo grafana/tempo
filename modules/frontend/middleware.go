@@ -2,14 +2,17 @@ package frontend
 
 import "net/http"
 
+// middleware.go contains types and code related to building http pipelines
+
 // RoundTripperFunc is like http.HandlerFunc, but for RoundTripper
 type RoundTripperFunc func(*http.Request) (*http.Response, error)
 
+// RoundTrip implememnts http.RoundTripper
 func (fn RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return fn(req)
 }
 
-// Basic pipeline building block
+// Middleware is used to
 type Middleware interface {
 	Wrap(http.RoundTripper) http.RoundTripper
 }
@@ -22,6 +25,7 @@ func (q MiddlewareFunc) Wrap(h http.RoundTripper) http.RoundTripper {
 	return q(h)
 }
 
+// MergeMiddlewares takes a set of ordered middlewares and merges them into a pipeline
 func MergeMiddlewares(middleware ...Middleware) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		for i := len(middleware) - 1; i >= 0; i-- {
@@ -36,7 +40,8 @@ type roundTripper struct {
 	handler http.RoundTripper
 }
 
-// NewRoundTripper merges a set of middlewares into an handler, then inject it into the `next` roundtripper
+// NewRoundTripper takes an ordered set of middlewares and builds a http.RoundTripper
+// around them
 func NewRoundTripper(next http.RoundTripper, middlewares ...Middleware) http.RoundTripper {
 	transport := roundTripper{
 		next: next,

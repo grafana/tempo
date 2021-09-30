@@ -21,16 +21,20 @@ var (
 	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
 )
 
+// Handler exists to wrap a roundtripper with an HTTP handler. It wraps all
+// frontend endpoints and should only contain functionality that is common to all.
 type Handler struct {
 	roundTripper http.RoundTripper
 }
 
+// NewHandler creates a handler
 func NewHandler(rt http.RoundTripper) http.Handler {
 	return &Handler{
 		roundTripper: rt,
 	}
 }
 
+// ServeHTTP implments http.Handler
 func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		_ = r.Body.Close()
@@ -47,6 +51,10 @@ func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, resp.Body)
 }
 
+// writeError handles writing errors to the http.ResponseWriter. It uses weavework common
+// server.WriteError() to handle httpgrc errors. The handler handles all incoming HTTP requests
+// to the query frontend which then distributes them via httpgrpc to the queriers. As a result
+// httpgrpc errors can bubble up to here and should be translated to http errors.
 func writeError(w http.ResponseWriter, err error) {
 	switch err {
 	case context.Canceled:
@@ -58,6 +66,5 @@ func writeError(w http.ResponseWriter, err error) {
 			err = errRequestEntityTooLarge
 		}
 	}
-	// use server.WriteError b/c it will handle the httpgrpc error bridge
 	server.WriteError(w, err)
 }

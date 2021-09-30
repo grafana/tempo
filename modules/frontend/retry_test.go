@@ -13,13 +13,6 @@ import (
 	"go.uber.org/atomic"
 )
 
-type HandlerFunc func(req *http.Request) (*http.Response, error)
-
-// Wrap implements Handler.
-func (q HandlerFunc) Do(req *http.Request) (*http.Response, error) {
-	return q(req)
-}
-
 func TestRetry(t *testing.T) {
 	var try atomic.Int32
 

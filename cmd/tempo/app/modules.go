@@ -192,11 +192,11 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.frontend = v1
 
 	// jpe call NewFrontend and pass next, NewFrontend will impleement http.RoundTripper
-	tripperware, err := frontend.NewTripperware(t.cfg.Frontend, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
+	tripperware, err := frontend.NewMiddleware(t.cfg.Frontend, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
-	roundTripper := tripperware(cortexTripper)
+	roundTripper := tripperware.Wrap(cortexTripper)
 
 	// wrap http.RoundTripper with a http.Handler
 	frontendHandler := frontend.NewHandler(roundTripper)
