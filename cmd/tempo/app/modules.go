@@ -185,18 +185,20 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", frontend.MinQueryShards, frontend.MaxQueryShards)
 	}
 
+	// cortexTripper is a bridge between http and httpgrpc. it does the job of passing data to the cortex
+	// frontend code
 	cortexTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
 	t.frontend = v1
 
-	// jpe call NewFrontend and pass next, NewFrontend will impleement http.RoundTripper
-	tripperware, err := frontend.NewMiddleware(t.cfg.Frontend, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
+	// httpPipeline is the Tempo http pipeline
+	httpPipeline, err := frontend.NewMiddleware(t.cfg.Frontend, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
-	roundTripper := tripperware.Wrap(cortexTripper)
+	roundTripper := httpPipeline.Wrap(cortexTripper)
 
 	// wrap http.RoundTripper with a http.Handler
 	frontendHandler := frontend.NewHandler(roundTripper)

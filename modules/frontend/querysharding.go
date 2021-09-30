@@ -193,7 +193,7 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
-			// ContentLength header is added to log the size of response in the Tripperware in frontend.go
+			// ContentLength header is added to log the size of response in the Middleware in frontend.go
 			// This could be overwritten if the query client and Tempo negotiate compression
 			ContentLength: int64(len(combinedTrace)),
 			Header:        http.Header{},

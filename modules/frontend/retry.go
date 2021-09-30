@@ -78,7 +78,7 @@ func (r retryWare) RoundTrip(req *http.Request) (*http.Response, error) {
 			statusCode = int(httpResp.Code)
 		}
 
-		// avoid calling err.Error() on an error returned by frontend tripperware
+		// avoid calling err.Error() on an error returned by frontend middleware
 		// https://github.com/grafana/tempo/issues/857
 		errMsg := fmt.Sprint(err)
 

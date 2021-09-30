@@ -30,16 +30,16 @@ const (
 	apiPathSearch = "/api/search"
 )
 
-// NewMiddleware returns a Tripperware configured with a middleware to route, split and dedupe requests.
+// NewMiddleware returns a Middleware configured with a middleware to route, split and dedupe requests.
 func NewMiddleware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (Middleware, error) {
-	level.Info(logger).Log("msg", "creating tripperware in query frontend")
+	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
-	tracesTripperware := NewTracesTripperware(cfg, logger, registerer)
-	searchTripperware := NewSearchTripperware()
+	tracesMiddleware := NewTracesMiddleware(cfg, logger, registerer)
+	searchMiddleware := NewSearchMiddleware()
 
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		traces := tracesTripperware.Wrap(next)
-		search := searchTripperware.Wrap(next)
+		traces := tracesMiddleware.Wrap(next)
+		search := searchMiddleware.Wrap(next)
 
 		return newFrontendRoundTripper(apiPrefix, next, traces, search, logger, registerer)
 	}), nil
@@ -72,7 +72,7 @@ func newFrontendRoundTripper(apiPrefix string, next, traces, search http.RoundTr
 func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	start := time.Now()
 	// tracing instrumentation
-	span, ctx := opentracing.StartSpanFromContext(req.Context(), "frontend.Tripperware")
+	span, ctx := opentracing.StartSpanFromContext(req.Context(), "frontend.Middleware")
 	defer span.Finish()
 
 	orgID, _ := user.ExtractOrgID(req.Context())
@@ -94,6 +94,7 @@ func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response,
 		resp, err = r.next.RoundTrip(req)
 	}
 
+	// jpe move to handler
 	traceID, _ := tracing.ExtractTraceID(ctx)
 	statusCode := 500
 	var contentLength int64 = 0
@@ -143,8 +144,8 @@ func getOperation(prefix, path string) RequestOp {
 	}
 }
 
-// NewTracesTripperware creates a new frontend tripperware responsible for handling get traces requests.
-func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) Middleware {
+// NewTracesMiddleware creates a new frontend middleware responsible for handling get traces requests.
+func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Registerer) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support
@@ -206,8 +207,8 @@ func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.R
 	})
 }
 
-// NewSearchTripperware creates a new frontend tripperware to handle search and search tags requests.
-func NewSearchTripperware() Middleware {
+// NewSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
+func NewSearchMiddleware() Middleware {
 	return MiddlewareFunc(func(rt http.RoundTripper) http.RoundTripper {
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
