@@ -9,7 +9,6 @@ import (
 const (
 	RootServiceNameTag = "root.service.name"
 	ServiceNameTag     = "service.name"
-	RootSpanPrefix     = "root."
 	RootSpanNameTag    = "root.name"
 	SpanNameTag        = "name"
 )
