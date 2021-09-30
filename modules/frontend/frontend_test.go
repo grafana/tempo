@@ -2,7 +2,7 @@ package frontend
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -17,7 +17,7 @@ type mockNextTripperware struct{}
 
 func (s *mockNextTripperware) RoundTrip(_ *http.Request) (*http.Response, error) {
 	return &http.Response{
-		Body: ioutil.NopCloser(bytes.NewReader([]byte("next"))),
+		Body: io.NopCloser(bytes.NewReader([]byte("next"))),
 	}, nil
 }
 
@@ -25,7 +25,7 @@ type mockTracesTripperware struct{}
 
 func (s *mockTracesTripperware) RoundTrip(_ *http.Request) (*http.Response, error) {
 	return &http.Response{
-		Body: ioutil.NopCloser(bytes.NewReader([]byte("traces"))),
+		Body: io.NopCloser(bytes.NewReader([]byte("traces"))),
 	}, nil
 }
 
@@ -33,7 +33,7 @@ type mockSearchTripperware struct{}
 
 func (s *mockSearchTripperware) RoundTrip(_ *http.Request) (*http.Response, error) {
 	return &http.Response{
-		Body: ioutil.NopCloser(bytes.NewReader([]byte("search"))),
+		Body: io.NopCloser(bytes.NewReader([]byte("search"))),
 	}, nil
 }
 
@@ -93,7 +93,7 @@ func TestFrontendRoundTripper(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			assert.Equal(t, body, []byte(tt.response))
 		})

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 
@@ -38,7 +37,7 @@ func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, 
 		return m.ReadFn(ctx, name, keypath, shouldCache)
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(m.R)), int64(len(m.R)), nil
+	return io.NopCloser(bytes.NewReader(m.R)), int64(len(m.R)), nil
 }
 func (m *MockRawReader) ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte) error {
 	copy(buffer, m.Range)

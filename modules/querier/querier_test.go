@@ -2,7 +2,6 @@ package querier
 
 import (
 	"context"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
@@ -44,7 +43,7 @@ func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool
 }
 
 func TestReturnAllHits(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 

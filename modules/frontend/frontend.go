@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -133,7 +132,7 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 			if err != nil {
 				return &http.Response{
 					StatusCode: http.StatusBadRequest,
-					Body:       ioutil.NopCloser(strings.NewReader(err.Error())),
+					Body:       io.NopCloser(strings.NewReader(err.Error())),
 					Header:     http.Header{},
 				}, nil
 			}
@@ -169,7 +168,7 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 				if err != nil {
 					return nil, err
 				}
-				resp.Body = ioutil.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
+				resp.Body = io.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
 			}
 			span := opentracing.SpanFromContext(r.Context())
 			if span != nil {

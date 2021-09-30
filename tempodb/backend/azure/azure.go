@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"io"
-	"io/ioutil"
 	"path"
 	"strings"
 
@@ -134,7 +133,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 		return nil, 0, readError(err)
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(b)), int64(len(b)), nil
+	return io.NopCloser(bytes.NewReader(b)), int64(len(b)), nil
 }
 
 // ReadRange implements backend.Reader

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
@@ -20,11 +19,11 @@ import (
 const objectName = "test"
 
 func TestReadWrite(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
-	fakeTracesFile, err := ioutil.TempFile("/tmp", "")
+	fakeTracesFile, err := os.CreateTemp("/tmp", "")
 	defer os.Remove(fakeTracesFile.Name())
 	assert.NoError(t, err, "unexpected error creating temp file")
 

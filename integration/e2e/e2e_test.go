@@ -3,8 +3,8 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 
@@ -61,7 +61,7 @@ func TestAllInOne(t *testing.T) {
 
 			// set up the backend
 			cfg := app.Config{}
-			buff, err := ioutil.ReadFile(tc.configFile)
+			buff, err := os.ReadFile(tc.configFile)
 			require.NoError(t, err)
 			err = yaml.UnmarshalStrict(buff, &cfg)
 			require.NoError(t, err)

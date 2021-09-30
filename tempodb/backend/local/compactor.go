@@ -3,7 +3,6 @@ package local
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 
@@ -39,7 +38,7 @@ func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*back
 		return nil, readError(err)
 	}
 
-	bytes, err := ioutil.ReadFile(filename)
+	bytes, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, readError(err)
 	}

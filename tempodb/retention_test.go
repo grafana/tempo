@@ -1,7 +1,6 @@
 package tempodb
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -18,7 +17,7 @@ import (
 )
 
 func TestRetention(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
@@ -76,7 +75,7 @@ func TestRetention(t *testing.T) {
 }
 
 func TestBlockRetentionOverride(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
