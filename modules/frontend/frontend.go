@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/querier/queryrange"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/jsonpb"
@@ -32,18 +31,18 @@ const (
 )
 
 // NewTripperware returns a Tripperware configured with a middleware to route, split and dedupe requests.
-func NewTripperware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (queryrange.Tripperware, error) {
+func NewTripperware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (Middleware, error) {
 	level.Info(logger).Log("msg", "creating tripperware in query frontend")
 
 	tracesTripperware := NewTracesTripperware(cfg, logger, registerer)
 	searchTripperware := NewSearchTripperware()
 
-	return func(next http.RoundTripper) http.RoundTripper {
-		traces := tracesTripperware(next)
-		search := searchTripperware(next)
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		traces := tracesTripperware.Wrap(next)
+		search := searchTripperware.Wrap(next)
 
 		return newFrontendRoundTripper(apiPrefix, next, traces, search, logger, registerer)
-	}, nil
+	}), nil
 }
 
 type frontendRoundTripper struct {
@@ -145,15 +144,15 @@ func getOperation(prefix, path string) RequestOp {
 }
 
 // NewTracesTripperware creates a new frontend tripperware responsible for handling get traces requests.
-func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) func(next http.RoundTripper) http.RoundTripper {
-	return func(next http.RoundTripper) http.RoundTripper {
+func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
 		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, registerer))
 
-		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// don't start a new span, this is already handled by frontendRoundTripper
 			span := opentracing.SpanFromContext(r.Context())
 
@@ -204,13 +203,13 @@ func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.R
 
 			return resp, err
 		})
-	}
+	})
 }
 
 // NewSearchTripperware creates a new frontend tripperware to handle search and search tags requests.
-func NewSearchTripperware() queryrange.Tripperware {
-	return func(rt http.RoundTripper) http.RoundTripper {
-		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
+func NewSearchTripperware() Middleware {
+	return MiddlewareFunc(func(rt http.RoundTripper) http.RoundTripper {
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
@@ -220,5 +219,5 @@ func NewSearchTripperware() queryrange.Tripperware {
 
 			return resp, err
 		})
-	}
+	})
 }

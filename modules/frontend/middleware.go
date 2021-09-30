@@ -48,8 +48,3 @@ func NewRoundTripper(next http.RoundTripper, middlewares ...Middleware) http.Rou
 func (q roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	return q.handler.RoundTrip(r)
 }
-
-// Do implements Handler.
-func (q roundTripper) Do(r *http.Request) (*http.Response, error) {
-	return q.next.RoundTrip(r)
-}
