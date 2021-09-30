@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -83,7 +83,7 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 
 	// Existing config
 	if g.ConfigFile != "" {
-		buff, err := ioutil.ReadFile(g.ConfigFile)
+		buff, err := os.ReadFile(g.ConfigFile)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to read configFile %s: %w", g.ConfigFile, err)
 		}

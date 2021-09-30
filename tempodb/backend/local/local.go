@@ -3,7 +3,6 @@ package local
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -99,7 +98,7 @@ func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracke
 // List implements backend.Reader
 func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	path := rw.rootPath(keypath)
-	folders, err := ioutil.ReadDir(path)
+	folders, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}

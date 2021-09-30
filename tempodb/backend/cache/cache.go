@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"strings"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
@@ -41,7 +40,7 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 		k = key(keypath, name)
 		found, vals, _ := r.cache.Fetch(ctx, []string{k})
 		if len(found) > 0 {
-			return ioutil.NopCloser(bytes.NewReader(vals[0])), int64(len(vals[0])), nil
+			return io.NopCloser(bytes.NewReader(vals[0])), int64(len(vals[0])), nil
 		}
 	}
 
@@ -55,7 +54,7 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 		r.cache.Store(ctx, []string{k}, [][]byte{b})
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(b)), size, err
+	return io.NopCloser(bytes.NewReader(b)), size, err
 }
 
 // ReadRange implements backend.RawReader

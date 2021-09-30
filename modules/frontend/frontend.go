@@ -3,7 +3,6 @@ package frontend
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -162,7 +161,7 @@ func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.R
 			if err != nil {
 				return &http.Response{
 					StatusCode: http.StatusBadRequest,
-					Body:       ioutil.NopCloser(strings.NewReader(err.Error())),
+					Body:       io.NopCloser(strings.NewReader(err.Error())),
 					Header:     http.Header{},
 				}, nil
 			}
@@ -198,7 +197,7 @@ func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.R
 				if err != nil {
 					return nil, err
 				}
-				resp.Body = ioutil.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
+				resp.Body = io.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
 			}
 			span.SetTag("response marshalling format", marshallingFormat)
 

@@ -3,7 +3,6 @@ package ingester
 import (
 	"context"
 	"encoding/binary"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
@@ -39,7 +38,7 @@ func TestInstance(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
@@ -90,7 +89,7 @@ func TestInstanceFind(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
@@ -172,7 +171,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
@@ -241,7 +240,7 @@ func TestInstanceLimits(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	require.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
@@ -335,7 +334,7 @@ func TestInstanceLimits(t *testing.T) {
 }
 
 func TestInstanceCutCompleteTraces(t *testing.T) {
-	tempDir, _ := ioutil.TempDir("/tmp", "")
+	tempDir, _ := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 
 	id := make([]byte, 16)
@@ -419,7 +418,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 }
 
 func TestInstanceCutBlockIfReady(t *testing.T) {
-	tempDir, _ := ioutil.TempDir("/tmp", "")
+	tempDir, _ := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 
 	tt := []struct {
@@ -538,7 +537,7 @@ func defaultInstance(t require.TestingT, tmpDir string) *instance {
 }
 
 func BenchmarkInstancePush(b *testing.B) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(b, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
@@ -555,7 +554,7 @@ func BenchmarkInstancePush(b *testing.B) {
 }
 
 func BenchmarkInstancePushExistingTrace(b *testing.B) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(b, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
@@ -570,7 +569,7 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 }
 
 func BenchmarkInstanceFindTraceByID(b *testing.B) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(b, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 

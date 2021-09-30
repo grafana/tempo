@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -184,7 +183,7 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 	if shardMissCount == len(rrs) {
 		return &http.Response{
 			StatusCode: http.StatusNotFound,
-			Body:       ioutil.NopCloser(strings.NewReader("trace not found in Tempo")),
+			Body:       io.NopCloser(strings.NewReader("trace not found in Tempo")),
 			Header:     http.Header{},
 		}, nil
 	}
@@ -192,7 +191,7 @@ func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response,
 	if errCode == http.StatusOK {
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
+			Body:       io.NopCloser(bytes.NewReader(combinedTrace)),
 			// ContentLength header is added to log the size of response in the Tripperware in frontend.go
 			// This could be overwritten if the query client and Tempo negotiate compression
 			ContentLength: int64(len(combinedTrace)),

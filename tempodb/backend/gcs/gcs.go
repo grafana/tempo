@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"path"
 	"strings"
@@ -139,7 +138,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 	if err != nil {
 		span.SetTag("error", true)
 	}
-	return ioutil.NopCloser(bytes.NewReader(b)), int64(len(b)), readError(err)
+	return io.NopCloser(bytes.NewReader(b)), int64(len(b)), readError(err)
 }
 
 // ReadRange implements backend.Reader

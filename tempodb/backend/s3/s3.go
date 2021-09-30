@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"path"
 	"strings"
@@ -233,7 +232,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 		return nil, 0, readError(err)
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(b)), int64(len(b)), err
+	return io.NopCloser(bytes.NewReader(b)), int64(len(b)), err
 }
 
 // ReadRange implements backend.Reader
