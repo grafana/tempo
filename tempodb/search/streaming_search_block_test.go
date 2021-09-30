@@ -44,15 +44,17 @@ func TestStreamingSearchBlockReplay(t *testing.T) {
 	sb := newStreamingSearchBlockWithTraces(traceCount, t)
 	assert.NotNil(t, sb)
 
+	// grab the wal filename from the block and close the old file handler
 	walFile := sb.file.Name()
-
 	assert.NoError(t, sb.Close())
 
+	// create new block from the same wal file
 	newSearchBlock, warning, err := newStreamingSearchBlockFromWALReplay(walFile)
 	assert.NoError(t, warning)
 	assert.NoError(t, err)
 	assert.Equal(t, traceCount, len(newSearchBlock.appender.Records()))
 
+	// search the new block
 	p := NewSearchPipeline(&tempopb.SearchRequest{
 		Tags: map[string]string{"key1": "value10"},
 	})

@@ -212,6 +212,42 @@ func TestWal(t *testing.T) {
 	}
 }
 
+//func TestSearchWAL(t *testing.T) {
+//	tmpDir := t.TempDir()
+//
+//	i, _, _ := defaultIngester(t, tmpDir)
+//	inst, ok := i.getInstanceByID("test")
+//	require.True(t, ok)
+//
+//	// Write wal
+//	err := inst.CutCompleteTraces(0, true)
+//	require.NoError(t, err)
+//	_, err = inst.CutBlockIfReady(0, 0, true)
+//	require.NoError(t, err)
+//
+//	// assert that search WAL is being searched
+//	ctx := user.InjectOrgID(context.Background(), "test")
+//	searchReq := &tempopb.SearchRequest{Tags: map[string]string{
+//		search.SecretExhaustiveSearchTag: "",
+//	}}
+//	results, err := inst.Search(ctx, searchReq)
+//	assert.NoError(t, err)
+//	assert.Greater(t, results.Metrics.InspectedTraces, 0)
+//
+//	// Shutdown
+//	err = i.stopping(nil)
+//	require.NoError(t, err)
+//
+//	// replay wal
+//	i, _, _ = defaultIngester(t, tmpDir)
+//	inst, ok = i.getInstanceByID("test")
+//	require.True(t, ok)
+//
+//	results, err = inst.Search(ctx, searchReq)
+//	assert.NoError(t, err)
+//	assert.Greater(t, results.Metrics.InspectedTraces, 0)
+//}
+
 // TestWalReplayDeletesLocalBlocks simulates the condition where an ingester restarts after a wal is completed
 // to the local disk, but before the wal is deleted. On startup both blocks exist, and the ingester now errs
 // on the side of caution and chooses to replay the wal instead of rediscovering the local block.
