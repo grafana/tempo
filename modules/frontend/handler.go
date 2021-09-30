@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"time"
@@ -64,20 +65,25 @@ func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if resp == nil {
+		writeError(w, errors.New("nil resp in ServerHTTP"))
+		return
+	}
+
 	// write header and body
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
 
 	// request/response logging
 	traceID, _ := tracing.ExtractTraceID(ctx)
-	statusCode := 500
-	var contentLength int64 = 0
-	if resp != nil {
-		statusCode = resp.StatusCode
-		contentLength = resp.ContentLength
-	} else if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
+	var statusCode int
+	var contentLength int64
+	if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
 		statusCode = int(httpResp.Code)
 		contentLength = int64(len(httpResp.Body))
+	} else {
+		statusCode = resp.StatusCode
+		contentLength = resp.ContentLength
 	}
 
 	level.Info(f.logger).Log(

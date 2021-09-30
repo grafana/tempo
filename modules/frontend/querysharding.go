@@ -88,7 +88,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// check http error
 			if err != nil {
-				level.Error(s.logger).Log("msg", "error querying proxy target", "url", innerR.RequestURI, "err", err)
+				_ = level.Error(s.logger).Log("msg", "error querying proxy target", "url", innerR.RequestURI, "err", err)
 				overallError = err
 				return
 			}
@@ -104,7 +104,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				statusCode = resp.StatusCode
 				bytesMsg, err := io.ReadAll(resp.Body)
 				if err != nil {
-					level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
+					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
 				}
 				statusMsg = string(bytesMsg)
 				return
@@ -113,7 +113,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			// successful query, read the body
 			buff, err := io.ReadAll(resp.Body)
 			if err != nil {
-				level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
+				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
 				overallError = err
 				return
 			}
@@ -121,7 +121,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			// marshal into a trace to combine
 			trace, err := model.Unmarshal(buff, model.TracePBEncoding)
 			if err != nil {
-				level.Error(s.logger).Log("msg", "error unmarshalling response", "url", innerR.RequestURI, "err", err, "body", string(buff))
+				_ = level.Error(s.logger).Log("msg", "error unmarshalling response", "url", innerR.RequestURI, "err", err, "body", string(buff))
 				overallError = err
 				return
 			}
@@ -147,7 +147,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	buff, err := proto.Marshal(overallTrace)
 	if err != nil {
-		level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
+		_ = level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
 		return nil, err
 	}
 
