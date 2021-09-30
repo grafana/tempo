@@ -64,7 +64,7 @@ type resp struct {
 	body   []byte
 }
 
-func TestFindTraceByIDHandler(t *testing.T) {
+func TestShardingWareDoRequest(t *testing.T) {
 	// create and split a trace
 	trace := test.MakeTrace(10, []byte{0x01, 0x02})
 	trace1 := &tempopb.Trace{}

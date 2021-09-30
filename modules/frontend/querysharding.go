@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	MinQueryShards = 2
-	MaxQueryShards = 256
+	minQueryShards = 2
+	maxQueryShards = 256
 
 	querierPrefix  = "/querier"
 	queryDelimiter = "?"

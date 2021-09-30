@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -29,6 +30,11 @@ const (
 // NewMiddleware returns a Middleware configured with a middleware to route, split and dedupe requests.
 func NewMiddleware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (Middleware, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
+
+	// todo: push this farther down? into the actual creation of the shardingware?
+	if cfg.QueryShards < minQueryShards || cfg.QueryShards > maxQueryShards {
+		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
+	}
 
 	tracesMiddleware := NewTracesMiddleware(cfg, logger, registerer)
 	searchMiddleware := NewSearchMiddleware()
