@@ -55,6 +55,10 @@
   grafana_service:
     k.util.serviceFor($.grafana_deployment)
     + service.mixin.spec.withPortsMixin([
-      servicePort.withName('http').withPort(3000).withTargetPort(3000),
+      servicePort.newNamed(
+         name='http',
+         port=3000,
+         targetPort=3000,
+      ),
     ]),
 }

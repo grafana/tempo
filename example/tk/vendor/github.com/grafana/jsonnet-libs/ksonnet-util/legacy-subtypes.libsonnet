@@ -1,6 +1,6 @@
 // legacy-subtypes.libsonnet makes first-class entities available as subtypes like in ksonnet-lib.
 // It also makes the empty new() functions and camelCased functions available.
-// This is largely based on kausal-shim.libsonnet from k8s-alpha.
+// This is largely based on kausal-shim.libsonnet from k8s-libsonnet.
 {
   core+: { v1+: {
     container+: {

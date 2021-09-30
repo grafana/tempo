@@ -1,1 +1,1 @@
-import "ksonnet.beta.4/k.libsonnet"
+import 'github.com/jsonnet-libs/k8s-libsonnet/1.19/main.libsonnet'

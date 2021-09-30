@@ -13,7 +13,7 @@
     container.withCommand([
         'sh',
         '-euc',
-        'mkdir -p /data/tempo && /usr/bin/minio server /data',
+        'mkdir -p /data/tempo && minio server /data',
     ]) +
     container.withEnvMap({
       MINIO_ACCESS_KEY: 'tempo',
