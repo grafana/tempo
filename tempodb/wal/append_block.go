@@ -91,7 +91,9 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 		return nil, nil, err
 	}
 
-	records, warning, err := ReplayWALAndGetRecords(f, v, e)
+	records, warning, err := ReplayWALAndGetRecords(f, v, e, func(bytes []byte) error {
+		return nil
+	})
 	if err != nil {
 		return nil, nil, err
 	}

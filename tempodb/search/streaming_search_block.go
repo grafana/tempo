@@ -4,29 +4,30 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
-	"time"
 
-	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
 )
 
 var _ SearchableBlock = (*StreamingSearchBlock)(nil)
 
 // StreamingSearchBlock is search data that is read/write, i.e. for traces in the WAL.
 type StreamingSearchBlock struct {
+	BlockID  uuid.UUID // todo: add the full meta?
 	appender encoding.Appender
 	file     *os.File
 	header   *tempofb.SearchBlockHeaderMutable
 	encoding encoding.VersionedEncoding
+}
+
+// Close closes the WAL file. Used in tests
+func (s *StreamingSearchBlock) Close() error {
+	return s.file.Close()
 }
 
 // Clear deletes the files for this block.
@@ -60,82 +61,6 @@ func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
 	return s, nil
 }
 
-// todo: can we reduce duplication between this and wal.RescanBlocks() ?
-func RescanBlocks(walPath string) ([]*StreamingSearchBlock, error) {
-	searchFilepath := filepath.Join(walPath, "search")
-	files, err := ioutil.ReadDir(searchFilepath)
-	if err != nil {
-		return nil, err
-	}
-
-	blocks := make([]*StreamingSearchBlock, 0, len(files))
-	for _, f := range files {
-		if f.IsDir() {
-			continue
-		}
-		start := time.Now()
-		level.Info(cortex_util.Logger).Log("msg", "beginning replay", "file", f.Name(), "size", f.Size())
-
-		b, warning, err := newStreamingSearchBlockFromWALReplay(f.Name())
-
-		remove := false
-		if err != nil {
-			// wal replay failed, clear and warn
-			level.Warn(cortex_util.Logger).Log("msg", "failed to replay block. removing.", "file", f.Name(), "err", err)
-			remove = true
-		}
-
-		if b != nil && b.appender.Length() == 0 {
-			level.Warn(cortex_util.Logger).Log("msg", "empty wal file. ignoring.", "file", f.Name(), "err", err)
-			remove = true
-		}
-
-		if warning != nil {
-			level.Warn(cortex_util.Logger).Log("msg", "received warning while replaying block. partial replay likely.", "file", f.Name(), "warning", warning, "records", b.appender.Length())
-		}
-
-		if remove {
-			err = os.Remove(filepath.Join(searchFilepath, f.Name()))
-			if err != nil {
-				return nil, err
-			}
-			continue
-		}
-
-		level.Info(cortex_util.Logger).Log("msg", "replay complete", "file", f.Name(), "duration", time.Since(start))
-
-		blocks = append(blocks, b)
-	}
-
-	return blocks, nil
-}
-
-func newStreamingSearchBlockFromWALReplay(filename string) (*StreamingSearchBlock, error, error) {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
-	if err != nil {
-		if os.IsNotExist(err) {  // this is fine, just issue a warning
-			return nil, err, nil
-		}
-		return nil, nil, err
-	}
-
-	// version is pinned to v2 for now
-	v, err := encoding.FromVersion("v2")
-	if err != nil {
-		return nil, nil, err
-	}
-	records, warning, err := wal.ReplayWALAndGetRecords(f, v, backend.EncNone)
-	if err != nil {
-		return nil, nil, err
-	}
-	return &StreamingSearchBlock{
-		file:     f,
-		appender: encoding.NewRecordAppender(records),
-		header:   tempofb.NewSearchBlockHeaderMutable(),
-		encoding: v,
-	}, warning, nil
-}
-
 // Append the given search data to the streaming block. Multiple byte buffers of search data for
 // the same trace can be passed and are merged into one entry.
 func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
@@ -152,7 +77,6 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 
 // Search the streaming block.
 func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results) error {
-
 	if !p.MatchesBlock(s.header) {
 		sr.AddBlockSkipped()
 		return nil

@@ -3,7 +3,6 @@ package ingester
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -340,6 +339,25 @@ func (i *Ingester) replayWal() error {
 		return fmt.Errorf("fatal error replaying search wal %w", err)
 	}
 
+	// clear any searchBlock that does not have a corresponding entry in tracesBlocks
+	for j := len(searchBlocks) - 1; j >= 0; j-- {
+		clear := true
+		for _, tracesBlock := range blocks {
+			if searchBlocks[j].BlockID == tracesBlock.BlockID() {
+				clear = false
+				break
+			}
+		}
+
+		if clear {
+			err := searchBlocks[j].Clear()
+			if err != nil { // just log the error
+				level.Warn(log.Logger).Log("msg", "error clearing search WAL file", "blockID", searchBlocks[j].BlockID, "err", err)
+			}
+			searchBlocks = append(searchBlocks[:j], searchBlocks[j+1:]...)
+		}
+	}
+
 	for _, b := range blocks {
 		tenantID := b.Meta().TenantID
 
@@ -359,13 +377,12 @@ func (i *Ingester) replayWal() error {
 			return err
 		}
 
-		// replay search WAL
-		filename := filepath.Join(i.store.WAL().GetFilepath(), searchDir, fmt.Sprintf("%v:%v:%v", b.BlockID().String(), tenantID, "seachdata"))
-		searchWALBlock, err := search.NewStreamingSearchBlockFromWALReplay(filename)
-		if err != nil {
-			return err
+		var searchWALBlock *search.StreamingSearchBlock
+		for _, s := range searchBlocks {
+			if b.BlockID() == s.BlockID {
+				searchWALBlock = s
+			}
 		}
-
 		instance.AddCompletingBlock(b, searchWALBlock)
 
 		i.enqueue(&flushOp{

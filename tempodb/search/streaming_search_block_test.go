@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"path"
 	"sync"
@@ -36,6 +37,42 @@ func newStreamingSearchBlockWithTraces(traceCount int, t testing.TB) *StreamingS
 	}
 
 	return sb
+}
+
+func TestStreamingSearchBlockReplay(t *testing.T) {
+	traceCount := 100
+	sb := newStreamingSearchBlockWithTraces(traceCount, t)
+	assert.NotNil(t, sb)
+
+	walFile := sb.file.Name()
+
+	assert.NoError(t, sb.Close())
+
+	newSearchBlock, warning, err := newStreamingSearchBlockFromWALReplay(walFile)
+	assert.NoError(t, warning)
+	assert.NoError(t, err)
+	assert.Equal(t, traceCount, len(newSearchBlock.appender.Records()))
+
+	p := NewSearchPipeline(&tempopb.SearchRequest{
+		Tags: map[string]string{"key1": "value10"},
+	})
+
+	sr := NewResults()
+
+	sr.StartWorker()
+	go func() {
+		defer sr.FinishWorker()
+		err := newSearchBlock.Search(context.TODO(), p, sr)
+		require.NoError(t, err)
+	}()
+	sr.AllWorkersStarted()
+
+	var results []*tempopb.TraceSearchMetadata
+	for r := range sr.Results() {
+		results = append(results, r)
+	}
+
+	require.Equal(t, traceCount, len(results))
 }
 
 func TestStreamingSearchBlockSearchBlock(t *testing.T) {

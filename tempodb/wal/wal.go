@@ -135,7 +135,10 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string, name strin
 	if err != nil {
 		return nil, err
 	}
-	return os.OpenFile(filepath.Join(p, fmt.Sprintf("%v:%v:%v", blockid, tenantid, name)), os.O_CREATE|os.O_RDWR, 0644)
+
+	// blockID, tenantID, version, encoding (compression), dataEncoding, searchFileSuffix
+	filename := fmt.Sprintf("%v:%v:%v:%v:%v:%v", blockid, tenantid, "v2", backend.EncNone, "", name)
+	return os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
 }
 
 func (w *WAL) GetFilepath() string {
