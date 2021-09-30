@@ -6,25 +6,28 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
 	MinQueryShards = 2
 	MaxQueryShards = 256
 
-	querierPrefix  = "/querier"
-	queryDelimiter = "?"
+	querierPrefix    = "/querier"
+	queryDelimiter   = "?"
+	internalErrorMsg = "internal error"
 )
 
 func ShardingWare(queryShards int, logger log.Logger) Middleware {
@@ -59,6 +62,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
+	// jpe make own func: build requests
 	reqs := make([]*http.Request, s.queryShards)
 	for i := 0; i < s.queryShards; i++ {
 		reqs[i] = r.Clone(r.Context())
@@ -80,12 +84,105 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		reqs[i].RequestURI = querierPrefix + reqs[i].URL.RequestURI() + queryDelimiter + q.Encode()
 	}
 
-	rrs, err := doRequests(reqs, s.next)
+	// execute requests
+	wg := sync.WaitGroup{}
+	mtx := sync.Mutex{}
+
+	var totalTrace *tempopb.Trace
+	statusCode := http.StatusNotFound
+	statusMsg := "trace not found"
+
+	for _, req := range reqs {
+		wg.Add(1)
+		go func(innerR *http.Request) {
+			defer wg.Done()
+
+			mtx.Lock()
+			if shouldQuit(r.Context(), statusCode) {
+				mtx.Unlock()
+				return
+			}
+			mtx.Unlock()
+
+			resp, err := s.next.RoundTrip(innerR)
+
+			mtx.Lock()
+			defer mtx.Unlock()
+
+			if shouldQuit(r.Context(), statusCode) {
+				return
+			}
+
+			// check http error
+			if err != nil {
+				level.Error(s.logger).Log("msg", "error querying proxy target", "url", innerR.RequestURI, "err", err)
+				statusCode = http.StatusInternalServerError
+				statusMsg = internalErrorMsg
+				return
+			}
+
+			// if not found bail
+			if resp.StatusCode == http.StatusNotFound {
+				return
+			}
+
+			// if the status code is anything but happy, save the error and pass it down the line
+			if resp.StatusCode != http.StatusOK {
+				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast?
+				statusCode = resp.StatusCode
+				bytesMsg, err := io.ReadAll(resp.Body)
+				if err != nil {
+					level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
+				}
+				statusMsg = string(bytesMsg)
+				return
+			}
+
+			// successful query, read the body
+			buff, err := io.ReadAll(resp.Body)
+			if err != nil {
+				level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
+				statusCode = http.StatusInternalServerError
+				statusMsg = internalErrorMsg
+				return
+			}
+
+			// marshal into a trace to combine
+			trace, err := model.Unmarshal(buff, model.TracePBEncoding)
+			if err != nil {
+				level.Error(s.logger).Log("msg", "error unmarshalling response", "url", innerR.RequestURI, "err", err, "body", string(buff))
+				statusCode = http.StatusInternalServerError
+				statusMsg = internalErrorMsg
+				return
+			}
+
+			// happy path
+			statusCode = http.StatusOK
+			totalTrace, _, _, _ = model.CombineTraceProtos(totalTrace, trace)
+		}(req)
+	}
+	wg.Wait()
+
+	if totalTrace == nil || statusCode != http.StatusOK {
+		return &http.Response{
+			StatusCode: statusCode,
+			Body:       io.NopCloser(strings.NewReader(statusMsg)),
+			Header:     http.Header{},
+		}, nil
+	}
+
+	buff, err := proto.Marshal(totalTrace)
 	if err != nil {
+		level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
 		return nil, err
 	}
 
-	return mergeResponses(ctx, rrs)
+	return &http.Response{
+		StatusCode:    http.StatusOK,
+		Header:        http.Header{},
+		Body:          io.NopCloser(bytes.NewReader(buff)),
+		ContentLength: int64(len(buff)),
+	}, nil
 }
 
 // createBlockBoundaries splits the range of blockIDs into queryShards parts
@@ -111,99 +208,12 @@ func createBlockBoundaries(queryShards int) [][]byte {
 	return blockBoundaries
 }
 
-// RequestResponse contains a request response and the respective request that was used.
-type RequestResponse struct {
-	Request  *http.Request
-	Response *http.Response
-}
-
-// doRequests executes a list of requests in parallel.
-func doRequests(reqs []*http.Request, downstream http.RoundTripper) ([]RequestResponse, error) {
-	respChan, errChan := make(chan RequestResponse), make(chan error)
-	for _, req := range reqs {
-		go func(req *http.Request) {
-			resp, err := downstream.RoundTrip(req)
-			if err != nil {
-				errChan <- err
-			} else {
-				respChan <- RequestResponse{req, resp}
-			}
-		}(req)
+func shouldQuit(ctx context.Context, statusCode int) bool {
+	if ctx.Err() != nil {
+		return true
 	}
-
-	resps := make([]RequestResponse, 0, len(reqs))
-	var firstErr error
-	for range reqs {
-		select {
-		case resp := <-respChan:
-			resps = append(resps, resp)
-		case err := <-errChan:
-			if firstErr == nil {
-				firstErr = err
-			}
-		}
+	if statusCode/100 == 5 { // bail on any 5xx's
+		return true
 	}
-
-	return resps, firstErr
-}
-
-func mergeResponses(ctx context.Context, rrs []RequestResponse) (*http.Response, error) {
-	// tracing instrumentation
-	span, _ := opentracing.StartSpanFromContext(ctx, "frontend.mergeResponses")
-	defer span.Finish()
-
-	var errCode = http.StatusOK
-	var errBody io.ReadCloser
-	var combinedTrace []byte
-	var shardMissCount = 0
-	for _, rr := range rrs {
-		if rr.Response.StatusCode == http.StatusOK {
-			body, err := io.ReadAll(rr.Response.Body)
-			rr.Response.Body.Close()
-			if err != nil {
-				return nil, errors.Wrap(err, "error reading response body at query frontend")
-			}
-
-			if len(combinedTrace) == 0 {
-				combinedTrace = body
-			} else {
-				combinedTrace, _, err = model.CombineTraceBytes(combinedTrace, body, model.TracePBEncoding, model.TracePBEncoding)
-				if err != nil {
-					// will result in a 500 internal server error
-					return nil, errors.Wrap(err, "error combining traces at query frontend")
-				}
-			}
-		} else if rr.Response.StatusCode != http.StatusNotFound {
-			errCode = rr.Response.StatusCode
-			errBody = rr.Response.Body
-		} else {
-			shardMissCount++
-		}
-	}
-
-	if shardMissCount == len(rrs) {
-		return &http.Response{
-			StatusCode: http.StatusNotFound,
-			Body:       ioutil.NopCloser(strings.NewReader("trace not found in Tempo")),
-			Header:     http.Header{},
-		}, nil
-	}
-
-	if errCode == http.StatusOK {
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       ioutil.NopCloser(bytes.NewReader(combinedTrace)),
-			// ContentLength header is added to log the size of response in the Middleware in frontend.go
-			// This could be overwritten if the query client and Tempo negotiate compression
-			ContentLength: int64(len(combinedTrace)),
-			Header:        http.Header{},
-		}, nil
-	}
-
-	// Propagate any other errors as 5xx to the user so they can retry the query
-	return &http.Response{
-		StatusCode: http.StatusInternalServerError,
-		Body:       errBody,
-		Header:     http.Header{},
-	}, nil
+	return false
 }

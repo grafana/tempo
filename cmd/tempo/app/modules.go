@@ -181,6 +181,7 @@ func (t *App) initQuerier() (services.Service, error) {
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
+	// jpe move this test into NewMiddleware, maybe all the way into ShardingWare?
 	if t.cfg.Frontend.QueryShards < frontend.MinQueryShards || t.cfg.Frontend.QueryShards > frontend.MaxQueryShards {
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", frontend.MinQueryShards, frontend.MaxQueryShards)
 	}
