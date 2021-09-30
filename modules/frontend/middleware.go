@@ -36,18 +36,15 @@ func MergeMiddlewares(middleware ...Middleware) Middleware {
 }
 
 type roundTripper struct {
-	next    http.RoundTripper
 	handler http.RoundTripper
 }
 
 // NewRoundTripper takes an ordered set of middlewares and builds a http.RoundTripper
 // around them
 func NewRoundTripper(next http.RoundTripper, middlewares ...Middleware) http.RoundTripper {
-	transport := roundTripper{
-		next: next,
+	return roundTripper{
+		handler: MergeMiddlewares(middlewares...).Wrap(next),
 	}
-	transport.handler = MergeMiddlewares(middlewares...).Wrap(&transport)
-	return transport
 }
 
 func (q roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {

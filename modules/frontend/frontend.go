@@ -122,9 +122,6 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, registerer))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			// don't start a new span, this is already handled by frontendRoundTripper
-			span := opentracing.SpanFromContext(r.Context())
-
 			// validate traceID
 			_, err := util.ParseTraceID(r)
 			if err != nil {
@@ -168,6 +165,7 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 				}
 				resp.Body = ioutil.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
 			}
+			span := opentracing.SpanFromContext(r.Context())
 			if span != nil {
 				span.SetTag("contentType", marshallingFormat)
 			}
