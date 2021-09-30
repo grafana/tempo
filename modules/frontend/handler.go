@@ -21,17 +21,17 @@ var (
 	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
 )
 
-type HandlerBlerg struct { //jpe better name
+type Handler struct {
 	roundTripper http.RoundTripper
 }
 
 func NewHandler(rt http.RoundTripper) http.Handler {
-	return &HandlerBlerg{
+	return &Handler{
 		roundTripper: rt,
 	}
 }
 
-func (f *HandlerBlerg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		_ = r.Body.Close()
 	}()
