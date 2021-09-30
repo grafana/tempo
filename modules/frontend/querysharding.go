@@ -170,7 +170,7 @@ func (s *shardQuery) buildShardedRequests(parent *http.Request) ([]*http.Request
 
 	reqs := make([]*http.Request, s.queryShards)
 	// build sharded block queries
-	for i := 0; i < s.queryShards; i++ {
+	for i := 0; i < len(s.blockBoundaries); i++ {
 		reqs[i] = parent.Clone(ctx)
 
 		q := reqs[i].URL.Query()
