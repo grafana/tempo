@@ -13,7 +13,7 @@ import (
 )
 
 func RetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
-	return MiddlewareFunc(func(next Handler) Handler {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return retryWare{
 			next:       next,
 			maxRetries: maxRetries,
@@ -28,13 +28,13 @@ func RetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
 }
 
 type retryWare struct {
-	next         Handler
+	next         http.RoundTripper
 	maxRetries   int
 	retriesCount prometheus.Histogram
 }
 
-// Do implements Handler
-func (r retryWare) Do(req *http.Request) (*http.Response, error) {
+// RoundTrip implements http.RoundTripper
+func (r retryWare) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.Retry")
 	defer span.Finish()
@@ -51,7 +51,7 @@ func (r retryWare) Do(req *http.Request) (*http.Response, error) {
 			return nil, ctx.Err()
 		}
 
-		resp, err := r.next.Do(req)
+		resp, err := r.next.RoundTrip(req)
 
 		// do not retry if no error and response is not HTTP 5xx
 		if err == nil && !shouldRetry(resp.StatusCode) {

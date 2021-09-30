@@ -25,7 +25,7 @@ func TestRetry(t *testing.T) {
 
 	for _, tc := range []struct {
 		name          string
-		handler       Handler
+		handler       http.RoundTripper
 		maxRetries    int
 		expectedTries int32
 		expectedRes   *http.Response
@@ -33,7 +33,7 @@ func TestRetry(t *testing.T) {
 	}{
 		{
 			name: "retry errors until success",
-			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if try.Inc() == 5 {
 					return &http.Response{StatusCode: 200}, nil
 				}
@@ -46,7 +46,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "don't retry 400's",
-			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				try.Inc()
 				return &http.Response{StatusCode: 400}, nil
 			}),
@@ -57,7 +57,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "don't retry GRPC request with HTTP 400's",
-			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				try.Inc()
 				return nil, httpgrpc.ErrorFromHTTPResponse(&httpgrpc.HTTPResponse{Code: 400})
 			}),
@@ -68,7 +68,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "retry 500s",
-			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				try.Inc()
 				return &http.Response{StatusCode: 503}, nil
 			}),
@@ -79,7 +79,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "return last error",
-			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if try.Inc() == 5 {
 					return nil, errors.New("request failed")
 				}
@@ -92,7 +92,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "maxRetries=1",
-			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				try.Inc()
 				return &http.Response{StatusCode: 500}, nil
 			}),
@@ -103,7 +103,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "maxRetries=0",
-			handler: HandlerFunc(func(req *http.Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				try.Inc()
 				return &http.Response{StatusCode: 500}, nil
 			}),
@@ -121,7 +121,7 @@ func TestRetry(t *testing.T) {
 
 			req := httptest.NewRequest("GET", "http://example.com", nil)
 
-			res, err := handler.Do(req)
+			res, err := handler.RoundTrip(req)
 
 			require.Equal(t, tc.expectedTries, try.Load())
 			require.Equal(t, tc.expectedErr, err)
@@ -141,11 +141,10 @@ func TestRetry_CancelledRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = RetryWare(5, prometheus.NewRegistry()).
-		Wrap(HandlerFunc(func(req *http.Request) (*http.Response, error) {
+		Wrap(RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 			try.Inc()
 			return nil, ctx.Err()
-		})).
-		Do(req)
+		})).RoundTrip(req)
 
 	require.Equal(t, int32(0), try.Load())
 	require.Equal(t, ctx.Err(), err)
@@ -157,12 +156,11 @@ func TestRetry_CancelledRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = RetryWare(5, prometheus.NewRegistry()).
-		Wrap(HandlerFunc(func(req *http.Request) (*http.Response, error) {
+		Wrap(RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 			try.Inc()
 			cancel()
 			return nil, errors.New("this request failed")
-		})).
-		Do(req)
+		})).RoundTrip(req)
 
 	require.Equal(t, int32(1), try.Load())
 	require.Equal(t, ctx.Err(), err)

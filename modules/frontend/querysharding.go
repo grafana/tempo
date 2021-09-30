@@ -28,7 +28,7 @@ const (
 )
 
 func ShardingWare(queryShards int, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next Handler) Handler {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,
 			queryShards:     queryShards,
@@ -39,14 +39,14 @@ func ShardingWare(queryShards int, logger log.Logger) Middleware {
 }
 
 type shardQuery struct {
-	next            Handler
+	next            http.RoundTripper
 	queryShards     int
 	logger          log.Logger
 	blockBoundaries [][]byte
 }
 
-// Do implements Handler
-func (s shardQuery) Do(r *http.Request) (*http.Response, error) {
+// RoundTrip implements http.RoundTripper
+func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	ctx := r.Context()
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardQuery")
 	defer span.Finish()
@@ -118,11 +118,11 @@ type RequestResponse struct {
 }
 
 // doRequests executes a list of requests in parallel.
-func doRequests(reqs []*http.Request, downstream Handler) ([]RequestResponse, error) {
+func doRequests(reqs []*http.Request, downstream http.RoundTripper) ([]RequestResponse, error) {
 	respChan, errChan := make(chan RequestResponse), make(chan error)
 	for _, req := range reqs {
 		go func(req *http.Request) {
-			resp, err := downstream.Do(req)
+			resp, err := downstream.RoundTrip(req)
 			if err != nil {
 				errChan <- err
 			} else {

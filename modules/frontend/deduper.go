@@ -25,7 +25,7 @@ var (
 )
 
 func Deduper(logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next Handler) Handler {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return spanIDDeduper{
 			next:   next,
 			logger: logger,
@@ -36,15 +36,15 @@ func Deduper(logger log.Logger) Middleware {
 // This is copied over from Jaeger and modified to work for OpenTelemetry Trace data structure
 // https://github.com/jaegertracing/jaeger/blob/12bba8c9b91cf4a29d314934bc08f4a80e43c042/model/adjuster/span_id_deduper.go
 type spanIDDeduper struct {
-	next      Handler
+	next      http.RoundTripper
 	logger    log.Logger
 	trace     *tempopb.Trace
 	spansByID map[uint64][]*v1.Span
 	maxUsedID uint64
 }
 
-// Do implements Handler
-func (s spanIDDeduper) Do(req *http.Request) (*http.Response, error) {
+// RoundTrip implements http.RoundTripper
+func (s spanIDDeduper) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.DedupeSpanIDs")
 	defer span.Finish()
@@ -52,7 +52,7 @@ func (s spanIDDeduper) Do(req *http.Request) (*http.Response, error) {
 	// context propagation
 	req = req.WithContext(ctx)
 
-	resp, err := s.next.Do(req)
+	resp, err := s.next.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
