@@ -55,32 +55,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// context propagation
 	r = r.WithContext(ctx)
-
-	userID, err := user.ExtractOrgID(ctx)
+	reqs, err := s.buildShardedRequests(r)
 	if err != nil {
 		return nil, err
-	}
-
-	// jpe make own func: build requests
-	reqs := make([]*http.Request, s.queryShards)
-	for i := 0; i < s.queryShards; i++ {
-		reqs[i] = r.Clone(r.Context())
-
-		q := reqs[i].URL.Query()
-		if i == (s.queryShards - 1) { // one shard dedicated to querying ingesters
-			q.Add(querier.QueryModeKey, querier.QueryModeIngesters)
-		} else {
-			q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i]))
-			q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i+1]))
-			q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
-		}
-
-		reqs[i].Header.Set(user.OrgIDHeaderName, userID)
-
-		// adding to RequestURI only because weaveworks/common uses the RequestURI field to
-		// translate from http.Request to httpgrpc.Request
-		// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
-		reqs[i].RequestURI = querierPrefix + reqs[i].URL.RequestURI() + queryDelimiter + q.Encode()
 	}
 
 	// execute requests
@@ -180,6 +157,41 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		Body:          io.NopCloser(bytes.NewReader(buff)),
 		ContentLength: int64(len(buff)),
 	}, nil
+}
+
+// buildShardedRequests returns a slice of requests sharded on the precalculated
+// block boundaries
+func (s *shardQuery) buildShardedRequests(parent *http.Request) ([]*http.Request, error) {
+	ctx := parent.Context()
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	reqs := make([]*http.Request, s.queryShards)
+	// build ingester query
+	reqs[0] = parent.Clone(ctx)
+	reqs[0].URL.Query().Add(querier.QueryModeKey, querier.QueryModeIngesters)
+	reqs[0].Header.Set(user.OrgIDHeaderName, userID)
+
+	// build sharded block queries
+	for i := 1; i < s.queryShards; i++ {
+		reqs[i] = parent.Clone(ctx)
+
+		q := reqs[i].URL.Query()
+		q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i-1]))
+		q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i]))
+		q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
+
+		reqs[i].Header.Set(user.OrgIDHeaderName, userID)
+
+		// adding to RequestURI only because weaveworks/common uses the RequestURI field to
+		// translate from http.Request to httpgrpc.Request
+		// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
+		reqs[i].RequestURI = querierPrefix + reqs[i].URL.RequestURI() + queryDelimiter + q.Encode()
+	}
+
+	return reqs, nil
 }
 
 // createBlockBoundaries splits the range of blockIDs into queryShards parts
