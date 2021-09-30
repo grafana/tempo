@@ -25,9 +25,8 @@ const (
 	MinQueryShards = 2
 	MaxQueryShards = 256
 
-	querierPrefix    = "/querier"
-	queryDelimiter   = "?"
-	internalErrorMsg = "internal error"
+	querierPrefix  = "/querier"
+	queryDelimiter = "?"
 )
 
 func ShardingWare(queryShards int, logger log.Logger) Middleware {
@@ -88,7 +87,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	wg := sync.WaitGroup{}
 	mtx := sync.Mutex{}
 
-	var totalTrace *tempopb.Trace
+	var overallTrace *tempopb.Trace
+	var overallError error
 	statusCode := http.StatusNotFound
 	statusMsg := "trace not found"
 
@@ -97,27 +97,22 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		go func(innerR *http.Request) {
 			defer wg.Done()
 
-			mtx.Lock()
-			if shouldQuit(r.Context(), statusCode) {
-				mtx.Unlock()
-				return
-			}
-			mtx.Unlock()
-
 			resp, err := s.next.RoundTrip(innerR)
 
 			mtx.Lock()
 			defer mtx.Unlock()
+			if err != nil {
+				overallError = err
+			}
 
-			if shouldQuit(r.Context(), statusCode) {
+			if shouldQuit(r.Context(), statusCode, overallError) {
 				return
 			}
 
 			// check http error
 			if err != nil {
 				level.Error(s.logger).Log("msg", "error querying proxy target", "url", innerR.RequestURI, "err", err)
-				statusCode = http.StatusInternalServerError
-				statusMsg = internalErrorMsg
+				overallError = err
 				return
 			}
 
@@ -142,8 +137,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			buff, err := io.ReadAll(resp.Body)
 			if err != nil {
 				level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
-				statusCode = http.StatusInternalServerError
-				statusMsg = internalErrorMsg
+				overallError = err
 				return
 			}
 
@@ -151,19 +145,22 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			trace, err := model.Unmarshal(buff, model.TracePBEncoding)
 			if err != nil {
 				level.Error(s.logger).Log("msg", "error unmarshalling response", "url", innerR.RequestURI, "err", err, "body", string(buff))
-				statusCode = http.StatusInternalServerError
-				statusMsg = internalErrorMsg
+				overallError = err
 				return
 			}
 
 			// happy path
 			statusCode = http.StatusOK
-			totalTrace, _, _, _ = model.CombineTraceProtos(totalTrace, trace)
+			overallTrace, _, _, _ = model.CombineTraceProtos(overallTrace, trace)
 		}(req)
 	}
 	wg.Wait()
 
-	if totalTrace == nil || statusCode != http.StatusOK {
+	if overallError != nil {
+		return nil, overallError
+	}
+
+	if overallTrace == nil || statusCode != http.StatusOK {
 		return &http.Response{
 			StatusCode: statusCode,
 			Body:       io.NopCloser(strings.NewReader(statusMsg)),
@@ -171,7 +168,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	buff, err := proto.Marshal(totalTrace)
+	buff, err := proto.Marshal(overallTrace)
 	if err != nil {
 		level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
 		return nil, err
@@ -208,7 +205,10 @@ func createBlockBoundaries(queryShards int) [][]byte {
 	return blockBoundaries
 }
 
-func shouldQuit(ctx context.Context, statusCode int) bool {
+func shouldQuit(ctx context.Context, statusCode int, err error) bool {
+	if err != nil {
+		return true
+	}
 	if ctx.Err() != nil {
 		return true
 	}
