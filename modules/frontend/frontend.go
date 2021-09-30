@@ -30,8 +30,8 @@ const (
 	apiPathSearch = "/api/search"
 )
 
-// NewTripperware returns a Tripperware configured with a middleware to route, split and dedupe requests.
-func NewTripperware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (Middleware, error) {
+// NewMiddleware returns a Tripperware configured with a middleware to route, split and dedupe requests.
+func NewMiddleware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (Middleware, error) {
 	level.Info(logger).Log("msg", "creating tripperware in query frontend")
 
 	tracesTripperware := NewTracesTripperware(cfg, logger, registerer)
