@@ -335,6 +335,11 @@ func (i *Ingester) replayWal() error {
 		return fmt.Errorf("fatal error replaying wal %w", err)
 	}
 
+	searchBlocks, err := search.RescanBlocks(i.store.WAL().GetFilepath())
+	if err != nil {
+		return fmt.Errorf("fatal error replaying search wal %w", err)
+	}
+
 	for _, b := range blocks {
 		tenantID := b.Meta().TenantID
 
