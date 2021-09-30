@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
@@ -42,7 +41,7 @@ func TestInstanceSearch(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
@@ -146,7 +145,7 @@ func TestInstanceSearchNoData(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 

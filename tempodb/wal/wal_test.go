@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
@@ -43,7 +42,7 @@ func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, boo
 }
 
 func TestAppend(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
@@ -98,7 +97,7 @@ func TestAppend(t *testing.T) {
 func TestCompletedDirIsRemoved(t *testing.T) {
 	// Create /completed/testfile and verify it is removed.
 
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
@@ -118,7 +117,7 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 }
 
 func TestErrorConditions(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	require.NoError(t, err, "unexpected error creating temp dir")
 
@@ -180,7 +179,7 @@ func TestAppendReplayFind(t *testing.T) {
 }
 
 func testAppendReplayFind(t *testing.T, e backend.Encoding) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	require.NoError(t, err, "unexpected error creating temp dir")
 
@@ -307,7 +306,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		tempDir, _ := ioutil.TempDir("/tmp", "")
+		tempDir, _ := os.MkdirTemp("/tmp", "")
 		wal, _ := New(&Config{
 			Filepath: tempDir,
 			Encoding: encoding,

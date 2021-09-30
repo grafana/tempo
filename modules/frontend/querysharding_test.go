@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"testing"
 
@@ -76,25 +75,25 @@ func TestMergeResponses(t *testing.T) {
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(b1)),
+						Body:       io.NopCloser(bytes.NewReader(b1)),
 					},
 				},
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(b2)),
+						Body:       io.NopCloser(bytes.NewReader(b2)),
 					},
 				},
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusNotFound,
-						Body:       ioutil.NopCloser(bytes.NewReader([]byte("foo"))),
+						Body:       io.NopCloser(bytes.NewReader([]byte("foo"))),
 					},
 				},
 			},
 			expected: &http.Response{
 				StatusCode:    http.StatusOK,
-				Body:          ioutil.NopCloser(bytes.NewReader(combinedTrace)),
+				Body:          io.NopCloser(bytes.NewReader(combinedTrace)),
 				ContentLength: int64(len(combinedTrace)),
 			},
 		},
@@ -104,19 +103,19 @@ func TestMergeResponses(t *testing.T) {
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(b1)),
+						Body:       io.NopCloser(bytes.NewReader(b1)),
 					},
 				},
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusInternalServerError,
-						Body:       ioutil.NopCloser(bytes.NewReader([]byte("bar"))),
+						Body:       io.NopCloser(bytes.NewReader([]byte("bar"))),
 					},
 				},
 			},
 			expected: &http.Response{
 				StatusCode: http.StatusInternalServerError,
-				Body:       ioutil.NopCloser(bytes.NewReader([]byte("bar"))),
+				Body:       io.NopCloser(bytes.NewReader([]byte("bar"))),
 			},
 		},
 		{
@@ -125,19 +124,19 @@ func TestMergeResponses(t *testing.T) {
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusNotFound,
-						Body:       ioutil.NopCloser(bytes.NewReader([]byte("foo"))),
+						Body:       io.NopCloser(bytes.NewReader([]byte("foo"))),
 					},
 				},
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusInternalServerError,
-						Body:       ioutil.NopCloser(bytes.NewReader([]byte("bar"))),
+						Body:       io.NopCloser(bytes.NewReader([]byte("bar"))),
 					},
 				},
 			},
 			expected: &http.Response{
 				StatusCode: http.StatusInternalServerError,
-				Body:       ioutil.NopCloser(bytes.NewReader([]byte("bar"))),
+				Body:       io.NopCloser(bytes.NewReader([]byte("bar"))),
 			},
 		},
 		{
@@ -146,19 +145,19 @@ func TestMergeResponses(t *testing.T) {
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(b1)),
+						Body:       io.NopCloser(bytes.NewReader(b1)),
 					},
 				},
 				{
 					Response: &http.Response{
 						StatusCode: http.StatusForbidden,
-						Body:       ioutil.NopCloser(bytes.NewReader([]byte("foo"))),
+						Body:       io.NopCloser(bytes.NewReader([]byte("foo"))),
 					},
 				},
 			},
 			expected: &http.Response{
 				StatusCode: http.StatusInternalServerError,
-				Body:       ioutil.NopCloser(bytes.NewReader([]byte("foo"))),
+				Body:       io.NopCloser(bytes.NewReader([]byte("foo"))),
 			},
 		},
 	}

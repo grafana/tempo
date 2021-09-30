@@ -2,7 +2,6 @@ package overrides
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -112,7 +111,7 @@ func TestOverrides(t *testing.T) {
 				buff, err := yaml.Marshal(tt.overrides)
 				require.NoError(t, err)
 
-				err = ioutil.WriteFile(overridesFile, buff, os.ModePerm)
+				err = os.WriteFile(overridesFile, buff, os.ModePerm)
 				require.NoError(t, err)
 
 				tt.limits.PerTenantOverrideConfig = overridesFile

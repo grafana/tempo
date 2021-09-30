@@ -2,7 +2,6 @@ package tempodb
 
 import (
 	"context"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
@@ -32,7 +31,7 @@ const (
 )
 
 func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writer, Compactor, string) {
-	tempDir, err := ioutil.TempDir(tmpdir, "")
+	tempDir, err := os.MkdirTemp(tmpdir, "")
 	require.NoError(t, err)
 
 	r, w, c, err := New(&Config{
@@ -597,7 +596,7 @@ func TestCompleteBlock(t *testing.T) {
 }
 
 func TestShouldCache(t *testing.T) {
-	tempDir, err := ioutil.TempDir(tmpdir, "")
+	tempDir, err := os.MkdirTemp(tmpdir, "")
 	defer os.RemoveAll(tempDir)
 	require.NoError(t, err)
 
