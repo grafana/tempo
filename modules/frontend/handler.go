@@ -4,10 +4,16 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+	"github.com/opentracing/opentracing-go"
 	"github.com/weaveworks/common/httpgrpc"
 	"github.com/weaveworks/common/httpgrpc/server"
+	"github.com/weaveworks/common/tracing"
+	"github.com/weaveworks/common/user"
 )
 
 const (
@@ -25,12 +31,14 @@ var (
 // frontend endpoints and should only contain functionality that is common to all.
 type Handler struct {
 	roundTripper http.RoundTripper
+	logger       log.Logger
 }
 
 // NewHandler creates a handler
-func NewHandler(rt http.RoundTripper) http.Handler {
+func NewHandler(rt http.RoundTripper, logger log.Logger) http.Handler {
 	return &Handler{
 		roundTripper: rt,
+		logger:       logger,
 	}
 }
 
@@ -40,15 +48,47 @@ func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = r.Body.Close()
 	}()
 
+	ctx := r.Context()
+	start := time.Now()
+	orgID, _ := user.ExtractOrgID(ctx)
+
+	// add orgid to existing spans
+	span := opentracing.SpanFromContext(r.Context())
+	if span != nil {
+		span.SetTag("orgID", orgID)
+	}
+
 	resp, err := f.roundTripper.RoundTrip(r)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 
+	// write header and body
 	w.WriteHeader(resp.StatusCode)
-	// we don't check for copy error as there is no much we can do at this point
 	_, _ = io.Copy(w, resp.Body)
+
+	// request/response logging
+	traceID, _ := tracing.ExtractTraceID(ctx)
+	statusCode := 500
+	var contentLength int64 = 0
+	if resp != nil {
+		statusCode = resp.StatusCode
+		contentLength = resp.ContentLength
+	} else if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
+		statusCode = int(httpResp.Code)
+		contentLength = int64(len(httpResp.Body))
+	}
+
+	level.Info(f.logger).Log(
+		"tenant", orgID,
+		"method", r.Method,
+		"traceID", traceID,
+		"url", r.URL.RequestURI(),
+		"duration", time.Since(start).String(),
+		"response_size", contentLength,
+		"status", statusCode,
+	)
 }
 
 // writeError handles writing errors to the http.ResponseWriter. It uses weavework common

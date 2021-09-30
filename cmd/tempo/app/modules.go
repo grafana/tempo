@@ -201,7 +201,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	roundTripper := httpPipeline.Wrap(cortexTripper)
 
 	// wrap http.RoundTripper with a http.Handler
-	frontendHandler := frontend.NewHandler(roundTripper)
+	frontendHandler := frontend.NewHandler(roundTripper, log.Logger)
 
 	// wrap handler with auth
 	frontendHandler = t.HTTPAuthMiddleware.Wrap(frontendHandler)
