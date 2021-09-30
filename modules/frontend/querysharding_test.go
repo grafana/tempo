@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -59,9 +60,23 @@ func TestCreateBlockBoundaries(t *testing.T) {
 	}
 }
 
-type resp struct {
-	status int
-	body   []byte
+func TestBuildShardedRequests(t *testing.T) {
+	queryShards := 2
+
+	sharder := &shardQuery{
+		queryShards:     queryShards,
+		blockBoundaries: createBlockBoundaries(queryShards - 1),
+	}
+
+	ctx := user.InjectOrgID(context.Background(), "blerg")
+	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
+
+	shardedReqs, err := sharder.buildShardedRequests(req)
+	require.NoError(t, err)
+	require.Len(t, shardedReqs, queryShards)
+
+	require.Equal(t, "/querier/?mode=ingesters", shardedReqs[0].RequestURI)
+	require.Equal(t, "/querier/?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&mode=blocks", shardedReqs[1].RequestURI)
 }
 
 func TestShardingWareDoRequest(t *testing.T) {

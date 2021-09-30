@@ -169,19 +169,20 @@ func (s *shardQuery) buildShardedRequests(parent *http.Request) ([]*http.Request
 	}
 
 	reqs := make([]*http.Request, s.queryShards)
-	// build ingester query
-	reqs[0] = parent.Clone(ctx)
-	reqs[0].URL.Query().Add(querier.QueryModeKey, querier.QueryModeIngesters)
-	reqs[0].Header.Set(user.OrgIDHeaderName, userID)
-
 	// build sharded block queries
-	for i := 1; i < s.queryShards; i++ {
+	for i := 0; i < s.queryShards; i++ {
 		reqs[i] = parent.Clone(ctx)
 
 		q := reqs[i].URL.Query()
-		q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i-1]))
-		q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i]))
-		q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
+		if i == 0 {
+			// ingester query
+			q.Add(querier.QueryModeKey, querier.QueryModeIngesters)
+		} else {
+			// block queries
+			q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i-1]))
+			q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i]))
+			q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
+		}
 
 		reqs[i].Header.Set(user.OrgIDHeaderName, userID)
 
