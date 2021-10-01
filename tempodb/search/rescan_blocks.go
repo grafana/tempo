@@ -20,7 +20,9 @@ func RescanBlocks(walPath string) ([]*StreamingSearchBlock, error) {
 	searchFilepath := filepath.Join(walPath, "search")
 	files, err := ioutil.ReadDir(searchFilepath)
 	if err != nil {
-		return nil, err
+		// this might happen if search is not enabled, dont err here
+		level.Warn(cortex_util.Logger).Log("msg", "failed to open search wal directory", "err", err)
+		return nil, nil
 	}
 
 	blocks := make([]*StreamingSearchBlock, 0, len(files))
