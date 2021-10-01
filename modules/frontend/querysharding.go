@@ -118,7 +118,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				return
 			}
 
-			// marshal into a trace to combine
+			// marshal into a trace to combine.
+			// todo: better define responsibilities between middleware. the parent middleware in frontend.go actually sets the header
+			//  which forces the body here to be a proto encoded tempopb.Trace{}
 			trace := &tempopb.Trace{}
 			err = proto.Unmarshal(buff, trace)
 			if err != nil {
