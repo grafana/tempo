@@ -10,7 +10,7 @@ import (
 
 type BlockMeta struct {
 	Version       string           `json:"version"`
-	Encoding      backend.Encoding `json:"v"` // Encoding/compression format
+	Encoding      backend.Encoding `json:"encoding"` // Encoding/compression format
 	IndexPageSize uint32           `json:"indexPageSize"`
 	IndexRecords  uint32           `json:"indexRecords"`
 }
