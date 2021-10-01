@@ -125,7 +125,7 @@ a microservices deployment, or the Tempo endpoint in a single binary deployment.
 from service "myservice" and the url contains "api/myapi".
 
 ```
-GET /api/search?service.name=myservice&http.url=%2Fmyapi
+GET /api/search?service.name=myservice&http.url=api/myapi
 ```
 
 Each query parameter is of the form <name>=<value>, where <name> is the name of any span-level or process-level attribute.  The value is matched as a case-insenstive substring.  There are several reserved query parameters:
