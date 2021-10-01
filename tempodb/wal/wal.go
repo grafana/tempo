@@ -5,13 +5,16 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	versioned_encoding "github.com/grafana/tempo/tempodb/encoding"
 )
 
 const (
@@ -136,9 +139,49 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string, name strin
 		return nil, err
 	}
 
-	// blockID, tenantID, version, encoding (compression), dataEncoding, searchFileSuffix
-	filename := fmt.Sprintf("%v:%v:%v:%v:%v:%v", blockid, tenantid, "v2", backend.EncNone, "", name)
+	// blockID, tenantID, version, encoding (compression), dataEncoding
+	filename := fmt.Sprintf("%v:%v:%v:%v:%v", blockid, tenantid, "v2", backend.EncNone, "")
 	return os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
+}
+
+// ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error)
+func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding, string, error) {
+	splits := strings.Split(filename, ":")
+
+	if len(splits) != 5 {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. unexpected number of segments", filename)
+	}
+
+	// first segment is blockID
+	id, err := uuid.Parse(splits[0])
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing uuid: %w", filename, err)
+	}
+
+	// second segment is tenant
+	tenant := splits[1]
+	if len(tenant) == 0 {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. missing fields", filename)
+	}
+
+	// third segment is version
+	version := splits[2]
+	_, err = versioned_encoding.FromVersion(version)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing version: %w", filename, err)
+	}
+
+	// fourth is encoding
+	encodingString := splits[3]
+	encoding, err := backend.ParseEncoding(encodingString)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing encoding: %w", filename, err)
+	}
+
+	// fifth is dataEncoding
+	dataEncoding := splits[4]
+
+	return id, tenant, version, encoding, dataEncoding, nil
 }
 
 func (w *WAL) GetFilepath() string {

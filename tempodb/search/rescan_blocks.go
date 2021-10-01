@@ -4,15 +4,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/tempofb"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -34,7 +31,9 @@ func RescanBlocks(walPath string) ([]*StreamingSearchBlock, error) {
 		start := time.Now()
 		level.Info(cortex_util.Logger).Log("msg", "beginning replay", "file", f.Name(), "size", f.Size())
 
-		b, warning, err := newStreamingSearchBlockFromWALReplay(f.Name())
+		// pass the path to search subdirectory and filename
+		// here f.Name() does not have full path
+		b, warning, err := newStreamingSearchBlockFromWALReplay(searchFilepath, f.Name())
 
 		remove := false
 		if err != nil {
@@ -69,25 +68,24 @@ func RescanBlocks(walPath string) ([]*StreamingSearchBlock, error) {
 }
 
 // newStreamingSearchBlockFromWALReplay creates a StreamingSearchBlock with in-memory records from a search WAL file
-func newStreamingSearchBlockFromWALReplay(filename string) (*StreamingSearchBlock, error, error) {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+func newStreamingSearchBlockFromWALReplay(searchFilepath, filename string) (*StreamingSearchBlock, error, error) {
+	f, err := os.OpenFile(filepath.Join(searchFilepath, filename), os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	blockID, _, _, _, _, err := parseFilename(filename)
+	blockID, _, version, enc, _, err := wal.ParseFilename(filename)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// version is pinned to v2 for now
-	v, err := encoding.FromVersion("v2")
+	v, err := encoding.FromVersion(version)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	blockHeader := tempofb.NewSearchBlockHeaderMutable()
-	records, warning, err := wal.ReplayWALAndGetRecords(f, v, backend.EncNone, func(bytes []byte) error {
+	records, warning, err := wal.ReplayWALAndGetRecords(f, v, enc, func(bytes []byte) error {
 		entry := tempofb.SearchEntryFromBytes(bytes)
 		blockHeader.AddEntry(entry)
 		return nil
@@ -102,19 +100,4 @@ func newStreamingSearchBlockFromWALReplay(filename string) (*StreamingSearchBloc
 		header:   blockHeader,
 		encoding: v,
 	}, warning, nil
-}
-
-func parseFilename(filename string) (blockID uuid.UUID, tenantID string, version string, encoding string, dataEncoding string, err error) {
-	splits := strings.Split(filename, ":")
-
-	if len(splits) < 6 {
-		return uuid.Nil, "", "", "", "", err
-	}
-
-	id, err := uuid.Parse(splits[0])
-	if err != nil {
-		return uuid.Nil, "", "", "", "", err
-	}
-	// todo: any other validation?
-	return id, splits[1], splits[2], splits[3], splits[4], nil
 }

@@ -3,19 +3,27 @@ package search
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
 
-func newStreamingSearchBlockWithTraces(traceCount int, t testing.TB) *StreamingSearchBlock {
+// newStreamingSearchBlockWithTraces returns (tmpDir path, *StreamingSearchBlock)
+func newStreamingSearchBlockWithTraces(traceCount int, t testing.TB) (string, *StreamingSearchBlock) {
+	tmpDir := t.TempDir()
+
+	// create search sub-directory
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "search"), os.ModePerm))
+
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8}
 	searchData := [][]byte{(&tempofb.SearchEntryMutable{
 		TraceID: id,
@@ -26,7 +34,7 @@ func newStreamingSearchBlockWithTraces(traceCount int, t testing.TB) *StreamingS
 			"key4": {"value40", "value41"},
 		}}).ToBytes()}
 
-	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
+	f, err := os.OpenFile(path.Join(tmpDir, "search", "1c505e8b-26cd-4621-ba7d-792bb55282d5:single-tenant:v2:none:"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
 	sb, err := NewStreamingSearchBlockForFile(f)
@@ -36,23 +44,22 @@ func newStreamingSearchBlockWithTraces(traceCount int, t testing.TB) *StreamingS
 		require.NoError(t, sb.Append(context.Background(), id, searchData))
 	}
 
-	return sb
+	return tmpDir, sb
 }
 
 func TestStreamingSearchBlockReplay(t *testing.T) {
 	traceCount := 100
-	sb := newStreamingSearchBlockWithTraces(traceCount, t)
+	walDir, sb := newStreamingSearchBlockWithTraces(traceCount, t)
 	assert.NotNil(t, sb)
 
-	// grab the wal filename from the block and close the old file handler
-	walFile := sb.file.Name()
+	// close the old file handler
 	assert.NoError(t, sb.Close())
 
 	// create new block from the same wal file
-	newSearchBlock, warning, err := newStreamingSearchBlockFromWALReplay(walFile)
-	assert.NoError(t, warning)
+	blocks, err := RescanBlocks(walDir)
 	assert.NoError(t, err)
-	assert.Equal(t, traceCount, len(newSearchBlock.appender.Records()))
+	require.Len(t, blocks, 1)
+	assert.Equal(t, traceCount, len(blocks[0].appender.Records()))
 
 	// search the new block
 	p := NewSearchPipeline(&tempopb.SearchRequest{
@@ -64,7 +71,7 @@ func TestStreamingSearchBlockReplay(t *testing.T) {
 	sr.StartWorker()
 	go func() {
 		defer sr.FinishWorker()
-		err := newSearchBlock.Search(context.TODO(), p, sr)
+		err := blocks[0].Search(context.TODO(), p, sr)
 		require.NoError(t, err)
 	}()
 	sr.AllWorkersStarted()
@@ -79,7 +86,7 @@ func TestStreamingSearchBlockReplay(t *testing.T) {
 
 func TestStreamingSearchBlockSearchBlock(t *testing.T) {
 	traceCount := 10
-	sb := newStreamingSearchBlockWithTraces(traceCount, t)
+	_, sb := newStreamingSearchBlockWithTraces(traceCount, t)
 
 	testCases := []struct {
 		name                    string
@@ -134,7 +141,7 @@ func TestStreamingSearchBlockSearchBlock(t *testing.T) {
 
 func BenchmarkStreamingSearchBlockSearch(b *testing.B) {
 
-	sb := newStreamingSearchBlockWithTraces(b.N, b)
+	_, sb := newStreamingSearchBlockWithTraces(b.N, b)
 
 	p := NewSearchPipeline(&tempopb.SearchRequest{
 		Tags: map[string]string{"nomatch": "nomatch"},
