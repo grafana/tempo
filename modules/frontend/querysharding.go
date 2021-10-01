@@ -119,7 +119,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			}
 
 			// marshal into a trace to combine
-			trace, err := model.Unmarshal(buff, model.TracePBEncoding)
+			trace := &tempopb.Trace{}
+			err = proto.Unmarshal(buff, trace)
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error unmarshalling response", "url", innerR.RequestURI, "err", err, "body", string(buff))
 				overallError = err
