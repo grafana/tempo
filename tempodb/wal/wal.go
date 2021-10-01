@@ -148,7 +148,7 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string, name strin
 func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding, string, error) {
 	splits := strings.Split(filename, ":")
 
-	if len(splits) != 5 {
+	if len(splits) != 4 && len(splits) != 5 {
 		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. unexpected number of segments", filename)
 	}
 
@@ -179,7 +179,10 @@ func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding
 	}
 
 	// fifth is dataEncoding
-	dataEncoding := splits[4]
+	dataEncoding := ""
+	if len(splits) == 5 {
+		dataEncoding = splits[4]
+	}
 
 	return id, tenant, version, encoding, dataEncoding, nil
 }
