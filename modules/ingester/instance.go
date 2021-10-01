@@ -497,7 +497,7 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file
-	f, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir, "searchdata")
+	f, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
 	if err != nil {
 		return err
 	}

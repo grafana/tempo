@@ -124,7 +124,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 			return err
 		}
 
-		sr.AddBytesInspected(uint64(r.Length))
+		sr.AddBytesInspected(uint64(len(pagesBuffer[0])))
 		sr.AddTraceInspected(1)
 
 		entry := tempofb.SearchEntryFromBytes(pagesBuffer[0])

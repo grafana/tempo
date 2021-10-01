@@ -339,7 +339,7 @@ func (i *Ingester) replayWal() error {
 		return fmt.Errorf("fatal error replaying search wal %w", err)
 	}
 
-	// clear any searchBlock that does not have a corresponding entry in tracesBlocks
+	// clear any searchBlock that does not have a matching wal block
 	for j := len(searchBlocks) - 1; j >= 0; j-- {
 		clear := true
 		for _, tracesBlock := range blocks {

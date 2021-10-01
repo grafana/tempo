@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -211,41 +212,54 @@ func TestWal(t *testing.T) {
 	}
 }
 
-//func TestSearchWAL(t *testing.T) {
-//	tmpDir := t.TempDir()
-//
-//	i, _, _ := defaultIngester(t, tmpDir)
-//	inst, ok := i.getInstanceByID("test")
-//	require.True(t, ok)
-//
-//	// Write wal
-//	err := inst.CutCompleteTraces(0, true)
-//	require.NoError(t, err)
-//	_, err = inst.CutBlockIfReady(0, 0, true)
-//	require.NoError(t, err)
-//
-//	// assert that search WAL is being searched
-//	ctx := user.InjectOrgID(context.Background(), "test")
-//	searchReq := &tempopb.SearchRequest{Tags: map[string]string{
-//		search.SecretExhaustiveSearchTag: "",
-//	}}
-//	results, err := inst.Search(ctx, searchReq)
-//	assert.NoError(t, err)
-//	assert.Greater(t, results.Metrics.InspectedTraces, 0)
-//
-//	// Shutdown
-//	err = i.stopping(nil)
-//	require.NoError(t, err)
-//
-//	// replay wal
-//	i, _, _ = defaultIngester(t, tmpDir)
-//	inst, ok = i.getInstanceByID("test")
-//	require.True(t, ok)
-//
-//	results, err = inst.Search(ctx, searchReq)
-//	assert.NoError(t, err)
-//	assert.Greater(t, results.Metrics.InspectedTraces, 0)
-//}
+func TestSearchWAL(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	i := defaultIngesterModule(t, tmpDir)
+	inst, _ := i.getOrCreateInstance("test")
+	assert.NotNil(t, inst)
+
+	// create some search data
+	id := make([]byte, 16)
+	_, err := rand.Read(id)
+	require.NoError(t, err)
+	trace := test.MakeTrace(10, id)
+	traceBytes, err := trace.Marshal()
+	require.NoError(t, err)
+	entry := &tempofb.SearchEntryMutable{}
+	entry.TraceID = id
+	entry.AddTag("foo", "bar")
+	searchBytes := entry.ToBytes()
+
+	// push to instance
+	assert.NoError(t, inst.PushBytes(context.Background(), id, traceBytes, searchBytes))
+
+	// Write wal
+	err = inst.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+
+	// search WAL
+	ctx := user.InjectOrgID(context.Background(), "test")
+	searchReq := &tempopb.SearchRequest{Tags: map[string]string{
+		"foo": "bar",
+	}}
+	results, err := inst.Search(ctx, searchReq)
+	assert.NoError(t, err)
+	assert.Equal(t, uint32(1), results.Metrics.InspectedTraces)
+
+	// Shutdown
+	err = i.stopping(nil)
+	require.NoError(t, err)
+
+	// replay wal
+	i = defaultIngesterModule(t, tmpDir)
+	inst, ok := i.getInstanceByID("test")
+	require.True(t, ok)
+
+	results, err = inst.Search(ctx, searchReq)
+	assert.NoError(t, err)
+	assert.Equal(t, uint32(1), results.Metrics.InspectedTraces)
+}
 
 // TestWalReplayDeletesLocalBlocks simulates the condition where an ingester restarts after a wal is completed
 // to the local disk, but before the wal is deleted. On startup both blocks exist, and the ingester now errs
@@ -328,7 +342,7 @@ func TestFlush(t *testing.T) {
 	}
 }
 
-func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
+func defaultIngesterModule(t *testing.T, tmpDir string) *Ingester {
 	ingesterConfig := defaultIngesterTestConfig()
 	limits, err := overrides.NewOverrides(defaultLimitsTestConfig())
 	require.NoError(t, err, "unexpected error creating overrides")
@@ -360,13 +374,19 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 	err = ingester.starting(context.Background())
 	require.NoError(t, err, "unexpected error starting ingester")
 
+	return ingester
+}
+
+func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
+	ingester := defaultIngesterModule(t, tmpDir)
+
 	// make some fake traceIDs/requests
 	traces := make([]*tempopb.Trace, 0)
 
 	traceIDs := make([][]byte, 0)
 	for i := 0; i < 10; i++ {
 		id := make([]byte, 16)
-		_, err = rand.Read(id)
+		_, err := rand.Read(id)
 		require.NoError(t, err)
 
 		trace := test.MakeTrace(10, id)

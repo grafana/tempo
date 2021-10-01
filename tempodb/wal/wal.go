@@ -136,7 +136,7 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*App
 	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding)
 }
 
-func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string, name string) (*os.File, error) {
+func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, error) {
 	p := filepath.Join(w.c.Filepath, dir)
 	err := os.MkdirAll(p, os.ModePerm)
 	if err != nil {
