@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 
 	"github.com/go-kit/kit/log"
@@ -119,6 +118,12 @@ func TestShardingWareDoRequest(t *testing.T) {
 			expectedStatus: 404,
 		},
 		{
+			name:           "400",
+			status1:        400,
+			status2:        400,
+			expectedStatus: 500,
+		},
+		{
 			name:           "500+404",
 			status1:        500,
 			status2:        404,
@@ -149,14 +154,14 @@ func TestShardingWareDoRequest(t *testing.T) {
 			status1:        503,
 			status2:        200,
 			trace2:         trace2,
-			expectedStatus: 503,
+			expectedStatus: 500,
 		},
 		{
 			name:           "200+503",
 			status1:        200,
 			trace1:         trace1,
 			status2:        503,
-			expectedStatus: 503,
+			expectedStatus: 500,
 		},
 		{
 			name:           "200+404",
@@ -211,19 +216,14 @@ func TestShardingWareDoRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			sharder := ShardingWare(2, log.NewNopLogger())
 
-			mtx := sync.Mutex{}
-			firstResponse := true
-			next := RoundTripperFunc(func(*http.Request) (*http.Response, error) {
-				mtx.Lock()
-				defer mtx.Unlock()
+			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var trace *tempopb.Trace
 				var statusCode int
 				var err error
-				if firstResponse {
+				if r.RequestURI == "/querier/api/traces/1234?mode=ingesters" {
 					trace = tc.trace1
 					statusCode = tc.status1
 					err = tc.err1
-					firstResponse = false
 				} else {
 					trace = tc.trace2
 					err = tc.err2

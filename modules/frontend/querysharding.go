@@ -138,6 +138,13 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	if overallTrace == nil || statusCode != http.StatusOK {
+		// translate non-404s into 500s. if, for intance, we get a 400 back from an internal component
+		// it means that we created a bad request. 400 should not be propagated back to the user b/c
+		// the bad request was due to a bug on our side, so return 500 instead.
+		if statusCode != http.StatusNotFound {
+			statusCode = 500
+		}
+
 		return &http.Response{
 			StatusCode: statusCode,
 			Body:       io.NopCloser(strings.NewReader(statusMsg)),
