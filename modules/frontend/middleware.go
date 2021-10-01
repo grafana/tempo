@@ -12,7 +12,7 @@ func (fn RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) 
 	return fn(req)
 }
 
-// Middleware is used to
+// Middleware is used to build pipelines of http.Roundtrippers
 type Middleware interface {
 	Wrap(http.RoundTripper) http.RoundTripper
 }
