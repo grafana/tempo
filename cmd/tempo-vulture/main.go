@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -18,13 +17,9 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/weaveworks/common/user"
-	jaegerTrans "go.opentelemetry.io/collector/translator/trace/jaeger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
@@ -45,14 +40,6 @@ var (
 	tempoSearchRetentionDuration  time.Duration
 
 	logger *zap.Logger
-
-	// maxBatchesPerWrite is used when writing and reading, and needs to match so
-	// that we get the expected number of batches on a trace.  A value larger
-	// than 25 here results in vulture writing traces that exceed the maximum
-	// trace size.
-	maxBatchesPerWrite int64 = 25
-
-	maxLongWritesPerTrace int64 = 3
 )
 
 type traceMetrics struct {
@@ -63,38 +50,6 @@ type traceMetrics struct {
 	requested               int
 	requestFailed           int
 	notFoundSearchAttribute int
-}
-
-type traceInfo struct {
-	timestamp           time.Time
-	r                   *rand.Rand
-	traceIDHigh         int64
-	traceIDLow          int64
-	longWritesRemaining int64
-}
-
-func newTraceInfo(timestamp time.Time) *traceInfo {
-	r := newRand(timestamp)
-
-	return &traceInfo{
-		timestamp:           timestamp,
-		r:                   r,
-		traceIDHigh:         r.Int63(),
-		traceIDLow:          r.Int63(),
-		longWritesRemaining: r.Int63n(maxLongWritesPerTrace),
-	}
-}
-
-func (t *traceInfo) ready(now time.Time) bool {
-	// Don't use the last time interval to allow the write loop to finish before we try to read it.
-	if t.timestamp.After(now.Add(-tempoWriteBackoffDuration)) {
-		return false
-	}
-
-	// We are not ready if not all writes have had a chance to send.
-	totalWrites := newTraceInfo(t.timestamp).longWritesRemaining
-	lastWrite := t.timestamp.Add(time.Duration(totalWrites) * tempoLongWriteBackoffDuration)
-	return !now.Before(lastWrite.Add(tempoLongWriteBackoffDuration))
 }
 
 func init() {
@@ -131,15 +86,15 @@ func main() {
 	tickerSearch := time.NewTicker(tempoSearchBackoffDuration)
 	interval := tempoWriteBackoffDuration
 
-	ready := func(info *traceInfo, now time.Time) bool {
+	ready := func(info *util.TraceInfo, now time.Time) bool {
 		// Don't attempt to read on the first itteration if we can't reasonably
 		// expect the write loop to have fired yet.  Double the duration here to
 		// avoid a race.
-		if info.timestamp.Before(actualStartTime.Add(2 * tempoWriteBackoffDuration)) {
+		if info.Timestamp().Before(actualStartTime.Add(2 * tempoWriteBackoffDuration)) {
 			return false
 		}
 
-		return info.ready(now)
+		return info.Ready(now, tempoWriteBackoffDuration, tempoLongWriteBackoffDuration)
 	}
 
 	// Write
@@ -151,8 +106,11 @@ func main() {
 
 		for now := range tickerWrite.C {
 			timestamp := now.Round(interval)
-			info := newTraceInfo(timestamp)
-			emitBatches(client, info)
+			info := util.NewTraceInfo(timestamp, tempoOrgID)
+			err := info.EmitBatches(client)
+			if err != nil {
+				metricErrorTotal.Inc()
+			}
 			queueFutureBatches(client, info)
 		}
 	}()
@@ -168,7 +126,7 @@ func main() {
 				zap.Int64("seed", seed.Unix()),
 			)
 
-			info := newTraceInfo(seed)
+			info := util.NewTraceInfo(seed, tempoOrgID)
 
 			// Don't query for a trace we don't expect to be complete
 			if !ready(info, now) {
@@ -178,7 +136,7 @@ func main() {
 			client := util.NewClient(tempoQueryURL, tempoOrgID)
 
 			// query the trace
-			queryMetrics, err := queryTrace(client, seed)
+			queryMetrics, err := queryTrace(client, info)
 			if err != nil {
 				metricErrorTotal.Inc()
 				log.Error("query for metrics failed",
@@ -198,7 +156,7 @@ func main() {
 				zap.Int64("seed", seed.Unix()),
 			)
 
-			info := newTraceInfo(seed)
+			info := util.NewTraceInfo(seed, tempoOrgID)
 
 			if !ready(info, now) {
 				continue
@@ -222,50 +180,30 @@ func main() {
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
 }
 
-func emitBatches(c *jaeger_grpc.Reporter, t *traceInfo) {
-	log := logger.With(
-		zap.String("org_id", tempoOrgID),
-		zap.String("write_trace_id", fmt.Sprintf("%016x%016x", t.traceIDHigh, t.traceIDLow)),
-		zap.Int64("seed", t.timestamp.Unix()),
-	)
-
-	log.Info("sending trace")
-
-	for i := int64(0); i < generateRandomInt(1, maxBatchesPerWrite, t.r); i++ {
-		ctx := user.InjectOrgID(context.Background(), tempoOrgID)
-		ctx, err := user.InjectIntoGRPCRequest(ctx)
-		if err != nil {
-			log.Error("error injecting org id", zap.Error(err))
-			metricErrorTotal.Inc()
-			continue
-		}
-		err = c.EmitBatch(ctx, makeThriftBatch(t.traceIDHigh, t.traceIDLow, t.r, t.timestamp))
-		if err != nil {
-			log.Error("error pushing batch to Tempo", zap.Error(err))
-			metricErrorTotal.Inc()
-			continue
-		}
-	}
-
-}
-
-func queueFutureBatches(client *jaeger_grpc.Reporter, info *traceInfo) {
-	if info.longWritesRemaining == 0 {
+func queueFutureBatches(client *jaeger_grpc.Reporter, info *util.TraceInfo) {
+	if info.LongWritesRemaining() == 0 {
 		return
 	}
+
 	log := logger.With(
 		zap.String("org_id", tempoOrgID),
-		zap.String("write_trace_id", fmt.Sprintf("%016x%016x", info.traceIDHigh, info.traceIDLow)),
-		zap.Int64("seed", info.timestamp.Unix()),
-		zap.Int64("longWritesRemaining", info.longWritesRemaining),
+		zap.String("write_trace_id", info.HexID()),
+		zap.Int64("seed", info.Timestamp().Unix()),
+		zap.Int64("longWritesRemaining", info.LongWritesRemaining()),
 	)
 
-	info.longWritesRemaining--
+	info.Done()
 
 	log.Info("queueing future batches")
 	go func() {
 		time.Sleep(tempoLongWriteBackoffDuration)
-		emitBatches(client, info)
+		err := info.EmitBatches(client)
+		if err != nil {
+			log.Error("failed to queue batches",
+				zap.Error(err),
+			)
+		}
+
 		queueFutureBatches(client, info)
 	}()
 }
@@ -289,7 +227,7 @@ func selectPastTimestamp(start, stop time.Time, interval time.Duration, retentio
 		newStart = start
 	}
 
-	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix(), newRand(start)), 0)
+	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix(), rand.New(rand.NewSource(start.Unix()))), 0)
 
 	return newStart.Round(interval), ts.Round(interval)
 }
@@ -313,67 +251,6 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
-func newRand(t time.Time) *rand.Rand {
-	return rand.New(rand.NewSource(t.Unix()))
-}
-
-func generateRandomString(r *rand.Rand) string {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-	s := make([]rune, generateRandomInt(5, 20, r))
-	for i := range s {
-		s[i] = letters[r.Intn(len(letters))]
-	}
-	return string(s)
-}
-
-func generateRandomTags(r *rand.Rand) []*thrift.Tag {
-	var tags []*thrift.Tag
-	count := generateRandomInt(1, 5, r)
-	for i := int64(0); i < count; i++ {
-		value := generateRandomString(r)
-		tags = append(tags, &thrift.Tag{
-			Key:  fmt.Sprintf("vulture-%d", i),
-			VStr: &value,
-		})
-	}
-	return tags
-}
-
-func generateRandomLogs(r *rand.Rand, now time.Time) []*thrift.Log {
-	var logs []*thrift.Log
-	count := generateRandomInt(1, 5, r)
-	for i := int64(0); i < count; i++ {
-		logs = append(logs, &thrift.Log{
-			Timestamp: now.Unix(),
-			Fields:    generateRandomTags(r),
-		})
-	}
-	return logs
-}
-
-func makeThriftBatch(TraceIDHigh int64, TraceIDLow int64, r *rand.Rand, now time.Time) *thrift.Batch {
-	var spans []*thrift.Span
-	count := generateRandomInt(1, 5, r)
-	for i := int64(0); i < count; i++ {
-		spans = append(spans, &thrift.Span{
-			TraceIdLow:    TraceIDLow,
-			TraceIdHigh:   TraceIDHigh,
-			SpanId:        r.Int63(),
-			ParentSpanId:  0,
-			OperationName: generateRandomString(r),
-			References:    nil,
-			Flags:         0,
-			StartTime:     now.Unix(),
-			Duration:      generateRandomInt(0, 100, r),
-			Tags:          generateRandomTags(r),
-			Logs:          generateRandomLogs(r, now),
-		})
-	}
-
-	return &thrift.Batch{Spans: spans}
-}
-
 func generateRandomInt(min int64, max int64, r *rand.Rand) int64 {
 	min++
 	number := min + r.Int63n(max-min)
@@ -385,17 +262,15 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 		requested: 1,
 	}
 
-	r := newRand(seed)
-	seedHex := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
-	traceID, err := util.HexStringToTraceID(seedHex)
-	if err != nil {
-		return tm, err
-	}
-
-	hexID := util.TraceIDToHexString(traceID)
+	info := util.NewTraceInfo(seed, tempoOrgID)
+	hexID := info.HexID()
 
 	// Get the expected
-	expected := constructTraceFromEpoch(seed)
+	expected, err := info.ConstructTraceFromEpoch()
+	if err != nil {
+		logger.Error("unable to construct trace from epoch", zap.Error(err))
+		return traceMetrics{}, err
+	}
 
 	traceInTraces := func(traceID string, traces []*tempopb.TraceSearchMetadata) bool {
 		for _, t := range traces {
@@ -413,7 +288,7 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 		return false
 	}
 
-	attr := randomAttrFromTrace(expected, r)
+	attr := util.RandomAttrFromTrace(expected)
 	if attr == nil {
 		tm.notFoundSearchAttribute++
 		return tm, fmt.Errorf("no search attr selected from trace")
@@ -444,18 +319,17 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	return tm, nil
 }
 
-func queryTrace(client *util.Client, seed time.Time) (traceMetrics, error) {
+func queryTrace(client *util.Client, info *util.TraceInfo) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
 
-	r := newRand(seed)
-	hexID := fmt.Sprintf("%016x%016x", r.Int63(), r.Int63())
+	hexID := info.HexID()
 
 	logger := logger.With(
-		zap.Int64("seed", seed.Unix()),
+		zap.Int64("seed", info.Timestamp().Unix()),
 		zap.String("hexID", hexID),
-		zap.Duration("ago", time.Since(seed)),
+		zap.Duration("ago", time.Since(info.Timestamp())),
 	)
 	logger.Info("querying Tempo")
 
@@ -484,7 +358,11 @@ func queryTrace(client *util.Client, seed time.Time) (traceMetrics, error) {
 	}
 
 	// Get the expected
-	expected := constructTraceFromEpoch(seed)
+	expected, err := info.ConstructTraceFromEpoch()
+	if err != nil {
+		logger.Error("unable to construct trace from epoch", zap.Error(err))
+		return tm, err
+	}
 
 	match := equalTraces(expected, trace)
 	if !match {
@@ -500,30 +378,6 @@ func queryTrace(client *util.Client, seed time.Time) (traceMetrics, error) {
 	}
 
 	return tm, nil
-}
-
-func randomAttrFromTrace(t *tempopb.Trace, r *rand.Rand) *v1common.KeyValue {
-	if len(t.Batches) == 0 {
-		return nil
-	}
-	iBatch := r.Intn(len(t.Batches))
-
-	if len(t.Batches[iBatch].InstrumentationLibrarySpans) == 0 {
-		return nil
-	}
-	iSpans := r.Intn(len(t.Batches[iBatch].InstrumentationLibrarySpans))
-
-	if len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans) == 0 {
-		return nil
-	}
-	iSpan := r.Intn(len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans))
-
-	if len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans[iSpan].Attributes) == 0 {
-		return nil
-	}
-	iAttr := r.Intn(len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans[iSpan].Attributes))
-
-	return t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans[iSpan].Attributes[iAttr]
 }
 
 func equalTraces(a, b *tempopb.Trace) bool {
@@ -568,60 +422,4 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 	}
 
 	return false
-}
-
-func constructTraceFromEpoch(epoch time.Time) *tempopb.Trace {
-	r := newRand(epoch)
-
-	info := &traceInfo{
-		timestamp:           epoch,
-		r:                   r,
-		traceIDHigh:         r.Int63(),
-		traceIDLow:          r.Int63(),
-		longWritesRemaining: r.Int63n(maxLongWritesPerTrace),
-	}
-
-	trace := &tempopb.Trace{}
-
-	addBatches := func(t *traceInfo, trace *tempopb.Trace) {
-		for i := int64(0); i < generateRandomInt(1, maxBatchesPerWrite, r); i++ {
-			batch := makeThriftBatch(t.traceIDHigh, t.traceIDLow, r, epoch)
-			internalTrace := jaegerTrans.ThriftBatchToInternalTraces(batch)
-			conv, err := internalTrace.ToOtlpProtoBytes()
-			if err != nil {
-				logger.Error(err.Error())
-			}
-
-			t := tempopb.Trace{}
-			err = t.Unmarshal(conv)
-			if err != nil {
-				logger.Error(err.Error())
-			}
-
-			// Due to the several transforms above, some manual mangling is required to
-			// get the parentSpanID to match.  In the case of an empty []byte in place
-			// for the ParentSpanId, we set to nil here to ensure that the final result
-			// matches the json.Unmarshal value when tempo is queried.
-			for _, b := range t.Batches {
-				for _, l := range b.InstrumentationLibrarySpans {
-					for _, s := range l.Spans {
-						if len(s.GetParentSpanId()) == 0 {
-							s.ParentSpanId = nil
-						}
-					}
-				}
-			}
-
-			trace.Batches = append(trace.Batches, t.Batches...)
-		}
-	}
-
-	addBatches(info, trace)
-
-	for info.longWritesRemaining > 0 {
-		info.longWritesRemaining--
-		addBatches(info, trace)
-	}
-
-	return trace
 }

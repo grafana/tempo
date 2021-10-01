@@ -26,10 +26,10 @@ func NewClient(baseURL, orgID string) *Client {
 	}
 }
 
-func (c *Client) getFor(url string, m proto.Message) error {
+func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(c.OrgID) > 0 {
@@ -38,29 +38,28 @@ func (c *Client) getFor(url string, m proto.Message) error {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("error searching tempo for tag %v", err)
+		return nil, fmt.Errorf("error searching tempo for tag %v", err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
-	if resp.StatusCode == http.StatusNotFound {
-		return ErrTraceNotFound
+	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
+		return resp, fmt.Errorf("GET request to %s failed with response: %d", req.URL.String(), resp.StatusCode)
 	}
 
 	unmarshaller := &jsonpb.Unmarshaler{}
 	err = unmarshaller.Unmarshal(resp.Body, m)
 	if err != nil {
-		return fmt.Errorf("error decoding %T json, err: %v", m, err)
+		return resp, fmt.Errorf("error decoding %T json, err: %v", m, err)
 	}
 
-	return nil
+	return resp, nil
 }
 
 func (c *Client) SearchTag(key, value string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-
-	err := c.getFor(c.BaseURL+"/api/search?"+key+"="+value, m)
+	_, err := c.getFor(c.BaseURL+"/api/search?"+key+"="+value, m)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +69,11 @@ func (c *Client) SearchTag(key, value string) (*tempopb.SearchResponse, error) {
 
 func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 	m := &tempopb.Trace{}
-	err := c.getFor(c.BaseURL+"/api/traces/"+id, m)
+	resp, err := c.getFor(c.BaseURL+"/api/traces/"+id, m)
 	if err != nil {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, ErrTraceNotFound
+		}
 		return nil, err
 	}
 
