@@ -115,51 +115,53 @@ func TestBackendSearchBlockDedupesWAL(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
-			require.NoError(t, err)
-
-			b1, err := NewStreamingSearchBlockForFile(f, "v2", backend.EncNone)
-			require.NoError(t, err)
-
-			id := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-			for i := 0; i < traceCount; i++ {
-				require.NoError(t, b1.Append(context.Background(), id, tc.searchDataGenerator(id, i)))
-			}
-
-			l, err := local.NewBackend(&local.Config{
-				Path: t.TempDir(),
-			})
-			require.NoError(t, err)
-
-			blockID := uuid.New()
-			err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, testTenantID, backend.EncNone, 0)
-			require.NoError(t, err)
-
-			b2 := OpenBackendSearchBlock(blockID, testTenantID, backend.NewReader(l))
-
-			p := NewSearchPipeline(&tempopb.SearchRequest{
-				Tags: tc.searchTags,
-			})
-
-			sr := NewResults()
-
-			sr.StartWorker()
-			go func() {
-				defer sr.FinishWorker()
-				err := b2.Search(context.TODO(), p, sr)
+	for _, enc := range backend.SupportedEncoding {
+		for _, tc := range testCases {
+			t.Run(fmt.Sprint(tc.name, "/", enc.String()), func(t *testing.T) {
+				f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 				require.NoError(t, err)
-			}()
-			sr.AllWorkersStarted()
 
-			var results []*tempopb.TraceSearchMetadata
-			for r := range sr.Results() {
-				results = append(results, r)
-			}
-			require.Equal(t, tc.expectedLenResults, len(results))
-			require.Equal(t, tc.expectedLenInspected, int(sr.TracesInspected()))
-		})
+				b1, err := NewStreamingSearchBlockForFile(f, "v2", enc)
+				require.NoError(t, err)
+
+				id := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+				for i := 0; i < traceCount; i++ {
+					require.NoError(t, b1.Append(context.Background(), id, tc.searchDataGenerator(id, i)))
+				}
+
+				l, err := local.NewBackend(&local.Config{
+					Path: t.TempDir(),
+				})
+				require.NoError(t, err)
+
+				blockID := uuid.New()
+				err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, testTenantID, enc, 0)
+				require.NoError(t, err)
+
+				b2 := OpenBackendSearchBlock(blockID, testTenantID, backend.NewReader(l))
+
+				p := NewSearchPipeline(&tempopb.SearchRequest{
+					Tags: tc.searchTags,
+				})
+
+				sr := NewResults()
+
+				sr.StartWorker()
+				go func() {
+					defer sr.FinishWorker()
+					err := b2.Search(context.TODO(), p, sr)
+					require.NoError(t, err)
+				}()
+				sr.AllWorkersStarted()
+
+				var results []*tempopb.TraceSearchMetadata
+				for r := range sr.Results() {
+					results = append(results, r)
+				}
+				require.Equal(t, tc.expectedLenResults, len(results))
+				require.Equal(t, tc.expectedLenInspected, int(sr.TracesInspected()))
+			})
+		}
 	}
 
 }
@@ -217,7 +219,7 @@ func TestBackendSearchBlockFinalSize(t *testing.T) {
 	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
-	b1, err := NewStreamingSearchBlockForFile(f)
+	b1, err := NewStreamingSearchBlockForFile(f, "v2", backend.EncNone)
 	require.NoError(t, err)
 
 	for i := 0; i < traceCount; i++ {
