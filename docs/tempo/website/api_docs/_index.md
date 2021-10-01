@@ -20,6 +20,9 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 | [Pprof](#pprof) | _All services_ |  HTTP | `GET /debug/pprof` |
 | [Ingest traces](#ingest) | Distributor |  - | See section for details |
 | [Querying traces](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
+| [Searching traces](#search) | Query-frontend | HTTP | `GET /api/search?<params>` |
+| [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
+| [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
 | [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
 | [Memberlist](#memberlist) | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
@@ -114,6 +117,40 @@ frontend.
 Returns:
 By default this endpoint returns [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON,
 but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is passed.
+
+### Search
+
+Tempo's Search API finds traces based on span and process attributes (tags and values).  The API is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request is used to find traces containing spans
+from service "myservice" and the url contains "api/myapi".
+
+```
+GET /api/search?service.name=myservice&http.url=%2Fmyapi
+```
+
+Each query parameter is of the form <name>=<value>, where <name> is the name of any span-level or process-level attribute.  The value is matched as a case-insenstive substring.  There are several reserved query parameters:
+- `minDuration=<go duration value>`
+  Optional.  Find traces with at least this duration.  Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
+- `maxDuration=<go duration value>`
+  Optional.  Find traces with no greater than this duration.  Same format as `minDuration`
+
+### Search Tags
+
+This api retrieves all discovered tag names that can be used in search.  The API is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a single binary deployment.
+
+```
+GET /api/search/tags
+```
+
+### Search Tag Values
+
+This API retrieves all discovered values for the given tag, that can be used in search.  The API is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request will return all discovered service names.
+
+```
+GET /api/search/tag/service.name/values
+```
 
 ### Query Echo Endpoint
 
