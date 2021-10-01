@@ -147,6 +147,10 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 
 	meta, err := ReadSearchBlockMeta(ctx, s.r, s.id, s.tenantID)
 	if err != nil {
+		// we create BackendSearchBlocks even if search files are missing, return nil here if meta does not exist
+		if err == backend.ErrDoesNotExist {
+			return nil
+		}
 		return err
 	}
 
