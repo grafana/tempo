@@ -1,17 +1,14 @@
 package search
 
 import (
-	"bytes"
 	"context"
 	"io"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -23,13 +20,13 @@ const defaultBackendSearchBlockPageSize = 2 * 1024 * 1024
 type BackendSearchBlock struct {
 	id       uuid.UUID
 	tenantID string
-	l        *local.Backend
+	r        backend.Reader
 }
 
 // NewBackendSearchBlock iterates through the given WAL search data and writes it to the persistent backend
 // in a more efficient paged form. Multiple traces are written in the same page to make sure of the flatbuffer
 // CreateSharedString feature which dedupes strings across the entire buffer.
-func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockID uuid.UUID, tenantID string, enc backend.Encoding, pageSizeBytes int) error {
+func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, blockID uuid.UUID, tenantID string, enc backend.Encoding, pageSizeBytes int) error {
 	var err error
 	ctx := context.TODO()
 	indexPageSize := 100 * 1024
@@ -47,7 +44,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 
 	header := tempofb.NewSearchBlockHeaderMutable()
 
-	w, err := newBackendSearchBlockWriter(blockID, tenantID, l, version, enc)
+	w, err := newBackendSearchBlockWriter(blockID, tenantID, rw, version, enc)
 	if err != nil {
 		return err
 	}
@@ -109,14 +106,14 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 	if err != nil {
 		return err
 	}
-	err = l.Write(ctx, "search-index", backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(indexBytes), int64(len(indexBytes)), true)
+	err = rw.Write(ctx, "search-index", blockID, tenantID, indexBytes, true)
 	if err != nil {
 		return err
 	}
 
 	// Write header
 	hb := header.ToBytes()
-	err = l.Write(ctx, "search-header", backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(hb), int64(len(hb)), true)
+	err = rw.Write(ctx, "search-header", blockID, tenantID, hb, true)
 	if err != nil {
 		return err
 	}
@@ -128,15 +125,15 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, l *local.Backend, blockI
 		Version:       version.Version(),
 		Encoding:      enc,
 	}
-	return WriteSearchBlockMeta(ctx, l, blockID, tenantID, sm)
+	return WriteSearchBlockMeta(ctx, rw, blockID, tenantID, sm)
 }
 
 // OpenBackendSearchBlock opens the search data for an existing block in the given backend.
-func OpenBackendSearchBlock(l *local.Backend, blockID uuid.UUID, tenantID string) *BackendSearchBlock {
+func OpenBackendSearchBlock(blockID uuid.UUID, tenantID string, r backend.Reader) *BackendSearchBlock {
 	return &BackendSearchBlock{
 		id:       blockID,
 		tenantID: tenantID,
-		l:        l,
+		r:        r,
 	}
 }
 
@@ -148,7 +145,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	indexBuf := []common.Record{{}}
 	entry := &tempofb.SearchEntry{} // Buffer
 
-	meta, err := ReadSearchBlockMeta(ctx, s.l, s.id, s.tenantID)
+	meta, err := ReadSearchBlockMeta(ctx, s.r, s.id, s.tenantID)
 	if err != nil {
 		return err
 	}
@@ -160,17 +157,12 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 
 	// Read header
 	// Verify something in the block matches by checking the header
-	hbr, hbrlen, err := s.l.Read(ctx, "search-header", backend.KeyPathForBlock(s.id, s.tenantID), true)
+	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
 	if err != nil {
 		return err
 	}
 
-	sr.bytesInspected.Add(uint64(hbrlen))
-
-	hb, err := tempo_io.ReadAllWithEstimate(hbr, hbrlen)
-	if err != nil {
-		return err
-	}
+	sr.bytesInspected.Add(uint64(len(hb)))
 
 	header := tempofb.GetRootAsSearchBlockHeader(hb, 0)
 	if !p.MatchesBlock(header) {
@@ -183,14 +175,14 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 
 	// Read index
 	bmeta := backend.NewBlockMeta(s.tenantID, s.id, meta.Version, meta.Encoding, "")
-	cr := backend.NewContextReader(bmeta, "search-index", backend.NewReader(s.l), false)
+	cr := backend.NewContextReader(bmeta, "search-index", s.r, false)
 
 	ir, err := vers.NewIndexReader(cr, int(meta.IndexPageSize), int(meta.IndexRecords))
 	if err != nil {
 		return err
 	}
 
-	dcr := backend.NewContextReader(bmeta, "search", backend.NewReader(s.l), false)
+	dcr := backend.NewContextReader(bmeta, "search", s.r, false)
 	dr, err := vers.NewDataReader(dcr, meta.Encoding)
 	if err != nil {
 		return err

@@ -2,7 +2,6 @@ package wal
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,7 +80,7 @@ func New(c *Config) (*WAL, error) {
 
 // RescanBlocks returns a slice of append blocks from the wal folder
 func (w *WAL) RescanBlocks(log log.Logger) ([]*AppendBlock, error) {
-	files, err := ioutil.ReadDir(w.c.Filepath)
+	files, err := os.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +92,12 @@ func (w *WAL) RescanBlocks(log log.Logger) ([]*AppendBlock, error) {
 		}
 
 		start := time.Now()
-		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", f.Size())
+		fileInfo, err := f.Info()
+		if err != nil {
+			return nil, err
+		}
+
+		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", fileInfo.Size())
 		b, warning, err := newAppendBlockFromFile(f.Name(), w.c.Filepath)
 
 		remove := false

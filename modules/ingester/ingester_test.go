@@ -2,7 +2,6 @@ package ingester
 
 import (
 	"context"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
@@ -31,7 +30,7 @@ import (
 )
 
 func TestPushQuery(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("/tmp", "")
+	tmpDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
 
@@ -64,7 +63,7 @@ func TestPushQuery(t *testing.T) {
 }
 
 func TestFullTraceReturned(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("/tmp", "")
+	tmpDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
 
@@ -111,7 +110,7 @@ func TestFullTraceReturned(t *testing.T) {
 }
 
 func TestDeprecatedPush(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("/tmp", "")
+	tmpDir, err := os.MkdirTemp("/tmp", "")
 	assert.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
 
@@ -158,7 +157,7 @@ func TestDeprecatedPush(t *testing.T) {
 }
 
 func TestWal(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("/tmp", "")
+	tmpDir, err := os.MkdirTemp("/tmp", "")
 	require.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
 
@@ -296,7 +295,7 @@ func TestWalReplayDeletesLocalBlocks(t *testing.T) {
 }
 
 func TestFlush(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("/tmp", "")
+	tmpDir, err := os.MkdirTemp("/tmp", "")
 	require.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
 

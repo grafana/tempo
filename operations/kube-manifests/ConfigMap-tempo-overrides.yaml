@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  overrides.yaml: |
+    overrides: {}
+kind: ConfigMap
+metadata:
+  name: tempo-overrides
+  namespace: tracing

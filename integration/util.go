@@ -3,7 +3,6 @@ package integration
 // Collection of utilities to share between our various load tests
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -110,14 +109,14 @@ func WriteFileToSharedDir(s *e2e.Scenario, dst string, content []byte) error {
 		return err
 	}
 
-	return ioutil.WriteFile(
+	return os.WriteFile(
 		dst,
 		content,
 		os.ModePerm)
 }
 
 func CopyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
-	content, err := ioutil.ReadFile(src)
+	content, err := os.ReadFile(src)
 	if err != nil {
 		return errors.Wrapf(err, "unable to read local file %s", src)
 	}

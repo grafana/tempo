@@ -1,7 +1,6 @@
 package distributor
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/grafana/tempo/pkg/tempofb"
@@ -50,26 +49,16 @@ func extractSearchData(trace *tempopb.Trace, id []byte, extractTag extractTagFun
 				// Root span
 				if len(s.ParentSpanId) == 0 {
 
+					// Collect root.name
 					data.AddTag(search.RootSpanNameTag, s.Name)
 
-					// Span attrs
-					for _, a := range s.Attributes {
-						if !extractTag(a.Key) {
-							continue
-						}
-						if s, ok := extractValueAsString(a.Value); ok {
-							data.AddTag(fmt.Sprint(search.RootSpanPrefix, a.Key), s)
-						}
-					}
-
-					// Batch attrs
+					// Collect root.service.name
 					if b.Resource != nil {
 						for _, a := range b.Resource.Attributes {
-							if !extractTag(a.Key) {
-								continue
-							}
-							if s, ok := extractValueAsString(a.Value); ok {
-								data.AddTag(fmt.Sprint(search.RootSpanPrefix, a.Key), s)
+							if a.Key == search.ServiceNameTag {
+								if s, ok := extractValueAsString(a.Value); ok {
+									data.AddTag(search.RootServiceNameTag, s)
+								}
 							}
 						}
 					}

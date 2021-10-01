@@ -13,7 +13,7 @@ data:
         join_members:
           - gossip-ring.tracing.svc.cluster.local:7946
     overrides:
-        per_tenant_override_config: /conf/overrides.yaml
+        per_tenant_override_config: /overrides/overrides.yaml
     querier:
         frontend_worker:
             frontend_address: query-frontend-discovery.tracing.svc.cluster.local:9095

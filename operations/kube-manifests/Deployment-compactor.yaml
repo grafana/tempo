@@ -13,12 +13,12 @@ spec:
       name: compactor
   strategy:
     rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+      maxSurge: 50%
+      maxUnavailable: 100%
   template:
     metadata:
       annotations:
-        config_hash: 527bb84fb5ed28ab14bed73b2434e3dc
+        config_hash: 9e1f883a7a6ce95d5952bb119bdde93d
       labels:
         app: compactor
         name: compactor
@@ -50,7 +50,12 @@ spec:
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
+        - mountPath: /overrides
+          name: overrides
       volumes:
       - configMap:
           name: tempo-compactor
         name: tempo-conf
+      - configMap:
+          name: tempo-overrides
+        name: overrides

@@ -3,7 +3,7 @@ package cache
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
@@ -81,21 +81,21 @@ func TestReadWrite(t *testing.T) {
 
 			ctx := context.Background()
 			reader, _, _ := r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.shouldCache)
-			read, _ := ioutil.ReadAll(reader)
+			read, _ := io.ReadAll(reader)
 			assert.Equal(t, tt.expectedRead, read)
 
 			// clear reader and re-request
 			mockR.R = nil
 
 			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.shouldCache)
-			read, _ = ioutil.ReadAll(reader)
+			read, _ = io.ReadAll(reader)
 			assert.Equal(t, len(tt.expectedCache), len(read))
 
 			// WRITE
 			_, w, _ := NewCache(mockR, mockW, NewMockClient())
 			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(tt.readerRead), int64(len(tt.readerRead)), tt.shouldCache)
 			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.shouldCache)
-			read, _ = ioutil.ReadAll(reader)
+			read, _ = io.ReadAll(reader)
 			assert.Equal(t, len(tt.expectedCache), len(read))
 		})
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"reflect"
 	"runtime"
@@ -132,7 +132,7 @@ func loadConfig() (*app.Config, error) {
 
 	// first get the config file
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
-	fs.SetOutput(ioutil.Discard)
+	fs.SetOutput(io.Discard)
 
 	fs.StringVar(&configFile, configFileOption, "", "")
 	fs.BoolVar(&configExpandEnv, configExpandEnvOption, false, "")
@@ -150,7 +150,7 @@ func loadConfig() (*app.Config, error) {
 
 	// overlay with config file if provided
 	if configFile != "" {
-		buff, err := ioutil.ReadFile(configFile)
+		buff, err := os.ReadFile(configFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read configFile %s: %w", configFile, err)
 		}

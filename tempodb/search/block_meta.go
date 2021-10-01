@@ -1,12 +1,10 @@
 package search
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 
 	"github.com/google/uuid"
-	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -19,24 +17,18 @@ type BlockMeta struct {
 
 const searchMetaObjectName = "search.meta.json"
 
-func WriteSearchBlockMeta(ctx context.Context, w backend.RawWriter, blockID uuid.UUID, tenantID string, sm *BlockMeta) error {
+func WriteSearchBlockMeta(ctx context.Context, w backend.Writer, blockID uuid.UUID, tenantID string, sm *BlockMeta) error {
 	metaBytes, err := json.Marshal(sm)
 	if err != nil {
 		return err
 	}
 
-	err = w.Write(ctx, searchMetaObjectName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(metaBytes), int64(len(metaBytes)), false)
+	err = w.Write(ctx, searchMetaObjectName, blockID, tenantID, metaBytes, false)
 	return err
 }
 
-func ReadSearchBlockMeta(ctx context.Context, r backend.RawReader, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
-	metaReader, size, err := r.Read(ctx, searchMetaObjectName, backend.KeyPathForBlock(blockID, tenantID), false)
-	if err != nil {
-		return nil, err
-	}
-
-	defer metaReader.Close()
-	metaBytes, err := tempo_io.ReadAllWithEstimate(metaReader, size)
+func ReadSearchBlockMeta(ctx context.Context, r backend.Reader, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
+	metaBytes, err := r.Read(ctx, searchMetaObjectName, blockID, tenantID, false)
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,6 @@ package tempodb
 import (
 	"context"
 	"encoding/binary"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
@@ -57,7 +56,7 @@ func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 }
 
 func TestCompaction(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
@@ -187,7 +186,7 @@ func TestCompaction(t *testing.T) {
 }
 
 func TestSameIDCompaction(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
@@ -277,7 +276,7 @@ func TestSameIDCompaction(t *testing.T) {
 }
 
 func TestCompactionUpdatesBlocklist(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
@@ -346,7 +345,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 }
 
 func TestCompactionMetrics(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
@@ -419,7 +418,7 @@ func TestCompactionMetrics(t *testing.T) {
 }
 
 func TestCompactionIteratesThroughTenants(t *testing.T) {
-	tempDir, err := ioutil.TempDir("/tmp", "")
+	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
 	assert.NoError(t, err, "unexpected error creating temp dir")
 
