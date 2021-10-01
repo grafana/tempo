@@ -22,7 +22,8 @@ type StreamingSearchBlock struct {
 	appender encoding.Appender
 	file     *os.File
 	header   *tempofb.SearchBlockHeaderMutable
-	encoding encoding.VersionedEncoding
+	v        encoding.VersionedEncoding
+	enc      backend.Encoding
 }
 
 // Close closes the WAL file. Used in tests
@@ -38,19 +39,20 @@ func (s *StreamingSearchBlock) Clear() error {
 
 // NewStreamingSearchBlockForFile creates a new streaming block that will read/write the given file.
 // File must be opened for read/write permissions.
-func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
-	v, err := encoding.FromVersion("v2")
+func NewStreamingSearchBlockForFile(f *os.File, version string, enc backend.Encoding) (*StreamingSearchBlock, error) {
+	v, err := encoding.FromVersion(version)
 	if err != nil {
 		return nil, err
 	}
 	s := &StreamingSearchBlock{
-		file:     f,
-		header:   tempofb.NewSearchBlockHeaderMutable(),
-		encoding: v,
+		file:   f,
+		header: tempofb.NewSearchBlockHeaderMutable(),
+		v:      v,
+		enc:    enc,
 	}
 
 	// Use versioned encoding to create paged entries
-	dataWriter, err := s.encoding.NewDataWriter(f, backend.EncNone)
+	dataWriter, err := s.v.NewDataWriter(f, enc)
 	if err != nil {
 		return nil, err
 	}
@@ -86,12 +88,12 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 
 	sr.AddBlockInspected()
 
-	dr, err := s.encoding.NewDataReader(backend.NewContextReaderWithAllReader(s.file), backend.EncNone)
+	dr, err := s.v.NewDataReader(backend.NewContextReaderWithAllReader(s.file), s.enc)
 	if err != nil {
 		return err
 	}
 
-	orw := s.encoding.NewObjectReaderWriter()
+	orw := s.v.NewObjectReaderWriter()
 
 	rr := s.appender.Records()
 	var pagesBuffer [][]byte
@@ -144,17 +146,18 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 
 func (s *StreamingSearchBlock) Iterator() (encoding.Iterator, error) {
 	iter := &streamingSearchBlockIterator{
-		records: s.appender.Records(),
-		file:    s.file,
+		records:     s.appender.Records(),
+		file:        s.file,
+		pagesBuffer: make([][]byte, 1),
 	}
 
-	dr, err := s.encoding.NewDataReader(backend.NewContextReaderWithAllReader(s.file), backend.EncNone)
+	dr, err := s.v.NewDataReader(backend.NewContextReaderWithAllReader(s.file), s.enc)
 	if err != nil {
 		return nil, err
 	}
 	iter.dataReader = dr
 
-	iter.objectRW = s.encoding.NewObjectReaderWriter()
+	iter.objectRW = s.v.NewObjectReaderWriter()
 
 	combiner := &DataCombiner{}
 
@@ -168,6 +171,8 @@ type streamingSearchBlockIterator struct {
 	file         *os.File
 	dataReader   common.DataReader
 	objectRW     common.ObjectReaderWriter
+
+	pagesBuffer [][]byte
 }
 
 var _ encoding.Iterator = (*streamingSearchBlockIterator)(nil)
@@ -182,9 +187,8 @@ func (s *streamingSearchBlockIterator) Next(ctx context.Context) (common.ID, []b
 	// Use unique buffer that can be returned to the caller.
 	// This is primarily for DedupingIterator which uses 2 buffers at once.
 	var buffer []byte
-	pagesBuffer := make([][]byte, 1)
-	pagesBuffer[0] = make([]byte, currentRecord.Length)
-	pagesBuffer, _, err := s.dataReader.Read(ctx, []common.Record{currentRecord}, pagesBuffer, buffer)
+	s.pagesBuffer[0] = make([]byte, currentRecord.Length)
+	pagesBuffer, _, err := s.dataReader.Read(ctx, []common.Record{currentRecord}, s.pagesBuffer, buffer)
 	if err != nil {
 		return nil, nil, err
 	}

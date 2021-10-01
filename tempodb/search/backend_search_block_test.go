@@ -31,7 +31,7 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
-	b1, err := NewStreamingSearchBlockForFile(f)
+	b1, err := NewStreamingSearchBlockForFile(f, "v2", enc)
 	require.NoError(t, err)
 
 	for i := 0; i < traceCount; i++ {
@@ -57,28 +57,33 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 func TestBackendSearchBlockSearch(t *testing.T) {
 	traceCount := 50_000
 
-	b2 := newBackendSearchBlockWithTraces(t, traceCount, backend.EncNone, 0)
+	for _, enc := range backend.SupportedEncoding {
+		t.Run(enc.String(), func(t *testing.T) {
 
-	p := NewSearchPipeline(&tempopb.SearchRequest{
-		Tags: map[string]string{"key20": "value_B_20"},
-	})
+			b2 := newBackendSearchBlockWithTraces(t, traceCount, enc, 0)
 
-	sr := NewResults()
+			p := NewSearchPipeline(&tempopb.SearchRequest{
+				Tags: map[string]string{"key20": "value_B_20"},
+			})
 
-	sr.StartWorker()
-	go func() {
-		defer sr.FinishWorker()
-		err := b2.Search(context.TODO(), p, sr)
-		require.NoError(t, err)
-	}()
-	sr.AllWorkersStarted()
+			sr := NewResults()
 
-	var results []*tempopb.TraceSearchMetadata
-	for r := range sr.Results() {
-		results = append(results, r)
+			sr.StartWorker()
+			go func() {
+				defer sr.FinishWorker()
+				err := b2.Search(context.TODO(), p, sr)
+				require.NoError(t, err)
+			}()
+			sr.AllWorkersStarted()
+
+			var results []*tempopb.TraceSearchMetadata
+			for r := range sr.Results() {
+				results = append(results, r)
+			}
+			require.Equal(t, 1, len(results))
+			require.Equal(t, traceCount, int(sr.TracesInspected()))
+		})
 	}
-	require.Equal(t, 1, len(results))
-	require.Equal(t, traceCount, int(sr.TracesInspected()))
 }
 
 func TestBackendSearchBlockDedupesWAL(t *testing.T) {
@@ -114,7 +119,7 @@ func TestBackendSearchBlockDedupesWAL(t *testing.T) {
 			f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 			require.NoError(t, err)
 
-			b1, err := NewStreamingSearchBlockForFile(f)
+			b1, err := NewStreamingSearchBlockForFile(f, "v2", backend.EncNone)
 			require.NoError(t, err)
 
 			id := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}

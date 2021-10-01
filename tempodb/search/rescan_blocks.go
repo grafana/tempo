@@ -98,6 +98,7 @@ func newStreamingSearchBlockFromWALReplay(searchFilepath, filename string) (*Str
 		file:     f,
 		appender: encoding.NewRecordAppender(records),
 		header:   blockHeader,
-		encoding: v,
+		v:        v,
+		enc:      enc,
 	}, warning, nil
 }
