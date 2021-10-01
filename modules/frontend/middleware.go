@@ -5,6 +5,7 @@ import "net/http"
 // middleware.go contains types and code related to building http pipelines
 
 // RoundTripperFunc is like http.HandlerFunc, but for RoundTripper
+//   chosen for pipeline building over queryrange.Handler b/c of how similar queryrange.Handler is to this existing interface.
 type RoundTripperFunc func(*http.Request) (*http.Response, error)
 
 // RoundTrip implememnts http.RoundTripper
