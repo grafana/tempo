@@ -84,50 +84,32 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 		return nil
 	}
 
-	var buf []byte
-
 	sr.AddBlockInspected()
 
-	dr, err := s.v.NewDataReader(backend.NewContextReaderWithAllReader(s.file), s.enc)
+	iter, err := s.Iterator()
 	if err != nil {
 		return err
 	}
+	defer iter.Close()
 
-	orw := s.v.NewObjectReaderWriter()
-
-	rr := s.appender.Records()
-	var pagesBuffer [][]byte
-	var buffer []byte
-	for _, r := range rr {
+	for {
 
 		if sr.Quit() {
 			return nil
 		}
 
-		if r.Length == 0 {
-			continue
+		_, obj, err := iter.Next(ctx)
+		if err == io.EOF {
+			break
 		}
-
-		// Reset/resize buffer
-		if cap(buf) < int(r.Length) {
-			buf = make([]byte, r.Length)
-		}
-		buf = buf[:r.Length]
-
-		pagesBuffer, buffer, err = dr.Read(ctx, []common.Record{r}, pagesBuffer, buffer)
 		if err != nil {
 			return err
 		}
 
-		_, pagesBuffer[0], err = orw.UnmarshalObjectFromReader(bytes.NewReader(pagesBuffer[0]))
-		if err != nil {
-			return err
-		}
-
-		sr.AddBytesInspected(uint64(len(pagesBuffer[0])))
+		sr.AddBytesInspected(uint64(len(obj)))
 		sr.AddTraceInspected(1)
 
-		entry := tempofb.SearchEntryFromBytes(pagesBuffer[0])
+		entry := tempofb.SearchEntryFromBytes(obj)
 
 		if !p.Matches(entry) {
 			continue
