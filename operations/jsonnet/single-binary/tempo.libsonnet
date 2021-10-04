@@ -23,11 +23,14 @@
     pvc.mixin.spec.resources
     .withRequests({ storage: $._config.pvc_size }) +
     pvc.mixin.spec
-    .withAccessModes(['ReadWriteOnce'])
+    .withAccessModes(['ReadWriteOnce']) +
+    pvc.mixin.spec
     .withStorageClassName($._config.pvc_storage_class) +
     pvc.mixin.metadata
-    .withLabels({ app: 'tempo' })
-    .withNamespace($._config.namespace)
+    .withLabels({ app: 'tempo' }) +
+    pvc.mixin.metadata
+    .withNamespace($._config.namespace) +
+    pvc.mixin.metadata
     .withName(tempo_data_volume) +
     { kind: 'PersistentVolumeClaim', apiVersion: 'v1' },
 
@@ -82,6 +85,10 @@
   tempo_service:
     k.util.serviceFor($.tempo_statefulset)
     + service.mixin.spec.withPortsMixin([
-      servicePort.withName('http').withPort(80).withTargetPort(16686),
+      servicePort.newNamed(
+         name='http',
+         port=80,
+         targetPort=16686,
+      ),
     ]),
 }

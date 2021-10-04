@@ -104,19 +104,21 @@ minio + grafana + load + tempo {
         }
     },
 
-    local ingress = k.networking.v1beta1.ingress,
+    local ingress = k.networking.v1.ingress,
+    local rule = k.networking.v1.ingressRule,
+    local path = k.networking.v1.httpIngressPath,
     ingress:
-        ingress.new() +
+        ingress.new('ingress') +
         ingress.mixin.metadata
-            .withName('ingress')
-            .withAnnotations({
+            .withAnnotationsMixin({
                 'ingress.kubernetes.io/ssl-redirect': 'false'
             }) +
         ingress.mixin.spec.withRules(
-            ingress.mixin.specType.rulesType.mixin.http.withPaths(
-                ingress.mixin.spec.rulesType.mixin.httpType.pathsType.withPath('/') +
-                ingress.mixin.specType.mixin.backend.withServiceName('grafana') +
-                ingress.mixin.specType.mixin.backend.withServicePort(3000)
-            ),
+            rule.http.withPaths([
+                path.withPath('/')
+                + path.withPathType('ImplementationSpecific')
+                + path.backend.service.withName('grafana')
+                + path.backend.service.port.withNumber(3000)
+            ]),
         ),
 }

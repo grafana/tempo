@@ -25,10 +25,11 @@ k {
     overprovision_factor:: 1.2,
     cpu_limits:: '3',
     connection_limit:: 1024,
+    memory_request_overhead_mb:: 100,
     memory_request_bytes::
-      std.ceil((self.memory_limit_mb * self.overprovision_factor) + 100) * 1024 * 1024,
+      std.ceil((self.memory_limit_mb * self.overprovision_factor) + self.memory_request_overhead_mb) * 1024 * 1024,
     memory_limits_bytes::
-      self.memory_limit_mb * 1.5 * 1024 * 1024,
+      std.max(self.memory_limit_mb * 1.5 * 1024 * 1024, self.memory_request_bytes),
 
     local container = $.core.v1.container,
     local containerPort = $.core.v1.containerPort,

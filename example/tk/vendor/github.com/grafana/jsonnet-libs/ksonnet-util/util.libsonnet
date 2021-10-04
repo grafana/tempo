@@ -84,7 +84,7 @@ local util(k) = {
       role.mixin.metadata.withNamespace(namespace) +
       role.withRules(rules),
 
-    cluster_role_binding:
+    role_binding:
       roleBinding.new() +
       roleBinding.mixin.metadata.withName(name) +
       roleBinding.mixin.metadata.withNamespace(namespace) +
@@ -153,6 +153,21 @@ local util(k) = {
     deployment.mapContainers(addMount) +
     deployment.mixin.spec.template.spec.withVolumesMixin([
       volume.fromHostPath(name, hostPath),
+    ]),
+
+  pvcVolumeMount(pvcName, path, readOnly=false, volumeMountMixin={})::
+    local container = k.core.v1.container,
+          deployment = k.apps.v1.deployment,
+          volumeMount = k.core.v1.volumeMount,
+          volume = k.core.v1.volume,
+          addMount(c) = c + container.withVolumeMountsMixin(
+      volumeMount.new(pvcName, path, readOnly=readOnly) +
+      volumeMountMixin,
+    );
+
+    deployment.mapContainers(addMount) +
+    deployment.mixin.spec.template.spec.withVolumesMixin([
+      volume.fromPersistentVolumeClaim(pvcName, pvcName),
     ]),
 
   secretVolumeMount(name, path, defaultMode=256, volumeMountMixin={})::

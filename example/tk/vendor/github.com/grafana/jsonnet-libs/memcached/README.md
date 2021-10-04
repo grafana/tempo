@@ -2,25 +2,28 @@
 
 A set of extensible configs for running Memcached on Kubernetes.
 
-To use this libary, install [Tanka](https://tanka.dev/) and [Jsonnet Bundler](https://tanka.dev/install#jsonnet-bundler).
+To use this libary, install [Tanka] and [Jsonnet Bundler].
+
+[Tanka]: https://tanka.dev/
+[Jsonnet Bundler]: https://tanka.dev/install#jsonnet-bundler
 
 In your config repo, if you don't have a Tanka application, make a new one (will copy credentials from current context):
 
-```
-$ mkdir <application name>
-$ cd <application name>
-$ tk init
+```bash
+app=your_app_name
+mkdir -p $app && cd $app
+tk init
 ```
 
 Then you can install the library with:
 
-```
+```bash
 jb install github.com/grafana/jsonnet-libs/memcached
 ```
 
 Assuming you want to run in the default namespace ('environment' in Tanka parlance), add the following to the file `environments/default/main.jsonnet`:
 
-```
+```jsonnet
 local memcached = import "memcached/memcached.libsonnet";
 
 memcached + {
@@ -33,19 +36,20 @@ memcached + {
 }
 ```
 
-- Apply your config:
+Apply your config:
 
+```shell
+tk apply default
 ```
-$ tk apply default
-```
-# Customising and Extending.
+
+## Customising and Extending
 
 The choice of Tanka for configuring these jobs was intentional; it allows users
 to easily override setting in these configurations to suit their needs, without having
 to fork or modify this library.  For instance, to override the resource requests
 and limits for the Consul container, you would:
 
-```
+```jsonnet
 local memcached = import "memcached/memcached.libsonnet";
 
 memcached + {
@@ -65,7 +69,7 @@ memcached + {
 We sometimes specify config options in a `_config` dict; there are two situations
 under which we do this:
 
-- When you must provide a value for the parameter (such as `namesapce`).
+- When you must provide a value for the parameter (such as `namespace`).
 - When the parameter get referenced in multiple places, and overriding it using
   the technique above would be cumbersome and error prone (such as with `cluster_dns_suffix`).
 
