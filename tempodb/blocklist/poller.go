@@ -124,7 +124,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 
 func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	// are we a tenant index builder?
-	if !p.buildTenantIndex() {
+	if !p.buildTenantIndex(tenantID) {
 		metricTenantIndexBuilder.Set(0)
 
 		i, err := p.reader.TenantIndex(ctx, tenantID)
@@ -243,9 +243,9 @@ func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UU
 	return blockMeta, compactedBlockMeta, nil
 }
 
-func (p *Poller) buildTenantIndex() bool {
+func (p *Poller) buildTenantIndex(tenant string) bool {
 	for i := 0; i < p.cfg.TenantIndexBuilders; i++ {
-		job := jobPrefix + strconv.Itoa(i)
+		job := jobPrefix + strconv.Itoa(i) + "-" + tenant // jpe alerts/documents/runbooks
 		if p.sharder.Owns(job) {
 			return true
 		}

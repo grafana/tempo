@@ -186,32 +186,32 @@ func TestTenantIndexFallback(t *testing.T) {
 		expectsTenantIndexWritten bool
 		staleTenantIndex          time.Duration
 	}{
-		// {
-		// 	name:                      "builder writes index",
-		// 	isTenantIndexBuilder:      true,
-		// 	expectsTenantIndexWritten: true,
-		// },
-		// {
-		// 	name:                      "reader does not write index",
-		// 	isTenantIndexBuilder:      false,
-		// 	expectsTenantIndexWritten: false,
-		// },
-		// {
-		// 	name:                      "reader does not write index on error if no fallback",
-		// 	isTenantIndexBuilder:      false,
-		// 	errorOnCreateTenantIndex:  true,
-		// 	pollFallback:              false,
-		// 	expectsError:              true,
-		// 	expectsTenantIndexWritten: false,
-		// },
-		// {
-		// 	name:                      "reader writes index on error if fallback",
-		// 	isTenantIndexBuilder:      false,
-		// 	errorOnCreateTenantIndex:  true,
-		// 	pollFallback:              true,
-		// 	expectsError:              false,
-		// 	expectsTenantIndexWritten: true,
-		// },
+		{
+			name:                      "builder writes index",
+			isTenantIndexBuilder:      true,
+			expectsTenantIndexWritten: true,
+		},
+		{
+			name:                      "reader does not write index",
+			isTenantIndexBuilder:      false,
+			expectsTenantIndexWritten: false,
+		},
+		{
+			name:                      "reader does not write index on error if no fallback",
+			isTenantIndexBuilder:      false,
+			errorOnCreateTenantIndex:  true,
+			pollFallback:              false,
+			expectsError:              true,
+			expectsTenantIndexWritten: false,
+		},
+		{
+			name:                      "reader writes index on error if fallback",
+			isTenantIndexBuilder:      false,
+			errorOnCreateTenantIndex:  true,
+			pollFallback:              true,
+			expectsError:              false,
+			expectsTenantIndexWritten: true,
+		},
 		{
 			name:                      "reader does not write index on stale if no fallback",
 			isTenantIndexBuilder:      false,
@@ -353,6 +353,32 @@ func TestPollBlock(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTenantIndexPollError(t *testing.T) {
+	p := NewPoller(&PollerConfig{
+		StaleTenantIndex: time.Minute,
+	}, nil, nil, nil, nil, log.NewNopLogger())
+
+	// tenant index doesn't matter if there's an error
+	assert.Error(t, p.tenantIndexPollError(nil, errors.New("blerg")))
+
+	// tenant index older than 1 minute is stale, error!
+	assert.Error(t, p.tenantIndexPollError(&backend.TenantIndex{
+		CreatedAt: time.Now().Add(-5 * time.Minute),
+	}, nil))
+
+	// no error, tenant index is within 1 minute
+	assert.NoError(t, p.tenantIndexPollError(&backend.TenantIndex{
+		CreatedAt: time.Now().Add(-time.Second),
+	}, nil))
+
+	p = NewPoller(&PollerConfig{}, nil, nil, nil, nil, log.NewNopLogger())
+
+	// no error, index is super old but stale tenant index is 0
+	assert.NoError(t, p.tenantIndexPollError(&backend.TenantIndex{
+		CreatedAt: time.Now().Add(30 * time.Hour),
+	}, nil))
 }
 
 func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compactor {
