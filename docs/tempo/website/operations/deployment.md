@@ -33,3 +33,44 @@ Helm charts are available in the grafana/helm-charts repo:
 
 You can find a collection of Kubernetes manifests to deploy Tempo in the [operations/kube-manifests](https://github.com/grafana/tempo/tree/main/operations/kube-manifests) folder.
 These are generated using the Tanka / Jsonnet.
+
+# Deployment Scenarios
+
+Tempo can be deployed in three modes.
+
+* Single Binary
+* Scalable Single Binary
+* Microservices
+
+These modes are controlled by the runtime configuration `target`, or using the CLI flag `-target`.  The default target is `all`, which we refer to as "Single Binary".
+
+## Single Binary
+
+This mode is the simplest to get started, in which all of the top-level components, referenced in the [Architecture](architecture) section, are run within the same instance of Tempo.
+
+## Scalable Single Binary
+
+This mode allows the simplicity of the Single Binary mode, but utilizes `memberlist` in order to cluster the components.  The following configuration is required to use the memberlist.
+
+```yaml
+target: scalable-single-binary
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: memberlist
+```
+
+Additionally, the `queriers` must know the DNS name that will contain the addresses of all other instances.
+
+```yaml
+querier:
+  frontend_worker:
+    frontend_address: tempo.lab.example.com:9095
+```
+
+Each of the `queriers` will perform a DNS lookup for the `frontend_address` and connect to addresses found within the DNS record.
+
+## Microservices
+
+In this mode, each component is deployed in only one instance.  For example, to deploy a `querier`, the Tempo configuration would either contain `target: querier` or the binary is to be executed with `-target=querier`.  Each of the comonents referenced in the [Architecture](architecture) must be deployed in order to get a working Tempo environment.
