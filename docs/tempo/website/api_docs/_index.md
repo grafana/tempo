@@ -120,6 +120,8 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 
 ### Search
 
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+
 Tempo's Search API finds traces based on span and process attributes (tags and values).  The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request is used to find traces containing spans
 from service "myservice" and the url contains "api/myapi".
@@ -138,6 +140,8 @@ Each query parameter is of the form <name>=<value>, where <name> is the name of 
 
 ### Search Tags
 
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+
 This api retrieves all discovered tag names that can be used in search.  The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.
 
@@ -146,6 +150,8 @@ GET /api/search/tags
 ```
 
 ### Search Tag Values
+
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
 
 This API retrieves all discovered values for the given tag, that can be used in search.  The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request will return all discovered service names.
