@@ -77,6 +77,6 @@ Getting started with Tempo is easy.
 ## 4. Visualization (Grafana)
 
 Grafana has a built in Tempo datasource that can be used to query Tempo and visualize traces.
-For more information refer to the [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/) topic.
+For more information refer to the [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/), and the [Tempo in Grafana](tempo-in-grafana) topics.
 
 See [here]({{< relref "../configuration/querying" >}}) for details about Grafana configuration.
