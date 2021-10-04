@@ -20,6 +20,12 @@ storage:
         # Maximum number of compactors that should build the tenant index. All other components will download 
         # the index.  Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
+
+        # The oldest allowable tenant index. If an index is pulled that is older than this duration the polling
+        # will consider this an error. Note that `blocklist_poll_fallback` applies here. i.e. if fallback is true
+        # and a tenant index exceeds this duration it will fallback to listing the bucket contents.
+        # Default 0 (disabled).
+        [blocklist_poll_stale_tenant_index: <duration>]
 ```
 
 Due to the mechanics of the [tenant index]({{< relref "../operations/polling" >}}) the blocklist will be stale by

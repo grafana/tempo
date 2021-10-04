@@ -309,6 +309,7 @@ storage:
     blocklist_poll_concurrency: 50
     blocklist_poll_fallback: true
     blocklist_poll_tenant_index_builders: 2
+    blocklist_poll_stale_tenant_index: 0
     backend: local
     local:
       path: /tmp/tempo/traces

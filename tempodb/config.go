@@ -35,6 +35,7 @@ type Config struct {
 	BlocklistPollConcurrency         uint          `yaml:"blocklist_poll_concurrency"`
 	BlocklistPollFallback            bool          `yaml:"blocklist_poll_fallback"`
 	BlocklistPollTenantIndexBuilders int           `yaml:"blocklist_poll_tenant_index_builders"`
+	BlocklistPollStaleTenantIndex    time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
 
 	// backends
 	Backend string        `yaml:"backend"`

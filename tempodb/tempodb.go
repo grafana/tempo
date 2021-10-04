@@ -403,6 +403,7 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 		PollConcurrency:     rw.cfg.BlocklistPollConcurrency,
 		PollFallback:        rw.cfg.BlocklistPollFallback,
 		TenantIndexBuilders: rw.cfg.BlocklistPollTenantIndexBuilders,
+		StaleTenantIndex:    rw.cfg.BlocklistPollStaleTenantIndex,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller
