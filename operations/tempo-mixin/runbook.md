@@ -111,8 +111,8 @@ failed to pull bucket index for tenant. falling back to polling
 ```
 
 If the following (or other errors) are being logged repeatedly then the tenant index is not being updated and more direct action is necessary.
-If the core issue can not be resolved one option is to delete all tenant indexes which will force the components to fallback to 
-scanning the entire bucket.
+If the core issue can not be resolved delete any tenant index that is not being updated. This will force the components to fallback to 
+bucket scanning for the offending tenants.
 ```
 failed to write tenant index
 ```
@@ -121,7 +121,7 @@ failed to write tenant index
 
 See [Polling Issues](#polling-issues) below for general information.
 
-If a cluster has no tenant index builders then nothing is refreshing the per tenant indexes. This can be dangerous
+If a cluster has no tenant index builders for a given tenant then nothing is refreshing the per tenant index. This can be dangerous
 b/c other components will not be aware there is an issue as they repeatedly download a stale tenant index. In Tempo the compactors
 play the role of building the tenant index. Ways to address this issue in order of preference:
 
@@ -132,24 +132,34 @@ play the role of building the tenant index. Ways to address this issue in order 
     trace:
       blocklist_poll_tenant_index_builders: 2  # <- increase this value
   ```
-- Delete tenant index files to force other components to fallback to scanning the entire bucket. They are located at 
-  `/<tenant>/index.json.gz`
+- Delete tenant index files that are not being updated to force other components to fallback to scanning for these tenants. They 
+  are located at `/<tenant>/index.json.gz`
 
 ## TempoTenantIndexTooOld
 
 See [Polling Issues](#polling-issues) below for general information.
 
 If the tenant indexes are too old we need to review the compactor logs to determine why they are failing to update. Compactors
-with `tempodb_blocklist_tenant_index_builder` set to 1 are expected to be creating the tenant indexes are should be checked
-first. If no compactors are creating tenant indexes refer to [TempoNoTenantIndexBuilders](#temponotenantindexbuilders) above.
+with `tempodb_blocklist_tenant_index_builder` for the offending tenant set to 1 are expected to be creating the indexes for that
+tenant and should be checked first. If no compactors are creating tenant indexes refer to [TempoNoTenantIndexBuilders](#temponotenantindexbuilders)
+above.
 
 Additionally the metric `tempodb_blocklist_tenant_index_age_seconds` can be grouped by the `tenant` label. If only one (or few) 
-indexes are lagging these can be deleted to force components to manually rescan the bucket.
+indexes are lagging these can be deleted to force components to manually rescan just the offending tenants.
 
 ### Polling Issues
 
-In the case of all polling issues intermittent issues are not concerning. Sustained polling issues need to be addressed.  
+In the case of all polling issues intermittent issues are not concerning. Sustained polling issues need to be addressed. 
 
 Failure to poll just means that the component is not aware of the current state of the backend but will continue working
 otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale. 
 Compactors will attempt to compact blocks that don't exist.
+
+If persistent backend issues are preventing any fixes to polling then reads will start to fail, but writes will remain fine.
+Alert your users accordingly!
+
+Note that tenant indexes are built independently and an issue may only be impacting one or very few tenants. `tempodb_blocklist_tenant_index_builder`,
+`tempodb_blocklist_tenant_index_age_seconds` and `tempodb_blocklist_tenant_index_errors_total` are all per-tenant metrics. If
+you can isolate the impacted tenants, attempt to take targeted action instead of making sweeping changes. Your easiest lever 
+to pull is to simply delete stale tenant indexes as all components will fallback to bucket listing.
+
