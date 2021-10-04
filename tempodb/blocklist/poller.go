@@ -2,6 +2,7 @@ package blocklist
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strconv"
 	"time"
@@ -55,6 +56,7 @@ type PollerConfig struct {
 	PollConcurrency     uint
 	PollFallback        bool
 	TenantIndexBuilders int
+	StaleTenantIndex    time.Duration // jpe wire up, config, choose defaults, docs
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -126,6 +128,7 @@ func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) 
 		metricTenantIndexBuilder.Set(0)
 
 		i, err := p.reader.TenantIndex(ctx, tenantID)
+		err = p.tenantIndexPollError(i, err)
 		if err == nil {
 			// success! return the retrieved index
 			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Since(i.CreatedAt) / time.Second))
@@ -249,4 +252,16 @@ func (p *Poller) buildTenantIndex() bool {
 	}
 
 	return false
+}
+
+func (p *Poller) tenantIndexPollError(idx *backend.TenantIndex, err error) error {
+	if err != nil {
+		return err
+	}
+
+	if p.cfg.StaleTenantIndex != 0 && time.Since(idx.CreatedAt) > p.cfg.StaleTenantIndex {
+		return fmt.Errorf("tenant index created at %s is stale", idx.CreatedAt)
+	}
+
+	return nil
 }
