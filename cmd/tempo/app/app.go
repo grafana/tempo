@@ -358,6 +358,15 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 	}
 }
 
+func (t *App) writeRuntimeConfig(w io.Writer, r *http.Request) error {
+	// Querier and query-frontend services do not run the overrides module
+	if t.overrides == nil {
+		_, err := w.Write([]byte(fmt.Sprintf("overrides module not loaded in %s\n", t.cfg.Target)))
+		return err
+	}
+	return t.overrides.WriteStatusRuntimeConfig(w, r)
+}
+
 func (t *App) statusHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var errs []error
@@ -376,7 +385,7 @@ func (t *App) statusHandler() http.HandlerFunc {
 
 			switch endpoint {
 			case "runtime_config":
-				err := t.overrides.WriteStatusRuntimeConfig(&msg, r)
+				err := t.writeRuntimeConfig(&msg, r)
 				if err != nil {
 					errs = append(errs, err)
 				}
