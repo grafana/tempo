@@ -66,7 +66,7 @@ func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if resp == nil {
-		writeError(w, errors.New("nil resp in ServerHTTP"))
+		writeError(w, errors.New("nil resp in ServeHTTP"))
 		return
 	}
 
