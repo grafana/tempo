@@ -2,6 +2,7 @@ package blocklist
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strconv"
 	"time"
@@ -38,11 +39,11 @@ var (
 		Name:      "blocklist_tenant_index_errors_total",
 		Help:      "Total number of times an error occurred while retrieving or building the tenant index.",
 	}, []string{"tenant"})
-	metricTenantIndexBuilder = promauto.NewGauge(prometheus.GaugeOpts{
+	metricTenantIndexBuilder = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
 		Name:      "blocklist_tenant_index_builder",
 		Help:      "A value of 1 indicates this instance of tempodb is building the tenant index.",
-	})
+	}, []string{"tenant"})
 	metricTenantIndexAgeSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
 		Name:      "blocklist_tenant_index_age_seconds",
@@ -55,6 +56,7 @@ type PollerConfig struct {
 	PollConcurrency     uint
 	PollFallback        bool
 	TenantIndexBuilders int
+	StaleTenantIndex    time.Duration
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -122,10 +124,11 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 
 func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	// are we a tenant index builder?
-	if !p.buildTenantIndex() {
-		metricTenantIndexBuilder.Set(0)
+	if !p.buildTenantIndex(tenantID) {
+		metricTenantIndexBuilder.WithLabelValues(tenantID).Set(0)
 
 		i, err := p.reader.TenantIndex(ctx, tenantID)
+		err = p.tenantIndexPollError(i, err)
 		if err == nil {
 			// success! return the retrieved index
 			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Since(i.CreatedAt) / time.Second))
@@ -146,7 +149,7 @@ func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) 
 
 	// if we're here then we have been configured to be a tenant index builder OR there was a failure to pull
 	// the tenant index and we are configured to fall back to polling
-	metricTenantIndexBuilder.Set(1)
+	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
 	blocklist, compactedBlocklist, err := p.pollTenantBlocks(ctx, tenantID)
 	if err != nil {
 		return nil, nil, err
@@ -240,13 +243,25 @@ func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UU
 	return blockMeta, compactedBlockMeta, nil
 }
 
-func (p *Poller) buildTenantIndex() bool {
+func (p *Poller) buildTenantIndex(tenant string) bool {
 	for i := 0; i < p.cfg.TenantIndexBuilders; i++ {
-		job := jobPrefix + strconv.Itoa(i)
+		job := jobPrefix + strconv.Itoa(i) + "-" + tenant
 		if p.sharder.Owns(job) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func (p *Poller) tenantIndexPollError(idx *backend.TenantIndex, err error) error {
+	if err != nil {
+		return err
+	}
+
+	if p.cfg.StaleTenantIndex != 0 && time.Since(idx.CreatedAt) > p.cfg.StaleTenantIndex {
+		return fmt.Errorf("tenant index created at %s is stale", idx.CreatedAt)
+	}
+
+	return nil
 }

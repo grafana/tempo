@@ -7,9 +7,9 @@
         {{ $labels.job }} {{ $labels.route }} is experiencing {{ printf "%.2f" $value }}% errors.
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRequestErrors"
     "expr": |
-      100 * sum(rate(tempo_request_duration_seconds_count{status_code=~"5.."}[1m])) by (namespace, job, route)
+      100 * sum(rate(tempo_request_duration_seconds_count{status_code=~"5.."}[1m])) by (cluster, namespace, job, route)
         /
-      sum(rate(tempo_request_duration_seconds_count[1m])) by (namespace, job, route)
+      sum(rate(tempo_request_duration_seconds_count[1m])) by (cluster, namespace, job, route)
         > 10
     "for": "15m"
     "labels":
@@ -20,7 +20,7 @@
         {{ $labels.job }} {{ $labels.route }} is experiencing {{ printf "%.2f" $value }}s 99th percentile latency.
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRequestLatency"
     "expr": |
-      namespace_job_route:tempo_request_duration_seconds:99quantile{route!~"metrics|/frontend.Frontend/Process"} > 3
+      cluster_namespace_job_route:tempo_request_duration_seconds:99quantile{route!~"metrics|/frontend.Frontend/Process"} > 3
     "for": "15m"
     "labels":
       "severity": "critical"
@@ -80,19 +80,19 @@
       "severity": "critical"
   - "alert": "TempoNoTenantIndexBuilders"
     "annotations":
-      "message": "No tenant index builders. Tenant index is out of date."
+      "message": "No tenant index builders for tenant {{ $labels.tenant }}. Tenant index will quickly become stale."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoNoTenantIndexBuilders"
     "expr": |
-      sum by (cluster, namespace) (tempodb_blocklist_tenant_index_builder{}) == 0
+      sum by (cluster, namespace, tenant) (tempodb_blocklist_tenant_index_builder{}) == 0
     "for": "5m"
     "labels":
       "severity": "critical"
   - "alert": "TempoTenantIndexTooOld"
     "annotations":
-      "message": "Tenant index age is 600 seconds old."
+      "message": "Tenant index age is 600 seconds old for tenant {{ $labels.tenant }}."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexTooOld"
     "expr": |
-      max by (cluster, namespace) (tempodb_blocklist_tenant_index_age_seconds{}) > 600
+      max by (cluster, namespace, tenant) (tempodb_blocklist_tenant_index_age_seconds{}) > 600
     "for": "5m"
     "labels":
       "severity": "critical"
