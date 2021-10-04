@@ -130,11 +130,11 @@ from service "myservice" and the url contains "api/myapi".
 GET /api/search?service.name=myservice&http.url=api/myapi
 ```
 
-Each query parameter is of the form <name>=<value>, where <name> is the name of any span-level or process-level attribute.  The value is matched as a case-insenstive substring.  There are several reserved query parameters:
+Each query parameter is of the form <name>=<value>, where <name> is the name of any span-level or process-level attribute.  The value is matched as a case-insensitive substring.  There are several reserved query parameters:
 - `minDuration = (go duration value)`
   Optional.  Find traces with at least this duration.  Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
 - `maxDuration = (go duration value)`
-  Optional.  Find traces with no greater than this duration.  Same format as `minDuration`
+  Optional.  Find traces with no greater than this duration.  Uses the same form as `minDuration`.
 - `limit = (integer)`
   Optional.  Limit the number of search results. Default is 100.
 
@@ -142,7 +142,7 @@ Each query parameter is of the form <name>=<value>, where <name> is the name of 
 
 <span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
 
-This api retrieves all discovered tag names that can be used in search.  The API is available in the query frontend service in
+This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.
 
 ```
@@ -153,7 +153,7 @@ GET /api/search/tags
 
 <span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
 
-This API retrieves all discovered values for the given tag, that can be used in search.  The API is available in the query frontend service in
+This endpoint retrieves all discovered values for the given tag, which can be used in search.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request will return all discovered service names.
 
 ```
