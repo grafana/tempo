@@ -43,7 +43,7 @@ func NewHandler(rt http.RoundTripper, logger log.Logger) http.Handler {
 	}
 }
 
-// ServeHTTP implments http.Handler
+// ServeHTTP implements http.Handler
 func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		_ = r.Body.Close()
