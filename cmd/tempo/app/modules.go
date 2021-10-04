@@ -33,17 +33,18 @@ import (
 
 // The various modules that make up tempo.
 const (
-	Ring          string = "ring"
-	Overrides     string = "overrides"
-	Server        string = "server"
-	Distributor   string = "distributor"
-	Ingester      string = "ingester"
-	Querier       string = "querier"
-	QueryFrontend string = "query-frontend"
-	Compactor     string = "compactor"
-	Store         string = "store"
-	MemberlistKV  string = "memberlist-kv"
-	All           string = "all"
+	Ring                  string = "ring"
+	Overrides             string = "overrides"
+	Server                string = "server"
+	Distributor           string = "distributor"
+	Ingester              string = "ingester"
+	Querier               string = "querier"
+	QueryFrontend         string = "query-frontend"
+	Compactor             string = "compactor"
+	Store                 string = "store"
+	MemberlistKV          string = "memberlist-kv"
+	All                   string = "all"
+	ScaleableSingleBinary string = "scaleable-single-binary"
 )
 
 const (
@@ -288,19 +289,21 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
 	mm.RegisterModule(All, nil)
+	mm.RegisterModule(ScaleableSingleBinary, nil)
 
 	deps := map[string][]string{
 		// Server:       nil,
 		// Store:        nil,
-		Overrides:     {Server},
-		MemberlistKV:  {Server},
-		QueryFrontend: {Server},
-		Ring:          {Server, MemberlistKV},
-		Distributor:   {Ring, Server, Overrides},
-		Ingester:      {Store, Server, Overrides, MemberlistKV},
-		Querier:       {Store, Ring},
-		Compactor:     {Store, Server, Overrides, MemberlistKV},
-		All:           {Compactor, QueryFrontend, Querier, Ingester, Distributor},
+		Overrides:             {Server},
+		MemberlistKV:          {Server},
+		QueryFrontend:         {Server},
+		Ring:                  {Server, MemberlistKV},
+		Distributor:           {Ring, Server, Overrides},
+		Ingester:              {Store, Server, Overrides, MemberlistKV},
+		Querier:               {Store, Ring},
+		Compactor:             {Store, Server, Overrides, MemberlistKV},
+		All:                   {Compactor, QueryFrontend, Querier, Ingester, Distributor},
+		ScaleableSingleBinary: {All},
 	}
 
 	for mod, targets := range deps {
