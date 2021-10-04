@@ -126,14 +126,14 @@
           {
             alert: 'TempoNoTenantIndexBuilders',
             expr: |||
-              sum by (%(group_by_cluster)s) (tempodb_blocklist_tenant_index_builder{}) == 0
+              sum by (%(group_by_tenant)s) (tempodb_blocklist_tenant_index_builder{}) == 0
             ||| % $._config,
             'for': '5m',
             labels: {
               severity: 'critical',
             },
             annotations: {
-              message: 'No tenant index builders. Tenant index is out of date.',
+              message: 'No tenant index builders for tenant {{ $labels.tenant }}. Tenant index will quickly become stale.',
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoNoTenantIndexBuilders',
             },
           },
@@ -141,13 +141,13 @@
             alert: 'TempoTenantIndexTooOld',
             expr: |||
               max by (%s) (tempodb_blocklist_tenant_index_age_seconds{}) > %s
-            ||| % [$._config.group_by_cluster, $._config.alerts.max_tenant_index_age_seconds],
+            ||| % [$._config.group_by_tenant, $._config.alerts.max_tenant_index_age_seconds],
             'for': '5m',
             labels: {
               severity: 'critical',
             },
             annotations: {
-              message: 'Tenant index age is %s seconds old.' % $._config.alerts.max_tenant_index_age_seconds,
+              message: 'Tenant index age is %s seconds old for tenant {{ $labels.tenant }}.' % $._config.alerts.max_tenant_index_age_seconds,
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexTooOld',
             },
           },
