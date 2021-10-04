@@ -101,8 +101,8 @@ func NewTempoQuerier() *cortex_e2e.HTTPService {
 	return s
 }
 
-func NewTempoScaleableSingleBinary(replica int) *cortex_e2e.HTTPService {
-	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=scaleable-single-binary", "-querier.frontend-address=tempo-" + strconv.Itoa(replica) + ":9095"}
+func NewTempoScalableSingleBinary(replica int) *cortex_e2e.HTTPService {
+	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=scalable-single-binary", "-querier.frontend-address=tempo-" + strconv.Itoa(replica) + ":9095"}
 
 	s := cortex_e2e.NewHTTPService(
 		"tempo-"+strconv.Itoa(replica),

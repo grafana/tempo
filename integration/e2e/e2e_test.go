@@ -27,7 +27,7 @@ import (
 
 const (
 	configMicroservices = "config-microservices.yaml"
-	configHA            = "config-scaleable-single-binary.yaml"
+	configHA            = "config-scalable-single-binary.yaml"
 
 	configAllInOneS3      = "config-all-in-one-s3.yaml"
 	configAllInOneAzurite = "config-all-in-one-azurite.yaml"
@@ -241,7 +241,7 @@ func TestMicroservices(t *testing.T) {
 	require.Error(t, info.EmitBatches(c))
 }
 
-func TestScaleableSingleBinary(t *testing.T) {
+func TestScalableSingleBinary(t *testing.T) {
 	s, err := cortex_e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
@@ -251,9 +251,9 @@ func TestScaleableSingleBinary(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(minio))
 	//
 	require.NoError(t, util.CopyFileToSharedDir(s, configHA, "config.yaml"))
-	tempo1 := util.NewTempoScaleableSingleBinary(1)
-	tempo2 := util.NewTempoScaleableSingleBinary(2)
-	tempo3 := util.NewTempoScaleableSingleBinary(3)
+	tempo1 := util.NewTempoScalableSingleBinary(1)
+	tempo2 := util.NewTempoScalableSingleBinary(2)
+	tempo3 := util.NewTempoScalableSingleBinary(3)
 
 	require.NoError(t, s.StartAndWaitReady(tempo1, tempo2, tempo3))
 
