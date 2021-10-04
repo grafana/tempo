@@ -3,18 +3,25 @@ package frontend
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/stretchr/testify/assert"
-
+	"github.com/go-kit/kit/log"
+	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/weaveworks/common/user"
 )
 
-func TestCreateBlockShards(t *testing.T) {
+func TestCreateBlockBoundaries(t *testing.T) {
 	tests := []struct {
 		name        string
 		queryShards int
@@ -52,129 +59,218 @@ func TestCreateBlockShards(t *testing.T) {
 	}
 }
 
-func TestMergeResponses(t *testing.T) {
-	t1 := test.MakeTrace(10, []byte{0x01, 0x02})
-	t2 := test.MakeTrace(10, []byte{0x01, 0x03})
+func TestBuildShardedRequests(t *testing.T) {
+	queryShards := 2
 
-	b1, err := proto.Marshal(t1)
-	assert.NoError(t, err)
-	b2, err := proto.Marshal(t2)
-	assert.NoError(t, err)
+	sharder := &shardQuery{
+		queryShards:     queryShards,
+		blockBoundaries: createBlockBoundaries(queryShards - 1),
+	}
 
-	combinedTrace, _, err := model.CombineTraceBytes(b1, b2, model.TracePBEncoding, model.TracePBEncoding)
-	assert.NoError(t, err)
+	ctx := user.InjectOrgID(context.Background(), "blerg")
+	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
+
+	shardedReqs, err := sharder.buildShardedRequests(req)
+	require.NoError(t, err)
+	require.Len(t, shardedReqs, queryShards)
+
+	require.Equal(t, "/querier/?mode=ingesters", shardedReqs[0].RequestURI)
+	require.Equal(t, "/querier/?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&mode=blocks", shardedReqs[1].RequestURI)
+}
+
+func TestShardingWareDoRequest(t *testing.T) {
+	// create and split a trace
+	trace := test.MakeTrace(10, []byte{0x01, 0x02})
+	trace1 := &tempopb.Trace{}
+	trace2 := &tempopb.Trace{}
+
+	for _, b := range trace.Batches {
+		if rand.Int()%2 == 0 {
+			trace1.Batches = append(trace1.Batches, b)
+		} else {
+			trace2.Batches = append(trace2.Batches, b)
+		}
+	}
 
 	tests := []struct {
-		name            string
-		requestResponse []RequestResponse
-		expected        *http.Response
+		name           string
+		status1        int
+		status2        int
+		trace1         *tempopb.Trace
+		trace2         *tempopb.Trace
+		err1           error
+		err2           error
+		expectedStatus int
+		expectedTrace  *tempopb.Trace
+		expectedError  error
 	}{
 		{
-			name: "combine status ok responses",
-			requestResponse: []RequestResponse{
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader(b1)),
-					},
-				},
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader(b2)),
-					},
-				},
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusNotFound,
-						Body:       io.NopCloser(bytes.NewReader([]byte("foo"))),
-					},
-				},
-			},
-			expected: &http.Response{
-				StatusCode:    http.StatusOK,
-				Body:          io.NopCloser(bytes.NewReader(combinedTrace)),
-				ContentLength: int64(len(combinedTrace)),
-			},
+			name:           "empty returns",
+			status1:        200,
+			status2:        200,
+			expectedStatus: 200,
+			expectedTrace:  &tempopb.Trace{},
 		},
 		{
-			name: "report 5xx with hit",
-			requestResponse: []RequestResponse{
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader(b1)),
-					},
-				},
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusInternalServerError,
-						Body:       io.NopCloser(bytes.NewReader([]byte("bar"))),
-					},
-				},
-			},
-			expected: &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Body:       io.NopCloser(bytes.NewReader([]byte("bar"))),
-			},
+			name:           "404",
+			status1:        404,
+			status2:        404,
+			expectedStatus: 404,
 		},
 		{
-			name: "report 5xx with no hit",
-			requestResponse: []RequestResponse{
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusNotFound,
-						Body:       io.NopCloser(bytes.NewReader([]byte("foo"))),
-					},
-				},
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusInternalServerError,
-						Body:       io.NopCloser(bytes.NewReader([]byte("bar"))),
-					},
-				},
-			},
-			expected: &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Body:       io.NopCloser(bytes.NewReader([]byte("bar"))),
-			},
+			name:           "400",
+			status1:        400,
+			status2:        400,
+			expectedStatus: 500,
 		},
 		{
-			name: "translate 4xx other than 404 to 500",
-			requestResponse: []RequestResponse{
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader(b1)),
-					},
-				},
-				{
-					Response: &http.Response{
-						StatusCode: http.StatusForbidden,
-						Body:       io.NopCloser(bytes.NewReader([]byte("foo"))),
-					},
-				},
-			},
-			expected: &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Body:       io.NopCloser(bytes.NewReader([]byte("foo"))),
-			},
+			name:           "500+404",
+			status1:        500,
+			status2:        404,
+			expectedStatus: 500,
+		},
+		{
+			name:           "404+500",
+			status1:        404,
+			status2:        500,
+			expectedStatus: 500,
+		},
+		{
+			name:           "500+200",
+			status1:        500,
+			status2:        200,
+			trace2:         trace2,
+			expectedStatus: 500,
+		},
+		{
+			name:           "200+500",
+			status1:        200,
+			trace1:         trace1,
+			status2:        500,
+			expectedStatus: 500,
+		},
+		{
+			name:           "503+200",
+			status1:        503,
+			status2:        200,
+			trace2:         trace2,
+			expectedStatus: 500,
+		},
+		{
+			name:           "200+503",
+			status1:        200,
+			trace1:         trace1,
+			status2:        503,
+			expectedStatus: 500,
+		},
+		{
+			name:           "200+404",
+			status1:        200,
+			trace1:         trace1,
+			status2:        404,
+			expectedStatus: 200,
+			expectedTrace:  trace1,
+		},
+		{
+			name:           "404+200",
+			status1:        404,
+			status2:        200,
+			trace2:         trace1,
+			expectedStatus: 200,
+			expectedTrace:  trace1,
+		},
+		{
+			name:           "200+200",
+			status1:        200,
+			trace1:         trace1,
+			status2:        200,
+			trace2:         trace2,
+			expectedStatus: 200,
+			expectedTrace:  trace,
+		},
+		{
+			name:          "200+err",
+			status1:       200,
+			trace1:        trace1,
+			err2:          errors.New("booo"),
+			expectedError: errors.New("booo"),
+		},
+		{
+			name:          "err+200",
+			err1:          errors.New("booo"),
+			status2:       200,
+			trace2:        trace1,
+			expectedError: errors.New("booo"),
+		},
+
+		{
+			name:          "500+err",
+			status1:       500,
+			trace1:        trace1,
+			err2:          errors.New("booo"),
+			expectedError: errors.New("booo"),
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			merged, err := mergeResponses(context.Background(), tt.requestResponse)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expected.StatusCode, merged.StatusCode)
-			expectedBody, err := io.ReadAll(tt.expected.Body)
-			assert.NoError(t, err)
-			actualBody, err := io.ReadAll(merged.Body)
-			assert.NoError(t, err)
-			assert.Equal(t, expectedBody, actualBody)
-			if tt.expected.ContentLength > 0 {
-				assert.Equal(t, tt.expected.ContentLength, merged.ContentLength)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sharder := ShardingWare(2, log.NewNopLogger())
+
+			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				var trace *tempopb.Trace
+				var statusCode int
+				var err error
+				if r.RequestURI == "/querier/api/traces/1234?mode=ingesters" {
+					trace = tc.trace1
+					statusCode = tc.status1
+					err = tc.err1
+				} else {
+					trace = tc.trace2
+					err = tc.err2
+					statusCode = tc.status2
+				}
+
+				if err != nil {
+					return nil, err
+				}
+
+				var traceBytes []byte
+				if trace != nil {
+					traceBytes, err = proto.Marshal(trace)
+					require.NoError(t, err)
+				}
+
+				return &http.Response{
+					Body:       ioutil.NopCloser(bytes.NewReader(traceBytes)),
+					StatusCode: statusCode,
+				}, nil
+			})
+
+			testRT := NewRoundTripper(next, sharder)
+
+			req := httptest.NewRequest("GET", "/api/traces/1234", nil)
+			ctx := req.Context()
+			ctx = user.InjectOrgID(ctx, "blerg")
+			req = req.WithContext(ctx)
+
+			resp, err := testRT.RoundTrip(req)
+			if tc.expectedError != nil {
+				assert.Equal(t, tc.expectedError, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
+			if tc.expectedTrace != nil {
+				actualTrace := &tempopb.Trace{}
+				bytesTrace, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				err = proto.Unmarshal(bytesTrace, actualTrace)
+				require.NoError(t, err)
+
+				model.SortTrace(tc.expectedTrace)
+				model.SortTrace(actualTrace)
+				assert.True(t, proto.Equal(tc.expectedTrace, actualTrace))
 			}
 		})
 	}
-
 }

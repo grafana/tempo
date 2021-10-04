@@ -2,23 +2,19 @@ package frontend
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/cortexproject/cortex/pkg/querier/queryrange"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/weaveworks/common/httpgrpc"
-	"github.com/weaveworks/common/tracing"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -30,19 +26,24 @@ const (
 	apiPathSearch = "/api/search"
 )
 
-// NewTripperware returns a Tripperware configured with a middleware to route, split and dedupe requests.
-func NewTripperware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (queryrange.Tripperware, error) {
-	level.Info(logger).Log("msg", "creating tripperware in query frontend")
+// NewMiddleware returns a Middleware configured with a middleware to route, split and dedupe requests.
+func NewMiddleware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (Middleware, error) {
+	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
-	tracesTripperware := NewTracesTripperware(cfg, logger, registerer)
-	searchTripperware := NewSearchTripperware()
+	// todo: push this farther down? into the actual creation of the shardingware?
+	if cfg.QueryShards < minQueryShards || cfg.QueryShards > maxQueryShards {
+		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
+	}
 
-	return func(next http.RoundTripper) http.RoundTripper {
-		traces := tracesTripperware(next)
-		search := searchTripperware(next)
+	tracesMiddleware := NewTracesMiddleware(cfg, logger, registerer)
+	searchMiddleware := NewSearchMiddleware()
+
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		traces := tracesMiddleware.Wrap(next)
+		search := searchMiddleware.Wrap(next)
 
 		return newFrontendRoundTripper(apiPrefix, next, traces, search, logger, registerer)
-	}, nil
+	}), nil
 }
 
 type frontendRoundTripper struct {
@@ -57,7 +58,7 @@ func newFrontendRoundTripper(apiPrefix string, next, traces, search http.RoundTr
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_total",
 		Help:      "Total queries received per tenant.",
-	}, []string{"tenant"})
+	}, []string{"tenant", "op"})
 
 	return frontendRoundTripper{
 		apiPrefix:        apiPrefix,
@@ -70,20 +71,14 @@ func newFrontendRoundTripper(apiPrefix string, next, traces, search http.RoundTr
 }
 
 func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response, err error) {
-	start := time.Now()
-	// tracing instrumentation
-	span, ctx := opentracing.StartSpanFromContext(req.Context(), "frontend.Tripperware")
-	defer span.Finish()
-
+	op := getOperation(r.apiPrefix, req.URL.Path)
 	orgID, _ := user.ExtractOrgID(req.Context())
-	r.queriesPerTenant.WithLabelValues(orgID).Inc()
-	span.SetTag("orgID", orgID)
 
-	// for context propagation with traceID set
-	req = req.WithContext(ctx)
+	r.queriesPerTenant.WithLabelValues(orgID, string(op)).Inc()
 
 	// route the request to the appropriate RoundTripper
-	switch op := getOperation(r.apiPrefix, req.URL.Path); op {
+	//  todo: use the mux.Router in modules instead of doing custom routing here?
+	switch op {
 	case TracesOp:
 		resp, err = r.traces.RoundTrip(req)
 	case SearchOp:
@@ -93,27 +88,6 @@ func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response,
 		level.Warn(r.logger).Log("msg", "unknown path called in frontend roundtripper", "path", req.URL.Path)
 		resp, err = r.next.RoundTrip(req)
 	}
-
-	traceID, _ := tracing.ExtractTraceID(ctx)
-	statusCode := 500
-	var contentLength int64 = 0
-	if resp != nil {
-		statusCode = resp.StatusCode
-		contentLength = resp.ContentLength
-	} else if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
-		statusCode = int(httpResp.Code)
-		contentLength = int64(len(httpResp.Body))
-	}
-
-	level.Info(r.logger).Log(
-		"tenant", orgID,
-		"method", req.Method,
-		"traceID", traceID,
-		"url", req.URL.RequestURI(),
-		"duration", time.Since(start).String(),
-		"response_size", contentLength,
-		"status", statusCode,
-	)
 
 	return
 }
@@ -143,19 +117,16 @@ func getOperation(prefix, path string) RequestOp {
 	}
 }
 
-// NewTracesTripperware creates a new frontend tripperware responsible for handling get traces requests.
-func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.Registerer) func(next http.RoundTripper) http.RoundTripper {
-	return func(next http.RoundTripper) http.RoundTripper {
+// NewTracesMiddleware creates a new frontend middleware responsible for handling get traces requests.
+func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Registerer) Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
 		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, registerer))
 
-		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
-			// don't start a new span, this is already handled by frontendRoundTripper
-			span := opentracing.SpanFromContext(r.Context())
-
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// validate traceID
 			_, err := util.ParseTraceID(r)
 			if err != nil {
@@ -165,7 +136,6 @@ func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.R
 					Header:     http.Header{},
 				}, nil
 			}
-			span.LogFields(ot_log.String("msg", "validated traceID"))
 
 			// check marshalling format
 			marshallingFormat := util.JSONTypeHeaderValue
@@ -178,6 +148,7 @@ func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.R
 
 			resp, err := rt.RoundTrip(r)
 
+			// todo : should all of this request/response content type be up a level and be used for all query types?
 			if resp != nil && resp.StatusCode == http.StatusOK && marshallingFormat == util.JSONTypeHeaderValue {
 				// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
 				body, err := io.ReadAll(resp.Body)
@@ -199,17 +170,20 @@ func NewTracesTripperware(cfg Config, logger log.Logger, registerer prometheus.R
 				}
 				resp.Body = io.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
 			}
-			span.SetTag("response marshalling format", marshallingFormat)
+			span := opentracing.SpanFromContext(r.Context())
+			if span != nil {
+				span.SetTag("contentType", marshallingFormat)
+			}
 
 			return resp, err
 		})
-	}
+	})
 }
 
-// NewSearchTripperware creates a new frontend tripperware to handle search and search tags requests.
-func NewSearchTripperware() queryrange.Tripperware {
-	return func(rt http.RoundTripper) http.RoundTripper {
-		return queryrange.RoundTripFunc(func(r *http.Request) (*http.Response, error) {
+// NewSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
+func NewSearchMiddleware() Middleware {
+	return MiddlewareFunc(func(rt http.RoundTripper) http.RoundTripper {
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
@@ -219,5 +193,5 @@ func NewSearchTripperware() queryrange.Tripperware {
 
 			return resp, err
 		})
-	}
+	})
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/cortex"
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend"
-	cortex_transport "github.com/cortexproject/cortex/pkg/frontend/transport"
 	cortex_frontend_v1pb "github.com/cortexproject/cortex/pkg/frontend/v1/frontendv1pb"
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/log"
@@ -182,27 +181,26 @@ func (t *App) initQuerier() (services.Service, error) {
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
-	if t.cfg.Frontend.QueryShards < frontend.MinQueryShards || t.cfg.Frontend.QueryShards > frontend.MaxQueryShards {
-		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", frontend.MinQueryShards, frontend.MaxQueryShards)
-	}
-
+	// cortexTripper is a bridge between http and httpgrpc. it does the job of passing data to the cortex
+	// frontend code
 	cortexTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
 	t.frontend = v1
 
-	tripperware, err := frontend.NewTripperware(t.cfg.Frontend, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
+	// httpPipeline is the Tempo http pipeline
+	httpPipeline, err := frontend.NewMiddleware(t.cfg.Frontend, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
-	roundTripper := tripperware(cortexTripper)
+	roundTripper := httpPipeline.Wrap(cortexTripper)
 
-	frontendHandler := cortex_transport.NewHandler(t.cfg.Frontend.Config.Handler, roundTripper, log.Logger, prometheus.DefaultRegisterer)
+	// wrap http.RoundTripper with a http.Handler
+	frontendHandler := frontend.NewHandler(roundTripper, log.Logger)
 
-	frontendHandler = middleware.Merge(
-		t.HTTPAuthMiddleware,
-	).Wrap(frontendHandler)
+	// wrap handler with auth
+	frontendHandler = t.HTTPAuthMiddleware.Wrap(frontendHandler)
 
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
