@@ -107,6 +107,14 @@ func main() {
 		for now := range tickerWrite.C {
 			timestamp := now.Round(interval)
 			info := util.NewTraceInfo(timestamp, tempoOrgID)
+
+			log := logger.With(
+				zap.String("org_id", tempoOrgID),
+				zap.Int64("seed", info.Timestamp().Unix()),
+			)
+
+			log.Info("sending trace")
+
 			err := info.EmitBatches(client)
 			if err != nil {
 				metricErrorTotal.Inc()
@@ -191,12 +199,21 @@ func queueFutureBatches(client *jaeger_grpc.Reporter, info *util.TraceInfo) {
 		zap.Int64("seed", info.Timestamp().Unix()),
 		zap.Int64("longWritesRemaining", info.LongWritesRemaining()),
 	)
+	log.Info("queueing future batches")
 
 	info.Done()
 
-	log.Info("queueing future batches")
 	go func() {
 		time.Sleep(tempoLongWriteBackoffDuration)
+
+		log := logger.With(
+			zap.String("org_id", tempoOrgID),
+			zap.String("write_trace_id", info.HexID()),
+			zap.Int64("seed", info.Timestamp().Unix()),
+			zap.Int64("longWritesRemaining", info.LongWritesRemaining()),
+		)
+		log.Info("sending trace")
+
 		err := info.EmitBatches(client)
 		if err != nil {
 			log.Error("failed to queue batches",

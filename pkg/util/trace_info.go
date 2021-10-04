@@ -17,9 +17,9 @@ import (
 var (
 	// maxBatchesPerWrite is used when writing and reading, and needs to match so
 	// that we get the expected number of batches on a trace.  A value larger
-	// than 25 here results in vulture writing traces that exceed the maximum
+	// than 10 here results in vulture writing traces that exceed the maximum
 	// trace size.
-	maxBatchesPerWrite int64 = 25
+	maxBatchesPerWrite int64 = 10
 
 	//maxBatchesPerWrite is the maximum number of time-delayed writes for a trace.
 	maxLongWritesPerTrace int64 = 3
