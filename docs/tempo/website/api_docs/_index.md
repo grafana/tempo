@@ -129,10 +129,12 @@ GET /api/search?service.name=myservice&http.url=api/myapi
 ```
 
 Each query parameter is of the form <name>=<value>, where <name> is the name of any span-level or process-level attribute.  The value is matched as a case-insenstive substring.  There are several reserved query parameters:
-- `minDuration=<go duration value>`
+- `minDuration = (go duration value)`
   Optional.  Find traces with at least this duration.  Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
-- `maxDuration=<go duration value>`
+- `maxDuration = (go duration value)`
   Optional.  Find traces with no greater than this duration.  Same format as `minDuration`
+- `limit = (integer)`
+  Optional.  Limit the number of search results. Default is 100.
 
 ### Search Tags
 
