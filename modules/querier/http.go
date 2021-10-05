@@ -31,7 +31,9 @@ const (
 
 	urlParamMinDuration = "minDuration"
 	urlParamMaxDuration = "maxDuration"
-	urlParamLimit       = "limit"
+	UrlParamLimit       = "limit" // jpe move to util?
+	UrlParamStart       = "start"
+	UrlParamEnd         = "end"
 )
 
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
@@ -162,7 +164,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	for k, v := range r.URL.Query() {
 		// Skip known values
-		if k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit {
+		if k == urlParamMinDuration || k == urlParamMaxDuration || k == UrlParamLimit {
 			continue
 		}
 
@@ -187,7 +189,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 		req.MaxDurationMs = uint32(dur.Milliseconds())
 	}
 
-	if s := r.URL.Query().Get(urlParamLimit); s != "" {
+	if s := r.URL.Query().Get(UrlParamLimit); s != "" {
 		limit, err := strconv.Atoi(s)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

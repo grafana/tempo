@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
 
+	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -28,7 +29,7 @@ const (
 )
 
 // NewMiddleware returns a Middleware configured with a middleware to route, split and dedupe requests.
-func NewMiddleware(cfg Config, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (Middleware, error) {
+func NewMiddleware(cfg Config, apiPrefix string, store storage.Store, logger log.Logger, registerer prometheus.Registerer) (Middleware, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	// todo: push this farther down? into the actual creation of the shardingware?
@@ -38,14 +39,29 @@ func NewMiddleware(cfg Config, apiPrefix string, logger log.Logger, registerer p
 
 	tracesMiddleware := NewTracesMiddleware(cfg, logger, registerer)
 	searchMiddleware := NewSearchMiddleware()
-	backendMiddleware := NewBackendSearchMiddleware()
+	backendMiddleware := NewBackendSearchMiddleware(store)
 
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		traces := tracesMiddleware.Wrap(next)
 		search := searchMiddleware.Wrap(next)
 		backend := backendMiddleware.Wrap(next)
 
-		return newFrontendRoundTripper(apiPrefix, next, traces, search, backend, logger, registerer)
+		queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
+			Namespace: "tempo",
+			Name:      "query_frontend_queries_total",
+			Help:      "Total queries received per tenant.",
+		}, []string{"tenant", "op"})
+
+		return frontendRoundTripper{
+			apiPrefix:        apiPrefix,
+			next:             next,
+			traces:           traces,
+			search:           search,
+			backend:          backend,
+			logger:           logger,
+			queriesPerTenant: queriesPerTenant,
+			store:            store,
+		}
 	}), nil
 }
 
@@ -54,24 +70,7 @@ type frontendRoundTripper struct {
 	next, traces, search, backend http.RoundTripper
 	logger                        log.Logger
 	queriesPerTenant              *prometheus.CounterVec
-}
-
-func newFrontendRoundTripper(apiPrefix string, next, traces, search, backend http.RoundTripper, logger log.Logger, registerer prometheus.Registerer) frontendRoundTripper {
-	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "query_frontend_queries_total",
-		Help:      "Total queries received per tenant.",
-	}, []string{"tenant", "op"})
-
-	return frontendRoundTripper{
-		apiPrefix:        apiPrefix,
-		next:             next,
-		traces:           traces,
-		search:           search,
-		backend:          backend,
-		logger:           logger,
-		queriesPerTenant: queriesPerTenant,
-	}
+	store                         storage.Store
 }
 
 func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response, err error) {
@@ -207,10 +206,11 @@ func NewSearchMiddleware() Middleware {
 
 // NewBackendSearchMiddleware creates a new frontend middleware to handle backend search.
 // todo(search): integrate with real search
-func NewBackendSearchMiddleware() Middleware {
-	return MiddlewareFunc(func(rt http.RoundTripper) http.RoundTripper {
+func NewBackendSearchMiddleware(store storage.Store) Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		rt := NewRoundTripper(next, NewSearchSharder(store))
+
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			// jpe build jobs here? use middleware?
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)

@@ -193,7 +193,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.frontend = v1
 
 	// httpPipeline is the Tempo http pipeline
-	httpPipeline, err := frontend.NewMiddleware(t.cfg.Frontend, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
+	httpPipeline, err := frontend.NewMiddleware(t.cfg.Frontend, t.cfg.HTTPAPIPrefix, t.store, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
@@ -216,8 +216,10 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), frontendHandler)
 		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), frontendHandler)
 		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), frontendHandler)
+
 		// todo(search): integrate with real search
 		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathBackendSearch), frontendHandler)
+		t.store.EnablePolling(nil) // the query frontend does not need to have knowledge of the backend unless it is building jobs for backend search
 	}
 
 	// http query echo endpoint
@@ -299,7 +301,7 @@ func (t *App) setupModuleManager() error {
 		// Store:        nil,
 		Overrides:     {Server},
 		MemberlistKV:  {Server},
-		QueryFrontend: {Server},
+		QueryFrontend: {Store, Server},
 		Ring:          {Server, MemberlistKV},
 		Distributor:   {Ring, Server, Overrides},
 		Ingester:      {Store, Server, Overrides, MemberlistKV},

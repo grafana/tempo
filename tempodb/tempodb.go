@@ -76,6 +76,7 @@ type Writer interface {
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error)
+	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(sharder blocklist.JobSharder)
 
 	Shutdown()
@@ -274,6 +275,10 @@ func (rw *readerWriter) CompleteSearchBlockWithBackend(block *search.StreamingSe
 
 func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
+}
+
+func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
+	return rw.blocklist.Metas(tenantID)
 }
 
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error) {

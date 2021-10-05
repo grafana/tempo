@@ -7,8 +7,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,9 +81,22 @@ func TestFrontendRoundTripper(t *testing.T) {
 		},
 	}
 
+	queriesPerTenant := promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_queries_total",
+		Help:      "Total queries received per tenant.",
+	}, []string{"tenant", "op"})
+
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			frontendTripper := newFrontendRoundTripper(tt.apiPrefix, next, traces, search, nil, log.NewNopLogger(), prometheus.NewRegistry())
+			frontendTripper := frontendRoundTripper{
+				apiPrefix:        tt.apiPrefix,
+				next:             next,
+				traces:           traces,
+				search:           search,
+				logger:           log.NewNopLogger(),
+				queriesPerTenant: queriesPerTenant,
+			}
 
 			req := &http.Request{
 				URL: &url.URL{
