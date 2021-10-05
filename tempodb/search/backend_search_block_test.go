@@ -54,7 +54,7 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 }
 
 func TestBackendSearchBlockSearch(t *testing.T) {
-	traceCount := 50_000
+	traceCount := 10_000
 
 	for _, enc := range backend.SupportedEncoding {
 		t.Run(enc.String(), func(t *testing.T) {

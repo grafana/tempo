@@ -180,38 +180,35 @@ func TestStreamingSearchBlockIteratorDedupes(t *testing.T) {
 		},
 	}
 
-	for _, enc := range backend.SupportedEncoding {
-		for _, tc := range testCases {
-			t.Run(fmt.Sprint(tc.name, "/", enc.String()), func(t *testing.T) {
-				f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
-				require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
+			require.NoError(t, err)
 
-				b1, err := NewStreamingSearchBlockForFile(f, "v2", enc)
-				require.NoError(t, err)
+			b1, err := NewStreamingSearchBlockForFile(f, "v2", backend.EncNone)
+			require.NoError(t, err)
 
-				id := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-				for i := 0; i < traceCount; i++ {
-					require.NoError(t, b1.Append(context.Background(), id, tc.searchDataGenerator(id, i)))
+			id := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+			for i := 0; i < traceCount; i++ {
+				require.NoError(t, b1.Append(context.Background(), id, tc.searchDataGenerator(id, i)))
+			}
+
+			iter, err := b1.Iterator()
+			require.NoError(t, err)
+
+			var results []common.ID
+			for {
+				id, _, err := iter.Next(context.TODO())
+				if err == io.EOF {
+					break
 				}
-
-				iter, err := b1.Iterator()
 				require.NoError(t, err)
+				results = append(results, id)
+			}
 
-				var results []common.ID
-				for {
-					id, _, err := iter.Next(context.TODO())
-					if err == io.EOF {
-						break
-					}
-					require.NoError(t, err)
-					results = append(results, id)
-				}
-
-				require.Equal(t, tc.expectedLenResults, len(results))
-			})
-		}
+			require.Equal(t, tc.expectedLenResults, len(results))
+		})
 	}
-
 }
 
 func BenchmarkBackendSearchBlockSearch(b *testing.B) {
