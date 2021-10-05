@@ -27,6 +27,11 @@ message TraceByIDRequest {
 
 message TraceByIDResponse {
   Trace trace = 1;
+  TraceByIDMetrics metrics = 2;
+}
+
+message TraceByIDMetrics {
+  uint32 failedBlocks = 1;
 }
 
 message SearchRequest {
