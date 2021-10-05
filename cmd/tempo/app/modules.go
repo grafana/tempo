@@ -52,6 +52,7 @@ const (
 	apiPathSearchTags      string = "/api/search/tags"
 	apiPathSearchTagValues string = "/api/search/tag/{tagName}/values"
 	apiPathEcho            string = "/api/echo"
+	apiPathBackendSearch   string = "/api/backend_search" // todo(search): integrate with real search
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -213,6 +214,8 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), frontendHandler)
 		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), frontendHandler)
 		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), frontendHandler)
+		// todo(search): integrate with real search
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathBackendSearch), frontendHandler)
 	}
 
 	// http query echo endpoint

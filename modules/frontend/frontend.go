@@ -22,8 +22,9 @@ import (
 )
 
 const (
-	apiPathTraces = "/api/traces"
-	apiPathSearch = "/api/search"
+	apiPathTraces        = "/api/traces"
+	apiPathSearch        = "/api/search"
+	apiPathBackendSearch = "/api/backend_search" // todo(search): integrate with real search
 )
 
 // NewMiddleware returns a Middleware configured with a middleware to route, split and dedupe requests.
@@ -37,37 +38,36 @@ func NewMiddleware(cfg Config, apiPrefix string, logger log.Logger, registerer p
 
 	tracesMiddleware := NewTracesMiddleware(cfg, logger, registerer)
 	searchMiddleware := NewSearchMiddleware()
+	backendMiddleware := NewBackendSearchMiddleware()
 
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		traces := tracesMiddleware.Wrap(next)
 		search := searchMiddleware.Wrap(next)
+		backend := backendMiddleware.Wrap(next)
 
-		return newFrontendRoundTripper(apiPrefix, next, traces, search, logger, registerer)
+		queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
+			Namespace: "tempo",
+			Name:      "query_frontend_queries_total",
+			Help:      "Total queries received per tenant.",
+		}, []string{"tenant", "op"})
+
+		return frontendRoundTripper{
+			apiPrefix:        apiPrefix,
+			next:             next,
+			traces:           traces,
+			search:           search,
+			backend:          backend,
+			logger:           logger,
+			queriesPerTenant: queriesPerTenant,
+		}
 	}), nil
 }
 
 type frontendRoundTripper struct {
-	apiPrefix            string
-	next, traces, search http.RoundTripper
-	logger               log.Logger
-	queriesPerTenant     *prometheus.CounterVec
-}
-
-func newFrontendRoundTripper(apiPrefix string, next, traces, search http.RoundTripper, logger log.Logger, registerer prometheus.Registerer) frontendRoundTripper {
-	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "query_frontend_queries_total",
-		Help:      "Total queries received per tenant.",
-	}, []string{"tenant", "op"})
-
-	return frontendRoundTripper{
-		apiPrefix:        apiPrefix,
-		next:             next,
-		traces:           traces,
-		search:           search,
-		logger:           logger,
-		queriesPerTenant: queriesPerTenant,
-	}
+	apiPrefix                     string
+	next, traces, search, backend http.RoundTripper
+	logger                        log.Logger
+	queriesPerTenant              *prometheus.CounterVec
 }
 
 func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response, err error) {
@@ -83,6 +83,8 @@ func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response,
 		resp, err = r.traces.RoundTrip(req)
 	case SearchOp:
 		resp, err = r.search.RoundTrip(req)
+	case BackendSearchOp:
+		resp, err = r.backend.RoundTrip(req)
 	default:
 		// should never be called
 		level.Warn(r.logger).Log("msg", "unknown path called in frontend roundtripper", "path", req.URL.Path)
@@ -95,8 +97,9 @@ func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response,
 type RequestOp string
 
 const (
-	TracesOp RequestOp = "traces"
-	SearchOp RequestOp = "search"
+	TracesOp        RequestOp = "traces"
+	SearchOp        RequestOp = "search"
+	BackendSearchOp RequestOp = "backend_search" // todo(search): integrate with real search
 )
 
 func getOperation(prefix, path string) RequestOp {
@@ -112,6 +115,8 @@ func getOperation(prefix, path string) RequestOp {
 		return TracesOp
 	case strings.HasPrefix(path, apiPathSearch):
 		return SearchOp
+	case strings.HasPrefix(path, apiPathBackendSearch):
+		return BackendSearchOp
 	default:
 		return ""
 	}
@@ -184,6 +189,24 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 func NewSearchMiddleware() Middleware {
 	return MiddlewareFunc(func(rt http.RoundTripper) http.RoundTripper {
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			orgID, _ := user.ExtractOrgID(r.Context())
+
+			r.Header.Set(user.OrgIDHeaderName, orgID)
+			r.RequestURI = querierPrefix + r.RequestURI
+
+			resp, err := rt.RoundTrip(r)
+
+			return resp, err
+		})
+	})
+}
+
+// NewBackendSearchMiddleware creates a new frontend middleware to handle backend search.
+// todo(search): integrate with real search
+func NewBackendSearchMiddleware() Middleware {
+	return MiddlewareFunc(func(rt http.RoundTripper) http.RoundTripper {
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			// jpe build jobs here? use middleware?
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
