@@ -298,8 +298,7 @@ func TestScalableSingleBinary(t *testing.T) {
 
 	// test metrics
 	require.NoError(t, tempo1.WaitSumMetrics(cortex_e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
-
-	// require.NoError(t, tempo1.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempo1.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	for _, i := range []*cortex_e2e.HTTPService{tempo1, tempo2, tempo3} {
 		res, err := cortex_e2e.GetRequest("http://" + i.Endpoint(3200) + "/flush")
