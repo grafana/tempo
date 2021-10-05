@@ -79,10 +79,13 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
 		span.SetTag("contentType", util.ProtobufTypeHeaderValue)
-		b, err := proto.Marshal(resp.Trace)
+		b, err := proto.Marshal(resp)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		if resp.Metrics.FailedBlocks > 0 {
+			w.WriteHeader(http.StatusPartialContent)
 		}
 		_, err = w.Write(b)
 		if err != nil {
@@ -94,7 +97,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	span.SetTag("contentType", util.JSONTypeHeaderValue)
 	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp.Trace)
+	err = marshaller.Marshal(w, resp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
