@@ -75,7 +75,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, int, error)
 	EnablePolling(sharder blocklist.JobSharder)
 
 	Shutdown()
@@ -276,7 +276,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, int, error) {
 	// tracing instrumentation
 	logger := log_util.WithContext(ctx, log_util.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
@@ -284,19 +284,19 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 	blockStartUUID, err := uuid.Parse(blockStart)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 	blockStartBytes, err := blockStartUUID.MarshalBinary()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 	blockEndUUID, err := uuid.Parse(blockEnd)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 	blockEndBytes, err := blockEndUUID.MarshalBinary()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 
 	// gather appropriate blocks
@@ -319,11 +319,11 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		}
 	}
 	if len(copiedBlocklist) == 0 {
-		return nil, nil, nil
+		return nil, nil, 0, nil
 	}
 
 	curTime := time.Now()
-	partialTraces, dataEncodings, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, string, error) {
+	partialTraces, dataEncodings, stats, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 		meta := payload.(*backend.BlockMeta)
 		r := rw.getReaderForBlock(meta, curTime)
 		block, err := encoding.NewBackendBlock(meta, r)
@@ -351,7 +351,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return foundObject, meta.DataEncoding, nil
 	})
 
-	return partialTraces, dataEncodings, err
+	return partialTraces, dataEncodings, stats.ErrsCount(), err
 }
 
 func (rw *readerWriter) Shutdown() {

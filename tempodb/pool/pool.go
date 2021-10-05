@@ -32,15 +32,19 @@ var (
 
 // JobStats are metrics of running the provided func for the given payloads
 type JobStats struct {
-	// FnErrs contain the errors of executing the func
-	FnErrs []error
+	// fnErrs contain the errors of executing the func
+	fnErrs []error
 }
 
 func (s *JobStats) Errs() error {
-	if len(s.FnErrs) != 0 {
-		return multierr.Combine(s.FnErrs...)
+	if len(s.fnErrs) != 0 {
+		return multierr.Combine(s.fnErrs...)
 	}
 	return nil
+}
+
+func (s *JobStats) ErrsCount() int {
+	return len(s.fnErrs)
 }
 
 var jobStats = JobStats{}
@@ -146,7 +150,7 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	var stats JobStats
 	for res := range resultsCh {
 		if res.err != nil {
-			stats.FnErrs = append(stats.FnErrs, res.err)
+			stats.fnErrs = append(stats.fnErrs, res.err)
 		} else {
 			data = append(data, res.data)
 			enc = append(enc, res.enc)

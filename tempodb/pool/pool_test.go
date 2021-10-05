@@ -152,7 +152,7 @@ func TestMultipleErrors(t *testing.T) {
 	msg, _, s, err := p.RunJobs(context.Background(), payloads, fn)
 	assert.Nil(t, msg)
 	assert.NoError(t, err)
-	assert.Equal(t, expErr, s.FnErrs)
+	assert.Equal(t, expErr, s.fnErrs)
 	goleak.VerifyNone(t, opts)
 
 	p.Shutdown()
