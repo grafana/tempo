@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -234,14 +234,16 @@ func TestShardingWareDoRequest(t *testing.T) {
 					return nil, err
 				}
 
-				var traceBytes []byte
+				var resBytes []byte
 				if trace != nil {
-					traceBytes, err = proto.Marshal(trace)
+					resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
+						Trace: trace,
+					})
 					require.NoError(t, err)
 				}
 
 				return &http.Response{
-					Body:       ioutil.NopCloser(bytes.NewReader(traceBytes)),
+					Body:       io.NopCloser(bytes.NewReader(resBytes)),
 					StatusCode: statusCode,
 				}, nil
 			})
@@ -261,15 +263,16 @@ func TestShardingWareDoRequest(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
 			if tc.expectedTrace != nil {
-				actualTrace := &tempopb.Trace{}
+				actualResp := &tempopb.TraceByIDResponse{}
 				bytesTrace, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
-				err = proto.Unmarshal(bytesTrace, actualTrace)
+				err = proto.Unmarshal(bytesTrace, actualResp)
 				require.NoError(t, err)
 
 				model.SortTrace(tc.expectedTrace)
-				model.SortTrace(actualTrace)
-				assert.True(t, proto.Equal(tc.expectedTrace, actualTrace))
+				model.SortTrace(actualResp.Trace)
+				fmt.Println(tc.expectedTrace)
+				assert.True(t, proto.Equal(tc.expectedTrace, actualResp.Trace))
 			}
 		})
 	}
