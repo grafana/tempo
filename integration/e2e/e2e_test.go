@@ -309,15 +309,6 @@ func TestScalableSingleBinary(t *testing.T) {
 		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	}
 
-	// 2021-10-01 15:48:32 TODO What cluster checks need to be in place.  After
-	// flush, it would exist in the backend.  Could we query a specific querier,
-	// knowing that jobs are only picked up from the one querier that the e2e
-	// tests are using due to the lack of DNS.
-
-	// 2021-10-01 16:27:40 TODO Research how we might add a dns entry that
-	// contains all of the instance names.  This should be applicable to
-	// docker-compose as well as the e2e tests.
-
 	apiClient1 := tempoUtil.NewClient("http://"+tempo1.Endpoint(3200), "")
 
 	queryAndAssertTrace(t, apiClient1, info)
