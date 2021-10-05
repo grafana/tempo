@@ -31,6 +31,7 @@ type Config struct {
 	CompletedFilepath string
 	BlocksFilepath    string
 	Encoding          backend.Encoding `yaml:"encoding"`
+	SearchEncoding    backend.Encoding `yaml:"search_encoding"`
 }
 
 func New(c *Config) (*WAL, error) {
