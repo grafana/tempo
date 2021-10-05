@@ -65,6 +65,15 @@ type JobSharder interface {
 	Owns(string) bool
 }
 
+// OwnsNothingSharder owns nothing. You do not want this developer on your team.
+var OwnsNothingSharder = ownsNothingSharder{}
+
+type ownsNothingSharder struct{}
+
+func (_ ownsNothingSharder) Owns(_ string) bool {
+	return false
+}
+
 const jobPrefix = "build-tenant-index-"
 
 // Poller retrieves the blocklist

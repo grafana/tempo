@@ -45,21 +45,7 @@ func NewMiddleware(cfg Config, apiPrefix string, logger log.Logger, registerer p
 		search := searchMiddleware.Wrap(next)
 		backend := backendMiddleware.Wrap(next)
 
-		queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
-			Namespace: "tempo",
-			Name:      "query_frontend_queries_total",
-			Help:      "Total queries received per tenant.",
-		}, []string{"tenant", "op"})
-
-		return frontendRoundTripper{
-			apiPrefix:        apiPrefix,
-			next:             next,
-			traces:           traces,
-			search:           search,
-			backend:          backend,
-			logger:           logger,
-			queriesPerTenant: queriesPerTenant,
-		}
+		return newFrontendRoundTripper(apiPrefix, next, traces, search, backend, logger, registerer)
 	}), nil
 }
 
@@ -68,6 +54,24 @@ type frontendRoundTripper struct {
 	next, traces, search, backend http.RoundTripper
 	logger                        log.Logger
 	queriesPerTenant              *prometheus.CounterVec
+}
+
+func newFrontendRoundTripper(apiPrefix string, next, traces, search, backend http.RoundTripper, logger log.Logger, registerer prometheus.Registerer) frontendRoundTripper {
+	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_queries_total",
+		Help:      "Total queries received per tenant.",
+	}, []string{"tenant", "op"})
+
+	return frontendRoundTripper{
+		apiPrefix:        apiPrefix,
+		next:             next,
+		traces:           traces,
+		search:           search,
+		backend:          backend,
+		logger:           logger,
+		queriesPerTenant: queriesPerTenant,
+	}
 }
 
 func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response, err error) {

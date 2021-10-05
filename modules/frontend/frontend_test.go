@@ -82,7 +82,7 @@ func TestFrontendRoundTripper(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			frontendTripper := newFrontendRoundTripper(tt.apiPrefix, next, traces, search, log.NewNopLogger(), prometheus.NewRegistry())
+			frontendTripper := newFrontendRoundTripper(tt.apiPrefix, next, traces, search, nil, log.NewNopLogger(), prometheus.NewRegistry())
 
 			req := &http.Request{
 				URL: &url.URL{
