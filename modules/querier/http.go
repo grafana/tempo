@@ -84,9 +84,6 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if resp.Metrics.FailedBlocks > 0 {
-			w.WriteHeader(http.StatusPartialContent)
-		}
 		_, err = w.Write(b)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

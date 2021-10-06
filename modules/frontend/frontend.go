@@ -124,7 +124,7 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
-		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, logger), RetryWare(cfg.MaxRetries, registerer))
+		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, cfg.MaxFailedBlocks, logger), RetryWare(cfg.MaxRetries, registerer))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// validate traceID
@@ -149,22 +149,22 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 			resp, err := rt.RoundTrip(r)
 
 			// todo : should all of this request/response content type be up a level and be used for all query types?
-			if resp != nil && resp.StatusCode == http.StatusOK && marshallingFormat == util.JSONTypeHeaderValue {
+			if resp != nil && (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent) && marshallingFormat == util.JSONTypeHeaderValue {
 				// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
 				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if err != nil {
 					return nil, errors.Wrap(err, "error reading response body at query frontend")
 				}
-				traceObject := &tempopb.Trace{}
-				err = proto.Unmarshal(body, traceObject)
+				responseObject := &tempopb.TraceByIDResponse{}
+				err = proto.Unmarshal(body, responseObject)
 				if err != nil {
 					return nil, err
 				}
 
 				var jsonTrace bytes.Buffer
 				marshaller := &jsonpb.Marshaler{}
-				err = marshaller.Marshal(&jsonTrace, traceObject)
+				err = marshaller.Marshal(&jsonTrace, responseObject.Trace)
 				if err != nil {
 					return nil, err
 				}

@@ -27,18 +27,16 @@ const (
 
 	querierPrefix  = "/querier"
 	queryDelimiter = "?"
-
-	defaulMaxFailedBlocks = 5
 )
 
-func ShardingWare(queryShards int, logger log.Logger) Middleware {
+func ShardingWare(queryShards, maxFailedBlocks int, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,
 			queryShards:     queryShards,
 			logger:          logger,
 			blockBoundaries: createBlockBoundaries(queryShards - 1), // one shard will be used to query ingesters
-			maxFailedBlocks: defaulMaxFailedBlocks,
+			maxFailedBlocks: uint32(maxFailedBlocks),
 		}
 	})
 }

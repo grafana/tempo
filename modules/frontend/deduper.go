@@ -56,30 +56,31 @@ func (s spanIDDeduper) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	if resp.StatusCode == http.StatusOK {
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent {
 		body, err := io.ReadAll(resp.Body)
 		defer resp.Body.Close()
 		if err != nil {
 			return nil, err
 		}
 
-		traceObject := &tempopb.Trace{}
-		err = proto.Unmarshal(body, traceObject)
+		responseObject := &tempopb.TraceByIDResponse{}
+		err = proto.Unmarshal(body, responseObject)
 		if err != nil {
 			return nil, err
 		}
 
-		s.trace = traceObject
+		s.trace = responseObject.Trace
 		s.dedupe()
 
-		traceBytes, err := proto.Marshal(s.trace)
+		responseObject.Trace = s.trace
+		responseBytes, err := proto.Marshal(responseObject)
 		if err != nil {
 			return nil, err
 		}
 
 		return &http.Response{
 			StatusCode:    http.StatusOK,
-			Body:          io.NopCloser(bytes.NewReader(traceBytes)),
+			Body:          io.NopCloser(bytes.NewReader(responseBytes)),
 			Header:        http.Header{},
 			ContentLength: resp.ContentLength,
 		}, nil
