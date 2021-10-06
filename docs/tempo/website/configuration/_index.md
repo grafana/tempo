@@ -539,6 +539,10 @@ storage:
             # (default: snappy)
             [encoding: <string>]
 
+            # search data encoding/compression. same options as wal encoding.
+            # (default: gzip)
+            [search_encoding: <string>]
+
         # block configuration
         block:
 
@@ -557,7 +561,7 @@ storage:
             # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
             [encoding: <string>]
 
-            # search data encoding/compression. same options as blocks.
+            # search data encoding/compression. same options as block encoding.
             # (default: gzip)
             [search_encoding: <string>]
 

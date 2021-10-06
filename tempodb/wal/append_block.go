@@ -1,10 +1,8 @@
 package wal
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,7 +69,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 // be completed. It can return a warning or a fatal error
 func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, error) {
 	var warning error
-	blockID, tenantID, version, e, dataEncoding, err := parseFilename(filename)
+	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -93,50 +91,12 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 		return nil, nil, err
 	}
 
-	dataReader, err := b.encoding.NewDataReader(backend.NewContextReaderWithAllReader(f), b.meta.Encoding)
+	records, warning, err := ReplayWALAndGetRecords(f, v, e, func(bytes []byte) error {
+		return nil
+	})
 	if err != nil {
 		return nil, nil, err
 	}
-	defer dataReader.Close()
-
-	var buffer []byte
-	var records []common.Record
-	objectReader := b.encoding.NewObjectReaderWriter()
-	currentOffset := uint64(0)
-	for {
-		buffer, pageLen, err := dataReader.NextPage(buffer)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			warning = err
-			break
-		}
-
-		reader := bytes.NewReader(buffer)
-		id, _, err := objectReader.UnmarshalObjectFromReader(reader)
-		if err != nil {
-			warning = err
-			break
-		}
-		// wal should only ever have one object per page, test that here
-		_, _, err = objectReader.UnmarshalObjectFromReader(reader)
-		if err != io.EOF {
-			warning = err
-			break
-		}
-
-		// make a copy so we don't hold onto the iterator buffer
-		recordID := append([]byte(nil), id...)
-		records = append(records, common.Record{
-			ID:     recordID,
-			Start:  currentOffset,
-			Length: pageLen,
-		})
-		currentOffset += uint64(pageLen)
-	}
-
-	common.SortRecords(records)
 
 	b.appender = encoding.NewRecordAppender(records)
 	b.meta.TotalObjects = b.appender.Length()
@@ -258,43 +218,4 @@ func (a *AppendBlock) file() (*os.File, error) {
 	})
 
 	return a.readFile, err
-}
-
-func parseFilename(name string) (uuid.UUID, string, string, backend.Encoding, string, error) {
-	splits := strings.Split(name, ":")
-
-	if len(splits) != 2 && len(splits) != 4 && len(splits) != 5 {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. unexpected number of segments", name)
-	}
-
-	blockIDString := splits[0]
-	tenantID := splits[1]
-
-	version := "v0"
-	encodingString := backend.EncNone.String()
-	dataEncoding := ""
-	if len(splits) >= 4 {
-		version = splits[2]
-		encodingString = splits[3]
-	}
-
-	if len(splits) >= 5 {
-		dataEncoding = splits[4]
-	}
-
-	blockID, err := uuid.Parse(blockIDString)
-	if err != nil {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing uuid: %w", name, err)
-	}
-
-	encoding, err := backend.ParseEncoding(encodingString)
-	if err != nil {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing encoding: %w", name, err)
-	}
-
-	if len(tenantID) == 0 || len(version) == 0 {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. missing fields", name)
-	}
-
-	return blockID, tenantID, version, encoding, dataEncoding, nil
 }

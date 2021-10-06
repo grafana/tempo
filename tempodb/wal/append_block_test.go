@@ -124,29 +124,40 @@ func TestParseFilename(t *testing.T) {
 		expectError          bool
 	}{
 		{
-			name:             "ez-mode",
-			filename:         "123e4567-e89b-12d3-a456-426614174000:foo",
-			expectUUID:       uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
-			expectTenant:     "foo",
-			expectedVersion:  "v0",
-			expectedEncoding: backend.EncNone,
-		},
-		{
-			name:             "version and encoding",
-			filename:         "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy",
-			expectUUID:       uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
-			expectTenant:     "foo",
-			expectedVersion:  "v1",
-			expectedEncoding: backend.EncSnappy,
-		},
-		{
-			name:                 "version, encoding and dataencoding",
-			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy:dataencoding",
+			name:                 "version, enc snappy and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:dataencoding",
 			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
 			expectTenant:         "foo",
-			expectedVersion:      "v1",
+			expectedVersion:      "v2",
 			expectedEncoding:     backend.EncSnappy,
 			expectedDataEncoding: "dataencoding",
+		},
+		{
+			name:                 "version, enc none and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:none:dataencoding",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncNone,
+			expectedDataEncoding: "dataencoding",
+		},
+		{
+			name:                 "empty dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "",
+		},
+		{
+			name:                 "empty dataencoding with semicolon",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "",
 		},
 		{
 			name:        "path fails",
@@ -198,11 +209,21 @@ func TestParseFilename(t *testing.T) {
 			filename:    "123e4567-e89b-12d3-a456-426614174000:test:v1:asdf",
 			expectError: true,
 		},
+		{
+			name:        "ez-mode old format",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:foo",
+			expectError: true,
+		},
+		{
+			name:        "version and encoding old format",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy",
+			expectError: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actualUUID, actualTenant, actualVersion, actualEncoding, actualDataEncoding, err := parseFilename(tc.filename)
+			actualUUID, actualTenant, actualVersion, actualEncoding, actualDataEncoding, err := ParseFilename(tc.filename)
 
 			if tc.expectError {
 				assert.Error(t, err)

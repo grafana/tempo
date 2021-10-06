@@ -445,11 +445,17 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
 // This is used during wal replay. It is expected that calling code will add the appropriate
 // jobs to the queue to eventually flush these.
-func (i *instance) AddCompletingBlock(b *wal.AppendBlock) {
+func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSearchBlock) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	i.completingBlocks = append(i.completingBlocks, b)
+
+	// search WAL
+	if s == nil {
+		return
+	}
+	i.searchAppendBlocks[b] = &searchStreamingBlockEntry{b: s}
 }
 
 // getOrCreateTrace will return a new trace object for the given request
@@ -491,12 +497,12 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file
-	f, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir, "searchdata")
+	f, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
 	if err != nil {
 		return err
 	}
 
-	b, err := search.NewStreamingSearchBlockForFile(f)
+	b, err := search.NewStreamingSearchBlockForFile(f, "v2", backend.EncNone)
 	if err != nil {
 		return err
 	}
@@ -617,11 +623,11 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 			return err
 		}
 
-		//sb := search.OpenBackendSearchBlock(i.local, b.BlockMeta().BlockID, b.BlockMeta().TenantID)
+		sb := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)
 
 		i.blocksMtx.Lock()
 		i.completeBlocks = append(i.completeBlocks, ib)
-		//i.searchCompleteBlocks[ib] = sb
+		i.searchCompleteBlocks[ib] = &searchLocalBlockEntry{b: sb}
 		i.blocksMtx.Unlock()
 
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())
