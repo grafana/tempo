@@ -196,8 +196,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 		if blockErrs != nil {
 			failedBlocks = len(blockErrs)
-			err := fmt.Errorf("failed to query %d blocks: %w", failedBlocks, multierr.Combine(blockErrs...))
-			level.Warn(log.Logger).Log("msg", err)
+			_ = level.Info(log.Logger).Log("msg", fmt.Sprintf("failed to query %d blocks", failedBlocks), "blockErrs", multierr.Combine(blockErrs...))
 		}
 
 		span.LogFields(ot_log.String("msg", "done searching store"))
