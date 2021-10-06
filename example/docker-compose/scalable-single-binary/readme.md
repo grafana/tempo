@@ -14,14 +14,15 @@ At this point, the following containers should be spun up -
 docker-compose ps
 ```
 ```
-scalable-single-binary-grafana-1                    "/run.sh"                grafana                    running             0.0.0.0:3000->3000/tcp, :::3000->3000/tcp
-scalable-single-binary-minio-1                      "sh -euc 'mkdir -p /…"   minio                      running             0.0.0.0:9000-9001->9000-9001/tcp, :::9000-9001->9000-9001/tcp
-scalable-single-binary-prometheus-1                 "/bin/prometheus --c…"   prometheus                 running             0.0.0.0:9090->9090/tcp, :::9090->9090/tcp
+NAME                                                COMMAND                  SERVICE                    STATUS              PORTS
+scalable-single-binary-grafana-1                    "/run.sh"                grafana                    running             3000/tcp
+scalable-single-binary-minio-1                      "sh -euc 'mkdir -p /…"   minio                      running             9000/tcp
+scalable-single-binary-prometheus-1                 "/bin/prometheus --c…"   prometheus                 running             9090/tcp
 scalable-single-binary-synthetic-load-generator-1   "./start.sh"             synthetic-load-generator   running             
-scalable-single-binary-tempo1-1                     "/tempo -target=scal…"   tempo1                     running             0.0.0.0:49164->3200/tcp, 0.0.0.0:49163->7946/tcp, 0.0.0.0:49161->14268/tcp, :::49164->3200/tcp, :::49163->7946/tcp, :::49161->14268/tcp
-scalable-single-binary-tempo2-1                     "/tempo -target=scal…"   tempo2                     running             0.0.0.0:49166->3200/tcp, 0.0.0.0:49165->7946/tcp, :::49166->3200/tcp, :::49165->7946/tcp
-scalable-single-binary-tempo3-1                     "/tempo -target=scal…"   tempo3                     running             0.0.0.0:49162->3200/tcp, 0.0.0.0:49160->7946/tcp, :::49162->3200/tcp, :::49160->7946/tcp
-scalable-single-binary-vulture-1                    "/tempo-vulture -pro…"   vulture                    running             0.0.0.0:3201->3201/tcp, :::3201->3201/tcp
+scalable-single-binary-tempo1-1                     "/tempo -target=scal…"   tempo1                     running             
+scalable-single-binary-tempo2-1                     "/tempo -target=scal…"   tempo2                     running             
+scalable-single-binary-tempo3-1                     "/tempo -target=scal…"   tempo3                     running             
+scalable-single-binary-vulture-1                    "/tempo-vulture -pro…"   vulture                    running
 ```
 
 2. If you're interested you can see the wal/blocks as they are being created.  Navigate to minio at
