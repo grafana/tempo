@@ -1,5 +1,4 @@
 ---
-##  AMD64  ##
 kind: pipeline
 name: docker-amd64
 
@@ -15,7 +14,6 @@ steps:
   - git fetch origin --tags
   - echo $(./tools/image-tag)-amd64 > .tags
 
-# binaries
 - name: build-tempo-binaries
   image: golang:1.17-alpine
   commands:
@@ -24,71 +22,66 @@ steps:
   - COMPONENT=tempo-vulture GOARCH=amd64 make exe
   - COMPONENT=tempo-query GOARCH=amd64 make exe
 
-# docker images
 - name: build-tempo-image
   image: plugins/docker
   settings:
+    build_args:
+    - TARGETARCH=amd64
     dockerfile: cmd/tempo/Dockerfile
+    password:
+      from_secret: docker_password
     repo: grafana/tempo
     username:
       from_secret: docker_username
-    password:
-      from_secret: docker_password
-    build_args:
-    - TARGETARCH=amd64
 
 - name: build-tempo-vulture-image
   image: plugins/docker
   settings:
+    build_args:
+    - TARGETARCH=amd64
     dockerfile: cmd/tempo-vulture/Dockerfile
+    password:
+      from_secret: docker_password
     repo: grafana/tempo-vulture
     username:
       from_secret: docker_username
-    password:
-      from_secret: docker_password
-    build_args:
-    - TARGETARCH=amd64
 
 - name: build-tempo-query-image
   image: plugins/docker
   settings:
+    build_args:
+    - TARGETARCH=amd64
     dockerfile: cmd/tempo-query/Dockerfile
+    password:
+      from_secret: docker_password
     repo: grafana/tempo-query
     username:
       from_secret: docker_username
-    password:
-      from_secret: docker_password
-    build_args:
-      - TARGETARCH=amd64
 
 trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
-  - refs/heads/r? # For weekly release
-  - refs/heads/r?? # For weekly release
+  - refs/heads/r?
+  - refs/heads/r??
 
 ---
-##  ARM64  ##
 kind: pipeline
 name: docker-arm64
 
 platform:
   os: linux
-  arch: arm64
+  arch: amd64
 
 steps:
 - name: image-tag
   image: alpine/git
   commands:
-  # the alpine/git image has apk errors when run in arm64, fix them before running any other apk command
-  # https://github.com/alpine-docker/git/issues/35
   - apk fix
   - apk --update --no-cache add bash
   - git fetch origin --tags
   - echo $(./tools/image-tag)-arm64 > .tags
 
-# binaries
 - name: build-tempo-binaries
   image: golang:1.17-alpine
   commands:
@@ -97,52 +90,50 @@ steps:
   - COMPONENT=tempo-vulture GOARCH=arm64 make exe
   - COMPONENT=tempo-query GOARCH=arm64 make exe
 
-# docker images
 - name: build-tempo-image
   image: plugins/docker
   settings:
+    build_args:
+    - TARGETARCH=arm64
     dockerfile: cmd/tempo/Dockerfile
+    password:
+      from_secret: docker_password
     repo: grafana/tempo
     username:
       from_secret: docker_username
-    password:
-      from_secret: docker_password
-    build_args:
-    - TARGETARCH=arm64
 
 - name: build-tempo-vulture-image
   image: plugins/docker
   settings:
+    build_args:
+    - TARGETARCH=arm64
     dockerfile: cmd/tempo-vulture/Dockerfile
+    password:
+      from_secret: docker_password
     repo: grafana/tempo-vulture
     username:
       from_secret: docker_username
-    password:
-      from_secret: docker_password
-    build_args:
-    - TARGETARCH=arm64
 
 - name: build-tempo-query-image
   image: plugins/docker
   settings:
+    build_args:
+    - TARGETARCH=arm64
     dockerfile: cmd/tempo-query/Dockerfile
+    password:
+      from_secret: docker_password
     repo: grafana/tempo-query
     username:
       from_secret: docker_username
-    password:
-      from_secret: docker_password
-    build_args:
-      - TARGETARCH=arm64
 
 trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
-  - refs/heads/r? # For weekly release
-  - refs/heads/r?? # For weekly release
+  - refs/heads/r?
+  - refs/heads/r??
 
 ---
-##  MANIFEST  ##
 kind: pipeline
 name: manifest
 
@@ -161,43 +152,43 @@ steps:
 - name: manifest-tempo
   image: plugins/manifest
   settings:
-    username:
-      from_secret: docker_username
     password:
       from_secret: docker_password
     spec: .drone/docker-manifest.tmpl
     target: tempo
+    username:
+      from_secret: docker_username
 
 - name: manifest-tempo-vulture
   image: plugins/manifest
   settings:
-    username:
-      from_secret: docker_username
     password:
       from_secret: docker_password
     spec: .drone/docker-manifest.tmpl
     target: tempo-vulture
+    username:
+      from_secret: docker_username
 
 - name: manifest-tempo-query
   image: plugins/manifest
   settings:
-    username:
-      from_secret: docker_username
     password:
       from_secret: docker_password
     spec: .drone/docker-manifest.tmpl
     target: tempo-query
-
-depends_on:
-- docker-amd64
-- docker-arm64
+    username:
+      from_secret: docker_username
 
 trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
-  - refs/heads/r? # For weekly release
-  - refs/heads/r?? # For weekly release
+  - refs/heads/r?
+  - refs/heads/r??
+
+depends_on:
+- docker-amd64
+- docker-arm64
 
 ---
 kind: secret
@@ -217,6 +208,6 @@ get:
 
 ---
 kind: signature
-hmac: 55a36b8b2f35f3fd9dad18c163b490f27ec986d022463155a4b4b3486a8324c7
+hmac: f118462016f49273b314b17bdbff23ed75d592959867d49df59492ddacde92d0
 
 ...
