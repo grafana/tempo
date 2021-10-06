@@ -248,8 +248,7 @@ func TestSearchWAL(t *testing.T) {
 	assert.Equal(t, uint32(1), results.Metrics.InspectedTraces)
 
 	// Shutdown
-	err = i.stopping(nil)
-	require.NoError(t, err)
+	require.NoError(t, i.stopping(nil))
 
 	// replay wal
 	i = defaultIngesterModule(t, tmpDir)
@@ -328,8 +327,7 @@ func TestFlush(t *testing.T) {
 	}
 
 	// stopping the ingester should force cut all live traces to disk
-	err = ingester.stopping(nil)
-	require.NoError(t, err)
+	require.NoError(t, ingester.stopping(nil))
 
 	// create new ingester.  this should replay wal!
 	ingester, _, _ = defaultIngester(t, tmpDir)

@@ -381,6 +381,7 @@ func (i *Ingester) replayWal() error {
 		for _, s := range searchBlocks {
 			if b.BlockID() == s.BlockID {
 				searchWALBlock = s
+				break
 			}
 		}
 		instance.AddCompletingBlock(b, searchWALBlock)
