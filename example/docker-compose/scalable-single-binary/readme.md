@@ -1,0 +1,57 @@
+## Scalable Single Binary
+
+In this example tempo is configured to write data to MinIO which presents an S3 compatible API.  Additionally, `memberlist` is enabled to demonstrate how a single binary can run all services and still make use of the cluster-awareness that `memberlist` provides.
+
+1. First start up the local stack.
+
+```console
+docker-compose up -d
+```
+
+At this point, the following containers should be spun up -
+
+```console
+docker-compose ps
+```
+```
+scalable-single-binary-grafana-1                    "/run.sh"                grafana                    running             0.0.0.0:3000->3000/tcp, :::3000->3000/tcp
+scalable-single-binary-minio-1                      "sh -euc 'mkdir -p /…"   minio                      running             0.0.0.0:9000-9001->9000-9001/tcp, :::9000-9001->9000-9001/tcp
+scalable-single-binary-prometheus-1                 "/bin/prometheus --c…"   prometheus                 running             0.0.0.0:9090->9090/tcp, :::9090->9090/tcp
+scalable-single-binary-synthetic-load-generator-1   "./start.sh"             synthetic-load-generator   running             
+scalable-single-binary-tempo1-1                     "/tempo -target=scal…"   tempo1                     running             0.0.0.0:49164->3200/tcp, 0.0.0.0:49163->7946/tcp, 0.0.0.0:49161->14268/tcp, :::49164->3200/tcp, :::49163->7946/tcp, :::49161->14268/tcp
+scalable-single-binary-tempo2-1                     "/tempo -target=scal…"   tempo2                     running             0.0.0.0:49166->3200/tcp, 0.0.0.0:49165->7946/tcp, :::49166->3200/tcp, :::49165->7946/tcp
+scalable-single-binary-tempo3-1                     "/tempo -target=scal…"   tempo3                     running             0.0.0.0:49162->3200/tcp, 0.0.0.0:49160->7946/tcp, :::49162->3200/tcp, :::49160->7946/tcp
+scalable-single-binary-vulture-1                    "/tempo-vulture -pro…"   vulture                    running             0.0.0.0:3201->3201/tcp, :::3201->3201/tcp
+```
+
+2. If you're interested you can see the wal/blocks as they are being created.  Navigate to minio at
+http://localhost:9001 and use the username/password of `tempo`/`supersecret`.
+
+3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
+
+```console
+docker-compose logs -f synthetic-load-generator
+```
+```
+synthetic-load-generator_1  | 20/10/24 08:27:09 INFO ScheduledTraceGenerator: Emitted traceId 57aedb829f352625 for service frontend route /product
+synthetic-load-generator_1  | 20/10/24 08:27:09 INFO ScheduledTraceGenerator: Emitted traceId 25fa96b9da24b23f for service frontend route /cart
+synthetic-load-generator_1  | 20/10/24 08:27:09 INFO ScheduledTraceGenerator: Emitted traceId 15b3ad814b77b779 for service frontend route /shipping
+synthetic-load-generator_1  | 20/10/24 08:27:09 INFO ScheduledTraceGenerator: Emitted traceId 3803db7d7d848a1a for service frontend route /checkout
+```
+
+Logs are in the form
+
+```
+Emitted traceId <traceid> for service frontend route /cart
+```
+
+Copy one of these trace ids.
+
+4. Navigate to [Grafana](http://localhost:3000/explore) and paste the trace id to request it from Tempo.
+Also notice that you can query Tempo metrics from the Prometheus data source setup in Grafana.
+
+5. To stop the setup use -
+
+```console
+docker-compose down -v
+```
