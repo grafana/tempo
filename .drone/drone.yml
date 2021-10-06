@@ -81,7 +81,8 @@ steps:
 - name: image-tag
   image: alpine/git
   commands:
-  # the alpine/git image has one apk error when run in arm64, fix it before running apk add
+  # the alpine/git image has apk errors when run in arm64, fix them before running any other apk command
+  # https://github.com/alpine-docker/git/issues/35
   - apk fix
   - apk --update --no-cache add bash
   - git fetch origin --tags
