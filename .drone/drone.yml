@@ -214,4 +214,6 @@ get:
 
 ---
 kind: signature
-hmac: 7b4fba65b74d2143b31f7f03d3a1cfbccba6960b0037cee65a7406df9f507370
+hmac: c7a010ef640a51af2104c7c3c76f0072ba031aab6053c81b7dd3849a61c03646
+
+...
