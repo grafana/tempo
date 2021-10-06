@@ -19,7 +19,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	"github.com/weaveworks/common/user"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -69,7 +68,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	var overallTrace *tempopb.Trace
 	var overallError error
-	totalFailedBlocks := atomic.NewUint32(0)
+	var totalFailedBlocks uint32
 	statusCode := http.StatusNotFound
 	statusMsg := "trace not found"
 
@@ -134,9 +133,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			}
 
 			if traceResp.Metrics != nil {
-				current := totalFailedBlocks.Add(traceResp.Metrics.FailedBlocks)
-				if current > s.maxFailedBlocks {
-					overallError = fmt.Errorf("too many failed block queries %d (max %d)", current, s.maxFailedBlocks)
+				totalFailedBlocks += traceResp.Metrics.FailedBlocks
+				if totalFailedBlocks > s.maxFailedBlocks {
+					overallError = fmt.Errorf("too many failed block queries %d (max %d)", totalFailedBlocks, s.maxFailedBlocks)
 					return
 				}
 			}
@@ -175,7 +174,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	buff, err := proto.Marshal(&tempopb.TraceByIDResponse{
 		Trace: overallTrace,
 		Metrics: &tempopb.TraceByIDMetrics{
-			FailedBlocks: totalFailedBlocks.Load(),
+			FailedBlocks: totalFailedBlocks,
 		},
 	})
 	if err != nil {
