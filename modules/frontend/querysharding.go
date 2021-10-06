@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	"github.com/weaveworks/common/user"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -68,7 +69,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	var overallTrace *tempopb.Trace
 	var overallError error
-	var totalFailedBlocks uint32
+	totalFailedBlocks := atomic.NewUint32(0)
 	statusCode := http.StatusNotFound
 	statusMsg := "trace not found"
 
@@ -85,7 +86,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				overallError = err
 			}
 
-			if s.shouldQuit(r.Context(), statusCode, totalFailedBlocks, overallError) {
+			if shouldQuit(r.Context(), statusCode, overallError) {
 				return
 			}
 
@@ -131,9 +132,15 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				overallError = err
 				return
 			}
+
 			if traceResp.Metrics != nil {
-				totalFailedBlocks += traceResp.Metrics.FailedBlocks
+				current := totalFailedBlocks.Add(traceResp.Metrics.FailedBlocks)
+				if current > s.maxFailedBlocks {
+					overallError = fmt.Errorf("too many failed block queries %d (max %d)", current, s.maxFailedBlocks)
+					return
+				}
 			}
+
 			trace := &tempopb.Trace{}
 			if traceResp.Trace != nil {
 				trace = traceResp.Trace
@@ -168,7 +175,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	buff, err := proto.Marshal(&tempopb.TraceByIDResponse{
 		Trace: overallTrace,
 		Metrics: &tempopb.TraceByIDMetrics{
-			FailedBlocks: totalFailedBlocks,
+			FailedBlocks: totalFailedBlocks.Load(),
 		},
 	})
 	if err != nil {
@@ -176,12 +183,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	statusCode = http.StatusOK
-	if totalFailedBlocks > 0 {
-		statusCode = http.StatusPartialContent
-	}
 	return &http.Response{
-		StatusCode:    statusCode,
+		StatusCode:    http.StatusOK,
 		Header:        http.Header{},
 		Body:          io.NopCloser(bytes.NewReader(buff)),
 		ContentLength: int64(len(buff)),
@@ -224,25 +227,6 @@ func (s *shardQuery) buildShardedRequests(parent *http.Request) ([]*http.Request
 	return reqs, nil
 }
 
-func (s *shardQuery) shouldQuit(ctx context.Context, statusCode int, totalFailedBlocks uint32, err error) bool {
-	if err != nil {
-		return true
-	}
-	if ctx.Err() != nil {
-		return true
-	}
-	if statusCode/100 == 5 { // bail on any 5xx's
-		return true
-	}
-
-	if totalFailedBlocks > s.maxFailedBlocks {
-		fmt.Println("its quitting here")
-		return true
-	}
-
-	return false
-}
-
 // createBlockBoundaries splits the range of blockIDs into queryShards parts
 func createBlockBoundaries(queryShards int) [][]byte {
 	if queryShards == 0 {
@@ -264,4 +248,18 @@ func createBlockBoundaries(queryShards int) [][]byte {
 	binary.LittleEndian.PutUint64(blockBoundaries[queryShards][8:], MaxUint64)
 
 	return blockBoundaries
+}
+
+func shouldQuit(ctx context.Context, statusCode int, err error) bool {
+	if err != nil {
+		return true
+	}
+	if ctx.Err() != nil {
+		return true
+	}
+	if statusCode/100 == 5 { // bail on any 5xx's
+		return true
+	}
+
+	return false
 }

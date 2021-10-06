@@ -149,7 +149,7 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 			resp, err := rt.RoundTrip(r)
 
 			// todo : should all of this request/response content type be up a level and be used for all query types?
-			if resp != nil && (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent) && marshallingFormat == util.JSONTypeHeaderValue {
+			if resp != nil && resp.StatusCode == http.StatusOK && marshallingFormat == util.JSONTypeHeaderValue {
 				// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
 				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
@@ -160,6 +160,10 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 				err = proto.Unmarshal(body, responseObject)
 				if err != nil {
 					return nil, err
+				}
+
+				if responseObject.Metrics.FailedBlocks > 0 {
+					resp.StatusCode = http.StatusPartialContent
 				}
 
 				var jsonTrace bytes.Buffer

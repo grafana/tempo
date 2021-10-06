@@ -56,7 +56,7 @@ func (s spanIDDeduper) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent {
+	if resp.StatusCode == http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		defer resp.Body.Close()
 		if err != nil {
