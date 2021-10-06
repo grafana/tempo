@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
@@ -93,16 +92,17 @@ func TestShardingWareDoRequest(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		status1        int
-		status2        int
-		trace1         *tempopb.Trace
-		trace2         *tempopb.Trace
-		err1           error
-		err2           error
-		expectedStatus int
-		expectedTrace  *tempopb.Trace
-		expectedError  error
+		name               string
+		status1            int
+		status2            int
+		trace1             *tempopb.Trace
+		trace2             *tempopb.Trace
+		err1               error
+		err2               error
+		failedBlockQueries int
+		expectedStatus     int
+		expectedTrace      *tempopb.Trace
+		expectedError      error
 	}{
 		{
 			name:           "empty returns",
@@ -210,11 +210,30 @@ func TestShardingWareDoRequest(t *testing.T) {
 			err2:          errors.New("booo"),
 			expectedError: errors.New("booo"),
 		},
+		{
+			name:               "failed block queries <= max",
+			status1:            200,
+			trace1:             trace1,
+			status2:            200,
+			trace2:             trace2,
+			failedBlockQueries: 1,
+			expectedStatus:     200,
+			expectedTrace:      trace,
+		},
+		{
+			name:               "too many failed block queries",
+			status1:            200,
+			trace1:             trace1,
+			status2:            200,
+			trace2:             trace2,
+			failedBlockQueries: 10,
+			expectedError:      errors.New("too many failed block queries 10 (max 2)"),
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			sharder := ShardingWare(2, log.NewNopLogger())
+			sharder := ShardingWare(2, 2, log.NewNopLogger())
 
 			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var trace *tempopb.Trace
@@ -238,6 +257,9 @@ func TestShardingWareDoRequest(t *testing.T) {
 				if trace != nil {
 					resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
 						Trace: trace,
+						Metrics: &tempopb.TraceByIDMetrics{
+							FailedBlocks: uint32(tc.failedBlockQueries),
+						},
 					})
 					require.NoError(t, err)
 				}
@@ -271,7 +293,6 @@ func TestShardingWareDoRequest(t *testing.T) {
 
 				model.SortTrace(tc.expectedTrace)
 				model.SortTrace(actualResp.Trace)
-				fmt.Println(tc.expectedTrace)
 				assert.True(t, proto.Equal(tc.expectedTrace, actualResp.Trace))
 			}
 		})
