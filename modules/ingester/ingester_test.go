@@ -235,8 +235,7 @@ func TestSearchWAL(t *testing.T) {
 	assert.NoError(t, inst.PushBytes(context.Background(), id, traceBytes, searchBytes))
 
 	// Write wal
-	err = inst.CutCompleteTraces(0, true)
-	require.NoError(t, err)
+	require.NoError(t, inst.CutCompleteTraces(0, true))
 
 	// search WAL
 	ctx := user.InjectOrgID(context.Background(), "test")
