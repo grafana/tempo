@@ -107,7 +107,7 @@ func TestReturnAllHits(t *testing.T) {
 	// find should return both now
 	foundBytes, _, failedBLocks, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, failedBLocks)
+	assert.Nil(t, failedBLocks)
 	require.Len(t, foundBytes, 2)
 
 	// expected trace

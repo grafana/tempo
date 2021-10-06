@@ -102,7 +102,7 @@ func TestDB(t *testing.T) {
 	for i, id := range ids {
 		bFound, actualDataEncoding, failedBlocks, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
-		assert.Equal(t, 0, failedBlocks)
+		assert.Nil(t, failedBlocks)
 		assert.Equal(t, []string{testDataEncoding}, actualDataEncoding)
 
 		out := &tempopb.PushRequest{}
@@ -155,7 +155,7 @@ func TestBlockSharding(t *testing.T) {
 	blockEnd := uuid.MustParse(BlockIDMax).String()
 	bFound, _, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, failedBlocks)
+	assert.Nil(t, failedBlocks)
 	assert.Greater(t, len(bFound), 0)
 
 	out := &tempopb.PushRequest{}
@@ -168,7 +168,7 @@ func TestBlockSharding(t *testing.T) {
 	blockEnd = uuid.MustParse(BlockIDMin).String()
 	bFound, _, failedBlocks, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, failedBlocks)
+	assert.Nil(t, failedBlocks)
 	assert.Len(t, bFound, 0)
 }
 
@@ -179,7 +179,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 	buff, _, failedBlocks, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, failedBlocks)
+	assert.Nil(t, failedBlocks)
 }
 
 func TestBlockCleanup(t *testing.T) {
@@ -521,7 +521,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	for i, id := range ids {
 		bFound, _, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
 		assert.NoError(t, err)
-		assert.Equal(t, 0, failedBlocks)
+		assert.Nil(t, failedBlocks)
 
 		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(bFound[0], out)
@@ -550,7 +550,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	for i, id := range ids {
 		bFound, _, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockID, blockID)
 		assert.NoError(t, err)
-		assert.Equal(t, 0, failedBlocks)
+		assert.Nil(t, failedBlocks)
 
 		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(bFound[0], out)

@@ -9,7 +9,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/uber-go/atomic"
-	"go.uber.org/multierr"
 )
 
 const (
@@ -29,25 +28,6 @@ var (
 		Help:      "Maximum number of items in the work queue.",
 	})
 )
-
-// JobStats are metrics of running the provided func for the given payloads
-type JobStats struct {
-	// fnErrs contain the errors of executing the func
-	fnErrs []error
-}
-
-func (s *JobStats) Errs() error {
-	if len(s.fnErrs) != 0 {
-		return multierr.Combine(s.fnErrs...)
-	}
-	return nil
-}
-
-func (s *JobStats) ErrsCount() int {
-	return len(s.fnErrs)
-}
-
-var jobStats = JobStats{}
 
 type JobFunc func(ctx context.Context, payload interface{}) ([]byte, string, error)
 
@@ -100,7 +80,7 @@ func NewPool(cfg *Config) *Pool {
 	return p
 }
 
-func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([][]byte, []string, JobStats, error) {
+func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([][]byte, []string, []error, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -108,7 +88,7 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 
 	// sanity check before we even attempt to start adding jobs
 	if int(p.size.Load())+totalJobs > p.cfg.QueueDepth {
-		return nil, nil, jobStats, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
+		return nil, nil, nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
 	resultsCh := make(chan result, totalJobs) // way for jobs to send back results
@@ -134,7 +114,7 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 		default:
 			wg.Done()
 			stop.Store(true)
-			return nil, nil, jobStats, fmt.Errorf("failed to add a job to work queue")
+			return nil, nil, nil, fmt.Errorf("failed to add a job to work queue")
 		}
 	}
 
@@ -147,17 +127,17 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	// read all from results channel
 	var data [][]byte
 	var enc []string
-	var stats JobStats
+	var funcErrs []error
 	for res := range resultsCh {
 		if res.err != nil {
-			stats.fnErrs = append(stats.fnErrs, res.err)
+			funcErrs = append(funcErrs, res.err)
 		} else {
 			data = append(data, res.data)
 			enc = append(enc, res.enc)
 		}
 	}
 
-	return data, enc, stats, nil
+	return data, enc, funcErrs, nil
 }
 
 func (p *Pool) Shutdown() {

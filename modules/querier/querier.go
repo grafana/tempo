@@ -10,7 +10,14 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
+	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
@@ -18,13 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/user"
-
-	ingester_client "github.com/grafana/tempo/modules/ingester/client"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/validation"
+	"go.uber.org/multierr"
 )
 
 var (
@@ -190,16 +191,21 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			ot_log.Int("combinedTraces", traceCountTotal))
 	}
 
-	var failedBlocks uint32
+	var failedBlocks int
 	defer func() { failedBlockQueries.Add(float64(failedBlocks)) }()
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
-		partialTraces, dataEncodings, fb, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+		partialTraces, dataEncodings, blockErrs, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}
 
-		failedBlocks = uint32(fb)
+		if blockErrs != nil {
+			failedBlocks = len(blockErrs)
+			err := fmt.Errorf("failed to query %d blocks: %w", failedBlocks, multierr.Combine(blockErrs...))
+			level.Warn(log.Logger).Log("msg", err)
+		}
+
 		span.LogFields(ot_log.String("msg", "done searching store"))
 
 		if len(partialTraces) != 0 {
@@ -236,7 +242,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	return &tempopb.TraceByIDResponse{
 		Trace: completeTrace,
 		Metrics: &tempopb.TraceByIDMetrics{
-			FailedBlocks: failedBlocks,
+			FailedBlocks: uint32(failedBlocks),
 		},
 	}, nil
 }

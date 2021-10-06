@@ -176,7 +176,7 @@ func TestCompaction(t *testing.T) {
 	for i, id := range allIds {
 		b, _, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
-		assert.Equal(t, 0, failedBlocks)
+		assert.Nil(t, failedBlocks)
 
 		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(b[0], out)
@@ -341,7 +341,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 			assert.NotNil(t, trace)
 			assert.Greater(t, len(trace), 0)
 			assert.NoError(t, err)
-			assert.Equal(t, 0, failedBlocks)
+			assert.Nil(t, failedBlocks)
 		}
 	}
 }
