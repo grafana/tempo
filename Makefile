@@ -216,3 +216,10 @@ tempo-mixin:
 
 tempo-mixin-check:
 	$(MAKE) -C operations/tempo-mixin check
+
+### drone
+.PHONY: drone drone-check
+# this requires the drone-cli https://docs.drone.io/cli/install/
+drone:
+	drone lint .drone/drone.yml
+	drone sign --save grafana/tempo .drone/drone.yml || echo "You probably forgot to set DRONE_SERVER and DRONE_TOKEN"
