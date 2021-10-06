@@ -18,7 +18,7 @@ The most basic functionality is to visualize a trace using its ID.  Select the T
 <p align="center"><img src="../grafana-query.png" alt="View trace by ID"></p>
 
 ## Log search
-Traces can be discovered by searching logs for entries containing trace IDs.  This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc.  This feature requires Grafana 7.5 or later, with a linked Loki data source, and a traceID derived field.
+Traces can be discovered by searching logs for entries containing trace IDs.  This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc.  This feature requires Grafana 7.5 or later, with a linked Loki data source, and a [traceID derived field](https://grafana.com/docs/grafana/latest/datasources/loki/#derived-fields).
 
 <p align="center"><img src="../log-search.png" alt="Log Search"></p>
 
