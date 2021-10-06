@@ -3,6 +3,7 @@ package wal
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"math/rand"
 	"os"
@@ -267,6 +268,53 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 
 	err = blocks[0].Clear()
 	require.NoError(t, err)
+}
+
+func TestParseFileName(t *testing.T) {
+
+	testCases := []struct {
+		name         string
+		filename     string
+		blockID      uuid.UUID
+		tenant       string
+		version      string
+		encoding     backend.Encoding
+		dataEncoding string
+		err          error
+	}{
+		{
+			"wal",
+			"00000000-0000-0000-0000-000000000000:1:v2:snappy:v1",
+			uuid.MustParse("00000000-0000-0000-0000-000000000000"), "1", "v2", backend.EncSnappy, "v1", nil,
+		},
+		{
+			"search wal",
+			"00000000-0000-0000-0000-000000000000:1:v2:snappy:",
+			uuid.MustParse("00000000-0000-0000-0000-000000000000"), "1", "v2", backend.EncSnappy, "", nil,
+		},
+		{
+			"missing segments",
+			"xyz",
+			uuid.Nil, "", "", backend.EncNone, "", errors.New("unable to parse xyz. unexpected number of segments"),
+		},
+		{
+			"no data encoding",
+			"00000000-0000-0000-0000-000000000000:1:v2:snappy",
+			uuid.MustParse("00000000-0000-0000-0000-000000000000"), "1", "v2", backend.EncSnappy, "", nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			b, tn, v, e, de, err := ParseFilename(tc.filename)
+			require.Equal(t, tc.blockID, b)
+			require.Equal(t, tc.tenant, tn)
+			require.Equal(t, tc.version, v)
+			require.Equal(t, tc.encoding, e)
+			require.Equal(t, tc.dataEncoding, de)
+			require.Equal(t, tc.err, err)
+		})
+	}
 }
 
 func BenchmarkWALNone(b *testing.B) {

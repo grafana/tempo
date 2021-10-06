@@ -149,7 +149,8 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File,
 	return os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
 }
 
-// ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error)
+// ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).
+// Example: "00000000-0000-0000-0000-000000000000:1:v2:snappy:v1"
 func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding, string, error) {
 	splits := strings.Split(filename, ":")
 
