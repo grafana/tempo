@@ -71,7 +71,7 @@ name: docker-arm64
 
 platform:
   os: linux
-  arch: amd64
+  arch: arm64
 
 steps:
 - name: image-tag
@@ -208,6 +208,6 @@ get:
 
 ---
 kind: signature
-hmac: f118462016f49273b314b17bdbff23ed75d592959867d49df59492ddacde92d0
+hmac: abd3b54098c91a187d36ad479babcaf25e9f7e582038440e5928b43d20a577ed
 
 ...

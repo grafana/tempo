@@ -97,7 +97,7 @@ local docker_manifest(app) = {
 [
   // A pipeline to build Docker images for every app and for every arch
   (
-    pipeline('docker-' + arch) {
+    pipeline('docker-' + arch, arch) {
       steps+: [
         image_tag(arch),
         build_binaries(arch),
