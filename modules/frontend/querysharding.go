@@ -66,9 +66,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	wg := sync.WaitGroup{}
 	mtx := sync.Mutex{}
 
-	var overallTrace *tempopb.Trace
 	var overallError error
 	var totalFailedBlocks uint32
+	overallTrace := &tempopb.Trace{}
 	statusCode := http.StatusNotFound
 	statusMsg := "trace not found"
 
@@ -140,14 +140,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				}
 			}
 
-			trace := &tempopb.Trace{}
-			if traceResp.Trace != nil {
-				trace = traceResp.Trace
-			}
-
 			// happy path
 			statusCode = http.StatusOK
-			overallTrace, _, _, _ = model.CombineTraceProtos(overallTrace, trace)
+			overallTrace, _, _, _ = model.CombineTraceProtos(overallTrace, traceResp.Trace)
 		}(req)
 	}
 	wg.Wait()
