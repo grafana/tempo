@@ -315,6 +315,9 @@ func TestScalableSingleBinary(t *testing.T) {
 	err = tempo1.Stop()
 	require.NoError(t, err)
 
+	// Push to one of the instances that are still running.
+	require.NoError(t, info.EmitBatches(c2))
+
 	err = tempo2.Stop()
 	require.NoError(t, err)
 
