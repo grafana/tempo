@@ -20,7 +20,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Config.FrontendV1.MaxOutstandingPerTenant = 100
 	cfg.MaxRetries = 2
 	cfg.QueryShards = 20
-	cfg.MaxFailedBlocks = 5
+	cfg.MaxFailedBlocks = 0
 }
 
 type CortexNoQuerierLimits struct{}
