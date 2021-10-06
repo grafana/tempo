@@ -222,4 +222,7 @@ tempo-mixin-check:
 # this requires the drone-cli https://docs.drone.io/cli/install/
 drone:
 	drone lint .drone/drone.yml
-	drone sign --save grafana/tempo .drone/drone.yml || echo "You probably forgot to set DRONE_SERVER and DRONE_TOKEN"
+ifndef DRONE_TOKEN
+	$(error DRONE_TOKEN is not set, visit https://drone.grafana.net/account)
+endif
+	DRONE_SERVER=https://drone.grafana.net drone sign --save grafana/tempo .drone/drone.yml

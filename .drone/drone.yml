@@ -81,6 +81,9 @@ steps:
 - name: image-tag
   image: alpine/git
   commands:
+  # the alpine/git image has apk errors when run in arm64, fix them before running any other apk command
+  # https://github.com/alpine-docker/git/issues/35
+  - apk fix
   - apk --update --no-cache add bash
   - git fetch origin --tags
   - echo $(./tools/image-tag)-arm64 > .tags
@@ -214,6 +217,6 @@ get:
 
 ---
 kind: signature
-hmac: c7a010ef640a51af2104c7c3c76f0072ba031aab6053c81b7dd3849a61c03646
+hmac: 55a36b8b2f35f3fd9dad18c163b490f27ec986d022463155a4b4b3486a8324c7
 
 ...
