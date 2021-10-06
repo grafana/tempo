@@ -32,6 +32,7 @@ import (
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
+	"github.com/grafana/tempo/modules/distributor/receiver"
 	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/modules/ingester"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
@@ -164,9 +165,11 @@ type App struct {
 	store        storage.Store
 	MemberlistKV *memberlist.KVInitService
 
-	HTTPAuthMiddleware middleware.Interface
-	ModuleManager      *modules.Manager
-	serviceMap         map[string]services.Service
+	HTTPAuthMiddleware       middleware.Interface
+	TracesConsumerMiddleware receiver.Interface
+
+	ModuleManager *modules.Manager
+	serviceMap    map[string]services.Service
 }
 
 // New makes a new app.
@@ -214,6 +217,7 @@ func (t *App) setupAuthMiddleware() {
 			},
 		}
 		t.HTTPAuthMiddleware = middleware.AuthenticateUser
+		t.TracesConsumerMiddleware = receiver.MultiTenancyMiddleware()
 	} else {
 		t.cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
 			fakeGRPCAuthUniaryMiddleware,
@@ -222,6 +226,7 @@ func (t *App) setupAuthMiddleware() {
 			fakeGRPCAuthStreamMiddleware,
 		}
 		t.HTTPAuthMiddleware = fakeHTTPAuthMiddleware
+		t.TracesConsumerMiddleware = receiver.FakeTenantMiddleware()
 	}
 }
 
