@@ -43,7 +43,7 @@ const (
 	Compactor            string = "compactor"
 	Store                string = "store"
 	MemberlistKV         string = "memberlist-kv"
-	All                  string = "all"
+	SingleBinary         string = "all"
 	ScalableSingleBinary string = "scalable-single-binary"
 )
 
@@ -140,9 +140,9 @@ func (t *App) initIngester() (services.Service, error) {
 func (t *App) initQuerier() (services.Service, error) {
 	// validate worker config
 	// if we're not in single binary mode and worker address is not specified - bail
-	if t.cfg.Target != All && t.cfg.Querier.Worker.FrontendAddress == "" {
+	if t.cfg.Target != SingleBinary && t.cfg.Querier.Worker.FrontendAddress == "" {
 		return nil, fmt.Errorf("frontend worker address not specified")
-	} else if t.cfg.Target == All {
+	} else if t.cfg.Target == SingleBinary {
 		// if we're in single binary mode with no worker address specified, register default endpoint
 		if t.cfg.Querier.Worker.FrontendAddress == "" {
 			t.cfg.Querier.Worker.FrontendAddress = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
@@ -288,7 +288,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
-	mm.RegisterModule(All, nil)
+	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
 
 	deps := map[string][]string{
@@ -302,8 +302,8 @@ func (t *App) setupModuleManager() error {
 		Ingester:             {Store, Server, Overrides, MemberlistKV},
 		Querier:              {Store, Ring},
 		Compactor:            {Store, Server, Overrides, MemberlistKV},
-		All:                  {Compactor, QueryFrontend, Querier, Ingester, Distributor},
-		ScalableSingleBinary: {All},
+		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor},
+		ScalableSingleBinary: {SingleBinary},
 	}
 
 	for mod, targets := range deps {
