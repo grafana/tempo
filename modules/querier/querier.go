@@ -34,11 +34,6 @@ var (
 		Name:      "querier_ingester_clients",
 		Help:      "The current number of ingester clients.",
 	})
-	failedBlockQueries = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "querier_failed_blocks",
-		Help:      "Number of block queries that have failed.",
-	})
 )
 
 // Querier handlers queries.
@@ -192,7 +187,6 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	var failedBlocks int
-	defer func() { failedBlockQueries.Add(float64(failedBlocks)) }()
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
 		partialTraces, dataEncodings, blockErrs, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
