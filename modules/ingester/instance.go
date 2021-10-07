@@ -536,8 +536,8 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 // writeTraceToHeadBlock exists
 func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte) error {
 	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 	err := i.headBlock.Write(id, b)
-	i.blocksMtx.Unlock()
 	if err != nil {
 		return err
 	}
@@ -556,8 +556,8 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 // flushHeadBlock exists
 func (i *instance) flushHeadBlock() error {
 	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
 	err := i.headBlock.FlushBuffer()
-	i.blocksMtx.Unlock()
 	if err != nil {
 		return err
 	}
