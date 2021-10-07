@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -25,9 +26,10 @@ type AppendBlock struct {
 	appendFile *os.File
 	appender   encoding.Appender
 
-	filepath string
-	readFile *os.File
-	once     sync.Once
+	filepath       string
+	readFile       *os.File
+	bufferedWriter *bufio.Writer
+	once           sync.Once
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string) (*AppendBlock, error) {
@@ -54,8 +56,9 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 		return nil, err
 	}
 	h.appendFile = f
+	h.bufferedWriter = bufio.NewWriterSize(f, 10*1024*1024)
 
-	dataWriter, err := h.encoding.NewDataWriter(f, e)
+	dataWriter, err := h.encoding.NewDataWriter(h.bufferedWriter, e)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +114,10 @@ func (a *AppendBlock) Write(id common.ID, b []byte) error {
 	}
 	a.meta.ObjectAdded(id)
 	return nil
+}
+
+func (a *AppendBlock) FlushBuffers() error {
+	return a.bufferedWriter.Flush()
 }
 
 func (a *AppendBlock) BlockID() uuid.UUID {
@@ -175,6 +182,10 @@ func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 }
 
 func (a *AppendBlock) Clear() error {
+	if a.bufferedWriter != nil {
+		_ = a.bufferedWriter.Flush()
+	}
+
 	if a.readFile != nil {
 		_ = a.readFile.Close()
 		a.readFile = nil

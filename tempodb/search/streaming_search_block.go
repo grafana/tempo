@@ -1,6 +1,7 @@
 package search
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"io"
@@ -18,12 +19,13 @@ var _ SearchableBlock = (*StreamingSearchBlock)(nil)
 
 // StreamingSearchBlock is search data that is read/write, i.e. for traces in the WAL.
 type StreamingSearchBlock struct {
-	BlockID  uuid.UUID // todo: add the full meta?
-	appender encoding.Appender
-	file     *os.File
-	header   *tempofb.SearchBlockHeaderMutable
-	v        encoding.VersionedEncoding
-	enc      backend.Encoding
+	BlockID        uuid.UUID // todo: add the full meta?
+	appender       encoding.Appender
+	file           *os.File
+	bufferedWriter *bufio.Writer
+	header         *tempofb.SearchBlockHeaderMutable
+	v              encoding.VersionedEncoding
+	enc            backend.Encoding
 }
 
 // Close closes the WAL file. Used in tests
@@ -50,9 +52,10 @@ func NewStreamingSearchBlockForFile(f *os.File, version string, enc backend.Enco
 		v:      v,
 		enc:    enc,
 	}
+	s.bufferedWriter = bufio.NewWriterSize(f, 10*1024*1024)
 
 	// Use versioned encoding to create paged entries
-	dataWriter, err := s.v.NewDataWriter(f, enc)
+	dataWriter, err := s.v.NewDataWriter(s.bufferedWriter, enc)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +78,10 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 	s.header.AddEntry(tempofb.SearchEntryFromBytes(combined))
 
 	return s.appender.Append(id, combined)
+}
+
+func (s *StreamingSearchBlock) FlushBuffers() error {
+	return s.bufferedWriter.Flush()
 }
 
 // Search the streaming block.

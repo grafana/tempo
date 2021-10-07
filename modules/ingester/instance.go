@@ -217,6 +217,11 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		tempopb.ReuseTraceBytes(t.traceBytes)
 	}
 
+	err := i.flushHeadBlock()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -546,6 +551,26 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 	if entry != nil {
 		entry.mtx.Lock()
 		err := entry.b.Append(context.TODO(), id, searchData)
+		entry.mtx.Unlock()
+		return err
+	}
+
+	return nil
+}
+
+func (i *instance) flushHeadBlock() error {
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
+	err := i.headBlock.FlushBuffers()
+	if err != nil {
+		return err
+	}
+
+	entry := i.searchHeadBlock
+	if entry != nil {
+		entry.mtx.Lock()
+		err := entry.b.FlushBuffers()
 		entry.mtx.Unlock()
 		return err
 	}
