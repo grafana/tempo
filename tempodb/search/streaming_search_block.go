@@ -84,6 +84,8 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 
 // FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
 // that all data makes it to the disk. It is intended that there are many Write() calls per FlushBuffer().
+// It must also be called before any attempts to use appender records to read the file such as in Search() or
+// Iterator.
 func (s *StreamingSearchBlock) FlushBuffer() error {
 	if s.bufferedWriter == nil {
 		return nil
