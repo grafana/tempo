@@ -63,17 +63,19 @@ func TestAppend(t *testing.T) {
 		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
 		reqs = append(reqs, req)
 		bReq, err := proto.Marshal(req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		err = block.Write([]byte{0x01}, bReq)
-		assert.NoError(t, err, "unexpected error writing req")
+		require.NoError(t, err)
 	}
+	err = block.FlushBuffers()
+	require.NoError(t, err)
 
 	records := block.appender.Records()
 	file, err := block.file()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	iterator := encoding.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
 	defer iterator.Close()
 	i := 0
@@ -145,6 +147,9 @@ func TestErrorConditions(t *testing.T) {
 		err = block.Write(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
+	err = block.FlushBuffers()
+	require.NoError(t, err)
+
 	appendFile, err := os.OpenFile(block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	require.NoError(t, err)
 	_, err = appendFile.Write([]byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01})
@@ -210,6 +215,8 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		err = block.Write(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
+	err = block.FlushBuffers()
+	require.NoError(t, err)
 
 	for i, id := range ids {
 		obj, err := block.Find(id, &mockCombiner{})

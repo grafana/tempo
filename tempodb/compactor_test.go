@@ -122,11 +122,14 @@ func TestCompaction(t *testing.T) {
 			err = head.Write(id, bReq)
 			assert.NoError(t, err, "unexpected error writing req")
 		}
+		err = head.FlushBuffers()
+		require.NoError(t, err)
+
 		allReqs = append(allReqs, reqs...)
 		allIds = append(allIds, ids...)
 
 		_, err = w.CompleteBlock(head, &mockSharder{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		//err = w.WriteBlock(context.Background(), complete)
 		//assert.NoError(t, err)
@@ -238,10 +241,12 @@ func TestSameIDCompaction(t *testing.T) {
 		rec, _ := proto.Marshal(test.MakeTrace(1, id))
 
 		err = head.Write(id, rec)
-		assert.NoError(t, err, "unexpected error writing req")
+		require.NoError(t, err)
+		err = head.FlushBuffers()
+		require.NoError(t, err)
 
 		_, err = w.CompleteBlock(head, &mockSharder{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	rw := r.(*readerWriter)
@@ -497,6 +502,8 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 			//[]byte{0x01, 0x02, 0x03})
 			assert.NoError(t, err, "unexpected error writing rec")
 		}
+		err = head.FlushBuffers()
+		require.NoError(t, err)
 
 		b, err := w.CompleteBlock(head, &mockSharder{})
 		assert.NoError(t, err)
