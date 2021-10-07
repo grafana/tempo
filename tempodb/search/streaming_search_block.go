@@ -41,7 +41,7 @@ func (s *StreamingSearchBlock) Clear() error {
 
 // NewStreamingSearchBlockForFile creates a new streaming block that will read/write the given file.
 // File must be opened for read/write permissions.
-func NewStreamingSearchBlockForFile(f *os.File, version string, enc backend.Encoding) (*StreamingSearchBlock, error) {
+func NewStreamingSearchBlockForFile(f *os.File, bufferedWriter *bufio.Writer, version string, enc backend.Encoding) (*StreamingSearchBlock, error) {
 	v, err := encoding.FromVersion(version)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func NewStreamingSearchBlockForFile(f *os.File, version string, enc backend.Enco
 		v:      v,
 		enc:    enc,
 	}
-	s.bufferedWriter = bufio.NewWriterSize(f, 10*1024*1024)
+	s.bufferedWriter = bufferedWriter
 
 	// Use versioned encoding to create paged entries
 	dataWriter, err := s.v.NewDataWriter(s.bufferedWriter, enc)

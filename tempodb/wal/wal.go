@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,6 +33,7 @@ type Config struct {
 	BlocksFilepath    string
 	Encoding          backend.Encoding `yaml:"encoding"`
 	SearchEncoding    backend.Encoding `yaml:"search_encoding"`
+	WriteBufferSize   int              `yaml:"write_buffer_size"`
 }
 
 func New(c *Config) (*WAL, error) {
@@ -134,19 +136,24 @@ func (w *WAL) RescanBlocks(log log.Logger) ([]*AppendBlock, error) {
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*AppendBlock, error) {
-	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding)
+	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.WriteBufferSize)
 }
 
-func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, error) {
+func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, *bufio.Writer, error) {
 	p := filepath.Join(w.c.Filepath, dir)
 	err := os.MkdirAll(p, os.ModePerm)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// blockID, tenantID, version, encoding (compression), dataEncoding
 	filename := fmt.Sprintf("%v:%v:%v:%v:%v", blockid, tenantid, "v2", backend.EncNone, "")
-	return os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
+	file, err := os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return file, bufio.NewWriterSize(file, w.c.WriteBufferSize), nil
 }
 
 // ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).
