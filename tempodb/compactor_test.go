@@ -122,7 +122,7 @@ func TestCompaction(t *testing.T) {
 			err = head.Write(id, bReq)
 			assert.NoError(t, err, "unexpected error writing req")
 		}
-		err = head.FlushBuffers()
+		err = head.FlushBuffer()
 		require.NoError(t, err)
 
 		allReqs = append(allReqs, reqs...)
@@ -242,7 +242,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 		err = head.Write(id, rec)
 		require.NoError(t, err)
-		err = head.FlushBuffers()
+		err = head.FlushBuffer()
 		require.NoError(t, err)
 
 		_, err = w.CompleteBlock(head, &mockSharder{})
@@ -502,7 +502,7 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 			//[]byte{0x01, 0x02, 0x03})
 			assert.NoError(t, err, "unexpected error writing rec")
 		}
-		err = head.FlushBuffers()
+		err = head.FlushBuffer()
 		require.NoError(t, err)
 
 		b, err := w.CompleteBlock(head, &mockSharder{})

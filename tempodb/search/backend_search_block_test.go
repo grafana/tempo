@@ -40,7 +40,8 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 		binary.LittleEndian.PutUint32(id, uint32(i))
 		require.NoError(t, b1.Append(context.Background(), id, genSearchData(id, i)))
 	}
-	b1.FlushBuffers()
+	err = b1.FlushBuffer()
+	require.NoError(t, err)
 
 	l, err := local.NewBackend(&local.Config{
 		Path: t.TempDir(),

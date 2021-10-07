@@ -68,6 +68,7 @@ func NewStreamingSearchBlockForFile(f *os.File, bufferedWriter *bufio.Writer, ve
 
 // Append the given search data to the streaming block. Multiple byte buffers of search data for
 // the same trace can be passed and are merged into one entry.
+// After calling Append FlushBuffer() must be called to guarantee that all data makes it to the disk
 func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
 	combined, _ := staticCombiner.Combine("", searchData...)
 
@@ -80,7 +81,9 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 	return s.appender.Append(id, combined)
 }
 
-func (s *StreamingSearchBlock) FlushBuffers() error {
+// FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
+// that all data makes it to the disk. It is intended that there are many Write() calls per FlushBuffer().
+func (s *StreamingSearchBlock) FlushBuffer() error {
 	return s.bufferedWriter.Flush()
 }
 

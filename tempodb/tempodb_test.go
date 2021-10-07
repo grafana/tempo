@@ -137,7 +137,7 @@ func TestBlockSharding(t *testing.T) {
 	assert.NoError(t, err)
 	err = head.Write(id, bReq)
 	assert.NoError(t, err, "unexpected error writing req")
-	err = head.FlushBuffers()
+	err = head.FlushBuffer()
 	require.NoError(t, err)
 
 	// write block to backend

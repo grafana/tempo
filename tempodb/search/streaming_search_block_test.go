@@ -52,7 +52,8 @@ func newStreamingSearchBlockWithTraces(t testing.TB, traceCount int, enc backend
 
 		require.NoError(t, sb.Append(context.Background(), id, searchData))
 	}
-	sb.FlushBuffers()
+	err = sb.FlushBuffer()
+	require.NoError(t, err)
 
 	return tmpDir, sb
 }

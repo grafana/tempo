@@ -107,6 +107,9 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 	return b, warning, nil
 }
 
+// Write adds a new id/object combination to the append block
+// It must be followed up with an FlushBuffer() to guarantee that all
+// data makes it to the disk.
 func (a *AppendBlock) Write(id common.ID, b []byte) error {
 	err := a.appender.Append(id, b)
 	if err != nil {
@@ -116,7 +119,9 @@ func (a *AppendBlock) Write(id common.ID, b []byte) error {
 	return nil
 }
 
-func (a *AppendBlock) FlushBuffers() error {
+// FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
+// that all data makes it to the disk. It is intended that there are many Write() calls per FlushBuffer().
+func (a *AppendBlock) FlushBuffer() error {
 	return a.bufferedWriter.Flush()
 }
 

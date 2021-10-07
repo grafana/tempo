@@ -557,7 +557,7 @@ func (i *instance) flushHeadBlock() error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	err := i.headBlock.FlushBuffers()
+	err := i.headBlock.FlushBuffer()
 	if err != nil {
 		return err
 	}
@@ -565,7 +565,7 @@ func (i *instance) flushHeadBlock() error {
 	entry := i.searchHeadBlock
 	if entry != nil {
 		entry.mtx.Lock()
-		err := entry.b.FlushBuffers()
+		err := entry.b.FlushBuffer()
 		entry.mtx.Unlock()
 		return err
 	}

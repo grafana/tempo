@@ -67,7 +67,7 @@ func TestAppend(t *testing.T) {
 		err = block.Write([]byte{0x01}, bReq)
 		require.NoError(t, err)
 	}
-	err = block.FlushBuffers()
+	err = block.FlushBuffer()
 	require.NoError(t, err)
 
 	records := block.appender.Records()
@@ -147,7 +147,7 @@ func TestErrorConditions(t *testing.T) {
 		err = block.Write(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
-	err = block.FlushBuffers()
+	err = block.FlushBuffer()
 	require.NoError(t, err)
 
 	appendFile, err := os.OpenFile(block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
@@ -215,7 +215,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		err = block.Write(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
-	err = block.FlushBuffers()
+	err = block.FlushBuffer()
 	require.NoError(t, err)
 
 	for i, id := range ids {
