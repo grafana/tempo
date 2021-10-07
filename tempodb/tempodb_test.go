@@ -88,7 +88,7 @@ func TestDB(t *testing.T) {
 
 		bReq, err := proto.Marshal(req)
 		assert.NoError(t, err)
-		err = head.Write(id, bReq)
+		err = head.Append(id, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
@@ -135,7 +135,7 @@ func TestBlockSharding(t *testing.T) {
 
 	bReq, err := proto.Marshal(req)
 	assert.NoError(t, err)
-	err = head.Write(id, bReq)
+	err = head.Append(id, bReq)
 	assert.NoError(t, err, "unexpected error writing req")
 	err = head.FlushBuffer()
 	require.NoError(t, err)
@@ -501,7 +501,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 		bReq, err := proto.Marshal(req)
 		assert.NoError(t, err)
-		err = head.Write(id, bReq)
+		err = head.Append(id, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
@@ -578,7 +578,7 @@ func TestCompleteBlock(t *testing.T) {
 		ids = append(ids, id)
 		bReq, err := proto.Marshal(req)
 		assert.NoError(t, err)
-		err = block.Write(id, bReq)
+		err = block.Append(id, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 

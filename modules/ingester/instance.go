@@ -537,7 +537,7 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
-	err := i.headBlock.Write(id, b)
+	err := i.headBlock.Append(id, b)
 	if err != nil {
 		return err
 	}

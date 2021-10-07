@@ -119,7 +119,7 @@ func TestCompaction(t *testing.T) {
 
 			bReq, err := proto.Marshal(req)
 			assert.NoError(t, err)
-			err = head.Write(id, bReq)
+			err = head.Append(id, bReq)
 			assert.NoError(t, err, "unexpected error writing req")
 		}
 		err = head.FlushBuffer()
@@ -240,7 +240,7 @@ func TestSameIDCompaction(t *testing.T) {
 		// Different content to ensure that object combination takes place
 		rec, _ := proto.Marshal(test.MakeTrace(1, id))
 
-		err = head.Write(id, rec)
+		err = head.Append(id, rec)
 		require.NoError(t, err)
 		err = head.FlushBuffer()
 		require.NoError(t, err)
@@ -496,7 +496,7 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 			body := make([]byte, 1024)
 			rand.Read(body)
 
-			err = head.Write(
+			err = head.Append(
 				makeTraceID(i, j),
 				body)
 			//[]byte{0x01, 0x02, 0x03})

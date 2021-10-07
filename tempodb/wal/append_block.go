@@ -108,10 +108,10 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 	return b, warning, nil
 }
 
-// Write adds a new id/object combination to the append block
+// Append adds a new id/object combination to the append block
 // It must be followed up with an FlushBuffer() to guarantee that all
 // data makes it to the disk.
-func (a *AppendBlock) Write(id common.ID, b []byte) error {
+func (a *AppendBlock) Append(id common.ID, b []byte) error {
 	err := a.appender.Append(id, b)
 	if err != nil {
 		return err
@@ -123,7 +123,7 @@ func (a *AppendBlock) Write(id common.ID, b []byte) error {
 // FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
 // that all data makes it to the disk. It is intended that there are many Write() calls per FlushBuffer().
 // It must also be called before any attempts to use appender records to read the file such as in Find() or
-// GetIterator().
+// Iterator().
 func (a *AppendBlock) FlushBuffer() error {
 	if a.bufferedWriter == nil {
 		return nil
@@ -143,7 +143,7 @@ func (a *AppendBlock) Meta() *backend.BlockMeta {
 	return a.meta
 }
 
-func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
+func (a *AppendBlock) Iterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
 	err := a.FlushBuffer()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to flush buffer of append block")

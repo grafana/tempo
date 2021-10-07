@@ -64,7 +64,7 @@ func TestAppend(t *testing.T) {
 		reqs = append(reqs, req)
 		bReq, err := proto.Marshal(req)
 		require.NoError(t, err)
-		err = block.Write([]byte{0x01}, bReq)
+		err = block.Append([]byte{0x01}, bReq)
 		require.NoError(t, err)
 	}
 	err = block.FlushBuffer()
@@ -144,7 +144,7 @@ func TestErrorConditions(t *testing.T) {
 		bObj, err := proto.Marshal(obj)
 		require.NoError(t, err)
 
-		err = block.Write(id, bObj)
+		err = block.Append(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
 	err = block.FlushBuffer()
@@ -212,7 +212,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		require.NoError(t, err)
 		objs = append(objs, bObj)
 
-		err = block.Write(id, bObj)
+		err = block.Append(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
 	err = block.FlushBuffer()
@@ -236,7 +236,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	iterator, err := blocks[0].GetIterator(&mockCombiner{})
+	iterator, err := blocks[0].Iterator(&mockCombiner{})
 	require.NoError(t, err)
 	defer iterator.Close()
 
@@ -373,7 +373,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 
 		// write
 		for j, obj := range objs {
-			err := block.Write(ids[j], obj)
+			err := block.Append(ids[j], obj)
 			require.NoError(b, err)
 		}
 

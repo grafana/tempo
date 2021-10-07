@@ -94,7 +94,7 @@ func TestReturnAllHits(t *testing.T) {
 		bReq, err := proto.Marshal(req)
 		require.NoError(t, err)
 
-		err = head.Write(testTraceID, bReq)
+		err = head.Append(testTraceID, bReq)
 		require.NoError(t, err, "unexpected error writing req")
 		err = head.FlushBuffer()
 		require.NoError(t, err)
