@@ -48,7 +48,7 @@ type receiversShim struct {
 	metricViews []*view.View
 }
 
-func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, middleware Interface, logLevel logging.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, middleware Middleware, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
 		logger: tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),

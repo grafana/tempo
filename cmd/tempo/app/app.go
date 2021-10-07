@@ -166,7 +166,7 @@ type App struct {
 	MemberlistKV *memberlist.KVInitService
 
 	HTTPAuthMiddleware       middleware.Interface
-	TracesConsumerMiddleware receiver.Interface
+	TracesConsumerMiddleware receiver.Middleware
 
 	ModuleManager *modules.Manager
 	serviceMap    map[string]services.Service

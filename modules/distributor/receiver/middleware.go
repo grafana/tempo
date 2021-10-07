@@ -17,21 +17,21 @@ func (f ConsumeTracesFunc) ConsumeTraces(ctx context.Context, td pdata.Traces) e
 	return f(ctx, td)
 }
 
-type Interface interface {
+type Middleware interface {
 	Wrap(consumer.TracesConsumer) consumer.TracesConsumer
 }
 
-type Func func(consumer.TracesConsumer) consumer.TracesConsumer
+type MiddlewareFunc func(consumer.TracesConsumer) consumer.TracesConsumer
 
 // Wrap implements Interface
-func (tc Func) Wrap(next consumer.TracesConsumer) consumer.TracesConsumer {
+func (tc MiddlewareFunc) Wrap(next consumer.TracesConsumer) consumer.TracesConsumer {
 	return tc(next)
 }
 
 // Merge produces a middleware that applies multiple middlesware in turn;
 // ie Merge(f,g,h).Wrap(handler) == f.Wrap(g.Wrap(h.Wrap(handler)))
-func Merge(middlesware ...Interface) Interface {
-	return Func(func(next consumer.TracesConsumer) consumer.TracesConsumer {
+func Merge(middlesware ...Middleware) Middleware {
+	return MiddlewareFunc(func(next consumer.TracesConsumer) consumer.TracesConsumer {
 		for i := len(middlesware) - 1; i >= 0; i-- {
 			next = middlesware[i].Wrap(next)
 		}
@@ -41,7 +41,7 @@ func Merge(middlesware ...Interface) Interface {
 
 type fakeTenantMiddleware struct{}
 
-func FakeTenantMiddleware() Interface {
+func FakeTenantMiddleware() Middleware {
 	return &fakeTenantMiddleware{}
 }
 
@@ -54,7 +54,7 @@ func (m *fakeTenantMiddleware) Wrap(next consumer.TracesConsumer) consumer.Trace
 
 type multiTenancyMiddleware struct{}
 
-func MultiTenancyMiddleware() Interface {
+func MultiTenancyMiddleware() Middleware {
 	return &multiTenancyMiddleware{}
 }
 
