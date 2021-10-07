@@ -199,6 +199,14 @@ func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
+	if i.searchHeadBlock != nil {
+		i.searchHeadBlock.mtx.Lock()
+		defer i.searchHeadBlock.mtx.Unlock()
+	}
+
 	for _, t := range tracesToCut {
 		model.SortTraceBytes(t.traceBytes)
 
@@ -533,10 +541,8 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	return tracesToCut
 }
 
+// writeTraceToHeadBlock must be called under i.blocksMtx and i.searchHeadBlock.entry.mtx
 func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte) error {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
 	err := i.headBlock.Write(id, b)
 	if err != nil {
 		return err
@@ -544,19 +550,15 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 
 	entry := i.searchHeadBlock
 	if entry != nil {
-		entry.mtx.Lock()
 		err := entry.b.Append(context.TODO(), id, searchData)
-		entry.mtx.Unlock()
 		return err
 	}
 
 	return nil
 }
 
+// flushHeadBlock must be called under i.blocksMtx and i.searchHeadBlock.entry.mtx
 func (i *instance) flushHeadBlock() error {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
 	err := i.headBlock.FlushBuffer()
 	if err != nil {
 		return err
@@ -564,9 +566,7 @@ func (i *instance) flushHeadBlock() error {
 
 	entry := i.searchHeadBlock
 	if entry != nil {
-		entry.mtx.Lock()
 		err := entry.b.FlushBuffer()
-		entry.mtx.Unlock()
 		return err
 	}
 
