@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/pkg/errors"
 )
 
 const maxDataEncodingLength = 32
@@ -121,7 +122,12 @@ func (a *AppendBlock) Write(id common.ID, b []byte) error {
 
 // FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
 // that all data makes it to the disk. It is intended that there are many Write() calls per FlushBuffer().
+// It must also be called before any attempts to use appender records to read the file such as in Find() or
+// GetIterator().
 func (a *AppendBlock) FlushBuffer() error {
+	if a.bufferedWriter == nil {
+		return nil
+	}
 	return a.bufferedWriter.Flush()
 }
 
@@ -138,6 +144,11 @@ func (a *AppendBlock) Meta() *backend.BlockMeta {
 }
 
 func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
+	err := a.FlushBuffer()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to flush buffer of append block")
+	}
+
 	if a.appendFile != nil {
 		err := a.appendFile.Close()
 		if err != nil {
@@ -174,6 +185,11 @@ func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 	}
 	if len(records) == 0 {
 		return nil, nil
+	}
+
+	err = a.FlushBuffer()
+	if err != nil {
+		return nil, err
 	}
 
 	dataReader, err := a.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding)

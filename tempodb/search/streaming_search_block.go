@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -84,6 +85,9 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 // FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
 // that all data makes it to the disk. It is intended that there are many Write() calls per FlushBuffer().
 func (s *StreamingSearchBlock) FlushBuffer() error {
+	if s.bufferedWriter == nil {
+		return nil
+	}
 	return s.bufferedWriter.Flush()
 }
 
@@ -92,6 +96,11 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 	if !p.MatchesBlock(s.header) {
 		sr.AddBlockSkipped()
 		return nil
+	}
+
+	err := s.FlushBuffer()
+	if err != nil {
+		return err
 	}
 
 	sr.AddBlockInspected()
@@ -137,6 +146,11 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 }
 
 func (s *StreamingSearchBlock) Iterator() (encoding.Iterator, error) {
+	err := s.FlushBuffer()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to flush buffer of search streaming block")
+	}
+
 	iter := &streamingSearchBlockIterator{
 		records:     s.appender.Records(),
 		file:        s.file,
