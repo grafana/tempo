@@ -15,7 +15,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/common/logging"
-	"github.com/weaveworks/common/user"
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenterror"
@@ -43,18 +42,16 @@ const (
 type receiversShim struct {
 	services.Service
 
-	multitenancyEnabled bool
-	receivers           []component.Receiver
-	pusher              tempopb.PusherServer
-	logger              *tempo_util.RateLimitedLogger
-	metricViews         []*view.View
+	receivers   []component.Receiver
+	pusher      tempopb.PusherServer
+	logger      *tempo_util.RateLimitedLogger
+	metricViews []*view.View
 }
 
-func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, multitenancyEnabled bool, logLevel logging.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, middleware Middleware, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
-		multitenancyEnabled: multitenancyEnabled,
-		pusher:              pusher,
-		logger:              tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
+		pusher: pusher,
+		logger: tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
 	}
 
 	v := viper.New()
@@ -101,7 +98,7 @@ func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, multit
 			return nil, fmt.Errorf("receiver factory not found for type: %s", cfg.Type())
 		}
 
-		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, shim)
+		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +114,7 @@ func (r *receiversShim) starting(ctx context.Context) error {
 	for _, receiver := range r.receivers {
 		err := receiver.Start(ctx, r)
 		if err != nil {
-			return fmt.Errorf("Error starting receiver %w", err)
+			return fmt.Errorf("error starting receiver %w", err)
 		}
 	}
 
@@ -154,17 +151,6 @@ func (r *receiversShim) stopping(_ error) error {
 
 // implements consumer.TraceConsumer
 func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) error {
-	if !r.multitenancyEnabled {
-		ctx = user.InjectOrgID(ctx, tempo_util.FakeTenantID)
-	} else {
-		var err error
-		_, ctx, err = user.ExtractFromGRPCRequest(ctx)
-		if err != nil {
-			r.logger.Log("msg", "failed to extract org id", "err", err)
-			return err
-		}
-	}
-
 	var err error
 
 	// Convert to bytes and back. This is unfortunate for efficiency but it works
