@@ -121,7 +121,7 @@ func (a *AppendBlock) Append(id common.ID, b []byte) error {
 }
 
 // FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
-// that all data makes it to the disk. It is intended that there are many Write() calls per FlushBuffer().
+// that all data makes it to the disk. It is intended that there are many Append() calls per FlushBuffer().
 // It must also be called before any attempts to use appender records to read the file such as in Find() or
 // Iterator().
 func (a *AppendBlock) FlushBuffer() error {
@@ -144,6 +144,7 @@ func (a *AppendBlock) Meta() *backend.BlockMeta {
 }
 
 func (a *AppendBlock) Iterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
+	// make sure that all data is on disk before attempting to read it
 	err := a.FlushBuffer()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to flush buffer of append block")
@@ -187,6 +188,7 @@ func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 		return nil, nil
 	}
 
+	// make sure that all data is on disk before attempting to read it
 	err = a.FlushBuffer()
 	if err != nil {
 		return nil, err

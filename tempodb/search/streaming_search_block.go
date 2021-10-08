@@ -83,9 +83,9 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 }
 
 // FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
-// that all data makes it to the disk. It is intended that there are many Write() calls per FlushBuffer().
+// that all data makes it to the disk. It is intended that there are many Append() calls per FlushBuffer().
 // It must also be called before any attempts to use appender records to read the file such as in Search() or
-// Iterator.
+// Iterator().
 func (s *StreamingSearchBlock) FlushBuffer() error {
 	if s.bufferedWriter == nil {
 		return nil
@@ -100,13 +100,9 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 		return nil
 	}
 
-	err := s.FlushBuffer()
-	if err != nil {
-		return err
-	}
-
 	sr.AddBlockInspected()
 
+	// calling s.Iterator() forces a buffer flush. no need to do it before here
 	iter, err := s.Iterator()
 	if err != nil {
 		return err
@@ -148,6 +144,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 }
 
 func (s *StreamingSearchBlock) Iterator() (encoding.Iterator, error) {
+	// flush buffers to make sure all data is on disk
 	err := s.FlushBuffer()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to flush buffer of search streaming block")

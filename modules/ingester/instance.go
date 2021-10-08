@@ -533,7 +533,8 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	return tracesToCut
 }
 
-// writeTraceToHeadBlock exists
+// writeTraceToHeadBlock adds the id, object and search data to the head block(s). It handles
+// it's own locking.
 func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
@@ -553,7 +554,8 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 	return nil
 }
 
-// flushHeadBlock exists
+// flushHeadBlock flushes any remaining data in the head blocks. This must be called
+// after a batch of writeTraceToHeadBlocks to ensure that all data is on disk.
 func (i *instance) flushHeadBlock() error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
