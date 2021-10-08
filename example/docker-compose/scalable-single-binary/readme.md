@@ -1,6 +1,9 @@
 ## Scalable Single Binary
 
-In this example tempo is configured to write data to MinIO which presents an S3 compatible API.  Additionally, `memberlist` is enabled to demonstrate how a single binary can run all services and still make use of the cluster-awareness that `memberlist` provides.
+In this example Tempo is configured to write data to MinIO which presents an
+S3-compatible API.  Additionally, `memberlist` is enabled to demonstrate how a
+single binary can run all services and still make use of the cluster-awareness
+that `memberlist` provides.
 
 1. First start up the local stack.
 
@@ -25,10 +28,10 @@ scalable-single-binary-tempo3-1                     "/tempo -target=scal…"   t
 scalable-single-binary-vulture-1                    "/tempo-vulture -pro…"   vulture                    running
 ```
 
-2. If you're interested you can see the wal/blocks as they are being created.  Navigate to minio at
+2. If you're interested you can see the WAL/blocks as they are being created.  Navigate to MinIO at
 http://localhost:9001 and use the username/password of `tempo`/`supersecret`.
 
-3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
+3. The synthetic-load-generator is now printing out trace IDs it's flushing into Tempo.  To view its logs use -
 
 ```console
 docker-compose logs -f synthetic-load-generator
@@ -46,12 +49,12 @@ Logs are in the form
 Emitted traceId <traceid> for service frontend route /cart
 ```
 
-Copy one of these trace ids.
+Copy one of these trace IDs.
 
-4. Navigate to [Grafana](http://localhost:3000/explore) and paste the trace id to request it from Tempo.
+4. Navigate to [Grafana](http://localhost:3000/explore) and paste the trace ID to request it from Tempo.
 Also notice that you can query Tempo metrics from the Prometheus data source setup in Grafana.
 
-5. To stop the setup use -
+5. To stop the setup use:
 
 ```console
 docker-compose down -v

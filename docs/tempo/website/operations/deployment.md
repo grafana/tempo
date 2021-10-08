@@ -52,8 +52,11 @@ which is the single binary deployment mode.
 
 A single binary mode deployment runs all top-level components in a single
 process, forming an instance of Tempo.  The single binary mode is the simplest
-implement.  Refer to [Architecture]({{< relref "./architecture" >}}) for
-descriptions of the components.
+to deploy but cannot but can not horizontally scale.  Refer to
+[Architecture]({{< relref "./architecture" >}}) for descriptions of the
+components.
+
+To enable this mode, `-target=all` is used, which is the default.
 
 Find docker-compose deployment examples at:
 
@@ -62,34 +65,15 @@ Find docker-compose deployment examples at:
 
 ## Scalable single binary
 
-A scalable single binary mode deployment may have more than one single binary
-mode Tempo instance.  Matching components, such as the distributors, within
-each instance are aware of each other; this is known as clustering.  The
-components form a [consistent hash ring]({{< relref "./consistent_hash_ring"
->}}) to coordinate operations among the multiple Tempo instances.
+A scalable single binary deployment is similar to the single binary mode in
+that all components are deployed in one binary but it is capable of
+horizontally scaling. This mode offers some flexibility of scaling without the
+complexity of the full microservices deployment.
 
-The configuration of a scalable single binary defines `kvstore`.  Here is an
-example `memberlist` configuration:
+Each of the `queriers` will perform a DNS lookup for the `frontend_address` and
+connect to the addresses found within the DNS record.
 
-```yaml
-target: scalable-single-binary
-ingester:
-  lifecycler:
-    ring:
-      kvstore:
-        store: memberlist
-```
-
-Additionally, the `queriers` must know the DNS name that will contain the addresses of all other instances.
-For example:
-
-```yaml
-querier:
-  frontend_worker:
-    frontend_address: tempo.lab.example.com:9095
-```
-
-Each of the `queriers` will perform a DNS lookup for the `frontend_address` and connect to the addresses found within the DNS record.
+To enable this mode, `-target=scalable-single-binary` is used.
 
 Find a docker-compose deployment example at:
 
@@ -97,8 +81,10 @@ Find a docker-compose deployment example at:
 
 ## Microservices
 
-In microservices mode, components are deployed in distinct processes.
-Scaling is per component, leading to flexibility in scaling.
+In microservices mode, components are deployed in distinct processes.  Scaling
+is per component which allows for greater flexibility in scaling and more
+granular failure domains. This is the preferred method for a production
+deployment, but it is also the most complex
 
 The configuration associated with each component's deployment specifies a
 `target`.  For example, to deploy a `querier`, the configuration would contain
