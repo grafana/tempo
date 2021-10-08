@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -13,12 +14,11 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/proto"
-	"github.com/opentracing/opentracing-go"
-	"github.com/weaveworks/common/user"
-
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/opentracing/opentracing-go"
+	"github.com/weaveworks/common/user"
 )
 
 const (
@@ -29,13 +29,14 @@ const (
 	queryDelimiter = "?"
 )
 
-func ShardingWare(queryShards int, logger log.Logger) Middleware {
+func ShardingWare(queryShards, maxFailedBlocks int, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,
 			queryShards:     queryShards,
 			logger:          logger,
 			blockBoundaries: createBlockBoundaries(queryShards - 1), // one shard will be used to query ingesters
+			maxFailedBlocks: uint32(maxFailedBlocks),
 		}
 	})
 }
@@ -45,6 +46,7 @@ type shardQuery struct {
 	queryShards     int
 	logger          log.Logger
 	blockBoundaries [][]byte
+	maxFailedBlocks uint32
 }
 
 // RoundTrip implements http.RoundTripper
@@ -64,8 +66,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	wg := sync.WaitGroup{}
 	mtx := sync.Mutex{}
 
-	var overallTrace *tempopb.Trace
 	var overallError error
+	var totalFailedBlocks uint32
+	overallTrace := &tempopb.Trace{}
 	statusCode := http.StatusNotFound
 	statusMsg := "trace not found"
 
@@ -121,17 +124,25 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			// marshal into a trace to combine.
 			// todo: better define responsibilities between middleware. the parent middleware in frontend.go actually sets the header
 			//  which forces the body here to be a proto encoded tempopb.Trace{}
-			trace := &tempopb.Trace{}
-			err = proto.Unmarshal(buff, trace)
+			traceResp := &tempopb.TraceByIDResponse{}
+			err = proto.Unmarshal(buff, traceResp)
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error unmarshalling response", "url", innerR.RequestURI, "err", err, "body", string(buff))
 				overallError = err
 				return
 			}
 
+			if traceResp.Metrics != nil {
+				totalFailedBlocks += traceResp.Metrics.FailedBlocks
+				if totalFailedBlocks > s.maxFailedBlocks {
+					overallError = fmt.Errorf("too many failed block queries %d (max %d)", totalFailedBlocks, s.maxFailedBlocks)
+					return
+				}
+			}
+
 			// happy path
 			statusCode = http.StatusOK
-			overallTrace, _, _, _ = model.CombineTraceProtos(overallTrace, trace)
+			overallTrace, _, _, _ = model.CombineTraceProtos(overallTrace, traceResp.Trace)
 		}(req)
 	}
 	wg.Wait()
@@ -155,7 +166,12 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	buff, err := proto.Marshal(overallTrace)
+	buff, err := proto.Marshal(&tempopb.TraceByIDResponse{
+		Trace: overallTrace,
+		Metrics: &tempopb.TraceByIDMetrics{
+			FailedBlocks: totalFailedBlocks,
+		},
+	})
 	if err != nil {
 		_ = level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
 		return nil, err
@@ -238,5 +254,6 @@ func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 	if statusCode/100 == 5 { // bail on any 5xx's
 		return true
 	}
+
 	return false
 }

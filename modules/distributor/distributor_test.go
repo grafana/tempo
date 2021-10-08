@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/grafana/tempo/modules/distributor/receiver"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -428,7 +429,8 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distrib
 
 	l := logging.Level{}
 	_ = l.Set("error")
-	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, true, l, false)
+	mw := receiver.MultiTenancyMiddleware()
+	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, mw, l, false)
 	require.NoError(t, err)
 
 	return d

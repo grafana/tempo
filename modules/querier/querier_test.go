@@ -30,7 +30,7 @@ import (
 type mockSharder struct {
 }
 
-func (m *mockSharder) Owns(hash string) bool {
+func (m *mockSharder) Owns(string) bool {
 	return true
 }
 
@@ -107,8 +107,9 @@ func TestReturnAllHits(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// find should return both now
-	foundBytes, _, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
+	foundBytes, _, failedBLocks, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
 	assert.NoError(t, err)
+	assert.Nil(t, failedBLocks)
 	require.Len(t, foundBytes, 2)
 
 	// expected trace
