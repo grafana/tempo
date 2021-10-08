@@ -263,7 +263,8 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 func TestStreamingSearchBlockBuffersAndFlushes(t *testing.T) {
 	// direct call to flush
 	testBufferAndFlush(t, func(s *StreamingSearchBlock) {
-		s.FlushBuffer()
+		err := s.FlushBuffer()
+		assert.NoError(t, err)
 	})
 
 	// iterator

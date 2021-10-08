@@ -13,7 +13,8 @@ import (
 func TestAppendBlockBuffersAndFlushes(t *testing.T) {
 	// direct call to flush
 	testBufferAndFlush(t, func(a *AppendBlock) {
-		a.FlushBuffer()
+		err := a.FlushBuffer()
+		assert.NoError(t, err)
 	})
 
 	// find
