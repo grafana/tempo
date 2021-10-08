@@ -124,7 +124,7 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
-		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, cfg.tolerateFailedBlocks, logger), RetryWare(cfg.MaxRetries, registerer))
+		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, cfg.TolerateFailedBlocks, logger), RetryWare(cfg.MaxRetries, registerer))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// validate traceID

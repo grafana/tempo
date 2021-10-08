@@ -11,7 +11,7 @@ type Config struct {
 	Config               frontend.CombinedFrontendConfig `yaml:",inline"`
 	MaxRetries           int                             `yaml:"max_retries,omitempty"`
 	QueryShards          int                             `yaml:"query_shards,omitempty"`
-	tolerateFailedBlocks int                             `yaml:"tolerate_failed_blocks,omitempty"`
+	TolerateFailedBlocks int                             `yaml:"tolerate_failed_blocks,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -20,7 +20,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Config.FrontendV1.MaxOutstandingPerTenant = 100
 	cfg.MaxRetries = 2
 	cfg.QueryShards = 20
-	cfg.tolerateFailedBlocks = 0
+	cfg.TolerateFailedBlocks = 0
 }
 
 type CortexNoQuerierLimits struct{}
