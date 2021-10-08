@@ -12,24 +12,24 @@ import (
 
 func TestAppendBlockBuffersAndFlushes(t *testing.T) {
 	// direct call to flush
-	testFlush(t, func(a *AppendBlock) {
+	testBufferAndFlush(t, func(a *AppendBlock) {
 		a.FlushBuffer()
 	})
 
 	// find
-	testFlush(t, func(a *AppendBlock) {
+	testBufferAndFlush(t, func(a *AppendBlock) {
 		_, err := a.Find([]byte{0x01}, &mockCombiner{}) // 0x01 has to be in the block or it won't flush. this happens to sync with below
 		assert.NoError(t, err)
 	})
 
 	// iterator
-	testFlush(t, func(a *AppendBlock) {
+	testBufferAndFlush(t, func(a *AppendBlock) {
 		_, err := a.Iterator(&mockCombiner{})
 		assert.NoError(t, err)
 	})
 }
 
-func testFlush(t *testing.T, fn func(a *AppendBlock)) {
+func testBufferAndFlush(t *testing.T, fn func(a *AppendBlock)) {
 	tmpDir := t.TempDir()
 	a, err := newAppendBlock(uuid.New(), testTenantID, tmpDir, backend.EncNone, "", 1000)
 	require.NoError(t, err)
