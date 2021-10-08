@@ -16,15 +16,17 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ## Complete Configuration
 
-> **Note**: This manifest was generated on 2021-08-25.
+> **Note**: This manifest was generated on 2021-10-08.
 
 ```yaml
 target: all
 http_api_prefix: ""
 server:
+  http_listen_network: tcp
   http_listen_address: ""
   http_listen_port: 80
   http_listen_conn_limit: 0
+  grpc_listen_network: tcp
   grpc_listen_address: ""
   grpc_listen_port: 9095
   grpc_listen_conn_limit: 0
@@ -100,6 +102,7 @@ distributor:
   override_ring_key: distributor
   log_received_traces: false
   extend_writes: true
+  search_tags_deny_list: []
 ingester_client:
   pool_config:
     checkinterval: 15s
@@ -125,6 +128,7 @@ ingester_client:
     tls_insecure_skip_verify: false
 querier:
   query_timeout: 10s
+  search_query_timeout: 30s
   max_concurrent_queries: 5
   frontend_worker:
     frontend_address: 127.0.0.1:9095
@@ -305,11 +309,13 @@ storage:
       bloom_filter_false_positive: 0.01
       bloom_filter_shard_size_bytes: 102400
       encoding: zstd
+      search_encoding: gzip
+      search_page_size_bytes: 1048576
     blocklist_poll: 5m0s
     blocklist_poll_concurrency: 50
     blocklist_poll_fallback: true
     blocklist_poll_tenant_index_builders: 2
-    blocklist_poll_stale_tenant_index: 0
+    blocklist_poll_stale_tenant_index: 0s
     backend: local
     local:
       path: /tmp/tempo/traces
@@ -350,9 +356,11 @@ overrides:
   ingestion_rate_strategy: local
   ingestion_rate_limit_bytes: 15000000
   ingestion_burst_size_bytes: 20000000
+  search_tags_allow_list: null
   max_traces_per_user: 10000
   max_global_traces_per_user: 0
-  max_bytes_per_trace: 5000000
+  max_bytes_per_trace: 50000
+  max_search_bytes_per_trace: 0
   block_retention: 0s
   per_tenant_override_config: ""
   per_tenant_override_period: 10s
@@ -367,6 +375,8 @@ memberlist:
   gossip_to_dead_nodes_time: 30s
   dead_node_reclaim_time: 0s
   compression_enabled: false
+  advertise_addr: ""
+  advertise_port: 7946
   join_members: []
   min_join_backoff: 1s
   max_join_backoff: 1m0s

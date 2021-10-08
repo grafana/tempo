@@ -174,8 +174,9 @@ func TestCompaction(t *testing.T) {
 
 	// now see if we can find our ids
 	for i, id := range allIds {
-		b, _, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		b, _, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
+		assert.Nil(t, failedBlocks)
 
 		out := &tempopb.PushRequest{}
 		err = proto.Unmarshal(b[0], out)
@@ -336,10 +337,11 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	// Make sure all expected traces are found.
 	for i := 0; i < blockCount; i++ {
 		for j := 0; j < recordCount; j++ {
-			trace, _, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax)
+			trace, _, failedBlocks, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax)
 			assert.NotNil(t, trace)
 			assert.Greater(t, len(trace), 0)
 			assert.NoError(t, err)
+			assert.Nil(t, failedBlocks)
 		}
 	}
 }
