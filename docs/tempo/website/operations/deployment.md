@@ -1,8 +1,8 @@
 ---
 title: Deployment
 aliases:
- - /docs/tempo/latest/deployment
- - /docs/tempo/latest/deployment/deployment
+  - /docs/tempo/latest/deployment
+  - /docs/tempo/latest/deployment/deployment
 weight: 3
 ---
 
@@ -16,6 +16,7 @@ Tempo can be easily deployed through a number of tools as explained in this docu
 ## Tanka / Jsonnet
 
 The Jsonnet files that you need to deploy Tempo with Tanka are available here:
+
 - [single binary](https://github.com/grafana/tempo/tree/main/operations/jsonnet/single-binary)
 - [microservices](https://github.com/grafana/tempo/tree/main/operations/jsonnet/microservices)
 
@@ -31,30 +32,44 @@ Helm charts are available in the grafana/helm-charts repo:
 
 ## Kubernetes manifests
 
-You can find a collection of Kubernetes manifests to deploy Tempo in the [operations/kube-manifests](https://github.com/grafana/tempo/tree/main/operations/kube-manifests) folder.
-These are generated using the Tanka / Jsonnet.
+You can find a collection of Kubernetes manifests to deploy Tempo in the
+[operations/kube-manifests](https://github.com/grafana/tempo/tree/main/operations/kube-manifests)
+folder.  These are generated using the Tanka / Jsonnet.
 
-# Deployment Scenarios
+# Deployment scenarios
 
-Tempo can be deployed in three modes.
+Tempo can be deployed in one of three modes.
 
-* Single Binary
-* Scalable Single Binary
-* Microservices
+- Single binary
+- Scalable single binary
+- Microservices
 
-These modes are controlled by the runtime configuration `target`, or using the CLI flag `-target`.  The default target is `all`, which we refer to as "Single Binary".
+Which mode is deployed is determined by the runtime configuration `target`, or
+by using the `-target` flag on the command line. The default target is `all`,
+which is the single binary deployment mode.
 
-## Single Binary
+## Single binary
 
-This mode is the simplest to get started, in which all of the top-level components, referenced in the [Architecture]({{< relref "./architecture" >}}) section, are run within the same instance of Tempo.
+A single binary mode deployment runs all top-level components in a single
+process, forming an instance of Tempo.  The single binary mode is the simplest
+implement.  Refer to [Architecture]({{< relref "./architecture" >}}) for
+descriptions of the components.
 
-A couple docker-compose examples can be found [here](https://github.com/grafana/tempo/tree/main/example/docker-compose/local) and [here](https://github.com/grafana/tempo/tree/main/example/docker-compose/s3).
+Find docker-compose deployment examples at:
 
-## Scalable Single Binary
+- [https://github.com/grafana/tempo/tree/main/example/docker-compose/local](https://github.com/grafana/tempo/tree/main/example/docker-compose/local)
+- [https://github.com/grafana/tempo/tree/main/example/docker-compose/s3](https://github.com/grafana/tempo/tree/main/example/docker-compose/s3)
 
-This modr allows the simplicity of the Single Binary mode, but utilizes the clustering features to allow for horizontal scalability.
+## Scalable single binary
 
-A `kvstore` must be used.  For example, `memberlist` is configured below to illustrate the setup
+A scalable single binary mode deployment may have more than one single binary
+mode Tempo instance.  Matching components, such as the distributors, within
+each instance are aware of each other; this is known as clustering.  The
+components form a [consistent hash ring]({{< relref "./consistent_hash_ring"
+>}}) to coordinate operations among the multiple Tempo instances.
+
+The configuration of a scalable single binary defines `kvstore`.  Here is an
+example `memberlist` configuration:
 
 ```yaml
 target: scalable-single-binary
@@ -66,6 +81,7 @@ ingester:
 ```
 
 Additionally, the `queriers` must know the DNS name that will contain the addresses of all other instances.
+For example:
 
 ```yaml
 querier:
@@ -73,12 +89,24 @@ querier:
     frontend_address: tempo.lab.example.com:9095
 ```
 
-Each of the `queriers` will perform a DNS lookup for the `frontend_address` and connect to addresses found within the DNS record.
+Each of the `queriers` will perform a DNS lookup for the `frontend_address` and connect to the addresses found within the DNS record.
 
-An example using docker-compose can be found [here](https://github.com/grafana/tempo/tree/main/example/docker-compose/scalable-single-binary)
+Find a docker-compose deployment example at:
+
+- [https://github.com/grafana/tempo/tree/main/example/docker-compose/scalable-single-binary](https://github.com/grafana/tempo/tree/main/example/docker-compose/scalable-single-binary)
 
 ## Microservices
 
-In this mode, each component is deployed in only one instance.  For example, to deploy a `querier`, the Tempo configuration would either contain `target: querier` or the binary is to be executed with `-target=querier`.  Each of the comonents referenced in the [Architecture]({{< relref "./architecture" >}}) must be deployed in order to get a working Tempo environment.
+In microservices mode, components are deployed in distinct processes.
+Scaling is per component, leading to flexibility in scaling.
 
-An example using docker-compose can be found [here](https://github.com/grafana/tempo/tree/main/example/docker-compose/distributed).
+The configuration associated with each component's deployment specifies a
+`target`.  For example, to deploy a `querier`, the configuration would contain
+`target: querier`.  A command-line deployment may specify the `-target=querier`
+flag. Each of the components referenced in [Architecture]({{< relref
+"./architecture" >}}) must be deployed in order to get a working Tempo
+instance.
+
+Find a docker-compose deployment example at:
+
+- [https://github.com/grafana/tempo/tree/main/example/docker-compose/distributed](https://github.com/grafana/tempo/tree/main/example/docker-compose/distributed)
