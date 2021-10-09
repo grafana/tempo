@@ -214,7 +214,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 		flushSize = rw.compactorCfg.FlushSizeBytes
 	}
 
-	iter, err := block.GetIterator(combiner)
+	iter, err := block.Iterator(combiner)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting completing block iterator")
 	}

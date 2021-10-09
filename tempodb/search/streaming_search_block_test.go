@@ -1,6 +1,7 @@
 package search
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -31,7 +32,7 @@ func newStreamingSearchBlockWithTraces(t testing.TB, traceCount int, enc backend
 	f, err := os.OpenFile(path.Join(tmpDir, "search", fmt.Sprintf("1c505e8b-26cd-4621-ba7d-792bb55282d5:single-tenant:v2:%s:", enc.String())), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
-	sb, err := NewStreamingSearchBlockForFile(f, "v2", enc)
+	sb, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), "v2", enc)
 	require.NoError(t, err)
 
 	for i := 0; i < traceCount; i++ {
@@ -51,6 +52,8 @@ func newStreamingSearchBlockWithTraces(t testing.TB, traceCount int, enc backend
 
 		require.NoError(t, sb.Append(context.Background(), id, searchData))
 	}
+	err = sb.FlushBuffer()
+	require.NoError(t, err)
 
 	return tmpDir, sb
 }
@@ -185,7 +188,7 @@ func TestStreamingSearchBlockIteratorDedupes(t *testing.T) {
 			f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 			require.NoError(t, err)
 
-			b1, err := NewStreamingSearchBlockForFile(f, "v2", backend.EncNone)
+			b1, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), "v2", backend.EncNone)
 			require.NoError(t, err)
 
 			id := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
@@ -255,6 +258,51 @@ func BenchmarkBackendSearchBlockSearch(b *testing.B) {
 			})
 		}
 	}
+}
+
+func TestStreamingSearchBlockBuffersAndFlushes(t *testing.T) {
+	// direct call to flush
+	testBufferAndFlush(t, func(s *StreamingSearchBlock) {
+		err := s.FlushBuffer()
+		assert.NoError(t, err)
+	})
+
+	// iterator
+	testBufferAndFlush(t, func(s *StreamingSearchBlock) {
+		_, err := s.Iterator()
+		assert.NoError(t, err)
+	})
+}
+
+func testBufferAndFlush(t *testing.T, fn func(s *StreamingSearchBlock)) {
+	tmpDir := t.TempDir()
+	enc := backend.EncNone
+
+	// create search sub-directory
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "search"), os.ModePerm))
+
+	filename := path.Join(tmpDir, "search", fmt.Sprintf("1c505e8b-26cd-4621-ba7d-792bb55282d5:single-tenant:v2:%s:", enc.String()))
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0644)
+	require.NoError(t, err)
+
+	sb, err := NewStreamingSearchBlockForFile(f, bufio.NewWriterSize(f, 10000), "v2", enc)
+	require.NoError(t, err)
+
+	searchData := [][]byte{(&tempofb.SearchEntryMutable{
+		TraceID: []byte{0x01},
+		Tags:    tempofb.SearchDataMap{}}).ToBytes()}
+	require.NoError(t, sb.Append(context.Background(), []byte{0x01}, searchData))
+
+	// file should be 0 length
+	info, err := os.Stat(filename)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), info.Size())
+
+	// do something and confirm the file has flusehd something is in the file
+	fn(sb)
+	info, err = os.Stat(filename)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Size())
 }
 
 func BenchmarkStreamingSearchBlockSearch(b *testing.B) {
