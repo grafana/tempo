@@ -49,8 +49,7 @@ type Querier struct {
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 
-	enablePolling      bool
-	searchDefaultLimit uint32
+	enablePolling bool
 }
 
 type responseFromIngesters struct {
@@ -73,10 +72,9 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			factory,
 			metricIngesterClients,
 			log.Logger),
-		store:              store,
-		limits:             limits,
-		enablePolling:      enablePolling,
-		searchDefaultLimit: cfg.SearchDefaultLimit,
+		store:         store,
+		limits:        limits,
+		enablePolling: enablePolling,
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
