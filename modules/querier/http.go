@@ -194,7 +194,9 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		req.Limit = uint32(limit)
+		if limit <= 0 {
+			req.Limit = uint32(limit)
+		}
 	}
 
 	resp, err := q.Search(ctx, req)
