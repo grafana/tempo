@@ -49,7 +49,8 @@ type Querier struct {
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 
-	enablePolling bool
+	enablePolling      bool
+	searchDefaultLimit uint32
 }
 
 type responseFromIngesters struct {
@@ -72,20 +73,21 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			factory,
 			metricIngesterClients,
 			log.Logger),
-		store:         store,
-		limits:        limits,
-		enablePolling: enablePolling,
+		store:              store,
+		limits:             limits,
+		enablePolling:      enablePolling,
+		searchDefaultLimit: cfg.SearchDefaultLimit,
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
 	return q, nil
 }
 
-func (q *Querier) CreateAndRegisterWorker(tracesHandler http.Handler) error {
+func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 	q.cfg.Worker.MaxConcurrentRequests = q.cfg.MaxConcurrentQueries
 	worker, err := cortex_worker.NewQuerierWorker(
 		q.cfg.Worker,
-		httpgrpc_server.NewServer(tracesHandler),
+		httpgrpc_server.NewServer(handler),
 		log.Logger,
 		nil,
 	)

@@ -157,7 +157,8 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.Finish()
 
 	req := &tempopb.SearchRequest{
-		Tags: map[string]string{},
+		Tags:  map[string]string{},
+		Limit: q.searchDefaultLimit,
 	}
 
 	for k, v := range r.URL.Query() {
