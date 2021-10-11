@@ -10,6 +10,7 @@
   `/config` moved to `/status/config`
   `/services` moved to `/status/services`
 * [CHANGE] **BREAKING CHANGE** Change ingester metric `ingester_bytes_metric_total` in favor of `ingester_bytes_received_total` [#979](https://github.com/grafana/tempo/pull/979) (@mapno)
+* [CHANGE] Add troubleshooting language to config for `server.grpc_server_max_recv_msg_size` and `server.grpc_server_max_send_msg_size` when handling large traces [#1023](https://github.com/grafana/tempo/pull/1023) (@thejosephstevens)
 * [FEATURE] Add ability to search ingesters for traces [#806](https://github.com/grafana/tempo/pull/806) (@mdisibio)
 * [FEATURE] Add runtime config handler  [#936](https://github.com/grafana/tempo/pull/936) (@mapno)
 * [FEATURE] Search WAL reload and compression(versioned encoding) support [#1000](https://github.com/grafana/tempo/pull/1000) (@annanay25)
