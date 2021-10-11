@@ -204,7 +204,7 @@ querier:
     [search_query_timeout: <duration> | default = 30s]
 
     # Limit used for search requests if none is set by the caller
-    [search_default_limit: <int> | default = 20]
+    [search_default_result_limit: <int> | default = 20]
 
     # config of the worker that connects to the query frontend
     frontend_worker:
