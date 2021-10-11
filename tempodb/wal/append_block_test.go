@@ -259,7 +259,7 @@ func TestParseFilename(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "version and encoding old format",
+			name:        "deprecated version",
 			filename:    "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy",
 			expectError: true,
 		},
