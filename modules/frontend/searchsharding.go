@@ -6,10 +6,16 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
 	"github.com/weaveworks/common/user"
@@ -25,17 +31,20 @@ type searchSharder struct {
 	next  http.RoundTripper
 	store storage.Store
 
+	logger log.Logger
+
 	// todo(search): make configurable
 	concurrentRequests    int
 	targetBytesPerRequest int
 	defaultLimit          int
 }
 
-func NewSearchSharder(store storage.Store) Middleware {
+func NewSearchSharder(store storage.Store, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:                  next,
 			store:                 store,
+			logger:                logger,
 			concurrentRequests:    20,
 			targetBytesPerRequest: 10 * 1024 * 1024,
 		}
@@ -87,7 +96,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	//    - startPage=<number>
 	//    - totalPages=<number>
 	reqs := []*http.Request{}
-	for _, m := range metas {
+	for _, m := range metas { // jpe order this backwards in time, make a func and test
 		// assume each page is roughly the same size
 		bytesPerPage := m.Size / uint64(m.TotalRecords)
 		pagesPerQuery := s.targetBytesPerRequest / int(bytesPerPage)
@@ -111,9 +120,104 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	span.SetTag("request-count", len(reqs))
 
-	// now execute concurrentRequests at a time
-	// jpe - do this
-	return nil, nil
+	// execute requests
+	wg := boundedwaitgroup.New(uint(s.concurrentRequests))
+	mtx := sync.Mutex{}
+
+	var overallError error
+	overallResults := &tempopb.SearchResponse{}
+	statusCode := http.StatusOK
+	statusMsg := ""
+
+	for _, req := range reqs {
+		wg.Add(1)
+		go func(innerR *http.Request) {
+			defer wg.Done()
+
+			mtx.Lock()
+			if shouldQuit(r.Context(), statusCode, overallError) { // jpe needs to include limit
+				mtx.Unlock()
+				return
+			}
+			mtx.Unlock()
+
+			resp, err := s.next.RoundTrip(innerR)
+
+			mtx.Lock()
+			defer mtx.Unlock()
+			if err != nil {
+				overallError = err
+			}
+
+			if shouldQuit(r.Context(), statusCode, overallError) {
+				return
+			}
+
+			// check http error
+			if err != nil {
+				_ = level.Error(s.logger).Log("msg", "error querying proxy target", "url", innerR.RequestURI, "err", err)
+				overallError = err
+				return
+			}
+
+			// if the status code is anything but happy, save the error and pass it down the line
+			if resp.StatusCode != http.StatusOK {
+				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast?
+				statusCode = resp.StatusCode
+				bytesMsg, err := io.ReadAll(resp.Body)
+				if err != nil {
+					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
+				}
+				statusMsg = string(bytesMsg)
+				return
+			}
+
+			// successful query, read the body
+			results := &tempopb.SearchResponse{}
+			err = jsonpb.Unmarshal(resp.Body, results)
+			if err != nil {
+				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
+				overallError = err
+				return
+			}
+
+			// happy path
+			overallResults.Traces = append(overallResults.Traces, results.Traces...)
+			overallResults.Metrics.InspectedBlocks += results.Metrics.InspectedBlocks
+			overallResults.Metrics.InspectedBytes += results.Metrics.InspectedBytes
+			overallResults.Metrics.InspectedTraces += results.Metrics.InspectedTraces
+			overallResults.Metrics.SkippedBlocks += results.Metrics.SkippedBlocks
+		}(req)
+	}
+	wg.Wait()
+
+	if overallError != nil {
+		return nil, overallError
+	}
+
+	if statusCode != http.StatusOK {
+		// translate all non-200s into 500s. if, for instance, we get a 400 back from an internal component
+		// it means that we created a bad request. 400 should not be propagated back to the user b/c
+		// the bad request was due to a bug on our side, so return 500 instead.
+		return &http.Response{
+			StatusCode: statusCode,
+			Body:       io.NopCloser(strings.NewReader(statusMsg)),
+			Header:     http.Header{},
+		}, nil
+	}
+
+	m := &jsonpb.Marshaler{}
+	bodyString, err := m.MarshalToString(overallResults)
+	if err != nil {
+		return nil, err
+	}
+
+	return &http.Response{
+		StatusCode:    http.StatusOK,
+		Header:        http.Header{},
+		Body:          io.NopCloser(strings.NewReader(bodyString)),
+		ContentLength: int64(len([]byte(bodyString))),
+	}, nil
 }
 
 func params(r *http.Request) (start, end int64, limit int, err error) {

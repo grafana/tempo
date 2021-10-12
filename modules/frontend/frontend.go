@@ -50,7 +50,7 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 
 	traceByIDMiddleware := newTraceByIDMiddleware(cfg, logger, registerer)
 	searchMiddleware := newSearchMiddleware()
-	backendMiddleware := newBackendSearchMiddleware(store)
+	backendMiddleware := newBackendSearchMiddleware(store, logger)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": TraceByIDOp,
@@ -157,9 +157,9 @@ func newSearchMiddleware() Middleware {
 
 // newBackendSearchMiddleware creates a new frontend middleware to handle backend search.
 // todo(search): integrate with real search
-func newBackendSearchMiddleware(store storage.Store) Middleware {
+func newBackendSearchMiddleware(store storage.Store, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		rt := NewRoundTripper(next, NewSearchSharder(store))
+		rt := NewRoundTripper(next, NewSearchSharder(store, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
