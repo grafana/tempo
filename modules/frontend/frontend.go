@@ -143,14 +143,13 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 				marshallingFormat = util.ProtobufTypeHeaderValue
 			}
 
-			// Enforce all communication internal to Tempo to be in protobuf bytes
+			// enforce all communication internal to Tempo to be in protobuf bytes
 			r.Header.Set(util.AcceptHeaderKey, util.ProtobufTypeHeaderValue)
 
 			resp, err := rt.RoundTrip(r)
 
 			// todo : should all of this request/response content type be up a level and be used for all query types?
-			if resp != nil && resp.StatusCode == http.StatusOK && marshallingFormat == util.JSONTypeHeaderValue {
-				// if request is for application/json, unmarshal into proto object and re-marshal into json bytes
+			if resp != nil && resp.StatusCode == http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if err != nil {
@@ -166,13 +165,21 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 					resp.StatusCode = http.StatusPartialContent
 				}
 
-				var jsonTrace bytes.Buffer
-				marshaller := &jsonpb.Marshaler{}
-				err = marshaller.Marshal(&jsonTrace, responseObject.Trace)
-				if err != nil {
-					return nil, err
+				if marshallingFormat == util.JSONTypeHeaderValue {
+					var jsonTrace bytes.Buffer
+					marshaller := &jsonpb.Marshaler{}
+					err = marshaller.Marshal(&jsonTrace, responseObject.Trace)
+					if err != nil {
+						return nil, err
+					}
+					resp.Body = io.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
+				} else {
+					traceBuffer, err := proto.Marshal(responseObject.Trace)
+					if err != nil {
+						return nil, err
+					}
+					resp.Body = io.NopCloser(bytes.NewReader(traceBuffer))
 				}
-				resp.Body = io.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
 			}
 			span := opentracing.SpanFromContext(r.Context())
 			if span != nil {
