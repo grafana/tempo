@@ -31,7 +31,7 @@ const (
 
 	urlParamMinDuration = "minDuration"
 	urlParamMaxDuration = "maxDuration"
-	UrlParamLimit       = "limit" // jpe move to util?
+	UrlParamLimit       = "limit"
 	UrlParamStart       = "start"
 	UrlParamEnd         = "end"
 )

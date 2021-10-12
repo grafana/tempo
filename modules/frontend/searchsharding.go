@@ -2,8 +2,10 @@ package frontend
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/grafana/tempo/modules/querier"
@@ -14,6 +16,7 @@ import (
 )
 
 const (
+	// todo(search): make configurable
 	maxRange     = 1800 // 30 minutes
 	defaultLimit = 20
 )
@@ -51,7 +54,10 @@ func NewSearchSharder(store storage.Store) Middleware {
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	start, end, limit, err := params(r)
 	if err != nil {
-		return nil, err
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Body:       io.NopCloser(strings.NewReader(err.Error())),
+		}, nil
 	}
 
 	ctx := r.Context()
@@ -86,12 +92,13 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		bytesPerPage := m.Size / uint64(m.TotalRecords)
 		pagesPerQuery := s.targetBytesPerRequest / int(bytesPerPage)
 
+		blockID := m.BlockID.String()
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pagesPerQuery {
 			subR := r.Clone(ctx)
 			subR.Header.Set(user.OrgIDHeaderName, tenantID)
 
 			q := subR.URL.Query()
-			q.Add("blockID", m.BlockID.String()) // jpe lot of repeated work building these strings
+			q.Add("blockID", blockID)
 			q.Add("startPage", strconv.Itoa(startPage))
 			q.Add("totalPages", strconv.Itoa(pagesPerQuery))
 
@@ -142,7 +149,7 @@ func params(r *http.Request) (start, end int64, limit int, err error) {
 		limit = defaultLimit
 	}
 
-	if end-start > maxRange { // jpe these should 400
+	if end-start > maxRange {
 		err = fmt.Errorf("range specified by start and end exceeds %d seconds", maxRange)
 		return
 	}
