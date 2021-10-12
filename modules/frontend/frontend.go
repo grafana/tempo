@@ -22,6 +22,11 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
+const (
+	TraceByIDOp = "traces"
+	SearchOp    = "search"
+)
+
 type QueryFrontend struct {
 	TraceByID, Search, BackendSearch http.Handler
 	logger                           log.Logger
@@ -37,32 +42,38 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
 	}
 
-	// jpe, queries per tenant not used?
 	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_total",
 		Help:      "Total queries received per tenant.",
 	}, []string{"tenant", "op"})
 
-	tracesMiddleware := newTracesMiddleware(cfg, logger, registerer)
+	traceByIDMiddleware := newTraceByIDMiddleware(cfg, logger, registerer)
 	searchMiddleware := newSearchMiddleware()
 	backendMiddleware := newBackendSearchMiddleware(store)
 
-	traces := tracesMiddleware.Wrap(next)
+	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
+		"op": TraceByIDOp,
+	})
+	searchCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
+		"op": SearchOp,
+	})
+
+	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
 	backend := backendMiddleware.Wrap(next)
 	return &QueryFrontend{
-		TraceByID:        newHandler(traces, logger),
-		Search:           newHandler(search, logger),
-		BackendSearch:    newHandler(backend, logger),
+		TraceByID:        newHandler(traces, traceByIDCounter, logger),
+		Search:           newHandler(search, searchCounter, logger),
+		BackendSearch:    newHandler(backend, searchCounter, logger),
 		logger:           logger,
 		queriesPerTenant: queriesPerTenant,
 		store:            store,
 	}, nil
 }
 
-// newTracesMiddleware creates a new frontend middleware responsible for handling get traces requests.
-func newTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Registerer) Middleware {
+// newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.
+func newTraceByIDMiddleware(cfg Config, logger log.Logger, registerer prometheus.Registerer) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support

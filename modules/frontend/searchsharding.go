@@ -19,8 +19,10 @@ const (
 )
 
 type searchSharder struct {
-	next                  http.RoundTripper
-	store                 storage.Store
+	next  http.RoundTripper
+	store storage.Store
+
+	// todo(search): make configurable
 	concurrentRequests    int
 	targetBytesPerRequest int
 	defaultLimit          int
@@ -29,7 +31,7 @@ type searchSharder struct {
 func NewSearchSharder(store storage.Store) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
-			next:                  next, // jpe make configurable
+			next:                  next,
 			store:                 store,
 			concurrentRequests:    20,
 			targetBytesPerRequest: 10 * 1024 * 1024,

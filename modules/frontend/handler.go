@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/httpgrpc"
 	"github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/tracing"
@@ -31,15 +32,17 @@ var (
 // handler exists to wrap a roundtripper with an HTTP handler. It wraps all
 // frontend endpoints and should only contain functionality that is common to all.
 type handler struct {
-	roundTripper http.RoundTripper
-	logger       log.Logger
+	roundTripper     http.RoundTripper
+	logger           log.Logger
+	queriesPerTenant *prometheus.CounterVec
 }
 
 // newHandler creates a handler
-func newHandler(rt http.RoundTripper, logger log.Logger) http.Handler {
+func newHandler(rt http.RoundTripper, queriesPerTenant *prometheus.CounterVec, logger log.Logger) http.Handler {
 	return &handler{
-		roundTripper: rt,
-		logger:       logger,
+		roundTripper:     rt,
+		logger:           logger,
+		queriesPerTenant: queriesPerTenant,
 	}
 }
 
@@ -52,6 +55,8 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := time.Now()
 	orgID, _ := user.ExtractOrgID(ctx)
+
+	f.queriesPerTenant.WithLabelValues(orgID).Inc()
 
 	// add orgid to existing spans
 	span := opentracing.SpanFromContext(r.Context())
