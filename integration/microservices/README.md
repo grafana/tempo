@@ -1,9 +1,9 @@
 # tempo-load-test
 
-This example aims to make it easier to measure and analyze tempo performance in
-micro-services mode.  There are already many examples for running tempo under
+This example aims to make it easier to measure and analyze Tempo performance in
+micro-services mode.  There are already many examples for running Tempo under
 load, but they use the single-binary approach and are not representative of
-what is occurring in larger installations.  Here tempo is run with separate
+what is occurring in larger installations.  Here Tempo is run with separate
 containers for distributor and ingesters, and replication factor = 3, meaning
 that the distributor will mirror all incoming traces to 3 ingesters.
 
@@ -24,7 +24,7 @@ that the distributor will mirror all incoming traces to 3 ingesters.
 # Instructions
 
 This example is expected to be used in conjunction with tempo development in a
-rapid feedback loop. It is assumed you have a working go installation and a
+rapid feedback loop. It is assumed you have a working Go installation and a
 copy of tempo already cloned somewhere.
 
 1. Build the tempo container
@@ -48,4 +48,4 @@ docker-compose up -d --scale synthetic-load-generator=4
 
 # Key Metrics
 
-As tempo is designed to be very horizontally scalable, the key metrics are _per volume unit_, i.e. spans / s / cpu core.
+As Tempo is designed to be very horizontally scalable, the key metrics are _per volume unit_, i.e. spans / s / cpu core.
