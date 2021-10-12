@@ -69,9 +69,9 @@ type Config struct {
 
 // RegisterFlagsAndApplyDefaults registers flag.
 func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	c.Target = All
+	c.Target = SingleBinary
 	// global settings
-	f.StringVar(&c.Target, "target", All, "target module")
+	f.StringVar(&c.Target, "target", SingleBinary, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
 	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
 	f.BoolVar(&c.SearchEnabled, "search.enabled", false, "Set to true to enable search (unstable).")

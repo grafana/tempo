@@ -1,0 +1,83 @@
+version: "3"
+services:
+
+  tempo1:
+    image: grafana/tempo:latest
+    command: "-target=scalable-single-binary -config.file=/etc/tempo.yaml"
+    volumes:
+      - ./tempo-scalable-single-binary.yaml:/etc/tempo.yaml
+    networks:
+      default:
+        aliases:
+          - tempo
+    depends_on:
+      - minio
+
+  tempo2:
+    image: grafana/tempo:latest
+    command: "-target=scalable-single-binary -config.file=/etc/tempo.yaml"
+    volumes:
+      - ./tempo-scalable-single-binary.yaml:/etc/tempo.yaml
+    networks:
+      default:
+        aliases:
+          - tempo
+    depends_on:
+      - minio
+
+  tempo3:
+    image: grafana/tempo:latest
+    command: "-target=scalable-single-binary -config.file=/etc/tempo.yaml"
+    volumes:
+      - ./tempo-scalable-single-binary.yaml:/etc/tempo.yaml
+    networks:
+      default:
+        aliases:
+          - tempo
+    depends_on:
+      - minio
+
+  vulture:
+    image: grafana/tempo-vulture:latest
+    command:
+      - "-prometheus-listen-address=:3201"
+      - "-tempo-push-url=http://tempo1"
+      - "-tempo-query-url=http://tempo1:3200"
+      - "-tempo-retention-duration=1h"
+
+  prometheus:
+    image: prom/prometheus:latest
+    command: [ "--config.file=/etc/prometheus.yaml" ]
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus.yaml
+
+  grafana:
+    image: grafana/grafana:8.1.6
+    volumes:
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+      - 3000:3000
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      - MINIO_ACCESS_KEY=tempo
+      - MINIO_SECRET_KEY=supersecret
+    entrypoint:
+      - sh
+      - -euc
+      - mkdir -p /data/tempo && /usr/bin/minio server /data --console-address ':9001'
+    ports:
+      - 9001:9001
+
+  synthetic-load-generator:
+    image: omnition/synthetic-load-generator:1.0.25
+    volumes:
+      - ../shared/load-generator.json:/etc/load-generator.json
+    environment:
+      - TOPOLOGY_FILE=/etc/load-generator.json
+      - JAEGER_COLLECTOR_URL=http://tempo1:14268
