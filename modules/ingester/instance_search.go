@@ -14,9 +14,10 @@ import (
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 
-	maxResults := 20
-	if req.Limit != 0 {
-		maxResults = int(req.Limit)
+	maxResults := int(req.Limit)
+	// if limit is not set, use a safe default
+	if maxResults == 0 {
+		maxResults = 20
 	}
 
 	p := search.NewSearchPipeline(req)

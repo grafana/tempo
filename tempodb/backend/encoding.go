@@ -105,7 +105,7 @@ func (e Encoding) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// ParseEncoding parses an chunk encoding (compression algorithm) by its name.
+// ParseEncoding parses a chunk encoding (compression algorithm) by its name.
 func ParseEncoding(enc string) (Encoding, error) {
 	for _, e := range SupportedEncoding {
 		if strings.EqualFold(e.String(), enc) {

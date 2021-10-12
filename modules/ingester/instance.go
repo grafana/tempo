@@ -217,7 +217,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		tempopb.ReuseTraceBytes(t.traceBytes)
 	}
 
-	return nil
+	return i.flushHeadBlock()
 }
 
 // CutBlockIfReady cuts a completingBlock from the HeadBlock if ready
@@ -445,11 +445,17 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
 // This is used during wal replay. It is expected that calling code will add the appropriate
 // jobs to the queue to eventually flush these.
-func (i *instance) AddCompletingBlock(b *wal.AppendBlock) {
+func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSearchBlock) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	i.completingBlocks = append(i.completingBlocks, b)
+
+	// search WAL
+	if s == nil {
+		return
+	}
+	i.searchAppendBlocks[b] = &searchStreamingBlockEntry{b: s}
 }
 
 // getOrCreateTrace will return a new trace object for the given request
@@ -491,12 +497,12 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file
-	f, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir, "searchdata")
+	f, bufferedWriter, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
 	if err != nil {
 		return err
 	}
 
-	b, err := search.NewStreamingSearchBlockForFile(f)
+	b, err := search.NewStreamingSearchBlockForFile(f, bufferedWriter, "v2", backend.EncNone)
 	if err != nil {
 		return err
 	}
@@ -527,11 +533,12 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	return tracesToCut
 }
 
+// writeTraceToHeadBlock adds the id, object and search data to the head block(s). It handles
+// it's own locking.
 func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
-
-	err := i.headBlock.Write(id, b)
+	err := i.headBlock.Append(id, b)
 	if err != nil {
 		return err
 	}
@@ -540,6 +547,27 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 	if entry != nil {
 		entry.mtx.Lock()
 		err := entry.b.Append(context.TODO(), id, searchData)
+		entry.mtx.Unlock()
+		return err
+	}
+
+	return nil
+}
+
+// flushHeadBlock flushes any remaining data in the head blocks. This must be called
+// after a batch of writeTraceToHeadBlocks to ensure that all data is on disk.
+func (i *instance) flushHeadBlock() error {
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+	err := i.headBlock.FlushBuffer()
+	if err != nil {
+		return err
+	}
+
+	entry := i.searchHeadBlock
+	if entry != nil {
+		entry.mtx.Lock()
+		err := entry.b.FlushBuffer()
 		entry.mtx.Unlock()
 		return err
 	}
@@ -617,11 +645,11 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 			return err
 		}
 
-		//sb := search.OpenBackendSearchBlock(i.local, b.BlockMeta().BlockID, b.BlockMeta().TenantID)
+		sb := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)
 
 		i.blocksMtx.Lock()
 		i.completeBlocks = append(i.completeBlocks, ib)
-		//i.searchCompleteBlocks[ib] = sb
+		i.searchCompleteBlocks[ib] = &searchLocalBlockEntry{b: sb}
 		i.blocksMtx.Unlock()
 
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())

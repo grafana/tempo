@@ -3,6 +3,7 @@ package wal
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"math/rand"
 	"os"
@@ -62,17 +63,19 @@ func TestAppend(t *testing.T) {
 		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
 		reqs = append(reqs, req)
 		bReq, err := proto.Marshal(req)
-		assert.NoError(t, err)
-		err = block.Write([]byte{0x01}, bReq)
-		assert.NoError(t, err, "unexpected error writing req")
+		require.NoError(t, err)
+		err = block.Append([]byte{0x01}, bReq)
+		require.NoError(t, err)
 	}
+	err = block.FlushBuffer()
+	require.NoError(t, err)
 
 	records := block.appender.Records()
 	file, err := block.file()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	iterator := encoding.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
 	defer iterator.Close()
 	i := 0
@@ -141,9 +144,12 @@ func TestErrorConditions(t *testing.T) {
 		bObj, err := proto.Marshal(obj)
 		require.NoError(t, err)
 
-		err = block.Write(id, bObj)
+		err = block.Append(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
+	err = block.FlushBuffer()
+	require.NoError(t, err)
+
 	appendFile, err := os.OpenFile(block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	require.NoError(t, err)
 	_, err = appendFile.Write([]byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01})
@@ -206,9 +212,11 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		require.NoError(t, err)
 		objs = append(objs, bObj)
 
-		err = block.Write(id, bObj)
+		err = block.Append(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
+	err = block.FlushBuffer()
+	require.NoError(t, err)
 
 	for i, id := range ids {
 		obj, err := block.Find(id, &mockCombiner{})
@@ -228,7 +236,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	iterator, err := blocks[0].GetIterator(&mockCombiner{})
+	iterator, err := blocks[0].Iterator(&mockCombiner{})
 	require.NoError(t, err)
 	defer iterator.Close()
 
@@ -267,6 +275,53 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 
 	err = blocks[0].Clear()
 	require.NoError(t, err)
+}
+
+func TestParseFileName(t *testing.T) {
+
+	testCases := []struct {
+		name         string
+		filename     string
+		blockID      uuid.UUID
+		tenant       string
+		version      string
+		encoding     backend.Encoding
+		dataEncoding string
+		err          error
+	}{
+		{
+			"wal",
+			"00000000-0000-0000-0000-000000000000:1:v2:snappy:v1",
+			uuid.MustParse("00000000-0000-0000-0000-000000000000"), "1", "v2", backend.EncSnappy, "v1", nil,
+		},
+		{
+			"search wal",
+			"00000000-0000-0000-0000-000000000000:1:v2:snappy:",
+			uuid.MustParse("00000000-0000-0000-0000-000000000000"), "1", "v2", backend.EncSnappy, "", nil,
+		},
+		{
+			"missing segments",
+			"xyz",
+			uuid.Nil, "", "", backend.EncNone, "", errors.New("unable to parse xyz. unexpected number of segments"),
+		},
+		{
+			"no data encoding",
+			"00000000-0000-0000-0000-000000000000:1:v2:snappy",
+			uuid.MustParse("00000000-0000-0000-0000-000000000000"), "1", "v2", backend.EncSnappy, "", nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			b, tn, v, e, de, err := ParseFilename(tc.filename)
+			require.Equal(t, tc.blockID, b)
+			require.Equal(t, tc.tenant, tn)
+			require.Equal(t, tc.version, v)
+			require.Equal(t, tc.encoding, e)
+			require.Equal(t, tc.dataEncoding, de)
+			require.Equal(t, tc.err, err)
+		})
+	}
 }
 
 func BenchmarkWALNone(b *testing.B) {
@@ -318,7 +373,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 
 		// write
 		for j, obj := range objs {
-			err := block.Write(ids[j], obj)
+			err := block.Append(ids[j], obj)
 			require.NoError(b, err)
 		}
 

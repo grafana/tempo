@@ -1,16 +1,20 @@
 package wal
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	versioned_encoding "github.com/grafana/tempo/tempodb/encoding"
 )
 
 const (
@@ -28,6 +32,8 @@ type Config struct {
 	CompletedFilepath string
 	BlocksFilepath    string
 	Encoding          backend.Encoding `yaml:"encoding"`
+	SearchEncoding    backend.Encoding `yaml:"search_encoding"`
+	WriteBufferSize   int              `yaml:"write_buffer_size"`
 }
 
 func New(c *Config) (*WAL, error) {
@@ -130,16 +136,72 @@ func (w *WAL) RescanBlocks(log log.Logger) ([]*AppendBlock, error) {
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*AppendBlock, error) {
-	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding)
+	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.WriteBufferSize)
 }
 
-func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string, name string) (*os.File, error) {
+func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, *bufio.Writer, error) {
 	p := filepath.Join(w.c.Filepath, dir)
 	err := os.MkdirAll(p, os.ModePerm)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return os.OpenFile(filepath.Join(p, fmt.Sprintf("%v:%v:%v", blockid, tenantid, name)), os.O_CREATE|os.O_RDWR, 0644)
+
+	// blockID, tenantID, version, encoding (compression), dataEncoding
+	filename := fmt.Sprintf("%v:%v:%v:%v:%v", blockid, tenantid, "v2", backend.EncNone, "")
+	file, err := os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return file, bufio.NewWriterSize(file, w.c.WriteBufferSize), nil
+}
+
+// ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).
+// Example: "00000000-0000-0000-0000-000000000000:1:v2:snappy:v1"
+func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding, string, error) {
+	splits := strings.Split(filename, ":")
+
+	if len(splits) != 4 && len(splits) != 5 {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. unexpected number of segments", filename)
+	}
+
+	// first segment is blockID
+	id, err := uuid.Parse(splits[0])
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing uuid: %w", filename, err)
+	}
+
+	// second segment is tenant
+	tenant := splits[1]
+	if len(tenant) == 0 {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. missing fields", filename)
+	}
+
+	// third segment is version
+	version := splits[2]
+	_, err = versioned_encoding.FromVersion(version)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing version: %w", filename, err)
+	}
+
+	// fourth is encoding
+	encodingString := splits[3]
+	encoding, err := backend.ParseEncoding(encodingString)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing encoding: %w", filename, err)
+	}
+
+	// fifth is dataEncoding
+	dataEncoding := ""
+	if len(splits) == 5 {
+		dataEncoding = splits[4]
+	}
+
+	return id, tenant, version, encoding, dataEncoding, nil
+}
+
+func (w *WAL) GetFilepath() string {
+	return w.c.Filepath
 }
 
 func (w *WAL) ClearFolder(dir string) error {

@@ -81,7 +81,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
 		span.SetTag("contentType", util.ProtobufTypeHeaderValue)
-		b, err := proto.Marshal(resp.Trace)
+		b, err := proto.Marshal(resp)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -96,7 +96,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	span.SetTag("contentType", util.JSONTypeHeaderValue)
 	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp.Trace)
+	err = marshaller.Marshal(w, resp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -159,7 +159,8 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.Finish()
 
 	req := &tempopb.SearchRequest{
-		Tags: map[string]string{},
+		Tags:  map[string]string{},
+		Limit: q.cfg.SearchDefaultResultLimit,
 	}
 
 	for k, v := range r.URL.Query() {
@@ -195,7 +196,9 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		req.Limit = uint32(limit)
+		if limit > 0 {
+			req.Limit = uint32(limit)
+		}
 	}
 
 	resp, err := q.Search(ctx, req)

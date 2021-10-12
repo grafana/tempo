@@ -136,8 +136,8 @@ func TestInstanceSearch(t *testing.T) {
 
 	sr, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	// note: search is experimental and removed on every startup. Verify no search results now
-	assert.Len(t, sr.Traces, 0)
+	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
+	checkEqual(t, ids, sr)
 }
 
 func TestInstanceSearchNoData(t *testing.T) {

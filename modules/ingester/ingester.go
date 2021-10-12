@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/search"
+
 	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
@@ -105,9 +107,6 @@ func (i *Ingester) starting(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to rediscover local blocks %w", err)
 	}
-
-	// Search data is considered experimental and removed on every startup.
-	i.clearSearchData()
 
 	// Now that user states have been created, we can start the lifecycler.
 	// Important: we want to keep lifecycler running until we ask it to stop, so we need to give it independent context
@@ -335,6 +334,30 @@ func (i *Ingester) replayWal() error {
 		return fmt.Errorf("fatal error replaying wal %w", err)
 	}
 
+	searchBlocks, err := search.RescanBlocks(i.store.WAL().GetFilepath())
+	if err != nil {
+		return fmt.Errorf("fatal error replaying search wal %w", err)
+	}
+
+	// clear any searchBlock that does not have a matching wal block
+	for j := len(searchBlocks) - 1; j >= 0; j-- {
+		clear := true
+		for _, tracesBlock := range blocks {
+			if searchBlocks[j].BlockID == tracesBlock.BlockID() {
+				clear = false
+				break
+			}
+		}
+
+		if clear {
+			err := searchBlocks[j].Clear()
+			if err != nil { // just log the error
+				level.Warn(log.Logger).Log("msg", "error clearing search WAL file", "blockID", searchBlocks[j].BlockID, "err", err)
+			}
+			searchBlocks = append(searchBlocks[:j], searchBlocks[j+1:]...)
+		}
+	}
+
 	for _, b := range blocks {
 		tenantID := b.Meta().TenantID
 
@@ -354,7 +377,14 @@ func (i *Ingester) replayWal() error {
 			return err
 		}
 
-		instance.AddCompletingBlock(b)
+		var searchWALBlock *search.StreamingSearchBlock
+		for _, s := range searchBlocks {
+			if b.BlockID() == s.BlockID {
+				searchWALBlock = s
+				break
+			}
+		}
+		instance.AddCompletingBlock(b, searchWALBlock)
 
 		i.enqueue(&flushOp{
 			kind:    opKindComplete,

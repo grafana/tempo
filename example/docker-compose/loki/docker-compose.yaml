@@ -42,7 +42,7 @@ services:
         loki-url: 'http://localhost:3100/loki/api/v1/push'
 
   grafana:
-    image: grafana/grafana:8.1.1
+    image: grafana/grafana:8.1.6
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

@@ -216,3 +216,24 @@ tempo-mixin:
 
 tempo-mixin-check:
 	$(MAKE) -C operations/tempo-mixin check
+
+### drone
+.PHONY: drone drone-jsonnet drone-signature
+# this requires the drone-cli https://docs.drone.io/cli/install/
+drone:
+	# piggyback on Loki's build image, this image contains a newer version of drone-cli than is
+	# released currently (1.4.0). The newer version of drone-clie keeps drone.yml human-readable.
+	# This will run 'make drone-jsonnet' from within the container
+	docker run --rm -v $(shell pwd):/src/loki grafana/loki-build-image:0.15.0 drone-jsonnet
+
+	drone lint .drone/drone.yml
+	@make drone-signature
+
+drone-jsonnet:
+	drone jsonnet --stream --format --source .drone/drone.jsonnet --target .drone/drone.yml
+
+drone-signature:
+ifndef DRONE_TOKEN
+	$(error DRONE_TOKEN is not set, visit https://drone.grafana.net/account)
+endif
+	DRONE_SERVER=https://drone.grafana.net drone sign --save grafana/tempo .drone/drone.yml

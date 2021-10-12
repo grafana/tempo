@@ -1,25 +1,37 @@
 package search
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"io"
 	"os"
 
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
+
 	"github.com/grafana/tempo/pkg/tempofb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/pkg/errors"
 )
 
 var _ SearchableBlock = (*StreamingSearchBlock)(nil)
-var _ common.DataWriter = (*StreamingSearchBlock)(nil)
 
 // StreamingSearchBlock is search data that is read/write, i.e. for traces in the WAL.
 type StreamingSearchBlock struct {
-	appender     encoding.Appender
-	file         *os.File
-	bytesWritten int
-	header       *tempofb.SearchBlockHeaderMutable
+	BlockID        uuid.UUID // todo: add the full meta?
+	appender       encoding.Appender
+	file           *os.File
+	bufferedWriter *bufio.Writer
+	header         *tempofb.SearchBlockHeaderMutable
+	v              encoding.VersionedEncoding
+	enc            backend.Encoding
+}
+
+// Close closes the WAL file. Used in tests
+func (s *StreamingSearchBlock) Close() error {
+	return s.file.Close()
 }
 
 // Clear deletes the files for this block.
@@ -28,41 +40,28 @@ func (s *StreamingSearchBlock) Clear() error {
 	return os.Remove(s.file.Name())
 }
 
-func (*StreamingSearchBlock) Complete() error {
-	return nil
-}
-
-// CutPage returns the number of bytes written previously so that the appender can build the index.
-func (s *StreamingSearchBlock) CutPage() (int, error) {
-	b := s.bytesWritten
-	s.bytesWritten = 0
-	return b, nil
-}
-
-// Write the entry to the end of the file. The number of bytes written is saved and returned through CutPage.
-func (s *StreamingSearchBlock) Write(id common.ID, obj []byte) (int, error) {
-	var err error
-
-	_, err = s.file.Write(obj)
-	if err != nil {
-		return 0, err
-	}
-
-	s.bytesWritten += len(obj)
-
-	return len(obj), err
-}
-
 // NewStreamingSearchBlockForFile creates a new streaming block that will read/write the given file.
 // File must be opened for read/write permissions.
-func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
+func NewStreamingSearchBlockForFile(f *os.File, bufferedWriter *bufio.Writer, version string, enc backend.Encoding) (*StreamingSearchBlock, error) {
+	v, err := encoding.FromVersion(version)
+	if err != nil {
+		return nil, err
+	}
 	s := &StreamingSearchBlock{
 		file:   f,
 		header: tempofb.NewSearchBlockHeaderMutable(),
+		v:      v,
+		enc:    enc,
+	}
+	s.bufferedWriter = bufferedWriter
+
+	// Use versioned encoding to create paged entries
+	dataWriter, err := s.v.NewDataWriter(s.bufferedWriter, enc)
+	if err != nil {
+		return nil, err
 	}
 
-	// Entries are not paged, use non paged appender.
-	a := encoding.NewAppender(s)
+	a := encoding.NewAppender(dataWriter)
 	s.appender = a
 
 	return s, nil
@@ -70,6 +69,7 @@ func NewStreamingSearchBlockForFile(f *os.File) (*StreamingSearchBlock, error) {
 
 // Append the given search data to the streaming block. Multiple byte buffers of search data for
 // the same trace can be passed and are merged into one entry.
+// After calling Append FlushBuffer() must be called to guarantee that all data makes it to the disk
 func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
 	combined, _ := staticCombiner.Combine("", searchData...)
 
@@ -82,45 +82,51 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 	return s.appender.Append(id, combined)
 }
 
+// FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
+// that all data makes it to the disk. It is intended that there are many Append() calls per FlushBuffer().
+// It must also be called before any attempts to use appender records to read the file such as in Search() or
+// Iterator().
+func (s *StreamingSearchBlock) FlushBuffer() error {
+	if s.bufferedWriter == nil {
+		return nil
+	}
+	return s.bufferedWriter.Flush()
+}
+
 // Search the streaming block.
 func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results) error {
-
 	if !p.MatchesBlock(s.header) {
 		sr.AddBlockSkipped()
 		return nil
 	}
 
-	var buf []byte
-
 	sr.AddBlockInspected()
 
-	rr := s.appender.Records()
+	// calling s.Iterator() forces a buffer flush. no need to do it before here
+	iter, err := s.Iterator()
+	if err != nil {
+		return err
+	}
+	defer iter.Close()
 
-	for _, r := range rr {
+	for {
 
 		if sr.Quit() {
 			return nil
 		}
 
-		if r.Length == 0 {
-			continue
+		_, obj, err := iter.Next(ctx)
+		if err == io.EOF {
+			break
 		}
-
-		// Reset/resize buffer
-		if cap(buf) < int(r.Length) {
-			buf = make([]byte, r.Length)
-		}
-		buf = buf[:r.Length]
-
-		_, err := s.file.ReadAt(buf, int64(r.Start))
 		if err != nil {
 			return err
 		}
 
-		sr.AddBytesInspected(uint64(r.Length))
+		sr.AddBytesInspected(uint64(len(obj)))
 		sr.AddTraceInspected(1)
 
-		entry := tempofb.SearchEntryFromBytes(buf)
+		entry := tempofb.SearchEntryFromBytes(obj)
 
 		if !p.Matches(entry) {
 			continue
@@ -138,10 +144,25 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 }
 
 func (s *StreamingSearchBlock) Iterator() (encoding.Iterator, error) {
-	iter := &streamingSearchBlockIterator{
-		records: s.appender.Records(),
-		file:    s.file,
+	// flush buffers to make sure all data is on disk
+	err := s.FlushBuffer()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to flush buffer of search streaming block")
 	}
+
+	iter := &streamingSearchBlockIterator{
+		records:     s.appender.Records(),
+		file:        s.file,
+		pagesBuffer: make([][]byte, 1),
+	}
+
+	dr, err := s.v.NewDataReader(backend.NewContextReaderWithAllReader(s.file), s.enc)
+	if err != nil {
+		return nil, err
+	}
+	iter.dataReader = dr
+
+	iter.objectRW = s.v.NewObjectReaderWriter()
 
 	combiner := &DataCombiner{}
 
@@ -153,11 +174,15 @@ type streamingSearchBlockIterator struct {
 	currentIndex int
 	records      []common.Record
 	file         *os.File
+	dataReader   common.DataReader
+	objectRW     common.ObjectReaderWriter
+
+	pagesBuffer [][]byte
 }
 
 var _ encoding.Iterator = (*streamingSearchBlockIterator)(nil)
 
-func (s *streamingSearchBlockIterator) Next(_ context.Context) (common.ID, []byte, error) {
+func (s *streamingSearchBlockIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if s.currentIndex >= len(s.records) {
 		return nil, nil, io.EOF
 	}
@@ -166,15 +191,21 @@ func (s *streamingSearchBlockIterator) Next(_ context.Context) (common.ID, []byt
 
 	// Use unique buffer that can be returned to the caller.
 	// This is primarily for DedupingIterator which uses 2 buffers at once.
-	buffer := make([]byte, currentRecord.Length)
-	_, err := s.file.ReadAt(buffer, int64(currentRecord.Start))
+	var buffer []byte
+	s.pagesBuffer[0] = make([]byte, currentRecord.Length)
+	pagesBuffer, _, err := s.dataReader.Read(ctx, []common.Record{currentRecord}, s.pagesBuffer, buffer)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "error reading search file")
+		return nil, nil, err
+	}
+
+	_, pagesBuffer[0], err = s.objectRW.UnmarshalObjectFromReader(bytes.NewReader(pagesBuffer[0]))
+	if err != nil {
+		return nil, nil, err
 	}
 
 	s.currentIndex++
 
-	return currentRecord.ID, buffer, nil
+	return currentRecord.ID, pagesBuffer[0], nil
 }
 
 func (*streamingSearchBlockIterator) Close() {

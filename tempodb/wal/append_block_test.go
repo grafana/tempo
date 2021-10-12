@@ -1,12 +1,56 @@
 package wal
 
 import (
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestAppendBlockBuffersAndFlushes(t *testing.T) {
+	// direct call to flush
+	testBufferAndFlush(t, func(a *AppendBlock) {
+		err := a.FlushBuffer()
+		assert.NoError(t, err)
+	})
+
+	// find
+	testBufferAndFlush(t, func(a *AppendBlock) {
+		_, err := a.Find([]byte{0x01}, &mockCombiner{}) // 0x01 has to be in the block or it won't flush. this happens to sync with below
+		assert.NoError(t, err)
+	})
+
+	// iterator
+	testBufferAndFlush(t, func(a *AppendBlock) {
+		_, err := a.Iterator(&mockCombiner{})
+		assert.NoError(t, err)
+	})
+}
+
+func testBufferAndFlush(t *testing.T, fn func(a *AppendBlock)) {
+	tmpDir := t.TempDir()
+	a, err := newAppendBlock(uuid.New(), testTenantID, tmpDir, backend.EncNone, "", 1000)
+	require.NoError(t, err)
+
+	err = a.Append([]byte{0x01}, []byte{0x01})
+	require.NoError(t, err)
+
+	filename := a.fullFilename()
+
+	// file should be 0 length
+	info, err := os.Stat(filename)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), info.Size())
+
+	// do something and confirm the file has flusehd something is in the file
+	fn(a)
+	info, err = os.Stat(filename)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Size())
+}
 
 func TestFullFilename(t *testing.T) {
 	tests := []struct {
@@ -124,29 +168,40 @@ func TestParseFilename(t *testing.T) {
 		expectError          bool
 	}{
 		{
-			name:             "ez-mode",
-			filename:         "123e4567-e89b-12d3-a456-426614174000:foo",
-			expectUUID:       uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
-			expectTenant:     "foo",
-			expectedVersion:  "v0",
-			expectedEncoding: backend.EncNone,
-		},
-		{
-			name:             "version and encoding",
-			filename:         "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy",
-			expectUUID:       uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
-			expectTenant:     "foo",
-			expectedVersion:  "v1",
-			expectedEncoding: backend.EncSnappy,
-		},
-		{
-			name:                 "version, encoding and dataencoding",
-			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy:dataencoding",
+			name:                 "version, enc snappy and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:dataencoding",
 			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
 			expectTenant:         "foo",
-			expectedVersion:      "v1",
+			expectedVersion:      "v2",
 			expectedEncoding:     backend.EncSnappy,
 			expectedDataEncoding: "dataencoding",
+		},
+		{
+			name:                 "version, enc none and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:none:dataencoding",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncNone,
+			expectedDataEncoding: "dataencoding",
+		},
+		{
+			name:                 "empty dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "",
+		},
+		{
+			name:                 "empty dataencoding with semicolon",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "",
 		},
 		{
 			name:        "path fails",
@@ -198,11 +253,21 @@ func TestParseFilename(t *testing.T) {
 			filename:    "123e4567-e89b-12d3-a456-426614174000:test:v1:asdf",
 			expectError: true,
 		},
+		{
+			name:        "ez-mode old format",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:foo",
+			expectError: true,
+		},
+		{
+			name:        "deprecated version",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy",
+			expectError: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actualUUID, actualTenant, actualVersion, actualEncoding, actualDataEncoding, err := parseFilename(tc.filename)
+			actualUUID, actualTenant, actualVersion, actualEncoding, actualDataEncoding, err := ParseFilename(tc.filename)
 
 			if tc.expectError {
 				assert.Error(t, err)
