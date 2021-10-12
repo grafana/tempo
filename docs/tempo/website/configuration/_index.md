@@ -197,6 +197,15 @@ The Querier is responsible for querying the backends/cache for the traceID.
 # querier config block
 querier:
 
+    # Timeout for trace lookup requests
+    [query_timeout: <duration> | default = 10s]
+
+    # Timeout for search requests    
+    [search_query_timeout: <duration> | default = 30s]
+
+    # Limit used for search requests if none is set by the caller
+    [search_default_result_limit: <int> | default = 20]
+
     # config of the worker that connects to the query frontend
     frontend_worker:
 
