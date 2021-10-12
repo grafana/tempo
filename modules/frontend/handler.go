@@ -28,23 +28,23 @@ var (
 	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
 )
 
-// Handler exists to wrap a roundtripper with an HTTP handler. It wraps all
+// handler exists to wrap a roundtripper with an HTTP handler. It wraps all
 // frontend endpoints and should only contain functionality that is common to all.
-type Handler struct {
+type handler struct {
 	roundTripper http.RoundTripper
 	logger       log.Logger
 }
 
-// NewHandler creates a handler
-func NewHandler(rt http.RoundTripper, logger log.Logger) http.Handler {
-	return &Handler{
+// newHandler creates a handler
+func newHandler(rt http.RoundTripper, logger log.Logger) http.Handler {
+	return &handler{
 		roundTripper: rt,
 		logger:       logger,
 	}
 }
 
 // ServeHTTP implements http.Handler
-func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		_ = r.Body.Close()
 	}()

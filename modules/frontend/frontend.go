@@ -22,111 +22,47 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-const (
-	apiPathTraces        = "/api/traces"
-	apiPathSearch        = "/api/search"
-	apiPathBackendSearch = "/api/backend_search" // todo(search): integrate with real search
-)
+type QueryFrontend struct {
+	TraceByID, Search, BackendSearch http.Handler
+	logger                           log.Logger
+	queriesPerTenant                 *prometheus.CounterVec
+	store                            storage.Store
+}
 
-// NewMiddleware returns a Middleware configured with a middleware to route, split and dedupe requests.
-func NewMiddleware(cfg Config, apiPrefix string, store storage.Store, logger log.Logger, registerer prometheus.Registerer) (Middleware, error) {
+// New returns a new QueryFrontend
+func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
-	// todo: push this farther down? into the actual creation of the shardingware?
 	if cfg.QueryShards < minQueryShards || cfg.QueryShards > maxQueryShards {
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
 	}
 
-	tracesMiddleware := NewTracesMiddleware(cfg, logger, registerer)
-	searchMiddleware := NewSearchMiddleware()
-	backendMiddleware := NewBackendSearchMiddleware(store)
+	// jpe, queries per tenant not used?
+	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_queries_total",
+		Help:      "Total queries received per tenant.",
+	}, []string{"tenant", "op"})
 
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		traces := tracesMiddleware.Wrap(next)
-		search := searchMiddleware.Wrap(next)
-		backend := backendMiddleware.Wrap(next)
+	tracesMiddleware := newTracesMiddleware(cfg, logger, registerer)
+	searchMiddleware := newSearchMiddleware()
+	backendMiddleware := newBackendSearchMiddleware(store)
 
-		queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
-			Namespace: "tempo",
-			Name:      "query_frontend_queries_total",
-			Help:      "Total queries received per tenant.",
-		}, []string{"tenant", "op"})
-
-		return frontendRoundTripper{
-			apiPrefix:        apiPrefix,
-			next:             next,
-			traces:           traces,
-			search:           search,
-			backend:          backend,
-			logger:           logger,
-			queriesPerTenant: queriesPerTenant,
-			store:            store,
-		}
-	}), nil
+	traces := tracesMiddleware.Wrap(next)
+	search := searchMiddleware.Wrap(next)
+	backend := backendMiddleware.Wrap(next)
+	return &QueryFrontend{
+		TraceByID:        newHandler(traces, logger),
+		Search:           newHandler(search, logger),
+		BackendSearch:    newHandler(backend, logger),
+		logger:           logger,
+		queriesPerTenant: queriesPerTenant,
+		store:            store,
+	}, nil
 }
 
-type frontendRoundTripper struct {
-	apiPrefix                     string
-	next, traces, search, backend http.RoundTripper
-	logger                        log.Logger
-	queriesPerTenant              *prometheus.CounterVec
-	store                         storage.Store
-}
-
-func (r frontendRoundTripper) RoundTrip(req *http.Request) (resp *http.Response, err error) {
-	op := getOperation(r.apiPrefix, req.URL.Path)
-	orgID, _ := user.ExtractOrgID(req.Context())
-
-	r.queriesPerTenant.WithLabelValues(orgID, string(op)).Inc()
-
-	// route the request to the appropriate RoundTripper
-	//  todo: use the mux.Router in modules instead of doing custom routing here?
-	switch op {
-	case TracesOp:
-		resp, err = r.traces.RoundTrip(req)
-	case SearchOp:
-		resp, err = r.search.RoundTrip(req)
-	case BackendSearchOp:
-		resp, err = r.backend.RoundTrip(req)
-	default:
-		// should never be called
-		level.Warn(r.logger).Log("msg", "unknown path called in frontend roundtripper", "path", req.URL.Path)
-		resp, err = r.next.RoundTrip(req)
-	}
-
-	return
-}
-
-type RequestOp string
-
-const (
-	TracesOp        RequestOp = "traces"
-	SearchOp        RequestOp = "search"
-	BackendSearchOp RequestOp = "backend_search" // todo(search): integrate with real search
-)
-
-func getOperation(prefix, path string) RequestOp {
-	if !strings.HasPrefix(path, prefix) {
-		return ""
-	}
-
-	// remove prefix from path
-	path = path[len(prefix):]
-
-	switch {
-	case strings.HasPrefix(path, apiPathTraces):
-		return TracesOp
-	case strings.HasPrefix(path, apiPathSearch):
-		return SearchOp
-	case strings.HasPrefix(path, apiPathBackendSearch):
-		return BackendSearchOp
-	default:
-		return ""
-	}
-}
-
-// NewTracesMiddleware creates a new frontend middleware responsible for handling get traces requests.
-func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Registerer) Middleware {
+// newTracesMiddleware creates a new frontend middleware responsible for handling get traces requests.
+func newTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Registerer) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support
@@ -192,8 +128,8 @@ func NewTracesMiddleware(cfg Config, logger log.Logger, registerer prometheus.Re
 	})
 }
 
-// NewSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
-func NewSearchMiddleware() Middleware {
+// newSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
+func newSearchMiddleware() Middleware {
 	return MiddlewareFunc(func(rt http.RoundTripper) http.RoundTripper {
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
@@ -208,9 +144,9 @@ func NewSearchMiddleware() Middleware {
 	})
 }
 
-// NewBackendSearchMiddleware creates a new frontend middleware to handle backend search.
+// newBackendSearchMiddleware creates a new frontend middleware to handle backend search.
 // todo(search): integrate with real search
-func NewBackendSearchMiddleware(store storage.Store) Middleware {
+func newBackendSearchMiddleware(store storage.Store) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		rt := NewRoundTripper(next, NewSearchSharder(store))
 

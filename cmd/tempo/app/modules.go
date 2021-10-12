@@ -192,39 +192,38 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 	t.frontend = v1
 
-	// httpPipeline is the Tempo http pipeline
-	httpPipeline, err := frontend.NewMiddleware(t.cfg.Frontend, t.cfg.HTTPAPIPrefix, t.store, log.Logger, prometheus.DefaultRegisterer)
+	// create query frontend
+	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.store, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
-	roundTripper := httpPipeline.Wrap(cortexTripper)
 
-	// wrap http.RoundTripper with a http.Handler
-	frontendHandler := frontend.NewHandler(roundTripper, log.Logger)
-
-	// wrap handler with auth
-	frontendHandler = t.HTTPAuthMiddleware.Wrap(frontendHandler)
+	// wrap handlers with auth
+	traceByIDHandler := t.HTTPAuthMiddleware.Wrap(queryFrontend.TraceByID)
+	searchHandler := t.HTTPAuthMiddleware.Wrap(queryFrontend.Search)
+	backendSearchHandler := t.HTTPAuthMiddleware.Wrap(queryFrontend.BackendSearch)
 
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
 
-	// http query endpoint
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathTraces), frontendHandler)
+	// http trace by id endpoint
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathTraces), traceByIDHandler)
 
 	// http search endpoints
 	if t.cfg.SearchEnabled {
-		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), frontendHandler)
-		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), frontendHandler)
-		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), frontendHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), searchHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), searchHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), searchHandler)
 
 		// todo(search): integrate with real search
-		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathBackendSearch), frontendHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathBackendSearch), backendSearchHandler)
 		t.store.EnablePolling(nil) // the query frontend does not need to have knowledge of the backend unless it is building jobs for backend search
 	}
 
 	// http query echo endpoint
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathEcho), echoHandler())
 
+	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
 }
 
