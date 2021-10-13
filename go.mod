@@ -49,7 +49,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
-	github.com/thanos-io/thanos v0.22.0
+	github.com/thanos-io/thanos v0.23.1
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.29.1+incompatible
 	github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78

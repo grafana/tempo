@@ -10,6 +10,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/Azure/azure-storage-blob-go/azblob"
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -184,7 +185,7 @@ func (rw *readerWriter) append(ctx context.Context, src []byte, name string) err
 	// generate the next block id
 	id := blockIDIntToBase64(len(l.CommittedBlocks) + 1)
 
-	_, err = appendBlobURL.StageBlock(ctx, id, bytes.NewReader(src), blob.LeaseAccessConditions{}, nil)
+	_, err = appendBlobURL.StageBlock(ctx, id, bytes.NewReader(src), blob.LeaseAccessConditions{}, nil, azblob.ClientProvidedKeyOptions{})
 	if err != nil {
 		return err
 	}
@@ -197,7 +198,7 @@ func (rw *readerWriter) append(ctx context.Context, src []byte, name string) err
 	base64BlockIDs[len(l.CommittedBlocks)] = id
 
 	// After all the blocks are uploaded, atomically commit them to the blob.
-	_, err = appendBlobURL.CommitBlockList(ctx, base64BlockIDs, blob.BlobHTTPHeaders{}, blob.Metadata{}, blob.BlobAccessConditions{})
+	_, err = appendBlobURL.CommitBlockList(ctx, base64BlockIDs, blob.BlobHTTPHeaders{}, blob.Metadata{}, blob.BlobAccessConditions{}, azblob.AccessTierNone, nil, azblob.ClientProvidedKeyOptions{})
 	if err != nil {
 		return err
 	}
@@ -222,7 +223,7 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	blobURL := rw.hedgedContainerURL.NewBlockBlobURL(name)
 
 	var props *blob.BlobGetPropertiesResponse
-	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{})
+	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, azblob.ClientProvidedKeyOptions{})
 	if err != nil {
 		return err
 	}
@@ -261,7 +262,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 	blobURL := rw.hedgedContainerURL.NewBlockBlobURL(name)
 
 	var props *blob.BlobGetPropertiesResponse
-	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{})
+	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, azblob.ClientProvidedKeyOptions{})
 	if err != nil {
 		return nil, err
 	}

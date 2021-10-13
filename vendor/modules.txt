@@ -1074,7 +1074,7 @@ github.com/stretchr/testify/require
 # github.com/subosito/gotenv v1.2.0
 ## explicit
 github.com/subosito/gotenv
-# github.com/thanos-io/thanos v0.22.0
+# github.com/thanos-io/thanos v0.23.1
 ## explicit; go 1.15
 github.com/thanos-io/thanos/pkg/block
 github.com/thanos-io/thanos/pkg/block/indexheader
@@ -1088,9 +1088,11 @@ github.com/thanos-io/thanos/pkg/discovery/cache
 github.com/thanos-io/thanos/pkg/discovery/dns
 github.com/thanos-io/thanos/pkg/discovery/dns/godns
 github.com/thanos-io/thanos/pkg/discovery/dns/miekgdns
+github.com/thanos-io/thanos/pkg/discovery/memcache
 github.com/thanos-io/thanos/pkg/errutil
 github.com/thanos-io/thanos/pkg/exemplars/exemplarspb
 github.com/thanos-io/thanos/pkg/extprom
+github.com/thanos-io/thanos/pkg/extprom/http
 github.com/thanos-io/thanos/pkg/gate
 github.com/thanos-io/thanos/pkg/http
 github.com/thanos-io/thanos/pkg/metadata/metadatapb

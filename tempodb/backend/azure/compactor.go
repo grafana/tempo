@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Azure/azure-storage-blob-go/azblob"
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -135,7 +136,7 @@ func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAtt
 	}
 
 	var props *blob.BlobGetPropertiesResponse
-	props, err = blobURL.GetProperties(ctx, blob.BlobAccessConditions{})
+	props, err = blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, azblob.ClientProvidedKeyOptions{})
 	if err != nil {
 		return BlobAttributes{}, err
 	}
