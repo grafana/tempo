@@ -63,7 +63,7 @@ func (m *multiTenancyMiddleware) Wrap(next consumer.TracesConsumer) consumer.Tra
 		var err error
 		_, ctx, err = user.ExtractFromGRPCRequest(ctx)
 		if err != nil {
-			log.Logger.Log("msg", "failed to extract org id", "err", err)
+			_ = log.Logger.Log("msg", "failed to extract org id", "err", err)
 			return err
 		}
 		return next.ConsumeTraces(ctx, td)
