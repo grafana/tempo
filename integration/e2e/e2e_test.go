@@ -27,6 +27,7 @@ import (
 
 const (
 	configMicroservices = "config-microservices.yaml"
+	configHA            = "config-scalable-single-binary.yaml"
 
 	configAllInOneS3      = "config-all-in-one-s3.yaml"
 	configAllInOneAzurite = "config-all-in-one-azurite.yaml"
@@ -238,6 +239,90 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Error(t, info.EmitBatches(c))
+}
+
+func TestScalableSingleBinary(t *testing.T) {
+	s, err := cortex_e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	minio := cortex_e2e_db.NewMinio(9000, "tempo")
+	require.NotNil(t, minio)
+	require.NoError(t, s.StartAndWaitReady(minio))
+	//
+	require.NoError(t, util.CopyFileToSharedDir(s, configHA, "config.yaml"))
+	tempo1 := util.NewTempoScalableSingleBinary(1)
+	tempo2 := util.NewTempoScalableSingleBinary(2)
+	tempo3 := util.NewTempoScalableSingleBinary(3)
+
+	require.NoError(t, s.StartAndWaitReady(tempo1, tempo2, tempo3))
+
+	// wait for 2 active ingesters
+	time.Sleep(1 * time.Second)
+	matchers := []*labels.Matcher{
+		{
+			Type:  labels.MatchEqual,
+			Name:  "name",
+			Value: "ingester",
+		},
+		{
+			Type:  labels.MatchEqual,
+			Name:  "state",
+			Value: "ACTIVE",
+		},
+	}
+
+	t.Logf("tempo1.Endpoint(): %+v", tempo1.Endpoint(3200))
+
+	require.NoError(t, tempo1.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
+	require.NoError(t, tempo2.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
+	require.NoError(t, tempo3.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
+
+	c1, err := newJaegerGRPCClient(tempo1.Endpoint(14250))
+	require.NoError(t, err)
+	require.NotNil(t, c1)
+
+	c2, err := newJaegerGRPCClient(tempo2.Endpoint(14250))
+	require.NoError(t, err)
+	require.NotNil(t, c2)
+
+	c3, err := newJaegerGRPCClient(tempo3.Endpoint(14250))
+	require.NoError(t, err)
+	require.NotNil(t, c3)
+
+	info := tempoUtil.NewTraceInfo(time.Unix(1632169410, 0), "")
+	require.NoError(t, info.EmitBatches(c1))
+
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	// test metrics
+	require.NoError(t, tempo1.WaitSumMetrics(cortex_e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
+	require.NoError(t, tempo1.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
+
+	for _, i := range []*cortex_e2e.HTTPService{tempo1, tempo2, tempo3} {
+		res, err := cortex_e2e.GetRequest("http://" + i.Endpoint(3200) + "/flush")
+		require.NoError(t, err)
+		require.Equal(t, 204, res.StatusCode)
+
+		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+	}
+
+	apiClient1 := tempoUtil.NewClient("http://"+tempo1.Endpoint(3200), "")
+
+	queryAndAssertTrace(t, apiClient1, info)
+
+	err = tempo1.Stop()
+	require.NoError(t, err)
+
+	// Push to one of the instances that are still running.
+	require.NoError(t, info.EmitBatches(c2))
+
+	err = tempo2.Stop()
+	require.NoError(t, err)
+
+	err = tempo3.Stop()
+	require.NoError(t, err)
 }
 
 func makeThriftBatch() *thrift.Batch {

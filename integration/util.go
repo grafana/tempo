@@ -101,6 +101,24 @@ func NewTempoQuerier() *cortex_e2e.HTTPService {
 	return s
 }
 
+func NewTempoScalableSingleBinary(replica int) *cortex_e2e.HTTPService {
+	args := []string{"-config.file=" + filepath.Join(cortex_e2e.ContainerSharedDir, "config.yaml"), "-target=scalable-single-binary", "-querier.frontend-address=tempo-" + strconv.Itoa(replica) + ":9095"}
+
+	s := cortex_e2e.NewHTTPService(
+		"tempo-"+strconv.Itoa(replica),
+		image,
+		cortex_e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		cortex_e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,  // http all things
+		14250, // jaeger grpc ingest
+		// 9411,  // zipkin ingest (used by load)
+	)
+
+	s.SetBackoff(TempoBackoff())
+
+	return s
+}
+
 func WriteFileToSharedDir(s *e2e.Scenario, dst string, content []byte) error {
 	dst = filepath.Join(s.SharedDir(), dst)
 
