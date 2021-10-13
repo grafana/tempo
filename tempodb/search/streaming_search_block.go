@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -26,6 +27,7 @@ type StreamingSearchBlock struct {
 	file           *os.File
 	closed         atomic.Bool
 	bufferedWriter *bufio.Writer
+	flushMtx       sync.Mutex
 	header         *tempofb.SearchBlockHeaderMutable
 	v              encoding.VersionedEncoding
 	enc            backend.Encoding
@@ -94,6 +96,11 @@ func (s *StreamingSearchBlock) FlushBuffer() error {
 	if s.bufferedWriter == nil {
 		return nil
 	}
+
+	// Lock required to handle concurrent searches/readers flushing.
+	s.flushMtx.Lock()
+	defer s.flushMtx.Unlock()
+
 	return s.bufferedWriter.Flush()
 }
 
