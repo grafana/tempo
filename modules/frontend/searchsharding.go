@@ -2,13 +2,13 @@ package frontend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/log/level"
@@ -129,7 +129,7 @@ func NewSearchSharder(store storage.Store, logger log.Logger) Middleware {
 //    k=<string>
 //    v=<string>
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
-	start, end, limit, err := params(r)
+	start, end, limit, err := searchSharderParams(r)
 	if err != nil {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
@@ -290,7 +290,7 @@ func (s *searchSharder) shardedRequests(metas []*backend.BlockMeta, tenantID str
 	return reqs
 }
 
-func params(r *http.Request) (start, end int64, limit int, err error) {
+func searchSharderParams(r *http.Request) (start, end int64, limit int, err error) {
 	if s := r.URL.Query().Get(querier.UrlParamStart); s != "" {
 		start, err = strconv.ParseInt(s, 10, 64)
 		if err != nil {
@@ -312,23 +312,21 @@ func params(r *http.Request) (start, end int64, limit int, err error) {
 		}
 	}
 
-	// allow negative values for ease of querying
-	if start <= 0 {
-		start = time.Now().Add(-time.Duration(start) * time.Second).Unix()
+	if start == 0 || end == 0 {
+		err = errors.New("please provide non-zero values for http parameters start and end")
+		return
 	}
-	if end <= 0 {
-		end = time.Now().Add(-time.Duration(end) * time.Second).Unix()
-	}
+
 	if limit == 0 {
 		limit = defaultLimit
 	}
 
 	if end-start > maxRange {
-		err = fmt.Errorf("range specified by start and end exceeds %d seconds", maxRange)
+		err = fmt.Errorf("range specified by start and end exceeds %d seconds. received start=%d end=%d", maxRange, start, end)
 		return
 	}
 	if end <= start {
-		err = fmt.Errorf("start %d must be after end %d", start, end)
+		err = fmt.Errorf("http parameter start must be before end. received start=%d end=%d", start, end)
 		return
 	}
 
