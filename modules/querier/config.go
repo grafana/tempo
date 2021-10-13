@@ -5,8 +5,8 @@ import (
 	"time"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
-	"github.com/cortexproject/cortex/pkg/util/grpcclient"
 	"github.com/grafana/dskit/backoff"
+	"github.com/grafana/dskit/grpcclient"
 )
 
 // Config for a querier.

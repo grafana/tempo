@@ -7,18 +7,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/ring"
-	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
-	"github.com/cortexproject/cortex/pkg/util/limiter"
-	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
+	util_log "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/status"
+	"github.com/grafana/dskit/limiter"
+	"github.com/grafana/dskit/ring"
+	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
-	"github.com/segmentio/fasthash/fnv1a"
-
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/codes"
@@ -125,14 +124,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	if o.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
 		lifecyclerCfg := cfg.DistributorRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, prometheus.DefaultRegisterer)
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, util_log.Logger, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, err
 		}
 		subservices = append(subservices, lifecycler)
 		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, lifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, prometheus.DefaultRegisterer)
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, util_log.Logger, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize distributor ring")
 		}
@@ -147,7 +146,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		ring_client.NewRingServiceDiscovery(ingestersRing),
 		factory,
 		metricIngesterClients,
-		cortex_util.Logger)
+		util_log.Logger)
 
 	subservices = append(subservices, pool)
 
@@ -443,7 +442,7 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 func logTraces(batch *v1.ResourceSpans) {
 	for _, ils := range batch.InstrumentationLibrarySpans {
 		for _, s := range ils.Spans {
-			level.Info(cortex_util.Logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+			level.Info(util_log.Logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
 		}
 	}
 }

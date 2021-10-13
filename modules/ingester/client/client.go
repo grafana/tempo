@@ -5,8 +5,8 @@ import (
 	"io"
 	"time"
 
-	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
-	"github.com/cortexproject/cortex/pkg/util/grpcclient"
+	"github.com/grafana/dskit/grpcclient"
+	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/weaveworks/common/middleware"

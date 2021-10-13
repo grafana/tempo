@@ -12,10 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/concurrency"
 	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/kv"
+	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,13 +31,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/cortexproject/cortex/pkg/cortexpb"
-	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/ruler/rulespb"
 	"github.com/cortexproject/cortex/pkg/ruler/rulestore"
 	"github.com/cortexproject/cortex/pkg/tenant"
 	"github.com/cortexproject/cortex/pkg/util"
-	"github.com/cortexproject/cortex/pkg/util/concurrency"
-	"github.com/cortexproject/cortex/pkg/util/grpcclient"
 	util_log "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/util/validation"
 )
@@ -295,10 +295,6 @@ func newRuler(cfg Config, manager MultiTenantManager, reg prometheus.Registerer,
 		if err = enableSharding(ruler, ringStore); err != nil {
 			return nil, errors.Wrap(err, "setup ruler sharding ring")
 		}
-
-		if reg != nil {
-			reg.MustRegister(ruler.ring)
-		}
 	}
 
 	ruler.Service = services.NewBasicService(ruler.starting, ruler.run, ruler.stopping)
@@ -306,7 +302,7 @@ func newRuler(cfg Config, manager MultiTenantManager, reg prometheus.Registerer,
 }
 
 func enableSharding(r *Ruler, ringStore kv.Client) error {
-	lifecyclerCfg, err := r.cfg.Ring.ToLifecyclerConfig()
+	lifecyclerCfg, err := r.cfg.Ring.ToLifecyclerConfig(r.logger)
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize ruler's lifecycler config")
 	}
@@ -323,7 +319,7 @@ func enableSharding(r *Ruler, ringStore kv.Client) error {
 		return errors.Wrap(err, "failed to initialize ruler's lifecycler")
 	}
 
-	r.ring, err = ring.NewWithStoreClientAndStrategy(r.cfg.Ring.ToRingConfig(), rulerRingName, ring.RulerRingKey, ringStore, ring.NewIgnoreUnhealthyInstancesReplicationStrategy())
+	r.ring, err = ring.NewWithStoreClientAndStrategy(r.cfg.Ring.ToRingConfig(), rulerRingName, ring.RulerRingKey, ringStore, ring.NewIgnoreUnhealthyInstancesReplicationStrategy(), prometheus.WrapRegistererWithPrefix("cortex_", r.registry), r.logger)
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize ruler's ring")
 	}
@@ -651,7 +647,7 @@ func (r *Ruler) GetRules(ctx context.Context) ([]*GroupStateDesc, error) {
 	}
 
 	if r.cfg.EnableSharding {
-		return r.getShardedRules(ctx)
+		return r.getShardedRules(ctx, userID)
 	}
 
 	return r.getLocalRules(userID)
@@ -744,8 +740,14 @@ func (r *Ruler) getLocalRules(userID string) ([]*GroupStateDesc, error) {
 	return groupDescs, nil
 }
 
-func (r *Ruler) getShardedRules(ctx context.Context) ([]*GroupStateDesc, error) {
-	rulers, err := r.ring.GetReplicationSetForOperation(RingOp)
+func (r *Ruler) getShardedRules(ctx context.Context, userID string) ([]*GroupStateDesc, error) {
+	ring := ring.ReadRing(r.ring)
+
+	if shardSize := r.limits.RulerTenantShardSize(userID); shardSize > 0 && r.cfg.ShardingStrategy == util.ShardingStrategyShuffle {
+		ring = r.ring.ShuffleShard(userID, shardSize)
+	}
+
+	rulers, err := ring.GetReplicationSetForOperation(RingOp)
 	if err != nil {
 		return nil, err
 	}
