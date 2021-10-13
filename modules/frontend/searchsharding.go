@@ -24,8 +24,9 @@ import (
 
 const (
 	// todo(search): make configurable
-	maxRange     = 1800 // 30 minutes
-	defaultLimit = 20
+	maxRange                     = 1800 // 30 minutes
+	defaultLimit                 = 20
+	defaultTargetBytesPerRequest = 10 * 1024 * 1024
 )
 
 // searchResponse is a threadsafe struct used to aggregate the responses from all downstream
@@ -107,6 +108,7 @@ type searchSharder struct {
 	defaultLimit          int
 }
 
+// jpe make these all internal
 func NewSearchSharder(reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
@@ -114,7 +116,7 @@ func NewSearchSharder(reader tempodb.Reader, logger log.Logger) Middleware {
 			reader:                reader,
 			logger:                logger,
 			concurrentRequests:    20,
-			targetBytesPerRequest: 10 * 1024 * 1024,
+			targetBytesPerRequest: defaultTargetBytesPerRequest,
 		}
 	})
 }
@@ -297,7 +299,7 @@ func (s *searchSharder) shardedRequests(metas []*backend.BlockMeta, tenantID str
 			// adding to RequestURI only because weaveworks/common uses the RequestURI field to
 			// translate from http.Request to httpgrpc.Request
 			// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
-			subR.RequestURI = querierPrefix + parent.URL.RequestURI() + queryDelimiter + q.Encode()
+			subR.RequestURI = querierPrefix + parent.URL.Path + queryDelimiter + q.Encode()
 			reqs = append(reqs, subR)
 		}
 	}
