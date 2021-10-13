@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,6 +27,71 @@ const (
 	maxRange     = 1800 // 30 minutes
 	defaultLimit = 20
 )
+
+// searchResponse is a threadsafe struct used to aggregate the responses from all downstream
+// queriers
+type searchResponse struct {
+	err        error
+	statusCode int
+	statusMsg  string
+	ctx        context.Context
+	results    *tempopb.SearchResponse
+
+	limit int
+	mtx   sync.Mutex
+}
+
+func newSearchResponse(limit int, ctx context.Context) *searchResponse {
+	return &searchResponse{
+		ctx:        ctx,
+		statusCode: http.StatusOK,
+		limit:      limit,
+		results:    &tempopb.SearchResponse{},
+	}
+}
+
+func (r *searchResponse) shouldQuit() bool {
+	if r.err != nil {
+		return true
+	}
+	if r.ctx.Err() != nil {
+		return true
+	}
+	if r.statusCode/100 != 2 {
+		return true
+	}
+	if len(r.results.Traces) > r.limit {
+		return true
+	}
+
+	return false
+}
+
+func (r *searchResponse) setStatus(statusCode int, statusMsg string) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	r.statusCode = statusCode
+	r.statusMsg = statusMsg
+}
+
+func (r *searchResponse) setError(err error) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	r.err = err
+}
+
+func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	r.results.Traces = append(r.results.Traces, res.Traces...)
+	r.results.Metrics.InspectedBlocks += res.Metrics.InspectedBlocks
+	r.results.Metrics.InspectedBytes += res.Metrics.InspectedBytes
+	r.results.Metrics.InspectedTraces += res.Metrics.InspectedTraces
+	r.results.Metrics.SkippedBlocks += res.Metrics.SkippedBlocks
+}
 
 type searchSharder struct {
 	next  http.RoundTripper
@@ -78,97 +144,49 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("end", end)
 	span.SetTag("limit", limit)
 
-	// reduce metas to those in the requested range
-	metas := []*backend.BlockMeta{}
-	allMetas := s.store.BlockMetas(tenantID)
-	for _, m := range allMetas {
-		if m.StartTime.Unix() <= end &&
-			m.EndTime.Unix() >= start {
-			metas = append(metas, m)
-		}
-	}
-	span.SetTag("block-count", len(metas))
+	blocks := s.blockMetas(start, end, tenantID)
+	span.SetTag("block-count", len(blocks))
 
-	// build requests
-	//  downstream requests:
-	//    - all the same as this endpoint
-	//    - blockID=<guid>
-	//    - startPage=<number>
-	//    - totalPages=<number>
-	reqs := []*http.Request{}
-	for _, m := range metas { // jpe order this backwards in time, make a func and test
-		// assume each page is roughly the same size
-		bytesPerPage := m.Size / uint64(m.TotalRecords)
-		pagesPerQuery := s.targetBytesPerRequest / int(bytesPerPage)
-
-		blockID := m.BlockID.String()
-		for startPage := 0; startPage < int(m.TotalRecords); startPage += pagesPerQuery {
-			subR := r.Clone(ctx)
-			subR.Header.Set(user.OrgIDHeaderName, tenantID)
-
-			q := subR.URL.Query()
-			q.Add("blockID", blockID)
-			q.Add("startPage", strconv.Itoa(startPage))
-			q.Add("totalPages", strconv.Itoa(pagesPerQuery))
-
-			// adding to RequestURI only because weaveworks/common uses the RequestURI field to
-			// translate from http.Request to httpgrpc.Request
-			// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
-			subR.RequestURI = querierPrefix + r.URL.RequestURI() + queryDelimiter + q.Encode()
-			reqs = append(reqs, subR)
-		}
-	}
+	reqs := s.shardedRequests(blocks, tenantID, r, ctx)
 	span.SetTag("request-count", len(reqs))
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.concurrentRequests))
-	mtx := sync.Mutex{}
-
-	var overallError error
-	overallResults := &tempopb.SearchResponse{}
-	statusCode := http.StatusOK
-	statusMsg := ""
+	overallResponse := newSearchResponse(limit, ctx)
 
 	for _, req := range reqs {
+		if overallResponse.shouldQuit() {
+			break
+		}
+
 		wg.Add(1)
 		go func(innerR *http.Request) {
 			defer wg.Done()
 
-			mtx.Lock()
-			if shouldQuit(r.Context(), statusCode, overallError) { // jpe needs to include limit
-				mtx.Unlock()
+			if overallResponse.shouldQuit() {
 				return
 			}
-			mtx.Unlock()
 
 			resp, err := s.next.RoundTrip(innerR)
-
-			mtx.Lock()
-			defer mtx.Unlock()
 			if err != nil {
-				overallError = err
+				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
+				overallResponse.setError(err)
 			}
 
-			if shouldQuit(r.Context(), statusCode, overallError) {
-				return
-			}
-
-			// check http error
-			if err != nil {
-				_ = level.Error(s.logger).Log("msg", "error querying proxy target", "url", innerR.RequestURI, "err", err)
-				overallError = err
+			if overallResponse.shouldQuit() {
 				return
 			}
 
 			// if the status code is anything but happy, save the error and pass it down the line
 			if resp.StatusCode != http.StatusOK {
 				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast?
-				statusCode = resp.StatusCode
+				statusCode := resp.StatusCode
 				bytesMsg, err := io.ReadAll(resp.Body)
 				if err != nil {
 					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
 				}
-				statusMsg = string(bytesMsg)
+				statusMsg := string(bytesMsg)
+				overallResponse.setStatus(statusCode, statusMsg)
 				return
 			}
 
@@ -177,37 +195,34 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 			err = jsonpb.Unmarshal(resp.Body, results)
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
-				overallError = err
+				overallResponse.setError(err)
 				return
 			}
 
 			// happy path
-			overallResults.Traces = append(overallResults.Traces, results.Traces...)
-			overallResults.Metrics.InspectedBlocks += results.Metrics.InspectedBlocks
-			overallResults.Metrics.InspectedBytes += results.Metrics.InspectedBytes
-			overallResults.Metrics.InspectedTraces += results.Metrics.InspectedTraces
-			overallResults.Metrics.SkippedBlocks += results.Metrics.SkippedBlocks
+			overallResponse.addResponse(results)
 		}(req)
 	}
 	wg.Wait()
 
-	if overallError != nil {
-		return nil, overallError
+	// all goroutines have finished, we can safely access searchResults fields directly now
+	if overallResponse.err != nil {
+		return nil, overallResponse.err
 	}
 
-	if statusCode != http.StatusOK {
+	if overallResponse.statusCode != http.StatusOK {
 		// translate all non-200s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
 		return &http.Response{
-			StatusCode: statusCode,
-			Body:       io.NopCloser(strings.NewReader(statusMsg)),
+			StatusCode: overallResponse.statusCode,
+			Body:       io.NopCloser(strings.NewReader(overallResponse.statusMsg)),
 			Header:     http.Header{},
 		}, nil
 	}
 
 	m := &jsonpb.Marshaler{}
-	bodyString, err := m.MarshalToString(overallResults)
+	bodyString, err := m.MarshalToString(overallResponse.results)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +233,59 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),
 	}, nil
+}
+
+// blockMetas returns all relevant blockMetas given a start/end
+// jpe test
+func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend.BlockMeta {
+	// reduce metas to those in the requested range
+	metas := []*backend.BlockMeta{}
+	allMetas := s.store.BlockMetas(tenantID)
+	for _, m := range allMetas {
+		if m.StartTime.Unix() <= end &&
+			m.EndTime.Unix() >= start {
+			metas = append(metas, m)
+		}
+	}
+
+	return metas
+}
+
+// shardedRequests returns a slice of requests that cover all blocks in the store
+// that are covered by start/end. the requests are in reverse time order of the blocks
+// jpe test, do i care about reverse time order?
+func (s *searchSharder) shardedRequests(metas []*backend.BlockMeta, tenantID string, parent *http.Request, ctx context.Context) []*http.Request {
+	// build requests
+	//  downstream requests:
+	//    - all the same as this endpoint
+	//    - blockID=<guid>
+	//    - startPage=<number>
+	//    - totalPages=<number>
+	reqs := []*http.Request{}
+	for _, m := range metas {
+		// assume each page is roughly the same size
+		bytesPerPage := m.Size / uint64(m.TotalRecords)
+		pagesPerQuery := s.targetBytesPerRequest / int(bytesPerPage)
+
+		blockID := m.BlockID.String()
+		for startPage := 0; startPage < int(m.TotalRecords); startPage += pagesPerQuery {
+			subR := parent.Clone(ctx)
+			subR.Header.Set(user.OrgIDHeaderName, tenantID)
+
+			q := subR.URL.Query()
+			q.Add("blockID", blockID)
+			q.Add("startPage", strconv.Itoa(startPage))
+			q.Add("totalPages", strconv.Itoa(pagesPerQuery))
+
+			// adding to RequestURI only because weaveworks/common uses the RequestURI field to
+			// translate from http.Request to httpgrpc.Request
+			// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
+			subR.RequestURI = querierPrefix + parent.URL.RequestURI() + queryDelimiter + q.Encode()
+			reqs = append(reqs, subR)
+		}
+	}
+
+	return reqs
 }
 
 func params(r *http.Request) (start, end int64, limit int, err error) {
