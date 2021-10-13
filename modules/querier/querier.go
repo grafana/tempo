@@ -10,7 +10,14 @@ import (
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
+	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/validation"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
@@ -18,13 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/user"
-
-	ingester_client "github.com/grafana/tempo/modules/ingester/client"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/validation"
+	"go.uber.org/multierr"
 )
 
 var (
@@ -80,11 +81,11 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 	return q, nil
 }
 
-func (q *Querier) CreateAndRegisterWorker(tracesHandler http.Handler) error {
+func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 	q.cfg.Worker.MaxConcurrentRequests = q.cfg.MaxConcurrentQueries
 	worker, err := cortex_worker.NewQuerierWorker(
 		q.cfg.Worker,
-		httpgrpc_server.NewServer(tracesHandler),
+		httpgrpc_server.NewServer(handler),
 		log.Logger,
 		nil,
 	)
@@ -185,11 +186,17 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			ot_log.Int("combinedTraces", traceCountTotal))
 	}
 
+	var failedBlocks int
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
-		partialTraces, dataEncodings, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+		partialTraces, dataEncodings, blockErrs, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
+		}
+
+		if blockErrs != nil {
+			failedBlocks = len(blockErrs)
+			_ = level.Warn(log.Logger).Log("msg", fmt.Sprintf("failed to query %d blocks", failedBlocks), "blockErrs", multierr.Combine(blockErrs...))
 		}
 
 		span.LogFields(ot_log.String("msg", "done searching store"))
@@ -227,6 +234,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	return &tempopb.TraceByIDResponse{
 		Trace: completeTrace,
+		Metrics: &tempopb.TraceByIDMetrics{
+			FailedBlocks: uint32(failedBlocks),
+		},
 	}, nil
 }
 

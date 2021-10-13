@@ -30,7 +30,7 @@ import (
 type mockSharder struct {
 }
 
-func (m *mockSharder) Owns(hash string) bool {
+func (m *mockSharder) Owns(string) bool {
 	return true
 }
 
@@ -87,26 +87,29 @@ func TestReturnAllHits(t *testing.T) {
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
 		head, err := wal.NewBlock(blockID, util.FakeTenantID, "")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := test.MakeRequest(10, testTraceID)
 		testTraces = append(testTraces, &tempopb.Trace{Batches: []*v1.ResourceSpans{req.Batch}})
 		bReq, err := proto.Marshal(req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
-		err = head.Write(testTraceID, bReq)
-		assert.NoError(t, err, "unexpected error writing req")
+		err = head.Append(testTraceID, bReq)
+		require.NoError(t, err, "unexpected error writing req")
+		err = head.FlushBuffer()
+		require.NoError(t, err)
 
 		_, err = w.CompleteBlock(head, &mockSharder{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	// sleep for blocklist poll
 	time.Sleep(200 * time.Millisecond)
 
 	// find should return both now
-	foundBytes, _, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
+	foundBytes, _, failedBLocks, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
 	assert.NoError(t, err)
+	assert.Nil(t, failedBLocks)
 	require.Len(t, foundBytes, 2)
 
 	// expected trace

@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/pkg/errors"
 )
 
 const maxDataEncodingLength = 32
@@ -25,12 +27,13 @@ type AppendBlock struct {
 	appendFile *os.File
 	appender   encoding.Appender
 
-	filepath string
-	readFile *os.File
-	once     sync.Once
+	filepath       string
+	readFile       *os.File
+	bufferedWriter *bufio.Writer
+	once           sync.Once
 }
 
-func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string) (*AppendBlock, error) {
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, writeBufferSize int) (*AppendBlock, error) {
 	if strings.ContainsRune(dataEncoding, ':') ||
 		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
@@ -54,8 +57,9 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 		return nil, err
 	}
 	h.appendFile = f
+	h.bufferedWriter = bufio.NewWriterSize(f, writeBufferSize)
 
-	dataWriter, err := h.encoding.NewDataWriter(f, e)
+	dataWriter, err := h.encoding.NewDataWriter(h.bufferedWriter, e)
 	if err != nil {
 		return nil, err
 	}
@@ -104,13 +108,27 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 	return b, warning, nil
 }
 
-func (a *AppendBlock) Write(id common.ID, b []byte) error {
+// Append adds a new id/object combination to the append block
+// It must be followed up with an FlushBuffer() to guarantee that all
+// data makes it to the disk.
+func (a *AppendBlock) Append(id common.ID, b []byte) error {
 	err := a.appender.Append(id, b)
 	if err != nil {
 		return err
 	}
 	a.meta.ObjectAdded(id)
 	return nil
+}
+
+// FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
+// that all data makes it to the disk. It is intended that there are many Append() calls per FlushBuffer().
+// It must also be called before any attempts to use appender records to read the file such as in Find() or
+// Iterator().
+func (a *AppendBlock) FlushBuffer() error {
+	if a.bufferedWriter == nil {
+		return nil
+	}
+	return a.bufferedWriter.Flush()
 }
 
 func (a *AppendBlock) BlockID() uuid.UUID {
@@ -125,7 +143,13 @@ func (a *AppendBlock) Meta() *backend.BlockMeta {
 	return a.meta
 }
 
-func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
+func (a *AppendBlock) Iterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
+	// make sure that all data is on disk before attempting to read it
+	err := a.FlushBuffer()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to flush buffer of append block")
+	}
+
 	if a.appendFile != nil {
 		err := a.appendFile.Close()
 		if err != nil {
@@ -162,6 +186,12 @@ func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte
 	}
 	if len(records) == 0 {
 		return nil, nil
+	}
+
+	// make sure that all data is on disk before attempting to read it
+	err = a.FlushBuffer()
+	if err != nil {
+		return nil, err
 	}
 
 	dataReader, err := a.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding)

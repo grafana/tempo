@@ -217,7 +217,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		tempopb.ReuseTraceBytes(t.traceBytes)
 	}
 
-	return nil
+	return i.flushHeadBlock()
 }
 
 // CutBlockIfReady cuts a completingBlock from the HeadBlock if ready
@@ -497,12 +497,12 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file
-	f, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
+	f, bufferedWriter, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
 	if err != nil {
 		return err
 	}
 
-	b, err := search.NewStreamingSearchBlockForFile(f, "v2", backend.EncNone)
+	b, err := search.NewStreamingSearchBlockForFile(f, bufferedWriter, "v2", backend.EncNone)
 	if err != nil {
 		return err
 	}
@@ -533,11 +533,12 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	return tracesToCut
 }
 
+// writeTraceToHeadBlock adds the id, object and search data to the head block(s). It handles
+// it's own locking.
 func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
-
-	err := i.headBlock.Write(id, b)
+	err := i.headBlock.Append(id, b)
 	if err != nil {
 		return err
 	}
@@ -547,6 +548,27 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 		entry.mtx.Lock()
 		defer entry.mtx.Unlock()
 		err := entry.b.Append(context.TODO(), id, searchData)
+		return err
+	}
+
+	return nil
+}
+
+// flushHeadBlock flushes any remaining data in the head blocks. This must be called
+// after a batch of writeTraceToHeadBlocks to ensure that all data is on disk.
+func (i *instance) flushHeadBlock() error {
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+	err := i.headBlock.FlushBuffer()
+	if err != nil {
+		return err
+	}
+
+	entry := i.searchHeadBlock
+	if entry != nil {
+		entry.mtx.Lock()
+		err := entry.b.FlushBuffer()
+		entry.mtx.Unlock()
 		return err
 	}
 

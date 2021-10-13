@@ -180,6 +180,12 @@ query_frontend:
     # number of shards to split the query into
     # (default: 20)
     [query_shards: <int>]
+    
+    # number of block queries that are tolerated to error before considering the entire query as failed
+    # numbers greater than 0 make possible for a read to return partial results
+    # partial results are indicated with HTTP status code 206
+    # (default: 0)
+    [tolerate_failed_blocks: <int>]
 ```
 
 ## Querier
@@ -190,6 +196,15 @@ The Querier is responsible for querying the backends/cache for the traceID.
 ```
 # querier config block
 querier:
+
+    # Timeout for trace lookup requests
+    [query_timeout: <duration> | default = 10s]
+
+    # Timeout for search requests    
+    [search_query_timeout: <duration> | default = 30s]
+
+    # Limit used for search requests if none is set by the caller
+    [search_default_result_limit: <int> | default = 20]
 
     # config of the worker that connects to the query frontend
     frontend_worker:
@@ -542,6 +557,10 @@ storage:
             # search data encoding/compression. same options as wal encoding.
             # (default: gzip)
             [search_encoding: <string>]
+
+            # size of the write buffer used to hold writes to disk
+            # (default: 1MiB)
+            [write_buffer_size: <string>]
 
         # block configuration
         block:

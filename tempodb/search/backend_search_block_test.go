@@ -1,6 +1,7 @@
 package search
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -31,7 +32,7 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
-	b1, err := NewStreamingSearchBlockForFile(f, "v2", enc)
+	b1, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), "v2", enc)
 	require.NoError(t, err)
 
 	for i := 0; i < traceCount; i++ {
@@ -39,6 +40,8 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 		binary.LittleEndian.PutUint32(id, uint32(i))
 		require.NoError(t, b1.Append(context.Background(), id, genSearchData(id, i)))
 	}
+	err = b1.FlushBuffer()
+	require.NoError(t, err)
 
 	l, err := local.NewBackend(&local.Config{
 		Path: t.TempDir(),
@@ -92,7 +95,7 @@ func TestBackendSearchBlockFinalSize(t *testing.T) {
 	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
-	b1, err := NewStreamingSearchBlockForFile(f, "v2", backend.EncNone)
+	b1, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), "v2", backend.EncNone)
 	require.NoError(t, err)
 
 	for i := 0; i < traceCount; i++ {

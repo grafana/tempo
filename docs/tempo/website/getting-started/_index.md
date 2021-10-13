@@ -1,6 +1,6 @@
 ---
 title: Getting started
-weight: 100
+weight: 150
 ---
 
 # Getting started with Tempo

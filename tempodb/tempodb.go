@@ -75,7 +75,7 @@ type Writer interface {
 }
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error)
 	EnablePolling(sharder blocklist.JobSharder)
 
 	Shutdown()
@@ -214,7 +214,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 		flushSize = rw.compactorCfg.FlushSizeBytes
 	}
 
-	iter, err := block.GetIterator(combiner)
+	iter, err := block.Iterator(combiner)
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting completing block iterator")
 	}
@@ -276,7 +276,7 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error) {
 	// tracing instrumentation
 	logger := log_util.WithContext(ctx, log_util.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
@@ -284,19 +284,19 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 	blockStartUUID, err := uuid.Parse(blockStart)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	blockStartBytes, err := blockStartUUID.MarshalBinary()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	blockEndUUID, err := uuid.Parse(blockEnd)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	blockEndBytes, err := blockEndUUID.MarshalBinary()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// gather appropriate blocks
@@ -319,11 +319,11 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		}
 	}
 	if len(copiedBlocklist) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	curTime := time.Now()
-	partialTraces, dataEncodings, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, string, error) {
+	partialTraces, dataEncodings, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, string, error) {
 		meta := payload.(*backend.BlockMeta)
 		r := rw.getReaderForBlock(meta, curTime)
 		block, err := encoding.NewBackendBlock(meta, r)
@@ -351,7 +351,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return foundObject, meta.DataEncoding, nil
 	})
 
-	return partialTraces, dataEncodings, err
+	return partialTraces, dataEncodings, funcErrs, err
 }
 
 func (rw *readerWriter) Shutdown() {
