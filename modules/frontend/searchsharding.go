@@ -81,6 +81,9 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 }
 
 func (r *searchResponse) shouldQuit() bool {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
 	if r.err != nil {
 		return true
 	}
