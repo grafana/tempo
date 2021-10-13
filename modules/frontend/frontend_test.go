@@ -31,7 +31,7 @@ func TestFrontendRoundTripsSearch(t *testing.T) {
 	// search is a blind passthrough. easy!
 	res := httptest.NewRecorder()
 	f.Search.ServeHTTP(res, req)
-	assert.Equal(t, string(res.Body.Bytes()), "next")
+	assert.Equal(t, res.Body.String(), "next")
 }
 
 func TestFrontendBadConfigFails(t *testing.T) {

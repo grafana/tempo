@@ -44,36 +44,36 @@ func TestSearchResponseShouldQuit(t *testing.T) {
 	ctx := context.Background()
 
 	// brand new response should not quit
-	sr := newSearchResponse(10, ctx)
+	sr := newSearchResponse(ctx, 10)
 	assert.False(t, sr.shouldQuit())
 
 	// errored response should quit
-	sr = newSearchResponse(10, ctx)
+	sr = newSearchResponse(ctx, 10)
 	sr.setError(errors.New("blerg"))
 	assert.True(t, sr.shouldQuit())
 
 	// happy status code should not quit
-	sr = newSearchResponse(10, ctx)
+	sr = newSearchResponse(ctx, 10)
 	sr.setStatus(200, "")
 	assert.False(t, sr.shouldQuit())
 
 	// sad status code should quit
-	sr = newSearchResponse(10, ctx)
+	sr = newSearchResponse(ctx, 10)
 	sr.setStatus(400, "")
 	assert.True(t, sr.shouldQuit())
 
-	sr = newSearchResponse(10, ctx)
+	sr = newSearchResponse(ctx, 10)
 	sr.setStatus(500, "")
 	assert.True(t, sr.shouldQuit())
 
 	// cancelled context should quit
 	cancellableContext, cancel := context.WithCancel(ctx)
-	sr = newSearchResponse(10, cancellableContext)
+	sr = newSearchResponse(cancellableContext, 10)
 	cancel()
 	assert.True(t, sr.shouldQuit())
 
 	// limit reached should quit
-	sr = newSearchResponse(2, ctx)
+	sr = newSearchResponse(ctx, 2)
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{},
@@ -259,7 +259,7 @@ func TestShardedRequests(t *testing.T) {
 		}
 		req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
 
-		reqs, err := s.shardedRequests(tc.metas, "test", req, context.Background())
+		reqs, err := s.shardedRequests(context.Background(), tc.metas, "test", req)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue

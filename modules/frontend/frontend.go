@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb"
 )
 
 const (
@@ -164,9 +165,9 @@ func newSearchMiddleware() Middleware {
 
 // newBackendSearchMiddleware creates a new frontend middleware to handle backend search.
 // todo(search): integrate with real search
-func newBackendSearchMiddleware(store storage.Store, logger log.Logger) Middleware {
+func newBackendSearchMiddleware(reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		rt := NewRoundTripper(next, newSearchSharder(store, defaultConcurrentRequests, logger))
+		rt := NewRoundTripper(next, newSearchSharder(reader, defaultConcurrentRequests, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())

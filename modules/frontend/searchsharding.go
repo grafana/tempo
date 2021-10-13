@@ -43,7 +43,7 @@ type searchResponse struct {
 	mtx   sync.Mutex
 }
 
-func newSearchResponse(limit int, ctx context.Context) *searchResponse {
+func newSearchResponse(ctx context.Context, limit int) *searchResponse {
 	return &searchResponse{
 		ctx:        ctx,
 		statusCode: http.StatusOK,
@@ -109,7 +109,6 @@ type searchSharder struct {
 	// todo(search): make configurable
 	concurrentRequests    int
 	targetBytesPerRequest int
-	defaultLimit          int
 }
 
 // newSearchSharder creates a sharding middleware for search
@@ -145,6 +144,9 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	ctx := r.Context()
 	tenantID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
 
@@ -155,7 +157,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	blocks := s.blockMetas(start, end, tenantID)
 	span.SetTag("block-count", len(blocks))
 
-	reqs, err := s.shardedRequests(blocks, tenantID, r, ctx)
+	reqs, err := s.shardedRequests(ctx, blocks, tenantID, r)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +165,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.concurrentRequests))
-	overallResponse := newSearchResponse(limit, ctx)
+	overallResponse := newSearchResponse(ctx, limit)
 
 	for _, req := range reqs {
 		if overallResponse.shouldQuit() {
@@ -262,7 +264,7 @@ func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend
 
 // shardedRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func (s *searchSharder) shardedRequests(metas []*backend.BlockMeta, tenantID string, parent *http.Request, ctx context.Context) ([]*http.Request, error) {
+func (s *searchSharder) shardedRequests(ctx context.Context, metas []*backend.BlockMeta, tenantID string, parent *http.Request) ([]*http.Request, error) {
 	// build requests
 	//  downstream requests:
 	//    - all the same as this endpoint
@@ -309,21 +311,21 @@ func (s *searchSharder) shardedRequests(metas []*backend.BlockMeta, tenantID str
 }
 
 func searchSharderParams(r *http.Request) (start, end int64, limit int, err error) {
-	if s := r.URL.Query().Get(querier.UrlParamStart); s != "" {
+	if s := r.URL.Query().Get(querier.URLParamStart); s != "" {
 		start, err = strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return
 		}
 	}
 
-	if s := r.URL.Query().Get(querier.UrlParamEnd); s != "" {
+	if s := r.URL.Query().Get(querier.URLParamEnd); s != "" {
 		end, err = strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return
 		}
 	}
 
-	if s := r.URL.Query().Get(querier.UrlParamLimit); s != "" {
+	if s := r.URL.Query().Get(querier.URLParamLimit); s != "" {
 		limit, err = strconv.Atoi(s)
 		if err != nil {
 			return

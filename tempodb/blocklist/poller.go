@@ -70,7 +70,7 @@ var OwnsNothingSharder = ownsNothingSharder{}
 
 type ownsNothingSharder struct{}
 
-func (_ ownsNothingSharder) Owns(_ string) bool {
+func (ownsNothingSharder) Owns(_ string) bool {
 	return false
 }
 
