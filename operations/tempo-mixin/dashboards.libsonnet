@@ -123,6 +123,10 @@ dashboard_utils {
           $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__interval]))' % $.jobMatcher($._config.jobs.distributor), "accepted") +
           $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__interval]))' % $.jobMatcher($._config.jobs.distributor), "refused")
         )
+        .addPanel(
+          $.panel('Latency') +
+          $.latencyPanel('tempo_distributor_push_duration_seconds', '{%s}' % $.jobMatcher($._config.jobs.distributor))
+        )
       )
       .addRow(
         g.row('Ingester')
