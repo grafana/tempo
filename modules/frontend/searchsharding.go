@@ -109,8 +109,8 @@ type searchSharder struct {
 	defaultLimit          int
 }
 
-// jpe make these all internal
-func NewSearchSharder(reader tempodb.Reader, concurrentRequests int, logger log.Logger) Middleware {
+// newSearchSharder creates a sharding middleware for search
+func newSearchSharder(reader tempodb.Reader, concurrentRequests int, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:                  next,

@@ -79,7 +79,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger, registerer prometheus
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
-		rt := NewRoundTripper(next, Deduper(logger), ShardingWare(cfg.QueryShards, cfg.TolerateFailedBlocks, logger), RetryWare(cfg.MaxRetries, registerer))
+		rt := NewRoundTripper(next, newDeduper(logger), newTraceByIDSharder(cfg.QueryShards, cfg.TolerateFailedBlocks, logger), newRetryWare(cfg.MaxRetries, registerer))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// validate traceID
@@ -159,7 +159,7 @@ func newSearchMiddleware() Middleware {
 // todo(search): integrate with real search
 func newBackendSearchMiddleware(store storage.Store, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		rt := NewRoundTripper(next, NewSearchSharder(store, defaultConcurrentRequests, logger))
+		rt := NewRoundTripper(next, newSearchSharder(store, defaultConcurrentRequests, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
