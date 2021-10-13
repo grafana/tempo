@@ -162,6 +162,10 @@ ingester:
     # maximum length of time before cutting a block
     # (default: 1h)
     [max_block_duration: <duration>]
+    
+    # duration to keep blocks in the ingester after they have been flushed
+    # (default: 15m)
+    [ complete_block_timeout: <duration>]
 ```
 
 ## Query-frontend
