@@ -256,7 +256,7 @@ func (t *App) Run() error {
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
 	t.Server.HTTP.Path("/status").Handler(t.statusHandler()).Methods("GET")
 	t.Server.HTTP.Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
-	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, grpcutil.NewHealthcheck(sm))
+	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, grpcutil.NewHealthCheck(sm))
 
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }

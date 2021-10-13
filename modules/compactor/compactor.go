@@ -48,14 +48,14 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides) (*Comp
 	subservices := []services.Service(nil)
 	if c.isSharded() {
 		lifecyclerCfg := c.cfg.ShardingRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", cfg.OverrideRingKey, false, prometheus.DefaultRegisterer)
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", cfg.OverrideRingKey, false, log.Logger, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
 		c.ringLifecycler = lifecycler
 		subservices = append(subservices, c.ringLifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", cfg.OverrideRingKey, prometheus.DefaultRegisterer)
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", cfg.OverrideRingKey, log.Logger, prometheus.DefaultRegisterer)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
 		}

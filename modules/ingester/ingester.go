@@ -80,7 +80,7 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingeste
 		go i.flushLoop(j)
 	}
 
-	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, prometheus.DefaultRegisterer)
+	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %w", err)
 	}

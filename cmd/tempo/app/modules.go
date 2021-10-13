@@ -90,7 +90,6 @@ func (t *App) initRing() (services.Service, error) {
 	}
 	t.ring = ring
 
-	prometheus.MustRegister(t.ring)
 	t.Server.HTTP.Handle("/ingester/ring", t.ring)
 
 	return t.ring, nil
@@ -115,7 +114,6 @@ func (t *App) initDistributor() (services.Service, error) {
 	t.distributor = distributor
 
 	if distributor.DistributorRing != nil {
-		prometheus.MustRegister(distributor.DistributorRing)
 		t.Server.HTTP.Handle("/distributor/ring", distributor.DistributorRing)
 	}
 
@@ -230,7 +228,6 @@ func (t *App) initCompactor() (services.Service, error) {
 	t.compactor = compactor
 
 	if t.compactor.Ring != nil {
-		prometheus.MustRegister(t.compactor.Ring)
 		t.Server.HTTP.Handle("/compactor/ring", t.compactor.Ring)
 	}
 
