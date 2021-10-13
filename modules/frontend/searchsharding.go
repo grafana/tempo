@@ -14,9 +14,9 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/modules/querier"
-	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
 	"github.com/weaveworks/common/user"
@@ -96,8 +96,8 @@ func (r *searchResponse) shouldQuit() bool {
 }
 
 type searchSharder struct {
-	next  http.RoundTripper
-	store storage.Store
+	next   http.RoundTripper
+	reader tempodb.Reader
 
 	logger log.Logger
 
@@ -107,11 +107,11 @@ type searchSharder struct {
 	defaultLimit          int
 }
 
-func NewSearchSharder(store storage.Store, logger log.Logger) Middleware {
+func NewSearchSharder(reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:                  next,
-			store:                 store,
+			reader:                reader,
 			logger:                logger,
 			concurrentRequests:    20,
 			targetBytesPerRequest: 10 * 1024 * 1024,
@@ -149,7 +149,10 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	blocks := s.blockMetas(start, end, tenantID)
 	span.SetTag("block-count", len(blocks))
 
-	reqs := s.shardedRequests(blocks, tenantID, r, ctx)
+	reqs, err := s.shardedRequests(blocks, tenantID, r, ctx)
+	if err != nil {
+		return nil, err
+	}
 	span.SetTag("request-count", len(reqs))
 
 	// execute requests
@@ -242,7 +245,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend.BlockMeta {
 	// reduce metas to those in the requested range
 	metas := []*backend.BlockMeta{}
-	allMetas := s.store.BlockMetas(tenantID)
+	allMetas := s.reader.BlockMetas(tenantID)
 	for _, m := range allMetas {
 		if m.StartTime.Unix() <= end &&
 			m.EndTime.Unix() >= start {
@@ -256,7 +259,7 @@ func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend
 // shardedRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end. the requests are in reverse time order of the blocks
 // jpe test, do i care about reverse time order?
-func (s *searchSharder) shardedRequests(metas []*backend.BlockMeta, tenantID string, parent *http.Request, ctx context.Context) []*http.Request {
+func (s *searchSharder) shardedRequests(metas []*backend.BlockMeta, tenantID string, parent *http.Request, ctx context.Context) ([]*http.Request, error) {
 	// build requests
 	//  downstream requests:
 	//    - all the same as this endpoint
@@ -265,9 +268,21 @@ func (s *searchSharder) shardedRequests(metas []*backend.BlockMeta, tenantID str
 	//    - totalPages=<number>
 	reqs := []*http.Request{}
 	for _, m := range metas {
-		// assume each page is roughly the same size
+		if m.Size == 0 {
+			return nil, fmt.Errorf("block %s has an invalid 0 size", m.BlockID)
+		}
+		if m.TotalRecords == 0 {
+			return nil, fmt.Errorf("block %s has an invalid 0 records", m.BlockID)
+		}
+
 		bytesPerPage := m.Size / uint64(m.TotalRecords)
+		if bytesPerPage == 0 {
+			return nil, fmt.Errorf("block %s has an invalid 0 bytes per page", m.BlockID)
+		}
 		pagesPerQuery := s.targetBytesPerRequest / int(bytesPerPage)
+		if pagesPerQuery == 0 {
+			return nil, fmt.Errorf("block %s has an invalid 0 pages per query", m.BlockID)
+		}
 
 		blockID := m.BlockID.String()
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pagesPerQuery {
@@ -287,7 +302,7 @@ func (s *searchSharder) shardedRequests(metas []*backend.BlockMeta, tenantID str
 		}
 	}
 
-	return reqs
+	return reqs, nil
 }
 
 func searchSharderParams(r *http.Request) (start, end int64, limit int, err error) {
