@@ -27,6 +27,7 @@ const (
 	maxRange                     = 1800 // 30 minutes
 	defaultLimit                 = 20
 	defaultTargetBytesPerRequest = 10 * 1024 * 1024
+	defaultConcurrentRequests    = 50
 )
 
 // searchResponse is a threadsafe struct used to aggregate the responses from all downstream
@@ -109,13 +110,13 @@ type searchSharder struct {
 }
 
 // jpe make these all internal
-func NewSearchSharder(reader tempodb.Reader, logger log.Logger) Middleware {
+func NewSearchSharder(reader tempodb.Reader, concurrentRequests int, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:                  next,
 			reader:                reader,
 			logger:                logger,
-			concurrentRequests:    20,
+			concurrentRequests:    concurrentRequests,
 			targetBytesPerRequest: defaultTargetBytesPerRequest,
 		}
 	})
@@ -222,8 +223,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
 		return &http.Response{
-			StatusCode: overallResponse.statusCode,
-			Body:       io.NopCloser(strings.NewReader(overallResponse.statusMsg)),
+			StatusCode: http.StatusInternalServerError,
 			Header:     http.Header{},
 		}, nil
 	}

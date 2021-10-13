@@ -159,7 +159,7 @@ func newSearchMiddleware() Middleware {
 // todo(search): integrate with real search
 func newBackendSearchMiddleware(store storage.Store, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		rt := NewRoundTripper(next, NewSearchSharder(store, logger))
+		rt := NewRoundTripper(next, NewSearchSharder(store, defaultConcurrentRequests, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
