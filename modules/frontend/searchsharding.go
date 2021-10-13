@@ -46,25 +46,10 @@ func newSearchResponse(limit int, ctx context.Context) *searchResponse {
 		ctx:        ctx,
 		statusCode: http.StatusOK,
 		limit:      limit,
-		results:    &tempopb.SearchResponse{},
+		results: &tempopb.SearchResponse{
+			Metrics: &tempopb.SearchMetrics{},
+		},
 	}
-}
-
-func (r *searchResponse) shouldQuit() bool {
-	if r.err != nil {
-		return true
-	}
-	if r.ctx.Err() != nil {
-		return true
-	}
-	if r.statusCode/100 != 2 {
-		return true
-	}
-	if len(r.results.Traces) > r.limit {
-		return true
-	}
-
-	return false
 }
 
 func (r *searchResponse) setStatus(statusCode int, statusMsg string) {
@@ -91,6 +76,23 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 	r.results.Metrics.InspectedBytes += res.Metrics.InspectedBytes
 	r.results.Metrics.InspectedTraces += res.Metrics.InspectedTraces
 	r.results.Metrics.SkippedBlocks += res.Metrics.SkippedBlocks
+}
+
+func (r *searchResponse) shouldQuit() bool {
+	if r.err != nil {
+		return true
+	}
+	if r.ctx.Err() != nil {
+		return true
+	}
+	if r.statusCode/100 != 2 {
+		return true
+	}
+	if len(r.results.Traces) > r.limit {
+		return true
+	}
+
+	return false
 }
 
 type searchSharder struct {
