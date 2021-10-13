@@ -243,7 +243,6 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 // blockMetas returns all relevant blockMetas given a start/end
-// jpe test
 func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend.BlockMeta {
 	// reduce metas to those in the requested range
 	metas := []*backend.BlockMeta{}
@@ -259,8 +258,7 @@ func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend
 }
 
 // shardedRequests returns a slice of requests that cover all blocks in the store
-// that are covered by start/end. the requests are in reverse time order of the blocks
-// jpe test, do i care about reverse time order?
+// that are covered by start/end.
 func (s *searchSharder) shardedRequests(metas []*backend.BlockMeta, tenantID string, parent *http.Request, ctx context.Context) ([]*http.Request, error) {
 	// build requests
 	//  downstream requests:
