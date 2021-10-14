@@ -17,6 +17,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [memberlist](#memberlist)
   - [polling](#polling)
   - [overrides](#overrides)
+  - [search](#search)
 
 #### Use environment variables in the configuration
 
@@ -46,7 +47,7 @@ You can find more about other supported syntax [here](https://github.com/drone/e
 ## Server
 Tempo uses the Weaveworks/common server. For more information on configuration options, see [here](https://github.com/weaveworks/common/blob/master/server/server.go#L54).
 
-```
+```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
 
@@ -98,7 +99,7 @@ Distributors receive spans and forward them to the appropriate ingesters.
 The following configuration enables all available receivers with their default configuration. For a production deployment, enable only the receivers you need.
 Additional documentation and more advanced configuration options are available in [the receiver README](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/README.md).
 
-```
+```yaml
 # Distributor config block
 distributor:
 
@@ -140,7 +141,7 @@ For more information on configuration options, see [here](https://github.com/gra
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
 
-```
+```yaml
 # Ingester configuration block
 ingester:
 
@@ -174,7 +175,7 @@ For more information on configuration options, see [here](https://github.com/gra
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
-```
+```yaml
 # Query Frontend configuration block
 query_frontend:
 
@@ -198,7 +199,7 @@ For more information on configuration options, see [here](https://github.com/gra
 
 The Querier is responsible for querying the backends/cache for the traceID.
 
-```
+```yaml
 # querier config block
 querier:
 
@@ -227,7 +228,7 @@ For more information on configuration options, see [here](https://github.com/gra
 
 Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
 
-```
+```yaml
 compactor:
 
     ring:
@@ -279,7 +280,7 @@ The following example shows common options.  For further platform-specific infor
 * [GCS](gcs/)
 * [S3](s3/)
 
-```
+```yaml
 # Storage configuration for traces
 storage:
 
@@ -598,7 +599,7 @@ storage:
 ## Memberlist
 [Memberlist](https://github.com/hashicorp/memberlist) is the default mechanism for all of the Tempo pieces to coordinate with each other.
 
-```
+```yaml
 memberlist:
     # Name of the node in memberlist cluster. Defaults to hostname.
     [node_name: <string> | default = ""]
@@ -773,3 +774,13 @@ overrides:
     # Ingestion strategy, default is `local`.
     ingestion_rate_strategy: <global|local>
 ```
+
+## Search
+
+Tempo native search can be enabled by the following top-level setting.  In microservices mode, it must be set for the distributors and queriers. 
+
+```yaml
+search_enabled: true
+```
+
+Additional search-related settings are available in the [distributor](#distributor) and [ingester](#ingester) sections.
