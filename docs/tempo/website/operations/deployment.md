@@ -52,9 +52,9 @@ which is the single binary deployment mode.
 
 A single binary mode deployment runs all top-level components in a single
 process, forming an instance of Tempo.  The single binary mode is the simplest
-to deploy but cannot but can not horizontally scale.  Refer to
-[Architecture]({{< relref "./architecture" >}}) for descriptions of the
-components.
+to deploy, but can not horizontally scale out by increasing the quantity of
+components.  Refer to [Architecture]({{< relref "./architecture" >}}) for
+descriptions of the components.
 
 To enable this mode, `-target=all` is used, which is the default.
 
@@ -66,9 +66,10 @@ Find docker-compose deployment examples at:
 ## Scalable single binary
 
 A scalable single binary deployment is similar to the single binary mode in
-that all components are deployed in one binary but it is capable of
-horizontally scaling. This mode offers some flexibility of scaling without the
-complexity of the full microservices deployment.
+that all components are deployed within one binary. Horizontal scale out is
+achieved by instantiating more than one single binary. This mode offers some
+flexibility of scaling without the configuration complexity of the full
+microservices deployment.
 
 Each of the `queriers` will perform a DNS lookup for the `frontend_address` and
 connect to the addresses found within the DNS record.
@@ -82,7 +83,7 @@ Find a docker-compose deployment example at:
 ## Microservices
 
 In microservices mode, components are deployed in distinct processes.  Scaling
-is per component which allows for greater flexibility in scaling and more
+is per component, which allows for greater flexibility in scaling and more
 granular failure domains. This is the preferred method for a production
 deployment, but it is also the most complex
 
