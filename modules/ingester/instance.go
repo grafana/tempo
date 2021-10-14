@@ -497,12 +497,12 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file
-	f, bufferedWriter, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
+	f, bufferedWriter, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
 	if err != nil {
 		return err
 	}
 
-	b, err := search.NewStreamingSearchBlockForFile(f, bufferedWriter, "v2", backend.EncNone)
+	b, err := search.NewStreamingSearchBlockForFile(f, bufferedWriter, enc)
 	if err != nil {
 		return err
 	}

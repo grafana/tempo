@@ -32,7 +32,7 @@ func newStreamingSearchBlockWithTraces(t testing.TB, traceCount int, enc backend
 	f, err := os.OpenFile(path.Join(tmpDir, "search", fmt.Sprintf("1c505e8b-26cd-4621-ba7d-792bb55282d5:single-tenant:v2:%s:", enc.String())), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
-	sb, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), "v2", enc)
+	sb, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), enc)
 	require.NoError(t, err)
 
 	for i := 0; i < traceCount; i++ {
@@ -188,7 +188,7 @@ func TestStreamingSearchBlockIteratorDedupes(t *testing.T) {
 			f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 			require.NoError(t, err)
 
-			b1, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), "v2", backend.EncNone)
+			b1, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), backend.EncNone)
 			require.NoError(t, err)
 
 			id := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
@@ -211,52 +211,6 @@ func TestStreamingSearchBlockIteratorDedupes(t *testing.T) {
 
 			require.Equal(t, tc.expectedLenResults, len(results))
 		})
-	}
-}
-
-func BenchmarkBackendSearchBlockSearch(b *testing.B) {
-	pageSizesMB := []float32{0.5, 1, 2}
-
-	for _, enc := range backend.SupportedEncoding {
-		for _, sz := range pageSizesMB {
-			b.Run(fmt.Sprint(enc.String(), "/", sz, "MiB"), func(b *testing.B) {
-
-				b2 := newBackendSearchBlockWithTraces(b, b.N, enc, int(sz*1024*1024))
-
-				// Use secret tag to perform exhaustive search
-				p := NewSearchPipeline(&tempopb.SearchRequest{
-					Tags: map[string]string{SecretExhaustiveSearchTag: "!"},
-				})
-
-				sr := NewResults()
-
-				b.ResetTimer()
-				start := time.Now()
-				// Search 10x10 because reading the search data is much faster than creating it, but we need
-				// to spend at least 1 second to satisfy go bench minimum elapsed time requirement.
-				loops := 10
-				wg := &sync.WaitGroup{}
-				for i := 0; i < loops; i++ {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						for j := 0; j < loops; j++ {
-							err := b2.Search(context.TODO(), p, sr)
-							require.NoError(b, err)
-						}
-					}()
-				}
-				wg.Wait()
-				elapsed := time.Since(start)
-				fmt.Printf("BackendSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s \t %d traces = %.2fM traces/s \n",
-					elapsed,
-					float64(sr.bytesInspected.Load())/(1024*1024),
-					float64(sr.bytesInspected.Load())/(elapsed.Seconds())/(1024*1024),
-					sr.TracesInspected(),
-					float64(sr.TracesInspected())/(elapsed.Seconds())/1_000_000,
-				)
-			})
-		}
 	}
 }
 
@@ -285,7 +239,7 @@ func testBufferAndFlush(t *testing.T, fn func(s *StreamingSearchBlock)) {
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
-	sb, err := NewStreamingSearchBlockForFile(f, bufio.NewWriterSize(f, 10000), "v2", enc)
+	sb, err := NewStreamingSearchBlockForFile(f, bufio.NewWriterSize(f, 10000), enc)
 	require.NoError(t, err)
 
 	searchData := [][]byte{(&tempofb.SearchEntryMutable{
