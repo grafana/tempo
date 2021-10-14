@@ -86,21 +86,24 @@ How it **works**:
 - If flushing fails, the ingester will keep retrying until restarted
 - Blocks that have been flushed successfully will be deleted from the ingester, by default after 15m
 
-Failed flushes could be caused by any number of different things: ingester rollout, bad block, permissions issues, rate limiting,
-failing backend,... Tempo will continue to retry sending the blocks until it succeeds, but at some point your WAL files will start failing to write due to'
-out of disk issues.
+Failed flushes could be caused by any number of different things: bad block, permissions issues, rate limiting, failing backend,...
+Tempo will continue to retry sending the blocks until it succeeds, but at some point your WAL files will start failing to write due
+to out of disk issues.
+
+Known issue: this can trigger during a rollout of the ingesters, see [tempo#1035](https://github.com/grafana/tempo/issues/1035).
 
 How to **investigate**:
-- To check which ingesters are failing to flush and look for a pattern, use:
+- To check which ingesters are failing to flush and look for a pattern, you can use:
   ```
-  sum(rate(tempo_ingester_failed_flushes_total{cluster="...", container="ingester"}[5m])) by (cluster, pod)
+  sum(rate(tempo_ingester_failed_flushes_total{cluster="...", container="ingester"}[5m])) by (pod)
   ```
 - Check the logs for errors
 
-If a single block can not be flushed, this block might be corrupted. Inspect the block manually and consider moving this file out
-of the WAL or outright deleting it. Restart the ingester to stop the retry attempts. Removing blocks from a single ingester will
-not cause data loss if replication is used and the other ingesters are flushing their blocks successfully.
-By default, the WAL is at `/var/tempo/wal/blocks`.
+If a single block can not be flushed, this block might be corrupted. A corrupted or bad block might be missing some files or a file
+might be empty, compare this block with other blocks in the WAL to verify.  
+After inspecting the block, consider moving this file out of the WAL or outright deleting it. Restart the ingester to stop the retry
+attempts. Removing blocks from a single ingester will not cause data loss if replication is used and the other ingesters are flushing
+their blocks successfully. By default, the WAL is at `/var/tempo/wal/blocks`.
 
 If multiple blocks can not be flushed, the local WAL disk of the ingester will be filling up. Consider increasing the amount of disk
 space available to the ingester.
