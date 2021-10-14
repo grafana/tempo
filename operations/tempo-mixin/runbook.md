@@ -83,7 +83,7 @@ There are several settings which can be tuned to reduce the amount of work done 
 
 How it **works**:
 - Tempo ingesters flush blocks that have been completed to the backend
-- If flushing fails, the ingester will keep retrying
+- If flushing fails, the ingester will keep retrying until restarted
 - Blocks that have been flushed successfully will be deleted from the ingester, by default after 15m
 
 Failed flushes could be caused by any number of different things: ingester rollout, bad block, permissions issues, rate limiting,
