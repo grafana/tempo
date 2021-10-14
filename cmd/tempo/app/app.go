@@ -150,6 +150,13 @@ func (c *Config) CheckConfig() {
 	}
 }
 
+func newDefaultConfig() *Config {
+	defaultConfig := &Config{}
+	defaultFS := flag.NewFlagSet("", flag.PanicOnError)
+	defaultConfig.RegisterFlagsAndApplyDefaults("", defaultFS)
+	return defaultConfig
+}
+
 // App is the root datastructure.
 type App struct {
 	cfg Config
@@ -257,6 +264,9 @@ func (t *App) Run() error {
 	t.Server.HTTP.Path("/status").Handler(t.statusHandler()).Methods("GET")
 	t.Server.HTTP.Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
 	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, healthcheck.New(sm))
+
+	// Add a way to see the config
+	t.Server.HTTP.Path("/config").Handler(configHandler(t.cfg, newDefaultConfig()))
 
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }
