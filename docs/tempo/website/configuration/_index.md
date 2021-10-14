@@ -82,7 +82,12 @@ server:
     [http_server_idle_timeout: <duration> | default = 120s]
     
     # Max gRPC message size that can be received
+    # This value may need to be increased if you have large traces
     [grpc_server_max_recv_msg_size: <int> | default = 4194304]
+    
+    # Max gRPC message size that can be sent
+    # This value may need to be increased if you have large traces
+    [grpc_server_max_send_msg_size: <int> | default = 4194304]
 ```
 
 ## Distributor
