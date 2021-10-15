@@ -94,13 +94,13 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger, registerer prometheus
 			}
 
 			// check marshalling format
-			marshallingFormat := api.JSONTypeHeaderValue
-			if r.Header.Get(api.AcceptHeaderKey) == api.ProtobufTypeHeaderValue {
-				marshallingFormat = api.ProtobufTypeHeaderValue
+			marshallingFormat := api.HeaderAcceptJSON
+			if r.Header.Get(api.HeaderAccept) == api.HeaderAcceptProtobuf {
+				marshallingFormat = api.HeaderAcceptProtobuf
 			}
 
 			// enforce all communication internal to Tempo to be in protobuf bytes
-			r.Header.Set(api.AcceptHeaderKey, api.ProtobufTypeHeaderValue)
+			r.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
 			resp, err := rt.RoundTrip(r)
 
@@ -121,7 +121,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger, registerer prometheus
 					resp.StatusCode = http.StatusPartialContent
 				}
 
-				if marshallingFormat == api.JSONTypeHeaderValue {
+				if marshallingFormat == api.HeaderAcceptJSON {
 					var jsonTrace bytes.Buffer
 					marshaller := &jsonpb.Marshaler{}
 					err = marshaller.Marshal(&jsonTrace, responseObject.Trace)
