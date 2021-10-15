@@ -12,7 +12,7 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 )
 
-func RetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
+func newRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return retryWare{
 			next:       next,

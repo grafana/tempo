@@ -23,7 +23,7 @@ var (
 	maxSpanID uint64 = 0xffffffffffffffff
 )
 
-func Deduper(logger log.Logger) Middleware {
+func newDeduper(logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return spanIDDeduper{
 			next:   next,

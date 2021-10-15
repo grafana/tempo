@@ -71,7 +71,7 @@ func TestReturnAllHits(t *testing.T) {
 	}, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error creating tempodb")
 
-	r.EnablePolling(&Querier{})
+	r.EnablePolling(nil)
 
 	wal := w.WAL()
 

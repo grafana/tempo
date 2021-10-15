@@ -12,7 +12,9 @@ import (
 const (
 	urlParamMinDuration = "minDuration"
 	urlParamMaxDuration = "maxDuration"
-	urlParamLimit       = "limit"
+	URLParamLimit       = "limit"
+	URLParamStart       = "start"
+	URLParamEnd         = "end"
 )
 
 func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
@@ -23,7 +25,7 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 
 	for k, v := range r.URL.Query() {
 		// Skip reserved keywords
-		if k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit {
+		if k == urlParamMinDuration || k == urlParamMaxDuration || k == URLParamLimit {
 			continue
 		}
 
@@ -48,7 +50,7 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		req.MaxDurationMs = uint32(dur.Milliseconds())
 	}
 
-	if s := r.URL.Query().Get(urlParamLimit); s != "" {
+	if s := r.URL.Query().Get(URLParamLimit); s != "" {
 		limit, err := strconv.Atoi(s)
 		if err != nil {
 			return nil, err
