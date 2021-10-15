@@ -1,6 +1,9 @@
 package api
 
 import (
+	"errors"
+	"fmt"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
@@ -69,7 +72,7 @@ func TestParseBackendSearch(t *testing.T) {
 		}
 		r := httptest.NewRequest("GET", url, nil)
 
-		actualStart, actualEnd, actualLimit, actualError := searchSharderParams(r)
+		actualStart, actualEnd, actualLimit, actualError := ParseBackendSearch(r)
 
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, actualError)
