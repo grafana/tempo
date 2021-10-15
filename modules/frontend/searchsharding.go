@@ -192,7 +192,9 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// if the status code is anything but happy, save the error and pass it down the line
 			if resp.StatusCode != http.StatusOK {
-				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast?
+				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast? for search sharding we will also
+				// have concurrentQueries-1 in flight when the limit is reached. if we cancel after the limit is hit can we recoup all those resources
+				// faster?
 				statusCode := resp.StatusCode
 				bytesMsg, err := io.ReadAll(resp.Body)
 				if err != nil {

@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	TraceByIDOp = "traces"
-	SearchOp    = "search"
+	traceByIDOp = "traces"
+	searchOp    = "search"
 )
 
 type QueryFrontend struct {
@@ -54,10 +54,10 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 	backendMiddleware := newBackendSearchMiddleware(store, logger)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
-		"op": TraceByIDOp,
+		"op": traceByIDOp,
 	})
 	searchCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
-		"op": SearchOp,
+		"op": searchOp,
 	})
 
 	traces := traceByIDMiddleware.Wrap(next)
