@@ -29,7 +29,7 @@ const (
 	queryDelimiter = "?"
 )
 
-func ShardingWare(queryShards, maxFailedBlocks int, logger log.Logger) Middleware {
+func newTraceByIDSharder(queryShards, maxFailedBlocks int, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,

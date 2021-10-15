@@ -76,6 +76,7 @@ type Writer interface {
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error)
+	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(sharder blocklist.JobSharder)
 
 	Shutdown()
@@ -276,6 +277,10 @@ func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
 
+func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
+	return rw.blocklist.Metas(tenantID)
+}
+
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error) {
 	// tracing instrumentation
 	logger := log_util.WithContext(ctx, log_util.Logger)
@@ -383,8 +388,13 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 	}
 }
 
-// EnablePolling activates the polling loop
+// EnablePolling activates the polling loop. Pass nil if this component
+//  should never be a tenant index builder.
 func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
+	if sharder == nil {
+		sharder = blocklist.OwnsNothingSharder
+	}
+
 	if rw.cfg.BlocklistPoll == 0 {
 		rw.cfg.BlocklistPoll = DefaultBlocklistPoll
 	}
