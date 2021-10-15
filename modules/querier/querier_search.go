@@ -1,6 +1,7 @@
 package querier
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -52,9 +53,10 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		if err != nil {
 			return nil, err
 		}
-		if limit > 0 {
-			req.Limit = uint32(limit)
+		if limit <= 0 {
+			return nil, errors.New("limit must be a positive number")
 		}
+		req.Limit = uint32(limit)
 	}
 
 	if q.cfg.SearchMaxResultLimit != 0 && req.Limit > q.cfg.SearchMaxResultLimit {

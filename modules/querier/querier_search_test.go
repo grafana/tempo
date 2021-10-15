@@ -48,22 +48,15 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "With zero limit",
 			urlQuery: "limit=0",
-			expected: &tempopb.SearchRequest{
-				Tags:  map[string]string{},
-				Limit: q.cfg.SearchDefaultResultLimit,
-			},
+			err:      "limit must be a positive number",
 		},
-		// TODO should we fail this query?
 		{
 			name:     "With negative limit",
 			urlQuery: "limit=-5",
-			expected: &tempopb.SearchRequest{
-				Tags:  map[string]string{},
-				Limit: q.cfg.SearchDefaultResultLimit,
-			},
+			err:      "limit must be a positive number",
 		},
 		{
-			name:     "With invalid limit",
+			name:     "With non-numeric limit",
 			urlQuery: "limit=five",
 			err:      "strconv.Atoi: parsing \"five\": invalid syntax",
 		},
