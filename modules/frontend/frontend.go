@@ -18,8 +18,8 @@ import (
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 )
 
@@ -84,7 +84,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger, registerer prometheus
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// validate traceID
-			_, err := util.ParseTraceID(r)
+			_, err := api.ParseTraceID(r)
 			if err != nil {
 				return &http.Response{
 					StatusCode: http.StatusBadRequest,
@@ -94,13 +94,13 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger, registerer prometheus
 			}
 
 			// check marshalling format
-			marshallingFormat := util.JSONTypeHeaderValue
-			if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
-				marshallingFormat = util.ProtobufTypeHeaderValue
+			marshallingFormat := api.JSONTypeHeaderValue
+			if r.Header.Get(api.AcceptHeaderKey) == api.ProtobufTypeHeaderValue {
+				marshallingFormat = api.ProtobufTypeHeaderValue
 			}
 
 			// enforce all communication internal to Tempo to be in protobuf bytes
-			r.Header.Set(util.AcceptHeaderKey, util.ProtobufTypeHeaderValue)
+			r.Header.Set(api.AcceptHeaderKey, api.ProtobufTypeHeaderValue)
 
 			resp, err := rt.RoundTrip(r)
 
@@ -121,7 +121,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger, registerer prometheus
 					resp.StatusCode = http.StatusPartialContent
 				}
 
-				if marshallingFormat == util.JSONTypeHeaderValue {
+				if marshallingFormat == api.JSONTypeHeaderValue {
 					var jsonTrace bytes.Buffer
 					marshaller := &jsonpb.Marshaler{}
 					err = marshaller.Marshal(&jsonTrace, responseObject.Trace)
