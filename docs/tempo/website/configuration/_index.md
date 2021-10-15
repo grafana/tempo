@@ -216,8 +216,8 @@ querier:
     # Limit used for search requests if none is set by the caller
     [search_default_result_limit: <int> | default = 20]
 
-    # The maximum limit allowed for search requests, higher limits will be truncated
-    # Default is 0, which does not apply a limit 
+    # The maximum quantity of trace results that will be searched for, imposed as a limit within the server.
+    # The default value of 0 does not limit the quantity of trace results. 
     [search_max_result_limit: <int> | default = 0]
 
     # config of the worker that connects to the query frontend
