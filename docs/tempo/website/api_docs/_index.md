@@ -252,6 +252,15 @@ GET /status/endpoints
 Displays status information about the API endpoints.
 
 ```
+GET /status/config
+```
+
+Displays the configuration.
+
+Optional Query Parameter:
+- `mode = (diff|defaults)`: Used to show the difference between the default values and the current configuration if `diff` is given. The default values will be shown if `defaults` is used.
+
+```
 GET /status/runtime_config
 ```
 
