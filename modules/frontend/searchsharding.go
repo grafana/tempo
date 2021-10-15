@@ -273,11 +273,8 @@ func (s *searchSharder) shardedRequests(ctx context.Context, metas []*backend.Bl
 	//    - totalPages=<number>
 	reqs := []*http.Request{}
 	for _, m := range metas {
-		if m.Size == 0 {
-			return nil, fmt.Errorf("block %s has an invalid 0 size", m.BlockID)
-		}
-		if m.TotalRecords == 0 {
-			return nil, fmt.Errorf("block %s has an invalid 0 records", m.BlockID)
+		if m.Size == 0 || m.TotalRecords == 0 {
+			continue
 		}
 
 		bytesPerPage := m.Size / uint64(m.TotalRecords)
@@ -286,7 +283,7 @@ func (s *searchSharder) shardedRequests(ctx context.Context, metas []*backend.Bl
 		}
 		pagesPerQuery := s.targetBytesPerRequest / int(bytesPerPage)
 		if pagesPerQuery == 0 {
-			return nil, fmt.Errorf("block %s has an invalid 0 pages per query", m.BlockID)
+			pagesPerQuery = 1 // have to have at least 1 page per query
 		}
 
 		blockID := m.BlockID.String()

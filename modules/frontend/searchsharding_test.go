@@ -176,7 +176,7 @@ func TestShardedRequests(t *testing.T) {
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
-			expectedError: errors.New("block 00000000-0000-0000-0000-000000000000 has an invalid 0 size"),
+			expectedURIs: []string{},
 		},
 		// block with no records
 		{
@@ -186,7 +186,7 @@ func TestShardedRequests(t *testing.T) {
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
-			expectedError: errors.New("block 00000000-0000-0000-0000-000000000000 has an invalid 0 records"),
+			expectedURIs: []string{},
 		},
 		// bytes/per request is too small for the page size
 		{
@@ -194,11 +194,15 @@ func TestShardedRequests(t *testing.T) {
 			metas: []*backend.BlockMeta{
 				{
 					Size:         1000,
-					TotalRecords: 100,
+					TotalRecords: 3,
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
-			expectedError: errors.New("block 00000000-0000-0000-0000-000000000000 has an invalid 0 pages per query"),
+			expectedURIs: []string{
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=0&totalPages=1&v=test",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=1&totalPages=1&v=test",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=2&totalPages=1&v=test",
+			},
 		},
 		// 100 pages, 10 bytes per page, 1k allowed per request
 		{
