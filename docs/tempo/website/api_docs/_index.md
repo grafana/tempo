@@ -20,6 +20,9 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 | [Pprof](#pprof) | _All services_ |  HTTP | `GET /debug/pprof` |
 | [Ingest traces](#ingest) | Distributor |  - | See section for details |
 | [Querying traces](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
+| [Searching traces](#search) | Query-frontend | HTTP | `GET /api/search?<params>` |
+| [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
+| [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
 | [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
 | [Memberlist](#memberlist) | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
@@ -115,6 +118,48 @@ Returns:
 By default this endpoint returns [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON,
 but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is passed.
 
+### Search
+
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+
+Tempo's Search API finds traces based on span and process attributes (tags and values).  The API is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request is used to find traces containing spans
+from service "myservice" and the url contains "api/myapi".
+
+```
+GET /api/search?service.name=myservice&http.url=api/myapi
+```
+
+Each query parameter is of the form <name>=<value>, where <name> is the name of any span-level or process-level attribute.  The value is matched as a case-insensitive substring.  There are several reserved query parameters:
+- `minDuration = (go duration value)`
+  Optional.  Find traces with at least this duration.  Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
+- `maxDuration = (go duration value)`
+  Optional.  Find traces with no greater than this duration.  Uses the same form as `minDuration`.
+- `limit = (integer)`
+  Optional.  Limit the number of search results. Default is 100.
+
+### Search Tags
+
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+
+This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a single binary deployment.
+
+```
+GET /api/search/tags
+```
+
+### Search Tag Values
+
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+
+This endpoint retrieves all discovered values for the given tag, which can be used in search.  The endpoint is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request will return all discovered service names.
+
+```
+GET /api/search/tag/service.name/values
+```
+
 ### Query Echo Endpoint
 
 ```
@@ -207,6 +252,15 @@ GET /status/endpoints
 Displays status information about the API endpoints.
 
 ```
+GET /status/config
+```
+
+Displays the configuration.
+
+Optional Query Parameter:
+- `mode = (diff|defaults)`: Used to show the difference between the default values and the current configuration if `diff` is given. The default values will be shown if `defaults` is used.
+
+```
 GET /status/runtime_config
 ```
 
@@ -214,10 +268,6 @@ Displays the override configuration.
 
 Query Parameter:
 - `mode = (diff)`: Used to show the difference between defaults and overrides.
-
-```
-GET /status/runtime_config
-```
 
 Displays the configuration currently applied to Tempo (in YAML format), including default values and settings via CLI flags.
 Sensitive data is masked. Please be aware that the exported configuration **doesn't include the per-tenant overrides**.

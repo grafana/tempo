@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -28,12 +27,6 @@ const (
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"
 	QueryModeAll       = "all"
-
-	urlParamMinDuration = "minDuration"
-	urlParamMaxDuration = "maxDuration"
-	URLParamLimit       = "limit"
-	URLParamStart       = "start"
-	URLParamEnd         = "end"
 )
 
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
@@ -158,47 +151,10 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchHandler")
 	defer span.Finish()
 
-	req := &tempopb.SearchRequest{
-		Tags:  map[string]string{},
-		Limit: q.cfg.SearchDefaultResultLimit,
-	}
-
-	for k, v := range r.URL.Query() {
-		// Skip known values
-		if k == urlParamMinDuration || k == urlParamMaxDuration || k == URLParamLimit {
-			continue
-		}
-
-		if len(v) > 0 && v[0] != "" {
-			req.Tags[k] = v[0]
-		}
-	}
-
-	if s := r.URL.Query().Get(urlParamMinDuration); s != "" {
-		dur, err := time.ParseDuration(s)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
-		req.MinDurationMs = uint32(dur.Milliseconds())
-	}
-
-	if s := r.URL.Query().Get(urlParamMaxDuration); s != "" {
-		dur, err := time.ParseDuration(s)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
-		req.MaxDurationMs = uint32(dur.Milliseconds())
-	}
-
-	if s := r.URL.Query().Get(URLParamLimit); s != "" {
-		limit, err := strconv.Atoi(s)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if limit > 0 {
-			req.Limit = uint32(limit)
-		}
+	req, err := q.parseSearchRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	resp, err := q.Search(ctx, req)

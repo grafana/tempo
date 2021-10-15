@@ -10,6 +10,7 @@
   `/config` moved to `/status/config`
   `/services` moved to `/status/services`
 * [CHANGE] **BREAKING CHANGE** Change ingester metric `ingester_bytes_metric_total` in favor of `ingester_bytes_received_total` [#979](https://github.com/grafana/tempo/pull/979) (@mapno)
+* [CHANGE] Add troubleshooting language to config for `server.grpc_server_max_recv_msg_size` and `server.grpc_server_max_send_msg_size` when handling large traces [#1023](https://github.com/grafana/tempo/pull/1023) (@thejosephstevens)
 * [FEATURE] Add ability to search ingesters for traces [#806](https://github.com/grafana/tempo/pull/806) (@mdisibio)
 * [FEATURE] Add runtime config handler  [#936](https://github.com/grafana/tempo/pull/936) (@mapno)
 * [FEATURE] Search WAL reload and compression(versioned encoding) support [#1000](https://github.com/grafana/tempo/pull/1000) (@annanay25, @mdisibio)
@@ -61,7 +62,9 @@
 * [ENHANCEMENT] **BREAKING CHANGE** Support partial results from failed block queries [#1007](https://github.com/grafana/tempo/pull/1007) (@mapno)
   Querier [`GET /querier/api/traces/<traceid>`](https://grafana.com/docs/tempo/latest/api_docs/#query) response's body has been modified 
   to return `tempopb.TraceByIDResponse` instead of simply `tempopb.Trace`. This will cause a disruption of the read path during rollout of the change.
-* [ENHANCEMENT] Add `search_default_limit` to querier config. [#1022](https://github.com/grafana/tempo/pull/1022) (@kvrhdn)
+* [ENHANCEMENT] Add `search_default_limit` and `search_max_result_limit` to querier config. [#1022](https://github.com/grafana/tempo/pull/1022) [#1044](https://github.com/grafana/tempo/pull/1044) (@kvrhdn)
+* [ENHANCEMENT] Add new metric `tempo_distributor_push_duration_seconds` [#1027](https://github.com/grafana/tempo/pull/1027) (@zalegrala)
+* [ENHANCEMENT] Add query parameter to show the default config values and the difference between the current values and the defaults. [#1045](https://github.com/grafana/tempo/pull/1045) (@MichelHollands)
 * [BUGFIX] Update port spec for GCS docker-compose example [#869](https://github.com/grafana/tempo/pull/869) (@zalegrala)
 * [BUGFIX] Fix "magic number" errors and other block mishandling when an ingester forcefully shuts down [#937](https://github.com/grafana/tempo/issues/937) (@mdisibio)
 * [BUGFIX] Fix compactor memory leak [#806](https://github.com/grafana/tempo/pull/806) (@mdisibio)

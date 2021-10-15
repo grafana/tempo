@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/dskit/services"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	prom_client "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/common/logging"
@@ -37,6 +38,15 @@ import (
 
 const (
 	logsPerSecond = 10
+)
+
+var (
+	metricPushDuration = promauto.NewHistogram(prom_client.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "distributor_push_duration_seconds",
+		Help:      "Records the amount of time to push a batch to the ingester.",
+		Buckets:   prom_client.DefBuckets,
+	})
 )
 
 type receiversShim struct {
@@ -169,9 +179,11 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 	}
 
 	for _, batch := range trace.Batches {
+		start := time.Now()
 		_, err = r.pusher.Push(ctx, &tempopb.PushRequest{
 			Batch: batch,
 		})
+		metricPushDuration.Observe(time.Since(start).Seconds())
 		if err != nil {
 			r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
 			break

@@ -12,6 +12,7 @@ import (
 
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
 	"github.com/cortexproject/cortex/pkg/ring"
+	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/cortexproject/cortex/pkg/util/grpc/healthcheck"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/kit/log/level"
@@ -148,6 +149,13 @@ func (c *Config) CheckConfig() {
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
 		level.Warn(log.Logger).Log("msg", "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultBlocklistPollConcurrency)
 	}
+}
+
+func newDefaultConfig() *Config {
+	defaultConfig := &Config{}
+	defaultFS := flag.NewFlagSet("", flag.PanicOnError)
+	defaultConfig.RegisterFlagsAndApplyDefaults("", defaultFS)
+	return defaultConfig
 }
 
 // App is the root datastructure.
@@ -307,8 +315,37 @@ func (t *App) writeStatusVersion(w io.Writer) error {
 	return nil
 }
 
-func (t *App) writeStatusConfig(w io.Writer) error {
-	out, err := yaml.Marshal(t.cfg)
+func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
+	var output interface{}
+
+	mode := r.URL.Query().Get("mode")
+	switch mode {
+	case "diff":
+		defaultCfg := newDefaultConfig()
+
+		defaultCfgYaml, err := util.YAMLMarshalUnmarshal(defaultCfg)
+		if err != nil {
+			return err
+		}
+
+		cfgYaml, err := util.YAMLMarshalUnmarshal(t.cfg)
+		if err != nil {
+			return err
+		}
+
+		output, err = util.DiffConfig(defaultCfgYaml, cfgYaml)
+		if err != nil {
+			return err
+		}
+	case "defaults":
+		output = newDefaultConfig()
+	case "":
+		output = t.cfg
+	default:
+		return errors.Errorf("unknown value for mode query parameter: %v", mode)
+	}
+
+	out, err := yaml.Marshal(output)
 	if err != nil {
 		return err
 	}
@@ -381,8 +418,6 @@ func (t *App) statusHandler() http.HandlerFunc {
 			"version":   t.writeStatusVersion,
 			"services":  t.writeStatusServices,
 			"endpoints": t.writeStatusEndpoints,
-			// "runtime_config": t.overrides.WriteStatusRuntimeConfig,
-			"config": t.writeStatusConfig,
 		}
 
 		wrapStatus := func(endpoint string) {
@@ -391,6 +426,11 @@ func (t *App) statusHandler() http.HandlerFunc {
 			switch endpoint {
 			case "runtime_config":
 				err := t.writeRuntimeConfig(&msg, r)
+				if err != nil {
+					errs = append(errs, err)
+				}
+			case "config":
+				err := t.writeStatusConfig(&msg, r)
 				if err != nil {
 					errs = append(errs, err)
 				}
@@ -424,7 +464,11 @@ func (t *App) statusHandler() http.HandlerFunc {
 
 			for _, e := range errs {
 				if e != nil {
-					err = errors.Wrap(err, e.Error())
+					if err == nil {
+						err = e
+					} else {
+						err = errors.Wrap(err, e.Error())
+					}
 				}
 			}
 			return err
