@@ -217,6 +217,7 @@ querier:
     [search_default_result_limit: <int> | default = 20]
 
     # The maximum quantity of trace results that will be searched for, imposed as a limit within the server.
+    # If this value is lower than a limit parameter set in a query request, this value sets the maximum.
     # The default value of 0 does not limit the quantity of trace results. 
     [search_max_result_limit: <int> | default = 0]
 
