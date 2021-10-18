@@ -34,7 +34,7 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
-	b1, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), enc)
+	b1, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), "v2", enc)
 	require.NoError(t, err)
 
 	for i := 0; i < traceCount; i++ {
@@ -97,7 +97,7 @@ func TestBackendSearchBlockFinalSize(t *testing.T) {
 	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
-	b1, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), backend.EncNone)
+	b1, err := NewStreamingSearchBlockForFile(f, bufio.NewWriter(f), "v2", backend.EncNone)
 	require.NoError(t, err)
 
 	for i := 0; i < traceCount; i++ {
