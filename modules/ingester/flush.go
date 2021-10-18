@@ -223,6 +223,10 @@ func handleFailedOp(op *flushOp, err error) {
 	level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "error performing op in flushQueue",
 		"op", op.kind, "block", op.blockID.String(), "attempts", op.attempts, "err", err)
 	metricFailedFlushes.Inc()
+
+	if op.attempts > 1 {
+		metricFlushFailedRetries.Inc()
+	}
 }
 
 func handleAbandonedOp(op *flushOp) {
@@ -381,7 +385,6 @@ func (i *Ingester) requeue(op *flushOp) {
 
 		err := i.flushQueues.Requeue(op)
 		if err != nil {
-			metricFlushFailedRetries.Inc()
 			handleFailedOp(op, err)
 		}
 	}()
