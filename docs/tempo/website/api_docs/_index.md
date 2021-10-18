@@ -252,6 +252,15 @@ GET /status/endpoints
 Displays status information about the API endpoints.
 
 ```
+GET /status/config
+```
+
+Displays the configuration.
+
+Optional Query Parameter:
+- `mode = (diff|defaults)`: Used to show the difference between the default values and the current configuration if `diff` is given. The default values will be shown if `defaults` is used.
+
+```
 GET /status/runtime_config
 ```
 
@@ -259,10 +268,6 @@ Displays the override configuration.
 
 Query Parameter:
 - `mode = (diff)`: Used to show the difference between defaults and overrides.
-
-```
-GET /status/runtime_config
-```
 
 Displays the configuration currently applied to Tempo (in YAML format), including default values and settings via CLI flags.
 Sensitive data is masked. Please be aware that the exported configuration **doesn't include the per-tenant overrides**.

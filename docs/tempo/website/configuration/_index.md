@@ -168,6 +168,10 @@ ingester:
     # maximum length of time before cutting a block
     # (default: 1h)
     [max_block_duration: <duration>]
+    
+    # duration to keep blocks in the ingester after they have been flushed
+    # (default: 15m)
+    [ complete_block_timeout: <duration>]
 ```
 
 ## Query-frontend
@@ -211,6 +215,10 @@ querier:
 
     # Limit used for search requests if none is set by the caller
     [search_default_result_limit: <int> | default = 20]
+
+    # The maximum limit allowed for search requests, higher limits will be truncated
+    # Default is 0, which does not apply a limit 
+    [search_max_result_limit: <int> | default = 0]
 
     # config of the worker that connects to the query frontend
     frontend_worker:

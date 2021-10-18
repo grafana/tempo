@@ -277,9 +277,9 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	}
 
 	// Search data (optional)
-	i.blocksMtx.Lock()
+	i.blocksMtx.RLock()
 	oldSearch := i.searchAppendBlocks[completingBlock]
-	i.blocksMtx.Unlock()
+	i.blocksMtx.RUnlock()
 
 	var newSearch search.SearchableBlock
 	if oldSearch != nil {
@@ -332,8 +332,8 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend
 func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *wal.LocalBlock {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
 
 	for _, c := range i.completeBlocks {
 		if c.BlockMeta().BlockID == blockID && c.FlushedTime().IsZero() {
@@ -392,8 +392,8 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	}
 	i.tracesMtx.Unlock()
 
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
 
 	// headBlock
 	foundBytes, err := i.headBlock.Find(id, model.ObjectCombiner)
@@ -546,8 +546,8 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 	entry := i.searchHeadBlock
 	if entry != nil {
 		entry.mtx.Lock()
+		defer entry.mtx.Unlock()
 		err := entry.b.Append(context.TODO(), id, searchData)
-		entry.mtx.Unlock()
 		return err
 	}
 

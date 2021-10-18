@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/httpgrpc"
 	"github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/tracing"
@@ -28,23 +29,25 @@ var (
 	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
 )
 
-// Handler exists to wrap a roundtripper with an HTTP handler. It wraps all
+// handler exists to wrap a roundtripper with an HTTP handler. It wraps all
 // frontend endpoints and should only contain functionality that is common to all.
-type Handler struct {
-	roundTripper http.RoundTripper
-	logger       log.Logger
+type handler struct {
+	roundTripper     http.RoundTripper
+	logger           log.Logger
+	queriesPerTenant *prometheus.CounterVec
 }
 
-// NewHandler creates a handler
-func NewHandler(rt http.RoundTripper, logger log.Logger) http.Handler {
-	return &Handler{
-		roundTripper: rt,
-		logger:       logger,
+// newHandler creates a handler
+func newHandler(rt http.RoundTripper, queriesPerTenant *prometheus.CounterVec, logger log.Logger) http.Handler {
+	return &handler{
+		roundTripper:     rt,
+		logger:           logger,
+		queriesPerTenant: queriesPerTenant,
 	}
 }
 
 // ServeHTTP implements http.Handler
-func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		_ = r.Body.Close()
 	}()
@@ -52,6 +55,8 @@ func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := time.Now()
 	orgID, _ := user.ExtractOrgID(ctx)
+
+	f.queriesPerTenant.WithLabelValues(orgID).Inc()
 
 	// add orgid to existing spans
 	span := opentracing.SpanFromContext(r.Context())
