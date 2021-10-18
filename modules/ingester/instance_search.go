@@ -14,6 +14,9 @@ import (
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	maxResults := int(req.Limit)
 	// if limit is not set, use a safe default
 	if maxResults == 0 {
@@ -26,8 +29,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	defer sr.Close()
 
 	i.searchLiveTraces(ctx, p, sr)
+
+	// Lock blocks mutex until all search tasks have been created. This avoids
+	// deadlocking with other activity (ingest, flushing), caused by releasing
+	// and then attempting to retake the lock.
+	i.blocksMtx.RLock()
 	i.searchWAL(ctx, p, sr)
 	i.searchLocalBlocks(ctx, p, sr)
+	i.blocksMtx.RUnlock()
 
 	sr.AllWorkersStarted()
 
@@ -109,6 +118,7 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 	}()
 }
 
+// searchWAL starts a search task for every WAL block. Must be called under lock.
 func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.Results) {
 	searchFunc := func(k *wal.AppendBlock, e *searchStreamingBlockEntry) {
 		defer sr.FinishWorker()
@@ -122,9 +132,6 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 		}
 	}
 
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
 	// head block
 	sr.StartWorker()
 	go searchFunc(i.headBlock, i.searchHeadBlock)
@@ -136,10 +143,8 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 	}
 }
 
+// searchLocalBlocks starts a search task for every local block. Must be called under lock.
 func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr *search.Results) {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
 	for b, e := range i.searchCompleteBlocks {
 		sr.StartWorker()
 		go func(b *wal.LocalBlock, e *searchLocalBlockEntry) {

@@ -6,9 +6,11 @@ import (
 	"context"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -23,7 +25,9 @@ type StreamingSearchBlock struct {
 	BlockID        uuid.UUID // todo: add the full meta?
 	appender       encoding.Appender
 	file           *os.File
+	closed         atomic.Bool
 	bufferedWriter *bufio.Writer
+	flushMtx       sync.Mutex
 	header         *tempofb.SearchBlockHeaderMutable
 	v              encoding.VersionedEncoding
 	enc            backend.Encoding
@@ -31,11 +35,13 @@ type StreamingSearchBlock struct {
 
 // Close closes the WAL file. Used in tests
 func (s *StreamingSearchBlock) Close() error {
+	s.closed.Store(true)
 	return s.file.Close()
 }
 
 // Clear deletes the files for this block.
 func (s *StreamingSearchBlock) Clear() error {
+	s.closed.Store(true)
 	s.file.Close()
 	return os.Remove(s.file.Name())
 }
@@ -90,11 +96,21 @@ func (s *StreamingSearchBlock) FlushBuffer() error {
 	if s.bufferedWriter == nil {
 		return nil
 	}
+
+	// Lock required to handle concurrent searches/readers flushing.
+	s.flushMtx.Lock()
+	defer s.flushMtx.Unlock()
+
 	return s.bufferedWriter.Flush()
 }
 
 // Search the streaming block.
 func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results) error {
+	if s.closed.Load() {
+		// Generally this means block has already been deleted
+		return nil
+	}
+
 	if !p.MatchesBlock(s.header) {
 		sr.AddBlockSkipped()
 		return nil

@@ -213,7 +213,9 @@ func TestWal(t *testing.T) {
 }
 
 func TestSearchWAL(t *testing.T) {
-	tmpDir := t.TempDir()
+	tmpDir, err := os.MkdirTemp("/tmp", "")
+	require.NoError(t, err, "unexpected error getting tempdir")
+	defer os.RemoveAll(tmpDir)
 
 	i := defaultIngesterModule(t, tmpDir)
 	inst, _ := i.getOrCreateInstance("test")
@@ -221,7 +223,7 @@ func TestSearchWAL(t *testing.T) {
 
 	// create some search data
 	id := make([]byte, 16)
-	_, err := rand.Read(id)
+	_, err = rand.Read(id)
 	require.NoError(t, err)
 	trace := test.MakeTrace(10, id)
 	traceBytes, err := trace.Marshal()

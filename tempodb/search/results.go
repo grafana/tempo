@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"sync"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"go.uber.org/atomic"
@@ -11,11 +12,11 @@ import (
 // channel that is easy to consume, signaling workers to quit early as needed, and collecting
 // metrics.
 type Results struct {
-	resultsCh   chan *tempopb.TraceSearchMetadata
-	doneCh      chan struct{}
-	quit        atomic.Bool
-	started     atomic.Bool
-	workerCount atomic.Int32
+	resultsCh chan *tempopb.TraceSearchMetadata
+	doneCh    chan struct{}
+	quit      atomic.Bool
+	started   atomic.Bool
+	wg        sync.WaitGroup
 
 	tracesInspected atomic.Uint32
 	bytesInspected  atomic.Uint64
@@ -35,6 +36,10 @@ func NewResults() *Results {
 // is buffer space in the results channel or if the task should stop searching because the
 // receiver went away or the given context is done. In this case true is returned.
 func (sr *Results) AddResult(ctx context.Context, r *tempopb.TraceSearchMetadata) (quit bool) {
+	if sr.quit.Load() {
+		return true
+	}
+
 	select {
 	case sr.resultsCh <- r:
 		return false
@@ -64,10 +69,12 @@ func (sr *Results) Results() <-chan *tempopb.TraceSearchMetadata {
 //     sr := NewSearchResults()
 //     defer sr.Close()
 func (sr *Results) Close() {
-	// Closing done channel makes all subsequent and blocked calls to AddResult return
-	// quit immediately.
-	close(sr.doneCh)
-	sr.quit.Store(true)
+	// Only once
+	if sr.quit.CAS(false, true) {
+		// Closing done channel makes all subsequent and blocked calls to AddResult return
+		// quit immediately.
+		close(sr.doneCh)
+	}
 }
 
 // StartWorker indicates another sender will be using the results channel. Must be followed
@@ -76,31 +83,28 @@ func (sr *Results) Close() {
 //   go func() {
 //      defer sr.FinishWorker()
 func (sr *Results) StartWorker() {
-	sr.workerCount.Inc()
+	sr.wg.Add(1)
 }
 
 // AllWorkersStarted indicates that no more workers (senders) will be launched, and the
 // results channel can be closed once the number of workers reaches zero.  This function
 // call occurs after all calls to StartWorker.
 func (sr *Results) AllWorkersStarted() {
-	sr.started.Store(true)
-	sr.checkCleanup(sr.workerCount.Load())
+	// Only once
+	if sr.started.CAS(false, true) {
+		// Close results when all workers finished.
+		go func() {
+			sr.wg.Wait()
+			close(sr.resultsCh)
+		}()
+	}
 }
 
 // FinishWorker indicates a sender (goroutine) is done searching and will not
 // send any more search results. When the last sender is finished, the results
 // channel is closed.
 func (sr *Results) FinishWorker() {
-	newCount := sr.workerCount.Dec()
-	sr.checkCleanup(newCount)
-}
-
-func (sr *Results) checkCleanup(workerCount int32) {
-	if sr.started.Load() && workerCount == 0 {
-		// No more senders. This ends the receiver that is iterating
-		// the results channel.
-		close(sr.resultsCh)
-	}
+	sr.wg.Add(-1)
 }
 
 func (sr *Results) TracesInspected() uint32 {
