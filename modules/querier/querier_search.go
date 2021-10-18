@@ -34,7 +34,7 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		}
 	}
 
-	if s := r.URL.Query().Get(urlParamMinDuration); s != "" {
+	if s, ok := extractQueryParam(r, urlParamMinDuration); ok {
 		dur, err := time.ParseDuration(s)
 		if err != nil {
 			return nil, err
@@ -42,7 +42,7 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		req.MinDurationMs = uint32(dur.Milliseconds())
 	}
 
-	if s := r.URL.Query().Get(urlParamMaxDuration); s != "" {
+	if s, ok := extractQueryParam(r, urlParamMaxDuration); ok {
 		dur, err := time.ParseDuration(s)
 		if err != nil {
 			return nil, err
@@ -50,7 +50,7 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		req.MaxDurationMs = uint32(dur.Milliseconds())
 	}
 
-	if s := r.URL.Query().Get(URLParamLimit); s != "" {
+	if s, ok := extractQueryParam(r, URLParamLimit); ok {
 		limit, err := strconv.Atoi(s)
 		if err != nil {
 			return nil, err
@@ -66,4 +66,9 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 	}
 
 	return req, nil
+}
+
+func extractQueryParam(r *http.Request, param string) (string, bool) {
+	value := r.URL.Query().Get(param)
+	return value, value != ""
 }
