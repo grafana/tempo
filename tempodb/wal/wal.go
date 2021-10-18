@@ -139,21 +139,24 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*App
 	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.WriteBufferSize)
 }
 
-func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, *bufio.Writer, error) {
+func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, *bufio.Writer, string, backend.Encoding, error) {
+	// search WAL pinned to v2 for now
+	walFileVersion := "v2"
+
 	p := filepath.Join(w.c.Filepath, dir)
 	err := os.MkdirAll(p, os.ModePerm)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", backend.EncNone, err
 	}
 
 	// blockID, tenantID, version, encoding (compression), dataEncoding
-	filename := fmt.Sprintf("%v:%v:%v:%v:%v", blockid, tenantid, "v2", backend.EncNone, "")
+	filename := fmt.Sprintf("%v:%v:%v:%v:%v", blockid, tenantid, walFileVersion, w.c.SearchEncoding, "")
 	file, err := os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", backend.EncNone, err
 	}
 
-	return file, bufio.NewWriterSize(file, w.c.WriteBufferSize), nil
+	return file, bufio.NewWriterSize(file, w.c.WriteBufferSize), walFileVersion, w.c.SearchEncoding, nil
 }
 
 // ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).
