@@ -20,6 +20,13 @@ const (
 	HeaderAcceptProtobuf = "application/protobuf"
 	HeaderAcceptJSON     = "application/json"
 
+	PathTraces          = "/api/traces/{traceID}"
+	PathSearch          = "/api/search"
+	PathSearchTags      = "/api/search/tags"
+	PathSearchTagValues = "/api/search/tag/{tagName}/values"
+	PathEcho            = "/api/echo"
+	PathBackendSearch   = "/api/backend_search" // todo(search): integrate with real search
+
 	// todo(search): make configurable
 	maxRange     = 1800 // 30 minutes
 	defaultLimit = 20
