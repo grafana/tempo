@@ -48,6 +48,10 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 			return nil, err
 		}
 		req.MaxDurationMs = uint32(dur.Milliseconds())
+
+		if req.MinDurationMs != 0 && req.MinDurationMs > req.MaxDurationMs {
+			return nil, errors.New("maxDuration must be greater than minDuration")
+		}
 	}
 
 	if s, ok := extractQueryParam(r, URLParamLimit); ok {

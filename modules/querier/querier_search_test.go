@@ -70,16 +70,10 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Limit:         q.cfg.SearchDefaultResultLimit,
 			},
 		},
-		// TODO should we fail this query?
 		{
 			name:     "With minDuration greater than maxDuration",
 			urlQuery: "minDuration=20s&maxDuration=5s",
-			expected: &tempopb.SearchRequest{
-				Tags:          map[string]string{},
-				MinDurationMs: 20000,
-				MaxDurationMs: 5000,
-				Limit:         q.cfg.SearchDefaultResultLimit,
-			},
+			err:      "maxDuration must be greater than minDuration",
 		},
 		{
 			name:     "With invalid minDuration",
