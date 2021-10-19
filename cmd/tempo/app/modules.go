@@ -27,6 +27,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	tempo_storage "github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/api"
 	tempo_ring "github.com/grafana/tempo/pkg/ring"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -45,15 +46,6 @@ const (
 	MemberlistKV         string = "memberlist-kv"
 	SingleBinary         string = "all"
 	ScalableSingleBinary string = "scalable-single-binary"
-)
-
-const (
-	apiPathTraces          string = "/api/traces/{traceID}"
-	apiPathSearch          string = "/api/search"
-	apiPathSearchTags      string = "/api/search/tags"
-	apiPathSearchTagValues string = "/api/search/tag/{tagName}/values"
-	apiPathEcho            string = "/api/echo"
-	apiPathBackendSearch   string = "/api/backend_search" // todo(search): integrate with real search
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -168,17 +160,17 @@ func (t *App) initQuerier() (services.Service, error) {
 	)
 
 	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathTraces)), tracesHandler)
+	t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
 
 	if t.cfg.SearchEnabled {
 		searchHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
-		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearch)), searchHandler)
+		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
 
 		searchTagsHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
-		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTags)), searchTagsHandler)
+		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
 
 		searchTagValuesHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues)), searchTagValuesHandler)
+		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
 	}
 
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPServer.Handler)
@@ -208,21 +200,21 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
 
 	// http trace by id endpoint
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathTraces), traceByIDHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), traceByIDHandler)
 
 	// http search endpoints
 	if t.cfg.SearchEnabled {
-		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearch), searchHandler)
-		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTags), searchHandler)
-		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathSearchTagValues), searchHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), searchHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), searchHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), searchHandler)
 
 		// todo(search): integrate with real search
-		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathBackendSearch), backendSearchHandler)
+		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathBackendSearch), backendSearchHandler)
 		t.store.EnablePolling(nil) // the query frontend does not need to have knowledge of the backend unless it is building jobs for backend search
 	}
 
 	// http query echo endpoint
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, apiPathEcho), echoHandler())
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
 
 	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
