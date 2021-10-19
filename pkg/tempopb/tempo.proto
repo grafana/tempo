@@ -47,6 +47,9 @@ message BackendSearchRequest { // todo(search): consolidate with real search
   SearchRequest search = 1;
   uint32 start = 2;
   uint32 end = 3;
+  uint32 startPage = 4;
+  uint32 totalPages = 5;
+  string blockID = 6;
 }
 
 message SearchResponse {
