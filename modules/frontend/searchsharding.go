@@ -196,7 +196,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 				if err != nil {
 					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
 				}
-				statusMsg := string(bytesMsg)
+				statusMsg := fmt.Sprintf("upstream: (%d) %s", statusCode, string(bytesMsg))
 				overallResponse.setStatus(statusCode, statusMsg)
 				return
 			}
@@ -228,6 +228,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusInternalServerError,
 			Header:     http.Header{},
+			Body:       io.NopCloser(strings.NewReader(overallResponse.statusMsg)),
 		}, nil
 	}
 
