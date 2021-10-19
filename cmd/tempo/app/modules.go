@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/thanos-io/thanos/pkg/discovery/dns"
-	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 
 	"github.com/grafana/tempo/modules/compactor"
@@ -155,22 +154,22 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 	t.querier = querier
 
-	middleware := middleware.Merge(
-		t.HTTPAuthMiddleware,
-	)
-
-	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
+	tracesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
+	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
 
 	if t.cfg.SearchEnabled {
-		searchHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
-		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
+		searchHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
+		t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
 
-		searchTagsHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
-		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
+		searchTagsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
+		t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
 
-		searchTagValuesHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
+		searchTagValuesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
+		t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
+
+		// todo(search): consolidate
+		backendSearchHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.BackendSearchHandler))
+		t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathBackendSearch)), backendSearchHandler)
 	}
 
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPServer.Handler)

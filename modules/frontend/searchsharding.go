@@ -297,7 +297,7 @@ func (s *searchSharder) shardedRequests(ctx context.Context, metas []*backend.Bl
 			// adding to RequestURI only because weaveworks/common uses the RequestURI field to
 			// translate from http.Request to httpgrpc.Request
 			// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
-			subR.RequestURI = querierPrefix + parent.URL.Path + queryDelimiter + q.Encode()
+			subR.RequestURI = api.PathPrefixQuerier + parent.URL.Path + queryDelimiter + q.Encode()
 			reqs = append(reqs, subR)
 		}
 	}

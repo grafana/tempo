@@ -154,7 +154,7 @@ func newSearchMiddleware() Middleware {
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
-			r.RequestURI = querierPrefix + r.RequestURI
+			r.RequestURI = api.PathPrefixQuerier + r.RequestURI
 
 			resp, err := rt.RoundTrip(r)
 
@@ -173,7 +173,6 @@ func newBackendSearchMiddleware(reader tempodb.Reader, logger log.Logger) Middle
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
-			r.RequestURI = querierPrefix + r.RequestURI
 
 			resp, err := rt.RoundTrip(r)
 

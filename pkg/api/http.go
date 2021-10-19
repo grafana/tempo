@@ -20,6 +20,8 @@ const (
 	HeaderAcceptProtobuf = "application/protobuf"
 	HeaderAcceptJSON     = "application/json"
 
+	PathPrefixQuerier = "/querier"
+
 	PathTraces          = "/api/traces/{traceID}"
 	PathSearch          = "/api/search"
 	PathSearchTags      = "/api/search/tags"
