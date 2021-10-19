@@ -33,9 +33,6 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		}
 
 		if len(v) > 0 && v[0] != "" {
-			if _, ok := req.Tags[k]; ok {
-				return nil, fmt.Errorf("invalid tags: tag %s has been set twice", k)
-			}
 			req.Tags[k] = v[0]
 		}
 	}
