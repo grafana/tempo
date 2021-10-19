@@ -147,3 +147,63 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestParseEncodedTags(t *testing.T) {
+	tests := []struct {
+		name        string
+		encodedTags string
+		tags        map[string]string
+	}{
+		{
+			name:        "Tags",
+			encodedTags: "service.name=foo http.url=api/search",
+			tags: map[string]string{
+				"service.name": "foo",
+				"http.url":     "api/search",
+			},
+		},
+		{
+			name:        "Tag value with space",
+			encodedTags: "service.name=\"foo bar\" http.url=api/search",
+			tags: map[string]string{
+				"service.name": "foo bar",
+				"http.url":     "api/search",
+			},
+		},
+		{
+			name:        "Tag without value",
+			encodedTags: "service.name=\"foo bar\" http.url=api/search error",
+			tags: map[string]string{
+				"service.name": "foo bar",
+				"http.url":     "api/search",
+				"error":        "",
+			},
+		},
+		{
+			name:        "Tag without name",
+			encodedTags: "service.name=\"foo bar\" http.url=api/search =error",
+			tags: map[string]string{
+				"service.name": "foo bar",
+				"http.url":     "api/search",
+			},
+		},
+		{
+			name:        "Funky characters",
+			encodedTags: "service%name=\"foo=bar\" http&url=\"foo\\\"bar\\\"bzz\"",
+			tags: map[string]string{
+				"service%name": "foo=bar",
+				"http&url":     "foo\"bar\"bzz",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tags := map[string]string{}
+
+			parseEncodedTags(tt.encodedTags, tags)
+
+			assert.Equal(t, tt.tags, tags)
+		})
+	}
+}

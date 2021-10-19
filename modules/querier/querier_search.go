@@ -38,13 +38,7 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 	}
 
 	if encodedTags, ok := extractQueryParam(r, urlParamTags); ok {
-		d := logfmt.NewDecoder(strings.NewReader(encodedTags))
-
-		for d.ScanRecord() {
-			for d.ScanKeyval() {
-				req.Tags[string(d.Key())] = string(d.Value())
-			}
-		}
+		parseEncodedTags(encodedTags, req.Tags)
 	}
 
 	if s, ok := extractQueryParam(r, urlParamMinDuration); ok {
@@ -88,4 +82,14 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 func extractQueryParam(r *http.Request, param string) (string, bool) {
 	value := r.URL.Query().Get(param)
 	return value, value != ""
+}
+
+func parseEncodedTags(encodedTags string, tags map[string]string) {
+	d := logfmt.NewDecoder(strings.NewReader(encodedTags))
+
+	for d.ScanRecord() {
+		for d.ScanKeyval() {
+			tags[string(d.Key())] = string(d.Value())
+		}
+	}
 }
