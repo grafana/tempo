@@ -62,19 +62,17 @@ func TestAppend(t *testing.T) {
 		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
 		reqs = append(reqs, req)
 		bReq, err := proto.Marshal(req)
-		require.NoError(t, err)
-		err = block.Append([]byte{0x01}, bReq)
-		require.NoError(t, err)
+		assert.NoError(t, err)
+		err = block.Write([]byte{0x01}, bReq)
+		assert.NoError(t, err, "unexpected error writing req")
 	}
-	err = block.FlushBuffer()
-	require.NoError(t, err)
 
 	records := block.appender.Records()
 	file, err := block.file()
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	iterator := encoding.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
 	defer iterator.Close()
 	i := 0
@@ -143,12 +141,9 @@ func TestErrorConditions(t *testing.T) {
 		bObj, err := proto.Marshal(obj)
 		require.NoError(t, err)
 
-		err = block.Append(id, bObj)
+		err = block.Write(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
-	err = block.FlushBuffer()
-	require.NoError(t, err)
-
 	appendFile, err := os.OpenFile(block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	require.NoError(t, err)
 	_, err = appendFile.Write([]byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01})
@@ -211,11 +206,9 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		require.NoError(t, err)
 		objs = append(objs, bObj)
 
-		err = block.Append(id, bObj)
+		err = block.Write(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
-	err = block.FlushBuffer()
-	require.NoError(t, err)
 
 	for i, id := range ids {
 		obj, err := block.Find(id, &mockCombiner{})
@@ -235,7 +228,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	iterator, err := blocks[0].Iterator(&mockCombiner{})
+	iterator, err := blocks[0].GetIterator(&mockCombiner{})
 	require.NoError(t, err)
 	defer iterator.Close()
 
@@ -453,7 +446,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 
 		// write
 		for j, obj := range objs {
-			err := block.Append(ids[j], obj)
+			err := block.Write(ids[j], obj)
 			require.NoError(b, err)
 		}
 

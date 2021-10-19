@@ -87,20 +87,18 @@ func TestReturnAllHits(t *testing.T) {
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
 		head, err := wal.NewBlock(blockID, util.FakeTenantID, "")
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		req := test.MakeRequest(10, testTraceID)
 		testTraces = append(testTraces, &tempopb.Trace{Batches: []*v1.ResourceSpans{req.Batch}})
 		bReq, err := proto.Marshal(req)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
-		err = head.Append(testTraceID, bReq)
-		require.NoError(t, err, "unexpected error writing req")
-		err = head.FlushBuffer()
-		require.NoError(t, err)
+		err = head.Write(testTraceID, bReq)
+		assert.NoError(t, err, "unexpected error writing req")
 
 		_, err = w.CompleteBlock(head, &mockSharder{})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}
 
 	// sleep for blocklist poll
