@@ -55,7 +55,7 @@ within the same cluster (in kubernetes) to quickly offload traces from the appli
 a storage backend. It also abstracts features like trace batching and backend routing away from the client.
 
 To learn more about the Grafana Agent and how to set it up for tracing with Tempo,
-refer to [this blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-agent-and-grafana-tempo/).
+refer to [this blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-cloud-agent-and-grafana-tempo/).
 
 > **Note**: The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.
 > Refer to [this blog post](https://grafana.com/blog/2021/04/13/how-to-send-traces-to-grafana-clouds-tempo-service-with-opentelemetry-collector/)
