@@ -48,17 +48,17 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "With zero limit",
 			urlQuery: "limit=0",
-			err:      "limit must be a positive number",
+			err:      "invalid limit: must be a positive number",
 		},
 		{
 			name:     "With negative limit",
 			urlQuery: "limit=-5",
-			err:      "limit must be a positive number",
+			err:      "invalid limit: must be a positive number",
 		},
 		{
 			name:     "With non-numeric limit",
 			urlQuery: "limit=five",
-			err:      "strconv.Atoi: parsing \"five\": invalid syntax",
+			err:      "invalid limit: strconv.Atoi: parsing \"five\": invalid syntax",
 		},
 		{
 			name:     "With minDuration and maxDuration",
@@ -70,26 +70,20 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Limit:         q.cfg.SearchDefaultResultLimit,
 			},
 		},
-		// TODO should we fail this query?
 		{
 			name:     "With minDuration greater than maxDuration",
 			urlQuery: "minDuration=20s&maxDuration=5s",
-			expected: &tempopb.SearchRequest{
-				Tags:          map[string]string{},
-				MinDurationMs: 20000,
-				MaxDurationMs: 5000,
-				Limit:         q.cfg.SearchDefaultResultLimit,
-			},
+			err:      "invalid maxDuration: must be greater than minDuration",
 		},
 		{
 			name:     "With invalid minDuration",
 			urlQuery: "minDuration=10seconds",
-			err:      "time: unknown unit \"seconds\" in duration \"10seconds\"",
+			err:      "invalid minDuration: time: unknown unit \"seconds\" in duration \"10seconds\"",
 		},
 		{
 			name:     "With invalid maxDuration",
 			urlQuery: "maxDuration=1msec",
-			err:      "time: unknown unit \"msec\" in duration \"1msec\"",
+			err:      "invalid maxDuration: time: unknown unit \"msec\" in duration \"1msec\"",
 		},
 		{
 			name:     "With tags and limit",

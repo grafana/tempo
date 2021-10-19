@@ -3,7 +3,6 @@ package wal
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"math/rand"
 	"os"
@@ -277,49 +276,130 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	require.NoError(t, err)
 }
 
-func TestParseFileName(t *testing.T) {
-
-	testCases := []struct {
-		name         string
-		filename     string
-		blockID      uuid.UUID
-		tenant       string
-		version      string
-		encoding     backend.Encoding
-		dataEncoding string
-		err          error
+func TestParseFilename(t *testing.T) {
+	tests := []struct {
+		name                 string
+		filename             string
+		expectUUID           uuid.UUID
+		expectTenant         string
+		expectedVersion      string
+		expectedEncoding     backend.Encoding
+		expectedDataEncoding string
+		expectError          bool
 	}{
 		{
-			"wal",
-			"00000000-0000-0000-0000-000000000000:1:v2:snappy:v1",
-			uuid.MustParse("00000000-0000-0000-0000-000000000000"), "1", "v2", backend.EncSnappy, "v1", nil,
+			name:                 "version, enc snappy and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:dataencoding",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "dataencoding",
 		},
 		{
-			"search wal",
-			"00000000-0000-0000-0000-000000000000:1:v2:snappy:",
-			uuid.MustParse("00000000-0000-0000-0000-000000000000"), "1", "v2", backend.EncSnappy, "", nil,
+			name:                 "version, enc none and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:none:dataencoding",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncNone,
+			expectedDataEncoding: "dataencoding",
 		},
 		{
-			"missing segments",
-			"xyz",
-			uuid.Nil, "", "", backend.EncNone, "", errors.New("unable to parse xyz. unexpected number of segments"),
+			name:                 "empty dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "",
 		},
 		{
-			"no data encoding",
-			"00000000-0000-0000-0000-000000000000:1:v2:snappy",
-			uuid.MustParse("00000000-0000-0000-0000-000000000000"), "1", "v2", backend.EncSnappy, "", nil,
+			name:                 "empty dataencoding with semicolon",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "",
+		},
+		{
+			name:        "path fails",
+			filename:    "/blerg/123e4567-e89b-12d3-a456-426614174000:foo",
+			expectError: true,
+		},
+		{
+			name:        "no :",
+			filename:    "123e4567-e89b-12d3-a456-426614174000",
+			expectError: true,
+		},
+		{
+			name:        "empty string",
+			filename:    "",
+			expectError: true,
+		},
+		{
+			name:        "bad uuid",
+			filename:    "123e4:foo",
+			expectError: true,
+		},
+		{
+			name:        "no tenant",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:",
+			expectError: true,
+		},
+		{
+			name:        "no version",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:test::none",
+			expectError: true,
+		},
+		{
+			name:        "wrong splits - 6",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:test:test:test:test:test",
+			expectError: true,
+		},
+		{
+			name:        "wrong splits - 3",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:test:test",
+			expectError: true,
+		},
+		{
+			name:        "wrong splits - 1",
+			filename:    "123e4567-e89b-12d3-a456-426614174000",
+			expectError: true,
+		},
+		{
+			name:        "bad encoding",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:test:v1:asdf",
+			expectError: true,
+		},
+		{
+			name:        "ez-mode old format",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:foo",
+			expectError: true,
+		},
+		{
+			name:        "deprecated version",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy",
+			expectError: true,
 		},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			b, tn, v, e, de, err := ParseFilename(tc.filename)
-			require.Equal(t, tc.blockID, b)
-			require.Equal(t, tc.tenant, tn)
-			require.Equal(t, tc.version, v)
-			require.Equal(t, tc.encoding, e)
-			require.Equal(t, tc.dataEncoding, de)
-			require.Equal(t, tc.err, err)
+			actualUUID, actualTenant, actualVersion, actualEncoding, actualDataEncoding, err := ParseFilename(tc.filename)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectUUID, actualUUID)
+			assert.Equal(t, tc.expectTenant, actualTenant)
+			assert.Equal(t, tc.expectedEncoding, actualEncoding)
+			assert.Equal(t, tc.expectedVersion, actualVersion)
+			assert.Equal(t, tc.expectedDataEncoding, actualDataEncoding)
 		})
 	}
 }
