@@ -6,6 +6,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/search"
@@ -121,6 +123,9 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 // searchWAL starts a search task for every WAL block. Must be called under lock.
 func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.Results) {
 	searchFunc := func(k *wal.AppendBlock, e *searchStreamingBlockEntry) {
+		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWAL")
+		defer span.Finish()
+
 		defer sr.FinishWorker()
 
 		e.mtx.RLock()
@@ -148,6 +153,9 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 	for b, e := range i.searchCompleteBlocks {
 		sr.StartWorker()
 		go func(b *wal.LocalBlock, e *searchLocalBlockEntry) {
+			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchLocalBlocks")
+			defer span.Finish()
+
 			defer sr.FinishWorker()
 
 			e.mtx.RLock()
