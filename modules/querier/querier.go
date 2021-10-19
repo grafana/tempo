@@ -365,6 +365,8 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
 	}
 
+	// jpe - here we go
+
 	resp := &tempopb.SearchResponse{}
 	return resp, nil
 }

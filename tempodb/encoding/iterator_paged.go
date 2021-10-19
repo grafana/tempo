@@ -4,17 +4,20 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type pagedIterator struct {
-	meta         *backend.BlockMeta
-	dataReader   common.DataReader
-	indexReader  common.IndexReader
-	objectRW     common.ObjectReaderWriter
+	meta        *backend.BlockMeta
+	dataReader  common.DataReader
+	indexReader common.IndexReader
+	objectRW    common.ObjectReaderWriter
+
 	currentIndex int
+	maxIndexPage int
 
 	chunkSizeBytes uint32
 	pages          [][]byte
@@ -23,15 +26,32 @@ type pagedIterator struct {
 	buffer []byte
 }
 
-// newPagedIterator returns a backendIterator.  This iterator is used to iterate
+// newPagedIterator returns a backend.Iterator.  This iterator is used to iterate
 //  through objects stored in object storage.
 func newPagedIterator(meta *backend.BlockMeta, chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter) Iterator {
+	return &pagedIterator{
+		meta:           meta, // jpe remove
+		dataReader:     dataReader,
+		indexReader:    indexReader,
+		chunkSizeBytes: chunkSizeBytes,
+		objectRW:       objectRW,
+		currentIndex:   0,
+		maxIndexPage:   math.MaxInt,
+	}
+}
+
+// newPartialPagedIterator returns a backend.Iterator.  This iterator is used to iterate
+//  through a contiguous and limited set of pages in object storage.
+// jpe test
+func newPartialPagedIterator(meta *backend.BlockMeta, chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter, startIndexPage int, totalIndexPages int) Iterator {
 	return &pagedIterator{
 		meta:           meta,
 		dataReader:     dataReader,
 		indexReader:    indexReader,
 		chunkSizeBytes: chunkSizeBytes,
 		objectRW:       objectRW,
+		currentIndex:   startIndexPage,
+		maxIndexPage:   startIndexPage + totalIndexPages,
 	}
 }
 
@@ -57,6 +77,10 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		return id, object, nil
 	}
 
+	if i.currentIndex >= i.maxIndexPage {
+		return nil, nil, io.EOF
+	}
+
 	// objects reader was empty, check the index
 	// if no index left, EOF
 	currentRecord, err := i.indexReader.At(ctx, i.currentIndex)
@@ -72,7 +96,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	records := make([]common.Record, 0, 5) // 5?  why not?
 	for currentRecord != nil {
 		// see if we can fit this record in.  we have to get at least one record in
-		if length+currentRecord.Length > i.chunkSizeBytes && len(records) != 0 {
+		if (length+currentRecord.Length > i.chunkSizeBytes || i.currentIndex >= i.maxIndexPage) && len(records) != 0 {
 			break
 		}
 
