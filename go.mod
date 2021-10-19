@@ -16,6 +16,7 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-kit/kit v0.11.0
 	github.com/go-kit/log v0.1.0
+	github.com/go-logfmt/logfmt v0.5.0
 	github.com/go-test/deep v1.0.7
 	github.com/gogo/protobuf v1.3.2
 	github.com/gogo/status v1.1.0
@@ -124,7 +125,6 @@ require (
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/fsouza/fake-gcs-server v1.7.0 // indirect
-	github.com/go-logfmt/logfmt v0.5.0 // indirect
 	github.com/go-openapi/analysis v0.20.0 // indirect
 	github.com/go-openapi/errors v0.20.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
