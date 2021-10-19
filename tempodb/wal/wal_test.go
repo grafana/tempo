@@ -44,17 +44,17 @@ func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, boo
 func TestAppend(t *testing.T) {
 	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	require.NoError(t, err, "unexpected error creating temp dir")
 
 	wal, err := New(&Config{
 		Filepath: tempDir,
 	})
-	assert.NoError(t, err, "unexpected error creating temp wal")
+	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
 
 	block, err := wal.NewBlock(blockID, testTenantID, "")
-	assert.NoError(t, err, "unexpected error creating block")
+	require.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 100
 	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
@@ -62,17 +62,17 @@ func TestAppend(t *testing.T) {
 		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
 		reqs = append(reqs, req)
 		bReq, err := proto.Marshal(req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		err = block.Append([]byte{0x01}, bReq)
-		assert.NoError(t, err, "unexpected error writing req")
+		require.NoError(t, err, "unexpected error writing req")
 	}
 
 	records := block.appender.Records()
 	file, err := block.file()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	iterator := encoding.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
 	defer iterator.Close()
 	i := 0
