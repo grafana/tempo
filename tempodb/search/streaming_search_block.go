@@ -1,15 +1,12 @@
 package search
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"io"
 	"os"
-	"sync"
 
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/tempofb"
@@ -22,15 +19,13 @@ var _ SearchableBlock = (*StreamingSearchBlock)(nil)
 
 // StreamingSearchBlock is search data that is read/write, i.e. for traces in the WAL.
 type StreamingSearchBlock struct {
-	BlockID        uuid.UUID // todo: add the full meta?
-	appender       encoding.Appender
-	file           *os.File
-	closed         atomic.Bool
-	bufferedWriter *bufio.Writer
-	flushMtx       sync.Mutex
-	header         *tempofb.SearchBlockHeaderMutable
-	v              encoding.VersionedEncoding
-	enc            backend.Encoding
+	BlockID  uuid.UUID // todo: add the full meta?
+	appender encoding.Appender
+	file     *os.File
+	closed   atomic.Bool
+	header   *tempofb.SearchBlockHeaderMutable
+	v        encoding.VersionedEncoding
+	enc      backend.Encoding
 }
 
 // Close closes the WAL file. Used in tests
@@ -48,7 +43,7 @@ func (s *StreamingSearchBlock) Clear() error {
 
 // NewStreamingSearchBlockForFile creates a new streaming block that will read/write the given file.
 // File must be opened for read/write permissions.
-func NewStreamingSearchBlockForFile(f *os.File, bufferedWriter *bufio.Writer, version string, enc backend.Encoding) (*StreamingSearchBlock, error) {
+func NewStreamingSearchBlockForFile(f *os.File, version string, enc backend.Encoding) (*StreamingSearchBlock, error) {
 	v, err := encoding.FromVersion(version)
 	if err != nil {
 		return nil, err
@@ -59,10 +54,9 @@ func NewStreamingSearchBlockForFile(f *os.File, bufferedWriter *bufio.Writer, ve
 		v:      v,
 		enc:    enc,
 	}
-	s.bufferedWriter = bufferedWriter
 
 	// Use versioned encoding to create paged entries
-	dataWriter, err := s.v.NewDataWriter(s.bufferedWriter, enc)
+	dataWriter, err := s.v.NewDataWriter(f, enc)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +69,6 @@ func NewStreamingSearchBlockForFile(f *os.File, bufferedWriter *bufio.Writer, ve
 
 // Append the given search data to the streaming block. Multiple byte buffers of search data for
 // the same trace can be passed and are merged into one entry.
-// After calling Append FlushBuffer() must be called to guarantee that all data makes it to the disk
 func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
 	combined, _ := staticCombiner.Combine("", searchData...)
 
@@ -86,22 +79,6 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 	s.header.AddEntry(tempofb.SearchEntryFromBytes(combined))
 
 	return s.appender.Append(id, combined)
-}
-
-// FlushBuffer force flushes all buffered data to disk. This must be called after Append() to guarantee
-// that all data makes it to the disk. It is intended that there are many Append() calls per FlushBuffer().
-// It must also be called before any attempts to use appender records to read the file such as in Search() or
-// Iterator().
-func (s *StreamingSearchBlock) FlushBuffer() error {
-	if s.bufferedWriter == nil {
-		return nil
-	}
-
-	// Lock required to handle concurrent searches/readers flushing.
-	s.flushMtx.Lock()
-	defer s.flushMtx.Unlock()
-
-	return s.bufferedWriter.Flush()
 }
 
 // Search the streaming block.
@@ -118,7 +95,6 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 
 	sr.AddBlockInspected()
 
-	// calling s.Iterator() forces a buffer flush. no need to do it before here
 	iter, err := s.Iterator()
 	if err != nil {
 		return err
@@ -160,12 +136,6 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 }
 
 func (s *StreamingSearchBlock) Iterator() (encoding.Iterator, error) {
-	// flush buffers to make sure all data is on disk
-	err := s.FlushBuffer()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to flush buffer of search streaming block")
-	}
-
 	iter := &streamingSearchBlockIterator{
 		records:     s.appender.Records(),
 		file:        s.file,

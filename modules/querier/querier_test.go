@@ -96,8 +96,6 @@ func TestReturnAllHits(t *testing.T) {
 
 		err = head.Append(testTraceID, bReq)
 		require.NoError(t, err, "unexpected error writing req")
-		err = head.FlushBuffer()
-		require.NoError(t, err)
 
 		_, err = w.CompleteBlock(head, &mockSharder{})
 		require.NoError(t, err)

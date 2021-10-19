@@ -572,10 +572,6 @@ storage:
             # (default: gzip)
             [search_encoding: <string>]
 
-            # size of the write buffer used to hold writes to disk
-            # (default: 1MiB)
-            [write_buffer_size: <string>]
-
         # block configuration
         block:
 

@@ -304,7 +304,6 @@ storage:
       blocksfilepath: /tmp/tempo/wal/blocks
       encoding: snappy
       search_encoding: gzip
-      write_buffer_size: 1048576
     block:
       index_downsample_bytes: 1048576
       index_page_size_bytes: 256000
