@@ -151,11 +151,15 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchHandler")
 	defer span.Finish()
 
+	span.SetTag("requestURI", r.RequestURI)
+
 	req, err := q.parseSearchRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	span.SetTag("SearchRequest", req.String())
 
 	resp, err := q.Search(ctx, req)
 	if err != nil {

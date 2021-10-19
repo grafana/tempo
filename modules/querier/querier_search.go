@@ -2,6 +2,7 @@ package querier
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -34,29 +35,33 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		}
 	}
 
-	if s := r.URL.Query().Get(urlParamMinDuration); s != "" {
+	if s, ok := extractQueryParam(r, urlParamMinDuration); ok {
 		dur, err := time.ParseDuration(s)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid minDuration: %w", err)
 		}
 		req.MinDurationMs = uint32(dur.Milliseconds())
 	}
 
-	if s := r.URL.Query().Get(urlParamMaxDuration); s != "" {
+	if s, ok := extractQueryParam(r, urlParamMaxDuration); ok {
 		dur, err := time.ParseDuration(s)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid maxDuration: %w", err)
 		}
 		req.MaxDurationMs = uint32(dur.Milliseconds())
+
+		if req.MinDurationMs != 0 && req.MinDurationMs > req.MaxDurationMs {
+			return nil, errors.New("invalid maxDuration: must be greater than minDuration")
+		}
 	}
 
-	if s := r.URL.Query().Get(URLParamLimit); s != "" {
+	if s, ok := extractQueryParam(r, URLParamLimit); ok {
 		limit, err := strconv.Atoi(s)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid limit: %w", err)
 		}
 		if limit <= 0 {
-			return nil, errors.New("limit must be a positive number")
+			return nil, errors.New("invalid limit: must be a positive number")
 		}
 		req.Limit = uint32(limit)
 	}
@@ -66,4 +71,9 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 	}
 
 	return req, nil
+}
+
+func extractQueryParam(r *http.Request, param string) (string, bool) {
+	value := r.URL.Query().Get(param)
+	return value, value != ""
 }
