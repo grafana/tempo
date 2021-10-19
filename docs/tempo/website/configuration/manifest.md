@@ -310,6 +310,7 @@ storage:
       bloom_filter_false_positive: 0.01
       bloom_filter_shard_size_bytes: 102400
       encoding: zstd
+      search_encoding: gzip
       search_page_size_bytes: 1048576
     blocklist_poll: 5m0s
     blocklist_poll_concurrency: 50
