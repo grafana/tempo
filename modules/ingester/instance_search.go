@@ -82,6 +82,9 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 	sr.StartWorker()
 
 	go func() {
+		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchLiveTraces")
+		defer span.Finish()
+
 		defer sr.FinishWorker()
 
 		i.tracesMtx.Lock()
