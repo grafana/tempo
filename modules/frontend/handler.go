@@ -77,7 +77,9 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// write header and body
 	w.WriteHeader(resp.StatusCode)
-	_, _ = io.Copy(w, resp.Body)
+	if resp.Body != nil {
+		_, _ = io.Copy(w, resp.Body)
+	}
 
 	// request/response logging
 	traceID, _ := tracing.ExtractTraceID(ctx)
