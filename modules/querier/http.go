@@ -11,8 +11,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -38,7 +38,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandler")
 	defer span.Finish()
 
-	byteID, err := util.ParseTraceID(r)
+	byteID, err := api.ParseTraceID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -72,8 +72,8 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get(util.AcceptHeaderKey) == util.ProtobufTypeHeaderValue {
-		span.SetTag("contentType", util.ProtobufTypeHeaderValue)
+	if r.Header.Get(api.HeaderAccept) == api.HeaderAcceptProtobuf {
+		span.SetTag("contentType", api.HeaderAcceptProtobuf)
 		b, err := proto.Marshal(resp)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -87,7 +87,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	span.SetTag("contentType", util.JSONTypeHeaderValue)
+	span.SetTag("contentType", api.HeaderAcceptJSON)
 	marshaller := &jsonpb.Marshaler{}
 	err = marshaller.Marshal(w, resp)
 	if err != nil {
@@ -151,11 +151,15 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchHandler")
 	defer span.Finish()
 
+	span.SetTag("requestURI", r.RequestURI)
+
 	req, err := q.parseSearchRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	span.SetTag("SearchRequest", req.String())
 
 	resp, err := q.Search(ctx, req)
 	if err != nil {

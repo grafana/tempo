@@ -2,7 +2,6 @@ package frontend
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +12,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/grafana/tempo/modules/querier"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
@@ -23,9 +22,6 @@ import (
 )
 
 const (
-	// todo(search): make configurable
-	maxRange                     = 1800 // 30 minutes
-	defaultLimit                 = 20
 	defaultTargetBytesPerRequest = 10 * 1024 * 1024
 	defaultConcurrentRequests    = 50
 )
@@ -134,7 +130,7 @@ func newSearchSharder(reader tempodb.Reader, concurrentRequests int, logger log.
 //    k=<string>
 //    v=<string>
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
-	start, end, limit, err := searchSharderParams(r)
+	start, end, limit, err := api.ParseBackendSearch(r)
 	if err != nil {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
@@ -307,47 +303,4 @@ func (s *searchSharder) shardedRequests(ctx context.Context, metas []*backend.Bl
 	}
 
 	return reqs, nil
-}
-
-func searchSharderParams(r *http.Request) (start, end int64, limit int, err error) {
-	if s := r.URL.Query().Get(querier.URLParamStart); s != "" {
-		start, err = strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			return
-		}
-	}
-
-	if s := r.URL.Query().Get(querier.URLParamEnd); s != "" {
-		end, err = strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			return
-		}
-	}
-
-	if s := r.URL.Query().Get(querier.URLParamLimit); s != "" {
-		limit, err = strconv.Atoi(s)
-		if err != nil {
-			return
-		}
-	}
-
-	if start == 0 || end == 0 {
-		err = errors.New("please provide non-zero values for http parameters start and end")
-		return
-	}
-
-	if limit == 0 {
-		limit = defaultLimit
-	}
-
-	if end-start > maxRange {
-		err = fmt.Errorf("range specified by start and end exceeds %d seconds. received start=%d end=%d", maxRange, start, end)
-		return
-	}
-	if end <= start {
-		err = fmt.Errorf("http parameter start must be before end. received start=%d end=%d", start, end)
-		return
-	}
-
-	return
 }

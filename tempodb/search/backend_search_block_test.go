@@ -8,7 +8,9 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempofb"
@@ -122,6 +124,52 @@ func TestBackendSearchBlockFinalSize(t *testing.T) {
 
 			fmt.Printf("BackendSearchBlock/%s/%.1fMiB, %d traces = %d bytes, %.2f bytes per trace \n", enc.String(), sz, traceCount, len, float32(len)/float32(traceCount))
 
+		}
+	}
+}
+
+func BenchmarkBackendSearchBlockSearch(b *testing.B) {
+	pageSizesMB := []float32{0.5, 1, 2}
+
+	for _, enc := range backend.SupportedEncoding {
+		for _, sz := range pageSizesMB {
+			b.Run(fmt.Sprint(enc.String(), "/", sz, "MiB"), func(b *testing.B) {
+
+				b2 := newBackendSearchBlockWithTraces(b, b.N, enc, int(sz*1024*1024))
+
+				// Use secret tag to perform exhaustive search
+				p := NewSearchPipeline(&tempopb.SearchRequest{
+					Tags: map[string]string{SecretExhaustiveSearchTag: "!"},
+				})
+
+				sr := NewResults()
+
+				b.ResetTimer()
+				start := time.Now()
+				// Search 10x10 because reading the search data is much faster than creating it, but we need
+				// to spend at least 1 second to satisfy go bench minimum elapsed time requirement.
+				loops := 10
+				wg := &sync.WaitGroup{}
+				for i := 0; i < loops; i++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						for j := 0; j < loops; j++ {
+							err := b2.Search(context.TODO(), p, sr)
+							require.NoError(b, err)
+						}
+					}()
+				}
+				wg.Wait()
+				elapsed := time.Since(start)
+				fmt.Printf("BackendSearchBlock search throughput: %v elapsed %.2f MB = %.2f MiB/s \t %d traces = %.2fM traces/s \n",
+					elapsed,
+					float64(sr.bytesInspected.Load())/(1024*1024),
+					float64(sr.bytesInspected.Load())/(elapsed.Seconds())/(1024*1024),
+					sr.TracesInspected(),
+					float64(sr.TracesInspected())/(elapsed.Seconds())/1_000_000,
+				)
+			})
 		}
 	}
 }

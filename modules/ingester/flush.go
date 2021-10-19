@@ -34,6 +34,16 @@ var (
 		Name:      "ingester_failed_flushes_total",
 		Help:      "The total number of failed traces",
 	})
+	metricFlushRetries = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "ingester_flush_retries_total",
+		Help:      "The total number of retries after a failed flush",
+	})
+	metricFlushFailedRetries = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "ingester_flush_failed_retries_total",
+		Help:      "The total number of failed retries after a failed flush",
+	})
 	metricFlushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempo",
 		Name:      "ingester_flush_duration_seconds",
@@ -213,6 +223,10 @@ func handleFailedOp(op *flushOp, err error) {
 	level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "error performing op in flushQueue",
 		"op", op.kind, "block", op.blockID.String(), "attempts", op.attempts, "err", err)
 	metricFailedFlushes.Inc()
+
+	if op.attempts > 1 {
+		metricFlushFailedRetries.Inc()
+	}
 }
 
 func handleAbandonedOp(op *flushOp) {
@@ -366,6 +380,8 @@ func (i *Ingester) requeue(op *flushOp) {
 			handleAbandonedOp(op)
 			return
 		}
+
+		metricFlushRetries.Inc()
 
 		err := i.flushQueues.Requeue(op)
 		if err != nil {
