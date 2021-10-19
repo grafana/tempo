@@ -104,7 +104,7 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 	return b, warning, nil
 }
 
-func (a *AppendBlock) Write(id common.ID, b []byte) error {
+func (a *AppendBlock) Append(id common.ID, b []byte) error {
 	err := a.appender.Append(id, b)
 	if err != nil {
 		return err

@@ -94,7 +94,7 @@ func TestReturnAllHits(t *testing.T) {
 		bReq, err := proto.Marshal(req)
 		assert.NoError(t, err)
 
-		err = head.Write(testTraceID, bReq)
+		err = head.Append(testTraceID, bReq)
 		assert.NoError(t, err, "unexpected error writing req")
 
 		_, err = w.CompleteBlock(head, &mockSharder{})
