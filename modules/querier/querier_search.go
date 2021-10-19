@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
+	urlParamTags        = "tags"
 	urlParamMinDuration = "minDuration"
 	urlParamMaxDuration = "maxDuration"
 	URLParamLimit       = "limit"
@@ -26,12 +28,24 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 
 	for k, v := range r.URL.Query() {
 		// Skip reserved keywords
-		if k == urlParamMinDuration || k == urlParamMaxDuration || k == URLParamLimit {
+		if k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == URLParamLimit {
 			continue
 		}
 
 		if len(v) > 0 && v[0] != "" {
 			req.Tags[k] = v[0]
+		}
+	}
+
+	if encodedTags, ok := extractQueryParam(r, urlParamTags); ok {
+		// TODO handle tag values wrapped in quotes
+		tags := strings.Split(encodedTags, " ")
+
+		for _, tag := range tags {
+			splitTags := strings.SplitN(tag, "=", 2)
+			if len(splitTags) == 2 {
+				req.Tags[splitTags[0]] = splitTags[1]
+			}
 		}
 	}
 

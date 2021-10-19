@@ -96,6 +96,51 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Limit: 5,
 			},
 		},
+		{
+			name:     "Tags query parameter",
+			urlQuery: "tags=service.name%3Dfoo%20http.url%3Dsearch",
+			expected: &tempopb.SearchRequest{
+				Tags: map[string]string{
+					"service.name": "foo",
+					"http.url":     "search",
+				},
+				Limit: q.cfg.SearchDefaultResultLimit,
+			},
+		},
+		{
+			name:     "Tags query parameter with top-level tags",
+			urlQuery: "service.name=bar&tags=service.name%3Dfoo%20http.url%3Dsearch&test=bar",
+			expected: &tempopb.SearchRequest{
+				Tags: map[string]string{
+					"service.name": "foo",
+					"http.url":     "search",
+					"test":         "bar",
+				},
+				Limit: q.cfg.SearchDefaultResultLimit,
+			},
+		},
+		{
+			name:     "Tags query parameter with space in value",
+			urlQuery: "tags=service.name%3D%22my%20service%22%20http.url%3Dsearch",
+			expected: &tempopb.SearchRequest{
+				Tags: map[string]string{
+					"service.name": "my service",
+					"http.url":     "search",
+				},
+				Limit: q.cfg.SearchDefaultResultLimit,
+			},
+		},
+		{
+			name:     "Tags query parameter with space in tag name",
+			urlQuery: "tags=%22service%20name%22%3Dfoo%20http.url%3Dsearch",
+			expected: &tempopb.SearchRequest{
+				Tags: map[string]string{
+					"service name": "foo",
+					"http.url":     "search",
+				},
+				Limit: q.cfg.SearchDefaultResultLimit,
+			},
+		},
 	}
 
 	for _, tt := range tests {
