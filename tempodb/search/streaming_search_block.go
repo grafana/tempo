@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"os"
-	"sync"
 
 	"github.com/google/uuid"
 	"go.uber.org/atomic"
@@ -24,7 +23,6 @@ type StreamingSearchBlock struct {
 	appender encoding.Appender
 	file     *os.File
 	closed   atomic.Bool
-	flushMtx sync.Mutex
 	header   *tempofb.SearchBlockHeaderMutable
 	v        encoding.VersionedEncoding
 	enc      backend.Encoding
