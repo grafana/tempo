@@ -105,7 +105,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			err:      "invalid tags: tag service.name has been set twice",
 		},
 		{
-			name:     "top-level tags with conflicing query parameter tags",
+			name:     "top-level tags with conflicting query parameter tags",
 			urlQuery: "service.name=bar&tags=service.name%3Dfoo",
 			err:      "invalid tags: tag service.name has been set twice",
 		},
