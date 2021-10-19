@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -38,13 +39,11 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 	}
 
 	if encodedTags, ok := extractQueryParam(r, urlParamTags); ok {
-		// TODO handle tag values wrapped in quotes
-		tags := strings.Split(encodedTags, " ")
+		d := logfmt.NewDecoder(strings.NewReader(encodedTags))
 
-		for _, tag := range tags {
-			splitTags := strings.SplitN(tag, "=", 2)
-			if len(splitTags) == 2 {
-				req.Tags[splitTags[0]] = splitTags[1]
+		for d.ScanRecord() {
+			for d.ScanKeyval() {
+				req.Tags[string(d.Key())] = string(d.Value())
 			}
 		}
 	}
