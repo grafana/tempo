@@ -228,7 +228,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	iterator, err := blocks[0].GetIterator(&mockCombiner{})
+	iterator, err := blocks[0].Iterator(&mockCombiner{})
 	require.NoError(t, err)
 	defer iterator.Close()
 

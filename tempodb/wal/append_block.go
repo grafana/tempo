@@ -125,7 +125,7 @@ func (a *AppendBlock) Meta() *backend.BlockMeta {
 	return a.meta
 }
 
-func (a *AppendBlock) GetIterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
+func (a *AppendBlock) Iterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
 	if a.appendFile != nil {
 		err := a.appendFile.Close()
 		if err != nil {
