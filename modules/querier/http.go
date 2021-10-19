@@ -265,7 +265,7 @@ func (q *Querier) BackendSearchHandler(w http.ResponseWriter, r *http.Request) {
 		End:        uint32(end),
 		StartPage:  startPage,
 		TotalPages: totalPages,
-		BlockID:    blockID.String(),
+		BlockID:    blockID[:],
 	}
 
 	resp, err := q.BackendSearch(ctx, req)

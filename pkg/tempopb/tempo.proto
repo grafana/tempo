@@ -49,7 +49,7 @@ message BackendSearchRequest { // todo(search): consolidate with real search
   uint32 end = 3;
   uint32 startPage = 4;
   uint32 totalPages = 5;
-  string blockID = 6;
+  bytes blockID = 6;
 }
 
 message SearchResponse {
