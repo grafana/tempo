@@ -240,8 +240,33 @@ func (q *Querier) BackendSearchHandler(w http.ResponseWriter, r *http.Request) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.BackendSearch")
 	defer span.Finish()
 
+	searchReq, err := q.parseSearchRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	start, end, _, err := api.ParseBackendSearch(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	startPage, totalPages, blockID, err := api.ParseBackendSearchQuerier(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// extract params and populate
-	req := &tempopb.BackendSearchRequest{}
+	req := &tempopb.BackendSearchRequest{
+		Search:     searchReq,
+		Start:      uint32(start),
+		End:        uint32(end),
+		StartPage:  startPage,
+		TotalPages: totalPages,
+		BlockID:    blockID.String(),
+	}
 
 	resp, err := q.BackendSearch(ctx, req)
 	if err != nil {

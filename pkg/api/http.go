@@ -6,15 +6,19 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
-	urlParamTraceID = "traceID"
-	URLParamLimit   = "limit"
-	URLParamStart   = "start"
-	URLParamEnd     = "end"
+	urlParamTraceID    = "traceID"
+	URLParamLimit      = "limit"
+	URLParamStart      = "start"
+	URLParamEnd        = "end"
+	URLParamStartPage  = "startPage"
+	URLParamTotalPages = "totalPages"
+	URLParamBlockID    = "blockID"
 
 	HeaderAccept         = "Accept"
 	HeaderAcceptProtobuf = "application/protobuf"
@@ -86,6 +90,41 @@ func ParseBackendSearch(r *http.Request) (start, end int64, limit int, err error
 	}
 	if end <= start {
 		err = fmt.Errorf("http parameter start must be before end. received start=%d end=%d", start, end)
+		return
+	}
+
+	return
+}
+
+// jpe test
+func ParseBackendSearchQuerier(r *http.Request) (startPage, totalPages uint32, blockID uuid.UUID, err error) {
+	var startPage64, totalPages64 int64
+
+	if s := r.URL.Query().Get(URLParamStartPage); s != "" {
+		startPage64, err = strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return
+		}
+		startPage = uint32(startPage64)
+	}
+
+	if s := r.URL.Query().Get(URLParamTotalPages); s != "" {
+		totalPages64, err = strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return
+		}
+		totalPages = uint32(totalPages64)
+	}
+
+	if s := r.URL.Query().Get(URLParamBlockID); s != "" {
+		blockID, err = uuid.Parse(s)
+		if err != nil {
+			return
+		}
+	}
+
+	if blockID == uuid.Nil {
+		err = errors.New("blockID required")
 		return
 	}
 

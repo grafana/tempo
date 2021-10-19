@@ -291,9 +291,9 @@ func (s *searchSharder) shardedRequests(ctx context.Context, metas []*backend.Bl
 			subR.Header.Set(user.OrgIDHeaderName, tenantID)
 
 			q := subR.URL.Query()
-			q.Add("blockID", blockID)
-			q.Add("startPage", strconv.Itoa(startPage))
-			q.Add("totalPages", strconv.Itoa(pagesPerQuery))
+			q.Add(api.URLParamBlockID, blockID)
+			q.Add(api.URLParamStartPage, strconv.Itoa(startPage))
+			q.Add(api.URLParamTotalPages, strconv.Itoa(pagesPerQuery))
 
 			// adding to RequestURI only because weaveworks/common uses the RequestURI field to
 			// translate from http.Request to httpgrpc.Request
