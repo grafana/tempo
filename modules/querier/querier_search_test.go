@@ -108,16 +108,27 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			},
 		},
 		{
+			name:     "Tags query parameter with duplicate tag",
+			urlQuery: "tags=service.name%3Dfoo%20service.name%3Dbar",
+			err:      "invalid tags: tag service.name has been set twice",
+		},
+		{
 			name:     "Tags query parameter with top-level tags",
-			urlQuery: "service.name=bar&tags=service.name%3Dfoo%20http.url%3Dsearch&test=bar",
+			urlQuery: "service.id=5&tags=service.name%3Dfoo%20http.url%3Dsearch&test=bar",
 			expected: &tempopb.SearchRequest{
 				Tags: map[string]string{
+					"service.id":   "5",
 					"service.name": "foo",
 					"http.url":     "search",
 					"test":         "bar",
 				},
 				Limit: q.cfg.SearchDefaultResultLimit,
 			},
+		},
+		{
+			name:     "Tags query parameter with top-level tags with duplicate tag",
+			urlQuery: "service.name=bar&tags=service.name%3Dfoo%20http.url%3Dsearch&test=bar",
+			err:      "invalid tags: tag service.name has been set twice",
 		},
 		{
 			name:     "Tags query parameter with space in value",
@@ -199,9 +210,9 @@ func TestParseEncodedTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags := map[string]string{}
+			tags := make(map[string]string)
 
-			parseEncodedTags(tt.encodedTags, tags)
+			_ = parseEncodedTags(tt.encodedTags, tags)
 
 			assert.Equal(t, tt.tags, tags)
 		})

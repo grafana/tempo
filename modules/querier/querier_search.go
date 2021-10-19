@@ -33,12 +33,18 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		}
 
 		if len(v) > 0 && v[0] != "" {
+			if _, ok := req.Tags[k]; ok {
+				return nil, fmt.Errorf("invalid tags: tag %s has been set twice", k)
+			}
 			req.Tags[k] = v[0]
 		}
 	}
 
 	if encodedTags, ok := extractQueryParam(r, urlParamTags); ok {
-		parseEncodedTags(encodedTags, req.Tags)
+		err := parseEncodedTags(encodedTags, req.Tags)
+		if err != nil {
+			return nil, fmt.Errorf("invalid tags: %w", err)
+		}
 	}
 
 	if s, ok := extractQueryParam(r, urlParamMinDuration); ok {
@@ -84,12 +90,18 @@ func extractQueryParam(r *http.Request, param string) (string, bool) {
 	return value, value != ""
 }
 
-func parseEncodedTags(encodedTags string, tags map[string]string) {
+func parseEncodedTags(encodedTags string, tags map[string]string) error {
 	d := logfmt.NewDecoder(strings.NewReader(encodedTags))
 
 	for d.ScanRecord() {
 		for d.ScanKeyval() {
-			tags[string(d.Key())] = string(d.Value())
+			key := string(d.Key())
+			if _, ok := tags[key]; ok {
+				return fmt.Errorf("tag %s has been set twice", key)
+			}
+			tags[key] = string(d.Value())
 		}
 	}
+
+	return nil
 }
