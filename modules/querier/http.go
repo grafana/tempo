@@ -245,6 +245,13 @@ func (q *Querier) BackendSearchHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	// parseSearchRequest doesn't respect these as "reserved" tags. let's remove them here.
+	// this will all be cleaned up when search paths are consolidated.
+	delete(searchReq.Tags, api.URLParamBlockID)
+	delete(searchReq.Tags, api.URLParamStartPage)
+	delete(searchReq.Tags, api.URLParamTotalPages)
+	delete(searchReq.Tags, api.URLParamStart)
+	delete(searchReq.Tags, api.URLParamEnd)
 
 	start, end, _, err := api.ParseBackendSearch(r)
 	if err != nil {

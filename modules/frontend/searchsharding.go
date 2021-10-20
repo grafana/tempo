@@ -127,8 +127,6 @@ func newSearchSharder(reader tempodb.Reader, concurrentRequests int, logger log.
 //    limit=<number>
 //    start=<unix epoch seconds>
 //    end=<unix epoch seconds>
-//    k=<string>
-//    v=<string>
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	start, end, limit, err := api.ParseBackendSearch(r)
 	if err != nil {

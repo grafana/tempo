@@ -366,6 +366,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 }
 
 // todo(search): consolidate
+//   jpe spanz?
 func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchRequest) (*tempopb.SearchResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
