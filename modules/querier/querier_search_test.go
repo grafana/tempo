@@ -139,6 +139,7 @@ func TestQuerierParseSearchRequestTags(t *testing.T) {
 		{"service%n@me=foo", strMap{"service%n@me": "foo"}},
 		{"service.name=foo error", strMap{"service.name": "foo", "error": ""}},
 		{"service.name=\"foo bar\"", strMap{"service.name": "foo bar"}},
+		{"service.name=\"foo=bar\"", strMap{"service.name": "foo=bar"}},
 		{"service.name=\"foo\\bar\"", strMap{"service.name": "foo\bar"}},
 		{"service.name=\"foo \\\"bar\\\"\"", strMap{"service.name": "foo \"bar\""}},
 	}
