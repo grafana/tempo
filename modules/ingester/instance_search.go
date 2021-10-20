@@ -135,11 +135,11 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 		defer e.mtx.RUnlock()
 
 		span.LogFields(ot_log.Event("streaming block entry mtx acquired"))
-		span.SetTag("blockID", e.b.BlockID.String())
+		span.SetTag("blockID", e.b.BlockID().String())
 
 		err := e.b.Search(ctx, p, sr)
 		if err != nil {
-			fmt.Println("error searching wal block", e.b.BlockID.String(), err)
+			fmt.Println("error searching wal block", e.b.BlockID().String(), err)
 		}
 	}
 
