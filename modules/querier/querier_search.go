@@ -7,15 +7,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
 	urlParamMinDuration = "minDuration"
 	urlParamMaxDuration = "maxDuration"
-	URLParamLimit       = "limit"
-	URLParamStart       = "start"
-	URLParamEnd         = "end"
 )
 
 func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
@@ -26,7 +24,7 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 
 	for k, v := range r.URL.Query() {
 		// Skip reserved keywords
-		if k == urlParamMinDuration || k == urlParamMaxDuration || k == URLParamLimit {
+		if k == urlParamMinDuration || k == urlParamMaxDuration || k == api.URLParamLimit {
 			continue
 		}
 
@@ -55,7 +53,7 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		}
 	}
 
-	if s, ok := extractQueryParam(r, URLParamLimit); ok {
+	if s, ok := extractQueryParam(r, api.URLParamLimit); ok {
 		limit, err := strconv.Atoi(s)
 		if err != nil {
 			return nil, fmt.Errorf("invalid limit: %w", err)

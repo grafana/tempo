@@ -44,17 +44,17 @@ func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, boo
 func TestAppend(t *testing.T) {
 	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	require.NoError(t, err, "unexpected error creating temp dir")
 
 	wal, err := New(&Config{
 		Filepath: tempDir,
 	})
-	assert.NoError(t, err, "unexpected error creating temp wal")
+	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
 
 	block, err := wal.NewBlock(blockID, testTenantID, "")
-	assert.NoError(t, err, "unexpected error creating block")
+	require.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 100
 	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
@@ -64,10 +64,8 @@ func TestAppend(t *testing.T) {
 		bReq, err := proto.Marshal(req)
 		require.NoError(t, err)
 		err = block.Append([]byte{0x01}, bReq)
-		require.NoError(t, err)
+		require.NoError(t, err, "unexpected error writing req")
 	}
-	err = block.FlushBuffer()
-	require.NoError(t, err)
 
 	records := block.appender.Records()
 	file, err := block.file()
@@ -146,9 +144,6 @@ func TestErrorConditions(t *testing.T) {
 		err = block.Append(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
-	err = block.FlushBuffer()
-	require.NoError(t, err)
-
 	appendFile, err := os.OpenFile(block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	require.NoError(t, err)
 	_, err = appendFile.Write([]byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01})
@@ -214,8 +209,6 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		err = block.Append(id, bObj)
 		require.NoError(t, err, "unexpected error writing req")
 	}
-	err = block.FlushBuffer()
-	require.NoError(t, err)
 
 	for i, id := range ids {
 		obj, err := block.Find(id, &mockCombiner{})
