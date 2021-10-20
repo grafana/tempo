@@ -13,16 +13,18 @@ import (
 )
 
 func newRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
+	retriesCount := promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_retries",
+		Help:      "Number of times a request is retried.",
+		Buckets:   []float64{0, 1, 2, 3, 4, 5},
+	})
+
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return retryWare{
-			next:       next,
-			maxRetries: maxRetries,
-			retriesCount: promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
-				Namespace: "tempo",
-				Name:      "query_frontend_retries",
-				Help:      "Number of times a request is retried.",
-				Buckets:   []float64{0, 1, 2, 3, 4, 5},
-			}),
+			next:         next,
+			maxRetries:   maxRetries,
+			retriesCount: retriesCount,
 		}
 	})
 }
