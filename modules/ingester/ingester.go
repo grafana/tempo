@@ -415,13 +415,13 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 			return err
 		}
 
-		err = inst.rediscoverLocalBlocks(ctx)
+		newBlocks, err := inst.rediscoverLocalBlocks(ctx)
 		if err != nil {
 			return errors.Wrapf(err, "getting local blocks for tenant %v", t)
 		}
 
 		// Requeue needed flushes
-		for _, b := range inst.completeBlocks {
+		for _, b := range newBlocks {
 			if b.FlushedTime().IsZero() {
 				i.enqueue(&flushOp{
 					kind:    opKindFlush,
