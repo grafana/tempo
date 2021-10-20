@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,7 +32,7 @@ func newStreamingSearchBlockWithTraces(t testing.TB, traceCount int, enc backend
 	f, err := os.OpenFile(path.Join(tmpDir, "search", fmt.Sprintf("1c505e8b-26cd-4621-ba7d-792bb55282d5:single-tenant:v2:%s:", enc.String())), os.O_CREATE|os.O_RDWR, 0644)
 	require.NoError(t, err)
 
-	sb, err := NewStreamingSearchBlockForFile(f, "v2", enc)
+	sb, err := NewStreamingSearchBlockForFile(f, uuid.New(), "v2", enc)
 	require.NoError(t, err)
 
 	for i := 0; i < traceCount; i++ {
@@ -185,7 +186,7 @@ func TestStreamingSearchBlockIteratorDedupes(t *testing.T) {
 			f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
 			require.NoError(t, err)
 
-			b1, err := NewStreamingSearchBlockForFile(f, "v2", backend.EncNone)
+			b1, err := NewStreamingSearchBlockForFile(f, uuid.New(), "v2", backend.EncNone)
 			require.NoError(t, err)
 
 			id := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}

@@ -98,7 +98,7 @@ type searchStreamingBlockEntry struct {
 }
 
 type searchLocalBlockEntry struct {
-	b   search.SearchableBlock
+	b   *search.BackendSearchBlock
 	mtx sync.RWMutex
 }
 
@@ -281,7 +281,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	oldSearch := i.searchAppendBlocks[completingBlock]
 	i.blocksMtx.RUnlock()
 
-	var newSearch search.SearchableBlock
+	var newSearch *search.BackendSearchBlock
 	if oldSearch != nil {
 		newSearch, err = i.writer.CompleteSearchBlockWithBackend(oldSearch.b, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID, i.localReader, i.localWriter)
 		if err != nil {
@@ -502,7 +502,7 @@ func (i *instance) resetHeadBlock() error {
 		return err
 	}
 
-	b, err := search.NewStreamingSearchBlockForFile(f, version, enc)
+	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockID(), version, enc)
 	if err != nil {
 		return err
 	}

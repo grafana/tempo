@@ -15,11 +15,9 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var _ SearchableBlock = (*StreamingSearchBlock)(nil)
-
 // StreamingSearchBlock is search data that is read/write, i.e. for traces in the WAL.
 type StreamingSearchBlock struct {
-	BlockID  uuid.UUID // todo: add the full meta?
+	blockID  uuid.UUID // todo: add the full meta?
 	appender encoding.Appender
 	file     *os.File
 	closed   atomic.Bool
@@ -43,16 +41,17 @@ func (s *StreamingSearchBlock) Clear() error {
 
 // NewStreamingSearchBlockForFile creates a new streaming block that will read/write the given file.
 // File must be opened for read/write permissions.
-func NewStreamingSearchBlockForFile(f *os.File, version string, enc backend.Encoding) (*StreamingSearchBlock, error) {
+func NewStreamingSearchBlockForFile(f *os.File, blockID uuid.UUID, version string, enc backend.Encoding) (*StreamingSearchBlock, error) {
 	v, err := encoding.FromVersion(version)
 	if err != nil {
 		return nil, err
 	}
 	s := &StreamingSearchBlock{
-		file:   f,
-		header: tempofb.NewSearchBlockHeaderMutable(),
-		v:      v,
-		enc:    enc,
+		blockID: blockID,
+		file:    f,
+		header:  tempofb.NewSearchBlockHeaderMutable(),
+		v:       v,
+		enc:     enc,
 	}
 
 	// Use versioned encoding to create paged entries
@@ -65,6 +64,11 @@ func NewStreamingSearchBlockForFile(f *os.File, version string, enc backend.Enco
 	s.appender = a
 
 	return s, nil
+}
+
+// BlockID provides access to the private field blockID
+func (s *StreamingSearchBlock) BlockID() uuid.UUID {
+	return s.blockID
 }
 
 // Append the given search data to the streaming block. Multiple byte buffers of search data for
