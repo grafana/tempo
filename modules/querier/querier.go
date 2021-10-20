@@ -449,7 +449,7 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 		if req.Search.MinDurationMs != 0 && req.Search.MinDurationMs < durationMs {
 			return false
 		}
-		if startMs > req.Start || endMs < req.End {
+		if startMs > req.End || endMs < req.Start {
 			return false
 		}
 
