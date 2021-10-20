@@ -136,7 +136,7 @@ Each query parameter is of the form <name>=<value>, where <name> is the name of 
 - `maxDuration = (go duration value)`
   Optional.  Find traces with no greater than this duration.  Uses the same form as `minDuration`.
 - `limit = (integer)`
-  Optional.  Limit the number of search results. Default is 20 but this is configurable in the querier, see [Configuration](../configuration#querier)
+  Optional.  Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration](../configuration#querier).
 
 ### Search Tags
 
