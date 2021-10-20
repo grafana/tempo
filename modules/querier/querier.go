@@ -3,21 +3,28 @@ package querier
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
+	"strings"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/ring"
 	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
@@ -360,14 +367,124 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 
 // todo(search): consolidate
 func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchRequest) (*tempopb.SearchResponse, error) {
-	_, err := user.ExtractOrgID(ctx)
+	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
 	}
 
-	// jpe - here we go
+	blockID, err := uuid.FromBytes(req.BlockID)
+	if err != nil {
+		return nil, err
+	}
 
-	resp := &tempopb.SearchResponse{}
+	var searchErr error
+	resp := &tempopb.SearchResponse{
+		Metrics: &tempopb.SearchMetrics{},
+	}
+
+	err = q.store.IterateObjects(ctx, tenantID, blockID, int(req.StartPage), int(req.TotalPages), func(id common.ID, obj []byte, dataEncoding string) bool {
+		resp.Metrics.InspectedTraces++
+		resp.Metrics.InspectedBytes += uint64(len(obj))
+
+		start := uint64(math.MaxUint64)
+		end := uint64(0)
+
+		trace, err := model.Unmarshal(obj, dataEncoding)
+		if err != nil {
+			searchErr = err
+			return true
+		}
+
+		tagFound := false
+		if len(req.Search.Tags) == 0 {
+			tagFound = true
+		}
+
+		var rootSpan *v1.Span
+		var rootBatch *v1.ResourceSpans
+		// todo: is it possible to shortcircuit this loop?
+		for _, b := range trace.Batches {
+			for _, ils := range b.InstrumentationLibrarySpans {
+				for _, s := range ils.Spans {
+					if start > s.StartTimeUnixNano {
+						start = s.StartTimeUnixNano
+					}
+					if end < s.EndTimeUnixNano {
+						end = s.EndTimeUnixNano
+					}
+					if rootSpan == nil && len(s.ParentSpanId) == 0 {
+						rootSpan = s
+						rootBatch = b
+					}
+
+					if tagFound {
+						continue
+					}
+
+				DoneTags:
+					for k, v := range req.Search.Tags {
+						// jpe add support for others. move to querier_search.go
+						for _, a := range s.Attributes {
+							if k == a.Key && strings.Contains(a.Value.GetStringValue(), v) {
+								tagFound = true
+								continue DoneTags
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if !tagFound {
+			return false
+		}
+
+		startMs := uint32(start / 1000000)
+		endMs := uint32(end / 1000000)
+		durationMs := endMs - startMs
+		if req.Search.MaxDurationMs != 0 && req.Search.MaxDurationMs > durationMs {
+			return false
+		}
+		if req.Search.MinDurationMs != 0 && req.Search.MinDurationMs < durationMs {
+			return false
+		}
+		if startMs > req.Start || endMs < req.End {
+			return false
+		}
+
+		// woohoo!
+		rootServiceName := "<root span not yet received>" // jpe consolidate
+		rootSpanName := "<root span not yet received>"
+		if rootSpan != nil && rootBatch != nil {
+			rootSpanName = rootSpan.Name
+
+			for _, a := range rootBatch.Resource.Attributes {
+				if a.Key == search.ServiceNameTag {
+					rootServiceName = a.Value.GetStringValue()
+					break
+				}
+			}
+		}
+		resp.Traces = append(resp.Traces, &tempopb.TraceSearchMetadata{
+			TraceID:           util.TraceIDToHexString(id),
+			RootServiceName:   rootServiceName,
+			RootTraceName:     rootSpanName,
+			StartTimeUnixNano: start,
+			DurationMs:        durationMs,
+		})
+		if len(resp.Traces) >= int(req.Search.Limit) {
+			return true
+		}
+
+		return false
+	})
+	if err != nil {
+		return nil, err
+	}
+	if searchErr != nil {
+		return nil, err
+	}
+
 	return resp, nil
 }
 

@@ -74,7 +74,7 @@ type Writer interface {
 	WAL() *wal.WAL
 }
 
-type IterateObjectCallback func(id common.ID, obj []byte)
+type IterateObjectCallback func(id common.ID, obj []byte, dataEncoding string) bool
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error)
@@ -391,7 +391,6 @@ func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blo
 		return err
 	}
 	iter = encoding.NewPrefetchIterator(ctx, iter, 10000)
-
 	for {
 		id, obj, err := iter.Next(ctx)
 		if err == io.EOF {
@@ -401,7 +400,10 @@ func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blo
 			return err
 		}
 
-		callback(id, obj)
+		done := callback(id, obj, meta.DataEncoding)
+		if done {
+			break
+		}
 	}
 
 	return nil
