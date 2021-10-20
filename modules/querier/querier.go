@@ -15,6 +15,7 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
@@ -43,7 +44,7 @@ type Querier struct {
 	services.Service
 
 	cfg                 Config
-	searchRequestParser SearchRequestParser
+	searchRequestParser api.SearchRequestParser
 	ring                ring.ReadRing
 	pool                *ring_client.Pool
 	store               storage.Store
@@ -66,7 +67,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 
 	q := &Querier{
 		cfg: cfg,
-		searchRequestParser: SearchRequestParser{
+		searchRequestParser: api.SearchRequestParser{
 			SearchDefaultResultLimit: cfg.SearchDefaultResultLimit,
 			SearchMaxResultLimit:     cfg.SearchMaxResultLimit,
 		},
