@@ -120,7 +120,7 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 
 ### Search
 
-<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
 Tempo's Search API finds traces based on span and process attributes (tags and values).  The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request is used to find traces containing spans
@@ -136,11 +136,11 @@ Each query parameter is of the form <name>=<value>, where <name> is the name of 
 - `maxDuration = (go duration value)`
   Optional.  Find traces with no greater than this duration.  Uses the same form as `minDuration`.
 - `limit = (integer)`
-  Optional.  Limit the number of search results. Default is 100.
+  Optional.  Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration](../configuration#querier).
 
 ### Search Tags
 
-<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.
@@ -151,7 +151,7 @@ GET /api/search/tags
 
 ### Search Tag Values
 
-<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
 This endpoint retrieves all discovered values for the given tag, which can be used in search.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request will return all discovered service names.
