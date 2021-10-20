@@ -2,10 +2,11 @@ package ingester
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
+	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 
@@ -90,6 +91,8 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 		i.tracesMtx.Lock()
 		defer i.tracesMtx.Unlock()
 
+		span.LogFields(ot_log.Event("live traces mtx acquired"))
+
 		for _, t := range i.traces {
 			if sr.Quit() {
 				return
@@ -139,7 +142,7 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 
 		err := e.b.Search(ctx, p, sr)
 		if err != nil {
-			fmt.Println("error searching wal block", e.b.BlockID().String(), err)
+			level.Error(cortex_util.Logger).Log("msg", "error searching wal block", "blockID", e.b.BlockID().String(), "err", err)
 		}
 	}
 
@@ -172,7 +175,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 
 			err := e.b.Search(ctx, p, sr)
 			if err != nil {
-				fmt.Println("error searching local block", e.b.BlockID().String(), err)
+				level.Error(cortex_util.Logger).Log("msg", "error searching local block", "blockID", e.b.BlockID().String(), "err", err)
 			}
 		}(e)
 	}
