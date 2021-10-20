@@ -1074,7 +1074,7 @@ github.com/stretchr/testify/require
 # github.com/subosito/gotenv v1.2.0
 ## explicit
 github.com/subosito/gotenv
-# github.com/thanos-io/thanos v0.22.0
+# github.com/thanos-io/thanos v0.22.0 => github.com/thanos-io/thanos v0.19.1-0.20210803192524-baea4ce9ef52
 ## explicit; go 1.15
 github.com/thanos-io/thanos/pkg/block
 github.com/thanos-io/thanos/pkg/block/indexheader
@@ -1088,6 +1088,7 @@ github.com/thanos-io/thanos/pkg/discovery/cache
 github.com/thanos-io/thanos/pkg/discovery/dns
 github.com/thanos-io/thanos/pkg/discovery/dns/godns
 github.com/thanos-io/thanos/pkg/discovery/dns/miekgdns
+github.com/thanos-io/thanos/pkg/discovery/memcache
 github.com/thanos-io/thanos/pkg/errutil
 github.com/thanos-io/thanos/pkg/exemplars/exemplarspb
 github.com/thanos-io/thanos/pkg/extprom
@@ -1602,3 +1603,4 @@ rsc.io/binaryregexp/syntax
 # google.golang.org/grpc => google.golang.org/grpc v1.33.3
 # github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
 # go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
+# github.com/thanos-io/thanos => github.com/thanos-io/thanos v0.19.1-0.20210803192524-baea4ce9ef52

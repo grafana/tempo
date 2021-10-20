@@ -287,3 +287,6 @@ replace github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
 // Fix for injecting and extracting the propagation context
 // Can be removed when https://github.com/open-telemetry/opentelemetry-go/pull/2141 is merged
 replace go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
+
+// Cortex pushes up the thanos version
+replace github.com/thanos-io/thanos => github.com/thanos-io/thanos v0.19.1-0.20210803192524-baea4ce9ef52
