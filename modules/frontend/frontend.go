@@ -49,9 +49,11 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 		Help:      "Total queries received per tenant.",
 	}, []string{"tenant", "op"})
 
-	traceByIDMiddleware := newTraceByIDMiddleware(cfg, logger, registerer)
-	searchMiddleware := newSearchMiddleware()
-	backendMiddleware := newBackendSearchMiddleware(cfg, store, logger, registerer)
+	retryWare := newRetryWare(cfg.MaxRetries, registerer)
+
+	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
+	searchMiddleware := MergeMiddlewares(newSearchMiddleware(), retryWare)
+	backendMiddleware := MergeMiddlewares(newBackendSearchMiddleware(store, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": traceByIDOp,
@@ -74,13 +76,13 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 }
 
 // newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.
-func newTraceByIDMiddleware(cfg Config, logger log.Logger, registerer prometheus.Registerer) Middleware {
+func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
-		rt := NewRoundTripper(next, newDeduper(logger), newTraceByIDSharder(cfg.QueryShards, cfg.TolerateFailedBlocks, logger), newRetryWare(cfg.MaxRetries, registerer))
+		rt := NewRoundTripper(next, newDeduper(logger), newTraceByIDSharder(cfg.QueryShards, cfg.TolerateFailedBlocks, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// validate traceID
@@ -165,9 +167,9 @@ func newSearchMiddleware() Middleware {
 
 // newBackendSearchMiddleware creates a new frontend middleware to handle backend search.
 // todo(search): integrate with real search
-func newBackendSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger, registerer prometheus.Registerer) Middleware {
+func newBackendSearchMiddleware(reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		rt := NewRoundTripper(next, newSearchSharder(reader, defaultConcurrentRequests, logger), newRetryWare(cfg.MaxRetries, registerer))
+		rt := NewRoundTripper(next, newSearchSharder(reader, defaultConcurrentRequests, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
