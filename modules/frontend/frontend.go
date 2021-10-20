@@ -51,7 +51,7 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 
 	traceByIDMiddleware := newTraceByIDMiddleware(cfg, logger, registerer)
 	searchMiddleware := newSearchMiddleware()
-	backendMiddleware := newBackendSearchMiddleware(store, logger)
+	backendMiddleware := newBackendSearchMiddleware(cfg, store, logger, registerer)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": traceByIDOp,
@@ -165,9 +165,9 @@ func newSearchMiddleware() Middleware {
 
 // newBackendSearchMiddleware creates a new frontend middleware to handle backend search.
 // todo(search): integrate with real search
-func newBackendSearchMiddleware(reader tempodb.Reader, logger log.Logger) Middleware {
+func newBackendSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger, registerer prometheus.Registerer) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		rt := NewRoundTripper(next, newSearchSharder(reader, defaultConcurrentRequests, logger))
+		rt := NewRoundTripper(next, newSearchSharder(reader, defaultConcurrentRequests, logger), newRetryWare(cfg.MaxRetries, registerer))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())
