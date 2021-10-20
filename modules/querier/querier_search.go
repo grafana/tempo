@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/go-logfmt/logfmt"
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
+	urlParamTags        = "tags"
 	urlParamMinDuration = "minDuration"
 	urlParamMaxDuration = "maxDuration"
 )
@@ -22,14 +26,38 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		Limit: q.cfg.SearchDefaultResultLimit,
 	}
 
+	// Passing tags as individual query parameters is not supported anymore, clients should use the tags
+	// query parameter instead. We still parse these tags since the initial Grafana implementation uses this.
+	// As Grafana gets updated and/or versions using this get old we can remove this section.
 	for k, v := range r.URL.Query() {
 		// Skip reserved keywords
-		if k == urlParamMinDuration || k == urlParamMaxDuration || k == api.URLParamLimit {
+		if k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == api.URLParamLimit {
 			continue
 		}
 
 		if len(v) > 0 && v[0] != "" {
 			req.Tags[k] = v[0]
+		}
+	}
+
+	if encodedTags, ok := extractQueryParam(r, urlParamTags); ok {
+		decoder := logfmt.NewDecoder(strings.NewReader(encodedTags))
+
+		for decoder.ScanRecord() {
+			for decoder.ScanKeyval() {
+				key := string(decoder.Key())
+				if _, ok := req.Tags[key]; ok {
+					return nil, fmt.Errorf("invalid tags: tag %s has been set twice", key)
+				}
+				req.Tags[key] = string(decoder.Value())
+			}
+		}
+
+		if err := decoder.Err(); err != nil {
+			if syntaxErr, ok := err.(*logfmt.SyntaxError); ok {
+				return nil, fmt.Errorf("invalid tags: %s at pos %d", syntaxErr.Msg, syntaxErr.Pos)
+			}
+			return nil, fmt.Errorf("invalid tags: %w", err)
 		}
 	}
 
