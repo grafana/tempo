@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -230,8 +231,9 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
+	jsonBuffer := &bytes.Buffer{}
 	m := &jsonpb.Marshaler{}
-	bodyString, err := m.MarshalToString(overallResponse.results)
+	err = m.Marshal(jsonBuffer, overallResponse.results)
 	if err != nil {
 		return nil, err
 	}
@@ -239,8 +241,8 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	return &http.Response{
 		StatusCode:    http.StatusOK,
 		Header:        http.Header{},
-		Body:          io.NopCloser(strings.NewReader(bodyString)),
-		ContentLength: int64(len([]byte(bodyString))),
+		Body:          io.NopCloser(bytes.NewReader(jsonBuffer.Bytes())),
+		ContentLength: int64(jsonBuffer.Len()),
 	}, nil
 }
 
