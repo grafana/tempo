@@ -20,10 +20,15 @@ const (
 	urlParamMaxDuration = "maxDuration"
 )
 
-func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
+type SearchRequestParser struct {
+	SearchDefaultResultLimit uint32
+	SearchMaxResultLimit     uint32
+}
+
+func (p *SearchRequestParser) Parse(r *http.Request) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:  map[string]string{},
-		Limit: q.cfg.SearchDefaultResultLimit,
+		Limit: p.SearchDefaultResultLimit,
 	}
 
 	// Passing tags as individual query parameters is not supported anymore, clients should use the tags
@@ -92,8 +97,8 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 		req.Limit = uint32(limit)
 	}
 
-	if q.cfg.SearchMaxResultLimit != 0 && req.Limit > q.cfg.SearchMaxResultLimit {
-		req.Limit = q.cfg.SearchMaxResultLimit
+	if p.SearchMaxResultLimit != 0 && req.Limit > p.SearchMaxResultLimit {
+		req.Limit = p.SearchMaxResultLimit
 	}
 
 	return req, nil

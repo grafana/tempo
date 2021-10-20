@@ -10,12 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestQuerierParseSearchRequest(t *testing.T) {
-	q := Querier{
-		cfg: Config{
-			SearchDefaultResultLimit: 20,
-			SearchMaxResultLimit:     100,
-		},
+func TestSearchRequestParserParse(t *testing.T) {
+	p := SearchRequestParser{
+		SearchDefaultResultLimit: 20,
+		SearchMaxResultLimit:     100,
 	}
 
 	tests := []struct {
@@ -28,7 +26,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			name: "empty query",
 			expected: &tempopb.SearchRequest{
 				Tags:  map[string]string{},
-				Limit: q.cfg.SearchDefaultResultLimit,
+				Limit: p.SearchDefaultResultLimit,
 			},
 		},
 		{
@@ -44,7 +42,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			urlQuery: "limit=120",
 			expected: &tempopb.SearchRequest{
 				Tags:  map[string]string{},
-				Limit: q.cfg.SearchMaxResultLimit,
+				Limit: p.SearchMaxResultLimit,
 			},
 		},
 		{
@@ -69,7 +67,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags:          map[string]string{},
 				MinDurationMs: 10000,
 				MaxDurationMs: 20000,
-				Limit:         q.cfg.SearchDefaultResultLimit,
+				Limit:         p.SearchDefaultResultLimit,
 			},
 		},
 		{
@@ -116,7 +114,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://tempo/api/search?"+tt.urlQuery, nil)
 			fmt.Println("RequestURI:", r.RequestURI)
 
-			searchRequest, err := q.parseSearchRequest(r)
+			searchRequest, err := p.Parse(r)
 
 			if tt.err != "" {
 				assert.EqualError(t, err, tt.err)
@@ -128,7 +126,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 	}
 }
 
-func TestQuerierParseSearchRequestTags(t *testing.T) {
+func TestSearchRequestParserParseTags(t *testing.T) {
 	type strMap map[string]string
 
 	tests := []struct {
@@ -149,7 +147,7 @@ func TestQuerierParseSearchRequestTags(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://tempo/api/search?tags="+url.QueryEscape(tt.tags), nil)
 			fmt.Println("RequestURI:", r.RequestURI)
 
-			searchRequest, err := (&Querier{}).parseSearchRequest(r)
+			searchRequest, err := (&SearchRequestParser{}).Parse(r)
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, searchRequest.Tags)
@@ -157,7 +155,7 @@ func TestQuerierParseSearchRequestTags(t *testing.T) {
 	}
 }
 
-func TestQuerierParseSearchRequestTagsError(t *testing.T) {
+func TestSearchRequestParserParseTagsError(t *testing.T) {
 	tests := []struct {
 		tags string
 		err  string
@@ -173,7 +171,7 @@ func TestQuerierParseSearchRequestTagsError(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://tempo/api/search?tags="+url.QueryEscape(tt.tags), nil)
 			fmt.Println("RequestURI:", r.RequestURI)
 
-			_, err := (&Querier{}).parseSearchRequest(r)
+			_, err := (&SearchRequestParser{}).Parse(r)
 
 			assert.EqualError(t, err, tt.err)
 		})

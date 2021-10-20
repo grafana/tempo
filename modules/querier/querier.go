@@ -42,11 +42,12 @@ const rootSpanNotYetReceivedText = "<root span not yet received>"
 type Querier struct {
 	services.Service
 
-	cfg    Config
-	ring   ring.ReadRing
-	pool   *ring_client.Pool
-	store  storage.Store
-	limits *overrides.Overrides
+	cfg                 Config
+	searchRequestParser SearchRequestParser
+	ring                ring.ReadRing
+	pool                *ring_client.Pool
+	store               storage.Store
+	limits              *overrides.Overrides
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
@@ -64,7 +65,11 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 	}
 
 	q := &Querier{
-		cfg:  cfg,
+		cfg: cfg,
+		searchRequestParser: SearchRequestParser{
+			SearchDefaultResultLimit: cfg.SearchDefaultResultLimit,
+			SearchMaxResultLimit:     cfg.SearchMaxResultLimit,
+		},
 		ring: ring,
 		pool: ring_client.NewPool("querier_pool",
 			clientCfg.PoolConfig,

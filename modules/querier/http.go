@@ -153,7 +153,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	span.SetTag("requestURI", r.RequestURI)
 
-	req, err := q.parseSearchRequest(r)
+	req, err := q.searchRequestParser.Parse(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
