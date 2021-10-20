@@ -18,8 +18,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var _ SearchableBlock = (*StreamingSearchBlock)(nil)
-
 // StreamingSearchBlock is search data that is read/write, i.e. for traces in the WAL.
 type StreamingSearchBlock struct {
 	BlockID        uuid.UUID // todo: add the full meta?

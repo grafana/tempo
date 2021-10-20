@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	ot_log "github.com/opentracing/opentracing-go/log"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/search"
-	"github.com/grafana/tempo/tempodb/wal"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -125,7 +125,7 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 
 // searchWAL starts a search task for every WAL block. Must be called under lock.
 func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.Results) {
-	searchFunc := func(k *wal.AppendBlock, e *searchStreamingBlockEntry) {
+	searchFunc := func(e *searchStreamingBlockEntry) {
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWAL")
 		defer span.Finish()
 
@@ -134,28 +134,31 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 		e.mtx.RLock()
 		defer e.mtx.RUnlock()
 
+		span.LogFields(ot_log.Event("streaming block entry mtx acquired"))
+		span.SetTag("blockID", e.b.BlockID.String())
+
 		err := e.b.Search(ctx, p, sr)
 		if err != nil {
-			fmt.Println("error searching wal block", k.BlockID().String(), err)
+			fmt.Println("error searching wal block", e.b.BlockID.String(), err)
 		}
 	}
 
 	// head block
 	sr.StartWorker()
-	go searchFunc(i.headBlock, i.searchHeadBlock)
+	go searchFunc(i.searchHeadBlock)
 
 	// completing blocks
-	for b, e := range i.searchAppendBlocks {
+	for _, e := range i.searchAppendBlocks {
 		sr.StartWorker()
-		go searchFunc(b, e)
+		go searchFunc(e)
 	}
 }
 
 // searchLocalBlocks starts a search task for every local block. Must be called under lock.
 func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr *search.Results) {
-	for b, e := range i.searchCompleteBlocks {
+	for _, e := range i.searchCompleteBlocks {
 		sr.StartWorker()
-		go func(b *wal.LocalBlock, e *searchLocalBlockEntry) {
+		go func(e *searchLocalBlockEntry) {
 			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchLocalBlocks")
 			defer span.Finish()
 
@@ -164,11 +167,14 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 			e.mtx.RLock()
 			defer e.mtx.RUnlock()
 
+			span.LogFields(ot_log.Event("local block entry mtx acquired"))
+			span.SetTag("blockID", e.b.BlockID().String())
+
 			err := e.b.Search(ctx, p, sr)
 			if err != nil {
-				fmt.Println("error searching local block", b.BlockMeta().BlockID.String(), err)
+				fmt.Println("error searching local block", e.b.BlockID().String(), err)
 			}
-		}(b, e)
+		}(e)
 	}
 }
 
