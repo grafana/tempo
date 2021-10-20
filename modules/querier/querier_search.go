@@ -41,16 +41,23 @@ func (q *Querier) parseSearchRequest(r *http.Request) (*tempopb.SearchRequest, e
 	}
 
 	if encodedTags, ok := extractQueryParam(r, urlParamTags); ok {
-		d := logfmt.NewDecoder(strings.NewReader(encodedTags))
+		decoder := logfmt.NewDecoder(strings.NewReader(encodedTags))
 
-		for d.ScanRecord() {
-			for d.ScanKeyval() {
-				key := string(d.Key())
+		for decoder.ScanRecord() {
+			for decoder.ScanKeyval() {
+				key := string(decoder.Key())
 				if _, ok := req.Tags[key]; ok {
 					return nil, fmt.Errorf("invalid tags: tag %s has been set twice", key)
 				}
-				req.Tags[key] = string(d.Value())
+				req.Tags[key] = string(decoder.Value())
 			}
+		}
+
+		if err := decoder.Err(); err != nil {
+			if syntaxErr, ok := err.(*logfmt.SyntaxError); ok {
+				return nil, fmt.Errorf("invalid tags: %s at pos %d", syntaxErr.Msg, syntaxErr.Pos)
+			}
+			return nil, fmt.Errorf("invalid tags: %w", err)
 		}
 	}
 

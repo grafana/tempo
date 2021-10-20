@@ -138,7 +138,6 @@ func TestQuerierParseSearchRequestTags(t *testing.T) {
 		{"service.name=foo http.url=api/search", strMap{"service.name": "foo", "http.url": "api/search"}},
 		{"service%n@me=foo", strMap{"service%n@me": "foo"}},
 		{"service.name=foo error", strMap{"service.name": "foo", "error": ""}},
-		{"service.name=foo =error", strMap{"service.name": "foo"}},
 		{"service.name=\"foo bar\"", strMap{"service.name": "foo bar"}},
 		{"service.name=\"foo\\bar\"", strMap{"service.name": "foo\bar"}},
 		{"service.name=\"foo \\\"bar\\\"\"", strMap{"service.name": "foo \"bar\""}},
@@ -153,6 +152,29 @@ func TestQuerierParseSearchRequestTags(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, searchRequest.Tags)
+		})
+	}
+}
+
+func TestQuerierParseSearchRequestTagsError(t *testing.T) {
+	tests := []struct {
+		tags string
+		err  string
+	}{
+		{"service.name=foo =error", "invalid tags: unexpected '=' at pos 18"},
+		{"service.name=foo=bar", "invalid tags: unexpected '=' at pos 17"},
+		{"service.name=\"foo bar", "invalid tags: unterminated quoted value at pos 22"},
+		{"\"service name\"=foo", "invalid tags: unexpected '\"' at pos 1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.tags, func(t *testing.T) {
+			r := httptest.NewRequest("GET", "http://tempo/api/search?tags="+url.QueryEscape(tt.tags), nil)
+			fmt.Println("RequestURI:", r.RequestURI)
+
+			_, err := (&Querier{}).parseSearchRequest(r)
+
+			assert.EqualError(t, err, tt.err)
 		})
 	}
 }
