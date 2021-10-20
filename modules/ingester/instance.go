@@ -502,7 +502,7 @@ func (i *instance) resetHeadBlock() error {
 		return err
 	}
 
-	b, err := search.NewStreamingSearchBlockForFile(f, version, enc)
+	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockID(), version, enc)
 	if err != nil {
 		return err
 	}
