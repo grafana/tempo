@@ -86,7 +86,7 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 }
 
 func (s *StreamingSearchBlock) Tags(ctx context.Context, tags map[string]struct{}) error {
-	for k, _ := range s.header.Tags {
+	for k := range s.header.Tags {
 		tags[k] = struct{}{}
 	}
 	return nil
