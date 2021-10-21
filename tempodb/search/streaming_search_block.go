@@ -85,6 +85,22 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 	return s.appender.Append(id, combined)
 }
 
+func (s *StreamingSearchBlock) Tags(ctx context.Context, tags map[string]struct{}) error {
+	for k, _ := range s.header.Tags {
+		tags[k] = struct{}{}
+	}
+	return nil
+}
+
+func (s *StreamingSearchBlock) TagValues(ctx context.Context, tag string, tagValues map[string]struct{}) error {
+	if values, ok := s.header.Tags[tag]; ok {
+		for _, v := range values {
+			tagValues[v] = struct{}{}
+		}
+	}
+	return nil
+}
+
 // Search the streaming block.
 func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results) error {
 	if s.closed.Load() {

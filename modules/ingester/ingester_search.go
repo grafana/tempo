@@ -37,7 +37,7 @@ func (i *Ingester) SearchTags(ctx context.Context, req *tempopb.SearchTagsReques
 		return &tempopb.SearchTagsResponse{}, nil
 	}
 
-	tags := inst.GetSearchTags()
+	tags := inst.GetSearchTags(ctx)
 
 	resp := &tempopb.SearchTagsResponse{
 		TagNames: tags,
@@ -56,7 +56,7 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 		return &tempopb.SearchTagValuesResponse{}, nil
 	}
 
-	vals := inst.GetSearchTagValues(req.TagName)
+	vals := inst.GetSearchTagValues(ctx, req.TagName)
 
 	resp := &tempopb.SearchTagValuesResponse{
 		TagValues: vals,

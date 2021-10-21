@@ -140,6 +140,44 @@ func (s *BackendSearchBlock) BlockID() uuid.UUID {
 	return s.id
 }
 
+func (s *BackendSearchBlock) Tags(ctx context.Context, tags map[string]struct{}) error {
+	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
+	if err != nil {
+		return err
+	}
+	header := tempofb.GetRootAsSearchBlockHeader(hb, 0)
+
+	kv := &tempofb.KeyValues{}
+	for i, ii := 0, header.TagsLength(); i < ii; i++ {
+		header.Tags(kv, i)
+		tags[string(kv.Key())] = struct{}{}
+	}
+
+	return nil
+}
+
+func (s *BackendSearchBlock) TagValues(ctx context.Context, tag string, tagValues map[string]struct{}) error {
+	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
+	if err != nil {
+		return err
+	}
+	header := tempofb.GetRootAsSearchBlockHeader(hb, 0)
+
+	kv := &tempofb.KeyValues{}
+	for i, tagsLength := 0, header.TagsLength(); i < tagsLength; i++ {
+		header.Tags(kv, i)
+
+		if string(kv.Key()) == tag {
+			for j, valueLength := 0, kv.ValueLength(); j < valueLength; j++ {
+				tagValues[string(kv.Value(j))] = struct{}{}
+			}
+			break
+		}
+	}
+
+	return nil
+}
+
 // Search iterates through the block looking for matches.
 func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results) error {
 	var pageBuf []byte

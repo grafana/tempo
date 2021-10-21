@@ -75,7 +75,6 @@ type instance struct {
 	searchHeadBlock      *searchStreamingBlockEntry
 	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
 	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
-	searchTagCache       *search.TagCache
 
 	lastBlockCut time.Time
 
@@ -107,7 +106,6 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		traces:               map[uint32]*trace{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
-		searchTagCache:       search.NewTagCache(),
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -174,10 +172,6 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
 	if err != nil {
 		return status.Errorf(codes.FailedPrecondition, "%s max live traces per tenant exceeded: %v", overrides.ErrorPrefixLiveTracesExceeded, err)
-	}
-
-	if searchData != nil {
-		i.RecordSearchLookupValues(searchData)
 	}
 
 	i.tracesMtx.Lock()
