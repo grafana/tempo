@@ -214,7 +214,7 @@ func TestMicroservices(t *testing.T) {
 		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	}
 	require.NoError(t, tempoQuerier.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
-	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(2), "tempo_query_frontend_queries_total"))
+	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(4), "tempo_query_frontend_queries_total"))
 
 	// query trace - should fetch from backend
 	queryAndAssertTrace(t, apiClient, info)
