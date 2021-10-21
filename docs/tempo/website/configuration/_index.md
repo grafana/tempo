@@ -570,7 +570,7 @@ storage:
             [encoding: <string>]
 
             # search data encoding/compression. same options as wal encoding.
-            # (default: gzip)
+            # (default: none)
             [search_encoding: <string>]
 
         # block configuration
@@ -592,7 +592,7 @@ storage:
             [encoding: <string>]
 
             # search data encoding/compression. same options as block encoding.
-            # (default: gzip)
+            # (default: snappy)
             [search_encoding: <string>]
 
             # number of bytes per search page
