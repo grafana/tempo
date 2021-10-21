@@ -417,32 +417,36 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 		}
 	}
 
+	// Push data
+	for j := 0; j < 1; j++ {
+		go concurrent(func() {
+			id := make([]byte, 16)
+			rand.Read(id)
+
+			trace := test.MakeTrace(10, id)
+			traceBytes, err := trace.Marshal()
+			require.NoError(b, err)
+
+			searchData := &tempofb.SearchEntryMutable{}
+			searchData.TraceID = id
+			searchData.AddTag("foo", "bar")
+			searchBytes := searchData.ToBytes()
+
+			// searchData will be nil if not
+			err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+			require.NoError(b, err)
+		})
+	}
+
 	go concurrent(func() {
-		id := make([]byte, 16)
-		rand.Read(id)
-
-		trace := test.MakeTrace(10, id)
-		traceBytes, err := trace.Marshal()
-		require.NoError(b, err)
-
-		searchData := &tempofb.SearchEntryMutable{}
-		searchData.TraceID = id
-		searchData.AddTag("foo", "bar")
-		searchBytes := searchData.ToBytes()
-
-		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
-		require.NoError(b, err)
-	})
-
-	go concurrent(func() {
+		time.Sleep(1 * time.Millisecond)
 		err := i.CutCompleteTraces(0, true)
 		require.NoError(b, err, "error cutting complete traces")
 	})
 
 	go concurrent(func() {
 		// Slow this down to prevent "too many open files" error
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		_, err := i.CutBlockIfReady(0, 0, true)
 		require.NoError(b, err)
 	})
@@ -450,9 +454,11 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	b.ResetTimer()
 	start := time.Now()
 	bytesInspected := uint64(0)
+	fmt.Println("starting search", b.N)
 	for j := 0; j < b.N; j++ {
+
 		var req = &tempopb.SearchRequest{
-			Tags: map[string]string{"nomatch": "nomatch"},
+			Tags: map[string]string{search.SecretExhaustiveSearchTag: "!"},
 		}
 		resp, err := i.Search(ctx, req)
 		require.NoError(b, err)

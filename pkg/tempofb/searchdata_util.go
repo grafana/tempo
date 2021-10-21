@@ -3,80 +3,10 @@ package tempofb
 import (
 	"bytes"
 	"sort"
-	"strings"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
-
-type SearchDataMap map[string][]string
-
-func (s SearchDataMap) Add(k, v string) {
-	vs, ok := s[k]
-	if !ok {
-		// First entry for key
-		s[k] = []string{v}
-		return
-	}
-
-	// Key already present, now check for value
-	for i := range vs {
-		if vs[i] == v {
-			// Already present, nothing to do
-			return
-		}
-	}
-
-	// Not found, append
-	s[k] = append(vs, v)
-}
-
-func (s SearchDataMap) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
-	offsets := make([]flatbuffers.UOffsetT, 0, len(s))
-
-	// Sort keys
-	keys := make([]string, 0, len(s))
-	for k := range s {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
-		// Skip empty keys
-		if len(s[k]) <= 0 {
-			continue
-		}
-
-		ko := b.CreateSharedString(strings.ToLower(k))
-
-		// Sort values
-		v := s[k]
-		sort.Strings(v)
-
-		valueStrings := make([]flatbuffers.UOffsetT, len(v))
-		for i := range v {
-			valueStrings[i] = b.CreateSharedString(strings.ToLower(v[i]))
-		}
-
-		KeyValuesStartValueVector(b, len(valueStrings))
-		for _, vs := range valueStrings {
-			b.PrependUOffsetT(vs)
-		}
-		valueVector := b.EndVector(len(valueStrings))
-
-		KeyValuesStart(b)
-		KeyValuesAddKey(b, ko)
-		KeyValuesAddValue(b, valueVector)
-		offsets = append(offsets, KeyValuesEnd(b))
-	}
-
-	SearchEntryStartTagsVector(b, len(offsets))
-	for _, kvo := range offsets {
-		b.PrependUOffsetT(kvo)
-	}
-	keyValueVector := b.EndVector((len(offsets)))
-	return keyValueVector
-}
 
 // SearchEntryMutable is a mutable form of the flatbuffer-compiled SearchEntry struct to make building and transporting easier.
 type SearchEntryMutable struct {
@@ -86,10 +16,16 @@ type SearchEntryMutable struct {
 	EndTimeUnixNano   uint64
 }
 
+/*func NewSearchEntryMutable() *SearchEntryMutable {
+	return &SearchEntryMutable{
+		Tags: NewSearchDataMap(),
+	}
+}*/
+
 // AddTag adds the unique tag name and value to the search data. No effect if the pair is already present.
 func (s *SearchEntryMutable) AddTag(k string, v string) {
 	if s.Tags == nil {
-		s.Tags = SearchDataMap{}
+		s.Tags = NewSearchDataMap()
 	}
 	s.Tags.Add(k, v)
 }
@@ -116,6 +52,9 @@ func (s *SearchEntryMutable) ToBytes() []byte {
 }
 
 func (s *SearchEntryMutable) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
+	if s.Tags == nil {
+		s.Tags = NewSearchDataMap()
+	}
 
 	idOffset := b.CreateByteString(s.TraceID)
 
@@ -138,15 +77,15 @@ type SearchPageBuilder struct {
 func NewSearchPageBuilder() *SearchPageBuilder {
 	return &SearchPageBuilder{
 		builder: flatbuffers.NewBuilder(1024),
-		allTags: SearchDataMap{},
+		allTags: NewSearchDataMap(),
 	}
 }
 
 func (b *SearchPageBuilder) AddData(data *SearchEntryMutable) int {
-	for k, vv := range data.Tags {
-		for _, v := range vv {
+	if data.Tags != nil {
+		data.Tags.Range(func(k, v string) {
 			b.allTags.Add(k, v)
-		}
+		})
 	}
 
 	oldOffset := b.builder.Offset()
@@ -186,7 +125,7 @@ func (b *SearchPageBuilder) Finish() []byte {
 func (b *SearchPageBuilder) Reset() {
 	b.builder.Reset()
 	b.pageEntries = b.pageEntries[:0]
-	b.allTags = SearchDataMap{}
+	b.allTags = NewSearchDataMap()
 }
 
 // Get searches the entry and returns the first value found for the given key.

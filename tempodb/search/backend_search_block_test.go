@@ -24,7 +24,7 @@ const testTenantID = "fake"
 func genSearchData(traceID []byte, i int) [][]byte {
 	return [][]byte{(&tempofb.SearchEntryMutable{
 		TraceID: traceID,
-		Tags: tempofb.SearchDataMap{
+		Tags: tempofb.SearchDataMap1{
 			"key" + strconv.Itoa(i): {"value_A_" + strconv.Itoa(i), "value_B_" + strconv.Itoa(i)},
 		}}).ToBytes()}
 }

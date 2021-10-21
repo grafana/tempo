@@ -43,7 +43,7 @@ func newStreamingSearchBlockWithTraces(t testing.TB, traceCount int, enc backend
 
 		searchData := [][]byte{(&tempofb.SearchEntryMutable{
 			TraceID: id,
-			Tags: tempofb.SearchDataMap{
+			Tags: tempofb.SearchDataMap1{
 				"key1": {"value10", "value11"},
 				"key2": {"value20", "value21"},
 				"key3": {"value30", "value31"},
