@@ -141,7 +141,7 @@ The URL query parameters support the following values:
 
 #### Example
 
-```
+```bash
 $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.name=cartservice' --data-urlencode minDuration=600ms | jq
 {
   "traces": [
@@ -181,7 +181,7 @@ GET /api/search/tags
 
 #### Example
 
-```
+```bash
 $ curl -G -s http://localhost:3200/api/search/tags  | jq
 {
   "tagNames": [
@@ -219,7 +219,7 @@ GET /api/search/tag/service.name/values
 
 #### Example
 
-```
+```bash
 $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
 {
   "tagValues": [
