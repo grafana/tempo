@@ -407,10 +407,10 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 		for _, b := range trace.Batches {
 			for _, ils := range b.InstrumentationLibrarySpans {
 				for _, s := range ils.Spans {
-					if start > s.StartTimeUnixNano {
+					if s.StartTimeUnixNano < start {
 						start = s.StartTimeUnixNano
 					}
-					if end < s.EndTimeUnixNano {
+					if s.EndTimeUnixNano > end {
 						end = s.EndTimeUnixNano
 					}
 					if rootSpan == nil && len(s.ParentSpanId) == 0 {
@@ -440,16 +440,16 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 			return false
 		}
 
-		startMs := uint32(start / 1000000)
-		endMs := uint32(end / 1000000)
-		durationMs := endMs - startMs
+		startMs := start / 1000000
+		endMs := end / 1000000
+		durationMs := uint32(endMs - startMs)
 		if req.Search.MaxDurationMs != 0 && req.Search.MaxDurationMs > durationMs {
 			return false
 		}
 		if req.Search.MinDurationMs != 0 && req.Search.MinDurationMs < durationMs {
 			return false
 		}
-		if startMs > req.End || endMs < req.Start {
+		if uint32(startMs/1000) > req.End || uint32(endMs/1000) < req.Start {
 			return false
 		}
 
@@ -483,7 +483,7 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 		return nil, err
 	}
 	if searchErr != nil {
-		return nil, err
+		return nil, searchErr
 	}
 
 	return resp, nil
