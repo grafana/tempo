@@ -376,7 +376,12 @@ func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blo
 		}
 	}
 	if meta == nil {
-		return fmt.Errorf("unable to find meta for %s, %v", tenantID, blockID)
+		// if we don't know about the meta then manually request it
+		var err error
+		meta, err = rw.r.BlockMeta(ctx, blockID, tenantID)
+		if err != nil {
+			return err
+		}
 	}
 
 	block, err := encoding.NewBackendBlock(meta, rw.r)
