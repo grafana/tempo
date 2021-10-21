@@ -14,9 +14,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	log_util "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/cache"
@@ -396,6 +398,8 @@ func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blo
 		return err
 	}
 	iter = encoding.NewPrefetchIterator(ctx, iter, 10000)
+	wg := boundedwaitgroup.New(5)
+	done := atomic.Bool{}
 	for {
 		id, obj, err := iter.Next(ctx)
 		if err == io.EOF {
@@ -405,11 +409,20 @@ func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blo
 			return err
 		}
 
-		done := callback(id, obj, meta.DataEncoding)
-		if done {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			isDone := callback(id, obj, meta.DataEncoding)
+			if isDone {
+				done.Store(true)
+			}
+		}()
+
+		if done.Load() {
 			break
 		}
 	}
+	wg.Wait()
 
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/ring"
@@ -380,13 +381,16 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 	}
 
 	var searchErr error
+	mtx := sync.Mutex{}
 	resp := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
 	err = q.store.IterateObjects(ctx, tenantID, blockID, int(req.StartPage), int(req.TotalPages), func(id common.ID, obj []byte, dataEncoding string) bool {
+		mtx.Lock()
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
+		mtx.Unlock()
 
 		start := uint64(math.MaxUint64)
 		end := uint64(0)
@@ -464,6 +468,9 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 				}
 			}
 		}
+
+		mtx.Lock()
+		defer mtx.Unlock()
 		resp.Traces = append(resp.Traces, &tempopb.TraceSearchMetadata{
 			TraceID:           util.TraceIDToHexString(id),
 			RootServiceName:   rootServiceName,
