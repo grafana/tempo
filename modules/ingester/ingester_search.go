@@ -37,13 +37,14 @@ func (i *Ingester) SearchTags(ctx context.Context, req *tempopb.SearchTagsReques
 		return &tempopb.SearchTagsResponse{}, nil
 	}
 
-	tags := inst.GetSearchTags(ctx)
-
-	resp := &tempopb.SearchTagsResponse{
-		TagNames: tags,
+	tags, err := inst.GetSearchTags(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	return resp, nil
+	return &tempopb.SearchTagsResponse{
+		TagNames: tags,
+	}, nil
 }
 
 func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
@@ -56,11 +57,12 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 		return &tempopb.SearchTagValuesResponse{}, nil
 	}
 
-	vals := inst.GetSearchTagValues(ctx, req.TagName)
-
-	resp := &tempopb.SearchTagValuesResponse{
-		TagValues: vals,
+	vals, err := inst.GetSearchTagValues(ctx, req.TagName)
+	if err != nil {
+		return nil, err
 	}
 
-	return resp, nil
+	return &tempopb.SearchTagValuesResponse{
+		TagValues: vals,
+	}, nil
 }

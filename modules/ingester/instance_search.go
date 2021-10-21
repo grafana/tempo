@@ -180,7 +180,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 	}
 }
 
-func (i *instance) GetSearchTags(ctx context.Context) []string {
+func (i *instance) GetSearchTags(ctx context.Context) ([]string, error) {
 	tags := map[string]struct{}{}
 
 	i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
@@ -192,27 +192,32 @@ func (i *instance) GetSearchTags(ctx context.Context) []string {
 		}
 	})
 
-	extractTagsFromSearchableBlock := func(block search.SearchableBlock) {
-		err := block.Tags(ctx, tags)
-		if err != nil {
-			// TODO
-			panic(err)
-		}
+	extractTagsFromSearchableBlock := func(block search.SearchableBlock) error {
+		return block.Tags(ctx, tags)
 	}
-	i.blocksMtx.RLock()
-	i.visitSearchableBlocksWAL(ctx, extractTagsFromSearchableBlock)
-	i.visitSearchableBlocksLocalBlocks(ctx, extractTagsFromSearchableBlock)
-	i.blocksMtx.RUnlock()
+	err := func() error {
+		i.blocksMtx.RLock()
+		defer i.blocksMtx.RUnlock()
+
+		err := i.visitSearchableBlocksWAL(ctx, extractTagsFromSearchableBlock)
+		if err != nil {
+			return err
+		}
+		return i.visitSearchableBlocksLocalBlocks(ctx, extractTagsFromSearchableBlock)
+	}()
+	if err != nil {
+		return nil, err
+	}
 
 	tagsSlice := make([]string, 0, len(tags))
 	for tag := range tags {
 		tagsSlice = append(tagsSlice, tag)
 	}
 
-	return tagsSlice
+	return tagsSlice, nil
 }
 
-func (i *instance) GetSearchTagValues(ctx context.Context, tagName string) []string {
+func (i *instance) GetSearchTagValues(ctx context.Context, tagName string) ([]string, error) {
 	values := map[string]struct{}{}
 
 	i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
@@ -230,24 +235,30 @@ func (i *instance) GetSearchTagValues(ctx context.Context, tagName string) []str
 		}
 	})
 
-	extractTagValuesFromSearchableBlocks := func(block search.SearchableBlock) {
-		err := block.TagValues(ctx, tagName, values)
-		if err != nil {
-			// TODO
-			panic(err)
-		}
+	extractTagValuesFromSearchableBlocks := func(block search.SearchableBlock) error {
+		return block.TagValues(ctx, tagName, values)
 	}
-	i.blocksMtx.RLock()
-	i.visitSearchableBlocksWAL(ctx, extractTagValuesFromSearchableBlocks)
-	i.visitSearchableBlocksLocalBlocks(ctx, extractTagValuesFromSearchableBlocks)
-	i.blocksMtx.RUnlock()
+
+	err := func() error {
+		i.blocksMtx.RLock()
+		defer i.blocksMtx.RUnlock()
+
+		err := i.visitSearchableBlocksWAL(ctx, extractTagValuesFromSearchableBlocks)
+		if err != nil {
+			return err
+		}
+		return i.visitSearchableBlocksLocalBlocks(ctx, extractTagValuesFromSearchableBlocks)
+	}()
+	if err != nil {
+		return nil, err
+	}
 
 	valuesSlice := make([]string, 0, len(values))
 	for tag := range values {
 		valuesSlice = append(valuesSlice, tag)
 	}
 
-	return valuesSlice
+	return valuesSlice, nil
 }
 
 func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visit func(entry *tempofb.SearchEntry)) {
@@ -265,33 +276,48 @@ func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visit func(
 }
 
 // visitSearchableBlocksWAL visits every WAL block. Must be called under lock.
-func (i *instance) visitSearchableBlocksWAL(ctx context.Context, visit func(block search.SearchableBlock)) {
+func (i *instance) visitSearchableBlocksWAL(ctx context.Context, visit func(block search.SearchableBlock) error) error {
 	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchableBlocksWAL")
 	defer span.Finish()
 
-	visitUnderLock := func(entry *searchStreamingBlockEntry) {
+	visitUnderLock := func(entry *searchStreamingBlockEntry) error {
 		entry.mtx.RLock()
 		defer entry.mtx.RUnlock()
 
-		visit(entry.b)
+		return visit(entry.b)
 	}
 
-	visitUnderLock(i.searchHeadBlock)
+	err := visitUnderLock(i.searchHeadBlock)
+	if err != nil {
+		return err
+	}
+
 	for _, b := range i.searchAppendBlocks {
-		visitUnderLock(b)
+		err := visitUnderLock(b)
+		if err != nil {
+			return err
+		}
 	}
-
+	return nil
 }
 
 // visitSearchableBlocksWAL visits every local block. Must be called under lock.
-func (i *instance) visitSearchableBlocksLocalBlocks(ctx context.Context, visit func(block search.SearchableBlock)) {
+func (i *instance) visitSearchableBlocksLocalBlocks(ctx context.Context, visit func(block search.SearchableBlock) error) error {
 	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchableBlocksLocalBlocks")
 	defer span.Finish()
 
-	for _, b := range i.searchCompleteBlocks {
-		b.mtx.RLock()
-		defer b.mtx.RUnlock()
+	visitUnderLock := func(entry *searchLocalBlockEntry) error {
+		entry.mtx.RLock()
+		defer entry.mtx.RUnlock()
 
-		visit(b.b)
+		return visit(entry.b)
 	}
+
+	for _, b := range i.searchCompleteBlocks {
+		err := visitUnderLock(b)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
