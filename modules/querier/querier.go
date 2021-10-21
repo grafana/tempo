@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
@@ -405,6 +406,10 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 		var rootBatch *v1.ResourceSpans
 		// todo: is it possible to shortcircuit this loop?
 		for _, b := range trace.Batches {
+			if !tagFound && searchAttributes(req.Search.Tags, b.Resource.Attributes) {
+				tagFound = true
+			}
+
 			for _, ils := range b.InstrumentationLibrarySpans {
 				for _, s := range ils.Spans {
 					if s.StartTimeUnixNano < start {
@@ -422,15 +427,8 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 						continue
 					}
 
-				DoneTags:
-					for k, v := range req.Search.Tags {
-						// jpe add support for others. move to querier_search.go
-						for _, a := range s.Attributes {
-							if k == a.Key && strings.Contains(a.Value.GetStringValue(), v) {
-								tagFound = true
-								continue DoneTags
-							}
-						}
+					if searchAttributes(req.Search.Tags, s.Attributes) {
+						tagFound = true
 					}
 				}
 			}
@@ -525,4 +523,22 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	}
 
 	return response
+}
+
+func searchAttributes(tags map[string]string, atts []*commonv1.KeyValue) bool {
+	// jpe add support for others. move to querier_search.go
+	for _, a := range atts {
+		var v string
+		var ok bool
+
+		if v, ok = tags[a.Key]; !ok {
+			continue
+		}
+
+		if strings.Contains(a.Value.GetStringValue(), v) {
+			return true
+		}
+	}
+
+	return false
 }
