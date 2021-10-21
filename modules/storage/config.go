@@ -35,7 +35,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.WAL = &wal.Config{}
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")
 	cfg.Trace.WAL.Encoding = backend.EncSnappy
-	cfg.Trace.WAL.SearchEncoding = backend.EncGZIP
+	cfg.Trace.WAL.SearchEncoding = backend.EncNone
 
 	cfg.Trace.Block = &encoding.BlockConfig{}
 	f.Float64Var(&cfg.Trace.Block.BloomFP, util.PrefixConfig(prefix, "trace.block.bloom-filter-false-positive"), .01, "Bloom Filter False Positive.")
@@ -43,7 +43,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.IntVar(&cfg.Trace.Block.IndexDownsampleBytes, util.PrefixConfig(prefix, "trace.block.index-downsample-bytes"), 1024*1024, "Number of bytes (before compression) per index record.")
 	f.IntVar(&cfg.Trace.Block.IndexPageSizeBytes, util.PrefixConfig(prefix, "trace.block.index-page-size-bytes"), 250*1024, "Number of bytes per index page.")
 	cfg.Trace.Block.Encoding = backend.EncZstd
-	cfg.Trace.Block.SearchEncoding = backend.EncGZIP
+	cfg.Trace.Block.SearchEncoding = backend.EncSnappy
 	cfg.Trace.Block.SearchPageSizeBytes = 1024 * 1024 // 1 MB
 
 	cfg.Trace.Azure = &azure.Config{}
