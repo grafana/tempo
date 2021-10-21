@@ -141,6 +141,9 @@ The URL query parameters support the following values:
 
 #### Example
 
+Example of how to query Tempo using curl.
+This query will return all traces that have a tag `service.name` containing `cartservice` and a minimum duration of 600 ms.
+
 ```bash
 $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.name=cartservice' --data-urlencode minDuration=600ms | jq
 {
@@ -181,6 +184,9 @@ GET /api/search/tags
 
 #### Example
 
+Example of how to query Tempo using curl.
+This query will return all discovered tag names.
+
 ```bash
 $ curl -G -s http://localhost:3200/api/search/tags  | jq
 {
@@ -218,6 +224,9 @@ GET /api/search/tag/service.name/values
 ```
 
 #### Example
+
+Example of how to query Tempo using curl.
+This query will return all discovered values for the tag `service.name`.
 
 ```bash
 $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
