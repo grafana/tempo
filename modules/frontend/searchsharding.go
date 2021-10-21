@@ -161,6 +161,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.concurrentRequests))
 	overallResponse := newSearchResponse(ctx, limit)
+	overallResponse.results.Metrics.InspectedBlocks = uint32(len(blocks))
 
 	for _, req := range reqs {
 		if overallResponse.shouldQuit() {
