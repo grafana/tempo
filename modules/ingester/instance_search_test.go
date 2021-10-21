@@ -246,11 +246,11 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		i.GetSearchTags()
+		i.GetSearchTags(context.Background())
 	})
 
 	go concurrent(func() {
-		i.GetSearchTagValues(tagKey)
+		i.GetSearchTagValues(context.Background(), tagKey)
 	})
 
 	time.Sleep(2000 * time.Millisecond)
