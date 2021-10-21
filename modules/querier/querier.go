@@ -445,10 +445,10 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 		startMs := start / 1000000
 		endMs := end / 1000000
 		durationMs := uint32(endMs - startMs)
-		if req.Search.MaxDurationMs != 0 && req.Search.MaxDurationMs > durationMs {
+		if req.Search.MaxDurationMs != 0 && req.Search.MaxDurationMs < durationMs {
 			return false
 		}
-		if req.Search.MinDurationMs != 0 && req.Search.MinDurationMs < durationMs {
+		if req.Search.MinDurationMs != 0 && req.Search.MinDurationMs > durationMs {
 			return false
 		}
 		if uint32(startMs/1000) > req.End || uint32(endMs/1000) < req.Start {
