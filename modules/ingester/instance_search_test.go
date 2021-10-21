@@ -246,11 +246,13 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		i.GetSearchTags(context.Background())
+		_, err := i.GetSearchTags(context.Background())
+		require.NoError(t, err, "error getting search tags")
 	})
 
 	go concurrent(func() {
-		i.GetSearchTagValues(context.Background(), tagKey)
+		_, err := i.GetSearchTagValues(context.Background(), tagKey)
+		require.NoError(t, err, "error getting search tag values")
 	})
 
 	time.Sleep(2000 * time.Millisecond)
