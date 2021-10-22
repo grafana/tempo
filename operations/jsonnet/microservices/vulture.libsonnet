@@ -17,6 +17,10 @@
       '-tempo-push-url=' + $._config.vulture.tempoPushUrl,
       '-tempo-query-url=' + $._config.vulture.tempoQueryUrl,
       '-tempo-org-id=' + $._config.vulture.tempoOrgId,
+      '-tempo-retention-duration=' + $._config.vulture.tempoRetentionDuration,
+      '-tempo-search-backoff-duration=' + $._config.vulture.tempoSearchBackoffDuration,
+      '-tempo-read-backoff-duration=' + $._config.vulture.tempoReadBackoffDuration,
+      '-tempo-write-backoff-duration=' + $._config.vulture.tempoWriteBackoffDuration,
     ]) +
     k.util.resourcesRequests('50m', '100Mi') +
     k.util.resourcesLimits('100m', '500Mi'),

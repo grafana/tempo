@@ -23,6 +23,10 @@ spec:
         - -tempo-push-url=http://distributor
         - -tempo-query-url=http://query-frontend:3200/tempo
         - -tempo-org-id=1
+        - -tempo-retention-duration=
+        - -tempo-search-backoff-duration=
+        - -tempo-read-backoff-duration=
+        - -tempo-write-backoff-duration=
         image: grafana/tempo-vulture:latest
         imagePullPolicy: IfNotPresent
         name: vulture
