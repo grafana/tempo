@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/google/uuid"
 	"go.uber.org/atomic"
@@ -17,13 +18,14 @@ import (
 
 // StreamingSearchBlock is search data that is read/write, i.e. for traces in the WAL.
 type StreamingSearchBlock struct {
-	blockID  uuid.UUID // todo: add the full meta?
-	appender encoding.Appender
-	file     *os.File
-	closed   atomic.Bool
-	header   *tempofb.SearchBlockHeaderMutable
-	v        encoding.VersionedEncoding
-	enc      backend.Encoding
+	blockID   uuid.UUID // todo: add the full meta?
+	appender  encoding.Appender
+	file      *os.File
+	closed    atomic.Bool
+	header    *tempofb.SearchBlockHeaderMutable
+	headerMtx sync.RWMutex
+	v         encoding.VersionedEncoding
+	enc       backend.Encoding
 }
 
 // Close closes the WAL file. Used in tests
@@ -80,7 +82,9 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 		return nil
 	}
 
+	s.headerMtx.Lock()
 	s.header.AddEntry(tempofb.SearchEntryFromBytes(combined))
+	s.headerMtx.Unlock()
 
 	return s.appender.Append(id, combined)
 }
@@ -92,7 +96,10 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 		return nil
 	}
 
-	if !p.MatchesBlock(s.header) {
+	s.headerMtx.RLock()
+	matched := p.MatchesBlock(s.header)
+	s.headerMtx.RUnlock()
+	if !matched {
 		sr.AddBlockSkipped()
 		return nil
 	}
