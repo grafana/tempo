@@ -27,8 +27,9 @@ func (s *SearchBlockHeaderMutable) AddEntry(e *SearchEntry) {
 	// Record all unique keyvalues
 	for i, ii := 0, e.TagsLength(); i < ii; i++ {
 		e.Tags(kv, i)
+		key := string(kv.Key())
 		for j, jj := 0, kv.ValueLength(); j < jj; j++ {
-			s.AddTag(string(kv.Key()), string(kv.Value(j)))
+			s.AddTag(key, string(kv.Value(j)))
 		}
 	}
 

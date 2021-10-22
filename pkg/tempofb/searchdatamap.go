@@ -16,12 +16,23 @@ type SearchDataMap interface {
 
 func NewSearchDataMap() SearchDataMap {
 	//return &SearchDataMap1{}
-	return &SearchDataMap2{}
+	return &SearchDataMapLarge{}
 }
 
-type SearchDataMap1 map[string][]string
+func NewSearchDataMapWithData(m map[string][]string) SearchDataMap {
+	s := NewSearchDataMap()
 
-func (s SearchDataMap1) Add(k, v string) {
+	for k, vv := range m {
+		for _, v := range vv {
+			s.Add(k, v)
+		}
+	}
+	return s
+}
+
+type SearchDataMapSmall map[string][]string
+
+func (s SearchDataMapSmall) Add(k, v string) {
 	vs, ok := s[k]
 	if !ok {
 		// First entry for key
@@ -41,7 +52,7 @@ func (s SearchDataMap1) Add(k, v string) {
 	s[k] = append(vs, v)
 }
 
-func (s SearchDataMap1) Contains(k, v string) bool {
+func (s SearchDataMapSmall) Contains(k, v string) bool {
 	e := s[k]
 	if e != nil {
 		vv := string(v)
@@ -55,7 +66,7 @@ func (s SearchDataMap1) Contains(k, v string) bool {
 	return false
 }
 
-func (s SearchDataMap1) Range(f func(k, v string)) {
+func (s SearchDataMapSmall) Range(f func(k, v string)) {
 	for k, vv := range s {
 		for _, v := range vv {
 			f(k, v)
@@ -63,73 +74,39 @@ func (s SearchDataMap1) Range(f func(k, v string)) {
 	}
 }
 
-func (s SearchDataMap1) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
-	offsets := make([]flatbuffers.UOffsetT, 0, len(s))
-
-	// Sort keys
+func (s SearchDataMapSmall) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
 	keys := make([]string, 0, len(s))
 	for k := range s {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
 
-	for _, k := range keys {
-		// Skip empty keys
-		if len(s[k]) <= 0 {
-			continue
-		}
-
-		ko := b.CreateSharedString(strings.ToLower(k))
-
-		// Sort values
-		v := s[k]
-		sort.Strings(v)
-
-		valueStrings := make([]flatbuffers.UOffsetT, len(v))
-		for i := range v {
-			valueStrings[i] = b.CreateSharedString(strings.ToLower(v[i]))
-		}
-
-		KeyValuesStartValueVector(b, len(valueStrings))
-		for _, vs := range valueStrings {
-			b.PrependUOffsetT(vs)
-		}
-		valueVector := b.EndVector(len(valueStrings))
-
-		KeyValuesStart(b)
-		KeyValuesAddKey(b, ko)
-		KeyValuesAddValue(b, valueVector)
-		offsets = append(offsets, KeyValuesEnd(b))
+	valuesf := func(k string, _ []string) []string {
+		return s[k]
 	}
 
-	SearchEntryStartTagsVector(b, len(offsets))
-	for _, kvo := range offsets {
-		b.PrependUOffsetT(kvo)
-	}
-	keyValueVector := b.EndVector((len(offsets)))
-	return keyValueVector
+	return writeToBuilder(b, keys, valuesf)
 }
 
-type SearchDataMap2 map[string]map[string]struct{}
+type SearchDataMapLarge map[string]map[string]struct{}
 
-func (s SearchDataMap2) Add(k, v string) {
+func (s SearchDataMapLarge) Add(k, v string) {
 	values, ok := s[k]
 	if !ok {
 		// first entry
-		m := make(map[string]struct{}, 10)
-		m[v] = struct{}{}
-		s[k] = m
-		//s[k] = map[string]struct{}{v: {}}
+		//m := make(map[string]struct{}, 10)
+		//m[v] = struct{}{}
+		//s[k] = m
+		s[k] = map[string]struct{}{v: {}}
 		return
 	}
 
+	// For repeats it is more performant to avoid the map assigns.
 	if _, ok = values[v]; !ok {
 		values[v] = struct{}{}
 	}
-	//kk[v] = struct{}{}
 }
 
-func (s SearchDataMap2) Contains(k, v string) bool {
+func (s SearchDataMapLarge) Contains(k, v string) bool {
 	if values, ok := s[k]; ok {
 		_, ok := values[v]
 		return ok
@@ -137,7 +114,7 @@ func (s SearchDataMap2) Contains(k, v string) bool {
 	return false
 }
 
-func (s SearchDataMap2) Range(f func(k, v string)) {
+func (s SearchDataMapLarge) Range(f func(k, v string)) {
 	for k, values := range s {
 		for v := range values {
 			f(k, v)
@@ -145,36 +122,53 @@ func (s SearchDataMap2) Range(f func(k, v string)) {
 	}
 }
 
-func (s SearchDataMap2) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
-	offsets := make([]flatbuffers.UOffsetT, 0, len(s))
-
-	// Sort keys
+func (s SearchDataMapLarge) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
 	keys := make([]string, 0, len(s))
 	for k := range s {
 		keys = append(keys, k)
 	}
+
+	valuesf := func(k string, buffer []string) []string {
+		// Reset/resize buffer
+		if cap(buffer) < len(s[k]) {
+			buffer = make([]string, 0, len(s[k]))
+		}
+		buffer = buffer[:0]
+
+		for v := range s[k] {
+			buffer = append(buffer, v)
+		}
+
+		return buffer
+	}
+
+	return writeToBuilder(b, keys, valuesf)
+}
+
+func writeToBuilder(b *flatbuffers.Builder, keys []string, valuesf func(k string, buffer []string) []string) flatbuffers.UOffsetT {
+
+	var values []string
+
+	offsets := make([]flatbuffers.UOffsetT, 0, len(keys))
 	sort.Strings(keys)
 
 	for _, k := range keys {
+
+		values := valuesf(k, values)
+
 		// Skip empty keys
-		if len(s[k]) <= 0 {
+		if len(values) <= 0 {
 			continue
 		}
 
 		ko := b.CreateSharedString(strings.ToLower(k))
 
 		// Sort values
-		values := s[k]
-		v := make([]string, 0, len(values))
-		for vv := range values {
-			v = append(v, vv)
-		}
-		//v := s[k]
-		sort.Strings(v)
+		sort.Strings(values)
 
-		valueStrings := make([]flatbuffers.UOffsetT, len(v))
-		for i := range v {
-			valueStrings[i] = b.CreateSharedString(strings.ToLower(v[i]))
+		valueStrings := make([]flatbuffers.UOffsetT, len(values))
+		for i := range values {
+			valueStrings[i] = b.CreateSharedString(strings.ToLower(values[i]))
 		}
 
 		KeyValuesStartValueVector(b, len(valueStrings))

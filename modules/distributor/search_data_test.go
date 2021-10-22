@@ -63,13 +63,13 @@ func TestExtractSearchData(t *testing.T) {
 			id: traceIDA,
 			searchData: &tempofb.SearchEntryMutable{
 				TraceID: traceIDA,
-				Tags: tempofb.SearchDataMap1{
-					"foo":                     []string{"bar"},
-					search.RootSpanNameTag:    []string{"firstSpan"},
-					search.SpanNameTag:        []string{"firstSpan"},
-					search.RootServiceNameTag: []string{"baz"},
-					search.ServiceNameTag:     []string{"baz"},
-				},
+				Tags: tempofb.NewSearchDataMapWithData(map[string][]string{
+					"foo":                     {"bar"},
+					search.RootSpanNameTag:    {"firstSpan"},
+					search.SpanNameTag:        {"firstSpan"},
+					search.RootServiceNameTag: {"baz"},
+					search.ServiceNameTag:     {"baz"},
+				}),
 				StartTimeUnixNano: 0,
 				EndTimeUnixNano:   0,
 			},
@@ -104,9 +104,9 @@ func TestExtractSearchData(t *testing.T) {
 			id: traceIDA,
 			searchData: &tempofb.SearchEntryMutable{
 				TraceID: traceIDA,
-				Tags: tempofb.SearchDataMap1{
-					"bar": []string{"baz"},
-				},
+				Tags: tempofb.NewSearchDataMapWithData(map[string][]string{
+					"bar": {"baz"},
+				}),
 				StartTimeUnixNano: 0,
 				EndTimeUnixNano:   0,
 			},

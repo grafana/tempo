@@ -10,8 +10,8 @@ func BenchmarkSearchDataMapAdd(b *testing.B) {
 		name string
 		f    func() SearchDataMap
 	}{
-		{"SearchDataMap1", func() SearchDataMap { return &SearchDataMap1{} }},
-		{"SearchDataMap2", func() SearchDataMap { return &SearchDataMap2{} }},
+		{"SearchDataMapSmall", func() SearchDataMap { return &SearchDataMapSmall{} }},
+		{"SearchDataMapLarge", func() SearchDataMap { return &SearchDataMapLarge{} }},
 	}
 
 	testCases := []struct {
@@ -20,11 +20,14 @@ func BenchmarkSearchDataMapAdd(b *testing.B) {
 		repeats int
 	}{
 		{"insert", 1, 0},
+		{"insert", 5, 0},
 		{"insert", 10, 0},
+		{"insert", 20, 0},
 		{"insert", 100, 0},
-		{"repeat", 1, 10},
 		{"repeat", 10, 10},
+		{"repeat", 10, 100},
 		{"repeat", 100, 10},
+		{"repeat", 100, 100},
 	}
 
 	for _, tc := range testCases {
@@ -63,26 +66,4 @@ func BenchmarkSearchDataMapAdd(b *testing.B) {
 		}
 	}
 
-}
-
-func BenchmarkSearchDataMapAddr1(b *testing.B) {
-	s := &SearchDataMap1{}
-	for i := 0; i < b.N; i++ {
-		s.Add("key", "value1")
-		s.Add("key", "value2")
-		s.Add("key", "value3")
-		s.Add("key", "value4")
-		s.Add("key", "value5")
-	}
-}
-
-func BenchmarkSearchDataMapAddr2(b *testing.B) {
-	s := &SearchDataMap2{}
-	for i := 0; i < b.N; i++ {
-		s.Add("key", "value1")
-		s.Add("key", "value2")
-		s.Add("key", "value3")
-		s.Add("key", "value4")
-		s.Add("key", "value5")
-	}
 }
