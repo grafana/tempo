@@ -18,10 +18,10 @@ The agent publishes a few Prometheus metrics that are useful to determine how mu
 are a good place to start when diagnosing tracing Agent issues.
 
 ```
-tempo_receiver_accepted_spans
-tempo_receiver_refused_spans
-tempo_exporter_sent_spans
-tempo_exporter_send_failed_spans
+traces_receiver_accepted_spans
+traces_receiver_refused_spans
+traces_exporter_sent_spans
+traces_exporter_send_failed_spans
 ```
 
 ## Automatic Logging
@@ -29,7 +29,7 @@ tempo_exporter_send_failed_spans
 If metrics and logs are looking good, but you are still unable to find traces in Grafana Cloud then we can turn on [Automatic Logging]({{< relref "../grafana-agent/automatic-logging" >}}). A recommend debug setup is:
 
 ```
-tempo:
+traces:
   configs:
   - name: default
     ...
