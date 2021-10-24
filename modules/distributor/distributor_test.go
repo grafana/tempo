@@ -43,7 +43,7 @@ var (
 	ctx = user.InjectOrgID(context.Background(), "test")
 )
 
-func TestRequestsByTraceID(t *testing.T) {
+func TestRequestsByTraceID(t *testing.T) { // jpe update test
 	traceIDA := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 	traceIDB := []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
@@ -307,7 +307,7 @@ func TestRequestsByTraceID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keys, reqs, ids, err := requestsByTraceID(tt.request, util.FakeTenantID, 1)
+			keys, reqs, ids, err := requestsByTraceID([]*v1.ResourceSpans{tt.request.Batch}, util.FakeTenantID, 1)
 			require.Equal(t, len(keys), len(reqs))
 
 			for i, expectedKey := range tt.expectedKeys {
@@ -353,8 +353,8 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, blerg := range ils {
-			_, _, _, err := requestsByTraceID(&tempopb.PushRequest{
-				Batch: &v1.ResourceSpans{
+			_, _, _, err := requestsByTraceID([]*v1.ResourceSpans{
+				&v1.ResourceSpans{
 					InstrumentationLibrarySpans: blerg,
 				},
 			}, "test", spansPer*len(traces))

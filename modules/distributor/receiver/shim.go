@@ -33,6 +33,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
@@ -49,16 +50,20 @@ var (
 	})
 )
 
+type Pusher interface {
+	PushBatches(ctx context.Context, batches []*v1.ResourceSpans) (*tempopb.PushResponse, error)
+}
+
 type receiversShim struct {
 	services.Service
 
 	receivers   []component.Receiver
-	pusher      tempopb.PusherServer
+	pusher      Pusher
 	logger      *tempo_util.RateLimitedLogger
 	metricViews []*view.View
 }
 
-func New(receiverCfg map[string]interface{}, pusher tempopb.PusherServer, middleware Middleware, logLevel logging.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher Pusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
 		logger: tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
@@ -178,16 +183,11 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 		return err
 	}
 
-	for _, batch := range trace.Batches {
-		start := time.Now()
-		_, err = r.pusher.Push(ctx, &tempopb.PushRequest{
-			Batch: batch,
-		})
-		metricPushDuration.Observe(time.Since(start).Seconds())
-		if err != nil {
-			r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
-			break
-		}
+	start := time.Now()
+	_, err = r.pusher.PushBatches(ctx, trace.Batches)
+	metricPushDuration.Observe(time.Since(start).Seconds())
+	if err != nil {
+		r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
 	}
 
 	return err
