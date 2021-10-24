@@ -1,6 +1,7 @@
 package search
 
 import (
+	"bytes"
 	"context"
 	"io"
 
@@ -141,35 +142,39 @@ func (s *BackendSearchBlock) BlockID() uuid.UUID {
 }
 
 func (s *BackendSearchBlock) Tags(ctx context.Context, tags map[string]struct{}) error {
-	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
+	header, err := s.readSearchHeader(ctx)
 	if err != nil {
 		return err
 	}
-	header := tempofb.GetRootAsSearchBlockHeader(hb, 0)
 
 	kv := &tempofb.KeyValues{}
 	for i, ii := 0, header.TagsLength(); i < ii; i++ {
 		header.Tags(kv, i)
-		tags[string(kv.Key())] = struct{}{}
+		if _, ok := tags[string(kv.Key())]; !ok {
+			tags[string(kv.Key())] = struct{}{}
+		}
 	}
 
 	return nil
 }
 
-func (s *BackendSearchBlock) TagValues(ctx context.Context, tag string, tagValues map[string]struct{}) error {
-	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
+func (s *BackendSearchBlock) TagValues(ctx context.Context, tagName string, tagValues map[string]struct{}) error {
+	header, err := s.readSearchHeader(ctx)
 	if err != nil {
 		return err
 	}
-	header := tempofb.GetRootAsSearchBlockHeader(hb, 0)
 
 	kv := &tempofb.KeyValues{}
+	tagNameBytes := []byte(tagName)
 	for i, tagsLength := 0, header.TagsLength(); i < tagsLength; i++ {
 		header.Tags(kv, i)
 
-		if string(kv.Key()) == tag {
+		// TODO use binary search?
+		if bytes.Equal(kv.Key(), tagNameBytes) {
 			for j, valueLength := 0, kv.ValueLength(); j < valueLength; j++ {
-				tagValues[string(kv.Value(j))] = struct{}{}
+				if _, ok := tagValues[string(kv.Value(j))]; !ok {
+					tagValues[string(kv.Value(j))] = struct{}{}
+				}
 			}
 			break
 		}
@@ -293,4 +298,12 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	}
 
 	return nil
+}
+
+func (s *BackendSearchBlock) readSearchHeader(ctx context.Context) (*tempofb.SearchBlockHeader, error) {
+	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
+	if err != nil {
+		return nil, err
+	}
+	return tempofb.GetRootAsSearchBlockHeader(hb, 0), nil
 }

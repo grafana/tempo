@@ -1,6 +1,7 @@
 package ingester
 
 import (
+	"bytes"
 	"context"
 	"sort"
 
@@ -183,85 +184,64 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 func (i *instance) GetSearchTags(ctx context.Context) ([]string, error) {
 	tags := map[string]struct{}{}
 
-	i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
-		kv := &tempofb.KeyValues{}
-
+	kv := &tempofb.KeyValues{}
+	err := i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
 		for i, ii := 0, entry.TagsLength(); i < ii; i++ {
 			entry.Tags(kv, i)
-			tags[string(kv.Key())] = struct{}{}
+			if _, ok := tags[string(kv.Key())]; !ok {
+				tags[string(kv.Key())] = struct{}{}
+			}
 		}
 	})
-
-	extractTagsFromSearchableBlock := func(block search.SearchableBlock) error {
-		return block.Tags(ctx, tags)
-	}
-	err := func() error {
-		i.blocksMtx.RLock()
-		defer i.blocksMtx.RUnlock()
-
-		err := i.visitSearchableBlocksWAL(ctx, extractTagsFromSearchableBlock)
-		if err != nil {
-			return err
-		}
-		return i.visitSearchableBlocksLocalBlocks(ctx, extractTagsFromSearchableBlock)
-	}()
 	if err != nil {
 		return nil, err
 	}
 
-	tagsSlice := make([]string, 0, len(tags))
-	for tag := range tags {
-		tagsSlice = append(tagsSlice, tag)
+	err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
+		return block.Tags(ctx, tags)
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	return tagsSlice, nil
+	return extractKeys(tags), nil
 }
 
 func (i *instance) GetSearchTagValues(ctx context.Context, tagName string) ([]string, error) {
 	values := map[string]struct{}{}
 
-	i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
-		kv := &tempofb.KeyValues{}
-
+	kv := &tempofb.KeyValues{}
+	tagNameBytes := []byte(tagName)
+	err := i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
 		for i, tagsLength := 0, entry.TagsLength(); i < tagsLength; i++ {
 			entry.Tags(kv, i)
 
-			if string(kv.Key()) == tagName {
+			// TODO use binary search?
+			if bytes.Equal(kv.Key(), tagNameBytes) {
 				for j, valueLength := 0, kv.ValueLength(); j < valueLength; j++ {
-					values[string(kv.Value(j))] = struct{}{}
+					if _, ok := values[string(kv.Value(j))]; !ok {
+						values[string(kv.Value(j))] = struct{}{}
+					}
 				}
 				break
 			}
 		}
 	})
-
-	extractTagValuesFromSearchableBlocks := func(block search.SearchableBlock) error {
-		return block.TagValues(ctx, tagName, values)
-	}
-
-	err := func() error {
-		i.blocksMtx.RLock()
-		defer i.blocksMtx.RUnlock()
-
-		err := i.visitSearchableBlocksWAL(ctx, extractTagValuesFromSearchableBlocks)
-		if err != nil {
-			return err
-		}
-		return i.visitSearchableBlocksLocalBlocks(ctx, extractTagValuesFromSearchableBlocks)
-	}()
 	if err != nil {
 		return nil, err
 	}
 
-	valuesSlice := make([]string, 0, len(values))
-	for tag := range values {
-		valuesSlice = append(valuesSlice, tag)
+	err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
+		return block.TagValues(ctx, tagName, values)
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	return valuesSlice, nil
+	return extractKeys(values), nil
 }
 
-func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visit func(entry *tempofb.SearchEntry)) {
+func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn func(entry *tempofb.SearchEntry)) error {
 	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchEntriesLiveTraces")
 	defer span.Finish()
 
@@ -270,13 +250,30 @@ func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visit func(
 
 	for _, t := range i.traces {
 		for _, s := range t.searchData {
-			visit(tempofb.SearchEntryFromBytes(s))
+			visitFn(tempofb.SearchEntryFromBytes(s))
+
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
+}
+
+func (i *instance) visitSearchableBlocks(ctx context.Context, visitFn func(block search.SearchableBlock) error) error {
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	err := i.visitSearchableBlocksWAL(ctx, visitFn)
+	if err != nil {
+		return err
+	}
+
+	return i.visitSearchableBlocksLocalBlocks(ctx, visitFn)
 }
 
 // visitSearchableBlocksWAL visits every WAL block. Must be called under lock.
-func (i *instance) visitSearchableBlocksWAL(ctx context.Context, visit func(block search.SearchableBlock) error) error {
+func (i *instance) visitSearchableBlocksWAL(ctx context.Context, visitFn func(block search.SearchableBlock) error) error {
 	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchableBlocksWAL")
 	defer span.Finish()
 
@@ -284,11 +281,14 @@ func (i *instance) visitSearchableBlocksWAL(ctx context.Context, visit func(bloc
 		entry.mtx.RLock()
 		defer entry.mtx.RUnlock()
 
-		return visit(entry.b)
+		return visitFn(entry.b)
 	}
 
 	err := visitUnderLock(i.searchHeadBlock)
 	if err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
@@ -297,12 +297,15 @@ func (i *instance) visitSearchableBlocksWAL(ctx context.Context, visit func(bloc
 		if err != nil {
 			return err
 		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // visitSearchableBlocksWAL visits every local block. Must be called under lock.
-func (i *instance) visitSearchableBlocksLocalBlocks(ctx context.Context, visit func(block search.SearchableBlock) error) error {
+func (i *instance) visitSearchableBlocksLocalBlocks(ctx context.Context, visitFn func(block search.SearchableBlock) error) error {
 	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchableBlocksLocalBlocks")
 	defer span.Finish()
 
@@ -310,7 +313,7 @@ func (i *instance) visitSearchableBlocksLocalBlocks(ctx context.Context, visit f
 		entry.mtx.RLock()
 		defer entry.mtx.RUnlock()
 
-		return visit(entry.b)
+		return visitFn(entry.b)
 	}
 
 	for _, b := range i.searchCompleteBlocks {
@@ -318,6 +321,17 @@ func (i *instance) visitSearchableBlocksLocalBlocks(ctx context.Context, visit f
 		if err != nil {
 			return err
 		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func extractKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	return keys
 }
