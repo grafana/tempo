@@ -536,7 +536,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for _, blerg := range ils {
 			_, _, _, err := requestsByTraceID([]*v1.ResourceSpans{
-				&v1.ResourceSpans{
+				{
 					InstrumentationLibrarySpans: blerg,
 				},
 			}, "test", spansPer*len(traces))
