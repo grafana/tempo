@@ -15,8 +15,7 @@ type SearchDataMap interface {
 }
 
 func NewSearchDataMap() SearchDataMap {
-	//return &SearchDataMap1{}
-	return &SearchDataMapLarge{}
+	return make(SearchDataMapLarge, 10) // 10 for luck
 }
 
 func NewSearchDataMapWithData(m map[string][]string) SearchDataMap {
@@ -93,9 +92,6 @@ func (s SearchDataMapLarge) Add(k, v string) {
 	values, ok := s[k]
 	if !ok {
 		// first entry
-		//m := make(map[string]struct{}, 10)
-		//m[v] = struct{}{}
-		//s[k] = m
 		s[k] = map[string]struct{}{v: {}}
 		return
 	}
@@ -129,12 +125,7 @@ func (s SearchDataMapLarge) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.U
 	}
 
 	valuesf := func(k string, buffer []string) []string {
-		// Reset/resize buffer
-		if cap(buffer) < len(s[k]) {
-			buffer = make([]string, 0, len(s[k]))
-		}
 		buffer = buffer[:0]
-
 		for v := range s[k] {
 			buffer = append(buffer, v)
 		}

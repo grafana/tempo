@@ -10,8 +10,8 @@ func BenchmarkSearchDataMapAdd(b *testing.B) {
 		name string
 		f    func() SearchDataMap
 	}{
-		{"SearchDataMapSmall", func() SearchDataMap { return &SearchDataMapSmall{} }},
-		{"SearchDataMapLarge", func() SearchDataMap { return &SearchDataMapLarge{} }},
+		{"SearchDataMapSmall", func() SearchDataMap { return make(SearchDataMapSmall, 10) }},
+		{"SearchDataMapLarge", func() SearchDataMap { return make(SearchDataMapLarge, 10) }},
 	}
 
 	testCases := []struct {
@@ -19,15 +19,13 @@ func BenchmarkSearchDataMapAdd(b *testing.B) {
 		values  int
 		repeats int
 	}{
-		{"insert", 1, 0},
-		{"insert", 5, 0},
-		{"insert", 10, 0},
-		{"insert", 20, 0},
-		{"insert", 100, 0},
-		{"repeat", 10, 10},
-		{"repeat", 10, 100},
-		{"repeat", 100, 10},
-		{"repeat", 100, 100},
+		{"inserts", 1, 0},
+		{"inserts", 10, 0},
+		{"inserts", 100, 0},
+		{"repeats", 10, 100},
+		{"repeats", 10, 1000},
+		{"repeats", 100, 100},
+		{"repeats", 100, 1000},
 	}
 
 	for _, tc := range testCases {
@@ -60,7 +58,9 @@ func BenchmarkSearchDataMapAdd(b *testing.B) {
 				// reinsert?
 				if tc.repeats > 0 {
 					b.ResetTimer()
-					insert()
+					for i := 0; i < tc.repeats; i++ {
+						insert()
+					}
 				}
 			})
 		}
