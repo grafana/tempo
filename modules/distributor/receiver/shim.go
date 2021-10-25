@@ -50,7 +50,7 @@ var (
 	})
 )
 
-type Pusher interface {
+type BatchPusher interface {
 	PushBatches(ctx context.Context, batches []*v1.ResourceSpans) (*tempopb.PushResponse, error)
 }
 
@@ -58,12 +58,12 @@ type receiversShim struct {
 	services.Service
 
 	receivers   []component.Receiver
-	pusher      Pusher
+	pusher      BatchPusher
 	logger      *tempo_util.RateLimitedLogger
 	metricViews []*view.View
 }
 
-func New(receiverCfg map[string]interface{}, pusher Pusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
 		logger: tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
