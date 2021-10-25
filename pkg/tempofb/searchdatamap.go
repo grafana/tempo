@@ -53,12 +53,9 @@ func (s SearchDataMapSmall) Add(k, v string) {
 
 func (s SearchDataMapSmall) Contains(k, v string) bool {
 	e := s[k]
-	if e != nil {
-		vv := string(v)
-		for _, vvv := range e {
-			if strings.Contains(vvv, vv) {
-				return true
-			}
+	for _, vvv := range e {
+		if strings.Contains(vvv, v) {
+			return true
 		}
 	}
 
