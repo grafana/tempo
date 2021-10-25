@@ -16,12 +16,6 @@ type SearchEntryMutable struct {
 	EndTimeUnixNano   uint64
 }
 
-/*func NewSearchEntryMutable() *SearchEntryMutable {
-	return &SearchEntryMutable{
-		Tags: NewSearchDataMap(),
-	}
-}*/
-
 // AddTag adds the unique tag name and value to the search data. No effect if the pair is already present.
 func (s *SearchEntryMutable) AddTag(k string, v string) {
 	if s.Tags == nil {
