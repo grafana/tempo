@@ -238,9 +238,9 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	size := 0
 	spanCount := 0
 	for _, b := range batches {
+		size += b.Size()
 		for _, ils := range b.InstrumentationLibrarySpans {
 			spanCount += len(ils.Spans)
-			size += ils.Size()
 		}
 	}
 	if spanCount == 0 {
