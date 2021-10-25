@@ -157,26 +157,8 @@ type FBTagContainer interface {
 
 func ContainsTag(s FBTagContainer, kv *KeyValues, k []byte, v []byte) bool {
 
-	matched := -1
-
-	// Binary search for keys. Flatbuffers are written backwards so
-	// keys are descending (the comparison is reversed).
-	// TODO - We only want exact matches, sort.Search has to make an
-	// extra comparison. We should fork it to make use of the full
-	// tri-state response from bytes.Compare
-	sort.Search(s.TagsLength(), func(i int) bool {
-		s.Tags(kv, i)
-		comparison := bytes.Compare(k, kv.Key())
-		if comparison == 0 {
-			matched = i
-			// TODO it'd be great to exit here and retain the data in kv buffer
-		}
-		return comparison >= 0
-	})
-
-	if matched >= 0 {
-		s.Tags(kv, matched)
-
+	kv = FindTag(s, kv, k)
+	if kv != nil {
 		// Linear search for matching values
 		l := kv.ValueLength()
 		for j := 0; j < l; j++ {
@@ -187,4 +169,43 @@ func ContainsTag(s FBTagContainer, kv *KeyValues, k []byte, v []byte) bool {
 	}
 
 	return false
+}
+
+func FindTag(s FBTagContainer, kv *KeyValues, k []byte) *KeyValues {
+
+	idx := binarySearch(s.TagsLength(), func(i int) int {
+		s.Tags(kv, i)
+		// Note comparison here is backwards because KeyValues are written to flatbuffers in reverse order.
+		return bytes.Compare(kv.Key(), k)
+	})
+
+	if idx >= 0 {
+		// Data is left in buffer when matched
+		return kv
+	}
+
+	return nil
+}
+
+// binarySearch that finds exact matching entry. Returns non-zero index when found, or -1 when not found
+// Inspired by sort.Search but makes uses of tri-state comparator to eliminate the last comparison when
+// we want to find exact match, not insertion point.
+func binarySearch(n int, compare func(int) int) int {
+	i, j := 0, n
+	for i < j {
+		h := int(uint(i+j) >> 1) // avoid overflow when computing h
+		// i ≤ h < j
+		switch compare(h) {
+		case 0:
+			// Found exact match
+			return h
+		case -1:
+			j = h
+		case 1:
+			i = h + 1
+		}
+	}
+
+	// No match
+	return -1
 }
