@@ -47,15 +47,15 @@ But also factor in the resources provided to the querier.
 
 ## TempoCompactorUnhealthy
 
-If this occurs port-forward to 3200 on a compactor and bring up `/compactor/ring`.  Use the "Forget" button to drop any unhealthy 
-compactors. An unhealthy compactor or two has no immediate impact. Long term, however, it will cause the blocklist to grow
-unnecessarily long.
+If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/compactor/ring`.
+Use the "Forget" button to drop any unhealthy compactors. An unhealthy compactor or two has no immediate impact. Long term,
+however, it will cause the blocklist to grow unnecessarily long.
 
 ## TempoDistributorUnhealthy
 
-If this occurs port-forward to 3200 on a distributor and bring up `/distributor/ring`.  Use the "Forget" button to drop any unhealthy 
-distributors. An unhealthy distributor or two has virtually no impact except to slightly increase the amount of memberlist
-traffic propagated by the cluster.
+If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/distributor/ring`.
+Use the "Forget" button to drop any unhealthy distributors. An unhealthy distributor or two has virtually no impact except to slightly
+increase the amount of memberlist traffic propagated by the cluster.
 
 ## TempoCompactionsFailing
 
@@ -140,8 +140,7 @@ If a cluster has no tenant index builders for a given tenant then nothing is ref
 b/c other components will not be aware there is an issue as they repeatedly download a stale tenant index. In Tempo the compactors
 play the role of building the tenant index. Ways to address this issue in order of preference:
 
-- Find and forget all unhealthy compactors. To do this, port-forward to 3200 on any compactor and bring up
-  `/compactor/ring`.  Use the "Forget" button to drop any unhealthy compactors.
+- Find and [forget all unhealthy compactors](#tempocompactorunhealthy).
 - Increase the number of compactors that attempt to build the index.
   ```
   storage:
