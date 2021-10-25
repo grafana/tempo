@@ -215,8 +215,15 @@ func (d *Distributor) stopping(_ error) error {
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
-// Push a set of streams.
+// Push pushes a trace
 func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
+	return d.PushBatches(ctx, []*v1.ResourceSpans{
+		req.Batch,
+	})
+}
+
+// Push batches pushes a batch of traces
+func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpans) (*tempopb.PushResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		// can't record discarded spans here b/c there's no tenant
@@ -224,38 +231,36 @@ func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*temp
 	}
 
 	if d.cfg.LogReceivedTraces {
-		logTraces(req.Batch)
+		logTraces(batches)
 	}
 
 	// metric size
-	size := req.Size()
-	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
-
-	// metric spans
-	if req.Batch == nil {
-		return &tempopb.PushResponse{}, nil
-	}
+	size := 0
 	spanCount := 0
-	for _, ils := range req.Batch.InstrumentationLibrarySpans {
-		spanCount += len(ils.Spans)
+	for _, b := range batches {
+		size += b.Size()
+		for _, ils := range b.InstrumentationLibrarySpans {
+			spanCount += len(ils.Spans)
+		}
 	}
 	if spanCount == 0 {
 		return &tempopb.PushResponse{}, nil
 	}
+	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
 	metricSpansIngested.WithLabelValues(userID).Add(float64(spanCount))
 
 	// check limits
 	now := time.Now()
-	if !d.ingestionRateLimiter.AllowN(now, userID, req.Size()) {
+	if !d.ingestionRateLimiter.AllowN(now, userID, size) {
 		metricDiscardedSpans.WithLabelValues(reasonRateLimited, userID).Add(float64(spanCount))
 		return nil, status.Errorf(codes.ResourceExhausted,
 			"%s ingestion rate limit (%d bytes) exceeded while adding %d bytes",
 			overrides.ErrorPrefixRateLimited,
 			int(d.ingestionRateLimiter.Limit(now, userID)),
-			req.Size())
+			size)
 	}
 
-	keys, traces, ids, err := requestsByTraceID(req, userID, spanCount)
+	keys, traces, ids, err := requestsByTraceID(batches, userID, spanCount)
 	if err != nil {
 		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
 		return nil, err
@@ -351,7 +356,7 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
 // and traces to pass onto the ingesters.
-func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) ([]uint32, []*tempopb.Trace, [][]byte, error) {
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int) ([]uint32, []*tempopb.Trace, [][]byte, error) {
 	type traceAndID struct {
 		id    []byte
 		trace *tempopb.Trace
@@ -359,53 +364,56 @@ func requestsByTraceID(req *tempopb.PushRequest, userID string, spanCount int) (
 
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint32]*traceAndID, tracesPerBatch)
-	spansByILS := make(map[uint32]*v1.InstrumentationLibrarySpans)
 
-	for _, ils := range req.Batch.InstrumentationLibrarySpans {
-		for _, span := range ils.Spans {
-			traceID := span.TraceId
-			if !validation.ValidTraceID(traceID) {
-				return nil, nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
-			}
+	for _, b := range batches {
+		spansByILS := make(map[uint32]*v1.InstrumentationLibrarySpans)
 
-			traceKey := util.TokenFor(userID, traceID)
-			ilsKey := traceKey
-			if ils.InstrumentationLibrary != nil {
-				ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Name)
-				ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Version)
-			}
-
-			existingILS, ok := spansByILS[ilsKey]
-			if !ok {
-				existingILS = &v1.InstrumentationLibrarySpans{
-					InstrumentationLibrary: ils.InstrumentationLibrary,
-					Spans:                  make([]*v1.Span, 0, spanCount/tracesPerBatch),
-				}
-				spansByILS[ilsKey] = existingILS
-			}
-			existingILS.Spans = append(existingILS.Spans, span)
-
-			// if we found an ILS we assume its already part of a request and can go to the next span
-			if ok {
-				continue
-			}
-
-			existingTrace, ok := tracesByID[traceKey]
-			if !ok {
-				existingTrace = &traceAndID{
-					id: traceID,
-					trace: &tempopb.Trace{
-						Batches: make([]*v1.ResourceSpans, 0, spanCount/tracesPerBatch),
-					},
+		for _, ils := range b.InstrumentationLibrarySpans {
+			for _, span := range ils.Spans {
+				traceID := span.TraceId
+				if !validation.ValidTraceID(traceID) {
+					return nil, nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
 				}
 
-				tracesByID[traceKey] = existingTrace
-			}
+				traceKey := util.TokenFor(userID, traceID)
+				ilsKey := traceKey
+				if ils.InstrumentationLibrary != nil {
+					ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Name)
+					ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Version)
+				}
 
-			existingTrace.trace.Batches = append(existingTrace.trace.Batches, &v1.ResourceSpans{
-				Resource:                    req.Batch.Resource,
-				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{existingILS},
-			})
+				existingILS, ok := spansByILS[ilsKey]
+				if !ok {
+					existingILS = &v1.InstrumentationLibrarySpans{
+						InstrumentationLibrary: ils.InstrumentationLibrary,
+						Spans:                  make([]*v1.Span, 0, spanCount/tracesPerBatch),
+					}
+					spansByILS[ilsKey] = existingILS
+				}
+				existingILS.Spans = append(existingILS.Spans, span)
+
+				// if we found an ILS we assume its already part of a request and can go to the next span
+				if ok {
+					continue
+				}
+
+				existingTrace, ok := tracesByID[traceKey]
+				if !ok {
+					existingTrace = &traceAndID{
+						id: traceID,
+						trace: &tempopb.Trace{
+							Batches: make([]*v1.ResourceSpans, 0, spanCount/tracesPerBatch),
+						},
+					}
+
+					tracesByID[traceKey] = existingTrace
+				}
+
+				existingTrace.trace.Batches = append(existingTrace.trace.Batches, &v1.ResourceSpans{
+					Resource:                    b.Resource,
+					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{existingILS},
+				})
+			}
 		}
 	}
 
@@ -440,10 +448,12 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 	}
 }
 
-func logTraces(batch *v1.ResourceSpans) {
-	for _, ils := range batch.InstrumentationLibrarySpans {
-		for _, s := range ils.Spans {
-			level.Info(cortex_util.Logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+func logTraces(batches []*v1.ResourceSpans) {
+	for _, b := range batches {
+		for _, ils := range b.InstrumentationLibrarySpans {
+			for _, s := range ils.Spans {
+				level.Info(cortex_util.Logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+			}
 		}
 	}
 }
