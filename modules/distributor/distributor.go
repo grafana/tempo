@@ -215,13 +215,14 @@ func (d *Distributor) stopping(_ error) error {
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
-// Push a set of streams.
+// Push pushes a trace
 func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
 	return d.PushBatches(ctx, []*v1.ResourceSpans{
 		req.Batch,
 	})
 }
 
+// Push batches pushes a batch of traces
 func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpans) (*tempopb.PushResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -237,7 +238,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	size := 0
 	spanCount := 0
 	for _, b := range batches {
-		for _, ils := range b.InstrumentationLibrarySpans { // fix this double loop, can combine this and size
+		for _, ils := range b.InstrumentationLibrarySpans {
 			spanCount += len(ils.Spans)
 			size += ils.Size()
 		}
@@ -363,9 +364,10 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint32]*traceAndID, tracesPerBatch)
-	spansByILS := make(map[uint32]*v1.InstrumentationLibrarySpans)
 
 	for _, b := range batches {
+		spansByILS := make(map[uint32]*v1.InstrumentationLibrarySpans)
+
 		for _, ils := range b.InstrumentationLibrarySpans {
 			for _, span := range ils.Spans {
 				traceID := span.TraceId
