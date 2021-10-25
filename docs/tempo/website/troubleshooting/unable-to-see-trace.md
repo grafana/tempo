@@ -114,19 +114,14 @@ Possible reasons for the above errors are:
 
 #### Solutions
 - Fixing connection issues
-  - In case where the queriers are not connected to the Query Frontend, check the following section in Querier configuration and make sure the address of the Query Frontend is correct
+  - If the queriers are not connected to the Query Frontend, check the following section in Querier configuration and make sure the address of the Query Frontend is correct
     ```
     querier:
       frontend_worker:
         frontend_address: query-frontend-discovery.default.svc.cluster.local:9095
     ```
   - Verify the `backend.yaml` configuration file present on the Tempo Query container and make sure it is attempting to connect to the right port of the query frontend.
-  - Verify the Grafana Tempo Datasource configuration, and make sure it has the following settings configured:
-    ```
-    jsonData:
-      httpHeaderName1: 'Authorization'
-    secureJsonData:
-      httpHeaderValue1: 'Bearer <tenant-id>'
-    ```
+    **Note** this is only relevant for [Grafana 7.4.x and before](https://grafana.com/docs/tempo/latest/configuration/querying/#grafana-74x).
+  - Confirm that the Grafana datasource is configured correctly and debug network issues between Grafana and Tempo.
 - Fixing insufficient permissions issue
   - Verify that the Querier has the LIST and GET permissions on the bucket.
