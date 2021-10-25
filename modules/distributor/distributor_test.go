@@ -153,9 +153,12 @@ func TestRequestsByTraceID(t *testing.T) { // jpe update test
 			},
 		},
 		{
-			name: "two traces, two batches",
+			name: "two traces, distinct batches",
 			batches: []*v1.ResourceSpans{
 				{
+					Resource: &v1_resource.Resource{
+						DroppedAttributesCount: 3,
+					},
 					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
 						{
 							Spans: []*v1.Span{
@@ -163,6 +166,9 @@ func TestRequestsByTraceID(t *testing.T) { // jpe update test
 									TraceId: traceIDA,
 								}}}}},
 				{
+					Resource: &v1_resource.Resource{
+						DroppedAttributesCount: 4,
+					},
 					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
 						{
 							Spans: []*v1.Span{
@@ -175,6 +181,9 @@ func TestRequestsByTraceID(t *testing.T) { // jpe update test
 				{
 					Batches: []*v1.ResourceSpans{
 						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 3,
+							},
 							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
 								{
 									Spans: []*v1.Span{
@@ -185,6 +194,9 @@ func TestRequestsByTraceID(t *testing.T) { // jpe update test
 				{
 					Batches: []*v1.ResourceSpans{
 						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 4,
+							},
 							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
 								{
 									Spans: []*v1.Span{
@@ -351,7 +363,7 @@ func TestRequestsByTraceID(t *testing.T) { // jpe update test
 			},
 		},
 		{
-			name: "one trace, two batches - don't combine across batches",
+			name: "two traces - two batches - don't combine across batches",
 			batches: []*v1.ResourceSpans{
 				{
 					Resource: &v1_resource.Resource{
@@ -370,6 +382,10 @@ func TestRequestsByTraceID(t *testing.T) { // jpe update test
 								{
 									TraceId: traceIDB,
 									Name:    "spanC",
+								},
+								{
+									TraceId: traceIDA,
+									Name:    "spanE",
 								}}}}},
 				{
 					Resource: &v1_resource.Resource{
@@ -384,10 +400,15 @@ func TestRequestsByTraceID(t *testing.T) { // jpe update test
 								{
 									TraceId: traceIDB,
 									Name:    "spanB",
+								},
+								{
+									TraceId: traceIDA,
+									Name:    "spanD",
 								}}}}},
 			},
 			expectedKeys: []uint32{
 				util.TokenFor(util.FakeTenantID, traceIDB),
+				util.TokenFor(util.FakeTenantID, traceIDA),
 			},
 			expectedTraces: []*tempopb.Trace{
 				{
@@ -426,9 +447,42 @@ func TestRequestsByTraceID(t *testing.T) { // jpe update test
 										}}}}},
 					},
 				},
+				{
+					Batches: []*v1.ResourceSpans{
+						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 3,
+							},
+							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+								{
+									InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+										Name: "test",
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId: traceIDA,
+											Name:    "spanE",
+										}}}}},
+						{
+							Resource: &v1_resource.Resource{
+								DroppedAttributesCount: 4,
+							},
+							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+								{
+									InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+										Name: "test2",
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId: traceIDA,
+											Name:    "spanD",
+										}}}}},
+					},
+				},
 			},
 			expectedIDs: [][]byte{
 				traceIDB,
+				traceIDA,
 			},
 		},
 	}
