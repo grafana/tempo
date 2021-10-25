@@ -12,6 +12,7 @@ data:
                 protocols:
                     grpc:
                         endpoint: 0.0.0.0:55680
+    http_api_prefix: ""
     ingester:
         lifecycler:
             ring:
@@ -23,6 +24,7 @@ data:
           - gossip-ring.tracing.svc.cluster.local:7946
     overrides:
         per_tenant_override_config: /overrides/overrides.yaml
+    search_enabled: false
     server:
         http_listen_port: 3200
     storage:

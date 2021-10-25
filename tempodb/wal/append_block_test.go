@@ -1,56 +1,12 @@
 package wal
 
 import (
-	"os"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-func TestAppendBlockBuffersAndFlushes(t *testing.T) {
-	// direct call to flush
-	testBufferAndFlush(t, func(a *AppendBlock) {
-		err := a.FlushBuffer()
-		assert.NoError(t, err)
-	})
-
-	// find
-	testBufferAndFlush(t, func(a *AppendBlock) {
-		_, err := a.Find([]byte{0x01}, &mockCombiner{}) // 0x01 has to be in the block or it won't flush. this happens to sync with below
-		assert.NoError(t, err)
-	})
-
-	// iterator
-	testBufferAndFlush(t, func(a *AppendBlock) {
-		_, err := a.Iterator(&mockCombiner{})
-		assert.NoError(t, err)
-	})
-}
-
-func testBufferAndFlush(t *testing.T, fn func(a *AppendBlock)) {
-	tmpDir := t.TempDir()
-	a, err := newAppendBlock(uuid.New(), testTenantID, tmpDir, backend.EncNone, "", 1000)
-	require.NoError(t, err)
-
-	err = a.Append([]byte{0x01}, []byte{0x01})
-	require.NoError(t, err)
-
-	filename := a.fullFilename()
-
-	// file should be 0 length
-	info, err := os.Stat(filename)
-	require.NoError(t, err)
-	assert.Equal(t, int64(0), info.Size())
-
-	// do something and confirm the file has flusehd something is in the file
-	fn(a)
-	info, err = os.Stat(filename)
-	require.NoError(t, err)
-	assert.NotZero(t, info.Size())
-}
 
 func TestFullFilename(t *testing.T) {
 	tests := []struct {

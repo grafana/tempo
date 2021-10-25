@@ -57,7 +57,27 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	return resp, nil
 }
 
-func (c *Client) SearchTag(key, value string) (*tempopb.SearchResponse, error) {
+func (c *Client) SearchTags() (*tempopb.SearchTagsResponse, error) {
+	m := &tempopb.SearchTagsResponse{}
+	_, err := c.getFor(c.BaseURL+"/api/search/tags", m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, error) {
+	m := &tempopb.SearchTagValuesResponse{}
+	_, err := c.getFor(c.BaseURL+"/api/search/tag/"+key+"/values", m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) SearchWithTag(key, value string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
 	_, err := c.getFor(c.BaseURL+"/api/search?"+key+"="+value, m)
 	if err != nil {

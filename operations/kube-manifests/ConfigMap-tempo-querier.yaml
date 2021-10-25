@@ -3,6 +3,7 @@ data:
   tempo.yaml: |
     compactor: {}
     distributor: {}
+    http_api_prefix: ""
     ingester:
         lifecycler:
             ring:
@@ -17,6 +18,7 @@ data:
     querier:
         frontend_worker:
             frontend_address: query-frontend-discovery.tracing.svc.cluster.local:9095
+    search_enabled: false
     server:
         http_listen_port: 3200
         log_level: debug
