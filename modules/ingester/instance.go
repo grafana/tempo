@@ -565,10 +565,10 @@ func pushRequestTraceID(req *tempopb.PushRequest) ([]byte, error) {
 	return req.Batch.InstrumentationLibrarySpans[0].Spans[0].TraceId, nil
 }
 
-func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
+func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock, error) {
 	ids, err := i.localReader.Blocks(ctx, i.instanceID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	hasWal := func(id uuid.UUID) bool {
@@ -581,6 +581,8 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 		}
 		return false
 	}
+
+	var rediscoveredBlocks []*wal.LocalBlock
 
 	for _, id := range ids {
 
@@ -599,23 +601,25 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 				level.Warn(log.Logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "tenant", i.instanceID, "block", id.String())
 				err = i.local.ClearBlock(id, i.instanceID)
 				if err != nil {
-					return errors.Wrapf(err, "deleting bad local block tenant %v block %v", i.instanceID, id.String())
+					return nil, errors.Wrapf(err, "deleting bad local block tenant %v block %v", i.instanceID, id.String())
 				}
 				continue
 			}
 
-			return err
+			return nil, err
 		}
 
 		b, err := encoding.NewBackendBlock(meta, i.localReader)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		ib, err := wal.NewLocalBlock(ctx, b, i.local)
 		if err != nil {
-			return err
+			return nil, err
 		}
+
+		rediscoveredBlocks = append(rediscoveredBlocks, ib)
 
 		sb := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)
 
@@ -627,5 +631,5 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())
 	}
 
-	return nil
+	return rediscoveredBlocks, nil
 }
