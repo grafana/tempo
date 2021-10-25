@@ -2,15 +2,15 @@ package e2e
 
 import (
 	"compress/gzip"
-	"context"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
+	"github.com/gogo/protobuf/jsonpb"
 	util "github.com/grafana/tempo/integration"
-	"github.com/stretchr/testify/assert"
+	"github.com/grafana/tempo/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,32 +32,33 @@ func TestCompression(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
-	// send a small trace, response will not be compressed
-	batch := makeThriftBatch()
-	require.NoError(t, c.EmitBatch(context.Background(), batch))
+	info := tempoUtil.NewTraceInfo(time.Now(), "")
+	require.NoError(t, info.EmitAllBatches(c))
 
-	hexID := fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
+	apiClient := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), "")
 
-	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
-	assert.False(t, queryAndAssertTraceCompression(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1))
+	apiClientWithCompression := tempoUtil.NewClientWithCompression("http://"+tempo.Endpoint(3200), "")
 
-	// send a large trace, response should be compressed
-	batch = makeThriftBatchWithSpanCount(50) // one span is ~70 bytes, 50 spans is ~3500 bytes
-	require.NoError(t, c.EmitBatch(context.Background(), batch))
-
-	hexID = fmt.Sprintf("%016x%016x", batch.Spans[0].TraceIdHigh, batch.Spans[0].TraceIdLow)
-
-	queryAndAssertTrace(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1)
-	assert.True(t, queryAndAssertTraceCompression(t, "http://"+tempo.Endpoint(3200)+"/api/traces/"+hexID, "my operation", 1))
+	queryAndAssertTrace(t, apiClient, info)
+	queryAndAssertTraceCompression(t, apiClientWithCompression, info)
 }
 
-func queryAndAssertTraceCompression(t *testing.T, url string, expectedName string, expectedBatches int) (responseIsCompressed bool) {
+func queryAndAssertTraceCompression(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+
+	// The recieved client will strip the header before we have a chance to inspect it, so just validate that the compressed client works as expected.
+	result, resp, err := client.QueryTraceWithResponse(info.HexID())
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+	require.True(t, equalTraces(result, expected))
+
 	// Go's http.Client transparently requests gzip compression and automatically decompresses the
-	// response, to disable this behaviour you have to explicitly set the Accept-Encoding header
+	// response, to disable this behaviour you have to explicitly set the Accept-Encoding header.
 
-	client := &http.Client{Timeout: 1 * time.Second}
-
-	request, err := http.NewRequest("GET", url, nil)
+	// Make the call directly so we have a chance to inspect the response header and manually un-gzip it ourselves to confirm the content.
+	request, err := http.NewRequest("GET", client.BaseURL+tempoUtil.QueryTraceEndpoint+"/"+info.HexID(), nil)
 	require.NoError(t, err)
 	request.Header.Add("Accept-Encoding", "gzip")
 
@@ -65,17 +66,27 @@ func queryAndAssertTraceCompression(t *testing.T, url string, expectedName strin
 	require.NoError(t, err)
 	defer res.Body.Close()
 
-	if res.Header.Get("Content-Encoding") == "gzip" {
-		responseIsCompressed = true
+	require.Equal(t, "gzip", res.Header.Get("Content-Encoding"))
 
-		gzipReader, err := gzip.NewReader(res.Body)
-		require.NoError(t, err)
-		defer gzipReader.Close()
+	gzipReader, err := gzip.NewReader(res.Body)
+	require.NoError(t, err)
+	defer gzipReader.Close()
 
-		assertTrace(t, gzipReader, expectedBatches, expectedName)
-	} else {
-		assertTrace(t, res.Body, expectedBatches, expectedName)
-	}
+	m := &tempopb.Trace{}
+	unmarshaller := &jsonpb.Unmarshaler{}
+	err = unmarshaller.Unmarshal(gzipReader, m)
+	require.NoError(t, err)
+	require.True(t, equalTraces(expected, m))
 
 	return
+}
+
+func queryAndAssert___(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+	resp, err := client.QueryTrace(info.HexID())
+	require.NoError(t, err)
+
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	require.True(t, equalTraces(resp, expected))
 }
