@@ -120,27 +120,60 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 
 ### Search
 
-<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
 Tempo's Search API finds traces based on span and process attributes (tags and values).  The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request is used to find traces containing spans
 from service "myservice" and the url contains "api/myapi".
 
 ```
-GET /api/search?service.name=myservice&http.url=api/myapi
+GET /api/search?tags=service.name%3Dmyservice%20http.url%3Dapi%2Fmyapi
 ```
 
-Each query parameter is of the form <name>=<value>, where <name> is the name of any span-level or process-level attribute.  The value is matched as a case-insensitive substring.  There are several reserved query parameters:
+The URL query parameters support the following values:
+- `tags = (logfmt)`: logfmt encoding of any span-level or process-level attributes to filter on. The value is matched as a case-insensitive substring. Key-value pairs are separated by spaces. If a value contains a space, it should be enclosed within double quotes.
 - `minDuration = (go duration value)`
   Optional.  Find traces with at least this duration.  Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
 - `maxDuration = (go duration value)`
   Optional.  Find traces with no greater than this duration.  Uses the same form as `minDuration`.
 - `limit = (integer)`
-  Optional.  Limit the number of search results. Default is 100.
+  Optional.  Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration](../configuration#querier).
+
+#### Example
+
+Example of how to query Tempo using curl.
+This query will return all traces that have a tag `service.name` containing `cartservice` and a minimum duration of 600 ms.
+
+```bash
+$ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.name=cartservice' --data-urlencode minDuration=600ms | jq
+{
+  "traces": [
+    {
+      "traceID": "d6e9329d67b6146a",
+      "rootServiceName": "frontend",
+      "rootTraceName": "/cart",
+      "startTimeUnixNano": "1634727903545000000",
+      "durationMs": 611
+    },
+    {
+      "traceID": "1b1ba462b409200d",
+      "rootServiceName": "frontend",
+      "rootTraceName": "/cart",
+      "startTimeUnixNano": "1634727775935000000",
+      "durationMs": 611
+    }
+  ],
+  "metrics": {
+    "inspectedTraces": 3100,
+    "inspectedBytes": "3811736",
+    "inspectedBlocks": 3
+  }
+}
+```
 
 ### Search Tags
 
-<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.
@@ -149,15 +182,64 @@ a microservices deployment, or the Tempo endpoint in a single binary deployment.
 GET /api/search/tags
 ```
 
+#### Example
+
+Example of how to query Tempo using curl.
+This query will return all discovered tag names.
+
+```bash
+$ curl -G -s http://localhost:3200/api/search/tags  | jq
+{
+  "tagNames": [
+    "host.name",
+    "http.method",
+    "http.status_code",
+    "http.url",
+    "ip",
+    "load_generator.seq_num",
+    "name",
+    "opencensus.exporterversion",
+    "region",
+    "root.name",
+    "root.service.name",
+    "root_cause_error",
+    "sampler.param",
+    "sampler.type",
+    "service.name",
+    "starter",
+    "version"
+  ]
+}
+```
+
 ### Search Tag Values
 
-<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the search_enabled YAML config option.</span>
+<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
 This endpoint retrieves all discovered values for the given tag, which can be used in search.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request will return all discovered service names.
 
 ```
 GET /api/search/tag/service.name/values
+```
+
+#### Example
+
+Example of how to query Tempo using curl.
+This query will return all discovered values for the tag `service.name`.
+
+```bash
+$ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
+{
+  "tagValues": [
+    "adservice",
+    "cartservice",
+    "checkoutservice",
+    "frontend",
+    "productcatalogservice",
+    "recommendationservice"
+  ]
+}
 ```
 
 ### Query Echo Endpoint

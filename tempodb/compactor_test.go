@@ -104,27 +104,24 @@ func TestCompaction(t *testing.T) {
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
 		head, err := wal.NewBlock(blockID, testTenantID, "")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		reqs := make([]*tempopb.PushRequest, 0, recordCount)
 		ids := make([][]byte, 0, recordCount)
 		for j := 0; j < recordCount; j++ {
 			id := make([]byte, 16)
 			_, err = rand.Read(id)
-			assert.NoError(t, err, "unexpected creating random id")
+			require.NoError(t, err, "unexpected creating random id")
 
 			req := test.MakeRequest(10, id)
 			reqs = append(reqs, req)
 			ids = append(ids, id)
 
 			bReq, err := proto.Marshal(req)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			err = head.Append(id, bReq)
-			assert.NoError(t, err, "unexpected error writing req")
+			require.NoError(t, err, "unexpected error writing req")
 		}
-		err = head.FlushBuffer()
-		require.NoError(t, err)
-
 		allReqs = append(allReqs, reqs...)
 		allIds = append(allIds, ids...)
 
@@ -235,16 +232,14 @@ func TestSameIDCompaction(t *testing.T) {
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
 		head, err := wal.NewBlock(blockID, testTenantID, "")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		id := []byte{0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02}
 
 		// Different content to ensure that object combination takes place
 		rec, _ := proto.Marshal(test.MakeTrace(1, id))
 
 		err = head.Append(id, rec)
-		require.NoError(t, err)
-		err = head.FlushBuffer()
-		require.NoError(t, err)
+		require.NoError(t, err, "unexpected error writing req")
 
 		_, err = w.CompleteBlock(head, &mockSharder{})
 		require.NoError(t, err)
@@ -491,7 +486,7 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 	wal := w.WAL()
 	for i := 0; i < blockCount; i++ {
 		head, err := wal.NewBlock(uuid.New(), tenantID, "")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {
 			// Use i and j to ensure unique ids
@@ -502,13 +497,11 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 				makeTraceID(i, j),
 				body)
 			//[]byte{0x01, 0x02, 0x03})
-			assert.NoError(t, err, "unexpected error writing rec")
+			require.NoError(t, err, "unexpected error writing rec")
 		}
-		err = head.FlushBuffer()
-		require.NoError(t, err)
 
 		b, err := w.CompleteBlock(head, &mockSharder{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		blocks = append(blocks, b)
 	}
 

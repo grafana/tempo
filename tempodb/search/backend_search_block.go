@@ -13,8 +13,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var _ SearchableBlock = (*BackendSearchBlock)(nil)
-
 const defaultBackendSearchBlockPageSize = 2 * 1024 * 1024
 
 type BackendSearchBlock struct {
@@ -135,6 +133,11 @@ func OpenBackendSearchBlock(blockID uuid.UUID, tenantID string, r backend.Reader
 		tenantID: tenantID,
 		r:        r,
 	}
+}
+
+// BlockID provides access to the private field id
+func (s *BackendSearchBlock) BlockID() uuid.UUID {
+	return s.id
 }
 
 // Search iterates through the block looking for matches.

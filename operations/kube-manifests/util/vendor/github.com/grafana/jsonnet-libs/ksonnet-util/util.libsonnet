@@ -103,42 +103,55 @@ local util(k) = {
   // For example, passing "volumeMount.withSubPath(subpath)" will result in
   // a subpath mixin.
   configVolumeMount(name, path, volumeMountMixin={})::
-    local container = k.core.v1.container,
-          deployment = k.apps.v1.deployment,
-          volumeMount = k.core.v1.volumeMount,
-          volume = k.core.v1.volume,
-          addMount(c) = c + container.withVolumeMountsMixin(
-      volumeMount.new(name, path) +
-      volumeMountMixin,
-    );
-
-    deployment.mapContainers(addMount) +
-    deployment.mixin.spec.template.spec.withVolumesMixin([
-      volume.fromConfigMap(name, name),
-    ]),
+    $.volumeMounts([$.volumeMountItem(name, path, volumeMountMixin)]),
 
   // configMapVolumeMount adds a configMap to deployment-like objects.
   // It will also add an annotation hash to ensure the pods are re-deployed
   // when the config map changes.
   configMapVolumeMount(configMap, path, volumeMountMixin={})::
-    local name = configMap.metadata.name,
-          hash = std.md5(std.toString(configMap)),
-          container = k.core.v1.container,
+    $.volumeMounts([$.configMapVolumeMountItem(configMap, path, volumeMountMixin)]),
+
+
+  // configMapVolumeMountItem represents a config map to be mounted.
+  // It is used in the volumeMounts function
+  configMapVolumeMountItem(configMap, path, volumeMountMixin={})::
+    local name = configMap.metadata.name;
+    local annotations = { ['%s-hash' % name]: std.md5(std.toString(configMap)) };
+    $.volumeMountItem(name, path, volumeMountMixin, annotations),
+
+  // volumeMountItem represents a volume to be mounted.
+  // It is used in the volumeMounts function
+  volumeMountItem(name, path, volumeMountMixin={}, annotations={}):: {
+    name: name,
+    path: path,
+    volumeMountMixin: volumeMountMixin,
+    annotations: annotations,
+  },
+
+  // volumeMounts adds an array of volumeMountItem to deployment-like objects.
+  // It can also add a set of annotations for each mount
+  volumeMounts(mounts)::
+    local container = k.core.v1.container,
           deployment = k.apps.v1.deployment,
           volumeMount = k.core.v1.volumeMount,
-          volume = k.core.v1.volume,
-          addMount(c) = c + container.withVolumeMountsMixin(
-      volumeMount.new(name, path) +
-      volumeMountMixin,
+          volume = k.core.v1.volume;
+    local addMounts(c) = c + container.withVolumeMountsMixin([
+      volumeMount.new(m.name, m.path) +
+      m.volumeMountMixin
+      for m in mounts
+    ]);
+    local annotations = std.foldl(
+      function(acc, ann) acc + ann,
+      [m.annotations for m in mounts],
+      {}
     );
 
-    deployment.mapContainers(addMount) +
-    deployment.mixin.spec.template.spec.withVolumesMixin([
-      volume.fromConfigMap(name, name),
-    ]) +
-    deployment.mixin.spec.template.metadata.withAnnotationsMixin({
-      ['%s-hash' % name]: hash,
-    }),
+    deployment.mapContainers(addMounts)
+    + deployment.mixin.spec.template.spec.withVolumesMixin([
+      volume.fromConfigMap(m.name, m.name)
+      for m in mounts
+    ])
+    + (if annotations != {} then deployment.mixin.spec.template.metadata.withAnnotationsMixin(annotations) else {}),
 
   hostVolumeMount(name, hostPath, path, readOnly=false, volumeMountMixin={})::
     local container = k.core.v1.container,

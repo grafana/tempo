@@ -98,7 +98,7 @@ type searchStreamingBlockEntry struct {
 }
 
 type searchLocalBlockEntry struct {
-	b   search.SearchableBlock
+	b   *search.BackendSearchBlock
 	mtx sync.RWMutex
 }
 
@@ -217,7 +217,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		tempopb.ReuseTraceBytes(t.traceBytes)
 	}
 
-	return i.flushHeadBlock()
+	return nil
 }
 
 // CutBlockIfReady cuts a completingBlock from the HeadBlock if ready
@@ -281,7 +281,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	oldSearch := i.searchAppendBlocks[completingBlock]
 	i.blocksMtx.RUnlock()
 
-	var newSearch search.SearchableBlock
+	var newSearch *search.BackendSearchBlock
 	if oldSearch != nil {
 		newSearch, err = i.writer.CompleteSearchBlockWithBackend(oldSearch.b, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID, i.localReader, i.localWriter)
 		if err != nil {
@@ -497,12 +497,12 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file
-	f, bufferedWriter, version, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
+	f, version, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
 	if err != nil {
 		return err
 	}
 
-	b, err := search.NewStreamingSearchBlockForFile(f, bufferedWriter, version, enc)
+	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockID(), version, enc)
 	if err != nil {
 		return err
 	}
@@ -533,11 +533,10 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	return tracesToCut
 }
 
-// writeTraceToHeadBlock adds the id, object and search data to the head block(s). It handles
-// it's own locking.
 func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
+
 	err := i.headBlock.Append(id, b)
 	if err != nil {
 		return err
@@ -548,27 +547,6 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 		entry.mtx.Lock()
 		defer entry.mtx.Unlock()
 		err := entry.b.Append(context.TODO(), id, searchData)
-		return err
-	}
-
-	return nil
-}
-
-// flushHeadBlock flushes any remaining data in the head blocks. This must be called
-// after a batch of writeTraceToHeadBlocks to ensure that all data is on disk.
-func (i *instance) flushHeadBlock() error {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-	err := i.headBlock.FlushBuffer()
-	if err != nil {
-		return err
-	}
-
-	entry := i.searchHeadBlock
-	if entry != nil {
-		entry.mtx.Lock()
-		err := entry.b.FlushBuffer()
-		entry.mtx.Unlock()
 		return err
 	}
 
@@ -593,10 +571,10 @@ func pushRequestTraceID(req *tempopb.PushRequest) ([]byte, error) {
 	return req.Batch.InstrumentationLibrarySpans[0].Spans[0].TraceId, nil
 }
 
-func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
+func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock, error) {
 	ids, err := i.localReader.Blocks(ctx, i.instanceID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	hasWal := func(id uuid.UUID) bool {
@@ -609,6 +587,8 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 		}
 		return false
 	}
+
+	var rediscoveredBlocks []*wal.LocalBlock
 
 	for _, id := range ids {
 
@@ -627,23 +607,25 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 				level.Warn(log.Logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "tenant", i.instanceID, "block", id.String())
 				err = i.local.ClearBlock(id, i.instanceID)
 				if err != nil {
-					return errors.Wrapf(err, "deleting bad local block tenant %v block %v", i.instanceID, id.String())
+					return nil, errors.Wrapf(err, "deleting bad local block tenant %v block %v", i.instanceID, id.String())
 				}
 				continue
 			}
 
-			return err
+			return nil, err
 		}
 
 		b, err := encoding.NewBackendBlock(meta, i.localReader)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		ib, err := wal.NewLocalBlock(ctx, b, i.local)
 		if err != nil {
-			return err
+			return nil, err
 		}
+
+		rediscoveredBlocks = append(rediscoveredBlocks, ib)
 
 		sb := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)
 
@@ -655,5 +637,5 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) error {
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())
 	}
 
-	return nil
+	return rediscoveredBlocks, nil
 }

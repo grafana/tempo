@@ -90,6 +90,10 @@
       tempoPushUrl: 'http://distributor',
       tempoQueryUrl: 'http://query-frontend:%s' % $._config.port,
       tempoOrgId: '',
+      tempoRetentionDuration: '',
+      tempoSearchBackoffDuration: '',
+      tempoReadBackoffDuration: '',
+      tempoWriteBackoffDuration: '',
     },
     ballast_size_mbs: '1024',
     port: 3200,
@@ -97,6 +101,7 @@
     gossip_ring_port: 7946,
     backend: error 'Must specify a backend',  // gcs|s3
     bucket: error 'Must specify a bucket',
+    search_enabled: false,
 
     overrides_configmap_name: 'tempo-overrides',
     overrides+:: {

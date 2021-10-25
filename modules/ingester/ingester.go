@@ -343,7 +343,7 @@ func (i *Ingester) replayWal() error {
 	for j := len(searchBlocks) - 1; j >= 0; j-- {
 		clear := true
 		for _, tracesBlock := range blocks {
-			if searchBlocks[j].BlockID == tracesBlock.BlockID() {
+			if searchBlocks[j].BlockID() == tracesBlock.BlockID() {
 				clear = false
 				break
 			}
@@ -379,7 +379,7 @@ func (i *Ingester) replayWal() error {
 
 		var searchWALBlock *search.StreamingSearchBlock
 		for _, s := range searchBlocks {
-			if b.BlockID() == s.BlockID {
+			if b.BlockID() == s.BlockID() {
 				searchWALBlock = s
 				break
 			}
@@ -415,13 +415,13 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 			return err
 		}
 
-		err = inst.rediscoverLocalBlocks(ctx)
+		newBlocks, err := inst.rediscoverLocalBlocks(ctx)
 		if err != nil {
 			return errors.Wrapf(err, "getting local blocks for tenant %v", t)
 		}
 
 		// Requeue needed flushes
-		for _, b := range inst.completeBlocks {
+		for _, b := range newBlocks {
 			if b.FlushedTime().IsZero() {
 				i.enqueue(&flushOp{
 					kind:    opKindFlush,
