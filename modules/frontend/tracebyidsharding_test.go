@@ -203,7 +203,6 @@ func TestShardingWareDoRequest(t *testing.T) {
 			trace2:        trace1,
 			expectedError: errors.New("booo"),
 		},
-
 		{
 			name:          "500+err",
 			status1:       500,
@@ -288,22 +287,24 @@ func TestShardingWareDoRequest(t *testing.T) {
 					return nil, err
 				}
 
-				var resBytes []byte
-				if trace != nil {
-					resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
-						Trace: trace,
-						Metrics: &tempopb.TraceByIDMetrics{
-							FailedBlocks: uint32(failedBlockQueries),
-						},
-					})
-					require.NoError(t, err)
-				} else {
-					resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
-						Metrics: &tempopb.TraceByIDMetrics{
-							FailedBlocks: uint32(failedBlockQueries),
-						},
-					})
-					require.NoError(t, err)
+				resBytes := []byte("error occurred")
+				if statusCode != 500 {
+					if trace != nil {
+						resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
+							Trace: trace,
+							Metrics: &tempopb.TraceByIDMetrics{
+								FailedBlocks: uint32(failedBlockQueries),
+							},
+						})
+						require.NoError(t, err)
+					} else {
+						resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
+							Metrics: &tempopb.TraceByIDMetrics{
+								FailedBlocks: uint32(failedBlockQueries),
+							},
+						})
+						require.NoError(t, err)
+					}
 				}
 
 				return &http.Response{
