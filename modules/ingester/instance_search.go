@@ -1,7 +1,6 @@
 package ingester
 
 import (
-	"bytes"
 	"context"
 	"sort"
 
@@ -216,18 +215,14 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	kv := &tempofb.KeyValues{}
 	tagNameBytes := []byte(tagName)
 	err := i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
-		// TODO use binary search here
-		for i, tagsLength := 0, entry.TagsLength(); i < tagsLength; i++ {
-			entry.Tags(kv, i)
-			if bytes.Equal(kv.Key(), tagNameBytes) {
-
-				for j, valueLength := 0, kv.ValueLength(); j < valueLength; j++ {
-					// check the value is already set, this is more performant with repetitive values
-					if _, ok := values[string(kv.Value(j))]; !ok {
-						values[string(kv.Value(j))] = struct{}{}
-					}
+		kv := tempofb.FindTag(entry, kv, tagNameBytes)
+		if kv != nil {
+			for i, ii := 0, kv.ValueLength(); i < ii; i++ {
+				key := string(kv.Value(i))
+				// check the value is already set, this is more performant with repetitive values
+				if _, ok := values[key]; !ok {
+					values[key] = struct{}{}
 				}
-				break
 			}
 		}
 	})

@@ -2,7 +2,6 @@ package tempofb
 
 import (
 	"bytes"
-	"sort"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/grafana/tempo/tempodb/encoding/common"

@@ -1,7 +1,6 @@
 package search
 
 import (
-	"bytes"
 	"context"
 	"io"
 
@@ -150,8 +149,10 @@ func (s *BackendSearchBlock) Tags(ctx context.Context, tags map[string]struct{})
 	kv := &tempofb.KeyValues{}
 	for i, ii := 0, header.TagsLength(); i < ii; i++ {
 		header.Tags(kv, i)
-		if _, ok := tags[string(kv.Key())]; !ok {
-			tags[string(kv.Key())] = struct{}{}
+		key := string(kv.Key())
+		// check the tag is already set, this is more performant with repetitive values
+		if _, ok := tags[key]; !ok {
+			tags[key] = struct{}{}
 		}
 	}
 
@@ -164,22 +165,16 @@ func (s *BackendSearchBlock) TagValues(ctx context.Context, tagName string, tagV
 		return err
 	}
 
-	kv := &tempofb.KeyValues{}
-	tagNameBytes := []byte(tagName)
-	for i, tagsLength := 0, header.TagsLength(); i < tagsLength; i++ {
-		header.Tags(kv, i)
-
-		// TODO use binary search?
-		if bytes.Equal(kv.Key(), tagNameBytes) {
-			for j, valueLength := 0, kv.ValueLength(); j < valueLength; j++ {
-				if _, ok := tagValues[string(kv.Value(j))]; !ok {
-					tagValues[string(kv.Value(j))] = struct{}{}
-				}
+	kv := tempofb.FindTag(header, &tempofb.KeyValues{}, []byte(tagName))
+	if kv != nil {
+		for j, valueLength := 0, kv.ValueLength(); j < valueLength; j++ {
+			value := string(kv.Value(j))
+			// check the value is already set, this is more performant with repetitive values
+			if _, ok := tagValues[value]; !ok {
+				tagValues[value] = struct{}{}
 			}
-			break
 		}
 	}
-
 	return nil
 }
 
