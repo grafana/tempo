@@ -155,7 +155,6 @@ func (t *App) initQuerier() (services.Service, error) {
 
 	middleware := middleware.Merge(
 		t.HTTPAuthMiddleware,
-		httpGzipMiddleware(),
 	)
 
 	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
