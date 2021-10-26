@@ -452,12 +452,12 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 		cuts++
 	})
 
-	/*go concurrent(func() {
+	go concurrent(func() {
 		// Slow this down to prevent "too many open files" error
 		time.Sleep(100 * time.Millisecond)
 		_, err := i.CutBlockIfReady(0, 0, true)
 		require.NoError(b, err)
-	})*/
+	})
 
 	var searches atomic.Int32
 	var bytesInspected atomic.Uint64
