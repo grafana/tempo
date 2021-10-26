@@ -90,23 +90,24 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 }
 
 func (s *StreamingSearchBlock) Tags(ctx context.Context, tags map[string]struct{}) error {
-	for k := range s.header.Tags {
+	s.header.Tags.Range(func(k, v string) {
 		if _, ok := tags[k]; !ok {
 			tags[k] = struct{}{}
 		}
-	}
+	})
 	return nil
 }
 
 func (s *StreamingSearchBlock) TagValues(ctx context.Context, tagName string, tagValues map[string]struct{}) error {
-	if values, ok := s.header.Tags[tagName]; ok {
-		for _, v := range values {
-			// TODO use binary search?
+	// TODO optimize to grab all values of tagName
+	s.header.Tags.Range(func(k, v string) {
+		if tagName == k {
 			if _, ok := tagValues[v]; !ok {
 				tagValues[v] = struct{}{}
 			}
+
 		}
-	}
+	})
 	return nil
 }
 
