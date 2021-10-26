@@ -13,11 +13,11 @@ const (
 )
 
 var (
-	hedgedRequestsMetrics = promauto.NewCounter(
-		prometheus.CounterOpts{
+	hedgedRequestsMetrics = promauto.NewGauge(
+		prometheus.GaugeOpts{
 			Namespace: "tempodb",
 			Name:      "backend_hedged_roundtrips_total",
-			Help:      "Total number of hedged backend requests",
+			Help:      "Total number of hedged backend requests. Registered as a gauge for code sanity. This is a counter.",
 		},
 	)
 )
@@ -27,7 +27,7 @@ func PublishHedgedMetrics(s *hedgedhttp.Stats) {
 	ticker := time.NewTicker(hedgedMetricsPublishDuration)
 	go func() {
 		for range ticker.C {
-			hedgedRequestsMetrics.Add(float64(s.Snapshot().RequestedRoundTrips))
+			hedgedRequestsMetrics.Set(float64(s.Snapshot().RequestedRoundTrips))
 		}
 	}()
 }
