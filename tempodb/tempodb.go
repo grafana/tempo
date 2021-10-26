@@ -348,14 +348,12 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	for _, b := range partialTraces {
 		size += len(b)
 	}
-	span.LogKV(
-		"bytesFound", size,
-		"blockErrs", len(funcErrs),
-		"liveBlocks", len(blocklist),
-		"liveBlocksSearched", blocksSearched,
-		"compactedBlocks", len(compactedBlocklist),
-		"compactedBlocksSearched", compactedBlocksSearched,
-	)
+	span.SetTag("bytesFound", size)
+	span.SetTag("blockErrs", len(funcErrs))
+	span.SetTag("liveBlocks", len(blocklist))
+	span.SetTag("liveBlocksSearched", blocksSearched)
+	span.SetTag("compactedBlocks", len(compactedBlocklist)
+	span.SetTag("compactedBlocksSearched", compactedBlocksSearched)
 
 	return partialTraces, dataEncodings, funcErrs, err
 }
