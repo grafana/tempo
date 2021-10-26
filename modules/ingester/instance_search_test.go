@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/atomic"
 )
 
 func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
@@ -402,7 +403,6 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	ctx := context.TODO()
-	//n := 1_000_000
 
 	i := defaultInstance(b, b.TempDir())
 
@@ -419,53 +419,80 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 		}
 	}
 
+	// Push data
+	var tracesPushed atomic.Int32
+	for j := 0; j < 2; j++ {
+		go concurrent(func() {
+			id := make([]byte, 16)
+			rand.Read(id)
+
+			trace := test.MakeTrace(10, id)
+			traceBytes, err := trace.Marshal()
+			require.NoError(b, err)
+
+			searchData := &tempofb.SearchEntryMutable{}
+			searchData.TraceID = id
+			searchData.AddTag("foo", "bar")
+			searchData.AddTag("foo", "baz")
+			searchData.AddTag("bar", "bar")
+			searchData.AddTag("bar", "baz")
+			searchBytes := searchData.ToBytes()
+
+			// searchData will be nil if not
+			err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+			require.NoError(b, err)
+
+			tracesPushed.Inc()
+		})
+	}
+
+	cuts := 0
 	go concurrent(func() {
-		id := make([]byte, 16)
-		rand.Read(id)
-
-		trace := test.MakeTrace(10, id)
-		traceBytes, err := trace.Marshal()
-		require.NoError(b, err)
-
-		searchData := &tempofb.SearchEntryMutable{}
-		searchData.TraceID = id
-		searchData.AddTag("foo", "bar")
-		searchBytes := searchData.ToBytes()
-
-		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
-		require.NoError(b, err)
-	})
-
-	go concurrent(func() {
+		time.Sleep(250 * time.Millisecond)
 		err := i.CutCompleteTraces(0, true)
 		require.NoError(b, err, "error cutting complete traces")
+		cuts++
 	})
 
 	go concurrent(func() {
 		// Slow this down to prevent "too many open files" error
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		_, err := i.CutBlockIfReady(0, 0, true)
 		require.NoError(b, err)
 	})
 
+	var searches atomic.Int32
+	var bytesInspected atomic.Uint64
+	var tracesInspected atomic.Uint32
+
+	for j := 0; j < 2; j++ {
+		go concurrent(func() {
+			//time.Sleep(1 * time.Millisecond)
+			var req = &tempopb.SearchRequest{
+				Tags: map[string]string{search.SecretExhaustiveSearchTag: "!"},
+			}
+			resp, err := i.Search(ctx, req)
+			require.NoError(b, err)
+			searches.Inc()
+			bytesInspected.Add(resp.Metrics.InspectedBytes)
+			tracesInspected.Add(resp.Metrics.InspectedTraces)
+		})
+	}
+
 	b.ResetTimer()
 	start := time.Now()
-	bytesInspected := uint64(0)
-	for j := 0; j < b.N; j++ {
-		var req = &tempopb.SearchRequest{
-			Tags: map[string]string{"nomatch": "nomatch"},
-		}
-		resp, err := i.Search(ctx, req)
-		require.NoError(b, err)
-		bytesInspected += resp.Metrics.InspectedBytes
-	}
+	time.Sleep(time.Duration(b.N) * time.Millisecond)
 	elapsed := time.Since(start)
 
-	fmt.Printf("Instance search throughput under load: %v elapsed %.2f MB = %.2f MiB/s throughput \n",
+	fmt.Printf("Instance search throughput under load: %v elapsed %.2f MB = %.2f MiB/s throughput inspected %.2f traces/s pushed %.2f traces/s %.2f searches/s %.2f cuts/s\n",
 		elapsed,
-		float64(bytesInspected)/(1024*1024),
-		float64(bytesInspected)/(elapsed.Seconds())/(1024*1024))
+		float64(bytesInspected.Load())/(1024*1024),
+		float64(bytesInspected.Load())/(elapsed.Seconds())/(1024*1024),
+		float64(tracesInspected.Load())/(elapsed.Seconds()),
+		float64(tracesPushed.Load())/(elapsed.Seconds()),
+		float64(searches.Load())/(elapsed.Seconds()),
+		float64(cuts)/(elapsed.Seconds()),
+	)
 
 	b.StopTimer()
 	close(end)

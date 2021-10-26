@@ -14,36 +14,36 @@ func TestPipelineMatchesTags(t *testing.T) {
 	testCases := []struct {
 		name        string
 		request     map[string]string
-		searchData  tempofb.SearchDataMap
+		searchData  map[string][]string
 		shouldMatch bool
 	}{
 		{
 			name:        "match",
-			searchData:  tempofb.SearchDataMap{"key": {"value"}},
+			searchData:  map[string][]string{"key": {"value"}},
 			request:     map[string]string{"key": "value"},
 			shouldMatch: true,
 		},
 		{
 			name:        "noMatch",
-			searchData:  tempofb.SearchDataMap{"key1": {"value"}},
+			searchData:  map[string][]string{"key1": {"value"}},
 			request:     map[string]string{"key2": "value"},
 			shouldMatch: false,
 		},
 		{
 			name:        "matchSubstring",
-			searchData:  tempofb.SearchDataMap{"key": {"avalue"}},
+			searchData:  map[string][]string{"key": {"avalue"}},
 			request:     map[string]string{"key": "val"},
 			shouldMatch: true,
 		},
 		{
 			name:        "matchMulti",
-			searchData:  tempofb.SearchDataMap{"key1": {"value1"}, "key2": {"value2"}, "key3": {"value3"}, "key4": {"value4"}},
+			searchData:  map[string][]string{"key1": {"value1"}, "key2": {"value2"}, "key3": {"value3"}, "key4": {"value4"}},
 			request:     map[string]string{"key1": "value1", "key3": "value3"},
 			shouldMatch: true,
 		},
 		{
 			name:        "noMatchMulti",
-			searchData:  tempofb.SearchDataMap{"key1": {"value1"}, "key2": {"value2"}},
+			searchData:  map[string][]string{"key1": {"value1"}, "key2": {"value2"}},
 			request:     map[string]string{"key1": "value1", "key3": "value3"},
 			shouldMatch: false,
 		}}
@@ -53,7 +53,7 @@ func TestPipelineMatchesTags(t *testing.T) {
 
 			p := NewSearchPipeline(&tempopb.SearchRequest{Tags: tc.request})
 			data := tempofb.SearchEntryMutable{
-				Tags: tc.searchData,
+				Tags: tempofb.NewSearchDataMapWithData(tc.searchData),
 			}
 			sd := tempofb.SearchEntryFromBytes(data.ToBytes())
 			matches := p.Matches(sd)
@@ -188,12 +188,12 @@ func BenchmarkPipelineMatches(b *testing.B) {
 	entry := tempofb.SearchEntryFromBytes((&tempofb.SearchEntryMutable{
 		StartTimeUnixNano: 0,
 		EndTimeUnixNano:   uint64(500 * time.Millisecond / time.Nanosecond), //500ms in nanoseconds
-		Tags: tempofb.SearchDataMap{
+		Tags: tempofb.NewSearchDataMapWithData(map[string][]string{
 			"key1": {"value10", "value11"},
 			"key2": {"value20", "value21"},
 			"key3": {"value30", "value31"},
 			"key4": {"value40", "value41"},
-		}}).ToBytes())
+		})}).ToBytes())
 
 	testCases := []struct {
 		name string

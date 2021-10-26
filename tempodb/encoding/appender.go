@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"hash"
+	"sync"
 
 	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -20,6 +21,7 @@ type Appender interface {
 type appender struct {
 	dataWriter    common.DataWriter
 	records       map[uint64][]common.Record
+	recordsMtx    sync.RWMutex
 	hash          hash.Hash64
 	currentOffset uint64
 }
@@ -51,23 +53,34 @@ func (a *appender) Append(id common.ID, b []byte) error {
 	_, _ = a.hash.Write(id)
 	hash := a.hash.Sum64()
 
-	records := a.records[hash]
-	records = append(records, common.Record{
-		ID:     id,
-		Start:  a.currentOffset,
-		Length: uint32(bytesWritten),
-	})
-	a.records[hash] = records
+	a.addRecord(hash, id, bytesWritten)
 	a.currentOffset += uint64(bytesWritten)
 
 	return nil
 }
 
+func (a *appender) addRecord(hash uint64, id common.ID, bytesWritten int) {
+	new := common.Record{
+		ID:     id,
+		Start:  a.currentOffset,
+		Length: uint32(bytesWritten),
+	}
+
+	a.recordsMtx.Lock()
+	defer a.recordsMtx.Unlock()
+
+	records := a.records[hash]
+	records = append(records, new)
+	a.records[hash] = records
+}
+
 func (a *appender) Records() []common.Record {
+	a.recordsMtx.RLock()
 	sliceRecords := make([]common.Record, 0, len(a.records))
 	for _, r := range a.records {
 		sliceRecords = append(sliceRecords, r...)
 	}
+	a.recordsMtx.RUnlock()
 
 	common.SortRecords(sliceRecords)
 	return sliceRecords
@@ -77,10 +90,17 @@ func (a *appender) RecordsForID(id common.ID) []common.Record {
 	a.hash.Reset()
 	_, _ = a.hash.Write(id)
 	hash := a.hash.Sum64()
+
+	a.recordsMtx.RLock()
+	defer a.recordsMtx.RUnlock()
+
 	return a.records[hash]
 }
 
 func (a *appender) Length() int {
+	a.recordsMtx.Lock()
+	defer a.recordsMtx.RUnlock()
+
 	return len(a.records)
 }
 

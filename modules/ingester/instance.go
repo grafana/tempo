@@ -312,6 +312,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	if completingBlock != nil {
 		entry := i.searchAppendBlocks[completingBlock]
 		if entry != nil {
+			// Take write lock to ensure no searches are reading.
 			entry.mtx.Lock()
 			defer entry.mtx.Unlock()
 			_ = entry.b.Clear()
@@ -538,8 +539,11 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 
 	entry := i.searchHeadBlock
 	if entry != nil {
-		entry.mtx.Lock()
-		defer entry.mtx.Unlock()
+		// Don't take a write lock on the block here. It is safe
+		// for the appender to write to its file while a search
+		// is reading it. This prevents stalling the write path
+		// while a search is happening. There are mutexes internally
+		// for the parts that aren't.
 		err := entry.b.Append(context.TODO(), id, searchData)
 		return err
 	}
