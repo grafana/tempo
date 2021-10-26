@@ -45,7 +45,7 @@ func TestCompression(t *testing.T) {
 
 func queryAndAssertTraceCompression(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
 
-	// The recieved client will strip the header before we have a chance to inspect it, so just validate that the compressed client works as expected.
+	// The received client will strip the header before we have a chance to inspect it, so just validate that the compressed client works as expected.
 	result, resp, err := client.QueryTraceWithResponse(info.HexID())
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -77,16 +77,4 @@ func queryAndAssertTraceCompression(t *testing.T, client *tempoUtil.Client, info
 	err = unmarshaller.Unmarshal(gzipReader, m)
 	require.NoError(t, err)
 	require.True(t, equalTraces(expected, m))
-
-	return
-}
-
-func queryAndAssert___(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
-	resp, err := client.QueryTrace(info.HexID())
-	require.NoError(t, err)
-
-	expected, err := info.ConstructTraceFromEpoch()
-	require.NoError(t, err)
-
-	require.True(t, equalTraces(resp, expected))
 }
