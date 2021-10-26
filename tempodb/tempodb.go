@@ -352,7 +352,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	span.SetTag("blockErrs", len(funcErrs))
 	span.SetTag("liveBlocks", len(blocklist))
 	span.SetTag("liveBlocksSearched", blocksSearched)
-	span.SetTag("compactedBlocks", len(compactedBlocklist)
+	span.SetTag("compactedBlocks", len(compactedBlocklist))
 	span.SetTag("compactedBlocksSearched", compactedBlocksSearched)
 
 	return partialTraces, dataEncodings, funcErrs, err
