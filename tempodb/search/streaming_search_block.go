@@ -90,7 +90,7 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 }
 
 func (s *StreamingSearchBlock) Tags(ctx context.Context, tags map[string]struct{}) error {
-	s.header.Tags.Range(func(k, v string) {
+	s.header.Tags.RangeKeys(func(k string) {
 		// check the tag is already set, this is more performant with repetitive values
 		if _, ok := tags[k]; !ok {
 			tags[k] = struct{}{}
@@ -100,14 +100,10 @@ func (s *StreamingSearchBlock) Tags(ctx context.Context, tags map[string]struct{
 }
 
 func (s *StreamingSearchBlock) TagValues(ctx context.Context, tagName string, tagValues map[string]struct{}) error {
-	// TODO optimize by adding a function to copy all values for a tag
-	s.header.Tags.Range(func(k, v string) {
-		if tagName == k {
-			// check the value is already set, this is more performant with repetitive values
-			if _, ok := tagValues[v]; !ok {
-				tagValues[v] = struct{}{}
-			}
-
+	s.header.Tags.RangeKeyValues(tagName, func(v string) {
+		// check the value is already set, this is more performant with repetitive values
+		if _, ok := tagValues[v]; !ok {
+			tagValues[v] = struct{}{}
 		}
 	})
 	return nil

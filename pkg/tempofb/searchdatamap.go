@@ -12,6 +12,8 @@ type SearchDataMap interface {
 	Contains(k, v string) bool
 	WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT
 	Range(f func(k, v string))
+	RangeKeys(f func(k string))
+	RangeKeyValues(k string, f func(v string))
 }
 
 func NewSearchDataMap() SearchDataMap {
@@ -70,6 +72,18 @@ func (s SearchDataMapSmall) Range(f func(k, v string)) {
 	}
 }
 
+func (s SearchDataMapSmall) RangeKeys(f func(k string)) {
+	for k, _ := range s {
+		f(k)
+	}
+}
+
+func (s SearchDataMapSmall) RangeKeyValues(k string, f func(v string)) {
+	for _, v := range s[k] {
+		f(v)
+	}
+}
+
 func (s SearchDataMapSmall) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
 	keys := make([]string, 0, len(s))
 	for k := range s {
@@ -112,6 +126,18 @@ func (s SearchDataMapLarge) Range(f func(k, v string)) {
 		for v := range values {
 			f(k, v)
 		}
+	}
+}
+
+func (s SearchDataMapLarge) RangeKeys(f func(k string)) {
+	for k := range s {
+		f(k)
+	}
+}
+
+func (s SearchDataMapLarge) RangeKeyValues(k string, f func(v string)) {
+	for v := range s[k] {
+		f(v)
 	}
 }
 
