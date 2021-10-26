@@ -73,7 +73,7 @@ func (s SearchDataMapSmall) Range(f func(k, v string)) {
 }
 
 func (s SearchDataMapSmall) RangeKeys(f func(k string)) {
-	for k, _ := range s {
+	for k := range s {
 		f(k)
 	}
 }
