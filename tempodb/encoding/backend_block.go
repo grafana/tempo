@@ -106,7 +106,7 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 		return nil, err
 	}
 
-	return newPagedIterator(b.meta, chunkSizeBytes, reader, dataReader, b.encoding.NewObjectReaderWriter()), nil
+	return newPagedIterator(chunkSizeBytes, reader, dataReader, b.encoding.NewObjectReaderWriter()), nil
 }
 
 // PartialIterator returns an Iterator that iterates over the a subset of pages in the block from the backend
@@ -123,7 +123,7 @@ func (b *BackendBlock) PartialIterator(chunkSizeBytes uint32, startPage int, tot
 		return nil, err
 	}
 
-	return newPartialPagedIterator(b.meta, chunkSizeBytes, reader, dataReader, b.encoding.NewObjectReaderWriter(), startPage, totalPages), nil
+	return newPartialPagedIterator(chunkSizeBytes, reader, dataReader, b.encoding.NewObjectReaderWriter(), startPage, totalPages), nil
 }
 
 func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {

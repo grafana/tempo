@@ -370,7 +370,6 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 }
 
 // todo(search): consolidate
-//   jpe spanz?
 func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchRequest) (*tempopb.SearchResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -458,8 +457,8 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 		}
 
 		// woohoo!
-		rootServiceName := "<root span not yet received>" // jpe consolidate
-		rootSpanName := "<root span not yet received>"
+		rootServiceName := rootSpanNotYetReceivedText
+		rootSpanName := rootSpanNotYetReceivedText
 		if rootSpan != nil && rootBatch != nil {
 			rootSpanName = rootSpan.Name
 
@@ -537,8 +536,8 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	return response
 }
 
+// todo: support more attribute types. currently only string is supported
 func searchAttributes(tags map[string]string, atts []*commonv1.KeyValue) bool {
-	// jpe add support for others. move to querier_search.go
 	for _, a := range atts {
 		var v string
 		var ok bool
