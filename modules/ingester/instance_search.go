@@ -181,13 +181,14 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 	}
 }
 
-func (i *instance) GetSearchTags(ctx context.Context) ([]string, error) {
+func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse, error) {
 	tags := map[string]struct{}{}
 
 	kv := &tempofb.KeyValues{}
 	err := i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
 		for i, ii := 0, entry.TagsLength(); i < ii; i++ {
 			entry.Tags(kv, i)
+			// check the tag is already set, this is more performant with repetitive values
 			if _, ok := tags[string(kv.Key())]; !ok {
 				tags[string(kv.Key())] = struct{}{}
 			}
@@ -204,21 +205,24 @@ func (i *instance) GetSearchTags(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	return extractKeys(tags), nil
+	return &tempopb.SearchTagsResponse{
+		TagNames: extractKeys(tags),
+	}, nil
 }
 
-func (i *instance) GetSearchTagValues(ctx context.Context, tagName string) ([]string, error) {
+func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {
 	values := map[string]struct{}{}
 
 	kv := &tempofb.KeyValues{}
 	tagNameBytes := []byte(tagName)
 	err := i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
+		// TODO use binary search here
 		for i, tagsLength := 0, entry.TagsLength(); i < tagsLength; i++ {
 			entry.Tags(kv, i)
-
-			// TODO use binary search?
 			if bytes.Equal(kv.Key(), tagNameBytes) {
+
 				for j, valueLength := 0, kv.ValueLength(); j < valueLength; j++ {
+					// check the value is already set, this is more performant with repetitive values
 					if _, ok := values[string(kv.Value(j))]; !ok {
 						values[string(kv.Value(j))] = struct{}{}
 					}
@@ -238,7 +242,9 @@ func (i *instance) GetSearchTagValues(ctx context.Context, tagName string) ([]st
 		return nil, err
 	}
 
-	return extractKeys(values), nil
+	return &tempopb.SearchTagValuesResponse{
+		TagValues: extractKeys(values),
+	}, nil
 }
 
 func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn func(entry *tempofb.SearchEntry)) error {

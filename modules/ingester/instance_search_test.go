@@ -247,12 +247,12 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := i.GetSearchTags(context.Background())
+		_, err := i.SearchTags(context.Background())
 		require.NoError(t, err, "error getting search tags")
 	})
 
 	go concurrent(func() {
-		_, err := i.GetSearchTagValues(context.Background(), tagKey)
+		_, err := i.SearchTagValues(context.Background(), tagKey)
 		require.NoError(t, err, "error getting search tag values")
 	})
 
