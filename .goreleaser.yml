@@ -37,6 +37,25 @@ builds:
       - -X main.Revision={{ .ShortCommit }}
       - -X main.Version={{ .Version }}
     mod_timestamp: '{{ .CommitTimestamp }}'
+  - id: "tempo-cli"
+    main: ./cmd/tempo-cli
+    binary: tempo-cli
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+    flags:
+      - -v
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.Branch={{ .Branch }}
+      - -X main.Revision={{ .ShortCommit }}
+      - -X main.Version={{ .Version }}
+    mod_timestamp: '{{ .CommitTimestamp }}'
 changelog:
   skip: true
   sort: asc
