@@ -23,13 +23,14 @@ func (*DataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool) {
 
 	// Squash all datas into 1
 	data := tempofb.SearchEntryMutable{}
-	kv := &tempofb.KeyValues{} // buffer
+	kv := &tempofb.KeyValues{}   // buffer
+	sd := &tempofb.SearchEntry{} // buffer
 	for _, sb := range searchData {
 		// we append zero-length entries to the WAL even when search is disabled. skipping to prevent unmarshalling and panik :)
 		if len(sb) == 0 {
 			continue
 		}
-		sd := tempofb.SearchEntryFromBytes(sb)
+		sd.Reset(sb)
 		for i, ii := 0, sd.TagsLength(); i < ii; i++ {
 			sd.Tags(kv, i)
 			for j, jj := 0, kv.ValueLength(); j < jj; j++ {

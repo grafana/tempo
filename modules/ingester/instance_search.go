@@ -92,6 +92,8 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 
 		span.LogFields(ot_log.Event("live traces mtx acquired"))
 
+		entry := &tempofb.SearchEntry{} // buffer
+
 		for _, t := range i.traces {
 			if sr.Quit() {
 				return
@@ -105,7 +107,7 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 			for _, s := range t.searchData {
 				sr.AddBytesInspected(uint64(len(s)))
 
-				entry := tempofb.SearchEntryFromBytes(s)
+				entry.Reset(s)
 				if p.Matches(entry) {
 					newResult := search.GetSearchResultFromData(entry)
 					if result != nil {
@@ -187,9 +189,10 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	err := i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
 		for i, ii := 0, entry.TagsLength(); i < ii; i++ {
 			entry.Tags(kv, i)
+			key := string(kv.Value(i))
 			// check the tag is already set, this is more performant with repetitive values
-			if _, ok := tags[string(kv.Key())]; !ok {
-				tags[string(kv.Key())] = struct{}{}
+			if _, ok := tags[key]; !ok {
+				tags[key] = struct{}{}
 			}
 		}
 	})
@@ -249,9 +252,11 @@ func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn fun
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
+	se := &tempofb.SearchEntry{}
 	for _, t := range i.traces {
 		for _, s := range t.searchData {
-			visitFn(tempofb.SearchEntryFromBytes(s))
+			se.Reset(s)
+			visitFn(se)
 
 			if err := ctx.Err(); err != nil {
 				return err

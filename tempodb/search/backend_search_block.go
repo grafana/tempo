@@ -28,7 +28,8 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 	var err error
 	ctx := context.TODO()
 	indexPageSize := 100 * 1024
-	kv := &tempofb.KeyValues{} // buffer
+	kv := &tempofb.KeyValues{}  // buffer
+	s := &tempofb.SearchEntry{} // buffer
 
 	// Pinning specific version instead of latest for safety
 	version, err := encoding.FromVersion("v2")
@@ -69,7 +70,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 			continue
 		}
 
-		s := tempofb.SearchEntryFromBytes(data)
+		s.Reset(data)
 
 		header.AddEntry(s)
 
