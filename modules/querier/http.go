@@ -2,7 +2,6 @@ package querier
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"time"
@@ -64,11 +63,6 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if resp.Trace == nil || len(resp.Trace.Batches) == 0 {
-		http.Error(w, fmt.Sprintf("Unable to find %s", hex.EncodeToString(byteID)), http.StatusNotFound)
 		return
 	}
 
