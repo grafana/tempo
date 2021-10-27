@@ -27,7 +27,8 @@ func PublishHedgedMetrics(s *hedgedhttp.Stats) {
 	ticker := time.NewTicker(hedgedMetricsPublishDuration)
 	go func() {
 		for range ticker.C {
-			hedgedRequestsMetrics.Set(float64(s.Snapshot().RequestedRoundTrips))
+			snap := s.Snapshot()
+			hedgedRequestsMetrics.Set(float64(snap.ActualRoundTrips - snap.RequestedRoundTrips))
 		}
 	}()
 }
