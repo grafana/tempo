@@ -92,17 +92,18 @@ func TestShardingWareDoRequest(t *testing.T) {
 	}
 
 	tests := []struct {
-		name               string
-		status1            int
-		status2            int
-		trace1             *tempopb.Trace
-		trace2             *tempopb.Trace
-		err1               error
-		err2               error
-		failedBlockQueries int
-		expectedStatus     int
-		expectedTrace      *tempopb.Trace
-		expectedError      error
+		name                string
+		status1             int
+		status2             int
+		trace1              *tempopb.Trace
+		trace2              *tempopb.Trace
+		err1                error
+		err2                error
+		failedBlockQueries1 int
+		failedBlockQueries2 int
+		expectedStatus      int
+		expectedTrace       *tempopb.Trace
+		expectedError       error
 	}{
 		{
 			name:           "empty returns",
@@ -202,7 +203,6 @@ func TestShardingWareDoRequest(t *testing.T) {
 			trace2:        trace1,
 			expectedError: errors.New("booo"),
 		},
-
 		{
 			name:          "500+err",
 			status1:       500,
@@ -211,23 +211,54 @@ func TestShardingWareDoRequest(t *testing.T) {
 			expectedError: errors.New("booo"),
 		},
 		{
-			name:               "failed block queries <= max",
-			status1:            200,
-			trace1:             trace1,
-			status2:            200,
-			trace2:             trace2,
-			failedBlockQueries: 1,
-			expectedStatus:     200,
-			expectedTrace:      trace,
+			name:                "failedBlocks under: 200+200",
+			status1:             200,
+			trace1:              trace1,
+			status2:             200,
+			trace2:              trace2,
+			failedBlockQueries1: 1,
+			failedBlockQueries2: 1,
+			expectedStatus:      200,
+			expectedTrace:       trace,
 		},
 		{
-			name:               "too many failed block queries",
-			status1:            200,
-			trace1:             trace1,
-			status2:            200,
-			trace2:             trace2,
-			failedBlockQueries: 10,
-			expectedError:      errors.New("too many failed block queries 10 (max 2)"),
+			name:                "failedBlocks over: 200+200",
+			status1:             200,
+			trace1:              trace1,
+			status2:             200,
+			trace2:              trace2,
+			failedBlockQueries1: 0,
+			failedBlockQueries2: 5,
+			expectedError:       errors.New("too many failed block queries 5 (max 2)"),
+		},
+		{
+			name:                "failedBlocks under: 200+404",
+			status1:             200,
+			trace1:              trace1,
+			status2:             404,
+			failedBlockQueries1: 1,
+			failedBlockQueries2: 0,
+			expectedStatus:      200,
+			expectedTrace:       trace1,
+		},
+		{
+			name:                "failedBlocks under: 404+200",
+			status1:             200,
+			trace1:              trace1,
+			status2:             404,
+			failedBlockQueries1: 0,
+			failedBlockQueries2: 1,
+			expectedStatus:      200,
+			expectedTrace:       trace1,
+		},
+		{
+			name:                "failedBlocks over: 404+200",
+			status1:             200,
+			trace1:              trace1,
+			status2:             404,
+			failedBlockQueries1: 0,
+			failedBlockQueries2: 5,
+			expectedError:       errors.New("too many failed block queries 5 (max 2)"),
 		},
 	}
 
@@ -239,29 +270,41 @@ func TestShardingWareDoRequest(t *testing.T) {
 				var trace *tempopb.Trace
 				var statusCode int
 				var err error
+				var failedBlockQueries int
 				if r.RequestURI == "/querier/api/traces/1234?mode=ingesters" {
 					trace = tc.trace1
 					statusCode = tc.status1
 					err = tc.err1
+					failedBlockQueries = tc.failedBlockQueries1
 				} else {
 					trace = tc.trace2
 					err = tc.err2
 					statusCode = tc.status2
+					failedBlockQueries = tc.failedBlockQueries2
 				}
 
 				if err != nil {
 					return nil, err
 				}
 
-				var resBytes []byte
-				if trace != nil {
-					resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
-						Trace: trace,
-						Metrics: &tempopb.TraceByIDMetrics{
-							FailedBlocks: uint32(tc.failedBlockQueries),
-						},
-					})
-					require.NoError(t, err)
+				resBytes := []byte("error occurred")
+				if statusCode != 500 {
+					if trace != nil {
+						resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
+							Trace: trace,
+							Metrics: &tempopb.TraceByIDMetrics{
+								FailedBlocks: uint32(failedBlockQueries),
+							},
+						})
+						require.NoError(t, err)
+					} else {
+						resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
+							Metrics: &tempopb.TraceByIDMetrics{
+								FailedBlocks: uint32(failedBlockQueries),
+							},
+						})
+						require.NoError(t, err)
+					}
 				}
 
 				return &http.Response{
