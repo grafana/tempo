@@ -66,6 +66,12 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// record not found here, but continue on so we can marshal metrics
+	// to the body
+	if resp.Trace == nil || len(resp.Trace.Batches) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+	}
+
 	if r.Header.Get(api.HeaderAccept) == api.HeaderAcceptProtobuf {
 		span.SetTag("contentType", api.HeaderAcceptProtobuf)
 		b, err := proto.Marshal(resp)
