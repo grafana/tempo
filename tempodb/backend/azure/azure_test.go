@@ -45,11 +45,12 @@ func TestHedge(t *testing.T) {
 			server := fakeServer(t, tc.returnIn, &count)
 
 			r, w, _, err := New(&Config{
-				MaxBuffers:      3,
-				BufferSize:      1000,
-				ContainerName:   "blerg",
-				Endpoint:        server.URL[7:], // [7:] -> strip http://,
-				HedgeRequestsAt: tc.hedgeAt,
+				MaxBuffers:        3,
+				BufferSize:        1000,
+				ContainerName:     "blerg",
+				Endpoint:          server.URL[7:], // [7:] -> strip http://,
+				HedgeRequestsAt:   tc.hedgeAt,
+				HedgeRequestsUpTo: 2,
 			})
 			require.NoError(t, err)
 
