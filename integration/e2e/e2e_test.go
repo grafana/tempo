@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"reflect"
@@ -394,7 +395,7 @@ func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 	require.Contains(t, tagValuesResp.TagValues, strings.ToLower(attr.GetValue().GetStringValue()))
 
 	// verify trace can be found using attribute
-	resp, err := client.SearchWithTag(attr.GetKey(), attr.GetValue().GetStringValue())
+	resp, err := client.Search(fmt.Sprintf("%s=%s", attr.GetKey(), attr.GetValue().GetStringValue()))
 	require.NoError(t, err)
 
 	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
