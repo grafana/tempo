@@ -18,5 +18,5 @@ func (cmd *querySearchTagsCmd) Run(_ *globalOptions) error {
 		return err
 	}
 
-	return printAsJson(tags)
+	return printAsJSON(tags)
 }

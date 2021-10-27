@@ -121,7 +121,7 @@ func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id uuid.U
 	}, nil
 }
 
-func printAsJson(value interface{}) error {
+func printAsJSON(value interface{}) error {
 	traceJSON, err := json.Marshal(value)
 	if err != nil {
 		return err

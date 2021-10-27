@@ -20,5 +20,5 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 		return err
 	}
 
-	return printAsJson(trace)
+	return printAsJSON(trace)
 }

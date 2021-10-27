@@ -19,5 +19,5 @@ func (cmd *querySearchTagValuesCmd) Run(_ *globalOptions) error {
 		return err
 	}
 
-	return printAsJson(tagValues)
+	return printAsJSON(tagValues)
 }
