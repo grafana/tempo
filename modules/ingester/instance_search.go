@@ -189,7 +189,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	err := i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
 		for i, ii := 0, entry.TagsLength(); i < ii; i++ {
 			entry.Tags(kv, i)
-			key := string(kv.Value(i))
+			key := string(kv.Key())
 			// check the tag is already set, this is more performant with repetitive values
 			if _, ok := tags[key]; !ok {
 				tags[key] = struct{}{}
