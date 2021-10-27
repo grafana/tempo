@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -118,4 +119,14 @@ func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id uuid.U
 	return &blockStats{
 		unifiedBlockMeta: getMeta(meta, compactedMeta, windowRange),
 	}, nil
+}
+
+func printAsJson(value interface{}) error {
+	traceJSON, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(traceJSON))
+	return nil
 }

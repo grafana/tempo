@@ -1,20 +1,17 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"github.com/grafana/tempo/pkg/util"
 )
 
-type queryCmd struct {
+type queryTraceIDCmd struct {
 	APIEndpoint string `arg:"" help:"tempo api endpoint"`
 	TraceID     string `arg:"" help:"trace ID to retrieve"`
 
 	OrgID string `help:"optional orgID"`
 }
 
-func (cmd *queryCmd) Run(_ *globalOptions) error {
+func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 	client := util.NewClient(cmd.APIEndpoint, cmd.OrgID)
 
 	// util.QueryTrace will only add orgID header if len(orgID) > 0
@@ -23,11 +20,5 @@ func (cmd *queryCmd) Run(_ *globalOptions) error {
 		return err
 	}
 
-	traceJSON, err := json.Marshal(trace)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(traceJSON))
-	return nil
+	return printAsJson(trace)
 }

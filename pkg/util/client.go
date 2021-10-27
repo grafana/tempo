@@ -3,6 +3,7 @@ package util
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
@@ -77,9 +78,10 @@ func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, 
 	return m, nil
 }
 
-func (c *Client) SearchWithTag(key, value string) (*tempopb.SearchResponse, error) {
+// Search Tempo. tags must be in logfmt format, that is "key1=value1 key2=value2"
+func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.BaseURL+"/api/search?"+key+"="+value, m)
+	_, err := c.getFor(c.BaseURL+"/api/search?tags="+url.QueryEscape(tags), m)
 	if err != nil {
 		return nil, err
 	}
