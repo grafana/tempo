@@ -1,10 +1,8 @@
-# Releases
-
-This document details release procedures for Tempo.  Currently it's pretty dang easy.
+# Release Candidates
 
 - Push a semver tag to main.  Something like:
-  - `git tag -a v0.3.0`
-  - `git push origin v0.3.0`
+  - `git tag -a v1.2.0-rc.0`
+  - `git push origin v1.2.0-rc.0`
 - This will initiate the build process in Github Actions and Drone.  The tagged docker image should
   be available here shortly: https://hub.docker.com/r/grafana/tempo/tags?page=1&ordering=last_updated
 - A Github Release Draft should also be available here:  https://github.com/grafana/tempo/releases
@@ -12,6 +10,15 @@ This document details release procedures for Tempo.  Currently it's pretty dang 
   - Call out contributors for their work
   - Cull unnecessary changes that don't impact the Tempo binary or deployment
   - Call out breaking changes!
+- Publish the release making sure that "This is a pre-release" is checked.
+
+# Releases
+
+This document details release procedures for Tempo.  Currently it's pretty dang easy.
+
+- Follow all steps above except:
+  - Drop the `-rc.#` postfix from the tag. For instance use `v1.2.0` instead.
+  - Make sure that the "This is a pre-release" is unchecked when publishing the release.
 - Submit a PR cleaning up the changelog and moving everything under "main/unreleased" to be under
   the newly minted version.
 - Update docs
