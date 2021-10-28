@@ -53,6 +53,8 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 	return byteID, nil
 }
 
+// ParseBackendSearch is used by both the query frontend and querier to parse backend search requests.
+// /?start=0&end=0&limit=20
 func ParseBackendSearch(r *http.Request) (start, end int64, limit int, err error) {
 	if s := r.URL.Query().Get(URLParamStart); s != "" {
 		start, err = strconv.ParseInt(s, 10, 64)
@@ -96,7 +98,8 @@ func ParseBackendSearch(r *http.Request) (start, end int64, limit int, err error
 	return
 }
 
-// jpe test
+// ParseBackendSearchQuerier is used by the querier to parse backend search requests.
+// /?startPage=1&totalPages=1&blockID=0f9f8f8f-8f8f-8f8f-8f8f-8f8f8f8f8f8f
 func ParseBackendSearchQuerier(r *http.Request) (startPage, totalPages uint32, blockID uuid.UUID, err error) {
 	var startPage64, totalPages64 int64
 
