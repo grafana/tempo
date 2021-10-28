@@ -327,7 +327,7 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	logger.Info("searching Tempo")
 
 	// Use the search API to find details about the expected trace
-	resp, err := client.SearchWithTag(attr.Key, attr.Value.GetStringValue())
+	resp, err := client.Search(fmt.Sprintf("%s=%s", attr.Key, attr.Value.GetStringValue()))
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++

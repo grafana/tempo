@@ -34,7 +34,6 @@ import (
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
 )
 
 const (
@@ -347,19 +346,19 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		}
 
 		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
-		span.LogFields(
-			ot_log.String("msg", "searching for trace in block"),
-			ot_log.String("blockID", meta.BlockID.String()),
-			ot_log.Bool("found", foundObject != nil),
-			ot_log.Int("bytes", len(foundObject)),
-			ot_log.Int("live blocks", len(blocklist)),
-			ot_log.Int("live blocks searched", blocksSearched),
-			ot_log.Int("compacted blocks", len(compactedBlocklist)),
-			ot_log.Int("compacted blocks searched", compactedBlocksSearched),
-		)
-
 		return foundObject, meta.DataEncoding, nil
 	})
+
+	size := 0
+	for _, b := range partialTraces {
+		size += len(b)
+	}
+	span.SetTag("bytesFound", size)
+	span.SetTag("blockErrs", len(funcErrs))
+	span.SetTag("liveBlocks", len(blocklist))
+	span.SetTag("liveBlocksSearched", blocksSearched)
+	span.SetTag("compactedBlocks", len(compactedBlocklist))
+	span.SetTag("compactedBlocksSearched", compactedBlocksSearched)
 
 	return partialTraces, dataEncodings, funcErrs, err
 }

@@ -2,7 +2,6 @@ package querier
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"time"
@@ -67,9 +66,10 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// record not found here, but continue on so we can marshal metrics
+	// to the body
 	if resp.Trace == nil || len(resp.Trace.Batches) == 0 {
-		http.Error(w, fmt.Sprintf("Unable to find %s", hex.EncodeToString(byteID)), http.StatusNotFound)
-		return
+		w.WriteHeader(http.StatusNotFound)
 	}
 
 	if r.Header.Get(api.HeaderAccept) == api.HeaderAcceptProtobuf {

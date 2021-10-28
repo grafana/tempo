@@ -524,7 +524,8 @@ func defaultInstance(t require.TestingT, tmpDir string) *instance {
 				IndexPageSizeBytes:   1000,
 			},
 			WAL: &wal.Config{
-				Filepath: tmpDir,
+				Filepath:       tmpDir,
+				SearchEncoding: backend.EncNone,
 			},
 		},
 	}, log.NewNopLogger())

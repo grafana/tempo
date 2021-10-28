@@ -56,7 +56,12 @@ var cli struct {
 	} `cmd:""`
 
 	Query struct {
-		API    queryCmd       `cmd:"" help:"query tempo http api"`
+		API struct {
+			TraceID         queryTraceIDCmd         `cmd:"" help:"query Tempo by trace ID"`
+			SearchTags      querySearchTagsCmd      `cmd:"" help:"query Tempo search tags"`
+			SearchTagValues querySearchTagValuesCmd `cmd:"" help:"query Tempo search tag values"`
+			Search          querySearchCmd          `cmd:"" help:"query Tempo search"`
+		} `cmd:""`
 		Blocks queryBlocksCmd `cmd:"" help:"query for a traceid directly from backend blocks"`
 	} `cmd:""`
 

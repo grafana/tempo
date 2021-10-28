@@ -188,6 +188,9 @@ release: $(GORELEASER)
 	$(GORELEASER) build --skip-validate --rm-dist
 	$(GORELEASER) release --rm-dist
 
+release-snapshot: $(GORELEASER)
+	$(GORELEASER) build --skip-validate --rm-dist --snapshot
+
 ### Docs
 DOCS_IMAGE = grafana/docs-base:latest
 
