@@ -119,6 +119,7 @@ func ParseBackendSearchQuerier(r *http.Request) (startPage, totalPages uint32, b
 	if s := r.URL.Query().Get(URLParamBlockID); s != "" {
 		blockID, err = uuid.Parse(s)
 		if err != nil {
+			err = fmt.Errorf("blockID: %w", err)
 			return
 		}
 	}
