@@ -62,7 +62,7 @@ func init() {
 	flag.DurationVar(&tempoWriteBackoffDuration, "tempo-write-backoff-duration", 15*time.Second, "The amount of time to pause between write Tempo calls")
 	flag.DurationVar(&tempoLongWriteBackoffDuration, "tempo-long-write-backoff-duration", 1*time.Minute, "The amount of time to pause between long write Tempo calls")
 	flag.DurationVar(&tempoReadBackoffDuration, "tempo-read-backoff-duration", 30*time.Second, "The amount of time to pause between read Tempo calls")
-	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls")
+	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls.  Set to 0s to disable search.")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
 	flag.DurationVar(&tempoSearchRetentionDuration, "tempo-search-retention-duration", 10*time.Minute, "The ingester retention we expect to be able to search within")
 }
@@ -83,7 +83,11 @@ func main() {
 	startTime := actualStartTime
 	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
 	tickerRead := time.NewTicker(tempoReadBackoffDuration)
-	tickerSearch := time.NewTicker(tempoSearchBackoffDuration)
+	var tickerSearch *time.Ticker
+	logger.Info(fmt.Sprintf("tempoSearchBackoffDuration: %+v", tempoSearchBackoffDuration))
+	if tempoSearchBackoffDuration > 0 {
+		tickerSearch = time.NewTicker(tempoSearchBackoffDuration)
+	}
 	interval := tempoWriteBackoffDuration
 
 	ready := func(info *util.TraceInfo, now time.Time) bool {
@@ -156,33 +160,35 @@ func main() {
 	}()
 
 	// Search
-	go func() {
-		for now := range tickerSearch.C {
-			_, seed := selectPastTimestamp(startTime, now, interval, tempoSearchRetentionDuration)
-			log := logger.With(
-				zap.String("org_id", tempoOrgID),
-				zap.Int64("seed", seed.Unix()),
-			)
-
-			info := util.NewTraceInfo(seed, tempoOrgID)
-
-			if !ready(info, now) {
-				continue
-			}
-
-			client := util.NewClient(tempoQueryURL, tempoOrgID)
-
-			// query a tag we expect the trace to be found within
-			searchMetrics, err := searchTag(client, seed)
-			if err != nil {
-				metricErrorTotal.Inc()
-				log.Error("search for metrics failed",
-					zap.Error(err),
+	if tickerSearch != nil {
+		go func() {
+			for now := range tickerSearch.C {
+				_, seed := selectPastTimestamp(startTime, now, interval, tempoSearchRetentionDuration)
+				log := logger.With(
+					zap.String("org_id", tempoOrgID),
+					zap.Int64("seed", seed.Unix()),
 				)
+
+				info := util.NewTraceInfo(seed, tempoOrgID)
+
+				if !ready(info, now) {
+					continue
+				}
+
+				client := util.NewClient(tempoQueryURL, tempoOrgID)
+
+				// query a tag we expect the trace to be found within
+				searchMetrics, err := searchTag(client, seed)
+				if err != nil {
+					metricErrorTotal.Inc()
+					log.Error("search for metrics failed",
+						zap.Error(err),
+					)
+				}
+				pushMetrics(searchMetrics)
 			}
-			pushMetrics(searchMetrics)
-		}
-	}()
+		}()
+	}
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
@@ -321,9 +327,9 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	logger.Info("searching Tempo")
 
 	// Use the search API to find details about the expected trace
-	resp, err := client.SearchTag(attr.Key, attr.Value.GetStringValue())
+	resp, err := client.Search(fmt.Sprintf("%s=%s", attr.Key, attr.Value.GetStringValue()))
 	if err != nil {
-		logger.Error(fmt.Sprintf("failed to query tag values for %s: %s", attr.Key, err.Error()))
+		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
 		return tm, err
 	}

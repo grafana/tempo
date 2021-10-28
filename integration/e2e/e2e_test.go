@@ -1,9 +1,11 @@
 package e2e
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,7 +118,7 @@ func TestAllInOne(t *testing.T) {
 			// test metrics
 			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
-			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(2), "tempo_query_frontend_queries_total"))
+			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(4), "tempo_query_frontend_queries_total"))
 
 			// query trace - should fetch from backend
 			queryAndAssertTrace(t, apiClient, info)
@@ -213,7 +215,7 @@ func TestMicroservices(t *testing.T) {
 		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	}
 	require.NoError(t, tempoQuerier.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
-	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(2), "tempo_query_frontend_queries_total"))
+	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(4), "tempo_query_frontend_queries_total"))
 
 	// query trace - should fetch from backend
 	queryAndAssertTrace(t, apiClient, info)
@@ -366,7 +368,6 @@ func assertEcho(t *testing.T, url string) {
 	defer res.Body.Close()
 }
 
-//nolint:unparam
 func queryAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
 	resp, err := client.QueryTrace(info.HexID())
 	require.NoError(t, err)
@@ -383,7 +384,18 @@ func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 
 	attr := tempoUtil.RandomAttrFromTrace(expected)
 
-	resp, err := client.SearchTag(attr.GetKey(), attr.GetValue().GetStringValue())
+	// verify attribute is present in tags
+	tagsResp, err := client.SearchTags()
+	require.NoError(t, err)
+	require.Contains(t, tagsResp.TagNames, attr.Key)
+
+	// verify attribute value is present in tag values
+	tagValuesResp, err := client.SearchTagValues(attr.Key)
+	require.NoError(t, err)
+	require.Contains(t, tagValuesResp.TagValues, strings.ToLower(attr.GetValue().GetStringValue()))
+
+	// verify trace can be found using attribute
+	resp, err := client.Search(fmt.Sprintf("%s=%s", attr.GetKey(), attr.GetValue().GetStringValue()))
 	require.NoError(t, err)
 
 	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {

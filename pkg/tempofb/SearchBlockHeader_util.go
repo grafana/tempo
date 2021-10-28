@@ -1,8 +1,6 @@
 package tempofb
 
 import (
-	"strings"
-
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
@@ -18,7 +16,7 @@ type SearchBlockHeaderMutable struct {
 
 func NewSearchBlockHeaderMutable() *SearchBlockHeaderMutable {
 	return &SearchBlockHeaderMutable{
-		Tags: SearchDataMap{},
+		Tags: NewSearchDataMap(),
 	}
 }
 
@@ -29,8 +27,9 @@ func (s *SearchBlockHeaderMutable) AddEntry(e *SearchEntry) {
 	// Record all unique keyvalues
 	for i, ii := 0, e.TagsLength(); i < ii; i++ {
 		e.Tags(kv, i)
+		key := string(kv.Key())
 		for j, jj := 0, kv.ValueLength(); j < jj; j++ {
-			s.AddTag(string(kv.Key()), string(kv.Value(j)))
+			s.AddTag(key, string(kv.Value(j)))
 		}
 	}
 
@@ -58,17 +57,7 @@ func (s *SearchBlockHeaderMutable) MaxDurationNanos() uint64 {
 }
 
 func (s *SearchBlockHeaderMutable) Contains(k []byte, v []byte, _ *KeyValues) bool {
-	e := s.Tags[string(k)]
-	if e != nil {
-		vv := string(v)
-		for _, s := range e {
-			if strings.Contains(s, vv) {
-				return true
-			}
-		}
-	}
-
-	return false
+	return s.Tags.Contains(string(k), string(v))
 }
 
 func (s *SearchBlockHeaderMutable) ToBytes() []byte {

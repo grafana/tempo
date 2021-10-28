@@ -25,7 +25,7 @@ leverages all the data that is processed in the pipeline.
 The Grafana Agent can be configured to run a set of tracing pipelines to collect data from your applications and write it to Tempo.
 Pipelines are built using OpenTelemetry,
 and consist of `receivers`, `processors` and `exporters`. The architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
-See the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration/tempo-config.md) for all available config options. 
+See the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration/traces-config.md) for all available config options. 
 For a quick start, refer to this [blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-agent-and-grafana-tempo/).
 
 <p align="center"><img src="https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/images/design-pipelines.png" alt="Tracing pipeline architecture"></p>
@@ -50,13 +50,13 @@ The Grafana Agent processes tracing data as it flows through the pipeline to mak
 
 The Agent supports batching of traces.
 Batching helps better compress the data, reduces the number of outgoing connections, and is a recommended best practice.
-To configure it, refer to the `batch` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration/tempo-config.md).
+To configure it, refer to the `batch` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration/traces-config.md).
 
 #### Attributes manipulation
 
 The Grafana Agent allows for general manipulation of attributes on spans that pass through this agent.
 A common use may be to add an environment or cluster variable.
-To configure it, refer to the `attributes` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration/tempo-config.md).
+To configure it, refer to the `attributes` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration/traces-config.md).
 
 #### Attaching metadata with Prometheus Service Discovery
 
@@ -64,7 +64,7 @@ Prometheus Service Discovery mechanisms enable you to attach the same metadata t
 For example, for Kubernetes users this means that you can dynamically attach metadata for namespace, pod, and name of the container sending spans.
 
 ```
-tempo:
+traces:
   ...
   scrape_configs:
   - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
@@ -88,7 +88,7 @@ All of Prometheus' [various service discovery mechanisms](https://prometheus.io/
 This means you can use the same scrape_configs between your metrics, logs, and traces to get the same set of labels,
 and easily transition between your observability data when moving from your metrics, logs, and traces.
 
-To configure it, refer to the `scrape_configs` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration/tempo-config.md).
+To configure it, refer to the `scrape_configs` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration/traces-config.md).
 
 #### Trace discovery through automatic logging
 
@@ -119,4 +119,4 @@ Aside from endpoint and authentication, the exporter also provides mechanisms fo
 and implements a queue buffering mechanism for transient failures, such as networking issues.
 
 To see all available options,
-refer to the `remote_write` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration/tempo-config.md).
+refer to the `remote_write` block in the [config reference](https://github.com/grafana/agent/blob/main/docs/configuration/traces-config.md).
