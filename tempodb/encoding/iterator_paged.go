@@ -39,7 +39,6 @@ func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dat
 
 // newPartialPagedIterator returns a backend.Iterator.  This iterator is used to iterate
 //  through a contiguous and limited set of pages in object storage.
-// jpe test
 func newPartialPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter, startIndexPage int, totalIndexPages int) Iterator {
 	return &pagedIterator{
 		dataReader:     dataReader,
