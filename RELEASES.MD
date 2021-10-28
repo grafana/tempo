@@ -16,7 +16,7 @@
 
 This document details release procedures for Tempo.  Currently it's pretty dang easy.
 
-- Follow all steps above except:
+- Follow all steps in [Release Candidates](#release-candidates) except:
   - Drop the `-rc.#` postfix from the tag. For instance use `v1.2.0` instead.
   - Make sure that the "This is a pre-release" is unchecked when publishing the release.
 - Submit a PR cleaning up the changelog and moving everything under "main/unreleased" to be under
