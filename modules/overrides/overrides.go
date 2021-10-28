@@ -12,10 +12,19 @@ import (
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"gopkg.in/yaml.v2"
 )
 
 const wildcardTenant = "*"
+
+var (
+	metricOverridesLimits = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "limits",
+		Help:      "Tenant usage limits",
+	}, []string{"limit_name", "user"})
+)
 
 // perTenantOverrides represents the overrides config file
 type perTenantOverrides struct {
@@ -214,43 +223,57 @@ func (o *Overrides) IngestionRateStrategy() string {
 // MaxLocalTracesPerUser returns the maximum number of traces a user is allowed to store
 // in a single ingester.
 func (o *Overrides) MaxLocalTracesPerUser(userID string) int {
-	return o.getOverridesForUser(userID).MaxLocalTracesPerUser
+	x := o.getOverridesForUser(userID).MaxLocalTracesPerUser
+	metricOverridesLimits.WithLabelValues("max_local_traces_per_user", userID).Set(float64(x))
+	return x
 }
 
 // MaxGlobalTracesPerUser returns the maximum number of traces a user is allowed to store
 // across the cluster.
 func (o *Overrides) MaxGlobalTracesPerUser(userID string) int {
-	return o.getOverridesForUser(userID).MaxGlobalTracesPerUser
+	x := o.getOverridesForUser(userID).MaxGlobalTracesPerUser
+	metricOverridesLimits.WithLabelValues("max_global_traces_per_user", userID).Set(float64(x))
+	return x
 }
 
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.
 func (o *Overrides) MaxBytesPerTrace(userID string) int {
-	return o.getOverridesForUser(userID).MaxBytesPerTrace
+	x := o.getOverridesForUser(userID).MaxBytesPerTrace
+	metricOverridesLimits.WithLabelValues("max_bytes_per_trace", userID).Set(float64(x))
+	return x
 }
 
 // MaxSearchBytesPerTrace returns the maximum size of search data for trace (in bytes) allowed for a user.
 func (o *Overrides) MaxSearchBytesPerTrace(userID string) int {
-	return o.getOverridesForUser(userID).MaxSearchBytesPerTrace
+	x := o.getOverridesForUser(userID).MaxSearchBytesPerTrace
+	metricOverridesLimits.WithLabelValues("max_search_bytes_per_trace", userID).Set(float64(x))
+	return x
 }
 
-// IngestionRateLimitBytes is the number of spans per second allowed for this tenant
+// IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
 func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
-	return float64(o.getOverridesForUser(userID).IngestionRateLimitBytes)
+	x := float64(o.getOverridesForUser(userID).IngestionRateLimitBytes)
+	metricOverridesLimits.WithLabelValues("ingestion_rate_limit_bytes", userID).Set(float64(x))
+	return x
 }
 
-// IngestionBurstSizeBytes is the burst size in spans allowed for this tenant
+// IngestionBurstSizeBytes is the burst size in spans allowed for this tenant.
 func (o *Overrides) IngestionBurstSizeBytes(userID string) int {
-	return o.getOverridesForUser(userID).IngestionBurstSizeBytes
+	x := o.getOverridesForUser(userID).IngestionBurstSizeBytes
+	metricOverridesLimits.WithLabelValues("ingestion_burst_size_bytes", userID).Set(float64(x))
+	return x
 }
 
-// SearchTagsAllowList is the list of tags to be extracted for search, for this tenant
+// SearchTagsAllowList is the list of tags to be extracted for search, for this tenant.
 func (o *Overrides) SearchTagsAllowList(userID string) map[string]struct{} {
 	return o.getOverridesForUser(userID).SearchTagsAllowList.GetMap()
 }
 
-// BlockRetention is the duration of the block retention for this tenant
+// BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
-	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
+	x := time.Duration(o.getOverridesForUser(userID).BlockRetention)
+	metricOverridesLimits.WithLabelValues("block_retention", userID).Set(float64(x))
+	return x
 }
 
 func (o *Overrides) getOverridesForUser(userID string) *Limits {
@@ -264,7 +287,6 @@ func (o *Overrides) getOverridesForUser(userID string) *Limits {
 		if l != nil {
 			return l
 		}
-
 	}
 
 	return o.defaultLimits
