@@ -253,7 +253,7 @@ func (o *Overrides) MaxSearchBytesPerTrace(userID string) int {
 // IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
 func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
 	x := float64(o.getOverridesForUser(userID).IngestionRateLimitBytes)
-	metricOverridesLimits.WithLabelValues("ingestion_rate_limit_bytes", userID).Set(float64(x))
+	metricOverridesLimits.WithLabelValues("ingestion_rate_limit_bytes", userID).Set(x)
 	return x
 }
 

@@ -702,7 +702,8 @@ memberlist:
 ```
 
 ## Overrides
-Tempo provides a overrides module for user to set global or per-tenant override settings.   
+
+Tempo provides an overrides module for users to set global or per-tenant override settings.
 **Currenly only ingestion limits can be overridden.**
 
 ### Ingestion limits
