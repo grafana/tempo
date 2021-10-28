@@ -101,7 +101,7 @@ func TestContainsTag(t *testing.T) {
 	m.AddTag("key5", "value")
 	m.AddTag("key6", "value")
 
-	e := SearchEntryFromBytes(m.ToBytes())
+	e := NewSearchEntryFromBytes(m.ToBytes())
 
 	kv := &KeyValues{}
 

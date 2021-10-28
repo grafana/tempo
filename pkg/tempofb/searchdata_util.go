@@ -145,7 +145,12 @@ func (s *SearchEntry) Contains(k []byte, v []byte, buffer *KeyValues) bool {
 	return ContainsTag(s, buffer, k, v)
 }
 
-func SearchEntryFromBytes(b []byte) *SearchEntry {
+func (s *SearchEntry) Reset(b []byte) {
+	n := flatbuffers.GetUOffsetT(b)
+	s.Init(b, n)
+}
+
+func NewSearchEntryFromBytes(b []byte) *SearchEntry {
 	return GetRootAsSearchEntry(b, 0)
 }
 
