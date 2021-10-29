@@ -234,7 +234,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 	for {
 		id, data, err := iter.Next(ctx)
 		if err != nil && err != io.EOF {
-			return nil, errors.Wrap(err, "error iterating") // jpe better iterator errors
+			return nil, errors.Wrap(err, "error iterating")
 		}
 
 		if id == nil {
@@ -407,7 +407,7 @@ func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blo
 			break
 		}
 		if err != nil {
-			return err
+			return fmt.Errorf("error iterating %s, %w", blockID, err)
 		}
 
 		wg.Add(1)

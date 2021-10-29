@@ -104,12 +104,10 @@ func TestIteratorPartialPaged(t *testing.T) {
 
 		// start at 0
 		iterator = newPartialPagedIterator(0, common.Records(appender.Records()), reader, enc.NewObjectReaderWriter(), 0, totalPages)
-		endPage = 0 + totalPages
-		assertIterator(t, iterator, ids[:endPage], objs[:endPage])
+		assertIterator(t, iterator, ids[:totalPages], objs[:totalPages])
 
 		// go past the end of the slice
 		iterator = newPartialPagedIterator(0, common.Records(appender.Records()), reader, enc.NewObjectReaderWriter(), 950, 100)
-		endPage = 0 + totalPages
 		assertIterator(t, iterator, ids[950:], objs[950:])
 	}
 }
