@@ -41,7 +41,8 @@ func TestIteratorPaged(t *testing.T) {
 			ids = append(ids, id)
 			objs = append(objs, obj)
 
-			appender.Append(id, obj)
+			err = appender.Append(id, obj)
+			require.NoError(t, err)
 		}
 
 		err = appender.Complete()
@@ -59,7 +60,6 @@ func TestIteratorPaged(t *testing.T) {
 // TestIteratorPartialPaged tests the iterator paging functionality
 func TestIteratorPartialPaged(t *testing.T) {
 	const totalObjects = 1000
-	const indexDownsampleBytes = 1000
 
 	for _, enc := range allEncodings() {
 		// build a paged appender with totalObjects. it's important to use a plain appender b/c
@@ -83,7 +83,8 @@ func TestIteratorPartialPaged(t *testing.T) {
 			ids = append(ids, id)
 			objs = append(objs, obj)
 
-			appender.Append(id, obj)
+			err = appender.Append(id, obj)
+			require.NoError(t, err)
 		}
 
 		err = appender.Complete()

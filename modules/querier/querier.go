@@ -479,11 +479,8 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 			StartTimeUnixNano: start,
 			DurationMs:        durationMs,
 		})
-		if len(resp.Traces) >= int(req.Search.Limit) {
-			return true
-		}
 
-		return false
+		return len(resp.Traces) >= int(req.Search.Limit)
 	})
 	if err != nil {
 		return nil, err
