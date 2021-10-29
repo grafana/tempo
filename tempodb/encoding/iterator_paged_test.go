@@ -52,23 +52,7 @@ func TestIteratorPaged(t *testing.T) {
 		require.NoError(t, err)
 
 		iterator := newPagedIterator(chunkSizeBytes, common.Records(appender.Records()), reader, enc.NewObjectReaderWriter())
-
-		for {
-			id, obj, err := iterator.Next(context.Background())
-			if err == io.EOF {
-				break
-			}
-			require.NoError(t, err)
-
-			assert.Equal(t, ids[0], id)
-			assert.Equal(t, objs[0], obj)
-
-			ids = ids[1:]
-			objs = objs[1:]
-		}
-
-		assert.Len(t, ids, 0)
-		assert.Len(t, objs, 0)
+		assertIterator(t, iterator, ids, objs)
 	}
 }
 
@@ -111,27 +95,40 @@ func TestIteratorPartialPaged(t *testing.T) {
 
 		startPage := 35
 		totalPages := 117
+
 		// chunk size is 0, to force every index to be individually retrieved. otherwise the datareader will return errors
 		// due to accessing non-contiguous pages
 		iterator := newPartialPagedIterator(0, common.Records(appender.Records()), reader, enc.NewObjectReaderWriter(), startPage, totalPages)
-		ids = ids[startPage : startPage+totalPages]
-		objs = objs[startPage : startPage+totalPages]
+		endPage := startPage + totalPages
+		assertIterator(t, iterator, ids[startPage:endPage], objs[startPage:endPage])
 
-		for {
-			id, obj, err := iterator.Next(context.Background())
-			if err == io.EOF {
-				break
-			}
-			require.NoError(t, err)
+		// start at 0
+		iterator = newPartialPagedIterator(0, common.Records(appender.Records()), reader, enc.NewObjectReaderWriter(), 0, totalPages)
+		endPage = 0 + totalPages
+		assertIterator(t, iterator, ids[:endPage], objs[:endPage])
 
-			assert.Equal(t, ids[0], id)
-			assert.Equal(t, objs[0], obj)
-
-			ids = ids[1:]
-			objs = objs[1:]
-		}
-
-		assert.Len(t, ids, 0)
-		assert.Len(t, objs, 0)
+		// go past the end of the slice
+		iterator = newPartialPagedIterator(0, common.Records(appender.Records()), reader, enc.NewObjectReaderWriter(), 950, 100)
+		endPage = 0 + totalPages
+		assertIterator(t, iterator, ids[950:], objs[950:])
 	}
+}
+
+func assertIterator(t *testing.T, iter Iterator, ids []common.ID, objs [][]byte) {
+	for {
+		id, obj, err := iter.Next(context.Background())
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+
+		assert.Equal(t, ids[0], id)
+		assert.Equal(t, objs[0], obj)
+
+		ids = ids[1:]
+		objs = objs[1:]
+	}
+
+	assert.Len(t, ids, 0)
+	assert.Len(t, objs, 0)
 }

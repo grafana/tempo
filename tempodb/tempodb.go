@@ -363,8 +363,10 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	return partialTraces, dataEncodings, funcErrs, err
 }
 
-// jpe
-// todo(search): Consolidate
+// IterateObjects iterates through all objects for the provided blockID, startPage and totalPages
+// calling the provided callback for each object. If the callback returns true then iteration
+// is stopped and the function returns. Note that the callback needs to be threadsafe as it is called
+// concurrently.
 func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blockID uuid.UUID, startPage int, totalPages int, callback IterateObjectCallback) error {
 	metas := rw.blocklist.Metas(tenantID)
 
