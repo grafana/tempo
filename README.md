@@ -1,8 +1,13 @@
 <p align="center"><img src="docs/tempo/website/logo_and_name.png" alt="Tempo Logo"></p>
 <p align="center">
-  <a href="https://hub.docker.com/r/grafana/tempo/tags"><image src="https://img.shields.io/docker/pulls/grafana/tempo" /></a>
+  <a href="https://github.com/grafana/tempo/releases"><img src="https://img.shields.io/github/v/release/grafana/tempo?display_name=tag&sort=semver" alt="Latest Release"/></a>
+  <img src="https://img.shields.io/github/license/grafana/tempo" alt="License" />
+  <a href="https://github.com/grafana/tempo/actions"><img src="https://github.com/cortexproject/cortex/workflows/ci/badge.svg" alt="CI Status"/></a>
+  <a href="https://hub.docker.com/r/grafana/tempo/tags"><image src="https://img.shields.io/docker/pulls/grafana/tempo" alt="Docker Pulls"/></a>
   <a href="https://grafana.slack.com/archives/C01D981PEE5"><img src="https://img.shields.io/badge/join%20slack-%23tempo-brightgreen.svg" alt="Slack" /></a>
   <a href="https://community.grafana.com/c/grafana-tempo/40"><img src="https://img.shields.io/badge/discuss-tempo%20forum-orange.svg" alt="Slack" /></a>
+  <a href="https://goreportcard.com/report/github.com/grafana/tempo"><img src="https://goreportcard.com/badge/github.com/grafana/tempo" alt="Go Report Card" /></a>
+  <a href="https://github.com/grafana/tempo/search?q=blerg"><img src="https://img.shields.io/github/search/grafana/tempo/blerg" alt="Blerg Counter" /></a>
 </p>
 
 
