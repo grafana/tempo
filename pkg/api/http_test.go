@@ -50,7 +50,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			urlQuery: "limit=120",
 			expected: &tempopb.SearchRequest{
 				Tags:  map[string]string{},
-				Limit: defaultLimit,
+				Limit: 100,
 			},
 		},
 		{

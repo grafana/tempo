@@ -227,13 +227,15 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 		expectedError    error
 	}{
 		{
-			name:             "empty returns",
-			status1:          200,
-			status2:          200,
-			expectedStatus:   200,
-			response1:        &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			response2:        &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			expectedResponse: &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
+			name:           "empty returns",
+			status1:        200,
+			status2:        200,
+			expectedStatus: 200,
+			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
+			response2:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
+			expectedResponse: &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{
+				InspectedBlocks: 1,
+			}},
 		},
 		{
 			name:           "404+200",
@@ -315,7 +317,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 6,
-					InspectedBlocks: 8,
+					InspectedBlocks: 1,
 					InspectedBytes:  10,
 					SkippedBlocks:   12,
 				}},

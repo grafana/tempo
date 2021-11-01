@@ -70,7 +70,7 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 	defer r.mtx.Unlock()
 
 	r.results.Traces = append(r.results.Traces, res.Traces...)
-	r.results.Metrics.InspectedBlocks += res.Metrics.InspectedBlocks
+	// purposefully ignoring InspectedBlocks as that value is set by the sharder
 	r.results.Metrics.InspectedBytes += res.Metrics.InspectedBytes
 	r.results.Metrics.InspectedTraces += res.Metrics.InspectedTraces
 	r.results.Metrics.SkippedBlocks += res.Metrics.SkippedBlocks
