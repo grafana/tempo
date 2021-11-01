@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
@@ -309,6 +310,11 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 		}
 	}
 
+	// Extra hard-coded values (for now)
+	for _, k := range search.GetStaticTags() {
+		uniqueMap[k] = struct{}{}
+	}
+
 	// Final response (sorted)
 	resp := &tempopb.SearchTagsResponse{
 		TagNames: make([]string, 0, len(uniqueMap)),
@@ -325,6 +331,14 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	_, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTagValues")
+	}
+
+	// Hard-coded values?
+	staticValues := search.GetStaticTagValues(req.TagName)
+	if len(staticValues) > 0 {
+		return &tempopb.SearchTagValuesResponse{
+			TagValues: staticValues,
+		}, nil
 	}
 
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)

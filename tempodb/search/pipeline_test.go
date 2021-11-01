@@ -1,11 +1,13 @@
 package search
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,7 +48,20 @@ func TestPipelineMatchesTags(t *testing.T) {
 			searchData:  map[string][]string{"key1": {"value1"}, "key2": {"value2"}},
 			request:     map[string]string{"key1": "value1", "key3": "value3"},
 			shouldMatch: false,
-		}}
+		},
+		{
+			name:        "rewriteError",
+			searchData:  map[string][]string{StatusCodeTag: {strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))}},
+			request:     map[string]string{"error": "t"},
+			shouldMatch: true,
+		},
+		{
+			name:        "rewriteStatusCode",
+			searchData:  map[string][]string{StatusCodeTag: {strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))}},
+			request:     map[string]string{StatusCodeTag: StatusCodeError},
+			shouldMatch: true,
+		},
+	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
