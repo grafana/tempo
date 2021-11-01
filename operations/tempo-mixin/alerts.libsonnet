@@ -127,7 +127,7 @@
             alert: 'TempoNoTenantIndexBuilders',
             expr: |||
               sum by (%(group_by_tenant)s) (tempodb_blocklist_tenant_index_builder{}) == 0 and
-              max by (%(group_by_tenant)s) (tempodb_blocklist_length{}) > 0
+              max by (%(group_by_cluster)s) (tempodb_blocklist_length{}) > 0
             ||| % $._config,
             'for': '5m',
             labels: {
