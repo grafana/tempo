@@ -11,9 +11,11 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # More exclusions can be added similar with: -not -path './testbed/*'
+#  jpe - testing serverless folder?
 ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
+								-not -path './cmd/tempo-serverless/*' \
                                 -type f | sort)
 
 # All source code and documents. Used in spell check.
