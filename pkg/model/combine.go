@@ -9,7 +9,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/pkg/errors"
 

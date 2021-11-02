@@ -14,7 +14,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/build"
 	"gopkg.in/yaml.v2"
 
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log/level"
 
 	"github.com/drone/envsubst"
 	"github.com/grafana/dskit/flagext"

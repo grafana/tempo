@@ -11,7 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
