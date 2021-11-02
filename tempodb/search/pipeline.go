@@ -89,7 +89,7 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 
 // rewriteTagLookup intercepts certain tag/value lookups and rewrites them. It returns
 // true if the tag lookup should be excluded from the remaining tag/value lookups because
-// the it was rewritten into a different filter altogehter.  Otherwise it returns false,
+// the it was rewritten into a different filter altogether.  Otherwise it returns false,
 // and a new set of tag/value strings to use, which will either be the original inputs
 // or rewritten lookups.
 func (p *Pipeline) rewriteTagLookup(k, v string) (skip bool, newk, newv string) {
