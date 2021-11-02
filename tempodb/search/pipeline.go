@@ -116,14 +116,12 @@ func (p *Pipeline) rewriteTagLookup(k, v string) (skip bool, newk, newv string) 
 		if b {
 			// Error = true
 			return false, StatusCodeTag, strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))
-		} else {
-			// Error = false
-			return false, StatusCodeTag, strconv.Itoa(int(v1.Status_STATUS_CODE_OK))
 		}
+		// Else fall-through
 
 	case StatusCodeTag:
 		// Convert status.code=string into status.code=int
-		for statusStr, statusID := range StatusCodeValues {
+		for statusStr, statusID := range statusCodeMapping {
 			if v == statusStr {
 				return false, StatusCodeTag, strconv.Itoa(statusID)
 			}

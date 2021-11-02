@@ -310,8 +310,8 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 		}
 	}
 
-	// Extra hard-coded values (for now)
-	for _, k := range search.GetStaticTags() {
+	// Extra tags
+	for _, k := range search.GetVirtualTags() {
 		uniqueMap[k] = struct{}{}
 	}
 
@@ -333,14 +333,6 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTagValues")
 	}
 
-	// Hard-coded values?
-	staticValues := search.GetStaticTagValues(req.TagName)
-	if len(staticValues) > 0 {
-		return &tempopb.SearchTagValuesResponse{
-			TagValues: staticValues,
-		}, nil
-	}
-
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
@@ -360,6 +352,11 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		for _, res := range resp.response.(*tempopb.SearchTagValuesResponse).TagValues {
 			uniqueMap[res] = struct{}{}
 		}
+	}
+
+	// Extra values
+	for _, v := range search.GetVirtualTagValues(req.TagName) {
+		uniqueMap[v] = struct{}{}
 	}
 
 	// Final response (sorted)

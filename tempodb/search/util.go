@@ -19,24 +19,24 @@ const (
 	StatusCodeError    = "error"
 )
 
-var StatusCodeValues = map[string]int{
+var statusCodeMapping = map[string]int{
 	StatusCodeUnset: int(v1.Status_STATUS_CODE_UNSET),
 	StatusCodeOK:    int(v1.Status_STATUS_CODE_OK),
 	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
 }
 
-func GetStaticTags() []string {
-	return []string{StatusCodeTag, ErrorTag}
+func GetVirtualTags() []string {
+	return []string{ErrorTag}
 }
 
-func GetStaticTagValues(tagName string) []string {
+func GetVirtualTagValues(tagName string) []string {
 	switch tagName {
 
 	case StatusCodeTag:
 		return []string{StatusCodeUnset, StatusCodeOK, StatusCodeError}
 
 	case ErrorTag:
-		return []string{"true", "false"}
+		return []string{"true"}
 	}
 
 	return nil
