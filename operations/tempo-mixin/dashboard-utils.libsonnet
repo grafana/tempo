@@ -61,15 +61,40 @@ grafana {
       ],
     },
 
-  latencyPanel(metricName, selector, multiplier='1e3')::
-    super.latencyPanel(metricName, selector, multiplier) + {
-      targets: [
-        target {
-          interval: '1m',
-        }
-        for target in super.targets
-      ],
-    },
+  # fork of grafana latency panel with additional_grouping added
+  latencyPanel(metricName, selector, multiplier='1e3', additional_grouping=''):: {
+    nullPointMode: 'null as zero',
+    targets: [
+      {
+        expr: 'histogram_quantile(0.99, sum(rate(%s_bucket%s[$__interval])) by (le,%s)) * %s' % [metricName, selector, additional_grouping, multiplier],
+        format: 'time_series',
+        intervalFactor: 2,
+        legendFormat: '{{route}} 99th',
+        refId: 'A',
+        step: 10,
+        interval: '1m',
+      },
+      {
+        expr: 'histogram_quantile(0.50, sum(rate(%s_bucket%s[$__interval])) by (le,%s)) * %s' % [metricName, selector, additional_grouping, multiplier],
+        format: 'time_series',
+        intervalFactor: 2,
+        legendFormat: '{{route}} 50th',
+        refId: 'B',
+        step: 10,
+        interval: '1m',
+      },
+      {
+        expr: 'sum(rate(%s_sum%s[$__interval])) by (%s) * %s / sum(rate(%s_count%s[$__interval])) by (%s)' % [metricName, selector, additional_grouping, multiplier, metricName, selector, additional_grouping],
+        format: 'time_series',
+        intervalFactor: 2,
+        legendFormat: '{{route}} Average',
+        refId: 'C',
+        step: 10,
+        interval: '1m',
+      },
+    ],
+    yaxes: $.yaxes('ms'),
+  },
 
   namespaceMatcher()::
     'cluster=~"$cluster", namespace=~"$namespace"',
