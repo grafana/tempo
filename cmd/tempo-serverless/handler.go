@@ -21,6 +21,10 @@ import (
 
 const configFile = "./config.json"
 
+// jpe - test
+// jpe - readme
+// jpe - makefile
+
 // Handler is the main entrypoint
 // Parameters
 //  - searchRequest           - tags, min/maxDuration, limit
