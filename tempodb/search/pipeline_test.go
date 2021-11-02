@@ -52,7 +52,7 @@ func TestPipelineMatchesTags(t *testing.T) {
 		{
 			name:        "rewriteError",
 			searchData:  map[string][]string{StatusCodeTag: {strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))}},
-			request:     map[string]string{"error": "t"},
+			request:     map[string]string{"error": "true"},
 			shouldMatch: true,
 		},
 		{

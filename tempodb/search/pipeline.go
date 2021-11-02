@@ -106,14 +106,7 @@ func (p *Pipeline) rewriteTagLookup(k, v string) (skip bool, newk, newv string) 
 		return true, "", ""
 
 	case ErrorTag:
-		// Convert error=true|false into status.code=2|1
-		b, err := strconv.ParseBool(v)
-		if err != nil {
-			// Not a bool string = fall-through
-			break
-		}
-
-		if b {
+		if v == "true" {
 			// Error = true
 			return false, StatusCodeTag, strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))
 		}
