@@ -14,7 +14,6 @@ require (
 	github.com/cristalhq/hedgedhttp v0.6.0
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.0.0
-	github.com/go-kit/kit v0.12.0
 	github.com/go-kit/log v0.2.0
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/go-test/deep v1.0.7
@@ -123,6 +122,7 @@ require (
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/fsouza/fake-gcs-server v1.7.0 // indirect
+	github.com/go-kit/kit v0.12.0 // indirect
 	github.com/go-openapi/analysis v0.20.0 // indirect
 	github.com/go-openapi/errors v0.20.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
