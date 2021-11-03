@@ -17,6 +17,9 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
+
+	// required by the goog
+	_ "github.com/GoogleCloudPlatform/functions-framework-go/funcframework"
 )
 
 const configFile = "./config.json"
