@@ -23,7 +23,9 @@ const configFile = "./config.json"
 
 // jpe - test
 // jpe - readme
-// jpe - makefile (go.mod has to be rewritten to remove the replace on tempo)
+// jpe - makefile
+//     - go.mod has to be rewritten to remove the replace on tempo
+//     - go mod download github.com/grafana/tempo
 
 // Handler is the main entrypoint
 // Parameters
