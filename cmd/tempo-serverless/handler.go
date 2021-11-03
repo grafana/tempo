@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -118,6 +119,9 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	for {
 		id, obj, err := iter.Next(r.Context())
+		if err == io.EOF || id == nil || obj == nil {
+			break
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
