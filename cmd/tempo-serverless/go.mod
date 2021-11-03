@@ -3,6 +3,7 @@ module github.com/grafana/tempo/cmd/tempo-serverless
 go 1.17
 
 require (
+	github.com/GoogleCloudPlatform/functions-framework-go v1.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/grafana/tempo v1.2.0-rc.0.0.20211029120833-dee59ebe564c
 )
@@ -13,7 +14,6 @@ require (
 	cloud.google.com/go/storage v1.15.0 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.2 // indirect
 	github.com/Azure/azure-storage-blob-go v0.8.0 // indirect
-	github.com/GoogleCloudPlatform/functions-framework-go v1.3.0 // indirect
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/apache/thrift v0.13.0 // indirect
 	github.com/aws/aws-sdk-go v1.38.68 // indirect
