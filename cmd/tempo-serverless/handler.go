@@ -1,10 +1,10 @@
-package handler
+package main
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
 	"net/http"
-	"os"
+	"strings"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/api"
@@ -17,12 +17,15 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/mitchellh/mapstructure"
+	"github.com/spf13/viper"
+	"gopkg.in/yaml.v2"
 
 	// required by the goog
 	_ "github.com/GoogleCloudPlatform/functions-framework-go/funcframework"
 )
 
-const configFile = "./config.json"
+const envConfigPrefix = "TEMPO"
 
 // jpe - test
 // jpe - readme
@@ -145,16 +148,25 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func loadBackend() (backend.Reader, error) {
-	cfgBytes, err := os.ReadFile(configFile)
+	// horrible viper dance since it won't unmarshal to a struct from env: https://github.com/spf13/viper/issues/188
+	v := viper.NewWithOptions()
+	b, err := yaml.Marshal(defaultConfig())
 	if err != nil {
+		return nil, err
+	}
+	v.SetConfigType("yaml")
+	if err := v.MergeConfig(bytes.NewReader(b)); err != nil {
 		return nil, err
 	}
 
+	v.AutomaticEnv()
+	v.SetEnvPrefix(envConfigPrefix)
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+
+	fmt.Println(v.AllSettings())
+
 	cfg := &tempodb.Config{}
-	err = json.Unmarshal(cfgBytes, cfg)
-	if err != nil {
-		return nil, err
-	}
+	v.Unmarshal(cfg, setTagName)
 
 	var r backend.RawReader
 
@@ -162,7 +174,7 @@ func loadBackend() (backend.Reader, error) {
 	case "local":
 		r, _, _, err = local.New(cfg.Local)
 	case "gcs":
-		r, _, _, err = gcs.New(cfg.GCS)
+		r, _, _, err = gcs.New(cfg.GCS) // jpe this call GetAttr to confirm backend is working. we should remove that for the lambda
 	case "s3":
 		r, _, _, err = s3.New(cfg.S3)
 	case "azure":
@@ -176,4 +188,17 @@ func loadBackend() (backend.Reader, error) {
 	}
 
 	return backend.NewReader(r), nil
+}
+
+func defaultConfig() *tempodb.Config {
+	return &tempodb.Config{
+		Local: &local.Config{},
+		GCS:   &gcs.Config{},
+		S3:    &s3.Config{},
+		Azure: &azure.Config{},
+	}
+}
+
+func setTagName(d *mapstructure.DecoderConfig) {
+	d.TagName = "yaml"
 }

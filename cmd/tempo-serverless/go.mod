@@ -6,6 +6,8 @@ require (
 	github.com/GoogleCloudPlatform/functions-framework-go v1.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/grafana/tempo v1.2.0-rc.0.0.20211029120833-dee59ebe564c
+	github.com/spf13/viper v1.7.1
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -90,7 +92,6 @@ require (
 	github.com/spf13/cobra v1.1.3 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/spf13/viper v1.7.1 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/thanos-io/thanos v0.22.0 // indirect
 	github.com/uber-go/atomic v1.4.0 // indirect
@@ -127,7 +128,6 @@ require (
 	google.golang.org/grpc v1.39.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/ini.v1 v1.57.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 replace github.com/grafana/tempo => ../../

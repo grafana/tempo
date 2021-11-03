@@ -1,8 +1,0 @@
-{
-    "backend": "gcs",
-    "gcs": {
-        "bucket_name": "ops-tools-tempo-dev",
-        "chunk_buffer_size": 10485760,
-        "hedge_requests_at": "400ms"
-    }
-}
