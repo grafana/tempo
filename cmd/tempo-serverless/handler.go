@@ -38,7 +38,7 @@ const envConfigPrefix = "TEMPO"
 //  - searchRequest           - tags, min/maxDuration, limit
 //  - BackendSearch 		  - start, end
 //  - BackendSearchQuerier    - startPage, totalPages, blockID
-//  - BackendSearchServerless - encoding, dataEncoding, indexPageSize, totalRecords, tenant
+//  - BackendSearchServerless - encoding, dataEncoding, indexPageSize, totalRecords, tenant, version
 // Response
 //  - tempopb.SearchResponse
 func Handler(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +60,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	delete(searchReq.Tags, api.URLParamTotalRecords)
 	delete(searchReq.Tags, api.URLParamTenant)
 	delete(searchReq.Tags, api.URLParamDataEncoding)
+	delete(searchReq.Tags, api.URLParamVersion)
 
 	start, end, limit, err := api.ParseBackendSearch(r)
 	if err != nil {
