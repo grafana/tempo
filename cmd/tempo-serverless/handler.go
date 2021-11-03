@@ -73,7 +73,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	enc, dataEncoding, indexPageSize, totalRecords, tenant, err := api.ParseBackendSearchServerless(r)
+	enc, dataEncoding, indexPageSize, totalRecords, tenant, version, err := api.ParseBackendSearchServerless(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -89,6 +89,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	// fake out meta, we're only filling in the fields here we need
 	// which is kind of cheating
 	meta := &backend.BlockMeta{
+		Version:       version,
 		TenantID:      tenant,
 		Encoding:      enc,
 		IndexPageSize: indexPageSize,

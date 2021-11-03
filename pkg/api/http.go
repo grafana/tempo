@@ -35,6 +35,7 @@ const (
 	URLParamTotalRecords  = "totalRecords"
 	URLParamTenant        = "tenant"
 	URLParamDataEncoding  = "dataEncoding"
+	URLParamVersion       = "version"
 
 	HeaderAccept         = "Accept"
 	HeaderAcceptProtobuf = "application/protobuf"
@@ -234,7 +235,7 @@ func ParseBackendSearchQuerier(r *http.Request) (startPage, totalPages uint32, b
 // ParseBackendSearchServerless is used by the serverless functionality to parse backend search requests.
 // /?encoding=zstd&indexPageSize=10totalRecords=10&tenant=1
 // jpe test
-func ParseBackendSearchServerless(r *http.Request) (encoding backend.Encoding, dataEncoding string, indexPageSize, totalRecords uint32, tenant string, err error) {
+func ParseBackendSearchServerless(r *http.Request) (encoding backend.Encoding, dataEncoding string, indexPageSize, totalRecords uint32, tenant, version string, err error) {
 	var indexPageSize64, totalRecords64 int64
 
 	if s := r.URL.Query().Get(URLParamEncoding); s != "" {
@@ -279,6 +280,12 @@ func ParseBackendSearchServerless(r *http.Request) (encoding backend.Encoding, d
 	dataEncoding = r.URL.Query().Get(URLParamDataEncoding)
 	if dataEncoding == "" {
 		err = errors.New("dataEncoding required")
+		return
+	}
+
+	version = r.URL.Query().Get(URLParamVersion)
+	if dataEncoding == "" {
+		err = errors.New("version required")
 		return
 	}
 
