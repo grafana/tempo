@@ -23,7 +23,7 @@ const configFile = "./config.json"
 
 // jpe - test
 // jpe - readme
-// jpe - makefile
+// jpe - makefile (go.mod has to be rewritten to remove the replace on tempo)
 
 // Handler is the main entrypoint
 // Parameters
