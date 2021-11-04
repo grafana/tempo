@@ -4,20 +4,22 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/grafana/dskit/kv"
+	"github.com/grafana/dskit/ring"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 // New creates a new distributed consistent hash ring.  It shadows the cortex
 // ring.New method so we can use our own replication strategy for repl factor = 2
 func New(cfg ring.Config, name, key string, reg prometheus.Registerer) (*ring.Ring, error) {
+	reg = prometheus.WrapRegistererWithPrefix("cortex_", reg)
+
 	if cfg.ReplicationFactor == 2 {
 		return newEventuallyConsistentRing(cfg, name, key, reg)
 	}
 
-	return ring.New(cfg, name, key, reg)
+	return ring.New(cfg, name, key, log.Logger, reg)
 }
 
 func newEventuallyConsistentRing(cfg ring.Config, name, key string, reg prometheus.Registerer) (*ring.Ring, error) {
@@ -33,7 +35,7 @@ func newEventuallyConsistentRing(cfg ring.Config, name, key string, reg promethe
 		return nil, err
 	}
 
-	return ring.NewWithStoreClientAndStrategy(cfg, name, key, store, &EventuallyConsistentStrategy{})
+	return ring.NewWithStoreClientAndStrategy(cfg, name, key, store, &EventuallyConsistentStrategy{}, reg, log.Logger)
 }
 
 // EventuallyConsistentStrategy represents a repl strategy with a consistency of 1 on read and
