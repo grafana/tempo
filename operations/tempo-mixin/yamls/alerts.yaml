@@ -29,7 +29,7 @@
       "message": "There are {{ printf \"%f\" $value }} unhealthy compactor(s)."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorUnhealthy"
     "expr": |
-      max by (cluster, namespace) (cortex_ring_members{state="Unhealthy", name="compactor"}) > 0
+      max by (cluster, namespace) (cortex_ring_members{state="Unhealthy", name="compactor", namespace=~".*"}) > 0
     "for": "15m"
     "labels":
       "severity": "critical"
@@ -38,7 +38,7 @@
       "message": "There are {{ printf \"%f\" $value }} unhealthy distributor(s)."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoDistributorUnhealthy"
     "expr": |
-      max by (cluster, namespace) (cortex_ring_members{state="Unhealthy", name="distributor"}) > 0
+      max by (cluster, namespace) (cortex_ring_members{state="Unhealthy", name="distributor", namespace=~".*"}) > 0
     "for": "15m"
     "labels":
       "severity": "warning"
