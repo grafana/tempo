@@ -6,9 +6,9 @@ import (
 	"hash/fnv"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -38,7 +38,7 @@ type Compactor struct {
 }
 
 // New makes a new Compactor.
-func New(cfg Config, store storage.Store, overrides *overrides.Overrides) (*Compactor, error) {
+func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg prometheus.Registerer) (*Compactor, error) {
 	c := &Compactor{
 		cfg:       &cfg,
 		store:     store,
@@ -48,14 +48,14 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides) (*Comp
 	subservices := []services.Service(nil)
 	if c.isSharded() {
 		lifecyclerCfg := c.cfg.ShardingRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", cfg.OverrideRingKey, false, prometheus.DefaultRegisterer)
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, ring.NewNoopFlushTransferer(), "compactor", cfg.OverrideRingKey, false, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
 		c.ringLifecycler = lifecycler
 		subservices = append(subservices, c.ringLifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", cfg.OverrideRingKey, prometheus.DefaultRegisterer)
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "compactor", cfg.OverrideRingKey, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
 		}

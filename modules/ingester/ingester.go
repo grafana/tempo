@@ -8,10 +8,10 @@ import (
 
 	"github.com/grafana/tempo/tempodb/search"
 
-	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
+	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -64,7 +64,7 @@ type Ingester struct {
 }
 
 // New makes a new Ingester.
-func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingester, error) {
+func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prometheus.Registerer) (*Ingester, error) {
 	i := &Ingester{
 		cfg:          cfg,
 		instances:    map[string]*instance{},
@@ -80,7 +80,7 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides) (*Ingeste
 		go i.flushLoop(j)
 	}
 
-	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, prometheus.DefaultRegisterer)
+	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %w", err)
 	}

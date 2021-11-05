@@ -8,12 +8,12 @@ import (
 	"github.com/cortexproject/cortex/pkg/cortex"
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend"
 	cortex_frontend_v1pb "github.com/cortexproject/cortex/pkg/frontend/v1/frontendv1pb"
-	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/kv/codec"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/modules"
+	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/thanos-io/thanos/pkg/discovery/dns"
@@ -83,7 +83,6 @@ func (t *App) initRing() (services.Service, error) {
 	}
 	t.ring = ring
 
-	prometheus.MustRegister(t.ring)
 	t.Server.HTTP.Handle("/ingester/ring", t.ring)
 
 	return t.ring, nil
@@ -101,14 +100,13 @@ func (t *App) initOverrides() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	// todo: make ingester client a module instead of passing the config everywhere
-	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides, t.TracesConsumerMiddleware, t.cfg.Server.LogLevel, t.cfg.SearchEnabled)
+	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides, t.TracesConsumerMiddleware, t.cfg.Server.LogLevel, t.cfg.SearchEnabled, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
 	}
 	t.distributor = distributor
 
 	if distributor.DistributorRing != nil {
-		prometheus.MustRegister(distributor.DistributorRing)
 		t.Server.HTTP.Handle("/distributor/ring", distributor.DistributorRing)
 	}
 
@@ -117,7 +115,7 @@ func (t *App) initDistributor() (services.Service, error) {
 
 func (t *App) initIngester() (services.Service, error) {
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
-	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.overrides)
+	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ingester %w", err)
 	}
@@ -221,14 +219,13 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 }
 
 func (t *App) initCompactor() (services.Service, error) {
-	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.overrides)
+	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor %w", err)
 	}
 	t.compactor = compactor
 
 	if t.compactor.Ring != nil {
-		prometheus.MustRegister(t.compactor.Ring)
 		t.Server.HTTP.Handle("/compactor/ring", t.compactor.Ring)
 	}
 

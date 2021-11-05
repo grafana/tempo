@@ -11,15 +11,15 @@ import (
 	"time"
 
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
-	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/cortexproject/cortex/pkg/util"
-	"github.com/cortexproject/cortex/pkg/util/grpc/healthcheck"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/dskit/grpcutil"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/modules"
+	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/pkg/errors"
@@ -264,7 +264,7 @@ func (t *App) Run() error {
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
 	t.Server.HTTP.Path("/status").Handler(t.statusHandler()).Methods("GET")
 	t.Server.HTTP.Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
-	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, healthcheck.New(sm))
+	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, grpcutil.NewHealthCheck(sm))
 
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }

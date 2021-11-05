@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/ring"
-	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
+	"github.com/grafana/dskit/ring"
+	ring_client "github.com/grafana/dskit/ring/client"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -612,7 +612,7 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distrib
 	l := logging.Level{}
 	_ = l.Set("error")
 	mw := receiver.MultiTenancyMiddleware()
-	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, mw, l, false)
+	d, err := New(distributorConfig, clientConfig, ingestersRing, overrides, mw, l, false, prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 
 	return d

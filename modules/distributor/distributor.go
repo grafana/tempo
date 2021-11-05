@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/ring"
-	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
-	"github.com/cortexproject/cortex/pkg/util/limiter"
-	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
+	"github.com/grafana/dskit/limiter"
+	"github.com/grafana/dskit/ring"
+	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/segmentio/fasthash/fnv1a"
 
@@ -109,7 +109,7 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, level logging.Level, searchEnabled bool) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, level logging.Level, searchEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -125,14 +125,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	if o.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
 		lifecyclerCfg := cfg.DistributorRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, prometheus.DefaultRegisterer)
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 		if err != nil {
 			return nil, err
 		}
 		subservices = append(subservices, lifecycler)
 		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, lifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, prometheus.DefaultRegisterer)
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize distributor ring")
 		}
@@ -147,7 +147,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		ring_client.NewRingServiceDiscovery(ingestersRing),
 		factory,
 		metricIngesterClients,
-		cortex_util.Logger)
+		log.Logger)
 
 	subservices = append(subservices, pool)
 
@@ -452,7 +452,7 @@ func logTraces(batches []*v1.ResourceSpans) {
 	for _, b := range batches {
 		for _, ils := range b.InstrumentationLibrarySpans {
 			for _, s := range ils.Spans {
-				level.Info(cortex_util.Logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+				level.Info(log.Logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
 			}
 		}
 	}

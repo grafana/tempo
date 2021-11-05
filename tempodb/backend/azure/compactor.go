@@ -135,7 +135,7 @@ func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAtt
 	}
 
 	var props *blob.BlobGetPropertiesResponse
-	props, err = blobURL.GetProperties(ctx, blob.BlobAccessConditions{})
+	props, err = blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, blob.ClientProvidedKeyOptions{})
 	if err != nil {
 		return BlobAttributes{}, err
 	}
