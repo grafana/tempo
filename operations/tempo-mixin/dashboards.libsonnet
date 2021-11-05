@@ -12,55 +12,44 @@ dashboard_utils {
         g.row('Gateway')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="%sapi_traces_traceid"}' % [$.jobMatcher($._config.jobs.gateway), $._config.http_api_prefix])
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"%stempo_api_.*"}' % [$.jobMatcher($._config.jobs.gateway), $._config.http_api_prefix])
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="%sapi_traces_traceid"}' % [$.jobMatcher($._config.jobs.gateway), $._config.http_api_prefix])
-        )
-      )
-      .addRow(
-        g.row('Jaeger Query')
-        .addPanel(
-          $.panel('QPS') +
-          $.qpsPanel('jaeger_rpc_http_requests_total{%s, endpoint="/api/traces/-traceID-"}' % $.jobMatcher($._config.jobs.querier))
-        )
-        .addPanel(
-          $.panel('Latency') +
-          $.latencyPanel('jaeger_query_latency', '{%s,operation="get_trace"}' % $.jobMatcher($._config.jobs.querier))
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"%stempo_api_.*"}' % [$.jobMatcher($._config.jobs.gateway), $._config.http_api_prefix], additional_grouping='route')
         )
       )
       .addRow(
         g.row('Query Frontend')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="%sapi_traces_traceid"}' % [$.jobMatcher($._config.jobs.query_frontend), $._config.http_api_prefix])
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"%stempo_api_.*"}' % [$.jobMatcher($._config.jobs.query_frontend), $._config.http_api_prefix])
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="%sapi_traces_traceid"}' % [$.jobMatcher($._config.jobs.query_frontend), $._config.http_api_prefix])
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"%stempo_api_.*"}' % [$.jobMatcher($._config.jobs.query_frontend), $._config.http_api_prefix], additional_grouping='route')
         )
       )
       .addRow(
         g.row('Querier')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="querier_%sapi_traces_traceid"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix])
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"querier_%stempo_api_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix])
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="querier_%sapi_traces_traceid"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix])
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"querier_%stempo_api_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix], additional_grouping='route')
         )
       )
       .addRow(
         g.row('Ingester')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempo_request_duration_seconds_count{%s, route="/tempopb.Querier/FindTraceByID"}' % $.jobMatcher($._config.jobs.ingester))
+          $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"/tempopb.Querier/.*"}' % $.jobMatcher($._config.jobs.ingester))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_request_duration_seconds', '{%s,route="/tempopb.Querier/FindTraceByID"}' % $.jobMatcher($._config.jobs.ingester))
+          $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"/tempopb.Querier/.*"}' % $.jobMatcher($._config.jobs.ingester), additional_grouping='route')
         )
       )
       .addRow(
