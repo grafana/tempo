@@ -159,29 +159,29 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "99th Percentile",
+       "legendFormat": "{{route}} 99th",
        "refId": "A",
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "50th Percentile",
+       "legendFormat": "{{route}} 50th",
        "refId": "B",
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval]))",
+       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by () * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "Average",
+       "legendFormat": "{{route}} Average",
        "refId": "C",
        "step": 10
       }
@@ -372,29 +372,29 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "99th Percentile",
+       "legendFormat": "{{route}} 99th",
        "refId": "A",
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "50th Percentile",
+       "legendFormat": "{{route}} 50th",
        "refId": "B",
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_distributor_push_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) * 1e3 / sum(rate(tempo_distributor_push_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval]))",
+       "expr": "sum(rate(tempo_distributor_push_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by () * 1e3 / sum(rate(tempo_distributor_push_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "Average",
+       "legendFormat": "{{route}} Average",
        "refId": "C",
        "step": 10
       }
@@ -582,29 +582,29 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "99th Percentile",
+       "legendFormat": "{{route}} 99th",
        "refId": "A",
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "50th Percentile",
+       "legendFormat": "{{route}} 50th",
        "refId": "B",
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval]))",
+       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by () * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "Average",
+       "legendFormat": "{{route}} Average",
        "refId": "C",
        "step": 10
       }
@@ -792,29 +792,29 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "99th Percentile",
+       "legendFormat": "{{route}} 99th",
        "refId": "A",
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "50th Percentile",
+       "legendFormat": "{{route}} 50th",
        "refId": "B",
        "step": 10
       },
       {
-       "expr": "sum(rate(cortex_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) * 1e3 / sum(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval]))",
+       "expr": "sum(rate(cortex_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by () * 1e3 / sum(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "Average",
+       "legendFormat": "{{route}} Average",
        "refId": "C",
        "step": 10
       }
@@ -1002,29 +1002,29 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "99th Percentile",
+       "legendFormat": "{{route}} 99th",
        "refId": "A",
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "50th Percentile",
+       "legendFormat": "{{route}} 50th",
        "refId": "B",
        "step": 10
       },
       {
-       "expr": "sum(rate(tempodb_gcs_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) * 1e3 / sum(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval]))",
+       "expr": "sum(rate(tempodb_gcs_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by () * 1e3 / sum(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "Average",
+       "legendFormat": "{{route}} Average",
        "refId": "C",
        "step": 10
       }
@@ -1212,29 +1212,29 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "99th Percentile",
+       "legendFormat": "{{route}} 99th",
        "refId": "A",
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "50th Percentile",
+       "legendFormat": "{{route}} 50th",
        "refId": "B",
        "step": 10
       },
       {
-       "expr": "sum(rate(cortex_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) * 1e3 / sum(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval]))",
+       "expr": "sum(rate(cortex_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by () * 1e3 / sum(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "Average",
+       "legendFormat": "{{route}} Average",
        "refId": "C",
        "step": 10
       }
@@ -1422,29 +1422,29 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "99th Percentile",
+       "legendFormat": "{{route}} 99th",
        "refId": "A",
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__interval])) by (le)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "50th Percentile",
+       "legendFormat": "{{route}} 50th",
        "refId": "B",
        "step": 10
       },
       {
-       "expr": "sum(rate(tempodb_gcs_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__interval])) * 1e3 / sum(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__interval]))",
+       "expr": "sum(rate(tempodb_gcs_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__interval])) by () * 1e3 / sum(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "Average",
+       "legendFormat": "{{route}} Average",
        "refId": "C",
        "step": 10
       }

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/modules/querier"
@@ -96,13 +96,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				return
 			}
 
-			// if not found bail
-			if resp.StatusCode == http.StatusNotFound {
-				return
-			}
-
 			// if the status code is anything but happy, save the error and pass it down the line
-			if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
 				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast?
 				statusCode = resp.StatusCode
 				bytesMsg, err := io.ReadAll(resp.Body)
@@ -113,7 +108,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				return
 			}
 
-			// successful query, read the body
+			// read the body
 			buff, err := io.ReadAll(resp.Body)
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
@@ -138,6 +133,11 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 					overallError = fmt.Errorf("too many failed block queries %d (max %d)", totalFailedBlocks, s.maxFailedBlocks)
 					return
 				}
+			}
+
+			// if not found bail
+			if resp.StatusCode == http.StatusNotFound {
+				return
 			}
 
 			// happy path

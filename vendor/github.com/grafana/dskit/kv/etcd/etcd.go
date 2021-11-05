@@ -7,16 +7,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/pkg/transport"
 
 	"github.com/grafana/dskit/backoff"
+	dstls "github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/codec"
-	"github.com/grafana/dskit/kv/kvtls"
 )
 
 // Config for a new etcd.Client.
@@ -25,7 +25,7 @@ type Config struct {
 	DialTimeout time.Duration      `yaml:"dial_timeout"`
 	MaxRetries  int                `yaml:"max_retries"`
 	EnableTLS   bool               `yaml:"tls_enabled"`
-	TLS         kvtls.ClientConfig `yaml:",inline"`
+	TLS         dstls.ClientConfig `yaml:",inline"`
 
 	UserName string `yaml:"username"`
 	Password string `yaml:"password"`

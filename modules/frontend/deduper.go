@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
 

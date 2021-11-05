@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/tempo.git",
+          "subdir": "operations/jsonnet/microservices"
+        }
+      },
+      "version": "c5d007da27071358fa9b12730c048f0eddbeb82c",
+      "sum": "U7/nBNMutVT6HnKm3fO3tVha0eKZs6eeiNKltesvW70="
+    }
+  ],
+  "legacyImports": false
+}

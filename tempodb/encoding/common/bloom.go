@@ -5,7 +5,7 @@ import (
 	"math"
 
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log/level"
 	"github.com/willf/bloom"
 
 	"github.com/grafana/tempo/pkg/util"
