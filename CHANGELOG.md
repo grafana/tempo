@@ -1,5 +1,6 @@
 ## main / unreleased
 
+## v1.2.0 / 2021-11-05
 * [CHANGE] **BREAKING CHANGE** Drop support for v0 and v1 blocks. See [1.1 changelog](https://github.com/grafana/tempo/releases/tag/v1.1.0) for details [#919](https://github.com/grafana/tempo/pull/919) (@joe-elliott)
 * [CHANGE] Renamed CLI flag from `--storage.trace.maintenance-cycle` to `--storage.trace.blocklist_poll`. This is a **breaking change**  [#897](https://github.com/grafana/tempo/pull/897) (@mritunjaysharma394)
 * [CHANGE] update jsonnet alerts and recording rules to use `job_selectors` and `cluster_selectors` for configurable unique identifier labels [#935](https://github.com/grafana/tempo/pull/935) (@kevinschoonover)
@@ -82,6 +83,7 @@
 * [BUGFIX] Several bug fixes for search contention and panics [#1033](https://github.com/grafana/tempo/pull/1033) (@mdisibio) 
 * [BUGFIX] Fixes `tempodb_backend_hedged_roundtrips_total` to correctly count hedged roundtrips. [#1079](https://github.com/grafana/tempo/pull/1079) (@joe-elliott) 
 * [BUGFIX] Update go-kit logger package to remove spurious debug logs [#1094](https://github.com/grafana/tempo/pull/1094) (@bboreham)
+
 ## v1.1.0 / 2021-08-26
 * [CHANGE] Upgrade Cortex from v1.9.0 to v1.9.0-131-ga4bf10354 [#841](https://github.com/grafana/tempo/pull/841) (@aknuds1)
 * [CHANGE] Change default tempo port from 3100 to 3200 [#770](https://github.com/grafana/tempo/pull/809) (@MurzNN)
