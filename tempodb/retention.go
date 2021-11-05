@@ -3,7 +3,7 @@ package tempodb
 import (
 	"time"
 
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log/level"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 )

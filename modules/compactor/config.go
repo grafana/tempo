@@ -5,8 +5,8 @@ import (
 	"time"
 
 	cortex_compactor "github.com/cortexproject/cortex/pkg/compactor"
-	"github.com/cortexproject/cortex/pkg/ring"
 	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 )

@@ -4,7 +4,6 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'example/**'
-      - 'operations/**'
       - 'tools/**'
 jobs:
 

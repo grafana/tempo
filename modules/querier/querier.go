@@ -10,11 +10,11 @@ import (
 	"sync"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
-	"github.com/cortexproject/cortex/pkg/ring"
-	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/ring"
+	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -318,6 +318,11 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 		}
 	}
 
+	// Extra tags
+	for _, k := range search.GetVirtualTags() {
+		uniqueMap[k] = struct{}{}
+	}
+
 	// Final response (sorted)
 	resp := &tempopb.SearchTagsResponse{
 		TagNames: make([]string, 0, len(uniqueMap)),
@@ -355,6 +360,11 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		for _, res := range resp.response.(*tempopb.SearchTagValuesResponse).TagValues {
 			uniqueMap[res] = struct{}{}
 		}
+	}
+
+	// Extra values
+	for _, v := range search.GetVirtualTagValues(req.TagName) {
+		uniqueMap[v] = struct{}{}
 	}
 
 	// Final response (sorted)
