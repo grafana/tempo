@@ -25,10 +25,6 @@ import (
 	tempo_io "github.com/grafana/tempo/pkg/io"
 )
 
-const (
-	uptoHedgedRequests = 2
-)
-
 // readerWriter can read/write from an s3 backend
 type readerWriter struct {
 	logger     log.Logger
@@ -339,7 +335,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	var stats *hedgedhttp.Stats
 
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
 		instrumentation.PublishHedgedMetrics(stats)
 	}
 
