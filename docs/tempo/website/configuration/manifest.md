@@ -16,7 +16,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ## Complete Configuration
 
-> **Note**: This manifest was generated on 2021-10-08.
+> **Note**: This manifest was generated on 2021-10-27.
 
 ```yaml
 target: all
@@ -129,6 +129,8 @@ ingester_client:
 querier:
   query_timeout: 10s
   search_query_timeout: 30s
+  search_default_result_limit: 20
+  search_max_result_limit: 0
   max_concurrent_queries: 5
   frontend_worker:
     frontend_address: 127.0.0.1:9095
@@ -326,6 +328,7 @@ storage:
       endpoint: ""
       insecure: false
       hedge_requests_at: 0s
+      hedge_requests_up_to: 2
     s3:
       bucket: ""
       endpoint: ""
@@ -335,6 +338,7 @@ storage:
       insecure: false
       part_size: 0
       hedge_requests_at: 0s
+      hedge_requests_up_to: 2
       signature_v2: false
       forcepathstyle: false
     azure:
@@ -345,6 +349,7 @@ storage:
       max-buffers: 4
       buffer-size: 3145728
       hedge-requests-at: 0s
+      hedge-requests-up-to: 2
     cache: ""
     cache_min_compaction_level: 0
     cache_max_block_age: 0s

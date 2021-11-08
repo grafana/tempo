@@ -16,15 +16,22 @@ package storage
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/internal/optional"
 	"cloud.google.com/go/internal/trace"
+	"golang.org/x/xerrors"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/iamcredentials/v1"
 	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
 	raw "google.golang.org/api/storage/v1"
 )
 
@@ -130,7 +137,8 @@ func (b *BucketHandle) DefaultObjectACL() *ACLHandle {
 }
 
 // Object returns an ObjectHandle, which provides operations on the named object.
-// This call does not perform any network operations.
+// This call does not perform any network operations such as fetching the object or verifying its existence.
+// Use methods on ObjectHandle to perform network operations.
 //
 // name must consist entirely of valid UTF-8-encoded runes. The full specification
 // for valid object names can be found at:
@@ -165,7 +173,8 @@ func (b *BucketHandle) Attrs(ctx context.Context) (attrs *BucketAttrs, err error
 		resp, err = req.Context(ctx).Do()
 		return err
 	})
-	if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
+	var e *googleapi.Error
+	if ok := xerrors.As(err, &e); ok && e.Code == http.StatusNotFound {
 		return nil, ErrBucketNotExist
 	}
 	if err != nil {
@@ -222,6 +231,118 @@ func (b *BucketHandle) newPatchCall(uattrs *BucketAttrsToUpdate) (*raw.BucketsPa
 	return req, nil
 }
 
+// SignedURL returns a URL for the specified object. Signed URLs allow anyone
+// access to a restricted resource for a limited time without needing a
+// Google account or signing in. For more information about signed URLs, see
+// https://cloud.google.com/storage/docs/accesscontrol#signed_urls_query_string_authentication
+//
+// This method only requires the Method and Expires fields in the specified
+// SignedURLOptions opts to be non-nil. If not provided, it attempts to fill the
+// GoogleAccessID and PrivateKey from the GOOGLE_APPLICATION_CREDENTIALS environment variable.
+// If you are authenticating with a custom HTTP client, Service Account based
+// auto-detection will be hindered.
+//
+// If no private key is found, it attempts to use the GoogleAccessID to sign the URL.
+// This requires the IAM Service Account Credentials API to be enabled
+// (https://console.developers.google.com/apis/api/iamcredentials.googleapis.com/overview)
+// and iam.serviceAccounts.signBlob permissions on the GoogleAccessID service account.
+// If you do not want these fields set for you, you may pass them in through opts or use
+// SignedURL(bucket, name string, opts *SignedURLOptions) instead.
+func (b *BucketHandle) SignedURL(object string, opts *SignedURLOptions) (string, error) {
+	if opts.GoogleAccessID != "" && (opts.SignBytes != nil || len(opts.PrivateKey) > 0) {
+		return SignedURL(b.name, object, opts)
+	}
+	// Make a copy of opts so we don't modify the pointer parameter.
+	newopts := opts.clone()
+
+	if newopts.GoogleAccessID == "" {
+		id, err := b.detectDefaultGoogleAccessID()
+		if err != nil {
+			return "", err
+		}
+		newopts.GoogleAccessID = id
+	}
+	if newopts.SignBytes == nil && len(newopts.PrivateKey) == 0 {
+		if b.c.creds != nil && len(b.c.creds.JSON) > 0 {
+			var sa struct {
+				PrivateKey string `json:"private_key"`
+			}
+			err := json.Unmarshal(b.c.creds.JSON, &sa)
+			if err == nil && sa.PrivateKey != "" {
+				newopts.PrivateKey = []byte(sa.PrivateKey)
+			}
+		}
+
+		// Don't error out if we can't unmarshal the private key from the client,
+		// fallback to the default sign function for the service account.
+		if len(newopts.PrivateKey) == 0 {
+			newopts.SignBytes = b.defaultSignBytesFunc(newopts.GoogleAccessID)
+		}
+	}
+	return SignedURL(b.name, object, newopts)
+}
+
+// TODO: Add a similar wrapper for GenerateSignedPostPolicyV4 allowing users to
+// omit PrivateKey/SignBytes
+
+func (b *BucketHandle) detectDefaultGoogleAccessID() (string, error) {
+	returnErr := errors.New("no credentials found on client and not on GCE (Google Compute Engine)")
+
+	if b.c.creds != nil && len(b.c.creds.JSON) > 0 {
+		var sa struct {
+			ClientEmail string `json:"client_email"`
+		}
+		err := json.Unmarshal(b.c.creds.JSON, &sa)
+		if err == nil && sa.ClientEmail != "" {
+			return sa.ClientEmail, nil
+		} else if err != nil {
+			returnErr = err
+		} else {
+			returnErr = errors.New("storage: empty client email in credentials")
+		}
+
+	}
+
+	// Don't error out if we can't unmarshal, fallback to GCE check.
+	if metadata.OnGCE() {
+		email, err := metadata.Email("default")
+		if err == nil && email != "" {
+			return email, nil
+		} else if err != nil {
+			returnErr = err
+		} else {
+			returnErr = errors.New("got empty email from GCE metadata service")
+		}
+
+	}
+	return "", fmt.Errorf("storage: unable to detect default GoogleAccessID: %v", returnErr)
+}
+
+func (b *BucketHandle) defaultSignBytesFunc(email string) func([]byte) ([]byte, error) {
+	return func(in []byte) ([]byte, error) {
+		ctx := context.Background()
+
+		// It's ok to recreate this service per call since we pass in the http client,
+		// circumventing the cost of recreating the auth/transport layer
+		svc, err := iamcredentials.NewService(ctx, option.WithHTTPClient(b.c.hc))
+		if err != nil {
+			return nil, fmt.Errorf("unable to create iamcredentials client: %v", err)
+		}
+
+		resp, err := svc.Projects.ServiceAccounts.SignBlob(fmt.Sprintf("projects/-/serviceAccounts/%s", email), &iamcredentials.SignBlobRequest{
+			Payload: base64.StdEncoding.EncodeToString(in),
+		}).Do()
+		if err != nil {
+			return nil, fmt.Errorf("unable to sign bytes: %v", err)
+		}
+		out, err := base64.StdEncoding.DecodeString(resp.SignedBlob)
+		if err != nil {
+			return nil, fmt.Errorf("unable to base64 decode response: %v", err)
+		}
+		return out, nil
+	}
+}
+
 // BucketAttrs represents the metadata for a Google Cloud Storage bucket.
 // Read-only fields are ignored by BucketHandle.Create.
 type BucketAttrs struct {
@@ -243,6 +364,13 @@ type BucketAttrs struct {
 	// See https://cloud.google.com/storage/docs/uniform-bucket-level-access
 	// for more information.
 	UniformBucketLevelAccess UniformBucketLevelAccess
+
+	// PublicAccessPrevention is the setting for the bucket's
+	// PublicAccessPrevention policy, which can be used to prevent public access
+	// of data in the bucket. See
+	// https://cloud.google.com/storage/docs/public-access-prevention for more
+	// information.
+	PublicAccessPrevention PublicAccessPrevention
 
 	// DefaultObjectACL is the list of access controls to
 	// apply to new objects when no object ACL is provided.
@@ -329,6 +457,10 @@ type BucketAttrs struct {
 	// Typical values are "multi-region", "region" and "dual-region".
 	// This field is read-only.
 	LocationType string
+
+	// The project number of the project the bucket belongs to.
+	// This field is read-only.
+	ProjectNumber uint64
 }
 
 // BucketPolicyOnly is an alias for UniformBucketLevelAccess.
@@ -351,6 +483,47 @@ type UniformBucketLevelAccess struct {
 	// LockedTime specifies the deadline for changing Enabled from true to
 	// false.
 	LockedTime time.Time
+}
+
+// PublicAccessPrevention configures the Public Access Prevention feature, which
+// can be used to disallow public access to any data in a bucket. See
+// https://cloud.google.com/storage/docs/public-access-prevention for more
+// information.
+type PublicAccessPrevention int
+
+const (
+	// PublicAccessPreventionUnknown is a zero value, used only if this field is
+	// not set in a call to GCS.
+	PublicAccessPreventionUnknown PublicAccessPrevention = iota
+
+	// PublicAccessPreventionUnspecified corresponds to a value of "unspecified".
+	// Deprecated: use PublicAccessPreventionInherited
+	PublicAccessPreventionUnspecified
+
+	// PublicAccessPreventionEnforced corresponds to a value of "enforced". This
+	// enforces Public Access Prevention on the bucket.
+	PublicAccessPreventionEnforced
+
+	// PublicAccessPreventionInherited corresponds to a value of "inherited"
+	// and is the default for buckets.
+	PublicAccessPreventionInherited
+
+	publicAccessPreventionUnknown string = ""
+	// TODO: remove unspecified when change is fully completed
+	publicAccessPreventionUnspecified = "unspecified"
+	publicAccessPreventionEnforced    = "enforced"
+	publicAccessPreventionInherited   = "inherited"
+)
+
+func (p PublicAccessPrevention) String() string {
+	switch p {
+	case PublicAccessPreventionInherited, PublicAccessPreventionUnspecified:
+		return publicAccessPreventionInherited
+	case PublicAccessPreventionEnforced:
+		return publicAccessPreventionEnforced
+	default:
+		return publicAccessPreventionUnknown
+	}
 }
 
 // Lifecycle is the lifecycle configuration for objects in the bucket.
@@ -551,8 +724,10 @@ func newBucket(b *raw.Bucket) (*BucketAttrs, error) {
 		Website:                  toBucketWebsite(b.Website),
 		BucketPolicyOnly:         toBucketPolicyOnly(b.IamConfiguration),
 		UniformBucketLevelAccess: toUniformBucketLevelAccess(b.IamConfiguration),
+		PublicAccessPrevention:   toPublicAccessPrevention(b.IamConfiguration),
 		Etag:                     b.Etag,
 		LocationType:             b.LocationType,
+		ProjectNumber:            b.ProjectNumber,
 	}, nil
 }
 
@@ -578,11 +753,15 @@ func (b *BucketAttrs) toRawBucket() *raw.Bucket {
 		bb = &raw.BucketBilling{RequesterPays: true}
 	}
 	var bktIAM *raw.BucketIamConfiguration
-	if b.UniformBucketLevelAccess.Enabled || b.BucketPolicyOnly.Enabled {
-		bktIAM = &raw.BucketIamConfiguration{
-			UniformBucketLevelAccess: &raw.BucketIamConfigurationUniformBucketLevelAccess{
+	if b.UniformBucketLevelAccess.Enabled || b.BucketPolicyOnly.Enabled || b.PublicAccessPrevention != PublicAccessPreventionUnknown {
+		bktIAM = &raw.BucketIamConfiguration{}
+		if b.UniformBucketLevelAccess.Enabled || b.BucketPolicyOnly.Enabled {
+			bktIAM.UniformBucketLevelAccess = &raw.BucketIamConfigurationUniformBucketLevelAccess{
 				Enabled: true,
-			},
+			}
+		}
+		if b.PublicAccessPrevention != PublicAccessPreventionUnknown {
+			bktIAM.PublicAccessPrevention = b.PublicAccessPrevention.String()
 		}
 	}
 	return &raw.Bucket{
@@ -660,6 +839,13 @@ type BucketAttrsToUpdate struct {
 	// See https://cloud.google.com/storage/docs/uniform-bucket-level-access
 	// for more information.
 	UniformBucketLevelAccess *UniformBucketLevelAccess
+
+	// PublicAccessPrevention is the setting for the bucket's
+	// PublicAccessPrevention policy, which can be used to prevent public access
+	// of data in the bucket. See
+	// https://cloud.google.com/storage/docs/public-access-prevention for more
+	// information.
+	PublicAccessPrevention PublicAccessPrevention
 
 	// StorageClass is the default storage class of the bucket. This defines
 	// how objects in the bucket are stored and determines the SLA
@@ -770,6 +956,12 @@ func (ua *BucketAttrsToUpdate) toRawBucket() *raw.Bucket {
 				ForceSendFields: []string{"Enabled"},
 			},
 		}
+	}
+	if ua.PublicAccessPrevention != PublicAccessPreventionUnknown {
+		if rb.IamConfiguration == nil {
+			rb.IamConfiguration = &raw.BucketIamConfiguration{}
+		}
+		rb.IamConfiguration.PublicAccessPrevention = ua.PublicAccessPrevention.String()
 	}
 	if ua.Encryption != nil {
 		if ua.Encryption.DefaultKMSKeyName == "" {
@@ -889,8 +1081,10 @@ func (b *BucketHandle) LockRetentionPolicy(ctx context.Context) error {
 		metageneration = b.conds.MetagenerationMatch
 	}
 	req := b.c.raw.Buckets.LockRetentionPolicy(b.name, metageneration)
-	_, err := req.Context(ctx).Do()
-	return err
+	return runWithRetry(ctx, func() error {
+		_, err := req.Context(ctx).Do()
+		return err
+	})
 }
 
 // applyBucketConds modifies the provided call using the conditions in conds.
@@ -1139,6 +1333,20 @@ func toUniformBucketLevelAccess(b *raw.BucketIamConfiguration) UniformBucketLeve
 	}
 }
 
+func toPublicAccessPrevention(b *raw.BucketIamConfiguration) PublicAccessPrevention {
+	if b == nil {
+		return PublicAccessPreventionUnknown
+	}
+	switch b.PublicAccessPrevention {
+	case publicAccessPreventionInherited, publicAccessPreventionUnspecified:
+		return PublicAccessPreventionInherited
+	case publicAccessPreventionEnforced:
+		return PublicAccessPreventionEnforced
+	default:
+		return PublicAccessPreventionUnknown
+	}
+}
+
 // Objects returns an iterator over the objects in the bucket that match the
 // Query q. If q is nil, no filtering is done. Objects will be iterated over
 // lexicographically by name.
@@ -1231,7 +1439,8 @@ func (it *ObjectIterator) fetch(pageSize int, pageToken string) (string, error) 
 		return err
 	})
 	if err != nil {
-		if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
+		var e *googleapi.Error
+		if ok := xerrors.As(err, &e); ok && e.Code == http.StatusNotFound {
 			err = ErrBucketNotExist
 		}
 		return "", err
