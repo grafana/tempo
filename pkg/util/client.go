@@ -109,19 +109,14 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 }
 
 func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
-	m, _, err := c.QueryTraceWithResponse(id)
-	return m, err
-}
-
-func (c *Client) QueryTraceWithResponse(id string) (*tempopb.Trace, *http.Response, error) {
 	m := &tempopb.Trace{}
 	resp, err := c.getFor(c.BaseURL+QueryTraceEndpoint+"/"+id, m)
 	if err != nil {
 		if resp.StatusCode == http.StatusNotFound {
-			return nil, resp, ErrTraceNotFound
+			return nil, ErrTraceNotFound
 		}
-		return nil, resp, err
+		return nil, err
 	}
 
-	return m, resp, nil
+	return m, nil
 }

@@ -46,9 +46,9 @@ func TestCompression(t *testing.T) {
 func queryAndAssertTraceCompression(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
 
 	// The received client will strip the header before we have a chance to inspect it, so just validate that the compressed client works as expected.
-	result, resp, err := client.QueryTraceWithResponse(info.HexID())
+	result, err := client.QueryTrace(info.HexID())
 	require.NoError(t, err)
-	require.NotNil(t, resp)
+	require.NotNil(t, result)
 
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
