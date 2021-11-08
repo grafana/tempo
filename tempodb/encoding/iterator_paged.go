@@ -4,17 +4,18 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type pagedIterator struct {
-	meta         *backend.BlockMeta
-	dataReader   common.DataReader
-	indexReader  common.IndexReader
-	objectRW     common.ObjectReaderWriter
+	dataReader  common.DataReader
+	indexReader common.IndexReader
+	objectRW    common.ObjectReaderWriter
+
 	currentIndex int
+	maxIndexPage int
 
 	chunkSizeBytes uint32
 	pages          [][]byte
@@ -23,15 +24,29 @@ type pagedIterator struct {
 	buffer []byte
 }
 
-// newPagedIterator returns a backendIterator.  This iterator is used to iterate
+// newPagedIterator returns a backend.Iterator.  This iterator is used to iterate
 //  through objects stored in object storage.
-func newPagedIterator(meta *backend.BlockMeta, chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter) Iterator {
+func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter) Iterator {
 	return &pagedIterator{
-		meta:           meta,
 		dataReader:     dataReader,
 		indexReader:    indexReader,
 		chunkSizeBytes: chunkSizeBytes,
 		objectRW:       objectRW,
+		currentIndex:   0,
+		maxIndexPage:   math.MaxInt,
+	}
+}
+
+// newPartialPagedIterator returns a backend.Iterator.  This iterator is used to iterate
+//  through a contiguous and limited set of pages in object storage.
+func newPartialPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter, startIndexPage int, totalIndexPages int) Iterator {
+	return &pagedIterator{
+		dataReader:     dataReader,
+		indexReader:    indexReader,
+		chunkSizeBytes: chunkSizeBytes,
+		objectRW:       objectRW,
+		currentIndex:   startIndexPage,
+		maxIndexPage:   startIndexPage + totalIndexPages,
 	}
 }
 
@@ -52,9 +67,13 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	// dataReader returns pages in the raw format, so this works
 	i.activePage, id, object, err = i.objectRW.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil && err != io.EOF {
-		return nil, nil, fmt.Errorf("error unmarshalling active page, blockID: %s, err: %w", i.meta.BlockID.String(), err)
+		return nil, nil, fmt.Errorf("error unmarshalling active page, err: %w", err)
 	} else if err != io.EOF {
 		return id, object, nil
+	}
+
+	if i.currentIndex >= i.maxIndexPage {
+		return nil, nil, io.EOF
 	}
 
 	// objects reader was empty, check the index
@@ -72,7 +91,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	records := make([]common.Record, 0, 5) // 5?  why not?
 	for currentRecord != nil {
 		// see if we can fit this record in.  we have to get at least one record in
-		if length+currentRecord.Length > i.chunkSizeBytes && len(records) != 0 {
+		if (length+currentRecord.Length > i.chunkSizeBytes || i.currentIndex >= i.maxIndexPage) && len(records) != 0 {
 			break
 		}
 
@@ -84,16 +103,16 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		i.currentIndex++
 		currentRecord, err = i.indexReader.At(ctx, i.currentIndex)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error getting next record, blockID: %s, err: %w", i.meta.BlockID.String(), err)
+			return nil, nil, fmt.Errorf("error getting next record, err: %w", err)
 		}
 	}
 
 	i.pages, i.buffer, err = i.dataReader.Read(ctx, records, i.pages, i.buffer)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error reading objects for records, blockID: %s, err: %w", i.meta.BlockID.String(), err)
+		return nil, nil, fmt.Errorf("error reading objects for records, err: %w", err)
 	}
 	if len(i.pages) == 0 {
-		return nil, nil, fmt.Errorf("unexpected 0 length pages in pagedIterator, blockID: %s, err: %w", i.meta.BlockID.String(), err)
+		return nil, nil, fmt.Errorf("unexpected 0 length pages in pagedIterator, err: %w", err)
 	}
 
 	i.activePage = i.pages[0]
@@ -102,7 +121,7 @@ func (i *pagedIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	// attempt to get next object from objects
 	i.activePage, id, object, err = i.objectRW.UnmarshalAndAdvanceBuffer(i.activePage)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error unmarshalling active page from new records, blockID: %s, err: %w", i.meta.BlockID.String(), err)
+		return nil, nil, fmt.Errorf("error unmarshalling active page from new records, err: %w", err)
 	}
 
 	return id, object, nil

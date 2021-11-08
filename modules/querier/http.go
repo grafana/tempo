@@ -230,3 +230,61 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 }
+
+// todo(search): consolidate
+func (q *Querier) BackendSearchHandler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.BackendSearch")
+	defer span.Finish()
+
+	searchReq, err := q.parseSearchRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// parseSearchRequest doesn't respect these as "reserved" tags. let's remove them here.
+	// this will all be cleaned up when search paths are consolidated.
+	delete(searchReq.Tags, api.URLParamBlockID)
+	delete(searchReq.Tags, api.URLParamStartPage)
+	delete(searchReq.Tags, api.URLParamTotalPages)
+	delete(searchReq.Tags, api.URLParamStart)
+	delete(searchReq.Tags, api.URLParamEnd)
+
+	start, end, _, err := api.ParseBackendSearch(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	startPage, totalPages, blockID, err := api.ParseBackendSearchQuerier(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// extract params and populate
+	req := &tempopb.BackendSearchRequest{
+		Search:     searchReq,
+		Start:      uint32(start),
+		End:        uint32(end),
+		StartPage:  startPage,
+		TotalPages: totalPages,
+		BlockID:    blockID[:],
+	}
+
+	resp, err := q.BackendSearch(ctx, req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}

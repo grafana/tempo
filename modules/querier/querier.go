@@ -3,12 +3,16 @@ package querier
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
+	"strings"
+	"sync"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
@@ -17,7 +21,11 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -371,6 +379,129 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	return resp, nil
 }
 
+// todo(search): consolidate
+func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchRequest) (*tempopb.SearchResponse, error) {
+	tenantID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
+	}
+
+	blockID, err := uuid.FromBytes(req.BlockID)
+	if err != nil {
+		return nil, err
+	}
+
+	var searchErr error
+	respMtx := sync.Mutex{}
+	resp := &tempopb.SearchResponse{
+		Metrics: &tempopb.SearchMetrics{},
+	}
+
+	err = q.store.IterateObjects(ctx, tenantID, blockID, int(req.StartPage), int(req.TotalPages), func(id common.ID, obj []byte, dataEncoding string) bool {
+		respMtx.Lock()
+		resp.Metrics.InspectedTraces++
+		resp.Metrics.InspectedBytes += uint64(len(obj))
+		respMtx.Unlock()
+
+		start := uint64(math.MaxUint64)
+		end := uint64(0)
+
+		trace, err := model.Unmarshal(obj, dataEncoding)
+		if err != nil {
+			searchErr = err
+			return true
+		}
+
+		tagFound := false
+		if len(req.Search.Tags) == 0 {
+			tagFound = true
+		}
+
+		var rootSpan *v1.Span
+		var rootBatch *v1.ResourceSpans
+		// todo: is it possible to shortcircuit this loop?
+		for _, b := range trace.Batches {
+			if !tagFound && searchAttributes(req.Search.Tags, b.Resource.Attributes) {
+				tagFound = true
+			}
+
+			for _, ils := range b.InstrumentationLibrarySpans {
+				for _, s := range ils.Spans {
+					if s.StartTimeUnixNano < start {
+						start = s.StartTimeUnixNano
+					}
+					if s.EndTimeUnixNano > end {
+						end = s.EndTimeUnixNano
+					}
+					if rootSpan == nil && len(s.ParentSpanId) == 0 {
+						rootSpan = s
+						rootBatch = b
+					}
+
+					if tagFound {
+						continue
+					}
+
+					if searchAttributes(req.Search.Tags, s.Attributes) {
+						tagFound = true
+					}
+				}
+			}
+		}
+
+		if !tagFound {
+			return false
+		}
+
+		startMs := start / 1000000
+		endMs := end / 1000000
+		durationMs := uint32(endMs - startMs)
+		if req.Search.MaxDurationMs != 0 && req.Search.MaxDurationMs < durationMs {
+			return false
+		}
+		if req.Search.MinDurationMs != 0 && req.Search.MinDurationMs > durationMs {
+			return false
+		}
+		if uint32(startMs/1000) > req.End || uint32(endMs/1000) < req.Start {
+			return false
+		}
+
+		// woohoo!
+		rootServiceName := rootSpanNotYetReceivedText
+		rootSpanName := rootSpanNotYetReceivedText
+		if rootSpan != nil && rootBatch != nil {
+			rootSpanName = rootSpan.Name
+
+			for _, a := range rootBatch.Resource.Attributes {
+				if a.Key == search.ServiceNameTag {
+					rootServiceName = a.Value.GetStringValue()
+					break
+				}
+			}
+		}
+
+		respMtx.Lock()
+		defer respMtx.Unlock()
+		resp.Traces = append(resp.Traces, &tempopb.TraceSearchMetadata{
+			TraceID:           util.TraceIDToHexString(id),
+			RootServiceName:   rootServiceName,
+			RootTraceName:     rootSpanName,
+			StartTimeUnixNano: start,
+			DurationMs:        durationMs,
+		})
+
+		return len(resp.Traces) >= int(req.Search.Limit)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if searchErr != nil {
+		return nil, searchErr
+	}
+
+	return resp, nil
+}
+
 func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {
 	response := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
@@ -410,4 +541,22 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	}
 
 	return response
+}
+
+// todo: support more attribute types. currently only string is supported
+func searchAttributes(tags map[string]string, atts []*commonv1.KeyValue) bool {
+	for _, a := range atts {
+		var v string
+		var ok bool
+
+		if v, ok = tags[a.Key]; !ok {
+			continue
+		}
+
+		if strings.Contains(a.Value.GetStringValue(), v) {
+			return true
+		}
+	}
+
+	return false
 }

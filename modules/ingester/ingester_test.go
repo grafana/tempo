@@ -252,6 +252,10 @@ func TestSearchWAL(t *testing.T) {
 	// Shutdown
 	require.NoError(t, i.stopping(nil))
 
+	// the below tests sometimes fail in CI. Awful bandaid sleep slammed in here
+	// to reduce occurrence of this issue. todo: fix it properly
+	time.Sleep(500 * time.Millisecond)
+
 	// replay wal
 	i = defaultIngesterModule(t, tmpDir)
 	inst, ok := i.getInstanceByID("test")

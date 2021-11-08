@@ -14,9 +14,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	log_util "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/cache"
@@ -73,8 +75,11 @@ type Writer interface {
 	WAL() *wal.WAL
 }
 
+type IterateObjectCallback func(id common.ID, obj []byte, dataEncoding string) bool
+
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error)
+	IterateObjects(ctx context.Context, tenantID string, blockID uuid.UUID, startPage int, totalPages int, callback IterateObjectCallback) error
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(sharder blocklist.JobSharder)
 
@@ -356,6 +361,71 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	span.SetTag("compactedBlocksSearched", compactedBlocksSearched)
 
 	return partialTraces, dataEncodings, funcErrs, err
+}
+
+// IterateObjects iterates through all objects for the provided blockID, startPage and totalPages
+// calling the provided callback for each object. If the callback returns true then iteration
+// is stopped and the function returns. Note that the callback needs to be threadsafe as it is called
+// concurrently.
+func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blockID uuid.UUID, startPage int, totalPages int, callback IterateObjectCallback) error {
+	metas := rw.blocklist.Metas(tenantID)
+
+	// todo: better way to find the meta?
+	var meta *backend.BlockMeta
+	for _, m := range metas {
+		if m.BlockID == blockID {
+			meta = m
+			break
+		}
+	}
+	if meta == nil {
+		// if we don't know about the meta then manually request it
+		var err error
+		meta, err = rw.r.BlockMeta(ctx, blockID, tenantID)
+		if err != nil {
+			return err
+		}
+	}
+
+	block, err := encoding.NewBackendBlock(meta, rw.r)
+	if err != nil {
+		return err
+	}
+
+	// todo(search): a graduated chunk size would allow for faster iteration
+	//               parameterize everything
+	iter, err := block.PartialIterator(1_000_000, startPage, totalPages)
+	if err != nil {
+		return err
+	}
+	iter = encoding.NewPrefetchIterator(ctx, iter, 10000)
+	wg := boundedwaitgroup.New(5)
+	done := atomic.Bool{}
+	for {
+		id, obj, err := iter.Next(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("error iterating %s, %w", blockID, err)
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			isDone := callback(id, obj, meta.DataEncoding)
+			if isDone {
+				done.Store(true)
+			}
+		}()
+
+		if done.Load() {
+			break
+		}
+	}
+	wg.Wait()
+
+	return nil
 }
 
 func (rw *readerWriter) Shutdown() {

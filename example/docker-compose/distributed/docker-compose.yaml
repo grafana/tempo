@@ -39,10 +39,11 @@ services:
   query-frontend:
     image: tempo:latest
     command: "-target=query-frontend -config.file=/etc/tempo.yaml"
+    restart: always
     volumes:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
-      - "3200"   # tempo
+      - "3200:3200"   # tempo
 
   querier:
     image: tempo:latest

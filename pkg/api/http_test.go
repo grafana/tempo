@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 	"github.com/stretchr/testify/assert"
 )
@@ -82,5 +83,47 @@ func TestParseBackendSearch(t *testing.T) {
 		assert.Equal(t, tc.start, actualStart)
 		assert.Equal(t, tc.end, actualEnd)
 		assert.Equal(t, tc.expectedLimit, actualLimit)
+	}
+}
+
+func TestParseBackendSearchQuerier(t *testing.T) {
+	tests := []struct {
+		url                string
+		expectedError      string
+		expectedStartPage  uint32
+		expectedTotalPages uint32
+		expectedBlockID    uuid.UUID
+	}{
+		{
+			url:           "/",
+			expectedError: "blockID required",
+		},
+		{
+			url:           "/?blockID=asdf",
+			expectedError: "blockID: invalid UUID length: 4",
+		},
+		{
+			url:             "/?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b",
+			expectedBlockID: uuid.MustParse("b92ec614-3fd7-4299-b6db-f657e7025a9b"),
+		},
+		{
+			url:                "/?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&startPage=4&totalPages=3",
+			expectedStartPage:  4,
+			expectedTotalPages: 3,
+			expectedBlockID:    uuid.MustParse("b92ec614-3fd7-4299-b6db-f657e7025a9b"),
+		},
+	}
+
+	for _, tc := range tests {
+		r := httptest.NewRequest("GET", tc.url, nil)
+		actualStartPage, actualTotalPages, actualBlockID, actualErr := ParseBackendSearchQuerier(r)
+
+		if len(tc.expectedError) != 0 {
+			assert.EqualError(t, actualErr, tc.expectedError)
+			continue
+		}
+		assert.Equal(t, tc.expectedStartPage, actualStartPage)
+		assert.Equal(t, tc.expectedTotalPages, actualTotalPages)
+		assert.Equal(t, tc.expectedBlockID, actualBlockID)
 	}
 }

@@ -64,3 +64,8 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 
 	return resp, nil
 }
+
+// todo(search): consolidate. this only exists so that the ingester continues to implement the tempopb.QuerierServer interface.
+func (i *Ingester) BackendSearch(ctx context.Context, req *tempopb.BackendSearchRequest) (*tempopb.SearchResponse, error) {
+	return nil, nil
+}

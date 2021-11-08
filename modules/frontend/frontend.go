@@ -49,9 +49,11 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 		Help:      "Total queries received per tenant.",
 	}, []string{"tenant", "op"})
 
-	traceByIDMiddleware := newTraceByIDMiddleware(cfg, logger, registerer)
-	searchMiddleware := newSearchMiddleware()
-	backendMiddleware := newBackendSearchMiddleware(store, logger)
+	retryWare := newRetryWare(cfg.MaxRetries, registerer)
+
+	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
+	searchMiddleware := MergeMiddlewares(newSearchMiddleware(), retryWare)
+	backendMiddleware := MergeMiddlewares(newBackendSearchMiddleware(store, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": traceByIDOp,
@@ -74,13 +76,13 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 }
 
 // newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.
-func newTraceByIDMiddleware(cfg Config, logger log.Logger, registerer prometheus.Registerer) Middleware {
+func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
-		rt := NewRoundTripper(next, newDeduper(logger), newTraceByIDSharder(cfg.QueryShards, cfg.TolerateFailedBlocks, logger), newRetryWare(cfg.MaxRetries, registerer))
+		rt := NewRoundTripper(next, newDeduper(logger), newTraceByIDSharder(cfg.QueryShards, cfg.TolerateFailedBlocks, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// validate traceID
@@ -154,7 +156,7 @@ func newSearchMiddleware() Middleware {
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
-			r.RequestURI = querierPrefix + r.RequestURI
+			r.RequestURI = api.PathPrefixQuerier + r.RequestURI
 
 			resp, err := rt.RoundTrip(r)
 
@@ -173,7 +175,6 @@ func newBackendSearchMiddleware(reader tempodb.Reader, logger log.Logger) Middle
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
-			r.RequestURI = querierPrefix + r.RequestURI
 
 			resp, err := rt.RoundTrip(r)
 
