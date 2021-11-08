@@ -83,6 +83,7 @@
 * [ENHANCEMENT] Include tempo-cli in the release [#1086](https://github.com/grafana/tempo/pull/1086) (@zalegrala)
 * [ENHANCEMENT] Add search on span status [#1093](https://github.com/grafana/tempo/pull/1093) (@mdisibio)
 * [ENHANCEMENT] Slightly improved compression performance [#1094](https://github.com/grafana/tempo/pull/1094) (@bboreham)
+* [ENHANCEMENT] Include metrics for configured limit overrides [#1089](https://github.com/grafana/tempo/pull/1089) (@zalegrala)
 * [BUGFIX] Update port spec for GCS docker-compose example [#869](https://github.com/grafana/tempo/pull/869) (@zalegrala)
 * [BUGFIX] Fix "magic number" errors and other block mishandling when an ingester forcefully shuts down [#937](https://github.com/grafana/tempo/issues/937) (@mdisibio)
 * [BUGFIX] Fix compactor memory leak [#806](https://github.com/grafana/tempo/pull/806) (@mdisibio)
