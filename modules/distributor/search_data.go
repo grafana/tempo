@@ -66,6 +66,9 @@ func extractSearchData(trace *tempopb.Trace, id []byte, extractTag extractTagFun
 
 				// Collect for any spans
 				data.AddTag(search.SpanNameTag, s.Name)
+				if s.Status != nil {
+					data.AddTag(search.StatusCodeTag, strconv.Itoa(int(s.Status.Code)))
+				}
 				data.SetStartTimeUnixNano(s.StartTimeUnixNano)
 				data.SetEndTimeUnixNano(s.EndTimeUnixNano)
 

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "ksonnet-util"
+        }
+      },
+      "version": "3035b9815171a8712c78250d826e15df37ed507f",
+      "sum": "fFVlCoa/N0qiqTbDhZAEdRm2Vv76Z9Clxp3/haJ+PyA="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "memcached"
+        }
+      },
+      "version": "3035b9815171a8712c78250d826e15df37ed507f",
+      "sum": "dTOeEux3t9bYSqP2L/uCuLo/wUDpCKH4w+4OD9fePUk="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/tempo.git",
+          "subdir": "operations/jsonnet/microservices"
+        }
+      },
+      "version": "c5d007da27071358fa9b12730c048f0eddbeb82c",
+      "sum": "U7/nBNMutVT6HnKm3fO3tVha0eKZs6eeiNKltesvW70="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
+          "subdir": "1.18"
+        }
+      },
+      "version": "f47562c4e3bfaf46a5a5bc6a9e1e76a4fc76c18e",
+      "sum": "xYBkGmP1rpYQYGvPvzlhlUW7Lv+xMuAH+EdgSjxYAE8="
+    }
+  ],
+  "legacyImports": false
+}

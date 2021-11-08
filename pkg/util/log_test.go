@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log/level"
 	"github.com/stretchr/testify/assert"
 )
 

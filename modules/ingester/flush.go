@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/cortexproject/cortex/pkg/util/log"
-	gklog "github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	gklog "github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
 	ot "github.com/opentracing/opentracing-go"

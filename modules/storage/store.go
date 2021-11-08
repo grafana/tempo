@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
 
 	"github.com/grafana/tempo/tempodb"
