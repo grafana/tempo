@@ -392,16 +392,16 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 	}
 
 	var searchErr error
-	mtx := sync.Mutex{}
+	respMtx := sync.Mutex{}
 	resp := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
 	err = q.store.IterateObjects(ctx, tenantID, blockID, int(req.StartPage), int(req.TotalPages), func(id common.ID, obj []byte, dataEncoding string) bool {
-		mtx.Lock()
+		respMtx.Lock()
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
-		mtx.Unlock()
+		respMtx.Unlock()
 
 		start := uint64(math.MaxUint64)
 		end := uint64(0)
@@ -480,8 +480,8 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 			}
 		}
 
-		mtx.Lock()
-		defer mtx.Unlock()
+		respMtx.Lock()
+		defer respMtx.Unlock()
 		resp.Traces = append(resp.Traces, &tempopb.TraceSearchMetadata{
 			TraceID:           util.TraceIDToHexString(id),
 			RootServiceName:   rootServiceName,
