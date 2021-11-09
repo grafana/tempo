@@ -10,8 +10,6 @@ A service graph is a visual representation of the interrelationships between var
 Service graphs help to understand the structure of a distributed system,
 and the connections and dependencies between its components.
 
-<img src="./service-graphs.png" alt="Service graphs example">
-
 - **Infer the topology of a distributed system.**
   As distributed systems grow, they become more complex.
   Service graphs can help you understand the structure of the system.
@@ -20,6 +18,8 @@ and the connections and dependencies between its components.
 - **Provide an historic view of a system’s topology.**
   Distributed systems change very frequently,
   and service graphs offer a way of seeing how these systems have evolved over time.
+
+<p align="center"><img src="../service-graphs.png" alt="Service graphs example"></p>
 
 ## How they work
 
@@ -31,7 +31,7 @@ The generated metrics represent edges between nodes in the graph. Nodes are repr
   tempo_service_graph_request_total{client="app", server="db"} 20
 ```
 
-<img src="./service-graphs-agent-architecture.png" alt="Service graphs architecture">
+<p align="center"><img src="../service-graphs-agent-architecture.png" alt="Service graphs architecture"></p>
 
 Service graphs works by inspecting spans and looking for the tag `span.kind`.
 If it finds the span kind to be client or server, it stores the request in a local in-memory store.
