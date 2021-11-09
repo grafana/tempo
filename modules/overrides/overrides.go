@@ -21,8 +21,8 @@ const wildcardTenant = "*"
 var (
 	metricOverridesLimits = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
-		Name:      "limits",
-		Help:      "Tenant usage limits",
+		Name:      "limits_overrides",
+		Help:      "Per-Tenant usage limits",
 	}, []string{"limit_name", "user"})
 )
 
@@ -48,6 +48,16 @@ func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
 	decoder.SetStrict(true)
 	if err := decoder.Decode(&overrides); err != nil {
 		return nil, err
+	}
+
+	for tenant, tenantLimits := range overrides.TenantLimits {
+		metricOverridesLimits.WithLabelValues("max_local_traces_per_user", tenant).Set(float64(tenantLimits.MaxLocalTracesPerUser))
+		metricOverridesLimits.WithLabelValues("max_global_traces_per_user", tenant).Set(float64(tenantLimits.MaxGlobalTracesPerUser))
+		metricOverridesLimits.WithLabelValues("max_bytes_per_trace", tenant).Set(float64(tenantLimits.MaxBytesPerTrace))
+		metricOverridesLimits.WithLabelValues("max_search_bytes_per_trace", tenant).Set(float64(tenantLimits.MaxSearchBytesPerTrace))
+		metricOverridesLimits.WithLabelValues("ingestion_rate_limit_bytes", tenant).Set(float64(tenantLimits.IngestionRateLimitBytes))
+		metricOverridesLimits.WithLabelValues("ingestion_burst_size_bytes", tenant).Set(float64(tenantLimits.IngestionBurstSizeBytes))
+		metricOverridesLimits.WithLabelValues("block_retention", tenant).Set(float64(tenantLimits.BlockRetention))
 	}
 
 	return overrides, nil
@@ -223,45 +233,33 @@ func (o *Overrides) IngestionRateStrategy() string {
 // MaxLocalTracesPerUser returns the maximum number of traces a user is allowed to store
 // in a single ingester.
 func (o *Overrides) MaxLocalTracesPerUser(userID string) int {
-	x := o.getOverridesForUser(userID).MaxLocalTracesPerUser
-	metricOverridesLimits.WithLabelValues("max_local_traces_per_user", userID).Set(float64(x))
-	return x
+	return o.getOverridesForUser(userID).MaxLocalTracesPerUser
 }
 
 // MaxGlobalTracesPerUser returns the maximum number of traces a user is allowed to store
 // across the cluster.
 func (o *Overrides) MaxGlobalTracesPerUser(userID string) int {
-	x := o.getOverridesForUser(userID).MaxGlobalTracesPerUser
-	metricOverridesLimits.WithLabelValues("max_global_traces_per_user", userID).Set(float64(x))
-	return x
+	return o.getOverridesForUser(userID).MaxGlobalTracesPerUser
 }
 
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.
 func (o *Overrides) MaxBytesPerTrace(userID string) int {
-	x := o.getOverridesForUser(userID).MaxBytesPerTrace
-	metricOverridesLimits.WithLabelValues("max_bytes_per_trace", userID).Set(float64(x))
-	return x
+	return o.getOverridesForUser(userID).MaxBytesPerTrace
 }
 
 // MaxSearchBytesPerTrace returns the maximum size of search data for trace (in bytes) allowed for a user.
 func (o *Overrides) MaxSearchBytesPerTrace(userID string) int {
-	x := o.getOverridesForUser(userID).MaxSearchBytesPerTrace
-	metricOverridesLimits.WithLabelValues("max_search_bytes_per_trace", userID).Set(float64(x))
-	return x
+	return o.getOverridesForUser(userID).MaxSearchBytesPerTrace
 }
 
 // IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
 func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
-	x := float64(o.getOverridesForUser(userID).IngestionRateLimitBytes)
-	metricOverridesLimits.WithLabelValues("ingestion_rate_limit_bytes", userID).Set(x)
-	return x
+	return float64(o.getOverridesForUser(userID).IngestionRateLimitBytes)
 }
 
 // IngestionBurstSizeBytes is the burst size in spans allowed for this tenant.
 func (o *Overrides) IngestionBurstSizeBytes(userID string) int {
-	x := o.getOverridesForUser(userID).IngestionBurstSizeBytes
-	metricOverridesLimits.WithLabelValues("ingestion_burst_size_bytes", userID).Set(float64(x))
-	return x
+	return o.getOverridesForUser(userID).IngestionBurstSizeBytes
 }
 
 // SearchTagsAllowList is the list of tags to be extracted for search, for this tenant.
@@ -271,9 +269,7 @@ func (o *Overrides) SearchTagsAllowList(userID string) map[string]struct{} {
 
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
-	x := time.Duration(o.getOverridesForUser(userID).BlockRetention)
-	metricOverridesLimits.WithLabelValues("block_retention", userID).Set(float64(x))
-	return x
+	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
 }
 
 func (o *Overrides) getOverridesForUser(userID string) *Limits {
