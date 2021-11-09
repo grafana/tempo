@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/thanos-io/thanos/pkg/discovery/dns"
+	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 
 	"github.com/grafana/tempo/modules/compactor"
@@ -152,7 +153,11 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 	t.querier = querier
 
-	tracesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
+	middleware := middleware.Merge(
+		t.HTTPAuthMiddleware,
+	)
+
+	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
 	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
 
 	if t.cfg.SearchEnabled {
@@ -189,9 +194,14 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 
 	// wrap handlers with auth
-	traceByIDHandler := t.HTTPAuthMiddleware.Wrap(queryFrontend.TraceByID)
-	searchHandler := t.HTTPAuthMiddleware.Wrap(queryFrontend.Search)
-	backendSearchHandler := t.HTTPAuthMiddleware.Wrap(queryFrontend.BackendSearch)
+	middleware := middleware.Merge(
+		t.HTTPAuthMiddleware,
+		httpGzipMiddleware(),
+	)
+
+	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByID)
+	searchHandler := middleware.Wrap(queryFrontend.Search)
+	backendSearchHandler := middleware.Wrap(queryFrontend.BackendSearch)
 
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
