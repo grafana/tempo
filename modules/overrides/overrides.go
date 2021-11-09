@@ -24,6 +24,12 @@ var (
 		Name:      "limits_overrides",
 		Help:      "Per-Tenant usage limits",
 	}, []string{"limit_name", "user"})
+
+	metricDefaultsLimits = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "limits_defaults",
+		Help:      "Default usage limits",
+	}, []string{"limit_name"})
 )
 
 // perTenantOverrides represents the overrides config file
@@ -89,6 +95,14 @@ type Overrides struct {
 func NewOverrides(defaults Limits) (*Overrides, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
+
+	metricDefaultsLimits.WithLabelValues("max_local_traces_per_user").Set(float64(defaults.MaxLocalTracesPerUser))
+	metricDefaultsLimits.WithLabelValues("max_global_traces_per_user").Set(float64(defaults.MaxGlobalTracesPerUser))
+	metricDefaultsLimits.WithLabelValues("max_bytes_per_trace").Set(float64(defaults.MaxBytesPerTrace))
+	metricDefaultsLimits.WithLabelValues("max_search_bytes_per_trace").Set(float64(defaults.MaxSearchBytesPerTrace))
+	metricDefaultsLimits.WithLabelValues("ingestion_rate_limit_bytes").Set(float64(defaults.IngestionRateLimitBytes))
+	metricDefaultsLimits.WithLabelValues("ingestion_burst_size_bytes").Set(float64(defaults.IngestionBurstSizeBytes))
+	metricDefaultsLimits.WithLabelValues("block_retention").Set(float64(defaults.BlockRetention))
 
 	if defaults.PerTenantOverrideConfig != "" {
 		runtimeCfg := runtimeconfig.Config{
