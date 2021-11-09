@@ -14,4 +14,5 @@ type Config struct {
 	MaxBuffers         int            `yaml:"max-buffers"`
 	BufferSize         int            `yaml:"buffer-size"`
 	HedgeRequestsAt    time.Duration  `yaml:"hedge-requests-at"`
+	HedgeRequestsUpTo  int            `yaml:"hedge-requests-up-to"`
 }

@@ -14,8 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	log_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cristalhq/hedgedhttp"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -23,10 +23,6 @@ import (
 	"github.com/pkg/errors"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
-)
-
-const (
-	uptoHedgedRequests = 2
 )
 
 // readerWriter can read/write from an s3 backend
@@ -339,7 +335,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	var stats *hedgedhttp.Stats
 
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
 		instrumentation.PublishHedgedMetrics(stats)
 	}
 

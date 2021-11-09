@@ -5,22 +5,25 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
-	"github.com/cortexproject/cortex/pkg/ring"
-	ring_client "github.com/cortexproject/cortex/pkg/ring/client"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/ring"
+	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
@@ -313,6 +316,11 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 		}
 	}
 
+	// Extra tags
+	for _, k := range search.GetVirtualTags() {
+		uniqueMap[k] = struct{}{}
+	}
+
 	// Final response (sorted)
 	resp := &tempopb.SearchTagsResponse{
 		TagNames: make([]string, 0, len(uniqueMap)),
@@ -352,6 +360,11 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		}
 	}
 
+	// Extra values
+	for _, v := range search.GetVirtualTagValues(req.TagName) {
+		uniqueMap[v] = struct{}{}
+	}
+
 	// Final response (sorted)
 	resp := &tempopb.SearchTagValuesResponse{
 		TagValues: make([]string, 0, len(uniqueMap)),
@@ -377,21 +390,21 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 	}
 
 	var searchErr error
-	mtx := sync.Mutex{}
+	respMtx := sync.Mutex{}
 	resp := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
 	err = q.store.IterateObjects(ctx, tenantID, blockID, int(req.StartPage), int(req.TotalPages), func(id common.ID, obj []byte, dataEncoding string) bool {
-		mtx.Lock()
+		respMtx.Lock()
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
-		mtx.Unlock()
+		respMtx.Unlock()
 
 		metadata, err := model.Matches(id, obj, dataEncoding, req.Start, req.End, req.Search)
 
-		mtx.Lock()
-		defer mtx.Unlock()
+		respMtx.Lock()
+		defer respMtx.Unlock()
 		if err != nil {
 			searchErr = err
 			return false
@@ -452,4 +465,22 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	}
 
 	return response
+}
+
+// todo: support more attribute types. currently only string is supported
+func searchAttributes(tags map[string]string, atts []*commonv1.KeyValue) bool {
+	for _, a := range atts {
+		var v string
+		var ok bool
+
+		if v, ok = tags[a.Key]; !ok {
+			continue
+		}
+
+		if strings.Contains(a.Value.GetStringValue(), v) {
+			return true
+		}
+	}
+
+	return false
 }

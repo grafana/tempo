@@ -48,13 +48,14 @@ func TestHedge(t *testing.T) {
 			server := fakeServer(t, tc.returnIn, &count)
 
 			r, w, _, err := New(&Config{
-				Region:          "blerg",
-				AccessKey:       flagext.Secret{Value: "test"},
-				SecretKey:       flagext.Secret{Value: "test"},
-				Bucket:          "blerg",
-				Insecure:        true,
-				Endpoint:        server.URL[7:], // [7:] -> strip http://
-				HedgeRequestsAt: tc.hedgeAt,
+				Region:            "blerg",
+				AccessKey:         flagext.Secret{Value: "test"},
+				SecretKey:         flagext.Secret{Value: "test"},
+				Bucket:            "blerg",
+				Insecure:          true,
+				Endpoint:          server.URL[7:], // [7:] -> strip http://
+				HedgeRequestsAt:   tc.hedgeAt,
+				HedgeRequestsUpTo: 2,
 			})
 			require.NoError(t, err)
 

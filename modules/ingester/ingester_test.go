@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/ring"
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/consul"
+	"github.com/grafana/dskit/ring"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
@@ -251,6 +252,10 @@ func TestSearchWAL(t *testing.T) {
 	// Shutdown
 	require.NoError(t, i.stopping(nil))
 
+	// the below tests sometimes fail in CI. Awful bandaid sleep slammed in here
+	// to reduce occurrence of this issue. todo: fix it properly
+	time.Sleep(500 * time.Millisecond)
+
 	// replay wal
 	i = defaultIngesterModule(t, tmpDir)
 	inst, ok := i.getInstanceByID("test")
@@ -369,7 +374,7 @@ func defaultIngesterModule(t *testing.T, tmpDir string) *Ingester {
 	}, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error store")
 
-	ingester, err := New(ingesterConfig, s, limits)
+	ingester, err := New(ingesterConfig, s, limits, prometheus.NewPedanticRegistry())
 	require.NoError(t, err, "unexpected error creating ingester")
 	ingester.replayJitter = false
 

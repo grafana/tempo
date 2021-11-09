@@ -3,8 +3,8 @@ package distributor
 import (
 	"testing"
 
-	"github.com/cortexproject/cortex/pkg/util/limiter"
 	"github.com/cortexproject/cortex/pkg/util/validation"
+	"github.com/grafana/dskit/limiter"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

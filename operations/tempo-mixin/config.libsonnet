@@ -4,6 +4,7 @@
 
   _config+:: {
     http_api_prefix: '',
+    namespace: '.*',
     jobs: {
       gateway: 'cortex-gw',
       query_frontend: 'query-frontend',

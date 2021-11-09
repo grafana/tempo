@@ -42,8 +42,8 @@
           {
             alert: 'TempoCompactorUnhealthy',
             expr: |||
-              max by (%s) (cortex_ring_members{state="Unhealthy", name="%s"}) > 0
-            ||| % [$._config.group_by_cluster, $._config.jobs.compactor],
+              max by (%s) (cortex_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
+            ||| % [$._config.group_by_cluster, $._config.jobs.compactor, $._config.namespace],
             'for': '15m',
             labels: {
               severity: 'critical',
@@ -57,8 +57,8 @@
             alert: 'TempoDistributorUnhealthy',
             'for': '15m',
             expr: |||
-              max by (%s) (cortex_ring_members{state="Unhealthy", name="%s"}) > 0
-            ||| % [$._config.group_by_cluster, $._config.jobs.distributor],
+              max by (%s) (cortex_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
+            ||| % [$._config.group_by_cluster, $._config.jobs.distributor, $._config.namespace],
             labels: {
               severity: 'warning',
             },
@@ -126,7 +126,8 @@
           {
             alert: 'TempoNoTenantIndexBuilders',
             expr: |||
-              sum by (%(group_by_tenant)s) (tempodb_blocklist_tenant_index_builder{}) == 0
+              sum by (%(group_by_tenant)s) (tempodb_blocklist_tenant_index_builder{}) == 0 and
+              max by (%(group_by_cluster)s) (tempodb_blocklist_length{}) > 0
             ||| % $._config,
             'for': '5m',
             labels: {

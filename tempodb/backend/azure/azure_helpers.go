@@ -16,8 +16,7 @@ import (
 )
 
 const (
-	maxRetries         = 1
-	uptoHedgedRequests = 2
+	maxRetries = 1
 )
 
 func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.ContainerURL, error) {
@@ -42,7 +41,7 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 
 	// hedge if desired (0 means disabled)
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, uptoHedgedRequests, transport)
+		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
 		instrumentation.PublishHedgedMetrics(stats)
 	}
 

@@ -1,11 +1,13 @@
 package search
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 const SecretExhaustiveSearchTag = "x-dbg-exhaustive"
@@ -59,14 +61,8 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 		vb := make([][]byte, 0, len(req.Tags))
 
 		for k, v := range req.Tags {
-			if k == SecretExhaustiveSearchTag {
-				// Perform an exhaustive search by:
-				// * no block or page filters means all blocks and pages match
-				// * substitute this trace filter instead rejects everything. therefore it never
-				//   quits early due to enough results
-				p.tracefilters = append(p.tracefilters, func(s tempofb.Trace) bool {
-					return false
-				})
+			skip, k, v := p.rewriteTagLookup(k, v)
+			if skip {
 				continue
 			}
 
@@ -89,6 +85,45 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 	}
 
 	return p
+}
+
+// rewriteTagLookup intercepts certain tag/value lookups and rewrites them. It returns
+// true if the tag lookup should be excluded from the remaining tag/value lookups because
+// the it was rewritten into a different filter altogether.  Otherwise it returns false,
+// and a new set of tag/value strings to use, which will either be the original inputs
+// or rewritten lookups.
+func (p *Pipeline) rewriteTagLookup(k, v string) (skip bool, newk, newv string) {
+	switch k {
+	case SecretExhaustiveSearchTag:
+		// Perform an exhaustive search by:
+		// * no block or page filters means all blocks and pages match
+		// * substitute this trace filter instead rejects everything. therefore it never
+		//   quits early due to enough results
+		p.tracefilters = append(p.tracefilters, func(s tempofb.Trace) bool {
+			return false
+		})
+		// Skip
+		return true, "", ""
+
+	case ErrorTag:
+		if v == "true" {
+			// Error = true
+			return false, StatusCodeTag, strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))
+		}
+		// Else fall-through
+
+	case StatusCodeTag:
+		// Convert status.code=string into status.code=int
+		for statusStr, statusID := range statusCodeMapping {
+			if v == statusStr {
+				return false, StatusCodeTag, strconv.Itoa(statusID)
+			}
+		}
+		// Unknown mapping = fall-through
+	}
+
+	// No rewrite
+	return false, k, v
 }
 
 func (p *Pipeline) Matches(e tempofb.Trace) bool {

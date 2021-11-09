@@ -331,6 +331,11 @@ storage:
             # used with queriers and has minimal to no impact on other pieces.
             [hedge_requests_at: <duration>]
 
+            # Optional. Default is 2
+            # Example: "hedge_requests_up_to: 2"
+            # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
+            [hedge_requests_up_to: <int>]
+
         # S3 configuration. Will be used only if value of backend is "s3"
         # Check the S3 doc within this folder for information on s3 specific permissions.
         s3:
@@ -373,6 +378,11 @@ storage:
             # used with queriers and has minimal to no impact on other pieces.
             [hedge_requests_at: <duration>]
 
+            # Optional. Default is 2
+            # Example: "hedge_requests_up_to: 2"
+            # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
+            [hedge_requests_up_to: <int>]
+
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL
         azure:
@@ -401,6 +411,11 @@ storage:
             # be set to p99 of Axure Blog Storage requests to reduce long tail latency.  This setting is most impactful when
             # used with queriers and has minimal to no impact on other pieces.
             [hedge-requests-at: <duration>]
+
+            # Optional. Default is 2
+            # Example: "hedge-requests-up-to: 2"
+            # The maximum number of requests to execute when hedging. Requires hedge-requests-at to be set.
+            [hedge-requests-up-to: <int>]
 
         # How often to repoll the backend for new blocks. Default is 5m
         [blocklist_poll: <duration>] 

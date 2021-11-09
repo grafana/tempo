@@ -45,11 +45,12 @@ func TestHedge(t *testing.T) {
 			server := fakeServer(t, tc.returnIn, &count)
 
 			r, w, _, err := New(&Config{
-				MaxBuffers:      3,
-				BufferSize:      1000,
-				ContainerName:   "blerg",
-				Endpoint:        server.URL[7:], // [7:] -> strip http://,
-				HedgeRequestsAt: tc.hedgeAt,
+				MaxBuffers:        3,
+				BufferSize:        1000,
+				ContainerName:     "blerg",
+				Endpoint:          server.URL[7:], // [7:] -> strip http://,
+				HedgeRequestsAt:   tc.hedgeAt,
+				HedgeRequestsUpTo: 2,
 			})
 			require.NoError(t, err)
 
@@ -79,7 +80,12 @@ func TestHedge(t *testing.T) {
 			atomic.StoreInt32(&count, 0)
 
 			_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), bytes.NewReader(make([]byte, 10)), 10, false)
-			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
+			// Write consists of two operations:
+			// - Put Block operation
+			//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
+			// - Put Block List operation
+			//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
+			assert.Equal(t, int32(2), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 		})
 	}
