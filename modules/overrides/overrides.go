@@ -19,11 +19,12 @@ import (
 const wildcardTenant = "*"
 
 var (
-	metricOverridesLimits = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Name:      "limits_overrides",
-		Help:      "Per-Tenant usage limits",
-	}, []string{"limit_name", "user"})
+	metricOverridesLimitsDesc = prometheus.NewDesc(
+		"tempo_limits_overrides",
+		"Resource limit overrides applied to tenants",
+		[]string{"limit_name", "user"},
+		nil,
+	)
 
 	metricDefaultsLimits = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -54,16 +55,6 @@ func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
 	decoder.SetStrict(true)
 	if err := decoder.Decode(&overrides); err != nil {
 		return nil, err
-	}
-
-	for tenant, tenantLimits := range overrides.TenantLimits {
-		metricOverridesLimits.WithLabelValues("max_local_traces_per_user", tenant).Set(float64(tenantLimits.MaxLocalTracesPerUser))
-		metricOverridesLimits.WithLabelValues("max_global_traces_per_user", tenant).Set(float64(tenantLimits.MaxGlobalTracesPerUser))
-		metricOverridesLimits.WithLabelValues("max_bytes_per_trace", tenant).Set(float64(tenantLimits.MaxBytesPerTrace))
-		metricOverridesLimits.WithLabelValues("max_search_bytes_per_trace", tenant).Set(float64(tenantLimits.MaxSearchBytesPerTrace))
-		metricOverridesLimits.WithLabelValues("ingestion_rate_limit_bytes", tenant).Set(float64(tenantLimits.IngestionRateLimitBytes))
-		metricOverridesLimits.WithLabelValues("ingestion_burst_size_bytes", tenant).Set(float64(tenantLimits.IngestionBurstSizeBytes))
-		metricOverridesLimits.WithLabelValues("block_retention", tenant).Set(float64(tenantLimits.BlockRetention))
 	}
 
 	return overrides, nil
@@ -300,4 +291,25 @@ func (o *Overrides) getOverridesForUser(userID string) *Limits {
 	}
 
 	return o.defaultLimits
+}
+
+func (o *Overrides) Describe(ch chan<- *prometheus.Desc) {
+	ch <- metricOverridesLimitsDesc
+}
+
+func (o *Overrides) Collect(ch chan<- prometheus.Metric) {
+	overrides := o.tenantOverrides()
+	if overrides == nil {
+		return
+	}
+
+	for tenant, limits := range overrides.TenantLimits {
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxLocalTracesPerUser), "max_local_traces_per_user", tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxGlobalTracesPerUser), "max_global_traces_per_user", tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxBytesPerTrace), "max_bytes_per_trace", tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxSearchBytesPerTrace), "max_search_bytes_per_trace", tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.IngestionRateLimitBytes), "ingestion_rate_limit_bytes", tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.IngestionBurstSizeBytes), "ingestion_burst_size_bytes", tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.BlockRetention), "block_retention", tenant)
+	}
 }
