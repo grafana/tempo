@@ -1,0 +1,6141 @@
+{
+ "annotations": {
+  "list": [
+   {
+    "builtIn": 1,
+    "datasource": "-- Grafana --",
+    "enable": true,
+    "hide": true,
+    "iconColor": "rgba(0, 211, 255, 1)",
+    "name": "Annotations & Alerts",
+    "target": {
+     "limit": 100,
+     "matchAny": false,
+     "tags": [
+
+     ],
+     "type": "dashboard"
+    },
+    "type": "dashboard"
+   },
+   {
+    "datasource": "$logsds",
+    "enable": true,
+    "expr": "{cluster=\"$cluster\", diff_namespace=\"$namespace\", container=\"kube-diff-logger\"}",
+    "hide": true,
+    "iconColor": "rgba(255, 96, 96, 1)",
+    "name": "diffs",
+    "showIn": 0,
+    "target": {
+
+    }
+   }
+  ]
+ },
+ "editable": true,
+ "gnetId": null,
+ "graphTooltip": 1,
+ "iteration": 1630589498735,
+ "links": [
+  {
+   "asDropdown": true,
+   "icon": "external link",
+   "includeVars": true,
+   "keepTime": true,
+   "tags": [
+    "tempo"
+   ],
+   "targetBlank": false,
+   "title": "Tempo Dashboards",
+   "type": "dashboards"
+  }
+ ],
+ "liveNow": false,
+ "panels": [
+  {
+   "collapsed": true,
+   "datasource": null,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "id": 38,
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 0,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 0,
+      "y": 1
+     },
+     "hiddenSeries": false,
+     "id": 24,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "rate(go_gc_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])",
+       "interval": "",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "gcs",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 0,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 3,
+      "y": 1
+     },
+     "hiddenSeries": false,
+     "id": 25,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "go_memstats_heap_inuse_bytes{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "interval": "",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "go heap",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "decbytes",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 0,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 6,
+      "y": 1
+     },
+     "hiddenSeries": false,
+     "id": 23,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "go_goroutines{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "goroutines",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 0,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 9,
+      "y": 1
+     },
+     "hiddenSeries": false,
+     "id": 42,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}[$__rate_interval])",
+       "interval": "",
+       "intervalFactor": 5,
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "cpu",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 0,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 12,
+      "y": 1
+     },
+     "hiddenSeries": false,
+     "id": 43,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}",
+       "interval": "",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "working set",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "decbytes",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 0,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 15,
+      "y": 1
+     },
+     "hiddenSeries": false,
+     "id": 44,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "rate(container_network_receive_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\"}[$__rate_interval])",
+       "hide": false,
+       "interval": "",
+       "legendFormat": "rx-{{pod}}",
+       "refId": "A"
+      },
+      {
+       "expr": "rate(container_network_transmit_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\"}[$__rate_interval])",
+       "hide": false,
+       "interval": "",
+       "legendFormat": "tx-{{pod}}",
+       "refId": "B"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "tx/rx",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "decbytes",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 0,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 18,
+      "y": 1
+     },
+     "hiddenSeries": false,
+     "id": 45,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "kubelet_volume_stats_available_bytes{cluster=\"$cluster\", namespace=\"$namespace\", persistentvolumeclaim=~\"$component.*\"}",
+       "legendFormat": "{{persistentvolumeclaim}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "data volume free",
+     "tooltip": {
+      "shared": true,
+      "sort": 1,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "decbytes",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 21,
+      "y": 1
+     },
+     "hiddenSeries": false,
+     "id": 46,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "rate(promtail_custom_bad_words_total{cluster=\"$cluster\", exported_namespace=\"$namespace\", app=~\"$component.*\"}[$__rate_interval])",
+       "interval": "",
+       "legendFormat": "{{exported_pod}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "bad words",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    }
+   ],
+   "title": "General",
+   "type": "row"
+  },
+  {
+   "collapsed": true,
+   "datasource": null,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 1
+   },
+   "id": 49,
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 0,
+      "y": 2
+     },
+     "hiddenSeries": false,
+     "id": 33,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "tempodb_work_queue_length{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"} / tempodb_work_queue_max{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "legendFormat": "{{instance}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "%age total work queue",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "decimals": null,
+       "format": "percentunit",
+       "label": "",
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 3,
+      "y": 2
+     },
+     "hiddenSeries": false,
+     "id": 32,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(increase(tempodb_compaction_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (job)",
+       "legendFormat": "compaction_err",
+       "refId": "B"
+      },
+      {
+       "expr": "sum(increase(tempodb_retention_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (job)",
+       "legendFormat": "retention_err",
+       "refId": "C"
+      },
+      {
+       "expr": "sum(increase(tempodb_blocklist_poll_errors_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (job)",
+       "legendFormat": "blocklist_err",
+       "refId": "D"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "maintenance errors",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 6,
+      "y": 2
+     },
+     "hiddenSeries": false,
+     "id": 35,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": false,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": true,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".99",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le))",
+       "legendFormat": ".9",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".5",
+       "refId": "C"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Blocklist Poll Duration",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "s",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 9,
+      "y": 2
+     },
+     "hiddenSeries": false,
+     "id": 47,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "exemplar": true,
+       "expr": "avg(tempodb_blocklist_length{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}) by (tenant)",
+       "instant": false,
+       "interval": "",
+       "legendFormat": "{{tenant}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Blocklist Length",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 12,
+      "y": 2
+     },
+     "hiddenSeries": false,
+     "id": 51,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": false,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": true,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".99",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".9",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".5",
+       "refId": "C"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "retention duration",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "s",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 15,
+      "y": 2
+     },
+     "hiddenSeries": false,
+     "id": 53,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(increase(tempodb_retention_deleted_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval]))",
+       "interval": "",
+       "legendFormat": "deleted",
+       "refId": "A"
+      },
+      {
+       "expr": "sum(increase(tempodb_retention_marked_for_deletion_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval]))",
+       "interval": "",
+       "legendFormat": "marked_for_deletion",
+       "refId": "B"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "retention",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 18,
+      "y": 2
+     },
+     "hiddenSeries": false,
+     "id": 70,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "increase(kube_pod_container_status_restarts_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]) > 0",
+       "hide": false,
+       "interval": "",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Container Restarts",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    }
+   ],
+   "title": "Maintenance",
+   "type": "row"
+  },
+  {
+   "collapsed": false,
+   "datasource": null,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 2
+   },
+   "id": 21,
+   "panels": [
+
+   ],
+   "title": "Read",
+   "type": "row"
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 0,
+    "y": 3
+   },
+   "hiddenSeries": false,
+   "id": 34,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\".*api_traces_traceid\", cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\"}[$__rate_interval])) by (status_code)",
+     "hide": false,
+     "interval": "",
+     "legendFormat": "{{status_code}}",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Queries/Sec (cortex-gw)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 6,
+    "x": 4,
+    "y": 3
+   },
+   "hiddenSeries": false,
+   "id": 78,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A"
+    },
+    {
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B"
+    },
+    {
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Query Latency (Gateway)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 12,
+    "y": 3
+   },
+   "hiddenSeries": false,
+   "id": 97,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "exemplar": true,
+     "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\".*api_search.*\", cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\"}[$__rate_interval])) by (status_code)",
+     "hide": false,
+     "interval": "",
+     "legendFormat": "{{status_code}}",
+     "refId": "A",
+     "stepMode": "min"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Search Queries/Sec (cortex-gw)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 6,
+    "x": 16,
+    "y": 3
+   },
+   "hiddenSeries": false,
+   "id": 93,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A",
+     "stepMode": "min"
+    },
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
+     "hide": false,
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B",
+     "stepMode": "min"
+    },
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
+     "hide": false,
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C",
+     "stepMode": "min"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Search Query Latency (Gateway)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 0,
+    "y": 8
+   },
+   "hiddenSeries": false,
+   "id": 90,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", route=~\".*api_traces_traceid\", job=\"$namespace/query-frontend\"}[$__rate_interval])) by (status_code)",
+     "hide": false,
+     "interval": "",
+     "legendFormat": "{{status_code}}",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Queries/Sec (Query Frontend)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 6,
+    "x": 4,
+    "y": 8
+   },
+   "hiddenSeries": false,
+   "id": 17,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A"
+    },
+    {
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B"
+    },
+    {
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Query Latency (Query Frontend)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 12,
+    "y": 8
+   },
+   "hiddenSeries": false,
+   "id": 98,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "exemplar": true,
+     "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", route=~\".*api_search.*\", job=\"$namespace/query-frontend\"}[$__rate_interval])) by (status_code)",
+     "hide": false,
+     "interval": "",
+     "legendFormat": "{{status_code}}",
+     "refId": "A",
+     "stepMode": "min"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Search Queries/Sec (Query Frontend)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 6,
+    "x": 16,
+    "y": 8
+   },
+   "hiddenSeries": false,
+   "id": 94,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A",
+     "stepMode": "min"
+    },
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B",
+     "stepMode": "min"
+    },
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C",
+     "stepMode": "min"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Search Query Latency (Query Frontend)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 0,
+    "y": 13
+   },
+   "hiddenSeries": false,
+   "id": 91,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\"querier_.*api_traces_traceid\", cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\"}[$__rate_interval])) by (status_code)",
+     "hide": false,
+     "interval": "",
+     "legendFormat": "{{status_code}}",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Queries/Sec (Querier)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 6,
+    "x": 4,
+    "y": 13
+   },
+   "hiddenSeries": false,
+   "id": 89,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*api_traces_traceid\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A"
+    },
+    {
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*api_traces_traceid\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B"
+    },
+    {
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*api_traces_traceid\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Query Latency (Querier)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 12,
+    "y": 13
+   },
+   "hiddenSeries": false,
+   "id": 99,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "exemplar": true,
+     "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\"querier_.*api_search.*\", cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\"}[$__rate_interval])) by (status_code)",
+     "hide": false,
+     "interval": "",
+     "legendFormat": "{{status_code}}",
+     "refId": "A",
+     "stepMode": "min"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Search Queries/Sec (Querier)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 6,
+    "x": 16,
+    "y": 13
+   },
+   "hiddenSeries": false,
+   "id": 95,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*api_search.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A",
+     "stepMode": "min"
+    },
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*api_search.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B",
+     "stepMode": "min"
+    },
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*api_search.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C",
+     "stepMode": "min"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Search Query Latency (Querier)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 0,
+    "y": 18
+   },
+   "hiddenSeries": false,
+   "id": 92,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(rate(tempo_request_duration_seconds_count{route=\"/tempopb.Querier/FindTraceByID\", cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\"}[$__rate_interval])) by (status_code)",
+     "hide": false,
+     "interval": "",
+     "legendFormat": "{{status_code}}",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Queries/Sec (Ingester)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 6,
+    "x": 4,
+    "y": 18
+   },
+   "hiddenSeries": false,
+   "id": 3,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=\"/tempopb.Querier/FindTraceByID\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A"
+    },
+    {
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=\"/tempopb.Querier/FindTraceByID\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B"
+    },
+    {
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=\"/tempopb.Querier/FindTraceByID\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Query Latency (Ingester)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 4,
+    "x": 12,
+    "y": 18
+   },
+   "hiddenSeries": false,
+   "id": 100,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "exemplar": true,
+     "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\"/tempopb.Querier/Search.*\", cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\"}[$__rate_interval])) by (status_code)",
+     "hide": false,
+     "interval": "",
+     "legendFormat": "{{status_code}}",
+     "refId": "A",
+     "stepMode": "min"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Search Queries/Sec (Ingester)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": "$ds",
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 6,
+    "x": 16,
+    "y": 18
+   },
+   "hiddenSeries": false,
+   "id": 96,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.2.0-32962pre",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Querier/Search.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A",
+     "stepMode": "min"
+    },
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Querier/Search.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B",
+     "stepMode": "min"
+    },
+    {
+     "exemplar": true,
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Querier/Search.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C",
+     "stepMode": "min"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeFrom": null,
+   "timeRegions": [
+
+   ],
+   "timeShift": null,
+   "title": "Search Query Latency (Ingester)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    },
+    {
+     "format": "short",
+     "label": null,
+     "logBase": 1,
+     "max": null,
+     "min": null,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false,
+    "alignLevel": null
+   }
+  },
+  {
+   "collapsed": true,
+   "datasource": null,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 23
+   },
+   "id": 19,
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 0,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 0,
+      "y": 24
+     },
+     "hiddenSeries": false,
+     "id": 10,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "rate(tempo_distributor_spans_received_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])",
+       "interval": "",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Spans Received",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 3,
+      "y": 24
+     },
+     "hiddenSeries": false,
+     "id": 9,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "rate(tempo_ingester_traces_created_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])",
+       "interval": "",
+       "legendFormat": "",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Traces Created",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 6,
+      "y": 24
+     },
+     "hiddenSeries": false,
+     "id": 8,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(increase(tempo_ingester_blocks_flushed_total{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\"}[1h]))",
+       "interval": "",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Blocks Flushed (1h)",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 9,
+      "y": 24
+     },
+     "hiddenSeries": false,
+     "id": 12,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "increase(tempo_ingester_failed_flushes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]) > 0",
+       "interval": "",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Failed Flushes",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 12,
+      "y": 24
+     },
+     "hiddenSeries": false,
+     "id": 26,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(increase(tempo_ingester_blocks_cleared_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
+       "interval": "",
+       "legendFormat": "",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Blocks Cleared (1h)",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 15,
+      "y": 24
+     },
+     "hiddenSeries": false,
+     "id": 36,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": false,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": true,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".99",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".9",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".5",
+       "refId": "C"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Flush Duration",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "s",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 10,
+      "w": 7,
+      "x": 0,
+      "y": 29
+     },
+     "hiddenSeries": false,
+     "id": 71,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (status_code)",
+       "interval": "",
+       "legendFormat": "{{status_code}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Pushes/sec (gateway)",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": "",
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 10,
+      "w": 6,
+      "x": 7,
+      "y": 29
+     },
+     "hiddenSeries": false,
+     "id": 72,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_receiver_accepted_spans{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+       "interval": "",
+       "legendFormat": "accepted",
+       "refId": "A"
+      },
+      {
+       "expr": "sum(rate(tempo_receiver_refused_spans{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+       "interval": "",
+       "legendFormat": "refused",
+       "refId": "B"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "OTEL Distributor Spans/second",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "none",
+       "label": "",
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 6,
+      "x": 13,
+      "y": 29
+     },
+     "hiddenSeries": false,
+     "id": 79,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".99",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".9",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".5",
+       "refId": "C"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Push Latency (Gateway)",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "s",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 5,
+      "w": 6,
+      "x": 13,
+      "y": 34
+     },
+     "hiddenSeries": false,
+     "id": 2,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".99",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".9",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".5",
+       "refId": "C"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Push Latency (Ingester)",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "s",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    }
+   ],
+   "title": "Write",
+   "type": "row"
+  },
+  {
+   "collapsed": true,
+   "datasource": null,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 24
+   },
+   "id": 74,
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fieldConfig": {
+      "defaults": {
+       "links": [
+
+       ]
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 8,
+      "w": 12,
+      "x": 0,
+      "y": 25
+     },
+     "hiddenSeries": false,
+     "id": 75,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(cortex_memcache_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (status_code, method)",
+       "interval": "",
+       "legendFormat": "{{status_code}}-{{method}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Requests/Second",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fieldConfig": {
+      "defaults": {
+       "links": [
+
+       ]
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 8,
+      "w": 12,
+      "x": 12,
+      "y": 25
+     },
+     "hiddenSeries": false,
+     "id": 76,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
+       "interval": "",
+       "legendFormat": ".99-{{method}}",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
+       "interval": "",
+       "legendFormat": ".9-{{method}}",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
+       "interval": "",
+       "legendFormat": ".5-{{method}}",
+       "refId": "C"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Latency By Operation",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "s",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    }
+   ],
+   "title": "Memcached",
+   "type": "row"
+  },
+  {
+   "collapsed": true,
+   "datasource": null,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 25
+   },
+   "id": 28,
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+
+       },
+       "links": [
+
+       ]
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 8,
+      "w": 12,
+      "x": 0,
+      "y": 41
+     },
+     "hiddenSeries": false,
+     "id": 31,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "7.2.1",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempodb_gcs_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (status_code, operation)",
+       "interval": "",
+       "legendFormat": "{{status_code}}-{{operation}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Requests/Second",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+
+       },
+       "links": [
+
+       ]
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 8,
+      "w": 12,
+      "x": 12,
+      "y": 41
+     },
+     "hiddenSeries": false,
+     "id": 30,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "7.2.1",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "histogram_quantile(.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (operation, le))",
+       "legendFormat": ".99-{{operation}}",
+       "refId": "A"
+      },
+      {
+       "expr": "histogram_quantile(.9, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (operation, le))",
+       "legendFormat": ".9-{{operation}}",
+       "refId": "B"
+      },
+      {
+       "expr": "histogram_quantile(.5, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (operation, le))",
+       "legendFormat": ".5-{{operation}}",
+       "refId": "C"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Latency By Operation",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "s",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    }
+   ],
+   "title": "GCS",
+   "type": "row"
+  },
+  {
+   "collapsed": true,
+   "datasource": null,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 26
+   },
+   "id": 56,
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+
+       },
+       "links": [
+
+       ]
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 8,
+      "w": 6,
+      "x": 0,
+      "y": 42
+     },
+     "hiddenSeries": false,
+     "id": 58,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "7.2.1",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "gauge_memberlist_health_score{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "interval": "",
+       "legendFormat": "{{instance}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Gossip Health",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+
+       },
+       "links": [
+
+       ]
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 8,
+      "w": 6,
+      "x": 6,
+      "y": 42
+     },
+     "hiddenSeries": false,
+     "id": 62,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "7.2.1",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "tempo_memberlist_client_cluster_node_health_score{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "interval": "",
+       "legendFormat": "{{instance}}",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Node Health",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+
+       },
+       "links": [
+
+       ]
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 8,
+      "w": 6,
+      "x": 12,
+      "y": 42
+     },
+     "hiddenSeries": false,
+     "id": 63,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "7.2.1",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "min(tempo_memberlist_client_cluster_members_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"})",
+       "interval": "",
+       "legendFormat": "min",
+       "refId": "A"
+      },
+      {
+       "expr": "max(tempo_memberlist_client_cluster_members_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"})",
+       "interval": "",
+       "legendFormat": "max",
+       "refId": "B"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Member Count",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+
+       },
+       "links": [
+
+       ]
+      },
+      "overrides": [
+
+      ]
+     },
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 8,
+      "w": 6,
+      "x": 18,
+      "y": 42
+     },
+     "hiddenSeries": false,
+     "id": 60,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "7.2.1",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "min(tempo_memberlist_client_kv_store_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"})",
+       "interval": "",
+       "legendFormat": "min",
+       "refId": "A"
+      },
+      {
+       "expr": "max(tempo_memberlist_client_kv_store_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"})",
+       "interval": "",
+       "legendFormat": "max",
+       "refId": "B"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "KV Store Count",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    }
+   ],
+   "title": "Ring/Memberlist",
+   "type": "row"
+  },
+  {
+   "collapsed": true,
+   "datasource": null,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 27
+   },
+   "id": 69,
+   "panels": [
+    {
+     "datasource": "$ds",
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "auto",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "percentunit"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 9,
+      "w": 12,
+      "x": 0,
+      "y": 28
+     },
+     "id": 77,
+     "options": {
+      "graph": {
+
+      },
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "single"
+      }
+     },
+     "pluginVersion": "7.5.0-14141pre",
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+       "interval": "",
+       "legendFormat": "{{error}}",
+       "refId": "A"
+      }
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Vulture Query Errors",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "$ds",
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "thresholds"
+       },
+       "mappings": [
+
+       ],
+       "max": 1,
+       "min": 0,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         }
+        ]
+       },
+       "unit": "percentunit"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 9,
+      "w": 12,
+      "x": 12,
+      "y": 28
+     },
+     "id": 67,
+     "options": {
+      "displayMode": "gradient",
+      "orientation": "auto",
+      "reduceOptions": {
+       "calcs": [
+        "mean"
+       ],
+       "fields": "",
+       "values": false
+      },
+      "showUnfilled": true,
+      "text": {
+
+      }
+     },
+     "pluginVersion": "8.2.0-32962pre",
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+       "interval": "",
+       "legendFormat": "{{secondsago}}",
+       "refId": "A"
+      }
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Average Vulture Query Errors",
+     "type": "bargauge"
+    }
+   ],
+   "title": "Vulture",
+   "type": "row"
+  },
+  {
+   "collapsed": true,
+   "datasource": null,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 28
+   },
+   "id": 81,
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 6,
+      "w": 4,
+      "x": 0,
+      "y": 29
+     },
+     "hiddenSeries": false,
+     "id": 83,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempodb_compaction_objects_combined_total{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) by (level)",
+       "interval": "",
+       "legendFormat": "",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Objects Combined / s",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "$$hashKey": "object:150",
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "$$hashKey": "object:151",
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "description": "",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 6,
+      "w": 4,
+      "x": 4,
+      "y": 29
+     },
+     "hiddenSeries": false,
+     "id": 85,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempodb_compaction_objects_written_total{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
+       "interval": "",
+       "legendFormat": "",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Objects Written / s",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 6,
+      "w": 4,
+      "x": 8,
+      "y": 29
+     },
+     "hiddenSeries": false,
+     "id": 88,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempodb_compaction_bytes_written_total{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/compactor\"}[$__rate_interval])) by (level)",
+       "interval": "",
+       "legendFormat": "",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Bytes Written / s",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$ds",
+     "fill": 1,
+     "fillGradient": 0,
+     "gridPos": {
+      "h": 6,
+      "w": 4,
+      "x": 12,
+      "y": 29
+     },
+     "hiddenSeries": false,
+     "id": 86,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": false,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "nullPointMode": "null",
+     "options": {
+      "alertThreshold": true
+     },
+     "percentage": false,
+     "pluginVersion": "8.2.0-32962pre",
+     "pointradius": 2,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(increase(tempodb_compaction_blocks_total{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/compactor\"}[5m])) by (level)",
+       "interval": "",
+       "legendFormat": "",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeRegions": [
+
+     ],
+     "timeShift": null,
+     "title": "Blocks Compacted",
+     "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": true
+      }
+     ],
+     "yaxis": {
+      "align": false,
+      "alignLevel": null
+     }
+    }
+   ],
+   "title": "Compactor",
+   "type": "row"
+  }
+ ],
+ "refresh": "",
+ "schemaVersion": 31,
+ "style": "dark",
+ "tags": [
+  "tempo"
+ ],
+ "templating": {
+  "list": [
+   {
+    "current": {
+     "selected": false,
+     "text": "ops-cortex",
+     "value": "ops-cortex"
+    },
+    "description": null,
+    "error": null,
+    "hide": 0,
+    "includeAll": false,
+    "label": null,
+    "multi": false,
+    "name": "ds",
+    "options": [
+
+    ],
+    "query": "prometheus",
+    "refresh": 1,
+    "regex": "",
+    "skipUrlSync": false,
+    "type": "datasource"
+   },
+   {
+    "current": {
+     "selected": false,
+     "text": "loki-ops",
+     "value": "loki-ops"
+    },
+    "description": null,
+    "error": null,
+    "hide": 0,
+    "includeAll": false,
+    "label": null,
+    "multi": false,
+    "name": "logsds",
+    "options": [
+
+    ],
+    "query": "loki",
+    "queryValue": "",
+    "refresh": 1,
+    "regex": "",
+    "skipUrlSync": false,
+    "type": "datasource"
+   },
+   {
+    "allValue": null,
+    "current": {
+     "selected": false,
+     "text": "ops-us-east-0",
+     "value": "ops-us-east-0"
+    },
+    "datasource": "$ds",
+    "definition": "label_values(tempo_build_info, cluster)",
+    "description": null,
+    "error": null,
+    "hide": 0,
+    "includeAll": false,
+    "label": null,
+    "multi": false,
+    "name": "cluster",
+    "options": [
+
+    ],
+    "query": {
+     "query": "label_values(tempo_build_info, cluster)",
+     "refId": "ops-cortex-cluster-Variable-Query"
+    },
+    "refresh": 1,
+    "regex": "",
+    "skipUrlSync": false,
+    "sort": 0,
+    "tagValuesQuery": "",
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+   },
+   {
+    "allValue": null,
+    "current": {
+     "selected": false,
+     "text": "tempo-ops",
+     "value": "tempo-ops"
+    },
+    "datasource": "$ds",
+    "definition": "label_values(kube_pod_container_info{image=~\".*tempo.*\", cluster=\"$cluster\"}, namespace)",
+    "description": null,
+    "error": null,
+    "hide": 0,
+    "includeAll": false,
+    "label": null,
+    "multi": false,
+    "name": "namespace",
+    "options": [
+
+    ],
+    "query": {
+     "query": "label_values(kube_pod_container_info{image=~\".*tempo.*\", cluster=\"$cluster\"}, namespace)",
+     "refId": "ops-cortex-namespace-Variable-Query"
+    },
+    "refresh": 1,
+    "regex": "",
+    "skipUrlSync": false,
+    "sort": 0,
+    "tagValuesQuery": "",
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+   },
+   {
+    "allValue": ".*",
+    "current": {
+     "selected": false,
+     "text": "All",
+     "value": "$__all"
+    },
+    "description": null,
+    "error": null,
+    "hide": 0,
+    "includeAll": true,
+    "label": null,
+    "multi": false,
+    "name": "component",
+    "options": [
+     {
+      "selected": true,
+      "text": "All",
+      "value": "$__all"
+     },
+     {
+      "selected": false,
+      "text": "compactor",
+      "value": "compactor"
+     },
+     {
+      "selected": false,
+      "text": "distributor",
+      "value": "distributor"
+     },
+     {
+      "selected": false,
+      "text": "ingester",
+      "value": "ingester"
+     },
+     {
+      "selected": false,
+      "text": "querier",
+      "value": "querier"
+     },
+     {
+      "selected": false,
+      "text": "cortex-gw",
+      "value": "cortex-gw"
+     }
+    ],
+    "query": "compactor,distributor,ingester,querier,cortex-gw",
+    "queryValue": "",
+    "skipUrlSync": false,
+    "type": "custom"
+   }
+  ]
+ },
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "timepicker": {
+  "refresh_intervals": [
+   "10s",
+   "30s",
+   "1m",
+   "5m",
+   "15m",
+   "30m",
+   "1h",
+   "2h",
+   "1d"
+  ]
+ },
+ "timezone": "",
+ "title": "Tempo Operational",
+ "uid": "a6175b9cc7ec20591890117c39580030",
+ "version": 1
+}

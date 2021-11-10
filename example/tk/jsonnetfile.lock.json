@@ -5,11 +5,41 @@
       "source": {
         "git": {
           "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "grafana"
+        }
+      },
+      "version": "17eca514f990530c411c2e9411af5213dd4bd224",
+      "sum": "eqpZVw4x6nN8duDjOTvwVj6WkfZXYR+gUJnrpMhzSUY="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "grafana-builder"
+        }
+      },
+      "version": "71640f24289af8deca742763feec3c0dbd22b7ae",
+      "sum": "U34Nd1ViO2LZ3D8IzygPPRfUcy6zOgCnTMVHZ+9O/QE="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
           "subdir": "ksonnet-util"
         }
       },
-      "version": "37319e21e546579eab2c3ed459e956a262c28f8c",
-      "sum": "OxgtIWL4hjvG0xkMwUzZ7Yjs52zUhLhaVQpwHCbqf8A="
+      "version": "17eca514f990530c411c2e9411af5213dd4bd224",
+      "sum": "fFVlCoa/N0qiqTbDhZAEdRm2Vv76Z9Clxp3/haJ+PyA="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "kube-state-metrics/"
+        }
+      },
+      "version": "71640f24289af8deca742763feec3c0dbd22b7ae",
+      "sum": "kH7gD2rdqRtBujmCObN0ifNF/BkSZU8pleFRI8itkqY="
     },
     {
       "source": {
@@ -18,18 +48,48 @@
           "subdir": "memcached"
         }
       },
-      "version": "37319e21e546579eab2c3ed459e956a262c28f8c",
+      "version": "17eca514f990530c411c2e9411af5213dd4bd224",
       "sum": "dTOeEux3t9bYSqP2L/uCuLo/wUDpCKH4w+4OD9fePUk="
     },
     {
       "source": {
         "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "mixin-utils"
+        }
+      },
+      "version": "71640f24289af8deca742763feec3c0dbd22b7ae",
+      "sum": "v6fuqqQp9rHZbsxN9o79QzOpUlwYZEJ84DxTCZMCYeU="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "prometheus"
+        }
+      },
+      "version": "71640f24289af8deca742763feec3c0dbd22b7ae",
+      "sum": "/UcvaaBqbWfbPfpwX+IU00PwbTIy6hTBq9Af5C55Zpg="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/tempo.git",
+          "subdir": "operations/tempo-mixin"
+        }
+      },
+      "version": "5124375ebfb128a9e698c81934a4d81b2887f299",
+      "sum": "p2wS372OU1fuxn8t/DKLj6v1VAGeYd9EOz0MYNHdUf0="
+    },
+    {
+      "source": {
+        "git": {
           "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
-          "subdir": "1.19"
+          "subdir": "1.21"
         }
       },
       "version": "f47562c4e3bfaf46a5a5bc6a9e1e76a4fc76c18e",
-      "sum": "m/53207lTQJGAA9H2D7SrM+qIMJxHxXPzlsx3GuyYLg="
+      "sum": "R4vw3zTrNH2hlwtMliAcnZ6ZlY21ACZHZ2tTkeU7QbM="
     }
   ],
   "legacyImports": false
