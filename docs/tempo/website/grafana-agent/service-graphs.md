@@ -35,7 +35,7 @@ The generated metrics represent edges between nodes in the graph. Nodes are repr
 
 <p align="center"><img src="../service-graphs-agent-architecture.png" alt="Service graphs architecture"></p>
 
-Service graphs works by inspecting spans and looking for the tag `span.kind`.
+Service graphs works by inspecting spans and looking for the tag [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind).
 If it finds the span kind to be client or server, it stores the request in a local in-memory store.
 
 That request waits until its corresponding client or server pair span is processed or until the maximum waiting time has passed.
@@ -65,7 +65,7 @@ traces:
         enabled: true
 ```
 
-To see all the available config options, refer to the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration/traces-config.md).
+To see all the available config options, refer to the [configuration reference](https://grafana.com/docs/agent/latest/configuration/traces-config/).
 
 Metrics are registered in the Agent's default registerer.
 Therefore, they are exposed at `/metrics` in the Agent's server port.
@@ -92,6 +92,30 @@ Service graphs is hidden under the feature flag `tempoServiceGraphs`.
 To run this feature:
 1. Run Grafana 8.2 or the latest pre-release and enable the `tempoSearch` [feature toggle](https://grafana.com/docs/grafana/latest/packages_api/data/featuretoggles/#temposervicegraph-property).
 2. Configure a Tempo datasource's 'Service Graphs' section by linking to the prometheus backend where metrics are being sent.
+
+Example provisioned datasource config for service graphs:
+
+```
+apiVersion: 1
+datasources:
+  # Prometheus backend where metrics are sent
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    url: <prometheus-url>
+    jsonData:
+        httpMethod: GET
+    version: 1
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    url: <tempo-url>
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: 'prometheus'
+    version: 1
+```
 
 ## Cardinality
 
