@@ -42,8 +42,8 @@ That request waits until its corresponding client or server pair span is process
 When either of those conditions is reached, the request is processed and removed from the local store.
 If the request is complete by that time, it'll be recorded as an edge in the graph.
 
-Service graphs supports multi-agent deployments,
-allowing to group all spans of a trace in the same agent by load balancing the spans by trace ID between the instances.
+To generate service graphs using a multi-agent deployment, use the load balancing feature.
+This will group all spans of a trace in the same agent.
 To configure load balancing check the `load_balancing` section of the [Agent configuration](https://grafana.com/docs/agent/latest/configuration/traces-config/).
 
 ## Quickstart
