@@ -76,7 +76,10 @@ func (s *StreamingSearchBlock) BlockID() uuid.UUID {
 // Append the given search data to the streaming block. Multiple byte buffers of search data for
 // the same trace can be passed and are merged into one entry.
 func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchData [][]byte) error {
-	combined, _ := staticCombiner.Combine("", searchData...)
+	combined, _, err := staticCombiner.Combine("", searchData...)
+	if err != nil {
+		return err
+	}
 
 	if len(combined) <= 0 {
 		return nil

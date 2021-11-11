@@ -3,6 +3,7 @@ package encoding
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -58,7 +59,10 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 		}
 
 		i.currentID = id
-		i.currentObject, _ = i.combiner.Combine(i.dataEncoding, i.currentObject, obj)
+		i.currentObject, _, err = i.combiner.Combine(i.dataEncoding, i.currentObject, obj)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in deduping iterator: %w", err)
+		}
 	}
 
 	return dedupedID, dedupedObject, nil

@@ -314,10 +314,10 @@ type instrumentedObjectCombiner struct {
 }
 
 // Combine wraps the inner combiner with combined metrics
-func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
-	b, wasCombined := i.inner.Combine(dataEncoding, objs...)
+func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
+	b, wasCombined, err := i.inner.Combine(dataEncoding, objs...)
 	if wasCombined {
 		metricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
 	}
-	return b, wasCombined
+	return b, wasCombined, err
 }

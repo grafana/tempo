@@ -24,7 +24,7 @@ services:
     entrypoint:
       - sh
       - -euc
-      - mkdir -p /data/tempo && /usr/bin/minio server /data --console-address ':9001'
+      - mkdir -p /data/tempo && minio server /data --console-address ':9001'
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25

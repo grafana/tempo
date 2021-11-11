@@ -23,13 +23,13 @@ var ObjectCombiner = objectCombiner{}
 var _ common.ObjectCombiner = (*objectCombiner)(nil)
 
 // Combine implements tempodb/encoding/common.ObjectCombiner
-func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
+func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	if len(objs) <= 0 {
-		return nil, false
+		return nil, false, nil
 	}
 
 	if len(objs) == 1 {
-		return objs[0], false
+		return objs[0], false, nil
 	}
 
 	combinedTrace := objs[0]
@@ -45,7 +45,7 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 		}
 	}
 
-	return combinedTrace, wasCombined
+	return combinedTrace, wasCombined, err
 }
 
 // CombineTraceBytes combines objA and objB encoded using dataEncodingA and dataEncodingB and returns a trace encoded with dataEncodingA
