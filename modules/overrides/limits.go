@@ -54,7 +54,7 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&l.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")
 	f.IntVar(&l.MaxGlobalTracesPerUser, "ingester.max-global-traces-per-user", 0, "Maximum number of active traces per user, across the cluster. 0 to disable.")
 	f.IntVar(&l.MaxBytesPerTrace, "ingester.max-bytes-per-trace", 50e5, "Maximum size of a trace in bytes.  0 to disable.")
-	f.IntVar(&l.MaxBytesPerTrace, "ingester.max-search-bytes-per-trace", 50e3, "Maximum size of search data per trace in bytes.  0 to disable.")
+	f.IntVar(&l.MaxSearchBytesPerTrace, "ingester.max-search-bytes-per-trace", 50e3, "Maximum size of search data per trace in bytes.  0 to disable.")
 
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	_ = l.PerTenantOverridePeriod.Set("10s")
