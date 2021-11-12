@@ -202,7 +202,7 @@ func TestMultiblockIteratorSkipsEmptyObjects(t *testing.T) {
 	inner.Add([]byte{2}, []byte{2}, nil)
 	inner.Add([]byte{3}, []byte{3}, nil)
 	inner.Add([]byte{4}, []byte{}, nil) // Two empties in a row
-	inner.Add([]byte{5, 6}, []byte{}, nil)
+	inner.Add([]byte{5}, []byte{}, nil)
 	inner.Add([]byte{6}, []byte{6}, nil)
 	inner.Add([]byte{7}, []byte{7}, nil)
 	inner.Add([]byte{8}, []byte{}, nil)

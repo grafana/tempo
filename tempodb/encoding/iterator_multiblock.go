@@ -179,7 +179,6 @@ func newBookmark(iter Iterator) *bookmark {
 }
 
 func (b *bookmark) current(ctx context.Context) ([]byte, []byte, error) {
-	//fmt.Println("current")
 	// This check is how the bookmark knows to iterate after being cleared,
 	// but it also unintentionally skips empty objects that somehow got in
 	// the block (b.currentObject is empty slice).  Normal usage of the bookmark
@@ -195,11 +194,8 @@ func (b *bookmark) current(ctx context.Context) ([]byte, []byte, error) {
 	// * Last object is empty: This is an issue in multiblock-iterator, see
 	//   notes there.
 	if len(b.currentID) != 0 && len(b.currentObject) != 0 {
-		//fmt.Println("returning current:", b.currentID)
 		return b.currentID, b.currentObject, nil
 	}
-
-	//fmt.Println("skipped", b.currentID)
 
 	if b.currentErr != nil {
 		return nil, nil, b.currentErr
@@ -207,19 +203,16 @@ func (b *bookmark) current(ctx context.Context) ([]byte, []byte, error) {
 
 	// If the next
 	b.currentID, b.currentObject, b.currentErr = b.iter.Next(ctx)
-	//fmt.Println("returning next:", b.currentID)
 	return b.currentID, b.currentObject, b.currentErr
 }
 
 func (b *bookmark) done(ctx context.Context) bool {
-	//fmt.Println("done")
 	_, _, err := b.current(ctx)
 
 	return err != nil
 }
 
 func (b *bookmark) clear() {
-	//fmt.Println("cleared")
 	b.currentID = nil
 	b.currentObject = nil
 }
