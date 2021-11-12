@@ -24,6 +24,13 @@ jobs:
         with:
           version: v1.41.1
 
+      - name: Prettify code
+        uses: creyD/prettier_action@v4.0
+        with:
+          dry: true
+          prettier_options: --check **/*.md
+
+
   test:
     name: Test
     runs-on: ubuntu-latest
