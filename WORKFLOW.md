@@ -13,6 +13,7 @@ Team members and their access to repositories is maintained through [GitHub team
 ## Proposing changes
 
 Examples of proposed changes are overarching architecture, component design, and specific code or graphical elements. Proposed changes SHOULD cover the big picture and intention, but individual parts SHOULD be split into the smallest possible changes. Changes SHOULD be based on and target the main branch. Depending on size of the proposed change, each change SHOULD be discussed, in increasing order of change size and complexity:
+
 - Directly in a PR (Pull Request) - this MAY be done, but SHOULD not be the common case.
 - Issue
 - Developer mailing list
@@ -24,6 +25,7 @@ Significant changes MUST be discussed and agreed upon with the relevant subsyste
 
 Depending on the size and complexity of a PR, different requirements MUST be applied. Any team member contributing substantially to a PR MUST NOT count against review requirements.
 Commits MUST be merged into main using PRs. They MUST NOT be pushed to main directly.
+
 - Every merge MUST be approved by at least one team member.
 - Non-trivial changes MUST be approved by at least
   - two team members, or
@@ -33,6 +35,7 @@ Commits MUST be merged into main using PRs. They MUST NOT be pushed to main dire
   - the relevant subsystem maintainer.
 
 PRs MUST be [reviewed](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/reviewing-changes-in-pull-requests) and [approved](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/approving-a-pull-request-with-required-reviews) via GitHub’s review system.
+
 - Reviewers MAY write comments if approving
 - Reviewers MUST write comments if rejecting a PR or if requesting changes.
 
@@ -45,6 +48,7 @@ Once a PR is approved as per above, any team member MAY merge the PR.
 Grafana uses trunk-based development.
 
 In particular, we found that the following principles match how we work:
+
 - Main and release branches MUST always build without failure.
 - Branches SHOULD be merged often. Larger changes SHOULD be activated with feature flags until they are ready. Long-lived development branches SHOULD be avoided.
 - Changes MAY be enabled by default once they are in a complete state

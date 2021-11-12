@@ -5,7 +5,7 @@ weight: 5
 
 ### Ingester Persistent Volume Operations
 
-Tempo ingesters make heavy use of local disks to store write-ahead logs and blocks before being flushed to the backend (GCS/S3/etc).   It is important to monitor the free volume space as full disks can lead to data loss and other errors.  The amount of disk space available affects how much volume a Tempo ingester can process, and the length of time an outage to the backend can be tolerated.
+Tempo ingesters make heavy use of local disks to store write-ahead logs and blocks before being flushed to the backend (GCS/S3/etc). It is important to monitor the free volume space as full disks can lead to data loss and other errors. The amount of disk space available affects how much volume a Tempo ingester can process, and the length of time an outage to the backend can be tolerated.
 
 Therefore it may be necessary to increase the disk space for ingesters as usage increases. When deployed as a StatefulSet with Persistent Volume Claims (PVC), some manual steps are required. The following has worked successfully on GKE with GCS:
 
@@ -25,7 +25,7 @@ Therefore it may be necessary to increase the disk space for ingesters as usage 
 
    `kubectl delete sts --cascade=false -n <namespace> ingester`
 
-3. Edit and recreate the Statefulset with the new size. This covers new pods.  There are many ways to deploy Tempo to kubernetes, these are examples for the popular ones:
-    * Raw yaml: `kubectl apply -f <something>.yaml`
-    * Helm: `helm upgrade ... tempo ...`
-    * Tanka: `tk apply ...`
+3. Edit and recreate the Statefulset with the new size. This covers new pods. There are many ways to deploy Tempo to kubernetes, these are examples for the popular ones:
+   - Raw yaml: `kubectl apply -f <something>.yaml`
+   - Helm: `helm upgrade ... tempo ...`
+   - Tanka: `tk apply ...`

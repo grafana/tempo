@@ -34,7 +34,7 @@ Helm charts are available in the grafana/helm-charts repo:
 
 You can find a collection of Kubernetes manifests to deploy Tempo in the
 [operations/kube-manifests](https://github.com/grafana/tempo/tree/main/operations/kube-manifests)
-folder.  These are generated using the Tanka / Jsonnet.
+folder. These are generated using the Tanka / Jsonnet.
 
 # Deployment scenarios
 
@@ -51,9 +51,9 @@ which is the single binary deployment mode.
 ## Single binary
 
 A single binary mode deployment runs all top-level components in a single
-process, forming an instance of Tempo.  The single binary mode is the simplest
+process, forming an instance of Tempo. The single binary mode is the simplest
 to deploy, but can not horizontally scale out by increasing the quantity of
-components.  Refer to [Architecture]({{< relref "./architecture" >}}) for
+components. Refer to [Architecture]({{< relref "./architecture" >}}) for
 descriptions of the components.
 
 To enable this mode, `-target=all` is used, which is the default.
@@ -82,14 +82,14 @@ Find a docker-compose deployment example at:
 
 ## Microservices
 
-In microservices mode, components are deployed in distinct processes.  Scaling
+In microservices mode, components are deployed in distinct processes. Scaling
 is per component, which allows for greater flexibility in scaling and more
 granular failure domains. This is the preferred method for a production
 deployment, but it is also the most complex
 
 The configuration associated with each component's deployment specifies a
-`target`.  For example, to deploy a `querier`, the configuration would contain
-`target: querier`.  A command-line deployment may specify the `-target=querier`
+`target`. For example, to deploy a `querier`, the configuration would contain
+`target: querier`. A command-line deployment may specify the `-target=querier`
 flag. Each of the components referenced in [Architecture]({{< relref
 "./architecture" >}}) must be deployed in order to get a working Tempo
 instance.

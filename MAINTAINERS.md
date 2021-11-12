@@ -1,6 +1,6 @@
-* @annanay25
-* @dgzlopes
-* @joe-elliott
-* @kvrhdn
-* @mapno
-* @mdisibio
+- @annanay25
+- @dgzlopes
+- @joe-elliott
+- @kvrhdn
+- @mapno
+- @mdisibio

@@ -1,8 +1,8 @@
 ---
 title: Architecture
 aliases:
- - /docs/tempo/latest/architecture/architecture
- - /docs/tempo/latest/architecture
+  - /docs/tempo/latest/architecture/architecture
+  - /docs/tempo/latest/architecture
 weight: 1
 ---
 
@@ -10,12 +10,13 @@ A collection of documents that detail Tempo architectural decisions and operatio
 
 # Architecture
 
-This topic provides an overview of the major components of Tempo.  Refer to the [example setups]({{< relref "../getting-started/example-demo-app" >}})
+This topic provides an overview of the major components of Tempo. Refer to the [example setups]({{< relref "../getting-started/example-demo-app" >}})
 or [deployment options]({{< relref "./deployment" >}}) for help deploying.
 
 <p align="center"><img src="../tempo_arch.png" alt="Tempo Architecture"></p>
 
 ## Tempo
+
 Tempo comprises of the following top-level components.
 
 ### Distributor
@@ -23,12 +24,12 @@ Tempo comprises of the following top-level components.
 The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring]({{< relref "consistent_hash_ring" >}}).
 
 The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
-For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto).  For this reason
+For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto). For this reason
 the [Grafana Agent](https://github.com/grafana/agent) uses the otlp exporter/receiver to send spans to Tempo.
 
 ### Ingester
 
-The Ingester batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend. 
+The Ingester batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend.
 Blocks in the backend are generated in the following layout.
 
 ```

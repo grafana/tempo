@@ -3,9 +3,10 @@
 This document should help with remediating operational issues in Tempo.
 
 ## TempoRequestErrors
+
 ## TempoRequestLatency
 
-Aside from obvious errors in the logs the only real lever you can pull here is scaling.  Use the Reads or Writes dashboard
+Aside from obvious errors in the logs the only real lever you can pull here is scaling. Use the Reads or Writes dashboard
 to identify the component that is struggling and scale it up.
 
 The Query path is instrumented with tracing (!) and this can be used to diagnose issues with higher latency. View the logs of
@@ -13,28 +14,29 @@ the Query Frontend, where you can find an info level message for every request. 
 
 The Query Frontend allows for scaling the query path by sharding queries. There are a few knobs that can be tuned for optimum
 parallelism -
+
 - Number of shards each query is split into, configured via
-    ```
-    query_frontend:
-        query_shards: 10
-    ```
+  ```
+  query_frontend:
+      query_shards: 10
+  ```
 - Number of Queriers (each of these process the sharded queries in parallel). This can be changed by modifying the size of the
-Querier deployment. More Queriers -> faster processing of shards in parallel -> lower request latency.
+  Querier deployment. More Queriers -> faster processing of shards in parallel -> lower request latency.
 
 - Querier parallelism, which is a combination of a few settings:
 
-    ```
-    querier:
-      max_concurrent_queries: 10
-      frontend_worker:
-          match_max_concurrent: true  // true by default
-          parallelism: 5              // parallelism per query-frontend. ignored if match_max_concurrent is set to true
+  ```
+  querier:
+    max_concurrent_queries: 10
+    frontend_worker:
+        match_max_concurrent: true  // true by default
+        parallelism: 5              // parallelism per query-frontend. ignored if match_max_concurrent is set to true
 
-    storage:
-      trace:
-        pool:
-          max_workers: 100
-    ```
+  storage:
+    trace:
+      pool:
+        max_workers: 100
+  ```
 
 MaxConcurrentQueries defines the total number of shards each Querier processes at a given time. By default, this number will
 be split between the query frontends, so if there are N query frontends, the Querier will process (Max Concurrent Queries/ N)
@@ -59,29 +61,31 @@ increase the amount of memberlist traffic propagated by the cluster.
 
 ## TempoCompactionsFailing
 
-Check to determine the cause for the failures.  Intermittent failures require no immediate action, because the compactors will
+Check to determine the cause for the failures. Intermittent failures require no immediate action, because the compactors will
 reattempt the compaction, and any partially written data is ignored and expected to be cleaned up automatically with bucket cleanup
 rules in GCS/S3/etc.
 
-The most common cause for a failing compaction is an OOM from compacting an extremely large trace.  The memory limit should be
+The most common cause for a failing compaction is an OOM from compacting an extremely large trace. The memory limit should be
 increased until it is enough to get past the trace, and must remain increased until the trace goes out of retention and is
-deleted, or else there is the risk of the trace causing OOMs later.  Ingester limits should be reviewed and possibly reduced.
+deleted, or else there is the risk of the trace causing OOMs later. Ingester limits should be reviewed and possibly reduced.
 If a block continues to cause problems and cannot be resolved it can be deleted manually.
 
 There are several settings which can be tuned to reduce the amount of work done by compactors to help with stability or scaling:
-- compaction_window - The length of time that will be compacted together by a single pod.  Can be reduced to as little as 15 or
-  30 minutes.  It could be reduced even further in extremely high volume situations.
+
+- compaction_window - The length of time that will be compacted together by a single pod. Can be reduced to as little as 15 or
+  30 minutes. It could be reduced even further in extremely high volume situations.
 - max_block_bytes - The maximum size of an output block, and controls which input blocks will be compacted. Can be reduced to as
   little as a few GB to prevent really large compactions.
 - chunk_size_bytes - The amount of (compressed) data buffered from each input block. Can be reduced to a few megabytes to buffer
-  less.  Will increase the amount of reads from the backend.
+  less. Will increase the amount of reads from the backend.
 - flush_size_bytes - The amount of data buffered of the output block. Can be reduced to flush more frequently to the backend.
-  There are platform-specific limits on how low this can go.  AWS S3 cannot be set lower than 5MB, or cause more than 10K flushes
+  There are platform-specific limits on how low this can go. AWS S3 cannot be set lower than 5MB, or cause more than 10K flushes
   per block.
 
 ## TempoIngesterFlushesFailing
 
 How it **works**:
+
 - Tempo ingesters flush blocks that have been completed to the backend
 - If flushing fails, the ingester will keep retrying until restarted
 - Blocks that have been flushed successfully will be deleted from the ingester, by default after 15m
@@ -93,6 +97,7 @@ to out of disk issues.
 Known issue: this can trigger during a rollout of the ingesters, see [tempo#1035](https://github.com/grafana/tempo/issues/1035).
 
 How to **investigate**:
+
 - To check which ingesters are failing to flush and look for a pattern, you can use:
   ```
   sum(rate(tempo_ingester_failed_flushes_total{cluster="...", container="ingester"}[5m])) by (pod)
@@ -119,15 +124,17 @@ We have only seen polling failures occur due to intermittent backend issues.
 
 See [Polling Issues](#polling-issues) below for general information.
 
-If the following is being logged then things are stable (due to polling fallback) and we just need to review the logs to determine why 
+If the following is being logged then things are stable (due to polling fallback) and we just need to review the logs to determine why
 there is an issue with the index and correct.
+
 ```
 failed to pull bucket index for tenant. falling back to polling
 ```
 
 If the following (or other errors) are being logged repeatedly then the tenant index is not being updated and more direct action is necessary.
-If the core issue can not be resolved delete any tenant index that is not being updated. This will force the components to fallback to 
+If the core issue can not be resolved delete any tenant index that is not being updated. This will force the components to fallback to
 bucket scanning for the offending tenants.
+
 ```
 failed to write tenant index
 ```
@@ -159,15 +166,15 @@ with `tempodb_blocklist_tenant_index_builder` for the offending tenant set to 1 
 tenant and should be checked first. If no compactors are creating tenant indexes refer to [TempoNoTenantIndexBuilders](#temponotenantindexbuilders)
 above.
 
-Additionally the metric `tempodb_blocklist_tenant_index_age_seconds` can be grouped by the `tenant` label. If only one (or few) 
+Additionally the metric `tempodb_blocklist_tenant_index_age_seconds` can be grouped by the `tenant` label. If only one (or few)
 indexes are lagging these can be deleted to force components to manually rescan just the offending tenants.
 
 ### Polling Issues
 
-In the case of all polling issues intermittent issues are not concerning. Sustained polling issues need to be addressed. 
+In the case of all polling issues intermittent issues are not concerning. Sustained polling issues need to be addressed.
 
 Failure to poll just means that the component is not aware of the current state of the backend but will continue working
-otherwise.  Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale. 
+otherwise. Queriers, for instance, will start returning 404s as their internal representation of the backend grows stale.
 Compactors will attempt to compact blocks that don't exist.
 
 If persistent backend issues are preventing any fixes to polling then reads will start to fail, but writes will remain fine.
@@ -175,6 +182,5 @@ Alert your users accordingly!
 
 Note that tenant indexes are built independently and an issue may only be impacting one or very few tenants. `tempodb_blocklist_tenant_index_builder`,
 `tempodb_blocklist_tenant_index_age_seconds` and `tempodb_blocklist_tenant_index_errors_total` are all per-tenant metrics. If
-you can isolate the impacted tenants, attempt to take targeted action instead of making sweeping changes. Your easiest lever 
+you can isolate the impacted tenants, attempt to take targeted action instead of making sweeping changes. Your easiest lever
 to pull is to simply delete stale tenant indexes as all components will fallback to bucket listing.
-

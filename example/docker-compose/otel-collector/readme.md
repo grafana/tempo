@@ -1,4 +1,5 @@
 ## OpenTelemetry Collector
+
 This example highlights setting up the OpenTelemetry Collector in a simple tracing pipeline.
 
 1. First start up the stack.
@@ -12,6 +13,7 @@ At this point, the following containers should be spun up -
 ```console
 docker-compose ps
 ```
+
 ```
                   Name                                Command               State           Ports
 ----------------------------------------------------------------------------------------------------------
@@ -29,11 +31,12 @@ otel-collector_tempo_1                      /tempo -config.file=/etc/t ...   Up 
 ls tempo-data/
 ```
 
-3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
+3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo. To view its logs use -
 
 ```console
 docker-compose logs -f synthetic-load-generator
 ```
+
 ```
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 48367daf25266daa for service frontend route /currency
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 10e50d2aca58d5e7 for service frontend route /cart

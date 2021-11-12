@@ -1,4 +1,5 @@
 ### Grafana 7.4.x
+
 All of the other examples are designed to work with Grafana 7.5.x and forward. If you are using Grafana 7.4.x or before then you need
 to use tempo-query along with Tempo for querying. This example shows all the configuration points necessary
 to pull this off.
@@ -14,6 +15,7 @@ At this point, the following containers should be spun up -
 ```console
 docker-compose ps
 ```
+
 ```
                   Name                                Command               State                         Ports
 -------------------------------------------------------------------------------------------------------------------------------------
@@ -30,11 +32,12 @@ grafana74_tempo_1                      /tempo -config.file=/etc/t ...   Up      
 ls tempo-data/
 ```
 
-3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo.  To view its logs use -
+3. The synthetic-load-generator is now printing out trace ids it's flushing into Tempo. To view its logs use -
 
 ```console
 docker-compose logs -f synthetic-load-generator
 ```
+
 ```
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 48367daf25266daa for service frontend route /currency
 synthetic-load-generator_1  | 20/10/24 08:26:55 INFO ScheduledTraceGenerator: Emitted traceId 10e50d2aca58d5e7 for service frontend route /cart

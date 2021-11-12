@@ -8,31 +8,32 @@ weight: 350
 Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
 
 For the sake of clarity, in this document we have grouped API endpoints by service, but keep in mind that they're exposed both when running Tempo in microservices and singly-binary mode:
+
 - **Microservices**: each service exposes its own endpoints
 - **Single-binary**: the Tempo process exposes all API endpoints for the services running internally
 
 ## Endpoints
 
-| API | Service | Type | Endpoint |
-| --- | ------- | ---- | -------- |
-| [Readiness probe](#readiness-probe) | _All services_ |  HTTP | `GET /ready` |
-| [Metrics](#metrics) | _All services_ |  HTTP | `GET /metrics` |
-| [Pprof](#pprof) | _All services_ |  HTTP | `GET /debug/pprof` |
-| [Ingest traces](#ingest) | Distributor |  - | See section for details |
-| [Querying traces](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
-| [Searching traces](#search) | Query-frontend | HTTP | `GET /api/search?<params>` |
-| [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
-| [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
-| [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
-| [Memberlist](#memberlist) | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
-| [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
-| [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
-| [Distributor ring status](#distributor-ring-status) (*) | Distributor |  HTTP | `GET /distributor/ring` |
-| [Ingesters ring status](#ingesters-ring-status) | Distributor, Querier |  HTTP | `GET /ingester/ring` |
-| [Compactor ring status](#compactor-ring-status) | Compactor |  HTTP | `GET /compactor/ring` |
-| [Status](#status) | Status |  HTTP | `GET /status` |
+| API                                                      | Service                                   | Type | Endpoint                           |
+| -------------------------------------------------------- | ----------------------------------------- | ---- | ---------------------------------- |
+| [Readiness probe](#readiness-probe)                      | _All services_                            | HTTP | `GET /ready`                       |
+| [Metrics](#metrics)                                      | _All services_                            | HTTP | `GET /metrics`                     |
+| [Pprof](#pprof)                                          | _All services_                            | HTTP | `GET /debug/pprof`                 |
+| [Ingest traces](#ingest)                                 | Distributor                               | -    | See section for details            |
+| [Querying traces](#query)                                | Query-frontend                            | HTTP | `GET /api/traces/<traceID>`        |
+| [Searching traces](#search)                              | Query-frontend                            | HTTP | `GET /api/search?<params>`         |
+| [Search tag names](#search-tags)                         | Query-frontend                            | HTTP | `GET /api/search/tags`             |
+| [Search tag values](#search-tag-values)                  | Query-frontend                            | HTTP | `GET /api/search/tag/<tag>/values` |
+| [Query Echo Endpoint](#query-echo-endpoint)              | Query-frontend                            | HTTP | `GET /api/echo`                    |
+| [Memberlist](#memberlist)                                | Distributor, Ingester, Querier, Compactor | HTTP | `GET /memberlist`                  |
+| [Flush](#flush)                                          | Ingester                                  | HTTP | `GET,POST /flush`                  |
+| [Shutdown](#shutdown)                                    | Ingester                                  | HTTP | `GET,POST /shutdown`               |
+| [Distributor ring status](#distributor-ring-status) (\*) | Distributor                               | HTTP | `GET /distributor/ring`            |
+| [Ingesters ring status](#ingesters-ring-status)          | Distributor, Querier                      | HTTP | `GET /ingester/ring`               |
+| [Compactor ring status](#compactor-ring-status)          | Compactor                                 | HTTP | `GET /compactor/ring`              |
+| [Status](#status)                                        | Status                                    | HTTP | `GET /status`                      |
 
-_(*) This endpoint is not always available, check the specific section for more details._
+_(\*) This endpoint is not always available, check the specific section for more details._
 
 ### Readiness probe
 
@@ -69,24 +70,24 @@ _For more information, please check out the official documentation of [pprof](ht
 ### Ingest
 
 Tempo distributor uses the OpenTelemetry Receivers as a shim to ingest trace data.
-Note that these APIs are meant to be consumed by the corresponding client SDK or a pipeline service like Grafana 
+Note that these APIs are meant to be consumed by the corresponding client SDK or a pipeline service like Grafana
 Agent / OpenTelemetry Collector / Jaeger Agent.
 
-|  Protocol | Type | Docs | 
-|  -------- | ---- | ---- |
-|  OpenTelemetry | GRPC | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
-|  OpenTelemetry | HTTP | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
-|  Jaeger | Thrift Compact | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
-|  Jaeger | Thrift Binary | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
-|  Jaeger | Thrift HTTP |  [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
-|  Jaeger | GRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
-|  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
+| Protocol      | Type           | Docs                                                                                                           |
+| ------------- | -------------- | -------------------------------------------------------------------------------------------------------------- |
+| OpenTelemetry | GRPC           | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
+| OpenTelemetry | HTTP           | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
+| Jaeger        | Thrift Compact | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis)                                     |
+| Jaeger        | Thrift Binary  | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis)                                     |
+| Jaeger        | Thrift HTTP    | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis)                                     |
+| Jaeger        | GRPC           | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis)                                     |
+| Zipkin        | HTTP           | [Link](https://zipkin.io/zipkin-api/)                                                                          |
 
-_For information on how to use the Zipkin endpoint with curl (for debugging purposes) check [here](pushing-spans-with-http)._ 
+_For information on how to use the Zipkin endpoint with curl (for debugging purposes) check [here](pushing-spans-with-http)._
 
 ### Query
 
-Tempo's Query API is simple. The following request is used to retrieve a trace from the query frontend service in 
+Tempo's Query API is simple. The following request is used to retrieve a trace from the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.
 
 ```
@@ -98,7 +99,9 @@ The following query API is also provided on the querier service for _debugging_ 
 ```
 GET /querier/api/traces/<traceid>?mode=xxxx&blockStart=0000&blockEnd=FFFF
 ```
+
 Parameters:
+
 - `mode = (blocks|ingesters|all)`
   Specifies whether the querier should look for the trace in blocks, ingesters or both (all).
   Default = `all`
@@ -111,7 +114,7 @@ Parameters:
   Default = `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`
   Example: `blockStart=FFFFFFFF-FFFF-FFFF-FFFF-456787652341`
 
-Note that this API is not meant to be used directly unless for debugging the sharding functionality of the query 
+Note that this API is not meant to be used directly unless for debugging the sharding functionality of the query
 frontend.
 
 Returns:
@@ -122,8 +125,8 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 
 <span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
-Tempo's Search API finds traces based on span and process attributes (tags and values).  The API is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request is used to find traces containing spans
+Tempo's Search API finds traces based on span and process attributes (tags and values). The API is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a single binary deployment. The following request is used to find traces containing spans
 from service "myservice" and the url contains "api/myapi".
 
 ```
@@ -131,13 +134,14 @@ GET /api/search?tags=service.name%3Dmyservice%20http.url%3Dapi%2Fmyapi
 ```
 
 The URL query parameters support the following values:
+
 - `tags = (logfmt)`: logfmt encoding of any span-level or process-level attributes to filter on. The value is matched as a case-insensitive substring. Key-value pairs are separated by spaces. If a value contains a space, it should be enclosed within double quotes.
 - `minDuration = (go duration value)`
-  Optional.  Find traces with at least this duration.  Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
+  Optional. Find traces with at least this duration. Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
 - `maxDuration = (go duration value)`
-  Optional.  Find traces with no greater than this duration.  Uses the same form as `minDuration`.
+  Optional. Find traces with no greater than this duration. Uses the same form as `minDuration`.
 - `limit = (integer)`
-  Optional.  Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration](../configuration#querier).
+  Optional. Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration](../configuration#querier).
 
 #### Example
 
@@ -175,7 +179,7 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 
 <span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
-This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
+This endpoint retrieves all discovered tag names that can be used in search. The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.
 
 ```
@@ -216,8 +220,8 @@ $ curl -G -s http://localhost:3200/api/search/tags  | jq
 
 <span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
-This endpoint retrieves all discovered values for the given tag, which can be used in search.  The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request will return all discovered service names.
+This endpoint retrieves all discovered values for the given tag, which can be used in search. The endpoint is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a single binary deployment. The following request will return all discovered service names.
 
 ```
 GET /api/search/tag/service.name/values
@@ -252,7 +256,6 @@ Returns status code 200 and body `echo` when the query frontend is up and ready 
 
 **Note**: Meant to be used in a Query Visualization UI like Grafana to test that the Tempo datasource is working.
 
-
 ### Flush
 
 ```
@@ -267,7 +270,7 @@ Triggers a flush of all in-memory traces to the WAL. Useful at the time of rollo
 GET,POST /shutdown
 ```
 
-Flushes all in-memory traces and the WAL to the long term backend. Gracefully exits from the ring. Shuts down the 
+Flushes all in-memory traces and the WAL to the long term backend. Gracefully exits from the ring. Shuts down the
 ingester service.
 
 **Note**: This is usually used at the time of scaling down a cluster.
@@ -295,8 +298,6 @@ Displays a web page with the ingesters hash ring status, including the state, he
 
 _For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
 
-
-
 ### Compactor ring status
 
 ```
@@ -313,6 +314,7 @@ _For more information, check the page on [consistent hash ring](../operations/co
 ```
 GET /status
 ```
+
 Print all available information by default.
 
 ```
@@ -340,6 +342,7 @@ GET /status/config
 Displays the configuration.
 
 Optional Query Parameter:
+
 - `mode = (diff|defaults)`: Used to show the difference between the default values and the current configuration if `diff` is given. The default values will be shown if `defaults` is used.
 
 ```
@@ -349,6 +352,7 @@ GET /status/runtime_config
 Displays the override configuration.
 
 Query Parameter:
+
 - `mode = (diff)`: Used to show the difference between defaults and overrides.
 
 Displays the configuration currently applied to Tempo (in YAML format), including default values and settings via CLI flags.

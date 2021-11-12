@@ -1,8 +1,9 @@
 ## Loki Derived Fields
+
 This example presents a complete setup using Loki to process all container logs, and linking between the extracted traceIDs and tempo.
 
-1. First we have to install the Loki docker driver.  This allows applications in our docker-compose to ship their logs
-to Loki.
+1. First we have to install the Loki docker driver. This allows applications in our docker-compose to ship their logs
+   to Loki.
 
 ```console
 docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
@@ -19,6 +20,7 @@ At this point, the following containers should be spun up -
 ```console
 docker-compose ps
 ```
+
 ```
             Name                          Command               State            Ports
 ------------------------------------------------------------------------------------------------
@@ -29,14 +31,14 @@ loki_tempo_1         /tempo -storage.trace.back ...   Up      0.0.0.0:32774->142
 ```
 
 3. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Loki%22,%7B%7D%5D) and **query Loki a few times to generate some traces** (this setup does not use the synthetic load generator and all traces are generated from Loki).
-Something like the below works, but feel free to explore other options!
+   Something like the below works, but feel free to explore other options!
 
 ```
 {container_name="loki_loki_1"}
 ```
 
-4. Now let's execute a query specifically looking for some trace ids.  In an operational scenario you would normally be using Loki to search for things like
-query path, or status code, but we're just going to do this for the example:
+4. Now let's execute a query specifically looking for some trace ids. In an operational scenario you would normally be using Loki to search for things like
+   query path, or status code, but we're just going to do this for the example:
 
 ```
 {container_name="loki_loki_1"} |= "traceID"

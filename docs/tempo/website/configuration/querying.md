@@ -15,10 +15,9 @@ binary) and enter the URL: `http://<tempo hostname>:<http port number>`. For mos
 
 Note that the port of 3200 is a common port used in our examples. Tempo default for http is 80.
 
-
 ## Grafana 7.4.x
 
-Grafana 7.4.x is *not* able to query Tempo directly and requires the tempo-query component as an intermediary. In this case
+Grafana 7.4.x is _not_ able to query Tempo directly and requires the tempo-query component as an intermediary. In this case
 you need to run Tempo-Query and direct it at Tempo proper. Check out [the Grafana 7.4.x example](https://github.com/grafana/tempo/tree/main/example/docker-compose/grafana7.4) to help with configuration.
 
 The url entered will be `http://<tempo-query hostname>:16686/`.

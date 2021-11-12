@@ -12,6 +12,7 @@ If you're interested in setting up multitenancy, please consult the [multitenant
 in the repo. This example uses the following settings to achieve multitenancy in Tempo:
 
 - Configure the OTEL Collector to attach the X-Scope-OrgID header on push:
+
 ```
 exporters:
   otlp:
@@ -20,7 +21,9 @@ exporters:
 ```
 
 ### Grafana 7.5.x and higher
+
 - Configure the Tempo datasource in Grafana to pass the tenant with the same header.
+
 ```
 - name: Tempo-Multitenant
   jsonData:
@@ -30,7 +33,9 @@ exporters:
 ```
 
 ### Grafana 7.4.x
+
 - Configure the Tempo datasource in Grafana to pass the tenant as a bearer token. This is necessary because it is the only header that Jaeger can be configured to pass to its GRPC plugin.
+
 ```
 - name: Tempo-Multitenant
   jsonData:
@@ -38,7 +43,9 @@ exporters:
   secureJsonData:
     httpHeaderValue1: 'Bearer foo-bar-baz'
 ```
+
 - Configure Jaeger Query to pass the bearer token to its backend.
+
 ```
 --query.bearer-token-propagation=true
 ```
@@ -49,12 +56,15 @@ exporters:
 - The way the read path is configured is temporary and should be much more straightforward once the [tempo-query dependency is removed](https://github.com/grafana/tempo/issues/382).
 
 ## Enabling Multitenancy
+
 To enable multitenancy on Tempo backend, simply set the following config value on all Tempo components:
+
 ```
 multitenancy_enabled: true
 ```
 
 or from the command line:
+
 ```
 --multitenancy.enabled=true
 ```

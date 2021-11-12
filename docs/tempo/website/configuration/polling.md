@@ -11,7 +11,7 @@ The polling cycle is controlled by a number of configuration options detailed he
 storage:
     trace:
         # How often to repoll the backend for new blocks. Default is 5m
-        [blocklist_poll: <duration>] 
+        [blocklist_poll: <duration>]
 
         # Number of blocks to process in parallel during polling. Default is 50.
         [blocklist_poll_concurrency: <int>]
@@ -20,7 +20,7 @@ storage:
         # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
         [blocklist_poll_fallback: <bool>]
 
-        # Maximum number of compactors that should build the tenant index. All other components will download 
+        # Maximum number of compactors that should build the tenant index. All other components will download
         # the index.  Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
@@ -33,12 +33,13 @@ storage:
 ```
 
 Due to the mechanics of the [tenant index]({{< relref "../operations/polling" >}}) the blocklist will be stale by
-at most 2 times the configured `blocklist_poll` duration. There are two configuration options that need to be balanced 
+at most 2 times the configured `blocklist_poll` duration. There are two configuration options that need to be balanced
 against the `blockist_poll` to handle this:
 
 The ingester `complete_block_timeout` is used to hold a block in the ingester for a given period of time after
 it has been flushed. This allows the ingester to return traces to the queriers while they are still unaware
 of the newly flushed blocks.
+
 ```
 ingester:
   # How long to hold a complete block in the ingester after it has been flushed to the backend.  Default is 15m
@@ -47,7 +48,7 @@ ingester:
 
 The compactor `compacted_block_retention` is used to keep a block in the backend for a given period of time
 after it has been compacted and the data is no longer needed. This allows queriers with a stale blocklist to access
-these blocks successfully until they complete their polling cycles and have up to date blocklists. Like the 
+these blocks successfully until they complete their polling cycles and have up to date blocklists. Like the
 `complete_block_timeout` this should be at a minimum 2x the configurated `blocklist_poll` duration.
 
 ```
@@ -57,6 +58,6 @@ compactor:
     [compacted_block_retention: <duration>]
 ```
 
-Additionally, it is important that the querier `blocklist_poll` duration is greater than or equal to the compactor 
-`blocklist_poll` duration. Otherwise a querier may not correctly check all assigned blocks and incorrectly return 404. 
+Additionally, it is important that the querier `blocklist_poll` duration is greater than or equal to the compactor
+`blocklist_poll` duration. Otherwise a querier may not correctly check all assigned blocks and incorrectly return 404.
 It is recommended to simply set both components to use the same poll duration.

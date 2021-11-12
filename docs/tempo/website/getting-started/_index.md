@@ -28,18 +28,18 @@ creates and offloads spans.
 Below is a list of the most popular frameworks used for client instrumentation. Each of these have SDKs
 in most commonly used programming languages and you should pick one according to your application needs.
 
-* [OpenTracing/Jaeger](https://www.jaegertracing.io/docs/latest/client-libraries/)
-* [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
-* [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
+- [OpenTracing/Jaeger](https://www.jaegertracing.io/docs/latest/client-libraries/)
+- [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
+- [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
 
 #### OpenTelemetry Auto Instrumentation
 
 Some languages have support for auto-instrumentation. These libraries capture telemetry
 information from a client application with minimal manual instrumentation of the codebase.
 
-* [OpenTelemetry Java Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)
-* [OpenTelemetry .NET Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation)
-* [OpenTelemetry Python Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-python-contrib)
+- [OpenTelemetry Java Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)
+- [OpenTelemetry .NET Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation)
+- [OpenTelemetry Python Autoinstrumentation](https://github.com/open-telemetry/opentelemetry-python-contrib)
 
 > Note: Check out our [instrumentation examples]({{< relref "./instrumentation" >}}) to learn how to instrument your
 > favourite language for distributed tracing.
@@ -74,7 +74,6 @@ Getting started with Tempo is easy.
 - For production workloads, refer to the [deployment]({{< relref "../operations/deployment" >}}) section.
 
 > **Note:** The Grafana Agent is already set up to use Tempo. Refer to the [configuration](https://github.com/grafana/agent/blob/main/docs/configuration/tempo-config.md) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
-
 
 ## 4. Visualization (Grafana)
 

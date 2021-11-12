@@ -13,6 +13,7 @@ weight: 600
 - [Google Groups](https://groups.google.com/forum/#!forum/tempo-users)
 
 ## Contribute
+
 This page lists resources for developers who want to contribute to the Tempo software ecosystem.
 
 - [Governance](https://github.com/grafana/tempo/blob/main/GOVERNANCE.md)

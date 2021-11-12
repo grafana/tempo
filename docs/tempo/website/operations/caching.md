@@ -8,12 +8,12 @@ weight: 6
 Caching is mainly used to improve query performance by storing bloom filters of all backend blocks which are accessed on every query.
 
 Tempo uses an external cache to improve query performance.
-The supported implementations are [Memcached](https://memcached.org/) and [Redis](https://redis.io/). 
+The supported implementations are [Memcached](https://memcached.org/) and [Redis](https://redis.io/).
 
 ### Memcached
 
 Memcached is one of the cache implementations supported by Tempo.
-It is used by default in the Tanka and Helm examples, see [Deploying Tempo](../deployment). 
+It is used by default in the Tanka and Helm examples, see [Deploying Tempo](../deployment).
 
 #### Connection limit
 
@@ -45,7 +45,7 @@ accept4(): No file descriptors available
 Too many open connections
 ```
 
-When using the [memcached_exporter](https://github.com/prometheus/memcached_exporter), the number of open connections can be observed at `memcached_current_connections`. 
+When using the [memcached_exporter](https://github.com/prometheus/memcached_exporter), the number of open connections can be observed at `memcached_current_connections`.
 
 ### Cache Size Control
 

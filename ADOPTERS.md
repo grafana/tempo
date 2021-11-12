@@ -1,2 +1,2 @@
-* Grafana Labs
-* [Megvii](https://en.megvii.com/)
+- Grafana Labs
+- [Megvii](https://en.megvii.com/)

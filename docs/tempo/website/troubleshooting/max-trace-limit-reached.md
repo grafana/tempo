@@ -20,6 +20,7 @@ In this case you may need to visit the ingester [ring page]({{< relref "../opera
 and "Forget" the unhealthy ingesters. This will work in the short term, but the long term fix is to stabilize your ingesters.
 
 ## Trace limits reached
+
 In high volume tracing environments the default trace limits are sometimes not sufficient. These limits exist to protect Tempo
 and prevent it from OOMing, crashing or otherwise allow tenants to not DOS each other. If you are refusing spans due to limits you
 will see logs like this at the distributor:

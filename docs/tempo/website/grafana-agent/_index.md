@@ -5,19 +5,19 @@ weight: 400
 
 # Grafana Agent
 
-The [Grafana Agent](https://github.com/grafana/agent) is a telemetry 
-collector for sending metrics, logs, and trace data to the opinionated 
+The [Grafana Agent](https://github.com/grafana/agent) is a telemetry
+collector for sending metrics, logs, and trace data to the opinionated
 Grafana observability stack.
 
-It is commonly used as a tracing pipeline, offloading traces from the 
+It is commonly used as a tracing pipeline, offloading traces from the
 application and forwarding them to a storage backend.
 The Grafana Agent tracing stack is built using OpenTelemetry.
 
 The Grafana Agent supports receiving traces in multiple formats:
 OTLP (OpenTelemetry), Jaeger, Zipkin and OpenCensus.
 
-On top of receiving and exporting traces, the Grafana Agent contains many 
-features that make your distributed tracing system more robust, and 
+On top of receiving and exporting traces, the Grafana Agent contains many
+features that make your distributed tracing system more robust, and
 leverages all the data that is processed in the pipeline.
 
 ## Architecture
@@ -25,18 +25,18 @@ leverages all the data that is processed in the pipeline.
 The Grafana Agent can be configured to run a set of tracing pipelines to collect data from your applications and write it to Tempo.
 Pipelines are built using OpenTelemetry,
 and consist of `receivers`, `processors` and `exporters`. The architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
-See the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration/traces-config.md) for all available config options. 
+See the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration/traces-config.md) for all available config options.
 For a quick start, refer to this [blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-agent-and-grafana-tempo/).
 
 <p align="center"><img src="https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/images/design-pipelines.png" alt="Tracing pipeline architecture"></p>
 
 This allows you to configure multiple distinct tracing
-pipelines, each of which collects separate spans and sends them to different 
+pipelines, each of which collects separate spans and sends them to different
 backends.
 
 ### Receiving traces
 
-The Grafana Agent supports multiple ingestion receivers: 
+The Grafana Agent supports multiple ingestion receivers:
 OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus and Kafka.
 
 Each tracing pipeline can be configured to receive traces in all these formats.

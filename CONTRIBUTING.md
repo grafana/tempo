@@ -40,7 +40,7 @@ example/              - great place to get started running Tempo
   tk/
 integration/          - e2e tests
 modules/              - top level Tempo components
-  compactor/          
+  compactor/
   distributor/
   ingester/
   overrides/
@@ -60,9 +60,11 @@ vendor/
 ## Coding Standards
 
 ### go imports
+
 imports should follow `std libs`, `externals libs` and `local packages` format
 
 Example
+
 ```
 import (
 	"context"
@@ -125,4 +127,4 @@ To get a preview of the documentation locally, run `make docs` from the root fol
 the `grafana/docs` image which internally uses Hugo to generate the static site.
 
 > Note that `make docs` uses a lot of memory and so if its crashing make sure to increase the memory allocated to Docker
-and try again.
+> and try again.

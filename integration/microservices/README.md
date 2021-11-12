@@ -1,9 +1,9 @@
 # tempo-load-test
 
 This example aims to make it easier to measure and analyze Tempo performance in
-micro-services mode.  There are already many examples for running Tempo under
+micro-services mode. There are already many examples for running Tempo under
 load, but they use the single-binary approach and are not representative of
-what is occurring in larger installations.  Here Tempo is run with separate
+what is occurring in larger installations. Here Tempo is run with separate
 containers for distributor and ingesters, and replication factor = 3, meaning
 that the distributor will mirror all incoming traces to 3 ingesters.
 

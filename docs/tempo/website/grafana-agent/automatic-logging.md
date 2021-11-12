@@ -28,6 +28,7 @@ To configure it, you need to select your preferred backend and what trace data t
 To see all the available config options, refer to the [configuration reference](https://grafana.com/docs/agent/latest/configuration/traces-config/).
 
 This simple example logs trace roots to stdout and is a good way to get started using automatic logging:
+
 ```
 traces:
   configs:
@@ -39,6 +40,7 @@ traces:
 ```
 
 If you would like to push logs directly to a Loki instance also configured in the same Grafana Agent you would do something like this:
+
 ```
 traces:
   configs:
