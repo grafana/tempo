@@ -17,8 +17,8 @@ ALL_SRC := $(shell find . -name '*.go' \
                                 -type f | sort)
 
 # All source code and documents. Used in spell check.
-ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
-                                -type f | sort)
+ALL_DOC := $(shell find . -type f \( -name "*.md" -o -name "*.yaml" \) | sort)
+ALL_MD := $(shell find . -type f -name "*.md" | sort)
 
 # ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
@@ -89,6 +89,11 @@ fmt:
 .PHONY: lint
 lint:
 	$(LINT) run
+	prettier --check $(ALL_MD)
+
+.PHONY: lint-fix
+lint-fix:
+	prettier --write $(ALL_MD)
 
 ### Docker Images
 
