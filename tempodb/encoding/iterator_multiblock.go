@@ -201,7 +201,6 @@ func (b *bookmark) current(ctx context.Context) ([]byte, []byte, error) {
 		return nil, nil, b.currentErr
 	}
 
-	// If the next
 	b.currentID, b.currentObject, b.currentErr = b.iter.Next(ctx)
 	return b.currentID, b.currentObject, b.currentErr
 }
