@@ -181,7 +181,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		compactionLevelLabel: compactionLevelLabel,
 	}
 
-	iter := encoding.NewMultiblockIterator(ctx, iters, rw.compactorCfg.IteratorBufferSize, combiner, dataEncoding)
+	iter := encoding.NewMultiblockIterator(ctx, iters, rw.compactorCfg.IteratorBufferSize, combiner, dataEncoding, rw.logger)
 	defer iter.Close()
 
 	for {
