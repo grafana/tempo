@@ -72,7 +72,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", route=~\"tempo_api_.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", route=~\"api_.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -159,7 +159,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=~\"tempo_api_.*\"}[$__interval])) by (le,route)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=~\"api_.*\"}[$__interval])) by (le,route)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -168,7 +168,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=~\"tempo_api_.*\"}[$__interval])) by (le,route)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=~\"api_.*\"}[$__interval])) by (le,route)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -177,7 +177,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=~\"tempo_api_.*\"}[$__interval])) by (route) * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=~\"tempo_api_.*\"}[$__interval])) by (route)",
+       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=~\"api_.*\"}[$__interval])) by (route) * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=~\"api_.*\"}[$__interval])) by (route)",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -282,7 +282,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\", route=~\"tempo_api_.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\", route=~\"api_.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -369,7 +369,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",route=~\"tempo_api_.*\"}[$__interval])) by (le,route)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",route=~\"api_.*\"}[$__interval])) by (le,route)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -378,7 +378,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",route=~\"tempo_api_.*\"}[$__interval])) by (le,route)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",route=~\"api_.*\"}[$__interval])) by (le,route)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -387,7 +387,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",route=~\"tempo_api_.*\"}[$__interval])) by (route) * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",route=~\"tempo_api_.*\"}[$__interval])) by (route)",
+       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",route=~\"api_.*\"}[$__interval])) by (route) * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\",route=~\"api_.*\"}[$__interval])) by (route)",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -492,7 +492,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", route=~\"querier_tempo_api_.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", route=~\"querier_api_.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -579,7 +579,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_tempo_api_.*\"}[$__interval])) by (le,route)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_api_.*\"}[$__interval])) by (le,route)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -588,7 +588,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_tempo_api_.*\"}[$__interval])) by (le,route)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_api_.*\"}[$__interval])) by (le,route)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -597,7 +597,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_tempo_api_.*\"}[$__interval])) by (route) * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_tempo_api_.*\"}[$__interval])) by (route)",
+       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_api_.*\"}[$__interval])) by (route) * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",route=~\"querier_api_.*\"}[$__interval])) by (route)",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
