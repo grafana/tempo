@@ -11,7 +11,6 @@ import (
 )
 
 // ReplayWALAndGetRecords replays a WAL file that could contain either traces or searchdata
-//nolint:interfacer
 func ReplayWALAndGetRecords(file *os.File, v encoding.VersionedEncoding, enc backend.Encoding, handleObj func([]byte) error) ([]common.Record, error, error) {
 	dataReader, err := v.NewDataReader(backend.NewContextReaderWithAllReader(file), enc)
 	if err != nil {
