@@ -20,7 +20,7 @@ var ObjectCombiner = objectCombiner{}
 var _ common.ObjectCombiner = (*objectCombiner)(nil)
 
 // Combine implements tempodb/encoding/common.ObjectCombiner
-func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) { // jpe test additional cases
+func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	if len(objs) <= 0 {
 		return nil, false, errors.New("no objects provided")
 	}
