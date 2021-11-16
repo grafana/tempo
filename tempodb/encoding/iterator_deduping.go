@@ -35,7 +35,7 @@ func NewDedupingIterator(iter Iterator, combiner common.ObjectCombiner, dataEnco
 	return i, nil
 }
 
-// jpe - test
+// Next implements Iterator
 func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if i.currentID == nil {
 		return nil, nil, io.EOF
@@ -74,6 +74,7 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 	return dedupedID, dedupedObject, nil
 }
 
+// Close implements Iterator
 func (i *dedupingIterator) Close() {
 	i.iter.Close()
 }
