@@ -31,16 +31,16 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
+func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	if len(objs) != 2 {
-		return nil, false
+		return nil, false, nil
 	}
 
 	if len(objs[0]) > len(objs[1]) {
-		return objs[0], true
+		return objs[0], true, nil
 	}
 
-	return objs[1], true
+	return objs[1], true, nil
 }
 
 type mockJobSharder struct{}

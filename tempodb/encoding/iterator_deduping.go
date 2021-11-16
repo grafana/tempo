@@ -3,6 +3,7 @@ package encoding
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -61,11 +62,13 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 		currentObjects = append(currentObjects, obj)
 	}
 
-	var dedupedObject []byte
 	if len(currentObjects) == 1 {
-		dedupedObject = currentObjects[0]
-	} else {
-		dedupedObject, _ = i.combiner.Combine(i.dataEncoding, currentObjects...)
+		return dedupedID, currentObjects[0], nil
+	}
+
+	dedupedObject, _, err := i.combiner.Combine(i.dataEncoding, currentObjects...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to combine while Nexting: %w", err)
 	}
 
 	return dedupedID, dedupedObject, nil

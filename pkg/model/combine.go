@@ -9,11 +9,8 @@ import (
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 
-	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/pkg/errors"
-
-	"github.com/cortexproject/cortex/pkg/util/log"
 )
 
 type objectCombiner struct{}
@@ -23,29 +20,48 @@ var ObjectCombiner = objectCombiner{}
 var _ common.ObjectCombiner = (*objectCombiner)(nil)
 
 // Combine implements tempodb/encoding/common.ObjectCombiner
-func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
+func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) { // jpe test additional cases
 	if len(objs) <= 0 {
-		return nil, false
+		return nil, false, errors.New("no objects provided")
 	}
 
 	if len(objs) == 1 {
-		return objs[0], false
+		return objs[0], false, nil
 	}
 
-	combinedTrace := objs[0]
-	var wasCombined bool
-	var err error
-	for _, obj := range objs[1:] {
-		// Todo: Find an efficient way to combine all objs in a single step
-		// However, this is ok for now because Combine() is never called with len(objs) > 2
-		combinedTrace, wasCombined, err = CombineTraceBytes(combinedTrace, obj, dataEncoding, dataEncoding)
-		if err != nil {
-			level.Error(log.Logger).Log("msg", "error combining trace protos", "err", err.Error())
+	// check to see if we need to combine
+	needCombine := false
+	for i := 1; i < len(objs); i++ {
+		if !bytes.Equal(objs[0], objs[i]) {
+			needCombine = true
 			break
 		}
 	}
 
-	return combinedTrace, wasCombined
+	if !needCombine {
+		return objs[0], false, nil
+	}
+
+	var combinedTrace *tempopb.Trace
+	for _, obj := range objs {
+		trace, err := Unmarshal(obj, dataEncoding)
+		if err != nil {
+			return nil, false, fmt.Errorf("error unmarshaling trace: %w", err)
+		}
+
+		combinedTrace, _, _, _ = CombineTraceProtos(combinedTrace, trace)
+	}
+
+	if combinedTrace == nil {
+		return nil, false, nil
+	}
+
+	combinedBytes, err := marshal(combinedTrace, dataEncoding)
+	if err != nil {
+		return nil, false, fmt.Errorf("error marshaling combinedBytes: %w", err)
+	}
+
+	return combinedBytes, true, nil
 }
 
 // CombineTraceBytes combines objA and objB encoded using dataEncodingA and dataEncodingB and returns a trace encoded with dataEncodingA

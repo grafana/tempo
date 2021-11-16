@@ -48,14 +48,14 @@ func TestCombine(t *testing.T) {
 			name:        "t2 is bad",
 			trace1:      t1,
 			trace2:      nil,
-			expected:    t1,
+			expected:    nil,
 			expectError: true,
 		},
 		{
 			name:        "t1 is bad",
 			trace1:      nil,
 			trace2:      t2,
-			expected:    t2,
+			expected:    nil,
 			expectError: true,
 		},
 		{
@@ -90,7 +90,26 @@ func TestCombine(t *testing.T) {
 						b2 = []byte{0x01, 0x02, 0x03}
 					}
 
+					// CombineTraceBytes()
 					actual, _, err := CombineTraceBytes(b1, b2, enc1, enc2)
+					if tt.expectError {
+						require.Error(t, err)
+					} else {
+						require.NoError(t, err)
+					}
+
+					if tt.expected != nil {
+						expected := mustMarshal(tt.expected, enc1)
+						assert.Equal(t, expected, actual)
+					}
+
+					// Combine() only works if all byte slices have the same encoding
+					if enc1 != enc2 {
+						return
+					}
+
+					actual, _, err = ObjectCombiner.Combine(enc1, b1, b2)
+
 					if tt.expectError {
 						require.Error(t, err)
 					} else {
