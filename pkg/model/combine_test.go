@@ -208,7 +208,7 @@ func TestCombine(t *testing.T) {
 	}
 }
 
-func TestCombineNils(t *testing.T) {
+func TestCombineTraceBytesNils(t *testing.T) {
 	test := test.MakeTrace(1, nil)
 	SortTrace(test)
 
