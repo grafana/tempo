@@ -3,6 +3,7 @@ package overrides
 import (
 	"flag"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 )
 
@@ -18,6 +19,15 @@ const (
 	ErrorPrefixTraceTooLarge = "TRACE_TOO_LARGE:"
 	// ErrorPrefixRateLimited is used to flag batches that have exceeded the spans/second of the tenant
 	ErrorPrefixRateLimited = "RATE_LIMITED:"
+)
+
+var (
+	metricLimitsDesc = prometheus.NewDesc(
+		"tempo_limits_defaults",
+		"Default resource limits",
+		[]string{"limit_name"},
+		nil,
+	)
 )
 
 // Limits describe all the limits for users; can be used to describe global default
@@ -59,4 +69,18 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	_ = l.PerTenantOverridePeriod.Set("10s")
 	f.Var(&l.PerTenantOverridePeriod, "limits.per-user-override-period", "Period with this to reload the overrides.")
+}
+
+func (l *Limits) Describe(ch chan<- *prometheus.Desc) {
+	ch <- metricLimitsDesc
+}
+
+func (l *Limits) Collect(ch chan<- prometheus.Metric) {
+	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.MaxLocalTracesPerUser), "max_local_traces_per_user")
+	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.MaxGlobalTracesPerUser), "max_global_traces_per_user")
+	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.MaxBytesPerTrace), "max_bytes_per_trace")
+	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.MaxSearchBytesPerTrace), "max_search_bytes_per_trace")
+	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.IngestionRateLimitBytes), "ingestion_rate_limit_bytes")
+	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.IngestionBurstSizeBytes), "ingestion_burst_size_bytes")
+	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.BlockRetention), "block_retention")
 }
