@@ -34,13 +34,14 @@ func NewDedupingIterator(iter Iterator, combiner common.ObjectCombiner, dataEnco
 	return i, nil
 }
 
+// jpe - test
 func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if i.currentID == nil {
 		return nil, nil, io.EOF
 	}
 
 	var dedupedID []byte
-	var dedupedObject []byte
+	currentObjects := [][]byte{i.currentObject}
 
 	for {
 		id, obj, err := i.iter.Next(ctx)
@@ -50,7 +51,6 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 
 		if !bytes.Equal(i.currentID, id) {
 			dedupedID = i.currentID
-			dedupedObject = i.currentObject
 
 			i.currentID = id
 			i.currentObject = obj
@@ -58,7 +58,14 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 		}
 
 		i.currentID = id
-		i.currentObject, _ = i.combiner.Combine(i.dataEncoding, i.currentObject, obj)
+		currentObjects = append(currentObjects, obj)
+	}
+
+	var dedupedObject []byte
+	if len(currentObjects) == 1 {
+		dedupedObject = currentObjects[0]
+	} else {
+		dedupedObject, _ = i.combiner.Combine(i.dataEncoding, currentObjects...)
 	}
 
 	return dedupedID, dedupedObject, nil
