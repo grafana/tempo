@@ -88,13 +88,11 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			err:      "invalid maxDuration: time: unknown unit \"msec\" in duration \"1msec\"",
 		},
 		{
-			name:     "tags and limit",
+			name:     "old tags ignored",
 			urlQuery: "service.name=foo&tags=limit%3Dfive&limit=5&query=1%2B1%3D2",
 			expected: &tempopb.SearchRequest{
 				Tags: map[string]string{
-					"service.name": "foo",
-					"limit":        "five",
-					"query":        "1+1=2",
+					"limit": "five",
 				},
 				Limit: 5,
 			},
@@ -102,11 +100,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "tags query parameter with duplicate tag",
 			urlQuery: "tags=service.name%3Dfoo%20service.name%3Dbar",
-			err:      "invalid tags: tag service.name has been set twice",
-		},
-		{
-			name:     "top-level tags with conflicting query parameter tags",
-			urlQuery: "service.name=bar&tags=service.name%3Dfoo",
 			err:      "invalid tags: tag service.name has been set twice",
 		},
 	}

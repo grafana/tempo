@@ -34,12 +34,12 @@ func (m *mockSharder) Owns(string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
+func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	if len(objs) != 2 {
-		return nil, false
+		return nil, false, nil
 	}
 	combined, wasCombined, _ := model.CombineTraceBytes(objs[0], objs[1], dataEncoding, dataEncoding)
-	return combined, wasCombined
+	return combined, wasCombined, nil
 }
 
 func TestReturnAllHits(t *testing.T) {

@@ -27,7 +27,7 @@ type ObjectCombiner interface {
 	// Combine objects encoded using dataEncoding. The returned object must
 	// use the same dataEncoding. Returns a bool indicating if it the objects required combining and
 	// the combined slice
-	Combine(dataEncoding string, objs ...[]byte) ([]byte, bool)
+	Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error)
 }
 
 // DataReader returns a slice of pages in the encoding/v0 format referenced by

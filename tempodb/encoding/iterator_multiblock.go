@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"fmt"
 	"io"
 
 	"github.com/go-kit/log"
@@ -115,7 +116,11 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 			comparison := bytes.Compare(currentID, lowestID)
 
 			if comparison == 0 {
-				lowestObject, _ = i.combiner.Combine(i.dataEncoding, currentObject, lowestObject)
+				lowestObject, _, err = i.combiner.Combine(i.dataEncoding, currentObject, lowestObject)
+				if err != nil {
+					i.err.Store(fmt.Errorf("error combining while Nexting: %w", err))
+					return
+				}
 				b.clear()
 			} else if len(lowestID) == 0 || comparison == -1 {
 				lowestID = currentID
