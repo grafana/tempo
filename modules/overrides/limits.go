@@ -19,6 +19,15 @@ const (
 	ErrorPrefixTraceTooLarge = "TRACE_TOO_LARGE:"
 	// ErrorPrefixRateLimited is used to flag batches that have exceeded the spans/second of the tenant
 	ErrorPrefixRateLimited = "RATE_LIMITED:"
+
+	// metrics
+	MetricMaxLocalTracesPerUser   = "max_local_traces_per_user"
+	MetricMaxGlobalTracesPerUser  = "max_global_traces_per_user"
+	MetricMaxBytesPerTrace        = "max_bytes_per_trace"
+	MetricMaxSearchBytesPerTrace  = "max_search_bytes_per_trace"
+	MetricIngestionRateLimitBytes = "ingestion_rate_limit_bytes"
+	MetricIngestionBurstSizeBytes = "ingestion_burst_size_bytes"
+	MetricBlockRetention          = "block_retention"
 )
 
 var (
@@ -76,11 +85,11 @@ func (l *Limits) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (l *Limits) Collect(ch chan<- prometheus.Metric) {
-	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.MaxLocalTracesPerUser), "max_local_traces_per_user")
-	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.MaxGlobalTracesPerUser), "max_global_traces_per_user")
-	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.MaxBytesPerTrace), "max_bytes_per_trace")
-	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.MaxSearchBytesPerTrace), "max_search_bytes_per_trace")
-	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.IngestionRateLimitBytes), "ingestion_rate_limit_bytes")
-	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.IngestionBurstSizeBytes), "ingestion_burst_size_bytes")
-	ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(l.BlockRetention), "block_retention")
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxLocalTracesPerUser), MetricMaxLocalTracesPerUser)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxBytesPerTrace), MetricMaxBytesPerTrace)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxSearchBytesPerTrace), MetricMaxSearchBytesPerTrace)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.IngestionRateLimitBytes), MetricIngestionRateLimitBytes)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.IngestionBurstSizeBytes), MetricIngestionBurstSizeBytes)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.BlockRetention), MetricBlockRetention)
 }
