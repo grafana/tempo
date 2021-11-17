@@ -23,9 +23,19 @@ This document details release procedures for Tempo.  Currently it's pretty dang 
   - Make sure that the "This is a pre-release" is unchecked when publishing the release.
 - Submit a PR cleaning up the changelog and moving everything under "main/unreleased" to be under
   the newly minted version.
-- Update docs
-  - From the root of the website repo run `./scripts/docs-release.sh tempo v1.0.0 latest` 
-    replacing v1.0.0 with the version and submit a PR.
+- Update docs.  
+  - Note: `./scripts/docs-release.sh` must be run to keep internal links consistent when a version or folder name is being changed.  You cannot just rename or copy a folder.
+  - **New major/minor release**  
+    - Capture "latest" with real version
+      - `./scripts/docs-release.sh tempo vX.Y.Z latest` where version is the previous version (i.e. if you are releasing v1.3.0 then maybe v1.2.1)
+    - Convert "next" to new "latest"
+      - `rm -R content/docs/tempo/latest`
+      - `./scripts/docs-release.sh tempo latest next`
+      - Update `_index.md` set `version_latest` to the new release (i.e. v1.3.0)
+  - **Patch release**
+    - Update `version_latest` in `_index.md` if patching the current stable release.
+    - `./scripts/docs-release.sh tempo vX.Y.Z++ v.X.Y.Z` and then `rm -R content/docs/tempo/v.X.Y.Z` if patching a previous release.
+  - Submit PR to website repo
 - Update helm
   - Submit a PR to `github.com/grafana/helm-charts` to update to the newly cut version.
 
