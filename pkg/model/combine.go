@@ -25,10 +25,6 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 		return nil, false, errors.New("no objects provided")
 	}
 
-	if len(objs) == 1 {
-		return objs[0], false, nil
-	}
-
 	// check to see if we need to combine
 	needCombine := false
 	for i := 1; i < len(objs); i++ {
@@ -50,10 +46,6 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 		}
 
 		combinedTrace, _, _, _ = CombineTraceProtos(combinedTrace, trace)
-	}
-
-	if combinedTrace == nil {
-		return nil, false, nil
 	}
 
 	combinedBytes, err := marshal(combinedTrace, dataEncoding)
