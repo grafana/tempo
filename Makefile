@@ -93,6 +93,7 @@ lint:
 
 .PHONY: lint-fix
 lint-fix:
+	$(LINT) run --fix
 	prettier --write $(ALL_MD)
 
 ### Docker Images
