@@ -29,16 +29,16 @@ const (
 type mockCombiner struct {
 }
 
-func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
+func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	if len(objs) != 2 {
-		return nil, false
+		return nil, false, nil
 	}
 
 	if len(objs[0]) > len(objs[1]) {
-		return objs[0], true
+		return objs[0], true, nil
 	}
 
-	return objs[1], true
+	return objs[1], true, nil
 }
 
 func TestAppend(t *testing.T) {

@@ -3,6 +3,7 @@ package encoding
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -34,13 +35,14 @@ func NewDedupingIterator(iter Iterator, combiner common.ObjectCombiner, dataEnco
 	return i, nil
 }
 
+// Next implements Iterator
 func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if i.currentID == nil {
 		return nil, nil, io.EOF
 	}
 
 	var dedupedID []byte
-	var dedupedObject []byte
+	currentObjects := [][]byte{i.currentObject}
 
 	for {
 		id, obj, err := i.iter.Next(ctx)
@@ -50,7 +52,6 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 
 		if !bytes.Equal(i.currentID, id) {
 			dedupedID = i.currentID
-			dedupedObject = i.currentObject
 
 			i.currentID = id
 			i.currentObject = obj
@@ -58,12 +59,22 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 		}
 
 		i.currentID = id
-		i.currentObject, _ = i.combiner.Combine(i.dataEncoding, i.currentObject, obj)
+		currentObjects = append(currentObjects, obj)
+	}
+
+	if len(currentObjects) == 1 {
+		return dedupedID, currentObjects[0], nil
+	}
+
+	dedupedObject, _, err := i.combiner.Combine(i.dataEncoding, currentObjects...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to combine while Nexting: %w", err)
 	}
 
 	return dedupedID, dedupedObject, nil
 }
 
+// Close implements Iterator
 func (i *dedupingIterator) Close() {
 	i.iter.Close()
 }
