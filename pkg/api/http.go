@@ -76,21 +76,23 @@ func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (
 		Limit: defaultLimit,
 	}
 
-	// Passing tags as individual query parameters is not supported anymore, clients should use the tags
-	// query parameter instead. We still parse these tags since the initial Grafana implementation uses this.
-	// As Grafana gets updated and/or versions using this get old we can remove this section.
-	for k, v := range r.URL.Query() {
-		// Skip reserved keywords
-		if k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == URLParamLimit {
-			continue
-		}
+	encodedTags, tagsFound := extractQueryParam(r, urlParamTags)
 
-		if len(v) > 0 && v[0] != "" {
-			req.Tags[k] = v[0]
-		}
-	}
+	if !tagsFound {
+		// Passing tags as individual query parameters is not supported anymore, clients should use the tags
+		// query parameter instead. We still parse these tags since the initial Grafana implementation uses this.
+		// As Grafana gets updated and/or versions using this get old we can remove this section.
+		for k, v := range r.URL.Query() {
+			// Skip reserved keywords
+			if k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == URLParamLimit {
+				continue
+			}
 
-	if encodedTags, ok := extractQueryParam(r, urlParamTags); ok {
+			if len(v) > 0 && v[0] != "" {
+				req.Tags[k] = v[0]
+			}
+		}
+	} else {
 		decoder := logfmt.NewDecoder(strings.NewReader(encodedTags))
 
 		for decoder.ScanRecord() {

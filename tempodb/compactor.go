@@ -181,7 +181,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		compactionLevelLabel: compactionLevelLabel,
 	}
 
-	iter := encoding.NewMultiblockIterator(ctx, iters, rw.compactorCfg.IteratorBufferSize, combiner, dataEncoding)
+	iter := encoding.NewMultiblockIterator(ctx, iters, rw.compactorCfg.IteratorBufferSize, combiner, dataEncoding, rw.logger)
 	defer iter.Close()
 
 	for {
@@ -314,10 +314,10 @@ type instrumentedObjectCombiner struct {
 }
 
 // Combine wraps the inner combiner with combined metrics
-func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
-	b, wasCombined := i.inner.Combine(dataEncoding, objs...)
+func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
+	b, wasCombined, err := i.inner.Combine(dataEncoding, objs...)
 	if wasCombined {
 		metricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
 	}
-	return b, wasCombined
+	return b, wasCombined, err
 }

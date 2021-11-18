@@ -143,7 +143,6 @@ func (p *Pipeline) Matches(e tempofb.Trace) bool {
 	return true
 }
 
-// nolint:interfacer
 func (p *Pipeline) MatchesPage(pg tempofb.Page) bool {
 	for _, f := range p.tagfilters {
 		if !f(pg) {

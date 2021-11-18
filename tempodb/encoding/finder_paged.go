@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -57,7 +58,10 @@ func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
 			break
 		}
 
-		bytesFound, _ = f.combiner.Combine(f.dataEncoding, bytesFound, bytesOne)
+		bytesFound, _, err = f.combiner.Combine(f.dataEncoding, bytesFound, bytesOne)
+		if err != nil {
+			return nil, fmt.Errorf("failed to combine in Find: %w", err)
+		}
 
 		// we need to check the next record to see if it also matches our id
 		i++

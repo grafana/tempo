@@ -98,9 +98,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			urlQuery: "service.name=foo&tags=limit%3Dfive&limit=5&query=1%2B1%3D2",
 			expected: &tempopb.SearchRequest{
 				Tags: map[string]string{
-					"service.name": "foo",
-					"limit":        "five",
-					"query":        "1+1=2",
+					"limit": "five",
 				},
 				Limit: 5,
 			},
@@ -113,7 +111,12 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "top-level tags with conflicting query parameter tags",
 			urlQuery: "service.name=bar&tags=service.name%3Dfoo",
-			err:      "invalid tags: tag service.name has been set twice",
+			expected: &tempopb.SearchRequest{
+				Tags: map[string]string{
+					"service.name": "foo",
+				},
+				Limit: defaultLimit,
+			},
 		},
 	}
 

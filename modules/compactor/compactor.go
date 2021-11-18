@@ -157,7 +157,7 @@ func (c *Compactor) Owns(hash string) bool {
 }
 
 // Combine implements common.ObjectCombiner
-func (c *Compactor) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool) {
+func (c *Compactor) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	return model.ObjectCombiner.Combine(dataEncoding, objs...)
 }
 

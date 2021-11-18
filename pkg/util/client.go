@@ -8,9 +8,14 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/klauspost/compress/gzhttp"
 )
 
-const orgIDHeader = "X-Scope-OrgID"
+const (
+	orgIDHeader = "X-Scope-OrgID"
+
+	QueryTraceEndpoint = "/api/traces"
+)
 
 // Client is client to the Tempo API.
 type Client struct {
@@ -25,6 +30,20 @@ func NewClient(baseURL, orgID string) *Client {
 		OrgID:   orgID,
 		client:  http.DefaultClient,
 	}
+}
+
+func NewClientWithCompression(baseURL, orgID string) *Client {
+	c := NewClient(baseURL, orgID)
+	c.WithTransport(gzhttp.Transport(http.DefaultTransport))
+	return c
+}
+
+func (c *Client) WithTransport(t http.RoundTripper) {
+	c.client.Transport = t
+}
+
+func (c *Client) Do(req *http.Request) (*http.Response, error) {
+	return c.client.Do(req)
 }
 
 func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
@@ -91,7 +110,7 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 
 func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 	m := &tempopb.Trace{}
-	resp, err := c.getFor(c.BaseURL+"/api/traces/"+id, m)
+	resp, err := c.getFor(c.BaseURL+QueryTraceEndpoint+"/"+id, m)
 	if err != nil {
 		if resp.StatusCode == http.StatusNotFound {
 			return nil, ErrTraceNotFound

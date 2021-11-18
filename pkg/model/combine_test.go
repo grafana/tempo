@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCombine(t *testing.T) {
+func TestCombineTraceBytes(t *testing.T) {
 	t1 := test.MakeTrace(10, []byte{0x01, 0x02})
 	t2 := test.MakeTrace(10, []byte{0x01, 0x03})
 
@@ -32,11 +32,12 @@ func TestCombine(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		trace1      *tempopb.Trace
-		trace2      *tempopb.Trace
-		expected    *tempopb.Trace
-		expectError bool
+		name           string
+		trace1         *tempopb.Trace
+		trace2         *tempopb.Trace
+		expected       *tempopb.Trace
+		expectError    bool
+		expectCombined bool
 	}{
 		{
 			name:     "same trace",
@@ -48,21 +49,22 @@ func TestCombine(t *testing.T) {
 			name:        "t2 is bad",
 			trace1:      t1,
 			trace2:      nil,
-			expected:    t1,
+			expected:    nil,
 			expectError: true,
 		},
 		{
 			name:        "t1 is bad",
 			trace1:      nil,
 			trace2:      t2,
-			expected:    t2,
+			expected:    nil,
 			expectError: true,
 		},
 		{
-			name:     "combine trace",
-			trace1:   t2a,
-			trace2:   t2b,
-			expected: t2,
+			name:           "combine trace",
+			trace1:         t2a,
+			trace2:         t2b,
+			expected:       t2,
+			expectCombined: true,
 		},
 		{
 			name:        "both bad",
@@ -90,13 +92,16 @@ func TestCombine(t *testing.T) {
 						b2 = []byte{0x01, 0x02, 0x03}
 					}
 
-					actual, _, err := CombineTraceBytes(b1, b2, enc1, enc2)
+					// CombineTraceBytes()
+					actual, combined, err := CombineTraceBytes(b1, b2, enc1, enc2)
+					if enc1 == enc2 {
+						assert.Equal(t, tt.expectCombined, combined)
+					}
 					if tt.expectError {
 						require.Error(t, err)
 					} else {
 						require.NoError(t, err)
 					}
-
 					if tt.expected != nil {
 						expected := mustMarshal(tt.expected, enc1)
 						assert.Equal(t, expected, actual)
@@ -107,7 +112,97 @@ func TestCombine(t *testing.T) {
 	}
 }
 
-func TestCombineNils(t *testing.T) {
+func TestCombine(t *testing.T) {
+	t1 := test.MakeTrace(10, []byte{0x01, 0x02})
+	t2 := test.MakeTrace(10, []byte{0x01, 0x03})
+
+	SortTrace(t1)
+	SortTrace(t2)
+
+	// split t2 into two traces
+	t2a := &tempopb.Trace{}
+	t2b := &tempopb.Trace{}
+	t2c := &tempopb.Trace{}
+	for _, b := range t2.Batches {
+		switch rand.Int() % 3 {
+		case 0:
+			t2a.Batches = append(t2a.Batches, b)
+		case 1:
+			t2b.Batches = append(t2b.Batches, b)
+		case 2:
+			t2c.Batches = append(t2c.Batches, b)
+		}
+	}
+
+	tests := []struct {
+		name           string
+		traces         [][]byte
+		expected       *tempopb.Trace
+		expectError    bool
+		expectCombined bool
+	}{
+		{
+			name:        "no traces",
+			expectError: true,
+		},
+		{
+			name:     "same trace",
+			traces:   [][]byte{mustMarshal(t1, CurrentEncoding), mustMarshal(t1, CurrentEncoding)},
+			expected: t1,
+		},
+		{
+			name:           "3 traces",
+			traces:         [][]byte{mustMarshal(t2a, CurrentEncoding), mustMarshal(t2b, CurrentEncoding), mustMarshal(t2c, CurrentEncoding)},
+			expected:       t2,
+			expectCombined: true,
+		},
+		{
+			name:     "1 trace",
+			traces:   [][]byte{mustMarshal(t1, CurrentEncoding)},
+			expected: t1,
+		},
+		{
+			name:           "nil trace",
+			traces:         [][]byte{mustMarshal(t1, CurrentEncoding), nil},
+			expected:       t1,
+			expectCombined: true,
+		},
+		{
+			name:           "nil trace 2",
+			traces:         [][]byte{nil, mustMarshal(t1, CurrentEncoding)},
+			expected:       t1,
+			expectCombined: true,
+		},
+		{
+			name:        "bad trace",
+			traces:      [][]byte{mustMarshal(t1, CurrentEncoding), {0x01, 0x02}},
+			expectError: true,
+		},
+		{
+			name:        "bad trace 2",
+			traces:      [][]byte{{0x01, 0x02}, mustMarshal(t1, CurrentEncoding)},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, combined, err := ObjectCombiner.Combine(CurrentEncoding, tt.traces...)
+			assert.Equal(t, tt.expectCombined, combined)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.expected != nil {
+				expected := mustMarshal(tt.expected, CurrentEncoding)
+				assert.Equal(t, expected, actual)
+			}
+		})
+	}
+}
+
+func TestCombineTraceBytesNils(t *testing.T) {
 	test := test.MakeTrace(1, nil)
 	SortTrace(test)
 
