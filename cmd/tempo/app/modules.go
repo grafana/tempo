@@ -95,6 +95,12 @@ func (t *App) initOverrides() (services.Service, error) {
 	}
 	t.overrides = overrides
 
+	prometheus.MustRegister(&t.cfg.LimitsConfig)
+
+	if t.cfg.LimitsConfig.PerTenantOverrideConfig != "" {
+		prometheus.MustRegister(t.overrides)
+	}
+
 	return t.overrides, nil
 }
 
