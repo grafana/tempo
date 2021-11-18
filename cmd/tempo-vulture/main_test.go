@@ -16,8 +16,8 @@ import (
 
 func TestHasMissingSpans(t *testing.T) {
 	cases := []struct {
-		trace   *tempopb.Trace
-		expeted bool
+		trace    *tempopb.Trace
+		expected bool
 	}{
 		{
 			&tempopb.Trace{
@@ -61,7 +61,7 @@ func TestHasMissingSpans(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		require.Equal(t, tc.expeted, hasMissingSpans(tc.trace))
+		require.Equal(t, tc.expected, hasMissingSpans(tc.trace))
 	}
 }
 
