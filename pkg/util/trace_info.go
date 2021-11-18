@@ -146,7 +146,11 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift
 		})
 	}
 
-	return &thrift.Batch{Spans: spans}
+	process := &thrift.Process{
+		ServiceName: "tempo-vulture",
+	}
+
+	return &thrift.Batch{Process: process, Spans: spans}
 }
 
 func (t *TraceInfo) generateRandomString() string {
