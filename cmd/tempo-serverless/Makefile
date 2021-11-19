@@ -19,12 +19,7 @@ build-docker:
 build-zip:
 	go mod vendor
 
-	rm -f tempo-serverless.zip
 	zip tempo-serverless.zip ./* -r \
 		-x Makefile                      # exclude Makefile
 
 	rm -rf vendor
-
-# builds the docker image and uses it for testing
-test: build-docker
-	go test
