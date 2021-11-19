@@ -11,7 +11,7 @@ import (
 	"github.com/grafana/tempo/tempodb/search"
 )
 
-const rootSpanNotYetReceivedText = "<root span not yet received>"
+const RootSpanNotYetReceivedText = "<root span not yet received>"
 
 // Matches determines if the passed object encoded using dataEncoding matches the tempopb.SearchRequest.
 //  If the object matches the request then a non-nil tempopb.TraceSearchMetaData is returned. Otherwise
@@ -80,8 +80,8 @@ func Matches(id []byte, obj []byte, dataEncoding string, reqStart, reqEnd uint32
 	}
 
 	// woohoo!
-	rootServiceName := rootSpanNotYetReceivedText
-	rootSpanName := rootSpanNotYetReceivedText
+	rootServiceName := RootSpanNotYetReceivedText
+	rootSpanName := RootSpanNotYetReceivedText
 	if rootSpan != nil && rootBatch != nil {
 		rootSpanName = rootSpan.Name
 

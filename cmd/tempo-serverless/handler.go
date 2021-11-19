@@ -28,11 +28,9 @@ import (
 
 const envConfigPrefix = "TEMPO"
 
-// jpe - test
+// todo(search)
+//   testing
 // jpe - readme
-// jpe - makefile
-//     - go.mod has to be rewritten to remove the replace on tempo
-//     - go mod download github.com/grafana/tempo
 
 // Handler is the main entrypoint
 // Parameters
@@ -43,8 +41,7 @@ const envConfigPrefix = "TEMPO"
 // Response
 //  - tempopb.SearchResponse
 func Handler(w http.ResponseWriter, r *http.Request) {
-	// jpe consolidate with querier/cmd line code
-	searchReq, err := api.ParseSearchRequest(r, 20, 0) // jpe this is hardcoded
+	searchReq, err := api.ParseSearchRequest(r, 20, 0) // todo(search): parameterize 20
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -106,7 +103,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// jpe parameterize?, consolidate loop with querier/cmd line code
+	// todo(search): pull 1MB hardcoded param and 10000 prefetch from somewhere
+	//               the below iterator setup and loop exists in the querier, serverless and tempo-cli. see if there is an opportunity to consolidate
 	iter, err := block.PartialIterator(1_000_000, int(startPage), int(totalPages))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

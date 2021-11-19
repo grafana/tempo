@@ -42,9 +42,6 @@ var (
 	})
 )
 
-// jpe reconsolidate
-const rootSpanNotYetReceivedText = "<root span not yet received>"
-
 // Querier handlers queries.
 type Querier struct {
 	services.Service
@@ -451,7 +448,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 
 	for _, t := range traces {
 		if t.RootServiceName == "" {
-			t.RootServiceName = rootSpanNotYetReceivedText
+			t.RootServiceName = model.RootSpanNotYetReceivedText
 		}
 		response.Traces = append(response.Traces, t)
 	}
