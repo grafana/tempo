@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"path"
 	"strings"
@@ -34,8 +35,17 @@ type appendTracker struct {
 	Name string
 }
 
+// NewNoConfirm gets the Azure blob container without testing it
+func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+	return internalNew(cfg, false)
+}
+
 // New gets the Azure blob container
 func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+	return internalNew(cfg, true)
+}
+
+func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	ctx := context.Background()
 
 	container, err := GetContainer(ctx, cfg, false)
@@ -46,6 +56,14 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 	hedgedContainer, err := GetContainer(ctx, cfg, true)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "getting hedged storage container")
+	}
+
+	if confirm {
+		// Getting container properties to check if container exists
+		_, err = container.GetProperties(ctx, blob.LeaseAccessConditions{})
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to GetProperties: %w", err)
+		}
 	}
 
 	rw := &readerWriter{

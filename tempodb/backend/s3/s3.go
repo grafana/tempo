@@ -63,7 +63,17 @@ func (s *overrideSignatureVersion) IsExpired() bool {
 	return s.upstream.IsExpired()
 }
 
+// NewNoConfirm gets the S3 backend without testing it
+func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+	return internalNew(cfg, false)
+}
+
+// New gets the S3 backend
 func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+	return internalNew(cfg, true)
+}
+
+func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	l := log_util.Logger
 
 	core, err := createCore(cfg, false)
@@ -77,9 +87,11 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 	}
 
 	// try listing objects
-	_, err = core.ListObjects(cfg.Bucket, "", "", "/", 0)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
+	if confirm {
+		_, err = core.ListObjects(cfg.Bucket, "", "", "/", 0)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
+		}
 	}
 
 	rw := &readerWriter{

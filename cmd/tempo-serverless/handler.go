@@ -31,7 +31,6 @@ const envConfigPrefix = "TEMPO"
 // todo(search)
 //   integration tests
 //   pass meta.json as a body here and to the queriers
-// jpe - readme
 
 // Handler is the main entrypoint
 // Parameters
@@ -177,13 +176,13 @@ func loadBackend() (backend.Reader, error) {
 
 	switch cfg.Backend {
 	case "local":
-		r, _, _, err = local.New(cfg.Local)
+		err = fmt.Errorf("local backend not supported for serverless functions")
 	case "gcs":
-		r, _, _, err = gcs.New(cfg.GCS) // jpe this call GetAttr to confirm backend is working. we should remove that for the lambda
+		r, _, _, err = gcs.NewNoConfirm(cfg.GCS)
 	case "s3":
-		r, _, _, err = s3.New(cfg.S3)
+		r, _, _, err = s3.NewNoConfirm(cfg.S3)
 	case "azure":
-		r, _, _, err = azure.New(cfg.Azure)
+		r, _, _, err = azure.NewNoConfirm(cfg.Azure)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.Backend)
 	}
