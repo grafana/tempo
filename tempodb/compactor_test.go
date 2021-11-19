@@ -3,6 +3,7 @@ package tempodb
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -32,8 +33,12 @@ func (m *mockSharder) Owns(hash string) bool {
 }
 
 func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
+	if len(objs) == 1 {
+		return objs[0], false, nil
+	}
+
 	if len(objs) != 2 {
-		return nil, false, nil
+		return nil, false, fmt.Errorf("this combiner is dumb and didn't expect this")
 	}
 
 	if len(objs[0]) > len(objs[1]) {

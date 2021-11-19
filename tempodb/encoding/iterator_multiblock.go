@@ -100,8 +100,8 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 
 	for !i.allDone(ctx) {
 		var lowestID []byte
-		var lowestObject []byte
-		var lowestBookmark *bookmark
+		var lowestObjects [][]byte
+		var lowestBookmarks []*bookmark
 
 		// find lowest ID of the new object
 		for _, b := range i.bookmarks {
@@ -116,20 +116,25 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 			comparison := bytes.Compare(currentID, lowestID)
 
 			if comparison == 0 {
-				lowestObject, _, err = i.combiner.Combine(i.dataEncoding, currentObject, lowestObject)
-				if err != nil {
-					i.err.Store(fmt.Errorf("error combining while Nexting: %w", err))
-					return
-				}
-				b.clear()
+				lowestObjects = append(lowestObjects, currentObject)
+				lowestBookmarks = append(lowestBookmarks, b)
 			} else if len(lowestID) == 0 || comparison == -1 {
 				lowestID = currentID
-				lowestObject = currentObject
-				lowestBookmark = b
+				lowestObjects = [][]byte{currentObject}
+				lowestBookmarks = []*bookmark{b}
 			}
 		}
 
-		if len(lowestID) == 0 || len(lowestObject) == 0 || lowestBookmark == nil {
+		lowestObject, _, err := i.combiner.Combine(i.dataEncoding, lowestObjects...)
+		if err != nil {
+			i.err.Store(fmt.Errorf("error combining while Nexting: %w", err))
+			return
+		}
+		for _, b := range lowestBookmarks {
+			b.clear()
+		}
+
+		if len(lowestID) == 0 || len(lowestObjects) == 0 || len(lowestBookmarks) == 0 {
 			// Skip empty objects or when the bookmarks failed to return an object.
 			// This intentional here because we concluded that the bookmarks have already
 			// been skipping most empties (but not all) and there is no reason to treat the
@@ -140,7 +145,7 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 			//   for the bookmarks to skip to, and lowestBookmark remains nil.  Since we
 			//   already skipped every other empty, skip the last (but not least) entry.
 			// (todo: research needed to determine how empties get in the block)
-			level.Warn(i.logger).Log("msg", "multiblock iterator skipping empty object", "id", hex.EncodeToString(lowestID), "obj", lowestObject, "bookmark", lowestBookmark)
+			level.Warn(i.logger).Log("msg", "multiblock iterator skipping empty object", "id", hex.EncodeToString(lowestID), "obj", lowestObject, "bookmark", lowestBookmarks)
 			continue
 		}
 
@@ -149,8 +154,6 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 			id:     append([]byte(nil), lowestID...),
 			object: append([]byte(nil), lowestObject...),
 		}
-
-		lowestBookmark.clear()
 
 		select {
 
