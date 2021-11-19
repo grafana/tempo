@@ -3,7 +3,6 @@ package tempodb
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -16,10 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -33,19 +34,20 @@ func (m *mockSharder) Owns(hash string) bool {
 }
 
 func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
-	if len(objs) == 1 {
-		return objs[0], false, nil
-	}
+	return model.ObjectCombiner.Combine(dataEncoding, objs...)
+	// if len(objs) == 1 {
+	// 	return objs[0], false, nil
+	// }
 
-	if len(objs) != 2 {
-		return nil, false, fmt.Errorf("this combiner is dumb and didn't expect this")
-	}
+	// if len(objs) != 2 {
+	// 	return nil, false, fmt.Errorf("this combiner is dumb and didn't expect this")
+	// }
 
-	if len(objs[0]) > len(objs[1]) {
-		return objs[0], true, nil
-	}
+	// if len(objs[0]) > len(objs[1]) {
+	// 	return objs[0], true, nil
+	// }
 
-	return objs[1], true, nil
+	// return objs[1], true, nil
 }
 
 type mockJobSharder struct{}
@@ -191,6 +193,8 @@ func TestCompaction(t *testing.T) {
 	}
 }
 
+// TestSameIDCompaction is a bit gross in that it has a bad dependency with on the /pkg/model
+// module to do a full e2e compaction/combination test.
 func TestSameIDCompaction(t *testing.T) {
 	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
@@ -232,19 +236,44 @@ func TestSameIDCompaction(t *testing.T) {
 	assert.NoError(t, err)
 
 	blockCount := 5
-	blocksPerCompaction := (inputBlocks - outputBlocks)
+	recordCount := 100
 
+	// make a bunch of sharded requests
+	allReqs := make([][][]byte, 0, recordCount)
+	allIds := make([][]byte, 0, recordCount)
+	for i := 0; i < recordCount; i++ {
+		id := make([]byte, 16)
+		_, err = rand.Read(id)
+		require.NoError(t, err, "unexpected creating random id")
+
+		requestShards := rand.Intn(blockCount) + 1
+
+		reqs := make([][]byte, 0, requestShards)
+		for j := 0; j < requestShards; j++ {
+			buff, err := proto.Marshal(test.MakeRequest(1, id))
+			require.NoError(t, err)
+			reqs = append(reqs, buff)
+		}
+
+		allReqs = append(allReqs, reqs)
+		allIds = append(allIds, id)
+	}
+
+	// and write them to different blocks
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
-		head, err := wal.NewBlock(blockID, testTenantID, "")
+		head, err := wal.NewBlock(blockID, testTenantID, model.TracePBEncoding)
 		require.NoError(t, err)
-		id := []byte{0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02, 0x01, 0x02}
 
-		// Different content to ensure that object combination takes place
-		rec, _ := proto.Marshal(test.MakeTrace(1, id))
+		for j := 0; j < recordCount; j++ {
+			req := allReqs[j]
+			id := allIds[j]
 
-		err = head.Append(id, rec)
-		require.NoError(t, err, "unexpected error writing req")
+			if i < len(req) {
+				err = head.Append(id, req[i])
+				require.NoError(t, err, "unexpected error writing req")
+			}
+		}
 
 		_, err = w.CompleteBlock(head, &mockSharder{})
 		require.NoError(t, err)
@@ -252,33 +281,38 @@ func TestSameIDCompaction(t *testing.T) {
 
 	rw := r.(*readerWriter)
 
-	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
-	require.NoError(t, err)
-
 	// poll
 	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
 
 	var blocks []*backend.BlockMeta
-	blocklist := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
+	list := rw.blocklist.Metas(testTenantID)
+	blockSelector := newTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, blockCount)
 	blocks, _ = blockSelector.BlocksToCompact()
-	assert.Len(t, blocks, inputBlocks)
+	assert.Len(t, blocks, blockCount)
 
 	err = rw.compact(blocks, testTenantID)
 	require.NoError(t, err)
 
-	checkBlocklists(t, uuid.Nil, blockCount-blocksPerCompaction, inputBlocks, rw)
+	checkBlocklists(t, uuid.Nil, 1, blockCount, rw)
 
-	// do we have the right number of records
-	var records int
-	for _, meta := range rw.blocklist.Metas(testTenantID) {
-		records += meta.TotalObjects
+	// force clear compacted blocks to guarantee that we're only querying the new blocks that went through the combiner
+	metas := rw.blocklist.Metas(testTenantID)
+	rw.blocklist.ApplyPollResults(blocklist.PerTenant{testTenantID: metas}, blocklist.PerTenantCompacted{})
+
+	// search for all ids
+	for i, id := range allIds {
+		b, _, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		assert.NoError(t, err)
+		assert.Nil(t, failedBlocks)
+
+		actualBytes, _, err := model.ObjectCombiner.Combine(model.TracePBEncoding, b...)
+		require.NoError(t, err)
+
+		expectedBytes, _, err := model.ObjectCombiner.Combine(model.TracePBEncoding, allReqs[i]...)
+		require.NoError(t, err)
+
+		assert.Equal(t, expectedBytes, actualBytes)
 	}
-	assert.Equal(t, blockCount-blocksPerCompaction, records)
-
-	combinedFinish, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
-	assert.NoError(t, err)
-	assert.Equal(t, float64(1), combinedFinish-combinedStart)
 }
 
 func TestCompactionUpdatesBlocklist(t *testing.T) {
