@@ -29,7 +29,8 @@ import (
 const envConfigPrefix = "TEMPO"
 
 // todo(search)
-//   testing
+//   integration tests
+//   pass meta.json as a body here and to the queriers
 // jpe - readme
 
 // Handler is the main entrypoint
