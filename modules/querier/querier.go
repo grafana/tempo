@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strings"
 	"sync"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
@@ -20,7 +19,6 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
@@ -462,22 +460,4 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	}
 
 	return response
-}
-
-// todo: support more attribute types. currently only string is supported
-func searchAttributes(tags map[string]string, atts []*commonv1.KeyValue) bool {
-	for _, a := range atts {
-		var v string
-		var ok bool
-
-		if v, ok = tags[a.Key]; !ok {
-			continue
-		}
-
-		if strings.Contains(a.Value.GetStringValue(), v) {
-			return true
-		}
-	}
-
-	return false
 }
