@@ -35,19 +35,6 @@ func (m *mockSharder) Owns(hash string) bool {
 
 func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	return model.ObjectCombiner.Combine(dataEncoding, objs...)
-	// if len(objs) == 1 {
-	// 	return objs[0], false, nil
-	// }
-
-	// if len(objs) != 2 {
-	// 	return nil, false, fmt.Errorf("this combiner is dumb and didn't expect this")
-	// }
-
-	// if len(objs[0]) > len(objs[1]) {
-	// 	return objs[0], true, nil
-	// }
-
-	// return objs[1], true, nil
 }
 
 type mockJobSharder struct{}
@@ -281,7 +268,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 	rw := r.(*readerWriter)
 
-	// poll
+	// check blocklists, force compaction and check again
 	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
 
 	var blocks []*backend.BlockMeta
