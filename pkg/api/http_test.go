@@ -198,15 +198,15 @@ func TestParseBackendSearch(t *testing.T) {
 		expectedError error
 	}{
 		{
-			expectedError: errors.New("please provide non-zero values for http parameters start and end"),
+			expectedError: errors.New("please provide positive values for http parameters start and end"),
 		},
 		{
 			start:         10,
-			expectedError: errors.New("please provide non-zero values for http parameters start and end"),
+			expectedError: errors.New("please provide positive values for http parameters start and end"),
 		},
 		{
 			end:           10,
-			expectedError: errors.New("please provide non-zero values for http parameters start and end"),
+			expectedError: errors.New("please provide positive values for http parameters start and end"),
 		},
 		{
 			start:         15,
@@ -276,6 +276,14 @@ func TestParseBackendSearchQuerier(t *testing.T) {
 		{
 			url:             "/?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b",
 			expectedBlockID: uuid.MustParse("b92ec614-3fd7-4299-b6db-f657e7025a9b"),
+		},
+		{
+			url:           "/?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&startPage=-1",
+			expectedError: "startPage must be non-negative. received: -1",
+		},
+		{
+			url:           "/?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&startPage=0&totalPages=0",
+			expectedError: "totalPages must be greater than 0. received: 0",
 		},
 		{
 			url:                "/?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&startPage=4&totalPages=3",

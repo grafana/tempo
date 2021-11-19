@@ -175,8 +175,8 @@ func ParseBackendSearch(r *http.Request) (start, end int64, limit int, err error
 		}
 	}
 
-	if start == 0 || end == 0 {
-		err = errors.New("please provide non-zero values for http parameters start and end")
+	if start <= 0 || end <= 0 {
+		err = errors.New("please provide positive values for http parameters start and end")
 		return
 	}
 
@@ -205,14 +205,22 @@ func ParseBackendSearchQuerier(r *http.Request) (startPage, totalPages uint32, b
 		startPage64, err = strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return
-		} // jpe fail on negative values and test
+		}
+		if startPage64 < 0 {
+			err = fmt.Errorf("startPage must be non-negative. received: %s", s)
+			return
+		}
 		startPage = uint32(startPage64)
 	}
 
 	if s := r.URL.Query().Get(URLParamTotalPages); s != "" {
 		totalPages64, err = strconv.ParseInt(s, 10, 32)
 		if err != nil {
-			// jpe improve error msgs like below
+			err = fmt.Errorf("failed to parse totalPages %s: %w", s, err)
+			return
+		}
+		if totalPages64 <= 0 {
+			err = fmt.Errorf("totalPages must be greater than 0. received: %s", s)
 			return
 		}
 		totalPages = uint32(totalPages64)
