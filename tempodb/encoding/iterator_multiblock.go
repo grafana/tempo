@@ -134,7 +134,7 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 			b.clear()
 		}
 
-		if len(lowestID) == 0 || len(lowestObjects) == 0 || len(lowestBookmarks) == 0 {
+		if len(lowestID) == 0 || len(lowestObject) == 0 || len(lowestBookmarks) == 0 {
 			// Skip empty objects or when the bookmarks failed to return an object.
 			// This intentional here because we concluded that the bookmarks have already
 			// been skipping most empties (but not all) and there is no reason to treat the
