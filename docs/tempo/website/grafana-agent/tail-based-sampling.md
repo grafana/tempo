@@ -43,7 +43,7 @@ This overhead will increase with the number of Agent instances that share the sa
 To start using tail-based sampling, define a sampling policy.
 If you're using a multi-instance deployment of the agent,
 add load balancing and specify the resolving mechanism to find other Agents in the setup.
-To see all the available config options, refer to the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration/tempo-config.md).
+To see all the available config options, refer to the [configuration reference](https://github.com/grafana/agent/blob/main/docs/configuration/traces-config.md).
 
 ```
 tempo:
