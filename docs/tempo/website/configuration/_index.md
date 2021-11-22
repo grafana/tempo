@@ -798,7 +798,7 @@ overrides:
 
 ## Search
 
-Tempo native search can be enabled by the following top-level setting.  In microservices mode, it must be set for the distributors and queriers. 
+Tempo search can be enabled by the following top-level setting.  In microservices mode, it must be set for the distributors and queriers. 
 
 ```yaml
 search_enabled: true
