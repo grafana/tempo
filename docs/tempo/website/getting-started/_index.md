@@ -73,7 +73,7 @@ Getting started with Tempo is easy.
 - If you're looking for examples of how to get started with Tempo, check out the [examples]({{< relref "example-demo-app.md" >}}) topic.
 - For production workloads, refer to the [deployment]({{< relref "../operations/deployment" >}}) section.
 
-> **Note:** The Grafana Agent is already set up to use Tempo. Refer to the [configuration](https://github.com/grafana/agent/blob/main/docs/configuration/tempo-config.md) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
+> **Note:** The Grafana Agent is already set up to use Tempo. Refer to the [configuration](https://grafana.com/docs/agent/latest/configuration/traces-config/) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
 
 
 ## 4. Visualization (Grafana)
