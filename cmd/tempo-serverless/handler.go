@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/api"
@@ -27,6 +28,11 @@ import (
 )
 
 const envConfigPrefix = "TEMPO"
+
+// used to initialize a reader one time
+var reader backend.Reader
+var readerErr error
+var once sync.Once
 
 // todo(search)
 //   integration tests
@@ -152,35 +158,38 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func loadBackend() (backend.Reader, error) {
-	cfg, err := loadConfig()
-	if err != nil {
-		return nil, err
-	}
+	once.Do(func() {
+		cfg, err := loadConfig()
+		if err != nil {
+			readerErr = err
+		}
 
-	var r backend.RawReader
+		var r backend.RawReader
 
-	// Create the backend with NewNoConfirm() to prevent an extra call to the various backends on
-	// startup. This extra call exists just to confirm the bucket is accessible and force the
-	// standard Tempo components to fail during startup. If permissions are not correct this Lambda
-	// will fail instantly anyway and in a heavy query environment the extra calls will start to add up.
-	switch cfg.Backend {
-	case "local":
-		err = fmt.Errorf("local backend not supported for serverless functions")
-	case "gcs":
-		r, _, _, err = gcs.NewNoConfirm(cfg.GCS)
-	case "s3":
-		r, _, _, err = s3.NewNoConfirm(cfg.S3)
-	case "azure":
-		r, _, _, err = azure.NewNoConfirm(cfg.Azure)
-	default:
-		err = fmt.Errorf("unknown backend %s", cfg.Backend)
-	}
+		// Create the backend with NewNoConfirm() to prevent an extra call to the various backends on
+		// startup. This extra call exists just to confirm the bucket is accessible and force the
+		// standard Tempo components to fail during startup. If permissions are not correct this Lambda
+		// will fail instantly anyway and in a heavy query environment the extra calls will start to add up.
+		switch cfg.Backend {
+		case "local":
+			err = fmt.Errorf("local backend not supported for serverless functions")
+		case "gcs":
+			r, _, _, err = gcs.NewNoConfirm(cfg.GCS)
+		case "s3":
+			r, _, _, err = s3.NewNoConfirm(cfg.S3)
+		case "azure":
+			r, _, _, err = azure.NewNoConfirm(cfg.Azure)
+		default:
+			err = fmt.Errorf("unknown backend %s", cfg.Backend)
+		}
+		if err != nil {
+			readerErr = err
+		}
 
-	if err != nil {
-		return nil, err
-	}
+		reader = backend.NewReader(r)
+	})
 
-	return backend.NewReader(r), nil
+	return reader, readerErr
 }
 
 func loadConfig() (*tempodb.Config, error) {
