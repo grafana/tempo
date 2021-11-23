@@ -1,6 +1,6 @@
 module github.com/grafana/tempo/cmd/tempo-serverless
 
-go 1.17
+go 1.16
 
 require (
 	github.com/GoogleCloudPlatform/functions-framework-go v1.3.0
