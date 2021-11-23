@@ -152,25 +152,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func loadBackend() (backend.Reader, error) {
-	// horrible viper dance since it won't unmarshal to a struct from env: https://github.com/spf13/viper/issues/188
-	v := viper.NewWithOptions()
-	b, err := yaml.Marshal(defaultConfig())
+	cfg, err := loadConfig()
 	if err != nil {
 		return nil, err
 	}
-	v.SetConfigType("yaml")
-	if err := v.MergeConfig(bytes.NewReader(b)); err != nil {
-		return nil, err
-	}
-
-	v.AutomaticEnv()
-	v.SetEnvPrefix(envConfigPrefix)
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
-
-	fmt.Println(v.AllSettings())
-
-	cfg := &tempodb.Config{}
-	v.Unmarshal(cfg, setTagName)
 
 	var r backend.RawReader
 
@@ -198,15 +183,37 @@ func loadBackend() (backend.Reader, error) {
 	return backend.NewReader(r), nil
 }
 
-func defaultConfig() *tempodb.Config {
-	return &tempodb.Config{
+func loadConfig() (*tempodb.Config, error) {
+	defaultConfig := &tempodb.Config{
 		Local: &local.Config{},
 		GCS:   &gcs.Config{},
 		S3:    &s3.Config{},
 		Azure: &azure.Config{},
 	}
+
+	// horrible viper dance since it won't unmarshal to a struct from env: https://github.com/spf13/viper/issues/188
+	v := viper.NewWithOptions()
+	b, err := yaml.Marshal(defaultConfig)
+	if err != nil {
+		return nil, err
+	}
+	v.SetConfigType("yaml")
+	if err := v.MergeConfig(bytes.NewReader(b)); err != nil {
+		return nil, err
+	}
+
+	v.AutomaticEnv()
+	v.SetEnvPrefix(envConfigPrefix)
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+
+	cfg := &tempodb.Config{}
+	v.Unmarshal(cfg, setTagName)
+
+	return cfg, nil
 }
 
+// this forces mapstructure to use the yaml tag that is already defined
+// for all config struct fields
 func setTagName(d *mapstructure.DecoderConfig) {
 	d.TagName = "yaml"
 }
