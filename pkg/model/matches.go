@@ -17,8 +17,8 @@ const RootSpanNotYetReceivedText = "<root span not yet received>"
 //  If the object matches the request then a non-nil tempopb.TraceSearchMetaData is returned. Otherwise
 //  nil is returned.
 func Matches(id []byte, obj []byte, dataEncoding string, reqStart, reqEnd uint32, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
-	start := uint64(math.MaxUint64)
-	end := uint64(0)
+	traceStart := uint64(math.MaxUint64)
+	traceEnd := uint64(0)
 
 	trace, err := Unmarshal(obj, dataEncoding)
 	if err != nil {
@@ -40,11 +40,11 @@ func Matches(id []byte, obj []byte, dataEncoding string, reqStart, reqEnd uint32
 
 		for _, ils := range b.InstrumentationLibrarySpans {
 			for _, s := range ils.Spans {
-				if s.StartTimeUnixNano < start {
-					start = s.StartTimeUnixNano
+				if s.StartTimeUnixNano < traceStart {
+					traceStart = s.StartTimeUnixNano
 				}
-				if s.EndTimeUnixNano > end {
-					end = s.EndTimeUnixNano
+				if s.EndTimeUnixNano > traceEnd {
+					traceEnd = s.EndTimeUnixNano
 				}
 				if rootSpan == nil && len(s.ParentSpanId) == 0 {
 					rootSpan = s
@@ -66,16 +66,16 @@ func Matches(id []byte, obj []byte, dataEncoding string, reqStart, reqEnd uint32
 		return nil, nil
 	}
 
-	startMs := start / 1000000
-	endMs := end / 1000000
-	durationMs := uint32(endMs - startMs)
+	traceStartMs := traceStart / 1000000
+	traceEndMs := traceEnd / 1000000
+	durationMs := uint32(traceEndMs - traceStartMs)
 	if req.MaxDurationMs != 0 && req.MaxDurationMs < durationMs {
 		return nil, nil
 	}
 	if req.MinDurationMs != 0 && req.MinDurationMs > durationMs {
 		return nil, nil
 	}
-	if uint32(startMs/1000) > reqEnd || uint32(endMs/1000) < reqStart {
+	if uint32(traceStartMs/1000) > reqEnd || uint32(traceEndMs/1000) < reqStart {
 		return nil, nil
 	}
 
@@ -97,7 +97,7 @@ func Matches(id []byte, obj []byte, dataEncoding string, reqStart, reqEnd uint32
 		TraceID:           util.TraceIDToHexString(id),
 		RootServiceName:   rootServiceName,
 		RootTraceName:     rootSpanName,
-		StartTimeUnixNano: start,
+		StartTimeUnixNano: traceStart,
 		DurationMs:        durationMs,
 	}, nil
 }
