@@ -174,6 +174,10 @@ func loadBackend() (backend.Reader, error) {
 
 	var r backend.RawReader
 
+	// Create the backend with NewNoConfirm() to prevent an extra call to the various backends on
+	// startup. This extra call exists just to confirm the bucket is accessible and force the
+	// standard Tempo components to fail during startup. If permissions are not correct this Lambda
+	// will fail instantly anyway and in a heavy query environment the extra calls will start to add up.
 	switch cfg.Backend {
 	case "local":
 		err = fmt.Errorf("local backend not supported for serverless functions")
