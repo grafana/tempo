@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
+
+// todo: Switch to math.MaxInt once Google Cloud Functions supports a go runtime > 1.16
+const intSize = 32 << (^uint(0) >> 63) // 32 or 64
+const maxInt = 1<<(intSize-1) - 1
 
 type pagedIterator struct {
 	dataReader  common.DataReader
@@ -33,7 +36,7 @@ func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dat
 		chunkSizeBytes: chunkSizeBytes,
 		objectRW:       objectRW,
 		currentIndex:   0,
-		maxIndexPage:   math.MaxInt,
+		maxIndexPage:   maxInt,
 	}
 }
 

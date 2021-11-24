@@ -14,6 +14,7 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
+								-not -path './cmd/tempo-serverless/*' \
                                 -type f | sort)
 
 # All source code and documents. Used in spell check.

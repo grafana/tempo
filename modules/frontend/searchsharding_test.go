@@ -317,7 +317,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 6,
-					InspectedBlocks: 9,
+					InspectedBlocks: 1,
 					InspectedBytes:  10,
 					SkippedBlocks:   12,
 				}},
