@@ -12,7 +12,9 @@ metrics + load + tempo {
   },
 
   _config+:: {
+    cluster: 'k3d',
     namespace: 'default',
+    search_enabled: true,
     pvc_size: '30Gi',
     pvc_storage_class: 'local-path',
     receivers: {

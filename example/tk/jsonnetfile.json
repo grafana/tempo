@@ -49,8 +49,8 @@
     {
       "source": {
         "git": {
-          "remote": "https://github.com/grafana/tempo.git",
-          "subdir": "operations/tempo-mixin"
+          "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
+          "subdir": "1.21"
         }
       },
       "version": "main"
@@ -58,11 +58,11 @@
     {
       "source": {
         "git": {
-          "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
-          "subdir": "1.21"
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "grafana-builder"
         }
       },
-      "version": "main"
+      "version": "master"
     }
   ],
   "legacyImports": true

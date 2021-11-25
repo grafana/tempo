@@ -13,6 +13,7 @@
         ballast_size_mbs: '1024',
         jaeger_ui: {
             base_path: '/',
-        }
+        },
+        search_enabled: false,
     },
 }

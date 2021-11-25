@@ -45,22 +45,17 @@ store them in an S3 or GCS bucket.  See configuration docs or some of the other 
 tk apply tempo-single-binary
 ```
 
-### View a trace
-After the applications are running check the load generators logs
+### Search traces
 
-```console
-# you can find the exact pod name using `kubectl get pods`
-kubectl logs synthetic-load-generator-???
-```
-```
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId e9f4add3ac7c7115 for service frontend route /product
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId 3890ea9c4d7fab00 for service frontend route /cart
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId c36fc5169bf0693d for service frontend route /cart
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId ebaf7d02b96b30fc for service frontend route /cart
-20/03/03 21:30:02 INFO ScheduledTraceGenerator: Emitted traceId 23a09a0efd0d1ef0 for service frontend route /cart
-```
+Once all pods are up and running you can search for traces in Grafana.
+Navigate to http://localhost:3000/explore and select the search tab.
 
-Extract a trace id and view it in Grafana at http://localhost:3000/explore
+### Dashboards
+
+Dashboards from [tempo-mixin](../../operations/tempo-mixin) are loaded as well.
+You can find them at http://localhost:3000/dashboards.
+
+Note: these dashboards currently only work well with the microservices deployment.
 
 ### Clean up
 
