@@ -3,10 +3,6 @@ package querier
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"sort"
-	"sync"
-
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
@@ -19,6 +15,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
@@ -30,6 +27,9 @@ import (
 	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/multierr"
+	"net/http"
+	"sort"
+	"sync"
 )
 
 var (
@@ -329,10 +329,13 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 }
 
 func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
-	_, err := user.ExtractOrgID(ctx)
+	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTagValues")
 	}
+
+	// fetch response size limit for tag-values query
+	tagValuesLimitBytes := q.limits.MaxBytesPerTagValuesQuery(userID)
 
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
@@ -358,6 +361,12 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	// Extra values
 	for _, v := range search.GetVirtualTagValues(req.TagName) {
 		uniqueMap[v] = struct{}{}
+	}
+
+	if !util.MapSizeWithinLimit(uniqueMap, tagValuesLimitBytes) {
+		return &tempopb.SearchTagValuesResponse{
+			TagValues: []string{},
+		}, nil
 	}
 
 	// Final response (sorted)

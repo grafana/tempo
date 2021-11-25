@@ -2,12 +2,13 @@ package ingester
 
 import (
 	"context"
-	"sort"
-
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/weaveworks/common/user"
+	"sort"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -215,9 +216,16 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {
 	values := map[string]struct{}{}
 
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// get limit from override
+	maxBytesPerTagValuesQuery := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+
 	kv := &tempofb.KeyValues{}
 	tagNameBytes := []byte(tagName)
-	err := i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
+	err = i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
 		kv := tempofb.FindTag(entry, kv, tagNameBytes)
 		if kv != nil {
 			for i, ii := 0, kv.ValueLength(); i < ii; i++ {
@@ -233,11 +241,29 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		return nil, err
 	}
 
+	// check if size of values map is within limit after scanning live traces
+	if !util.MapSizeWithinLimit(values, maxBytesPerTagValuesQuery) {
+		level.Warn(cortex_util.Logger).Log("msg", "size of tag values from live traces exceeded limit, reduce cardinality or size of tags", "tag", tagName)
+		// return empty response to avoid querier OOMs
+		return &tempopb.SearchTagValuesResponse{
+			TagValues: []string{},
+		}, nil
+	}
+
 	err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
 		return block.TagValues(ctx, tagName, values)
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// check if size of values map is within limit after scanning all blocks
+	if !util.MapSizeWithinLimit(values, maxBytesPerTagValuesQuery) {
+		level.Warn(cortex_util.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", tagName)
+		// return empty response to avoid querier OOMs
+		return &tempopb.SearchTagValuesResponse{
+			TagValues: []string{},
+		}, nil
 	}
 
 	return &tempopb.SearchTagValuesResponse{

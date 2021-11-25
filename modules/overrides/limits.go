@@ -21,13 +21,14 @@ const (
 	ErrorPrefixRateLimited = "RATE_LIMITED:"
 
 	// metrics
-	MetricMaxLocalTracesPerUser   = "max_local_traces_per_user"
-	MetricMaxGlobalTracesPerUser  = "max_global_traces_per_user"
-	MetricMaxBytesPerTrace        = "max_bytes_per_trace"
-	MetricMaxSearchBytesPerTrace  = "max_search_bytes_per_trace"
-	MetricIngestionRateLimitBytes = "ingestion_rate_limit_bytes"
-	MetricIngestionBurstSizeBytes = "ingestion_burst_size_bytes"
-	MetricBlockRetention          = "block_retention"
+	MetricMaxLocalTracesPerUser     = "max_local_traces_per_user"
+	MetricMaxGlobalTracesPerUser    = "max_global_traces_per_user"
+	MetricMaxBytesPerTrace          = "max_bytes_per_trace"
+	MetricMaxSearchBytesPerTrace    = "max_search_bytes_per_trace"
+	MetricMaxBytesPerTagValuesQuery = "max_bytes_per_tag_values_query"
+	MetricIngestionRateLimitBytes   = "ingestion_rate_limit_bytes"
+	MetricIngestionBurstSizeBytes   = "ingestion_burst_size_bytes"
+	MetricBlockRetention            = "block_retention"
 )
 
 var (
@@ -57,6 +58,9 @@ type Limits struct {
 	// Compactor enforced limits.
 	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
 
+	// Querier enforced limits.
+	MaxBytesPerTagValuesQuery int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
+
 	// Configuration for overrides, convenient if it goes here.
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
 	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
@@ -75,6 +79,9 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&l.MaxBytesPerTrace, "ingester.max-bytes-per-trace", 50e5, "Maximum size of a trace in bytes.  0 to disable.")
 	f.IntVar(&l.MaxSearchBytesPerTrace, "ingester.max-search-bytes-per-trace", 50e3, "Maximum size of search data per trace in bytes.  0 to disable.")
 
+	// Querier limits
+	f.IntVar(&l.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 50e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
+
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	_ = l.PerTenantOverridePeriod.Set("10s")
 	f.Var(&l.PerTenantOverridePeriod, "limits.per-user-override-period", "Period with this to reload the overrides.")
@@ -89,6 +96,7 @@ func (l *Limits) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxBytesPerTrace), MetricMaxBytesPerTrace)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxSearchBytesPerTrace), MetricMaxSearchBytesPerTrace)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxBytesPerTagValuesQuery), MetricMaxBytesPerTagValuesQuery)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.IngestionRateLimitBytes), MetricIngestionRateLimitBytes)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.IngestionBurstSizeBytes), MetricIngestionBurstSizeBytes)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.BlockRetention), MetricBlockRetention)
