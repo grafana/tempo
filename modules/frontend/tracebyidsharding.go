@@ -15,6 +15,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/modules/querier"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
@@ -25,7 +26,6 @@ const (
 	minQueryShards = 2
 	maxQueryShards = 256
 
-	querierPrefix  = "/querier"
 	queryDelimiter = "?"
 )
 
@@ -215,7 +215,7 @@ func (s *shardQuery) buildShardedRequests(parent *http.Request) ([]*http.Request
 		// adding to RequestURI only because weaveworks/common uses the RequestURI field to
 		// translate from http.Request to httpgrpc.Request
 		// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
-		reqs[i].RequestURI = querierPrefix + reqs[i].URL.RequestURI() + queryDelimiter + q.Encode()
+		reqs[i].RequestURI = api.PathPrefixQuerier + reqs[i].URL.RequestURI() + queryDelimiter + q.Encode()
 	}
 
 	return reqs, nil

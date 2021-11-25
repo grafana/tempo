@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"sync"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
@@ -18,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -36,8 +39,6 @@ var (
 		Help:      "The current number of ingester clients.",
 	})
 )
-
-const rootSpanNotYetReceivedText = "<root span not yet received>"
 
 // Querier handlers queries.
 type Querier struct {
@@ -371,6 +372,55 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	return resp, nil
 }
 
+// todo(search): consolidate
+func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchRequest) (*tempopb.SearchResponse, error) {
+	tenantID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
+	}
+
+	blockID, err := uuid.FromBytes(req.BlockID)
+	if err != nil {
+		return nil, err
+	}
+
+	var searchErr error
+	respMtx := sync.Mutex{}
+	resp := &tempopb.SearchResponse{
+		Metrics: &tempopb.SearchMetrics{},
+	}
+
+	err = q.store.IterateObjects(ctx, tenantID, blockID, int(req.StartPage), int(req.TotalPages), func(id common.ID, obj []byte, dataEncoding string) bool {
+		respMtx.Lock()
+		resp.Metrics.InspectedTraces++
+		resp.Metrics.InspectedBytes += uint64(len(obj))
+		respMtx.Unlock()
+
+		metadata, err := model.Matches(id, obj, dataEncoding, req.Start, req.End, req.Search)
+
+		respMtx.Lock()
+		defer respMtx.Unlock()
+		if err != nil {
+			searchErr = err
+			return false
+		}
+		if metadata == nil {
+			return true
+		}
+
+		resp.Traces = append(resp.Traces, metadata)
+		return len(resp.Traces) >= int(req.Search.Limit)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if searchErr != nil {
+		return nil, searchErr
+	}
+
+	return resp, nil
+}
+
 func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {
 	response := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
@@ -396,7 +446,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 
 	for _, t := range traces {
 		if t.RootServiceName == "" {
-			t.RootServiceName = rootSpanNotYetReceivedText
+			t.RootServiceName = model.RootSpanNotYetReceivedText
 		}
 		response.Traces = append(response.Traces, t)
 	}

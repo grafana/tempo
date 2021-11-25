@@ -82,12 +82,21 @@ func main() {
 	actualStartTime := time.Now()
 	startTime := actualStartTime
 	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
-	tickerRead := time.NewTicker(tempoReadBackoffDuration)
+
+	var tickerRead *time.Ticker
+	if tempoReadBackoffDuration > 0 {
+		tickerRead = time.NewTicker(tempoReadBackoffDuration)
+	}
+
 	var tickerSearch *time.Ticker
-	logger.Info(fmt.Sprintf("tempoSearchBackoffDuration: %+v", tempoSearchBackoffDuration))
 	if tempoSearchBackoffDuration > 0 {
 		tickerSearch = time.NewTicker(tempoSearchBackoffDuration)
 	}
+
+	if tickerRead == nil && tickerSearch == nil {
+		log.Fatalf("at least one of tempo-search-backoff-duration or tempo-read-backoff-duration must be set")
+	}
+
 	interval := tempoWriteBackoffDuration
 
 	ready := func(info *util.TraceInfo, now time.Time) bool {
@@ -128,36 +137,38 @@ func main() {
 	}()
 
 	// Read
-	go func() {
-		for now := range tickerRead.C {
-			var seed time.Time
-			startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration)
+	if tickerRead != nil {
+		go func() {
+			for now := range tickerRead.C {
+				var seed time.Time
+				startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration)
 
-			log := logger.With(
-				zap.String("org_id", tempoOrgID),
-				zap.Int64("seed", seed.Unix()),
-			)
-
-			info := util.NewTraceInfo(seed, tempoOrgID)
-
-			// Don't query for a trace we don't expect to be complete
-			if !ready(info, now) {
-				continue
-			}
-
-			client := util.NewClient(tempoQueryURL, tempoOrgID)
-
-			// query the trace
-			queryMetrics, err := queryTrace(client, info)
-			if err != nil {
-				metricErrorTotal.Inc()
-				log.Error("query for metrics failed",
-					zap.Error(err),
+				log := logger.With(
+					zap.String("org_id", tempoOrgID),
+					zap.Int64("seed", seed.Unix()),
 				)
+
+				info := util.NewTraceInfo(seed, tempoOrgID)
+
+				// Don't query for a trace we don't expect to be complete
+				if !ready(info, now) {
+					continue
+				}
+
+				client := util.NewClient(tempoQueryURL, tempoOrgID)
+
+				// query the trace
+				queryMetrics, err := queryTrace(client, info)
+				if err != nil {
+					metricErrorTotal.Inc()
+					log.Error("query for metrics failed",
+						zap.Error(err),
+					)
+				}
+				pushMetrics(queryMetrics)
 			}
-			pushMetrics(queryMetrics)
-		}
-	}()
+		}()
+	}
 
 	// Search
 	if tickerSearch != nil {

@@ -1,0 +1,33 @@
+target: all
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  trace_idle_period: 100ms
+  max_block_bytes: 1
+  max_block_duration: 2s
+  complete_block_timeout: 1s
+  flush_check_period: 1s
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+    pool:
+      max_workers: 10
+      queue_depth: 100

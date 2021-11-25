@@ -31,7 +31,7 @@ jobs:
           host: github.com
           github_pat: '${{ secrets.GH_BOT_ACCESS_TOKEN }}'
           source_folder: docs/tempo/website
-          target_folder: content/docs/tempo/latest
+          target_folder: content/docs/tempo/next
       - shell: bash
         run: |
           test -n "${{ steps.publish.outputs.commit_hash }}"

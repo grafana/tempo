@@ -16,8 +16,8 @@ import (
 
 func TestHasMissingSpans(t *testing.T) {
 	cases := []struct {
-		trace   *tempopb.Trace
-		expeted bool
+		trace    *tempopb.Trace
+		expected bool
 	}{
 		{
 			&tempopb.Trace{
@@ -61,7 +61,7 @@ func TestHasMissingSpans(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		require.Equal(t, tc.expeted, hasMissingSpans(tc.trace))
+		require.Equal(t, tc.expected, hasMissingSpans(tc.trace))
 	}
 }
 
@@ -74,7 +74,7 @@ func TestResponseFixture(t *testing.T) {
 	err = jsonpb.Unmarshal(f, response)
 	require.NoError(t, err)
 
-	seed := time.Unix(1633377890, 0)
+	seed := time.Unix(1636729665, 0)
 	info := util.NewTraceInfo(seed, "")
 
 	expected, err := info.ConstructTraceFromEpoch()

@@ -15,6 +15,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -35,7 +36,9 @@ func (m *mockReader) Find(ctx context.Context, tenantID string, id common.ID, bl
 func (m *mockReader) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return m.metas
 }
-
+func (m *mockReader) IterateObjects(ctx context.Context, tenantID string, blockID uuid.UUID, startPage int, totalPages int, callback tempodb.IterateObjectCallback) error {
+	return nil
+}
 func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}
 func (m *mockReader) Shutdown()                                  {}
 
@@ -224,13 +227,15 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 		expectedError    error
 	}{
 		{
-			name:             "empty returns",
-			status1:          200,
-			status2:          200,
-			expectedStatus:   200,
-			response1:        &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			response2:        &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			expectedResponse: &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
+			name:           "empty returns",
+			status1:        200,
+			status2:        200,
+			expectedStatus: 200,
+			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
+			response2:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
+			expectedResponse: &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{
+				InspectedBlocks: 1,
+			}},
 		},
 		{
 			name:           "404+200",
@@ -312,7 +317,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 6,
-					InspectedBlocks: 8,
+					InspectedBlocks: 1,
 					InspectedBytes:  10,
 					SkippedBlocks:   12,
 				}},

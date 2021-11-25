@@ -11,14 +11,14 @@ var _ common.ObjectCombiner = (*DataCombiner)(nil)
 
 var staticCombiner = DataCombiner{}
 
-func (*DataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool) {
+func (*DataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool, error) {
 
 	if len(searchData) <= 0 {
-		return nil, false
+		return nil, false, nil
 	}
 
 	if len(searchData) == 1 {
-		return searchData[0], false
+		return searchData[0], false, nil
 	}
 
 	// Squash all datas into 1
@@ -43,5 +43,5 @@ func (*DataCombiner) Combine(_ string, searchData ...[]byte) ([]byte, bool) {
 		data.TraceID = sd.Id()
 	}
 
-	return data.ToBytes(), true
+	return data.ToBytes(), true, nil
 }

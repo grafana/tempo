@@ -47,19 +47,18 @@ linters:
     - goconst
     - gofmt
     - goimports
-    - golint
     - gosimple
+    - govet
     - ineffassign
     - megacheck
     - misspell
+    - revive
     - structcheck
+    - typecheck
     - unconvert
     - unparam
-    - varcheck
-    - govet
     - unused
-    - interfacer
-    - typecheck
+    - varcheck
 
 linters-settings:
   errcheck:

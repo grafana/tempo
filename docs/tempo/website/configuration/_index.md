@@ -702,7 +702,8 @@ memberlist:
 ```
 
 ## Overrides
-Tempo provides a overrides module for user to set global or per-tenant override settings.   
+
+Tempo provides an overrides module for users to set global or per-tenant override settings.
 **Currenly only ingestion limits can be overridden.**
 
 ### Ingestion limits
@@ -797,7 +798,7 @@ overrides:
 
 ## Search
 
-Tempo native search can be enabled by the following top-level setting.  In microservices mode, it must be set for the distributors and queriers. 
+Tempo search can be enabled by the following top-level setting.  In microservices mode, it must be set for the distributors and queriers. 
 
 ```yaml
 search_enabled: true

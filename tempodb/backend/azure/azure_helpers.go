@@ -85,9 +85,7 @@ func GetContainer(ctx context.Context, conf *Config, hedge bool) (blob.Container
 	if err != nil {
 		return blob.ContainerURL{}, err
 	}
-	// Getting container properties to check if container exists
-	_, err = c.GetProperties(ctx, blob.LeaseAccessConditions{})
-	return c, err
+	return c, nil
 }
 
 func GetBlobURL(ctx context.Context, conf *Config, blobName string) (blob.BlockBlobURL, error) {

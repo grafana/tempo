@@ -201,7 +201,6 @@ func (r *reader) Shutdown() {
 }
 
 // KeyPathForBlock returns a correctly ordered keypath given a block id and tenantid
-// nolint:interfacer
 func KeyPathForBlock(blockID uuid.UUID, tenantID string) KeyPath {
 	return []string{tenantID, blockID.String()}
 }
@@ -222,7 +221,6 @@ func CompactedMetaFileName(blockID uuid.UUID, tenantID string) string {
 }
 
 // RootPath returns the root path for a block given a block id and tenantid
-// nolint:interfacer
 func RootPath(blockID uuid.UUID, tenantID string) string {
 	return path.Join(tenantID, blockID.String())
 }

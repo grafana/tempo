@@ -62,9 +62,5 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 	defer gzipReader.Close()
 
 	d := json.NewDecoder(gzipReader)
-	if err = d.Decode(b); err != nil {
-		return err
-	}
-
-	return nil
+	return d.Decode(b)
 }

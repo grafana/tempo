@@ -15,6 +15,7 @@ service Querier {
   rpc Search(SearchRequest) returns (SearchResponse) {};
   rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {};
   rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {};
+  rpc BackendSearch(BackendSearchRequest) returns (SearchResponse) {}; // todo(search): consolidate with real search
 }
 
 // Read
@@ -40,6 +41,15 @@ message SearchRequest {
   uint32 MinDurationMs = 2;
   uint32 MaxDurationMs = 3;
   uint32 Limit = 4;
+}
+
+message BackendSearchRequest { // todo(search): consolidate with real search
+  SearchRequest search = 1;
+  uint32 start = 2;
+  uint32 end = 3;
+  uint32 startPage = 4;
+  uint32 totalPages = 5;
+  bytes blockID = 6;
 }
 
 message SearchResponse {

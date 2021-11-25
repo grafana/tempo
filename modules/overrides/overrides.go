@@ -17,6 +17,15 @@ import (
 
 const wildcardTenant = "*"
 
+var (
+	metricOverridesLimitsDesc = prometheus.NewDesc(
+		"tempo_limits_overrides",
+		"Resource limit overrides applied to tenants",
+		[]string{"limit_name", "user"},
+		nil,
+	)
+)
+
 // perTenantOverrides represents the overrides config file
 type perTenantOverrides struct {
 	TenantLimits map[string]*Limits `yaml:"overrides"`
@@ -233,22 +242,22 @@ func (o *Overrides) MaxSearchBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).MaxSearchBytesPerTrace
 }
 
-// IngestionRateLimitBytes is the number of spans per second allowed for this tenant
+// IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
 func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
 	return float64(o.getOverridesForUser(userID).IngestionRateLimitBytes)
 }
 
-// IngestionBurstSizeBytes is the burst size in spans allowed for this tenant
+// IngestionBurstSizeBytes is the burst size in spans allowed for this tenant.
 func (o *Overrides) IngestionBurstSizeBytes(userID string) int {
 	return o.getOverridesForUser(userID).IngestionBurstSizeBytes
 }
 
-// SearchTagsAllowList is the list of tags to be extracted for search, for this tenant
+// SearchTagsAllowList is the list of tags to be extracted for search, for this tenant.
 func (o *Overrides) SearchTagsAllowList(userID string) map[string]struct{} {
 	return o.getOverridesForUser(userID).SearchTagsAllowList.GetMap()
 }
 
-// BlockRetention is the duration of the block retention for this tenant
+// BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
 }
@@ -264,8 +273,29 @@ func (o *Overrides) getOverridesForUser(userID string) *Limits {
 		if l != nil {
 			return l
 		}
-
 	}
 
 	return o.defaultLimits
+}
+
+func (o *Overrides) Describe(ch chan<- *prometheus.Desc) {
+	ch <- metricOverridesLimitsDesc
+}
+
+func (o *Overrides) Collect(ch chan<- prometheus.Metric) {
+	overrides := o.tenantOverrides()
+	if overrides == nil {
+		return
+	}
+
+	for tenant, limits := range overrides.TenantLimits {
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxLocalTracesPerUser), MetricMaxLocalTracesPerUser, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxBytesPerTrace), MetricMaxBytesPerTrace, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxSearchBytesPerTrace), MetricMaxSearchBytesPerTrace, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.IngestionRateLimitBytes), MetricIngestionRateLimitBytes, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.IngestionBurstSizeBytes), MetricIngestionBurstSizeBytes, tenant)
+		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.BlockRetention), MetricBlockRetention, tenant)
+
+	}
 }

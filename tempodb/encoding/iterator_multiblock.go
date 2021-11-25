@@ -3,8 +3,12 @@ package encoding
 import (
 	"bytes"
 	"context"
-	"errors"
+	"encoding/hex"
+	"fmt"
 	"io"
+
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 
@@ -18,6 +22,7 @@ type multiblockIterator struct {
 	resultsCh    chan iteratorResult
 	quitCh       chan struct{}
 	err          atomic.Error
+	logger       log.Logger
 }
 
 var _ Iterator = (*multiblockIterator)(nil)
@@ -29,12 +34,13 @@ type iteratorResult struct {
 
 // NewMultiblockIterator Creates a new multiblock iterator. Iterates concurrently in a separate goroutine and results are buffered.
 // Traces are deduped and combined using the object combiner.
-func NewMultiblockIterator(ctx context.Context, inputs []Iterator, bufferSize int, combiner common.ObjectCombiner, dataEncoding string) Iterator {
+func NewMultiblockIterator(ctx context.Context, inputs []Iterator, bufferSize int, combiner common.ObjectCombiner, dataEncoding string, logger log.Logger) Iterator {
 	i := multiblockIterator{
 		combiner:     combiner,
 		dataEncoding: dataEncoding,
 		resultsCh:    make(chan iteratorResult, bufferSize),
 		quitCh:       make(chan struct{}, 1),
+		logger:       logger,
 	}
 
 	for _, iter := range inputs {
@@ -94,8 +100,8 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 
 	for !i.allDone(ctx) {
 		var lowestID []byte
-		var lowestObject []byte
-		var lowestBookmark *bookmark
+		var lowestObjects [][]byte
+		var lowestBookmarks []*bookmark
 
 		// find lowest ID of the new object
 		for _, b := range i.bookmarks {
@@ -110,18 +116,37 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 			comparison := bytes.Compare(currentID, lowestID)
 
 			if comparison == 0 {
-				lowestObject, _ = i.combiner.Combine(i.dataEncoding, currentObject, lowestObject)
-				b.clear()
+				lowestObjects = append(lowestObjects, currentObject)
+				lowestBookmarks = append(lowestBookmarks, b)
 			} else if len(lowestID) == 0 || comparison == -1 {
 				lowestID = currentID
-				lowestObject = currentObject
-				lowestBookmark = b
+				lowestObjects = [][]byte{currentObject}
+				lowestBookmarks = []*bookmark{b}
 			}
 		}
 
-		if len(lowestID) == 0 || len(lowestObject) == 0 || lowestBookmark == nil {
-			i.err.Store(errors.New("failed to find a lowest object in compaction"))
+		lowestObject, _, err := i.combiner.Combine(i.dataEncoding, lowestObjects...)
+		if err != nil {
+			i.err.Store(fmt.Errorf("error combining while Nexting: %w", err))
 			return
+		}
+		for _, b := range lowestBookmarks {
+			b.clear()
+		}
+
+		if len(lowestID) == 0 || len(lowestObject) == 0 || len(lowestBookmarks) == 0 {
+			// Skip empty objects or when the bookmarks failed to return an object.
+			// This intentional here because we concluded that the bookmarks have already
+			// been skipping most empties (but not all) and there is no reason to treat the
+			// unskipped edge cases differently. Edge cases:
+			// * Two empties in a row:  the bookmark won't skip the second empty. Since
+			//   we already skipped the first, go ahead and skip the second.
+			// * Last trace across all blocks is empty. In that case there is no next record
+			//   for the bookmarks to skip to, and lowestBookmark remains nil.  Since we
+			//   already skipped every other empty, skip the last (but not least) entry.
+			// (todo: research needed to determine how empties get in the block)
+			level.Warn(i.logger).Log("msg", "multiblock iterator skipping empty object", "id", hex.EncodeToString(lowestID), "obj", lowestObject, "bookmark", lowestBookmarks)
+			continue
 		}
 
 		// Copy slices allows data to escape the iterators
@@ -129,8 +154,6 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 			id:     append([]byte(nil), lowestID...),
 			object: append([]byte(nil), lowestObject...),
 		}
-
-		lowestBookmark.clear()
 
 		select {
 
@@ -164,6 +187,20 @@ func newBookmark(iter Iterator) *bookmark {
 }
 
 func (b *bookmark) current(ctx context.Context) ([]byte, []byte, error) {
+	// This check is how the bookmark knows to iterate after being cleared,
+	// but it also unintentionally skips empty objects that somehow got in
+	// the block (b.currentObject is empty slice).  Normal usage of the bookmark
+	// is to call done() and then current(). done() calls current() which reads iter.Next()
+	// and saves empty, it is then iterated again by a direct call to current(),
+	// which interprets the empty object as a cleared state and iterates again.
+	// This is mostly harmless and has been true historically for some time,
+	// which isn't great because it masks empty objects present in a block
+	// (todo: research needed to determine how they get there), but it's made worse
+	// in that the skip fails in some edge cases:
+	// * Two empty objects in a row:  done()/current() will return the
+	//   second empty object and not skip it, and this fails up the call chain.
+	// * Last object is empty: This is an issue in multiblock-iterator, see
+	//   notes there.
 	if len(b.currentID) != 0 && len(b.currentObject) != 0 {
 		return b.currentID, b.currentObject, nil
 	}

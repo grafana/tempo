@@ -25,7 +25,7 @@ Traces can be discovered by searching logs for entries containing trace IDs.  Th
 ## Tempo search
 <span style="background-color:#f3f973;">This experimental feature is disabled by default. See below for more information on how to enable.</span>
 
-Tempo includes native search of recent traces.  Traces can be searched for data originating from a specific service, duration range, and span and process-level attributes included in your application's instrumentation, such as HTTP status code, customer ID, etc.  Currently only search of traces at the ingesters is supported. By default the ingesters store the last 15 minutes.
+Tempo includes the ability to search recent traces.  Traces can be searched for data originating from a specific service, duration range, and span and process-level attributes included in your application's instrumentation, such as HTTP status code, customer ID, etc.  Currently only search of traces at the ingesters is supported. By default the ingesters store the last 15 minutes.
 
 Enabling this feature requires the following:
 1. Run the Tempo 1.2 or the latest pre-release and enable search in the YAML config. For more information see the [Tempo configuration documentation](../../configuration#search).

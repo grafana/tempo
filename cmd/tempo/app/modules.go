@@ -95,6 +95,12 @@ func (t *App) initOverrides() (services.Service, error) {
 	}
 	t.overrides = overrides
 
+	prometheus.MustRegister(&t.cfg.LimitsConfig)
+
+	if t.cfg.LimitsConfig.PerTenantOverrideConfig != "" {
+		prometheus.MustRegister(t.overrides)
+	}
+
 	return t.overrides, nil
 }
 
@@ -158,17 +164,21 @@ func (t *App) initQuerier() (services.Service, error) {
 	)
 
 	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
+	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
 
 	if t.cfg.SearchEnabled {
-		searchHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
-		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
+		searchHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
+		t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
 
-		searchTagsHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
-		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
+		searchTagsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
+		t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
 
-		searchTagValuesHandler := middleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-		t.Server.HTTP.Handle(path.Join("/querier", addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
+		searchTagValuesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
+		t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
+
+		// todo(search): consolidate
+		backendSearchHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.BackendSearchHandler))
+		t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathBackendSearch)), backendSearchHandler)
 	}
 
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPServer.Handler)
@@ -190,9 +200,14 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 
 	// wrap handlers with auth
-	traceByIDHandler := t.HTTPAuthMiddleware.Wrap(queryFrontend.TraceByID)
-	searchHandler := t.HTTPAuthMiddleware.Wrap(queryFrontend.Search)
-	backendSearchHandler := t.HTTPAuthMiddleware.Wrap(queryFrontend.BackendSearch)
+	middleware := middleware.Merge(
+		t.HTTPAuthMiddleware,
+		httpGzipMiddleware(),
+	)
+
+	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByID)
+	searchHandler := middleware.Wrap(queryFrontend.Search)
+	backendSearchHandler := middleware.Wrap(queryFrontend.BackendSearch)
 
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
