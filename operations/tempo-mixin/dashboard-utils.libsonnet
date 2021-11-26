@@ -7,37 +7,6 @@ grafana {
   // - some links that propagate the selected cluster.
   dashboard(title)::
     super.dashboard(title) + {
-      // Override addMultipleTempalte to make allValue configurable
-      // Remove when https://github.com/grafana/jsonnet-libs/pull/703 is merged
-      addMultiTemplate(name, metric_name, label_name, hide=0, allValue='.+'):: self {
-        templating+: {
-          list+: [{
-            allValue: allValue,
-            current: {
-              selected: true,
-              text: 'All',
-              value: '$__all',
-            },
-            datasource: '$datasource',
-            hide: hide,
-            includeAll: true,
-            label: name,
-            multi: true,
-            name: name,
-            options: [],
-            query: 'label_values(%s, %s)' % [metric_name, label_name],
-            refresh: 1,
-            regex: '',
-            sort: 2,
-            tagValuesQuery: '',
-            tags: [],
-            tagsQuery: '',
-            type: 'query',
-            useTags: false,
-          }],
-        },
-      },
-
       addClusterSelectorTemplates()::
         local d = self {
           tags: ['tempo'],
