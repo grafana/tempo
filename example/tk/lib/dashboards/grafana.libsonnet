@@ -7,10 +7,18 @@ local mixins = import 'mixins.libsonnet';
   deploy(frontend_url='http://query-frontend'):
     grafana
     + grafana.withReplicas(1)
-    + grafana.withImage('grafana/grafana:8.2.1')
+    + grafana.withImage('grafana/grafana:8.3.0-beta2')
     + grafana.withRootUrl('http://grafana')
     + grafana.withTheme('dark')
     + grafana.withAnonymous()
+
+    + grafana.withGrafanaIniConfig({
+      sections+: {
+        feature_toggles: {
+          enable: 'tempoSearch',
+        },
+      },
+    })
 
     + grafana.addDatasource('Tempo', datasources.tempo(frontend_url))
     + grafana.addDatasource('Prometheus', datasources.prometheus)

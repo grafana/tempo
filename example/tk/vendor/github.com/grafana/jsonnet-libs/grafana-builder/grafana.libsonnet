@@ -70,6 +70,23 @@
       },
     },
 
+    dashboardLinkUrl(title, url):: self {
+      links+: [
+        {
+          asDropdown: false,
+          icon: 'external link',
+          includeVars: true,
+          keepTime: true,
+          tags: [],
+          targetBlank: true,
+          title: title,
+          tooltip: '',
+          type: 'link',
+          url: url,
+        },
+      ],
+    },
+
     // Stuff that is materialised.
     uid: uid,
     annotations: {

@@ -1,5 +1,7 @@
 local k = import 'ksonnet-util/kausal.libsonnet';
 local configMap = k.core.v1.configMap;
+local deployment = k.apps.v1.deployment;
+
 {
   // grafana_ini configmap
   grafana_ini_config_map:
@@ -144,5 +146,8 @@ local configMap = k.core.v1.configMap;
         for folder in std.objectFields($.grafanaDashboardFolders)
       ]);
 
-    k.util.volumeMounts(mounts),
+    k.util.volumeMounts(mounts)
+    + deployment.mixin.spec.template.metadata.withAnnotationsMixin({
+      'grafana-dashboards-hash': std.md5(std.toString($.grafanaDashboardFolders)),
+    }),
 }

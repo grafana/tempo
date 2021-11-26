@@ -24,6 +24,12 @@
 
   scrape_configs: {},
 
+  addScrapeConfig(scrape_config):: {
+    scrape_configs+:: {
+      [scrape_config.job_name]: scrape_config,
+    },
+  },
+
   prometheus_config:: {
     global: {
       scrape_interval: '15s',
@@ -34,13 +40,10 @@
       'recording/recording.rules',
     ],
 
-    scrape_configs+:
-      std.foldr(
-        function(jobName, acc)
-          acc + $.scrape_configs[jobName],
-        std.objectFields($.scrape_configs),
-        {}
-      ),
+    scrape_configs+: [
+      $.scrape_configs[k]
+      for k in std.objectFields($.scrape_configs)
+    ],
   },
 
   // `withAlertmanagers` adds an alertmanager configuration to
