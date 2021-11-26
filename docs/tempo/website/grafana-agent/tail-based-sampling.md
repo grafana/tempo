@@ -46,7 +46,7 @@ add load balancing and specify the resolving mechanism to find other Agents in t
 To see all the available configuration options, refer to the [configuration reference](https://grafana.com/docs/agent/latest/configuration/traces-config/).
 
 ```
-tempo:
+traces:
   configs:
     - name: default
       ...

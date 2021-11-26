@@ -153,7 +153,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	span.SetTag("requestURI", r.RequestURI)
 
-	req, err := q.parseSearchRequest(r)
+	req, err := api.ParseSearchRequest(r, q.cfg.SearchDefaultResultLimit, q.cfg.SearchMaxResultLimit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -240,7 +240,7 @@ func (q *Querier) BackendSearchHandler(w http.ResponseWriter, r *http.Request) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.BackendSearch")
 	defer span.Finish()
 
-	searchReq, err := q.parseSearchRequest(r)
+	searchReq, err := api.ParseSearchRequest(r, q.cfg.SearchDefaultResultLimit, q.cfg.SearchMaxResultLimit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

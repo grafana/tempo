@@ -30,7 +30,17 @@ type readerWriter struct {
 	hedgedBucket *storage.BucketHandle
 }
 
+// NewNoConfirm gets the GCS backend without testing it
+func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+	return internalNew(cfg, false)
+}
+
+// New gets the S3 backend
 func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+	return internalNew(cfg, true)
+}
+
+func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	ctx := context.Background()
 
 	bucket, err := createBucket(ctx, cfg, false)
@@ -44,8 +54,10 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 	}
 
 	// Check bucket exists by getting attrs
-	if _, err = bucket.Attrs(ctx); err != nil {
-		return nil, nil, nil, errors.Wrap(err, "getting bucket attrs")
+	if confirm {
+		if _, err = bucket.Attrs(ctx); err != nil {
+			return nil, nil, nil, errors.Wrap(err, "getting bucket attrs")
+		}
 	}
 
 	rw := &readerWriter{
