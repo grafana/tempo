@@ -1623,7 +1623,7 @@
     "useTags": false
    },
    {
-    "allValue": ".+",
+    "allValue": null,
     "current": {
      "selected": true,
      "text": "All",
