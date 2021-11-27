@@ -25,7 +25,7 @@ grafana {
         };
 
         d.addMultiTemplate('cluster', 'tempo_build_info', 'cluster')
-         .addMultiTemplate('namespace', 'tempo_build_info', 'namespace'),
+         .addMultiTemplate('namespace', 'tempo_build_info', 'namespace', allValue=null),
     },
 
   jobMatcher(job)::

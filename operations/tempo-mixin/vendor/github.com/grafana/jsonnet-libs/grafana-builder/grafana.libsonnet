@@ -13,10 +13,10 @@
       rows+: [row { panels: panels }],
     },
 
-    addTemplate(name, metric_name, label_name, hide=0):: self {
+    addTemplate(name, metric_name, label_name, hide=0, allValue=null):: self {
       templating+: {
         list+: [{
-          allValue: null,
+          allValue: allValue,
           current: {
             text: 'prod',
             value: 'prod',
@@ -41,10 +41,10 @@
       },
     },
 
-    addMultiTemplate(name, metric_name, label_name, hide=0):: self {
+    addMultiTemplate(name, metric_name, label_name, hide=0, allValue='.+'):: self {
       templating+: {
         list+: [{
-          allValue: '.+',
+          allValue: allValue,
           current: {
             selected: true,
             text: 'All',
