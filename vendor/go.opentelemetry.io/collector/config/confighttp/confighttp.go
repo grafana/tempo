@@ -12,26 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package confighttp
+package confighttp // import "go.opentelemetry.io/collector/config/confighttp"
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/rs/cors"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/collector/internal/middleware"
+	"go.opentelemetry.io/collector/external/middleware"
 )
 
+// HTTPClientSettings defines settings for creating an HTTP client.
 type HTTPClientSettings struct {
 	// The target URL to send data to (e.g.: http://some.url:9411/v1/traces).
 	Endpoint string `mapstructure:"endpoint"`
 
 	// TLSSetting struct exposes TLS client configuration.
-	TLSSetting configtls.TLSClientSetting `mapstructure:",squash"`
+	TLSSetting configtls.TLSClientSetting `mapstructure:"tls,omitempty"`
 
 	// ReadBufferSize for HTTP client. See http.Transport.ReadBufferSize.
 	ReadBufferSize int `mapstructure:"read_buffer_size"`
@@ -48,9 +55,13 @@ type HTTPClientSettings struct {
 
 	// Custom Round Tripper to allow for individual components to intercept HTTP requests
 	CustomRoundTripper func(next http.RoundTripper) (http.RoundTripper, error)
+
+	// Auth configuration for outgoing HTTP calls.
+	Auth *configauth.Authentication `mapstructure:"auth,omitempty"`
 }
 
-func (hcs *HTTPClientSettings) ToClient() (*http.Client, error) {
+// ToClient creates an HTTP client.
+func (hcs *HTTPClientSettings) ToClient(ext map[config.ComponentID]component.Extension) (*http.Client, error) {
 	tlsCfg, err := hcs.TLSSetting.LoadTLSConfig()
 	if err != nil {
 		return nil, err
@@ -74,6 +85,22 @@ func (hcs *HTTPClientSettings) ToClient() (*http.Client, error) {
 		}
 	}
 
+	if hcs.Auth != nil {
+		if ext == nil {
+			return nil, fmt.Errorf("extensions configuration not found")
+		}
+
+		httpCustomAuthRoundTripper, aerr := hcs.Auth.GetClientAuthenticator(ext)
+		if aerr != nil {
+			return nil, aerr
+		}
+
+		clientTransport, err = httpCustomAuthRoundTripper.RoundTripper(clientTransport)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if hcs.CustomRoundTripper != nil {
 		clientTransport, err = hcs.CustomRoundTripper(clientTransport)
 		if err != nil {
@@ -87,13 +114,13 @@ func (hcs *HTTPClientSettings) ToClient() (*http.Client, error) {
 	}, nil
 }
 
-// Custom RoundTripper that add headers
+// Custom RoundTripper that adds headers.
 type headerRoundTripper struct {
 	transport http.RoundTripper
 	headers   map[string]string
 }
 
-// Custom RoundTrip that add headers
+// RoundTrip is a custom RoundTripper that adds headers to the request.
 func (interceptor *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	for k, v := range interceptor.headers {
 		req.Header.Set(k, v)
@@ -102,12 +129,13 @@ func (interceptor *headerRoundTripper) RoundTrip(req *http.Request) (*http.Respo
 	return interceptor.transport.RoundTrip(req)
 }
 
+// HTTPServerSettings defines settings for creating an HTTP server.
 type HTTPServerSettings struct {
 	// Endpoint configures the listening address for the server.
 	Endpoint string `mapstructure:"endpoint"`
 
 	// TLSSetting struct exposes TLS client configuration.
-	TLSSetting *configtls.TLSServerSetting `mapstructure:"tls_settings, omitempty"`
+	TLSSetting *configtls.TLSServerSetting `mapstructure:"tls, omitempty"`
 
 	// CorsOrigins are the allowed CORS origins for HTTP/JSON requests to grpc-gateway adapter
 	// for the OTLP receiver. See github.com/rs/cors
@@ -122,6 +150,7 @@ type HTTPServerSettings struct {
 	CorsHeaders []string `mapstructure:"cors_allowed_headers"`
 }
 
+// ToListener creates a net.Listener.
 func (hss *HTTPServerSettings) ToListener() (net.Listener, error) {
 	listener, err := net.Listen("tcp", hss.Endpoint)
 	if err != nil {
@@ -145,6 +174,8 @@ type toServerOptions struct {
 	errorHandler middleware.ErrorHandler
 }
 
+// ToServerOption is an option to change the behavior of the HTTP server
+// returned by HTTPServerSettings.ToServer().
 type ToServerOption func(opts *toServerOptions)
 
 // WithErrorHandler overrides the HTTP error handler that gets invoked
@@ -155,21 +186,41 @@ func WithErrorHandler(e middleware.ErrorHandler) ToServerOption {
 	}
 }
 
-func (hss *HTTPServerSettings) ToServer(handler http.Handler, opts ...ToServerOption) *http.Server {
+// ToServer creates an http.Server from settings object.
+func (hss *HTTPServerSettings) ToServer(handler http.Handler, settings component.TelemetrySettings, opts ...ToServerOption) *http.Server {
 	serverOpts := &toServerOptions{}
 	for _, o := range opts {
 		o(serverOpts)
 	}
-	if len(hss.CorsOrigins) > 0 {
-		co := cors.Options{AllowedOrigins: hss.CorsOrigins, AllowedHeaders: hss.CorsHeaders}
-		handler = cors.New(co).Handler(handler)
-	}
-	// TODO: emit a warning when non-empty CorsHeaders and empty CorsOrigins.
 
 	handler = middleware.HTTPContentDecompressor(
 		handler,
 		middleware.WithErrorHandler(serverOpts.errorHandler),
 	)
+
+	if len(hss.CorsOrigins) > 0 {
+		co := cors.Options{
+			AllowedOrigins:   hss.CorsOrigins,
+			AllowCredentials: true,
+			AllowedHeaders:   hss.CorsHeaders,
+		}
+		handler = cors.New(co).Handler(handler)
+	}
+	// TODO: emit a warning when non-empty CorsHeaders and empty CorsOrigins.
+
+	// Enable OpenTelemetry observability plugin.
+	// TODO: Consider to use component ID string as prefix for all the operations.
+	handler = otelhttp.NewHandler(
+		handler,
+		"",
+		otelhttp.WithTracerProvider(settings.TracerProvider),
+		otelhttp.WithMeterProvider(settings.MeterProvider),
+		otelhttp.WithPropagators(otel.GetTextMapPropagator()),
+		otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
+			return r.URL.Path
+		}),
+	)
+
 	return &http.Server{
 		Handler: handler,
 	}

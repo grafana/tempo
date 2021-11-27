@@ -13,6 +13,7 @@ type packetEncoder interface {
 	putInt64(in int64)
 	putVarint(in int64)
 	putUVarint(in uint64)
+	putFloat64(in float64)
 	putCompactArrayLength(in int)
 	putArrayLength(in int) error
 	putBool(in bool)
@@ -20,6 +21,7 @@ type packetEncoder interface {
 	// Collections
 	putBytes(in []byte) error
 	putVarintBytes(in []byte) error
+	putCompactBytes(in []byte) error
 	putRawBytes(in []byte) error
 	putCompactString(in string) error
 	putNullableCompactString(in *string) error

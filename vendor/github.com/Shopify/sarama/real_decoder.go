@@ -5,13 +5,15 @@ import (
 	"math"
 )
 
-var errInvalidArrayLength = PacketDecodingError{"invalid array length"}
-var errInvalidByteSliceLength = PacketDecodingError{"invalid byteslice length"}
-var errInvalidStringLength = PacketDecodingError{"invalid string length"}
-var errVarintOverflow = PacketDecodingError{"varint overflow"}
-var errUVarintOverflow = PacketDecodingError{"uvarint overflow"}
-var errInvalidBool = PacketDecodingError{"invalid bool"}
-var errUnsupportedTaggedFields = PacketDecodingError{"non-empty tagged fields are not supported yet"}
+var (
+	errInvalidArrayLength      = PacketDecodingError{"invalid array length"}
+	errInvalidByteSliceLength  = PacketDecodingError{"invalid byteslice length"}
+	errInvalidStringLength     = PacketDecodingError{"invalid string length"}
+	errVarintOverflow          = PacketDecodingError{"varint overflow"}
+	errUVarintOverflow         = PacketDecodingError{"uvarint overflow"}
+	errInvalidBool             = PacketDecodingError{"invalid bool"}
+	errUnsupportedTaggedFields = PacketDecodingError{"non-empty tagged fields are not supported yet"}
+)
 
 type realDecoder struct {
 	raw   []byte
@@ -88,6 +90,16 @@ func (rd *realDecoder) getUVarint() (uint64, error) {
 	}
 
 	rd.off += n
+	return tmp, nil
+}
+
+func (rd *realDecoder) getFloat64() (float64, error) {
+	if rd.remaining() < 8 {
+		rd.off = len(rd.raw)
+		return -1, ErrInsufficientData
+	}
+	tmp := math.Float64frombits(binary.BigEndian.Uint64(rd.raw[rd.off:]))
+	rd.off += 8
 	return tmp, nil
 }
 
@@ -170,6 +182,16 @@ func (rd *realDecoder) getVarintBytes() ([]byte, error) {
 	return rd.getRawBytes(int(tmp))
 }
 
+func (rd *realDecoder) getCompactBytes() ([]byte, error) {
+	n, err := rd.getUVarint()
+	if err != nil {
+		return nil, err
+	}
+
+	length := int(n - 1)
+	return rd.getRawBytes(length)
+}
+
 func (rd *realDecoder) getStringLength() (int, error) {
 	length, err := rd.getInt16()
 	if err != nil {
@@ -217,8 +239,10 @@ func (rd *realDecoder) getCompactString() (string, error) {
 		return "", err
 	}
 
-	var length = int(n - 1)
-
+	length := int(n - 1)
+	if length < 0 {
+		return "", errInvalidByteSliceLength
+	}
 	tmpStr := string(rd.raw[rd.off : rd.off+length])
 	rd.off += length
 	return tmpStr, nil
@@ -226,12 +250,11 @@ func (rd *realDecoder) getCompactString() (string, error) {
 
 func (rd *realDecoder) getCompactNullableString() (*string, error) {
 	n, err := rd.getUVarint()
-
 	if err != nil {
 		return nil, err
 	}
 
-	var length = int(n - 1)
+	length := int(n - 1)
 
 	if length < 0 {
 		return nil, err

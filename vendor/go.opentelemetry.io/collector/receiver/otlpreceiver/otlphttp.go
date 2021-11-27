@@ -12,65 +12,178 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package otlpreceiver
+package otlpreceiver // import "go.opentelemetry.io/collector/receiver/otlpreceiver"
 
 import (
-	"bytes"
+	"io/ioutil"
 	"net/http"
 
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	spb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
+
+	"go.opentelemetry.io/collector/client"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver/external/logs"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver/external/metrics"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver/external/trace"
 )
 
-// xProtobufMarshaler is a Marshaler which wraps runtime.ProtoMarshaller
-// and sets ContentType to application/x-protobuf
-type xProtobufMarshaler struct {
-	*runtime.ProtoMarshaller
+// Pre-computed status with code=Internal to be used in case of a marshaling error.
+var fallbackMsg = []byte(`{"code": 13, "message": "failed to marshal error message"}`)
+
+const fallbackContentType = "application/json"
+
+func handleTraces(resp http.ResponseWriter, req *http.Request, tracesReceiver *trace.Receiver, encoder encoder) {
+	body, ok := readAndCloseBody(resp, req, encoder)
+	if !ok {
+		return
+	}
+
+	otlpReq, err := encoder.unmarshalTracesRequest(body)
+	if err != nil {
+		writeError(resp, encoder, err, http.StatusBadRequest)
+		return
+	}
+
+	ctx := req.Context()
+	if c, ok := client.FromHTTP(req); ok {
+		ctx = client.NewContext(ctx, c)
+	}
+
+	otlpResp, err := tracesReceiver.Export(ctx, otlpReq)
+	if err != nil {
+		writeError(resp, encoder, err, http.StatusInternalServerError)
+		return
+	}
+
+	msg, err := encoder.marshalTracesResponse(otlpResp)
+	if err != nil {
+		writeError(resp, encoder, err, http.StatusInternalServerError)
+		return
+	}
+	writeResponse(resp, encoder.contentType(), http.StatusOK, msg)
 }
 
-// ContentType always returns "application/x-protobuf".
-func (*xProtobufMarshaler) ContentType() string {
-	return "application/x-protobuf"
+func handleMetrics(resp http.ResponseWriter, req *http.Request, metricsReceiver *metrics.Receiver, encoder encoder) {
+	body, ok := readAndCloseBody(resp, req, encoder)
+	if !ok {
+		return
+	}
+
+	otlpReq, err := encoder.unmarshalMetricsRequest(body)
+	if err != nil {
+		writeError(resp, encoder, err, http.StatusBadRequest)
+		return
+	}
+
+	ctx := req.Context()
+	if c, ok := client.FromHTTP(req); ok {
+		ctx = client.NewContext(ctx, c)
+	}
+
+	otlpResp, err := metricsReceiver.Export(ctx, otlpReq)
+	if err != nil {
+		writeError(resp, encoder, err, http.StatusInternalServerError)
+		return
+	}
+
+	msg, err := encoder.marshalMetricsResponse(otlpResp)
+	if err != nil {
+		writeError(resp, encoder, err, http.StatusInternalServerError)
+		return
+	}
+	writeResponse(resp, encoder.contentType(), http.StatusOK, msg)
 }
 
-var jsonMarshaller = &jsonpb.Marshaler{}
+func handleLogs(resp http.ResponseWriter, req *http.Request, logsReceiver *logs.Receiver, encoder encoder) {
+	body, ok := readAndCloseBody(resp, req, encoder)
+	if !ok {
+		return
+	}
+
+	otlpReq, err := encoder.unmarshalLogsRequest(body)
+	if err != nil {
+		writeError(resp, encoder, err, http.StatusBadRequest)
+		return
+	}
+
+	ctx := req.Context()
+	if c, ok := client.FromHTTP(req); ok {
+		ctx = client.NewContext(ctx, c)
+	}
+
+	otlpResp, err := logsReceiver.Export(ctx, otlpReq)
+	if err != nil {
+		writeError(resp, encoder, err, http.StatusInternalServerError)
+		return
+	}
+
+	msg, err := encoder.marshalLogsResponse(otlpResp)
+	if err != nil {
+		writeError(resp, encoder, err, http.StatusInternalServerError)
+		return
+	}
+	writeResponse(resp, encoder.contentType(), http.StatusOK, msg)
+}
+
+func readAndCloseBody(resp http.ResponseWriter, req *http.Request, encoder encoder) ([]byte, bool) {
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		writeError(resp, encoder, err, http.StatusBadRequest)
+		return nil, false
+	}
+	if err = req.Body.Close(); err != nil {
+		writeError(resp, encoder, err, http.StatusBadRequest)
+		return nil, false
+	}
+	return body, true
+}
+
+// writeError encodes the HTTP error inside a rpc.Status message as required by the OTLP protocol.
+func writeError(w http.ResponseWriter, encoder encoder, err error, statusCode int) {
+	s, ok := status.FromError(err)
+	if !ok {
+		s = errorMsgToStatus(err.Error(), statusCode)
+	}
+	writeStatusResponse(w, encoder, statusCode, s.Proto())
+}
 
 // errorHandler encodes the HTTP error message inside a rpc.Status message as required
 // by the OTLP protocol.
 func errorHandler(w http.ResponseWriter, r *http.Request, errMsg string, statusCode int) {
-	var (
-		msg []byte
-		s   *status.Status
-		err error
-	)
-	// Pre-computed status with code=Internal to be used in case of a marshaling error.
-	fallbackMsg := []byte(`{"code": 13, "message": "failed to marshal error message"}`)
-	fallbackContentType := "application/json"
-
-	if statusCode == http.StatusBadRequest {
-		s = status.New(codes.InvalidArgument, errMsg)
-	} else {
-		s = status.New(codes.Internal, errMsg)
-	}
-
+	s := errorMsgToStatus(errMsg, statusCode)
 	contentType := r.Header.Get("Content-Type")
-	if contentType == "application/json" {
-		buf := new(bytes.Buffer)
-		err = jsonMarshaller.Marshal(buf, s.Proto())
-		msg = buf.Bytes()
-	} else {
-		msg, err = proto.Marshal(s.Proto())
+	switch contentType {
+	case pbContentType:
+		writeStatusResponse(w, pbEncoder, statusCode, s.Proto())
+		return
+	case jsonContentType:
+		writeStatusResponse(w, jsEncoder, statusCode, s.Proto())
+		return
 	}
+	writeResponse(w, fallbackContentType, http.StatusInternalServerError, fallbackMsg)
+}
+
+func writeStatusResponse(w http.ResponseWriter, encoder encoder, statusCode int, rsp *spb.Status) {
+	msg, err := encoder.marshalStatus(rsp)
 	if err != nil {
-		msg = fallbackMsg
-		contentType = fallbackContentType
-		statusCode = http.StatusInternalServerError
+		writeResponse(w, fallbackContentType, http.StatusInternalServerError, fallbackMsg)
+		return
 	}
 
+	writeResponse(w, encoder.contentType(), statusCode, msg)
+}
+
+func writeResponse(w http.ResponseWriter, contentType string, statusCode int, msg []byte) {
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(statusCode)
-	w.Write(msg)
+	// Nothing we can do with the error if we cannot write to the response.
+	_, _ = w.Write(msg)
+}
+
+func errorMsgToStatus(errMsg string, statusCode int) *status.Status {
+	if statusCode == http.StatusBadRequest {
+		return status.New(codes.InvalidArgument, errMsg)
+	}
+	return status.New(codes.Unknown, errMsg)
 }

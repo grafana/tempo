@@ -6,15 +6,15 @@ import (
 )
 
 const (
-	//CompressionNone no compression
+	// CompressionNone no compression
 	CompressionNone CompressionCodec = iota
-	//CompressionGZIP compression using GZIP
+	// CompressionGZIP compression using GZIP
 	CompressionGZIP
-	//CompressionSnappy compression using snappy
+	// CompressionSnappy compression using snappy
 	CompressionSnappy
-	//CompressionLZ4 compression using LZ4
+	// CompressionLZ4 compression using LZ4
 	CompressionLZ4
-	//CompressionZSTD compression using ZSTD
+	// CompressionZSTD compression using ZSTD
 	CompressionZSTD
 
 	// The lowest 3 bits contain the compression codec used for the message
@@ -42,7 +42,7 @@ func (cc CompressionCodec) String() string {
 	}[int(cc)]
 }
 
-//Message is a kafka message type
+// Message is a kafka message type
 type Message struct {
 	Codec            CompressionCodec // codec used to compress the message contents
 	CompressionLevel int              // compression level
@@ -146,18 +146,12 @@ func (m *Message) decode(pd packetDecoder) (err error) {
 	// for future metrics about the compression ratio in fetch requests
 	m.compressedSize = len(m.Value)
 
-	switch m.Codec {
-	case CompressionNone:
-		// nothing to do
-	default:
-		if m.Value == nil {
-			break
-		}
-
+	if m.Value != nil && m.Codec != CompressionNone {
 		m.Value, err = decompress(m.Codec, m.Value)
 		if err != nil {
 			return err
 		}
+
 		if err := m.decodeSet(); err != nil {
 			return err
 		}

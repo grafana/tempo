@@ -1,6 +1,6 @@
 package sarama
 
-//DeleteAclsRequest is a delete acl request
+// DeleteAclsRequest is a delete acl request
 type DeleteAclsRequest struct {
 	Version int
 	Filters []*AclFilter
@@ -48,7 +48,7 @@ func (d *DeleteAclsRequest) version() int16 {
 	return int16(d.Version)
 }
 
-func (c *DeleteAclsRequest) headerVersion() int16 {
+func (d *DeleteAclsRequest) headerVersion() int16 {
 	return 1
 }
 

@@ -11,24 +11,27 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"github.com/weaveworks/common/logging"
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenterror"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/collector/consumer/pdata"
-	"go.opentelemetry.io/collector/obsreport"
-	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
-	"go.opentelemetry.io/collector/receiver/kafkareceiver"
-	"go.opentelemetry.io/collector/receiver/opencensusreceiver"
+	"go.opentelemetry.io/collector/config/configunmarshaler"
+	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/consumer/consumererror"
+	"go.opentelemetry.io/collector/external/obsreportconfig"
+	"go.opentelemetry.io/collector/model/otlp"
+	"go.opentelemetry.io/collector/model/pdata"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -63,26 +66,23 @@ type receiversShim struct {
 	metricViews []*view.View
 }
 
+func (r *receiversShim) Capabilities() consumer.Capabilities {
+	return consumer.Capabilities{MutatesData: false}
+}
+
 func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
 		logger: tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
 	}
 
-	v := viper.New()
-	err := v.MergeConfigMap(map[string]interface{}{
-		"receivers": receiverCfg,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	// shim otel observability
 	zapLogger := newLogger(logLevel)
-	shim.metricViews, err = newMetricViews()
+	views, err := newMetricViews()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric views: %w", err)
 	}
+	shim.metricViews = views
 
 	// load config
 	receiverFactories, err := component.MakeReceiverFactoryMap(
@@ -96,7 +96,10 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 		return nil, err
 	}
 
-	cfgs, err := config.Load(v, component.Factories{
+	p := config.NewMapFromStringMap(map[string]interface{}{
+		"receivers": receiverCfg,
+	})
+	cfgs, err := configunmarshaler.NewDefault().Unmarshal(p, component.Factories{
 		Receivers: receiverFactories,
 	})
 	if err != nil {
@@ -105,12 +108,16 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
-	params := component.ReceiverCreateParams{Logger: zapLogger}
+	params := component.ReceiverCreateSettings{TelemetrySettings: component.TelemetrySettings{
+		Logger:         zapLogger,
+		TracerProvider: trace.NewNoopTracerProvider(),
+		MeterProvider:  metric.NewNoopMeterProvider(),
+	}}
 
-	for _, cfg := range cfgs.Receivers {
-		factoryBase := receiverFactories[cfg.Type()]
+	for componentID, cfg := range cfgs.Receivers {
+		factoryBase := receiverFactories[componentID.Type()]
 		if factoryBase == nil {
-			return nil, fmt.Errorf("receiver factory not found for type: %s", cfg.Type())
+			return nil, fmt.Errorf("receiver factory not found for type: %s", componentID.Type())
 		}
 
 		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))
@@ -157,20 +164,19 @@ func (r *receiversShim) stopping(_ error) error {
 	}
 
 	if len(errs) > 0 {
-		return componenterror.CombineErrors(errs)
+		return consumererror.Combine(errs)
 	}
 
-	view.Unregister(r.metricViews...)
 	return nil
 }
 
-// implements consumer.TraceConsumer
+// implements consumer.Trace
 func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) error {
 	var err error
 
 	// Convert to bytes and back. This is unfortunate for efficiency but it works
 	// around the otel-collector internalization of otel-proto which Tempo also uses.
-	convert, err := td.ToOtlpProtoBytes()
+	convert, err := otlp.NewProtobufTracesMarshaler().MarshalTraces(td)
 	if err != nil {
 		return err
 	}
@@ -199,17 +205,17 @@ func (r *receiversShim) ReportFatalError(err error) {
 }
 
 // implements component.Host
-func (r *receiversShim) GetFactory(kind component.Kind, componentType configmodels.Type) component.Factory {
+func (r *receiversShim) GetFactory(kind component.Kind, componentType config.Type) component.Factory {
 	return nil
 }
 
 // implements component.Host
-func (r *receiversShim) GetExtensions() map[configmodels.Extension]component.ServiceExtension {
+func (r *receiversShim) GetExtensions() map[config.ComponentID]component.Extension {
 	return nil
 }
 
 // implements component.Host
-func (r *receiversShim) GetExporters() map[configmodels.DataType]map[configmodels.Exporter]component.Exporter {
+func (r *receiversShim) GetExporters() map[config.DataType]map[config.ComponentID]component.Exporter {
 	return nil
 }
 
@@ -249,8 +255,8 @@ func newLogger(level logging.Level) *zap.Logger {
 }
 
 func newMetricViews() ([]*view.View, error) {
-	views := obsreport.Configure(configtelemetry.LevelNormal)
-	err := view.Register(views...)
+	views := obsreportconfig.Configure(configtelemetry.LevelNormal)
+	err := view.Register(views.Views...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register views: %w", err)
 	}
@@ -265,5 +271,5 @@ func newMetricViews() ([]*view.View, error) {
 
 	view.RegisterExporter(pe)
 
-	return views, nil
+	return views.Views, nil
 }
