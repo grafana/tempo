@@ -187,7 +187,7 @@ query_frontend:
     # (default: 2)
     [max_retries: <int>]
 
-    # number of shards to split the query into
+    # The number of shards to split a trace by id query into.
     # (default: 20)
     [query_shards: <int>]
     
@@ -196,6 +196,14 @@ query_frontend:
     # partial results are indicated with HTTP status code 206
     # (default: 0)
     [tolerate_failed_blocks: <int>]
+
+    # The number of concurrent jobs to execute when searching the backend.
+    # (default: 50)
+    [search_concurrent_job: <int>]
+
+    # The target number of bytes for each job to handle when performing a backend search.
+    # (default: 10485760)
+    [search_target_bytes_per_job: <int>]
 ```
 
 ## Querier

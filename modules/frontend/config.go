@@ -8,10 +8,12 @@ import (
 )
 
 type Config struct {
-	Config               frontend.CombinedFrontendConfig `yaml:",inline"`
-	MaxRetries           int                             `yaml:"max_retries,omitempty"`
-	QueryShards          int                             `yaml:"query_shards,omitempty"`
-	TolerateFailedBlocks int                             `yaml:"tolerate_failed_blocks,omitempty"`
+	Config                      frontend.CombinedFrontendConfig `yaml:",inline"`
+	MaxRetries                  int                             `yaml:"max_retries,omitempty"`
+	QueryShards                 int                             `yaml:"query_shards,omitempty"`
+	TolerateFailedBlocks        int                             `yaml:"tolerate_failed_blocks,omitempty"`
+	SearchConcurrentRequests    int                             `yaml:"search_concurrent_jobs,omitempty"`
+	SearchTargetBytesPerRequest int                             `yaml:"search_target_bytes_per_job,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -21,6 +23,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxRetries = 2
 	cfg.QueryShards = 20
 	cfg.TolerateFailedBlocks = 0
+
+	cfg.SearchConcurrentRequests = defaultConcurrentRequests
+	cfg.SearchTargetBytesPerRequest = defaultTargetBytesPerRequest
 }
 
 type CortexNoQuerierLimits struct{}

@@ -395,7 +395,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 						BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					},
 				},
-			}, 1, log.NewNopLogger()) // 1 concurrent request to force order
+			}, 1, defaultTargetBytesPerRequest, log.NewNopLogger()) // 1 concurrent request to force order
 			testRT := NewRoundTripper(next, sharder)
 
 			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)

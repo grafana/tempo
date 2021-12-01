@@ -43,6 +43,14 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
 	}
 
+	if cfg.SearchConcurrentRequests <= 0 {
+		return nil, fmt.Errorf("frontend search concurrent requests should be greater than 0")
+	}
+
+	if cfg.SearchTargetBytesPerRequest <= 0 {
+		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
+	}
+
 	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_total",
@@ -53,7 +61,7 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
 	searchMiddleware := MergeMiddlewares(newSearchMiddleware(), retryWare)
-	backendMiddleware := MergeMiddlewares(newBackendSearchMiddleware(store, logger), retryWare)
+	backendMiddleware := MergeMiddlewares(newBackendSearchMiddleware(cfg, store, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": traceByIDOp,
@@ -167,9 +175,9 @@ func newSearchMiddleware() Middleware {
 
 // newBackendSearchMiddleware creates a new frontend middleware to handle backend search.
 // todo(search): integrate with real search
-func newBackendSearchMiddleware(reader tempodb.Reader, logger log.Logger) Middleware {
+func newBackendSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		rt := NewRoundTripper(next, newSearchSharder(reader, defaultConcurrentRequests, logger))
+		rt := NewRoundTripper(next, newSearchSharder(reader, cfg.SearchConcurrentRequests, cfg.SearchTargetBytesPerRequest, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			orgID, _ := user.ExtractOrgID(r.Context())

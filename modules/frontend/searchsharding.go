@@ -102,20 +102,19 @@ type searchSharder struct {
 
 	logger log.Logger
 
-	// todo(search): make configurable
 	concurrentRequests    int
 	targetBytesPerRequest int
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, concurrentRequests int, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, concurrentRequests int, targetBytesPerRequest int, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:                  next,
 			reader:                reader,
 			logger:                logger,
 			concurrentRequests:    concurrentRequests,
-			targetBytesPerRequest: defaultTargetBytesPerRequest,
+			targetBytesPerRequest: targetBytesPerRequest,
 		}
 	})
 }

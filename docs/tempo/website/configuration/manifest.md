@@ -188,6 +188,8 @@ query_frontend:
   downstream_url: ""
   max_retries: 2
   query_shards: 20
+  search_concurrent_jobs: 50
+  search_target_bytes_per_job: 10485760
 compactor:
   ring:
     kvstore:
