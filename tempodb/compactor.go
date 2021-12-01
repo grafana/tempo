@@ -118,7 +118,7 @@ func (rw *readerWriter) doCompaction() {
 
 		// after a maintenance cycle bail out
 		if start.Add(rw.cfg.MaxCompactionCycle).Before(time.Now()) {
-			// count number of oustanding compaction jobs remaining before next maintenance cycle
+			// count number of outstanding compaction jobs remaining before next maintenance cycle
 			for {
 				leftToBeCompacted, _ := blockSelector.BlocksToCompact()
 				if len(leftToBeCompacted) == 0 {
