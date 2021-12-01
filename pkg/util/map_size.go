@@ -7,8 +7,5 @@ func MapSizeWithinLimit(uniqueMap map[string]struct{}, limit int) bool {
 		mapSize += len(key)
 	}
 
-	if mapSize < limit {
-		return true
-	}
-	return false
+	return mapSize < limit
 }

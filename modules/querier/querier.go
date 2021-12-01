@@ -3,6 +3,10 @@ package querier
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"sort"
+	"sync"
+
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
@@ -27,9 +31,6 @@ import (
 	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/multierr"
-	"net/http"
-	"sort"
-	"sync"
 )
 
 var (
