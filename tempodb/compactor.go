@@ -46,11 +46,11 @@ var (
 		Name:      "compaction_objects_combined_total",
 		Help:      "Total number of objects combined during compaction.",
 	}, []string{"level"})
-	metricCompactionLoad = promauto.NewGauge(prometheus.GaugeOpts{
+	metricCompactionOutstandingJobs = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
-		Name:      "compaction_load",
-		Help:      "Number of blocks to be compacted in the latest compaction cycle",
-	})
+		Name:      "compaction_outstanding_jobs",
+		Help:      "Number of outstanding compaction jobs remaining before next maintenance cycle",
+	}, []string{"tenant"})
 )
 
 const (
@@ -98,8 +98,6 @@ func (rw *readerWriter) doCompaction() {
 	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID, "offset", rw.compactorTenantOffset)
 	for {
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
-		metricCompactionLoad.Set(float64(len(toBeCompacted)))
-
 		if len(toBeCompacted) == 0 {
 			level.Info(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 			break
@@ -120,6 +118,17 @@ func (rw *readerWriter) doCompaction() {
 
 		// after a maintenance cycle bail out
 		if start.Add(rw.cfg.MaxCompactionCycle).Before(time.Now()) {
+			// count number of oustanding compaction jobs remaining before next maintenance cycle
+			for {
+				leftToBeCompacted, _ := blockSelector.BlocksToCompact()
+				if len(leftToBeCompacted) == 0 {
+					break
+				}
+				for _, block := range leftToBeCompacted {
+					metricCompactionOutstandingJobs.WithLabelValues(block.TenantID).Inc()
+				}
+			}
+
 			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
 			break
 		}
