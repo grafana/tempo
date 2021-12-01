@@ -52,7 +52,7 @@ const (
 	inputBlocks  = 2
 	outputBlocks = 1
 
-	compactionCycle = 30 * time.Second
+	compactionCycle = 500 * time.Millisecond
 
 	DefaultFlushSizeBytes uint32 = 30 * 1024 * 1024 // 30 MiB
 
