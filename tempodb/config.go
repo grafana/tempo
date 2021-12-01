@@ -36,6 +36,7 @@ type Config struct {
 	BlocklistPollFallback            bool          `yaml:"blocklist_poll_fallback"`
 	BlocklistPollTenantIndexBuilders int           `yaml:"blocklist_poll_tenant_index_builders"`
 	BlocklistPollStaleTenantIndex    time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
+	MaxCompactionCycle               time.Duration `yaml:"max_compaction_cycle"`
 
 	// backends
 	Backend string        `yaml:"backend"`
