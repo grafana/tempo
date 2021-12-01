@@ -46,10 +46,10 @@ var (
 		Name:      "compaction_objects_combined_total",
 		Help:      "Total number of objects combined during compaction.",
 	}, []string{"level"})
-	metricCompactionOutstandingJobs = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricCompactionOutstandingBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
-		Name:      "compaction_outstanding_jobs",
-		Help:      "Number of outstanding compaction jobs remaining before next maintenance cycle",
+		Name:      "compaction_outstanding_blocks",
+		Help:      "Number of blocks remaining to be compacted before next maintenance cycle",
 	}, []string{"tenant"})
 )
 
@@ -118,14 +118,14 @@ func (rw *readerWriter) doCompaction() {
 
 		// after a maintenance cycle bail out
 		if start.Add(rw.cfg.MaxCompactionCycle).Before(time.Now()) {
-			// count number of outstanding compaction jobs remaining before next maintenance cycle
+			// count number of outstanding blocks remaining before next maintenance cycle
 			for {
 				leftToBeCompacted, _ := blockSelector.BlocksToCompact()
 				if len(leftToBeCompacted) == 0 {
 					break
 				}
 				for _, block := range leftToBeCompacted {
-					metricCompactionOutstandingJobs.WithLabelValues(block.TenantID).Inc()
+					metricCompactionOutstandingBlocks.WithLabelValues(block.TenantID).Inc()
 				}
 			}
 
