@@ -46,6 +46,11 @@ var (
 		Name:      "compaction_objects_combined_total",
 		Help:      "Total number of objects combined during compaction.",
 	}, []string{"level"})
+	metricCompactionLoad = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_load",
+		Help:      "Number of blocks to be compacted in the latest compaction cycle",
+	})
 )
 
 const (
@@ -93,6 +98,8 @@ func (rw *readerWriter) doCompaction() {
 	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID, "offset", rw.compactorTenantOffset)
 	for {
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
+		metricCompactionLoad.Set(float64(len(toBeCompacted)))
+
 		if len(toBeCompacted) == 0 {
 			level.Info(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 			break
