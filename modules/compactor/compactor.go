@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	waitOnStartup = time.Minute
+	waitOnStartup = 90 * time.Second
 )
 
 type Compactor struct {
