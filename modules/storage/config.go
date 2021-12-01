@@ -2,6 +2,7 @@ package storage
 
 import (
 	"flag"
+	"os"
 
 	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 
@@ -47,8 +48,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.Block.SearchPageSizeBytes = 1024 * 1024 // 1 MB
 
 	cfg.Trace.Azure = &azure.Config{}
-	f.StringVar(&cfg.Trace.Azure.StorageAccountName.Value, util.PrefixConfig(prefix, "trace.azure.storage-account-name"), "", "Azure storage account name.")
-	f.StringVar(&cfg.Trace.Azure.StorageAccountKey.Value, util.PrefixConfig(prefix, "trace.azure.storage-account-key"), "", "Azure storage access key.")
+	f.StringVar(&cfg.Trace.Azure.StorageAccountName.Value, util.PrefixConfig(prefix, "trace.azure.storage-account-name"), os.Getenv("AZURE_STORAGE_ACCOUNT"), "Azure storage account name.")
+	f.StringVar(&cfg.Trace.Azure.StorageAccountKey.Value, util.PrefixConfig(prefix, "trace.azure.storage-account-key"), os.Getenv("AZURE_STORAGE_KEY"), "Azure storage access key.")
 	f.StringVar(&cfg.Trace.Azure.ContainerName, util.PrefixConfig(prefix, "trace.azure.container-name"), "", "Azure container name to store blocks in.")
 	f.StringVar(&cfg.Trace.Azure.Endpoint, util.PrefixConfig(prefix, "trace.azure.endpoint"), "blob.core.windows.net", "Azure endpoint to push blocks to.")
 	f.IntVar(&cfg.Trace.Azure.MaxBuffers, util.PrefixConfig(prefix, "trace.azure.max-buffers"), 4, "Number of simultaneous uploads.")
