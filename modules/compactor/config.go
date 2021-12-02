@@ -25,7 +25,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		CompactedBlockRetention: time.Hour,
 		RetentionConcurrency:    tempodb.DefaultRetentionConcurrency,
 		IteratorBufferSize:      tempodb.DefaultIteratorBufferSize,
-		MaxCompactionCycle:      tempodb.DefaultMaxCompactionCycle,
+		MaxTimePerTenant:        tempodb.DefaultMaxCompactionCycle,
 	}
 
 	flagext.DefaultValues(&cfg.ShardingRing)
