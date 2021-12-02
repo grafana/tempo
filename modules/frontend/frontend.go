@@ -29,10 +29,10 @@ const (
 )
 
 type QueryFrontend struct {
-	TraceByID, Search, BackendSearch http.Handler
-	logger                           log.Logger
-	queriesPerTenant                 *prometheus.CounterVec
-	store                            storage.Store
+	TraceByID, Search http.Handler
+	logger            log.Logger
+	queriesPerTenant  *prometheus.CounterVec
+	store             storage.Store
 }
 
 // New returns a new QueryFrontend
@@ -60,8 +60,7 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 	retryWare := newRetryWare(cfg.MaxRetries, registerer)
 
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
-	searchMiddleware := MergeMiddlewares(newSearchMiddleware(), retryWare)
-	backendMiddleware := MergeMiddlewares(newBackendSearchMiddleware(cfg, store, logger), retryWare)
+	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, store, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": traceByIDOp,
@@ -72,11 +71,9 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
-	backend := backendMiddleware.Wrap(next)
 	return &QueryFrontend{
 		TraceByID:        newHandler(traces, traceByIDCounter, logger),
 		Search:           newHandler(search, searchCounter, logger),
-		BackendSearch:    newHandler(backend, searchCounter, logger),
 		logger:           logger,
 		queriesPerTenant: queriesPerTenant,
 		store:            store,
@@ -158,35 +155,24 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 }
 
 // newSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
-func newSearchMiddleware() Middleware {
-	return MiddlewareFunc(func(rt http.RoundTripper) http.RoundTripper {
+func newSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger) Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		ingesterSearchRT := next
+		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, cfg.SearchConcurrentRequests, cfg.SearchTargetBytesPerRequest, logger))
+
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			// backend search queries require sharding so we pass through a special roundtripper
+			if api.IsBackendSearch(r) {
+				return backendSearchRT.RoundTrip(r)
+			}
+
+			// ingester search queries only need to be proxied to a single querier
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
 			r.RequestURI = api.PathPrefixQuerier + r.RequestURI
 
-			resp, err := rt.RoundTrip(r)
-
-			return resp, err
-		})
-	})
-}
-
-// newBackendSearchMiddleware creates a new frontend middleware to handle backend search.
-// todo(search): integrate with real search
-func newBackendSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		rt := NewRoundTripper(next, newSearchSharder(reader, cfg.SearchConcurrentRequests, cfg.SearchTargetBytesPerRequest, logger))
-
-		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			orgID, _ := user.ExtractOrgID(r.Context())
-
-			r.Header.Set(user.OrgIDHeaderName, orgID)
-
-			resp, err := rt.RoundTrip(r)
-
-			return resp, err
+			return ingesterSearchRT.RoundTrip(r)
 		})
 	})
 }

@@ -144,6 +144,11 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, string, error)
 }
 
 func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
+	if api.IsBackendSearch(r) { // jpe better consolidate with backendSearchHandler. lot of repeated code. do this after we figure out what to do with param deletes
+		q.backendSearchHandler(w, r)
+		return
+	}
+
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
 	defer cancel()
@@ -231,8 +236,7 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// todo(search): consolidate
-func (q *Querier) BackendSearchHandler(w http.ResponseWriter, r *http.Request) {
+func (q *Querier) backendSearchHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
 	defer cancel()
@@ -247,7 +251,7 @@ func (q *Querier) BackendSearchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// parseSearchRequest doesn't respect these as "reserved" tags. let's remove them here.
 	// this will all be cleaned up when search paths are consolidated.
-	delete(searchReq.Tags, api.URLParamBlockID)
+	delete(searchReq.Tags, api.URLParamBlockID) // jpe what do?
 	delete(searchReq.Tags, api.URLParamStartPage)
 	delete(searchReq.Tags, api.URLParamTotalPages)
 	delete(searchReq.Tags, api.URLParamStart)
@@ -265,17 +269,13 @@ func (q *Querier) BackendSearchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// extract params and populate
-	req := &tempopb.BackendSearchRequest{
-		Search:     searchReq,
-		Start:      uint32(start),
-		End:        uint32(end),
-		StartPage:  startPage,
-		TotalPages: totalPages,
-		BlockID:    blockID[:],
-	}
+	searchReq.Start = uint32(start) // jpe all of this needs to go into ParseSearchRequest
+	searchReq.End = uint32(end)
+	searchReq.StartPage = startPage
+	searchReq.TotalPages = totalPages
+	searchReq.BlockID = blockID[:]
 
-	resp, err := q.BackendSearch(ctx, req)
+	resp, err := q.BackendSearch(ctx, searchReq)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

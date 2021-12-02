@@ -54,7 +54,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	// parseSearchRequest doesn't respect these as "reserved" tags. let's remove them here.
 	// this will all be cleaned up when search paths are consolidated.
-	delete(searchReq.Tags, api.URLParamBlockID)
+	delete(searchReq.Tags, api.URLParamBlockID) // jpe what do?
 	delete(searchReq.Tags, api.URLParamStartPage)
 	delete(searchReq.Tags, api.URLParamTotalPages)
 	delete(searchReq.Tags, api.URLParamStart)

@@ -48,7 +48,6 @@ const (
 	PathSearchTags      = "/api/search/tags"
 	PathSearchTagValues = "/api/search/tag/{tagName}/values"
 	PathEcho            = "/api/echo"
-	PathBackendSearch   = "/api/backend_search" // todo(search): integrate with real search
 
 	// todo(search): make configurable
 	maxRange     = 1800 // 30 minutes

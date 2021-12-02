@@ -39,6 +39,8 @@ type searchResponse struct {
 	mtx   sync.Mutex
 }
 
+// jpe add support for query-ingesters-within
+//     add deduping here and at the querier level
 func newSearchResponse(ctx context.Context, limit int) *searchResponse {
 	return &searchResponse{
 		ctx:        ctx,

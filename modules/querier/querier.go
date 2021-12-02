@@ -383,7 +383,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 }
 
 // todo(search): consolidate
-func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchRequest) (*tempopb.SearchResponse, error) {
+func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
@@ -406,7 +406,7 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 		respMtx.Unlock()
 
-		metadata, err := model.Matches(id, obj, dataEncoding, req.Start, req.End, req.Search)
+		metadata, err := model.Matches(id, obj, dataEncoding, req.Start, req.End, req) // jpe change to only take searchrequest
 
 		respMtx.Lock()
 		defer respMtx.Unlock()
@@ -419,7 +419,7 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 		}
 
 		resp.Traces = append(resp.Traces, metadata)
-		return len(resp.Traces) >= int(req.Search.Limit)
+		return len(resp.Traces) >= int(req.Limit)
 	})
 	if err != nil {
 		return nil, err
