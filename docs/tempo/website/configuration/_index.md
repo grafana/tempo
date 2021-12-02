@@ -464,6 +464,20 @@ storage:
         # Example: "cache_max_block_age: 48h"
         [cache_max_block_age: <duration>]
 
+        # Configuration parameters that impact trace search
+        search:
+
+            # Target number of bytes per GET request while scanning blocks. Default is 1MB. Reducing
+            # this value could positively impact trace search performance at the cost of more requests
+            # to object storage.
+            # Example: "chunk_size_bytes: 5_000_000"
+            [chunk_size_bytes: <int>]
+
+            # Number of traces to prefetch while scanning blocks. Default is 1000. Increasing this value
+            # can improve trace search performance at the cost of memory.
+            # Example: "prefetch_trace_count: 10000"
+            [prefetch_trace_count: <int>]
+
         # Cortex Background cache configuration. Requires having a cache configured.
         background_cache:
 

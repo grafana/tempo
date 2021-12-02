@@ -392,13 +392,12 @@ func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blo
 		return err
 	}
 
-	// todo(search): a graduated chunk size would allow for faster iteration
-	//               parameterize everything
-	iter, err := block.PartialIterator(1_000_000, startPage, totalPages)
+	// todo: a graduated chunk size would allow for faster iteration
+	iter, err := block.PartialIterator(rw.cfg.Search.ChunkSizeBytes, startPage, totalPages)
 	if err != nil {
 		return err
 	}
-	iter = encoding.NewPrefetchIterator(ctx, iter, 10000)
+	iter = encoding.NewPrefetchIterator(ctx, iter, rw.cfg.Search.PrefetchTraceCount)
 	wg := boundedwaitgroup.New(5)
 	done := atomic.Bool{}
 	for {

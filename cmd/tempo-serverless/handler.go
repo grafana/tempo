@@ -32,6 +32,7 @@ const envConfigPrefix = "TEMPO"
 // used to initialize a reader one time
 var reader backend.Reader
 var readerErr error
+var readerConfig *tempodb.Config
 var once sync.Once
 
 // todo(search)
@@ -85,7 +86,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// load local backend config file. by convention this must be in the same folder at ./config.json
-	reader, err := loadBackend()
+	reader, cfg, err := loadBackend()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -109,14 +110,13 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// todo(search): pull 1MB hardcoded param and 10000 prefetch from somewhere
-	//               the below iterator setup and loop exists in the querier, serverless and tempo-cli. see if there is an opportunity to consolidate
-	iter, err := block.PartialIterator(1_000_000, int(startPage), int(totalPages))
+	// todo(search): the below iterator setup and loop exists in the querier, serverless and tempo-cli. see if there is an opportunity to consolidate
+	iter, err := block.PartialIterator(cfg.Search.ChunkSizeBytes, int(startPage), int(totalPages))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	iter = encoding.NewPrefetchIterator(r.Context(), iter, 10000)
+	iter = encoding.NewPrefetchIterator(r.Context(), iter, cfg.Search.PrefetchTraceCount)
 
 	resp := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
@@ -157,12 +157,13 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func loadBackend() (backend.Reader, error) {
+func loadBackend() (backend.Reader, *tempodb.Config, error) {
 	once.Do(func() {
 		cfg, err := loadConfig()
 		if err != nil {
 			readerErr = err
 		}
+		readerConfig = cfg
 
 		var r backend.RawReader
 
@@ -189,11 +190,15 @@ func loadBackend() (backend.Reader, error) {
 		reader = backend.NewReader(r)
 	})
 
-	return reader, readerErr
+	return reader, readerConfig, readerErr
 }
 
 func loadConfig() (*tempodb.Config, error) {
 	defaultConfig := &tempodb.Config{
+		Search: &tempodb.SearchConfig{
+			ChunkSizeBytes:     tempodb.DefaultSearchChunkSizeBytes,
+			PrefetchTraceCount: tempodb.DefaultPrefetchTraceCount,
+		},
 		Local: &local.Config{},
 		GCS:   &gcs.Config{},
 		S3:    &s3.Config{},

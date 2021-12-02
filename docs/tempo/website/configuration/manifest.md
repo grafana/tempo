@@ -319,6 +319,9 @@ storage:
       encoding: zstd
       search_encoding: snappy
       search_page_size_bytes: 1048576
+    search:
+      chunk_size_bytes: 1000000
+      prefetch_trace_count: 1000
     blocklist_poll: 5m0s
     blocklist_poll_concurrency: 50
     blocklist_poll_fallback: true
