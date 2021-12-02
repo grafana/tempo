@@ -46,11 +46,13 @@ var (
 		Name:      "compaction_objects_combined_total",
 		Help:      "Total number of objects combined during compaction.",
 	}, []string{"level"})
-	metricCompactionOutstandingBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricCompactionOutstandingBlocks = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_outstanding_blocks",
 		Help:      "Number of blocks remaining to be compacted before next maintenance cycle",
 	}, []string{"tenant"})
+
+	outstandingCompactionBlocks = make(map[string]int)
 )
 
 const (
@@ -84,6 +86,8 @@ func (rw *readerWriter) doCompaction() {
 	rw.compactorTenantOffset = (rw.compactorTenantOffset + 1) % uint(len(tenants))
 
 	tenantID := tenants[rw.compactorTenantOffset]
+	outstandingCompactionBlocks[tenantID] = 0 // init this tenant's outstanding blocks to 0
+
 	blocklist := rw.blocklist.Metas(tenantID)
 
 	blockSelector := newTimeWindowBlockSelector(blocklist,
@@ -99,6 +103,8 @@ func (rw *readerWriter) doCompaction() {
 	for {
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
 		if len(toBeCompacted) == 0 {
+			measureOutstandingBlocks(tenantID, blockSelector)
+
 			level.Info(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 			break
 		}
@@ -118,16 +124,7 @@ func (rw *readerWriter) doCompaction() {
 
 		// after a maintenance cycle bail out
 		if start.Add(rw.cfg.MaxCompactionCycle).Before(time.Now()) {
-			// count number of outstanding blocks remaining before next maintenance cycle
-			for {
-				leftToBeCompacted, _ := blockSelector.BlocksToCompact()
-				if len(leftToBeCompacted) == 0 {
-					break
-				}
-				for _, block := range leftToBeCompacted {
-					metricCompactionOutstandingBlocks.WithLabelValues(block.TenantID).Inc()
-				}
-			}
+			measureOutstandingBlocks(tenantID, blockSelector)
 
 			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
 			break
@@ -322,6 +319,24 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.Block
 
 	// Update blocklist in memory
 	rw.blocklist.Update(tenantID, newBlocks, oldBlocks, newCompactions)
+}
+
+func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSelector) {
+	// count number of per-tenant outstanding blocks before next maintenance cycle
+	for {
+		leftToBeCompacted, _ := blockSelector.BlocksToCompact()
+		if len(leftToBeCompacted) == 0 {
+			break
+		}
+		for range leftToBeCompacted {
+			outstandingCompactionBlocks[tenantID]++
+		}
+	}
+
+	// record outstanding blocks metric
+	for t, n := range outstandingCompactionBlocks {
+		metricCompactionOutstandingBlocks.WithLabelValues(t).Set(float64(n))
+	}
 }
 
 type instrumentedObjectCombiner struct {
