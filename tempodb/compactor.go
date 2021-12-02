@@ -119,7 +119,7 @@ func (rw *readerWriter) doCompaction() {
 		}
 
 		// after a maintenance cycle bail out
-		if start.Add(rw.cfg.MaxCompactionCycle).Before(time.Now()) {
+		if start.Add(rw.compactorCfg.MaxCompactionCycle).Before(time.Now()) {
 			measureOutstandingBlocks(tenantID, blockSelector)
 
 			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
