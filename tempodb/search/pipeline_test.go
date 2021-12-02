@@ -70,7 +70,7 @@ func TestPipelineMatchesTags(t *testing.T) {
 			data := tempofb.SearchEntryMutable{
 				Tags: tempofb.NewSearchDataMapWithData(tc.searchData),
 			}
-			sd := tempofb.SearchEntryFromBytes(data.ToBytes())
+			sd := tempofb.NewSearchEntryFromBytes(data.ToBytes())
 			matches := p.Matches(sd)
 
 			require.Equal(t, tc.shouldMatch, matches)
@@ -140,7 +140,7 @@ func TestPipelineMatchesTraceDuration(t *testing.T) {
 				StartTimeUnixNano: uint64(tc.spanStart),
 				EndTimeUnixNano:   uint64(tc.spanEnd),
 			}
-			sd := tempofb.SearchEntryFromBytes(data.ToBytes())
+			sd := tempofb.NewSearchEntryFromBytes(data.ToBytes())
 			matches := p.Matches(sd)
 
 			require.Equal(t, tc.shouldMatch, matches)
@@ -200,7 +200,7 @@ func TestPipelineMatchesBlock(t *testing.T) {
 
 func BenchmarkPipelineMatches(b *testing.B) {
 
-	entry := tempofb.SearchEntryFromBytes((&tempofb.SearchEntryMutable{
+	entry := tempofb.NewSearchEntryFromBytes((&tempofb.SearchEntryMutable{
 		StartTimeUnixNano: 0,
 		EndTimeUnixNano:   uint64(500 * time.Millisecond / time.Nanosecond), //500ms in nanoseconds
 		Tags: tempofb.NewSearchDataMapWithData(map[string][]string{

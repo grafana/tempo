@@ -87,14 +87,36 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 	}
 
 	s.headerMtx.Lock()
-	s.header.AddEntry(tempofb.SearchEntryFromBytes(combined))
+	s.header.AddEntry(tempofb.NewSearchEntryFromBytes(combined))
 	s.headerMtx.Unlock()
 
 	return s.appender.Append(id, combined)
 }
 
+func (s *StreamingSearchBlock) Tags(ctx context.Context, tags map[string]struct{}) error {
+	s.header.Tags.RangeKeys(func(k string) {
+		// check the tag is already set, this is more performant with repetitive values
+		if _, ok := tags[k]; !ok {
+			tags[k] = struct{}{}
+		}
+	})
+	return nil
+}
+
+func (s *StreamingSearchBlock) TagValues(ctx context.Context, tagName string, tagValues map[string]struct{}) error {
+	s.header.Tags.RangeKeyValues(tagName, func(v string) {
+		// check the value is already set, this is more performant with repetitive values
+		if _, ok := tagValues[v]; !ok {
+			tagValues[v] = struct{}{}
+		}
+	})
+	return nil
+}
+
 // Search the streaming block.
 func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results) error {
+	entry := &tempofb.SearchEntry{}
+
 	if s.closed.Load() {
 		// Generally this means block has already been deleted
 		return nil
@@ -133,7 +155,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 		sr.AddBytesInspected(uint64(len(obj)))
 		sr.AddTraceInspected(1)
 
-		entry := tempofb.SearchEntryFromBytes(obj)
+		entry.Reset(obj)
 
 		if !p.Matches(entry) {
 			continue

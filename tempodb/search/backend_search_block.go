@@ -28,7 +28,8 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 	var err error
 	ctx := context.TODO()
 	indexPageSize := 100 * 1024
-	kv := &tempofb.KeyValues{} // buffer
+	kv := &tempofb.KeyValues{}  // buffer
+	s := &tempofb.SearchEntry{} // buffer
 
 	// Pinning specific version instead of latest for safety
 	version, err := encoding.FromVersion("v2")
@@ -69,7 +70,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 			continue
 		}
 
-		s := tempofb.SearchEntryFromBytes(data)
+		s.Reset(data)
 
 		header.AddEntry(s)
 
@@ -138,6 +139,44 @@ func OpenBackendSearchBlock(blockID uuid.UUID, tenantID string, r backend.Reader
 // BlockID provides access to the private field id
 func (s *BackendSearchBlock) BlockID() uuid.UUID {
 	return s.id
+}
+
+func (s *BackendSearchBlock) Tags(ctx context.Context, tags map[string]struct{}) error {
+	header, err := s.readSearchHeader(ctx)
+	if err != nil {
+		return err
+	}
+
+	kv := &tempofb.KeyValues{}
+	for i, ii := 0, header.TagsLength(); i < ii; i++ {
+		header.Tags(kv, i)
+		key := string(kv.Key())
+		// check the tag is already set, this is more performant with repetitive values
+		if _, ok := tags[key]; !ok {
+			tags[key] = struct{}{}
+		}
+	}
+
+	return nil
+}
+
+func (s *BackendSearchBlock) TagValues(ctx context.Context, tagName string, tagValues map[string]struct{}) error {
+	header, err := s.readSearchHeader(ctx)
+	if err != nil {
+		return err
+	}
+
+	kv := tempofb.FindTag(header, &tempofb.KeyValues{}, []byte(tagName))
+	if kv != nil {
+		for j, valueLength := 0, kv.ValueLength(); j < valueLength; j++ {
+			value := string(kv.Value(j))
+			// check the value is already set, this is more performant with repetitive values
+			if _, ok := tagValues[value]; !ok {
+				tagValues[value] = struct{}{}
+			}
+		}
+	}
+	return nil
 }
 
 // Search iterates through the block looking for matches.
@@ -255,4 +294,12 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	}
 
 	return nil
+}
+
+func (s *BackendSearchBlock) readSearchHeader(ctx context.Context) (*tempofb.SearchBlockHeader, error) {
+	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
+	if err != nil {
+		return nil, err
+	}
+	return tempofb.GetRootAsSearchBlockHeader(hb, 0), nil
 }

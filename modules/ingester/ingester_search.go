@@ -37,13 +37,12 @@ func (i *Ingester) SearchTags(ctx context.Context, req *tempopb.SearchTagsReques
 		return &tempopb.SearchTagsResponse{}, nil
 	}
 
-	tags := inst.GetSearchTags()
-
-	resp := &tempopb.SearchTagsResponse{
-		TagNames: tags,
+	res, err := inst.SearchTags(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	return resp, nil
+	return res, nil
 }
 
 func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
@@ -56,13 +55,12 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 		return &tempopb.SearchTagValuesResponse{}, nil
 	}
 
-	vals := inst.GetSearchTagValues(req.TagName)
-
-	resp := &tempopb.SearchTagValuesResponse{
-		TagValues: vals,
+	res, err := inst.SearchTagValues(ctx, req.TagName)
+	if err != nil {
+		return nil, err
 	}
 
-	return resp, nil
+	return res, nil
 }
 
 // todo(search): consolidate. this only exists so that the ingester continues to implement the tempopb.QuerierServer interface.

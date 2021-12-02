@@ -3,12 +3,13 @@ package ingester
 import (
 	"context"
 	"sort"
-	"time"
 
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -93,6 +94,8 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 
 		span.LogFields(ot_log.Event("live traces mtx acquired"))
 
+		entry := &tempofb.SearchEntry{} // buffer
+
 		for _, t := range i.traces {
 			if sr.Quit() {
 				return
@@ -106,7 +109,7 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 			for _, s := range t.searchData {
 				sr.AddBytesInspected(uint64(len(s)))
 
-				entry := tempofb.SearchEntryFromBytes(s)
+				entry.Reset(s)
 				if p.Matches(entry) {
 					newResult := search.GetSearchResultFromData(entry)
 					if result != nil {
@@ -181,19 +184,187 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 	}
 }
 
-func (i *instance) GetSearchTags() []string {
-	return i.searchTagCache.GetNames()
+func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse, error) {
+	tags := map[string]struct{}{}
+
+	kv := &tempofb.KeyValues{}
+	err := i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
+		for i, ii := 0, entry.TagsLength(); i < ii; i++ {
+			entry.Tags(kv, i)
+			key := string(kv.Key())
+			// check the tag is already set, this is more performant with repetitive values
+			if _, ok := tags[key]; !ok {
+				tags[key] = struct{}{}
+			}
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
+		return block.Tags(ctx, tags)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &tempopb.SearchTagsResponse{
+		TagNames: extractKeys(tags),
+	}, nil
 }
 
-func (i *instance) GetSearchTagValues(tagName string) []string {
-	return i.searchTagCache.GetValues(tagName)
+func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {
+	values := map[string]struct{}{}
+
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// get limit from override
+	maxBytesPerTagValuesQuery := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+
+	kv := &tempofb.KeyValues{}
+	tagNameBytes := []byte(tagName)
+	err = i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
+		kv := tempofb.FindTag(entry, kv, tagNameBytes)
+		if kv != nil {
+			for i, ii := 0, kv.ValueLength(); i < ii; i++ {
+				key := string(kv.Value(i))
+				// check the value is already set, this is more performant with repetitive values
+				if _, ok := values[key]; !ok {
+					values[key] = struct{}{}
+				}
+			}
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// check if size of values map is within limit after scanning live traces
+	if !util.MapSizeWithinLimit(values, maxBytesPerTagValuesQuery) {
+		level.Warn(cortex_util.Logger).Log("msg", "size of tag values from live traces exceeded limit, reduce cardinality or size of tags", "tag", tagName)
+		// return empty response to avoid querier OOMs
+		return &tempopb.SearchTagValuesResponse{
+			TagValues: []string{},
+		}, nil
+	}
+
+	err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
+		return block.TagValues(ctx, tagName, values)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// check if size of values map is within limit after scanning all blocks
+	if !util.MapSizeWithinLimit(values, maxBytesPerTagValuesQuery) {
+		level.Warn(cortex_util.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", tagName)
+		// return empty response to avoid querier OOMs
+		return &tempopb.SearchTagValuesResponse{
+			TagValues: []string{},
+		}, nil
+	}
+
+	return &tempopb.SearchTagValuesResponse{
+		TagValues: extractKeys(values),
+	}, nil
 }
 
-func (i *instance) RecordSearchLookupValues(b []byte) {
-	s := tempofb.SearchEntryFromBytes(b)
-	i.searchTagCache.SetData(time.Now(), s)
+func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn func(entry *tempofb.SearchEntry)) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchEntriesLiveTraces")
+	defer span.Finish()
+
+	i.tracesMtx.Lock()
+	defer i.tracesMtx.Unlock()
+
+	se := &tempofb.SearchEntry{}
+	for _, t := range i.traces {
+		for _, s := range t.searchData {
+			se.Reset(s)
+			visitFn(se)
+
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
-func (i *instance) PurgeExpiredSearchTags(before time.Time) {
-	i.searchTagCache.PurgeExpired(before)
+func (i *instance) visitSearchableBlocks(ctx context.Context, visitFn func(block search.SearchableBlock) error) error {
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	err := i.visitSearchableBlocksWAL(ctx, visitFn)
+	if err != nil {
+		return err
+	}
+
+	return i.visitSearchableBlocksLocalBlocks(ctx, visitFn)
+}
+
+// visitSearchableBlocksWAL visits every WAL block. Must be called under lock.
+func (i *instance) visitSearchableBlocksWAL(ctx context.Context, visitFn func(block search.SearchableBlock) error) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchableBlocksWAL")
+	defer span.Finish()
+
+	visitUnderLock := func(entry *searchStreamingBlockEntry) error {
+		entry.mtx.RLock()
+		defer entry.mtx.RUnlock()
+
+		return visitFn(entry.b)
+	}
+
+	err := visitUnderLock(i.searchHeadBlock)
+	if err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	for _, b := range i.searchAppendBlocks {
+		err := visitUnderLock(b)
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// visitSearchableBlocksWAL visits every local block. Must be called under lock.
+func (i *instance) visitSearchableBlocksLocalBlocks(ctx context.Context, visitFn func(block search.SearchableBlock) error) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchableBlocksLocalBlocks")
+	defer span.Finish()
+
+	visitUnderLock := func(entry *searchLocalBlockEntry) error {
+		entry.mtx.RLock()
+		defer entry.mtx.RUnlock()
+
+		return visitFn(entry.b)
+	}
+
+	for _, b := range i.searchCompleteBlocks {
+		err := visitUnderLock(b)
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func extractKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	return keys
 }

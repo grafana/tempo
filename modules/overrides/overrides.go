@@ -242,6 +242,11 @@ func (o *Overrides) MaxSearchBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).MaxSearchBytesPerTrace
 }
 
+// MaxBytesPerTagValuesQuery returns the maximum size of a response to a tag-values query allowed for a user.
+func (o *Overrides) MaxBytesPerTagValuesQuery(userID string) int {
+	return o.getOverridesForUser(userID).MaxBytesPerTagValuesQuery
+}
+
 // IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
 func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
 	return float64(o.getOverridesForUser(userID).IngestionRateLimitBytes)

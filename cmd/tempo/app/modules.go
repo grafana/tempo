@@ -310,7 +310,7 @@ func (t *App) setupModuleManager() error {
 		Ring:                 {Server, MemberlistKV},
 		Distributor:          {Ring, Server, Overrides},
 		Ingester:             {Store, Server, Overrides, MemberlistKV},
-		Querier:              {Store, Ring},
+		Querier:              {Store, Ring, Overrides},
 		Compactor:            {Store, Server, Overrides, MemberlistKV},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor},
 		ScalableSingleBinary: {SingleBinary},

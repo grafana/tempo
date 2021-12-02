@@ -3,7 +3,70 @@ package tempofb
 import (
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
+
+func TestSearchDataMap(t *testing.T) {
+	testCases := []struct {
+		name string
+		impl SearchDataMap
+	}{
+		{"SearchDataMapSmall", &SearchDataMapSmall{}},
+		{"SearchDataMapLarge", &SearchDataMapLarge{}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			searchDataMap := tc.impl
+
+			assert.False(t, searchDataMap.Contains("key-1", "value-1-2"))
+
+			searchDataMap.Add("key-1", "value-1-1")
+
+			assert.False(t, searchDataMap.Contains("key-1", "value-1-2"))
+
+			searchDataMap.Add("key-1", "value-1-2")
+			searchDataMap.Add("key-2", "value-2-1")
+
+			assert.True(t, searchDataMap.Contains("key-1", "value-1-2"))
+			assert.False(t, searchDataMap.Contains("key-2", "value-1-2"))
+
+			type Pair struct {
+				k string
+				v string
+			}
+			var pairs []Pair
+			capturePairFn := func(k, v string) {
+				pairs = append(pairs, Pair{k, v})
+			}
+
+			searchDataMap.Range(capturePairFn)
+			assert.ElementsMatch(t, []Pair{{"key-1", "value-1-1"}, {"key-1", "value-1-2"}, {"key-2", "value-2-1"}}, pairs)
+
+			var strs []string
+			captureSliceFn := func(value string) {
+				strs = append(strs, value)
+			}
+
+			searchDataMap.RangeKeys(captureSliceFn)
+			assert.ElementsMatch(t, []string{"key-1", "key-2"}, strs)
+			strs = nil
+
+			searchDataMap.RangeKeyValues("key-1", captureSliceFn)
+			assert.ElementsMatch(t, []string{"value-1-1", "value-1-2"}, strs)
+			strs = nil
+
+			searchDataMap.RangeKeyValues("key-2", captureSliceFn)
+			assert.ElementsMatch(t, []string{"value-2-1"}, strs)
+			strs = nil
+
+			searchDataMap.RangeKeyValues("does-not-exist", captureSliceFn)
+			assert.ElementsMatch(t, []string{}, strs)
+			strs = nil
+		})
+	}
+}
 
 func BenchmarkSearchDataMapAdd(b *testing.B) {
 	intfs := []struct {
