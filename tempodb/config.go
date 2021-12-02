@@ -19,6 +19,7 @@ import (
 
 const (
 	DefaultBlocklistPoll            = 5 * time.Minute
+	DefaultMaxCompactionCycle       = 5 * time.Minute
 	DefaultBlocklistPollConcurrency = uint(50)
 	DefaultRetentionConcurrency     = uint(10)
 	DefaultTenantIndexBuilders      = 2

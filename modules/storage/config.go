@@ -28,7 +28,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.BlocklistPollFallback = true
 	cfg.Trace.BlocklistPollConcurrency = tempodb.DefaultBlocklistPollConcurrency
 	cfg.Trace.BlocklistPollTenantIndexBuilders = tempodb.DefaultTenantIndexBuilders
-	cfg.Trace.MaxCompactionCycle = tempodb.DefaultBlocklistPoll
+	cfg.Trace.MaxCompactionCycle = tempodb.DefaultMaxCompactionCycle
 
 	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, azure, gcs, local)")
 	f.DurationVar(&cfg.Trace.BlocklistPoll, util.PrefixConfig(prefix, "trace.blocklist_poll"), tempodb.DefaultBlocklistPoll, "Period at which to run the maintenance cycle.")
