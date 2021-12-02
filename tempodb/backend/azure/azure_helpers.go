@@ -32,6 +32,10 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 		accountKey = os.Getenv("AZURE_STORAGE_KEY")
 	}
 
+	if accountKey == "" || accountName == "" {
+		return blob.ContainerURL{}, fmt.Errorf("unable to get storage container URL with incomplete credentials")
+	}
+
 	c, err := blob.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
 		return blob.ContainerURL{}, err
@@ -75,12 +79,12 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 		HTTPSender: httpSender,
 	})
 
-	u, err := url.Parse(fmt.Sprintf("https://%s.%s", cfg.StorageAccountName, cfg.Endpoint))
+	u, err := url.Parse(fmt.Sprintf("https://%s.%s", accountName, cfg.Endpoint))
 
 	// If the endpoint doesn't start with blob.core we can assume Azurite is being used
 	// So the endpoint should follow Azurite URL style
 	if !strings.HasPrefix(cfg.Endpoint, "blob.core") {
-		u, err = url.Parse(fmt.Sprintf("http://%s/%s", cfg.Endpoint, cfg.StorageAccountName))
+		u, err = url.Parse(fmt.Sprintf("http://%s/%s", cfg.Endpoint, accountName))
 	}
 
 	if err != nil {
