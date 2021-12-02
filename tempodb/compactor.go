@@ -325,9 +325,7 @@ func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSele
 		if len(leftToBeCompacted) == 0 {
 			break
 		}
-		for range leftToBeCompacted {
-			totalOutstandingBlocks++
-		}
+		totalOutstandingBlocks += len(leftToBeCompacted)
 	}
 	metricCompactionOutstandingBlocks.WithLabelValues(tenantID).Set(float64(totalOutstandingBlocks))
 }
