@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -20,7 +21,18 @@ const (
 )
 
 func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.ContainerURL, error) {
-	c, err := blob.NewSharedKeyCredential(cfg.StorageAccountName.String(), cfg.StorageAccountKey.String())
+	accountName := cfg.StorageAccountName.String()
+	accountKey := cfg.StorageAccountKey.String()
+
+	if accountName == "" {
+		accountName = os.Getenv("AZURE_STORAGE_ACCOUNT")
+	}
+
+	if accountKey == "" {
+		accountKey = os.Getenv("AZURE_STORAGE_KEY")
+	}
+
+	c, err := blob.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
 		return blob.ContainerURL{}, err
 	}
