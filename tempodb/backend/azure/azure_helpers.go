@@ -32,10 +32,6 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 		accountKey = os.Getenv("AZURE_STORAGE_KEY")
 	}
 
-	if accountKey == "" || accountName == "" {
-		return blob.ContainerURL{}, fmt.Errorf("unable to get storage container URL with incomplete credentials")
-	}
-
 	c, err := blob.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
 		return blob.ContainerURL{}, err
