@@ -171,6 +171,7 @@ func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) 
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
 	}
+	metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(0)
 
 	return blocklist, compactedBlocklist, nil
 }
