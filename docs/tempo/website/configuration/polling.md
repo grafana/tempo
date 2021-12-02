@@ -30,6 +30,10 @@ storage:
         # the bucket contents.
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
+
+        # The maximum amount of time to spend compacting a single tenant before moving to the next.
+        # Default is 5m.
+        [max_compaction_cycle: <duration>]
 ```
 
 Due to the mechanics of the [tenant index]({{< relref "../operations/polling" >}}) the blocklist will be stale by

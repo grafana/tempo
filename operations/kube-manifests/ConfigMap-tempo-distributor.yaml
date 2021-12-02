@@ -21,7 +21,7 @@ data:
         abort_if_cluster_join_fails: false
         bind_port: 7946
         join_members:
-          - gossip-ring.tracing.svc.cluster.local:7946
+            - gossip-ring.tracing.svc.cluster.local:7946
     overrides:
         per_tenant_override_config: /overrides/overrides.yaml
     search_enabled: false

@@ -52,7 +52,7 @@ const (
 	inputBlocks  = 2
 	outputBlocks = 1
 
-	compactionCycle = 30 * time.Second
+	compactionCycle = 500 * time.Millisecond
 
 	DefaultFlushSizeBytes uint32 = 30 * 1024 * 1024 // 30 MiB
 
@@ -112,7 +112,7 @@ func (rw *readerWriter) doCompaction() {
 		}
 
 		// after a maintenance cycle bail out
-		if start.Add(rw.cfg.BlocklistPoll).Before(time.Now()) {
+		if start.Add(rw.cfg.MaxCompactionCycle).Before(time.Now()) {
 			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
 			break
 		}

@@ -272,11 +272,12 @@ ingester:
       heartbeat_timeout: 5m0s
       replication_factor: 1
       zone_awareness_enabled: false
+      excluded_zones: ""
     num_tokens: 128
     heartbeat_period: 5s
     observe_period: 0s
     join_after: 0s
-    min_ready_duration: 1m0s
+    min_ready_duration: 15s
     interface_names:
       - eth0
       - en0
@@ -284,6 +285,7 @@ ingester:
     tokens_file_path: ""
     availability_zone: ""
     unregister_on_shutdown: true
+    readiness_check_ring_health: true
     address: 127.0.0.1
     port: 0
     id: hostname
@@ -319,6 +321,7 @@ storage:
     blocklist_poll_fallback: true
     blocklist_poll_tenant_index_builders: 2
     blocklist_poll_stale_tenant_index: 0s
+    max_compaction_cycle: 5m0s
     backend: local
     local:
       path: /tmp/tempo/traces
@@ -365,8 +368,8 @@ overrides:
   search_tags_allow_list: null
   max_traces_per_user: 10000
   max_global_traces_per_user: 0
-  max_bytes_per_trace: 50000
-  max_search_bytes_per_trace: 0
+  max_bytes_per_trace: 5000000
+  max_search_bytes_per_trace: 50000
   block_retention: 0s
   per_tenant_override_config: ""
   per_tenant_override_period: 10s
