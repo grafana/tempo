@@ -109,8 +109,8 @@ jobs:
 
       - name: Install jsonnet, jsonnet-bundler & tanka
         run: |
-          curl -fSL -o /usr/local/bin/jsonnet.tar.gz https://github.com/google/jsonnet/releases/download/v0.17.0/jsonnet-bin-v0.17.0-linux.tar.gz
-          tar -xvf jsonnet.tar.gz
+          curl -fSL -o jsonnet.tar.gz https://github.com/google/jsonnet/releases/download/v0.17.0/jsonnet-bin-v0.17.0-linux.tar.gz
+          tar -xvf jsonnet.tar.gz -C /usr/local/bin/
           chmod a+x /usr/local/bin/jsonnet
           
           go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.4.0
