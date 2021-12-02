@@ -51,8 +51,6 @@ var (
 		Name:      "compaction_outstanding_blocks",
 		Help:      "Number of blocks remaining to be compacted before next maintenance cycle",
 	}, []string{"tenant"})
-
-	outstandingCompactionBlocks = make(map[string]int)
 )
 
 const (
@@ -86,8 +84,6 @@ func (rw *readerWriter) doCompaction() {
 	rw.compactorTenantOffset = (rw.compactorTenantOffset + 1) % uint(len(tenants))
 
 	tenantID := tenants[rw.compactorTenantOffset]
-	outstandingCompactionBlocks[tenantID] = 0 // init this tenant's outstanding blocks to 0
-
 	blocklist := rw.blocklist.Metas(tenantID)
 
 	blockSelector := newTimeWindowBlockSelector(blocklist,
@@ -323,20 +319,17 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.Block
 
 func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSelector) {
 	// count number of per-tenant outstanding blocks before next maintenance cycle
+	var totalOutstandingBlocks int
 	for {
 		leftToBeCompacted, _ := blockSelector.BlocksToCompact()
 		if len(leftToBeCompacted) == 0 {
 			break
 		}
 		for range leftToBeCompacted {
-			outstandingCompactionBlocks[tenantID]++
+			totalOutstandingBlocks++
 		}
 	}
-
-	// record outstanding blocks metric
-	for t, n := range outstandingCompactionBlocks {
-		metricCompactionOutstandingBlocks.WithLabelValues(t).Set(float64(n))
-	}
+	metricCompactionOutstandingBlocks.WithLabelValues(tenantID).Set(float64(totalOutstandingBlocks))
 }
 
 type instrumentedObjectCombiner struct {
