@@ -1197,7 +1197,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "GCS - Ingester",
+   "title": "Backend - Ingester",
    "titleSize": "h6"
   },
   {
@@ -1617,7 +1617,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "GCS - Compactor",
+   "title": "Backend - Compactor",
    "titleSize": "h6"
   }
  ],
