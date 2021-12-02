@@ -109,7 +109,7 @@ jobs:
 
       - name: Install jsonnet, jsonnet-bundler & tanka
         run: |
-          brew install jsonnet tanka@0.19.0
+          brew install jsonnet tanka@0.19
           go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.4.0
 
       - name: Check out code
