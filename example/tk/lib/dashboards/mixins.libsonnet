@@ -1,4 +1,4 @@
-local tempo = import 'tempo-mixin/mixin.libsonnet';
+local tempo = import '../../../../operations/tempo-mixin/mixin.libsonnet';
 
 {
   tempo:

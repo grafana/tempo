@@ -14,7 +14,9 @@ minio + metrics + load + tempo {
   },
 
   _config+:: {
+    cluster: 'k3d',
     namespace: 'default',
+    search_enabled: true,
     compactor+: {
     },
     querier+: {

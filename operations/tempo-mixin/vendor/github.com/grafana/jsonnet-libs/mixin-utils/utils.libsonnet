@@ -123,17 +123,46 @@ local g = import 'grafana-builder/grafana.libsonnet';
   // - url_format: an URL format for the runbook, the alert name will be substituted in the URL.
   // - groups: the list of rule groups containing alerts.
   withRunbookURL(url_format, groups)::
+    local update_rule(rule) =
+      if std.objectHas(rule, 'alert')
+      then rule {
+        annotations+: {
+          runbook_url: url_format % rule.alert,
+        },
+      }
+      else rule;
     [
       group {
         rules: [
-          alert {
-            annotations+: {
-              runbook_url: url_format % alert.alert,
-            },
-          }
+          update_rule(alert)
           for alert in group.rules
         ],
       }
       for group in groups
     ],
+
+  removeRuleGroup(ruleName):: {
+    local removeRuleGroup(rule) = if rule.name == ruleName then null else rule,
+    local currentRuleGroups = super.groups,
+    groups: std.prune(std.map(removeRuleGroup, currentRuleGroups)),
+  },
+
+  removeAlertRuleGroup(ruleName):: {
+    prometheusAlerts+:: $.removeRuleGroup(ruleName),
+  },
+
+  removeRecordingRuleGroup(ruleName):: {
+    prometheusRules+:: $.removeRuleGroup(ruleName),
+  },
+
+  overrideAlerts(overrides):: {
+    local overrideRule(rule) =
+      if 'alert' in rule && std.objectHas(overrides, rule.alert)
+      then rule + overrides[rule.alert]
+      else rule,
+    local overrideInGroup(group) = group { rules: std.map(overrideRule, super.rules) },
+    prometheusAlerts+:: {
+      groups: std.map(overrideInGroup, super.groups),
+    },
+  },
 }

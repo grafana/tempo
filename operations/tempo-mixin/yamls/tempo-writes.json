@@ -72,7 +72,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -89,7 +89,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -159,7 +159,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -168,7 +168,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -177,7 +177,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by () * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\",route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by () * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -194,7 +194,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -276,21 +276,12 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum(rate(tempo_receiver_accepted_spans{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval]))",
+       "expr": "sum by (grpc_status) (\n    rate(\n        label_replace(\n            {cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", __name__=~\"envoy_cluster_grpc_proto_collector_trace_v1_TraceService_[0-9]+\"},\n            \"grpc_status\", \"$1\", \"__name__\", \"envoy_cluster_grpc_proto_collector_trace_v1_TraceService_(.+)\"\n        )\n        [$__interval:$__interval]\n    )\n)\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "accepted",
-       "legendLink": null,
-       "step": 10
-      },
-      {
-       "expr": "sum(rate(tempo_receiver_refused_spans{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval]))",
-       "format": "time_series",
-       "interval": "1m",
-       "intervalFactor": 2,
-       "legendFormat": "refused",
-       "legendLink": null,
+       "legendFormat": "{{grpc_status}}",
+       "legendLink": "",
        "step": 10
       }
      ],
@@ -299,10 +290,10 @@
      ],
      "timeFrom": null,
      "timeShift": null,
-     "title": "Spans/Second",
+     "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -335,6 +326,42 @@
      ]
     },
     {
+     "datasource": null,
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+
+       }
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 4,
+     "options": {
+      "content": "Visit [Status codes and their use in gRPC](https://github.com/grpc/grpc/blob/master/doc/statuscodes.md)\n\nCode | Number | Description\n---|---|---\nOK | 0 | Not an error; returned on success.\nCANCELLED | 1 | The operation was cancelled, typically by the caller.\nUNKNOWN | 2 | Unknown error. For example, this error may be returned when a Status value received from another address space belongs to an error space that is not known in this address space. Also errors raised by APIs that do not return enough error information may be converted to this error.\nINVALID_ARGUMENT | 3 | The client specified an invalid argument. Note that this differs from FAILED_PRECONDITION. INVALID_ARGUMENT indicates arguments that are problematic regardless of the state of the system (e.g., a malformed file name).\nDEADLINE_EXCEEDED | 4 | The deadline expired before the operation could complete. For operations that change the state of the system, this error may be returned even if the operation has completed successfully. For example, a successful response from a server could have been delayed long\nNOT_FOUND | 5 | Some requested entity (e.g., file or directory) was not found. Note to server developers: if a request is denied for an entire class of users, such as gradual feature rollout or undocumented allowlist, NOT_FOUND may be used. If a request is denied for some users within a class of users, such as user-based access control, PERMISSION_DENIED must be used.\nALREADY_EXISTS | 6 | The entity that a client attempted to create (e.g., file or directory) already exists.\nPERMISSION_DENIED | 7 | The caller does not have permission to execute the specified operation. PERMISSION_DENIED must not be used for rejections caused by exhausting some resource (use RESOURCE_EXHAUSTED instead for those errors). PERMISSION_DENIED must not be used if the caller can not be identified (use UNAUTHENTICATED instead for those errors). This error code does not imply the request is valid or the requested entity exists or satisfies other pre-conditions.\nRESOURCE_EXHAUSTED | 8 | Some resource has been exhausted, perhaps a per-user quota, or perhaps the entire file system is out of space.\nFAILED_PRECONDITION | 9 | The operation was rejected because the system is not in a state required for the operation's execution. For example, the directory to be deleted is non-empty, an rmdir operation is applied to a non-directory, etc. Service implementors can use the following guidelines to decide between FAILED_PRECONDITION, ABORTED, and UNAVAILABLE: (a) Use UNAVAILABLE if the client can retry just the failing call. (b) Use ABORTED if the client should retry at a higher level (e.g., when a client-specified test-and-set fails, indicating the client should restart a read-modify-write sequence). (c) Use FAILED_PRECONDITION if the client should not retry until the system state has been explicitly fixed. E.g., if an \"rmdir\" fails because the directory is non-empty, FAILED_PRECONDITION should be returned since the client should not retry unless the files are deleted from the directory.\nABORTED | 10 | The operation was aborted, typically due to a concurrency issue such as a sequencer check failure or transaction abort. See the guidelines above for deciding between FAILED_PRECONDITION, ABORTED, and UNAVAILABLE.\nOUT_OF_RANGE | 11 | The operation was attempted past the valid range. E.g., seeking or reading past end-of-file. Unlike INVALID_ARGUMENT, this error indicates a problem that may be fixed if the system state changes. For example, a 32-bit file system will generate INVALID_ARGUMENT if asked to read at an offset that is not in the range [0,2^32-1], but it will generate OUT_OF_RANGE if asked to read from an offset past the current file size. There is a fair bit of overlap between FAILED_PRECONDITION and OUT_OF_RANGE. We recommend using OUT_OF_RANGE (the more specific error) when it applies so that callers who are iterating through a space can easily look for an OUT_OF_RANGE error to detect when they are done.\nUNIMPLEMENTED | 12 | The operation is not implemented or is not supported/enabled in this service.\nINTERNAL | 13 | Internal errors. This means that some invariants expected by the underlying system have been broken. This error code is reserved for serious errors.\nUNAVAILABLE | 14 | The service is currently unavailable. This is most likely a transient condition, which can be corrected by retrying with a backoff. Note that it is not always safe to retry non-idempotent operations.\nDATA_LOSS | 15 | Unrecoverable data loss or corruption.\nUNAUTHENTICATED | 16 | The request does not have valid authentication credentials for the operation.\n",
+      "mode": "markdown"
+     },
+     "span": 6,
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "gRPC status codes",
+     "transparent": false,
+     "type": "text"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Envoy Proxy",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
      "aliasColors": {
 
      },
@@ -343,7 +370,7 @@
      "dashes": false,
      "datasource": "$datasource",
      "fill": 1,
-     "id": 4,
+     "id": 5,
      "legend": {
       "avg": false,
       "current": false,
@@ -372,30 +399,21 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "sum(rate(tempo_receiver_accepted_spans{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "{{route}} 99th",
-       "refId": "A",
+       "legendFormat": "accepted",
+       "legendLink": null,
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "sum(rate(tempo_receiver_refused_spans{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "{{route}} 50th",
-       "refId": "B",
-       "step": 10
-      },
-      {
-       "expr": "sum(rate(tempo_distributor_push_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by () * 1e3 / sum(rate(tempo_distributor_push_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by ()",
-       "format": "time_series",
-       "interval": "1m",
-       "intervalFactor": 2,
-       "legendFormat": "{{route}} Average",
-       "refId": "C",
+       "legendFormat": "refused",
+       "legendLink": null,
        "step": 10
       }
      ],
@@ -404,115 +422,10 @@
      ],
      "timeFrom": null,
      "timeShift": null,
-     "title": "Latency",
+     "title": "Spans/Second",
      "tooltip": {
       "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "buckets": null,
-      "mode": "time",
-      "name": null,
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "ms",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    }
-   ],
-   "repeat": null,
-   "repeatIteration": null,
-   "repeatRowId": null,
-   "showTitle": true,
-   "title": "Distributor",
-   "titleSize": "h6"
-  },
-  {
-   "collapse": false,
-   "height": "250px",
-   "panels": [
-    {
-     "aliasColors": {
-      "1xx": "#EAB839",
-      "2xx": "#7EB26D",
-      "3xx": "#6ED0E0",
-      "4xx": "#EF843C",
-      "5xx": "#E24D42",
-      "error": "#E24D42",
-      "success": "#7EB26D"
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": "$datasource",
-     "fill": 10,
-     "id": 5,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 0,
-     "links": [
-
-     ],
-     "nullPointMode": "null as zero",
-     "percentage": false,
-     "pointradius": 5,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "span": 6,
-     "stack": true,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
-       "format": "time_series",
-       "interval": "1m",
-       "intervalFactor": 2,
-       "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeFrom": null,
-     "timeShift": null,
-     "title": "QPS",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -582,7 +495,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -591,7 +504,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -600,7 +513,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by () * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempo_distributor_push_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by () * 1e3 / sum(rate(tempo_distributor_push_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -617,7 +530,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -654,7 +567,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Ingester",
+   "title": "Distributor",
    "titleSize": "h6"
   },
   {
@@ -705,7 +618,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -722,7 +635,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -792,7 +705,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -801,7 +714,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -810,7 +723,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(cortex_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by () * 1e3 / sum(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by () * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -827,7 +740,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -864,7 +777,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Memcached - Ingester",
+   "title": "Ingester",
    "titleSize": "h6"
   },
   {
@@ -915,7 +828,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -932,7 +845,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1002,7 +915,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1011,7 +924,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1020,7 +933,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempodb_gcs_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by () * 1e3 / sum(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by ()",
+       "expr": "sum(rate(cortex_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by () * 1e3 / sum(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1037,7 +950,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1074,7 +987,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "GCS - Ingester",
+   "title": "Memcached - Ingester",
    "titleSize": "h6"
   },
   {
@@ -1125,7 +1038,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1142,7 +1055,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1212,7 +1125,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1221,7 +1134,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1230,7 +1143,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(cortex_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by () * 1e3 / sum(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempodb_gcs_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by () * 1e3 / sum(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=\"POST\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1247,7 +1160,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1284,7 +1197,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Memcached - Compactor",
+   "title": "GCS - Ingester",
    "titleSize": "h6"
   },
   {
@@ -1335,7 +1248,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1352,7 +1265,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1422,6 +1335,216 @@
      "steppedLine": false,
      "targets": [
       {
+       "expr": "histogram_quantile(0.99, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{route}} 99th",
+       "refId": "A",
+       "step": 10
+      },
+      {
+       "expr": "histogram_quantile(0.50, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{route}} 50th",
+       "refId": "B",
+       "step": 10
+      },
+      {
+       "expr": "sum(rate(cortex_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by () * 1e3 / sum(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by ()",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{route}} Average",
+       "refId": "C",
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Latency",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "ms",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Memcached - Compactor",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+      "1xx": "#EAB839",
+      "2xx": "#7EB26D",
+      "3xx": "#6ED0E0",
+      "4xx": "#EF843C",
+      "5xx": "#E24D42",
+      "error": "#E24D42",
+      "success": "#7EB26D"
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 10,
+     "id": 15,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 0,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": true,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{status}}",
+       "refId": "A",
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "QPS",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 16,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
        "expr": "histogram_quantile(0.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=\"POST\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
@@ -1457,7 +1580,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1511,7 +1634,7 @@
      "value": "default"
     },
     "hide": 0,
-    "label": null,
+    "label": "Data Source",
     "name": "datasource",
     "options": [
 
@@ -1522,7 +1645,7 @@
     "type": "datasource"
    },
    {
-    "allValue": null,
+    "allValue": ".+",
     "current": {
      "selected": true,
      "text": "All",
