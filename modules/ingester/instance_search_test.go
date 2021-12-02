@@ -10,6 +10,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/atomic"
+	"github.com/weaveworks/common/user"
+
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempofb"
@@ -17,9 +22,6 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/search"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/atomic"
 )
 
 func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
@@ -252,7 +254,9 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := i.SearchTagValues(context.Background(), tagKey)
+		// SearchTagValues queries now require userID in ctx
+		ctx := user.InjectOrgID(context.Background(), "test")
+		_, err := i.SearchTagValues(ctx, tagKey)
 		require.NoError(t, err, "error getting search tag values")
 	})
 
