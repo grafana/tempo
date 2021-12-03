@@ -585,38 +585,32 @@ storage:
 
             # wal encoding/compression.
             # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            # (default: snappy)
-            [encoding: <string>]
+            [encoding: <string> | default = snappy]
 
-            # search data encoding/compression. same options as wal encoding.
-            # (default: none)
-            [search_encoding: <string>]
+            # Defines the search data encoding/compression protocol.
+            # Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+            [search_encoding: <string> | default = none]
 
         # block configuration
         block:
 
             # bloom filter false positive rate.  lower values create larger filters but fewer false positives
-            # (default: .01)
-            [bloom_filter_false_positive: <float>]
+            [bloom_filter_false_positive: <float> | default = 0.01]
 
             # maximum size of each bloom filter shard
-            # (default: 100 KiB)
-            [bloom_filter_shard_size_bytes: <int>]
+            [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
 
             # number of bytes per index record
-            # (default: 1MiB)
-            [index_downsample_bytes: <uint64>]
+            [index_downsample_bytes: <uint64> | default = 1MiB]
 
             # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            [encoding: <string>]
+            [encoding: <string> | default = zstd]
 
             # search data encoding/compression. same options as block encoding.
-            # (default: snappy)
-            [search_encoding: <string>]
+            [search_encoding: <string> | default = snappy]
 
             # number of bytes per search page
-            # (default: 1MiB)
-            [search_page_size_bytes: <int>]
+            [search_page_size_bytes: <int> | default = 1MiB]
 
 ```
 
@@ -724,29 +718,28 @@ overrides:
     # Global ingestion limits configurations
 
     # Burst size (bytes) used in ingestion.
-    # (Default: `20,000,000` ~20MB )
     # Results in errors like
     #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
-    [ingestion_burst_size_bytes: <int>]
+    [ingestion_burst_size_bytes: <int> | default = 20000000 (20MB) ]
 
     # Per-user ingestion rate limit (bytes) used in ingestion. 
-    # (Default: `15,000,000` ~15MB)
     # Results in errors like
     #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while 
-    [ingestion_rate_limit_bytes: <int>]
+    [ingestion_rate_limit_bytes: <int> | default = 15000000 (15MB) ]
     
     # Maximum size of a single trace in bytes.  `0` to disable. 
-    # (Default: `5,000,000` ~5MB)
     # Results in errors like
     #    TRACE_TOO_LARGE: max size of trace (5000000) exceeded while adding 387 bytes
-    [max_bytes_per_trace: <int>]
+    [max_bytes_per_trace: <int> | default = 5000000 (5MB) ]
 
     # Maximum number of active traces per user, per ingester. `0` to disable. 
-    # (Default: `10,000`)
     # Results in errors like
     #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
-    [max_traces_per_user: <int> ]
+    [max_traces_per_user: <int> | default = 10000]
 
+    # Maximum size of search data for a single trace in bytes. `0` to disable.
+    # From an operational perspective, the size of search data is proportional to the total size of all tags in a trace
+    [max_search_bytes_per_trace: <int> | default = 5000]
 
     # Tenant-specific overrides
 
