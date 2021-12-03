@@ -88,7 +88,7 @@ func newStreamingSearchBlockFromWALReplay(searchFilepath, filename string) (*Str
 
 	blockHeader := tempofb.NewSearchBlockHeaderMutable()
 	records, warning, err := wal.ReplayWALAndGetRecords(f, v, enc, func(bytes []byte) error {
-		entry := tempofb.SearchEntryFromBytes(bytes)
+		entry := tempofb.NewSearchEntryFromBytes(bytes)
 		blockHeader.AddEntry(entry)
 		return nil
 	})

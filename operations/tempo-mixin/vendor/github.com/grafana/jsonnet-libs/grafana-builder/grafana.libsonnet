@@ -13,10 +13,10 @@
       rows+: [row { panels: panels }],
     },
 
-    addTemplate(name, metric_name, label_name, hide=0):: self {
+    addTemplate(name, metric_name, label_name, hide=0, allValue=null):: self {
       templating+: {
         list+: [{
-          allValue: null,
+          allValue: allValue,
           current: {
             text: 'prod',
             value: 'prod',
@@ -41,10 +41,10 @@
       },
     },
 
-    addMultiTemplate(name, metric_name, label_name, hide=0):: self {
+    addMultiTemplate(name, metric_name, label_name, hide=0, allValue='.+'):: self {
       templating+: {
         list+: [{
-          allValue: null,
+          allValue: allValue,
           current: {
             selected: true,
             text: 'All',
@@ -70,6 +70,23 @@
       },
     },
 
+    dashboardLinkUrl(title, url):: self {
+      links+: [
+        {
+          asDropdown: false,
+          icon: 'external link',
+          includeVars: true,
+          keepTime: true,
+          tags: [],
+          targetBlank: true,
+          title: title,
+          tooltip: '',
+          type: 'link',
+          url: url,
+        },
+      ],
+    },
+
     // Stuff that is materialised.
     uid: uid,
     annotations: {
@@ -92,7 +109,7 @@
             value: datasource,
           },
           hide: 0,
-          label: null,
+          label: 'Data Source',
           name: 'datasource',
           options: [],
           query: 'prometheus',
@@ -197,7 +214,7 @@
     title: title,
     tooltip: {
       shared: true,
-      sort: 0,
+      sort: 2,
       value_type: 'individual',
     },
     type: 'graph',
@@ -320,6 +337,25 @@
     ],
   },
 
+  textPanel(title, markdown):: {
+    type: 'text',
+    title: title,
+    options: {
+      content: markdown,
+      mode: 'markdown',
+    },
+    transparent: true,
+    datasource: null,
+    timeFrom: null,
+    timeShift: null,
+    fieldConfig: {
+      defaults: {
+        custom: {},
+      },
+      overrides: [],
+    },
+  },
+
   stack:: {
     stack: true,
     fill: 10,
@@ -348,7 +384,7 @@
       },
     ],
 
-  qpsPanel(selector):: {
+  qpsPanel(selector, statusLabelName='status_code'):: {
     aliasColors: {
       '1xx': '#EAB839',
       '2xx': '#7EB26D',
@@ -360,9 +396,13 @@
     },
     targets: [
       {
-        expr: 'sum by (status) (label_replace(label_replace(rate(' + selector + '[$__interval]),'
-              + ' "status", "${1}xx", "status_code", "([0-9]).."),'
-              + ' "status", "${1}",   "status_code", "([a-z]+)"))',
+        expr:
+          |||
+            sum by (status) (
+              label_replace(label_replace(rate(%s[$__rate_interval]),
+              "status", "${1}xx", "%s", "([0-9]).."),
+              "status", "${1}", "%s", "([a-z]+)"))
+          ||| % [selector, statusLabelName, statusLabelName],
         format: 'time_series',
         intervalFactor: 2,
         legendFormat: '{{status}}',
@@ -376,7 +416,7 @@
     nullPointMode: 'null as zero',
     targets: [
       {
-        expr: 'histogram_quantile(0.99, sum(rate(%s_bucket%s[$__interval])) by (le)) * %s' % [metricName, selector, multiplier],
+        expr: 'histogram_quantile(0.99, sum(rate(%s_bucket%s[$__rate_interval])) by (le)) * %s' % [metricName, selector, multiplier],
         format: 'time_series',
         intervalFactor: 2,
         legendFormat: '99th Percentile',
@@ -384,7 +424,7 @@
         step: 10,
       },
       {
-        expr: 'histogram_quantile(0.50, sum(rate(%s_bucket%s[$__interval])) by (le)) * %s' % [metricName, selector, multiplier],
+        expr: 'histogram_quantile(0.50, sum(rate(%s_bucket%s[$__rate_interval])) by (le)) * %s' % [metricName, selector, multiplier],
         format: 'time_series',
         intervalFactor: 2,
         legendFormat: '50th Percentile',
@@ -392,7 +432,7 @@
         step: 10,
       },
       {
-        expr: 'sum(rate(%s_sum%s[$__interval])) * %s / sum(rate(%s_count%s[$__interval]))' % [metricName, selector, multiplier, metricName, selector],
+        expr: 'sum(rate(%s_sum%s[$__rate_interval])) * %s / sum(rate(%s_count%s[$__rate_interval]))' % [metricName, selector, multiplier, metricName, selector],
         format: 'time_series',
         intervalFactor: 2,
         legendFormat: 'Average',

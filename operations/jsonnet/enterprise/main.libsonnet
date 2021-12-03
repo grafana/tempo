@@ -64,7 +64,7 @@ tempo {
       storage: {
         type: $._config.backend,
         s3: {
-          bucket: $._config.bucket + '-admin',
+          bucket_name: $._config.bucket + '-admin',
         },
         gcs: {
           bucket_name: $._config.bucket + '-admin',

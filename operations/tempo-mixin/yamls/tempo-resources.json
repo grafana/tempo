@@ -96,7 +96,7 @@
      "title": "CPU",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -196,7 +196,7 @@
      "title": "Memory (workingset)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -283,7 +283,7 @@
      "title": "Memory (go heap inuse)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -395,7 +395,7 @@
      "title": "CPU",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -495,7 +495,7 @@
      "title": "Memory (workingset)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -582,7 +582,7 @@
      "title": "Memory (go heap inuse)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -694,7 +694,7 @@
      "title": "CPU",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -794,7 +794,7 @@
      "title": "Memory (workingset)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -881,7 +881,7 @@
      "title": "Memory (go heap inuse)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -993,7 +993,7 @@
      "title": "CPU",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1093,7 +1093,7 @@
      "title": "Memory (workingset)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1180,7 +1180,7 @@
      "title": "Memory (go heap inuse)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1292,7 +1292,7 @@
      "title": "CPU",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1392,7 +1392,7 @@
      "title": "Memory (workingset)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1479,7 +1479,7 @@
      "title": "Memory (go heap inuse)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1591,7 +1591,7 @@
      "title": "CPU",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1691,7 +1691,7 @@
      "title": "Memory (workingset)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1778,7 +1778,7 @@
      "title": "Memory (go heap inuse)",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1832,7 +1832,7 @@
      "value": "default"
     },
     "hide": 0,
-    "label": null,
+    "label": "Data Source",
     "name": "datasource",
     "options": [
 
@@ -1843,7 +1843,7 @@
     "type": "datasource"
    },
    {
-    "allValue": null,
+    "allValue": ".+",
     "current": {
      "selected": true,
      "text": "All",

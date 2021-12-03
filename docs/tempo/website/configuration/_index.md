@@ -438,6 +438,10 @@ storage:
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
 
+        # The maximum amount of time to spend compacting a single tenant before moving to the next.
+        # Default is 5m.
+        [max_compaction_cycle: <duration>] 
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         [cache: <string>]

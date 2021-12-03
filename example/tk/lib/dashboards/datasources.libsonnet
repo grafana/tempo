@@ -6,13 +6,12 @@ local grafana = import 'grafana/grafana.libsonnet';
       'Tempo',
       url,
       'tempo',
+      default=true,
     ),
   prometheus:
     grafana.datasource.new(
       'Prometheus',
       'http://prometheus/prometheus',
       'prometheus',
-      true,
-    ) +
-    grafana.datasource.withHttpMethod('POST'),
+    ),
 }

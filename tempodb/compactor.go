@@ -46,13 +46,18 @@ var (
 		Name:      "compaction_objects_combined_total",
 		Help:      "Total number of objects combined during compaction.",
 	}, []string{"level"})
+	metricCompactionOutstandingBlocks = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_outstanding_blocks",
+		Help:      "Number of blocks remaining to be compacted before next maintenance cycle",
+	}, []string{"tenant"})
 )
 
 const (
 	inputBlocks  = 2
 	outputBlocks = 1
 
-	compactionCycle = 30 * time.Second
+	compactionCycle = 500 * time.Millisecond
 
 	DefaultFlushSizeBytes uint32 = 30 * 1024 * 1024 // 30 MiB
 
@@ -94,6 +99,8 @@ func (rw *readerWriter) doCompaction() {
 	for {
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
 		if len(toBeCompacted) == 0 {
+			measureOutstandingBlocks(tenantID, blockSelector)
+
 			level.Info(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 			break
 		}
@@ -112,7 +119,9 @@ func (rw *readerWriter) doCompaction() {
 		}
 
 		// after a maintenance cycle bail out
-		if start.Add(rw.cfg.BlocklistPoll).Before(time.Now()) {
+		if start.Add(rw.cfg.MaxCompactionCycle).Before(time.Now()) {
+			measureOutstandingBlocks(tenantID, blockSelector)
+
 			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
 			break
 		}
@@ -306,6 +315,19 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.Block
 
 	// Update blocklist in memory
 	rw.blocklist.Update(tenantID, newBlocks, oldBlocks, newCompactions)
+}
+
+func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSelector) {
+	// count number of per-tenant outstanding blocks before next maintenance cycle
+	var totalOutstandingBlocks int
+	for {
+		leftToBeCompacted, _ := blockSelector.BlocksToCompact()
+		if len(leftToBeCompacted) == 0 {
+			break
+		}
+		totalOutstandingBlocks += len(leftToBeCompacted)
+	}
+	metricCompactionOutstandingBlocks.WithLabelValues(tenantID).Set(float64(totalOutstandingBlocks))
 }
 
 type instrumentedObjectCombiner struct {

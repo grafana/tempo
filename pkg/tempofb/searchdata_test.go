@@ -91,3 +91,34 @@ func TestEncodingSize(t *testing.T) {
 	fmt.Printf("  - Tag:      %.1f bytes after\n", float32(tagValueLongTermTags-tagValueBaseLine)/float32(delta))
 	fmt.Printf("  - Value:    %.1f bytes after\n", float32(tagValueLongTermValues-tagValueBaseLine)/float32(delta))
 }
+
+func TestContainsTag(t *testing.T) {
+	m := &SearchEntryMutable{}
+	m.AddTag("key1", "value")
+	m.AddTag("key2", "value")
+	m.AddTag("key3", "value")
+	m.AddTag("key4", "value")
+	m.AddTag("key5", "value")
+	m.AddTag("key6", "value")
+
+	e := NewSearchEntryFromBytes(m.ToBytes())
+
+	kv := &KeyValues{}
+
+	testCases := []struct {
+		key, value string
+		found      bool
+	}{
+		{"key1", "value", true},
+		{"key1", "value2", false},
+		{"key6", "value", true},
+		{"key0", "value", false},
+		{"key10", "value", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.key, "=", tc.value), func(t *testing.T) {
+			require.Equal(t, tc.found, ContainsTag(e, kv, []byte(tc.key), []byte(tc.value)))
+		})
+	}
+}

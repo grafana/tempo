@@ -1,6 +1,6 @@
 .PHONY: all check install dashboards alerts rules
 
-all: dashboards alerts rules
+all: install dashboards alerts rules
 
 check: all
 	git diff --exit-code -- yamls/
@@ -8,11 +8,11 @@ check: all
 install:
 	jb install
 
-dashboards: install
+dashboards:
 	jsonnet -J vendor -S dashboards.jsonnet -m yamls
 
-alerts: install
+alerts:
 	jsonnet -J vendor -S alerts.jsonnet > yamls/alerts.yaml
 
-rules: install
+rules:
 	jsonnet -J vendor -S rules.jsonnet > yamls/rules.yaml

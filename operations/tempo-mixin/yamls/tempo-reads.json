@@ -72,7 +72,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", route=~\"api_.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -89,7 +89,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -194,7 +194,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -282,7 +282,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\", route=~\"api_.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -299,7 +299,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -404,7 +404,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -492,7 +492,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", route=~\"querier_api_.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", route=~\"querier_api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -509,7 +509,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -614,7 +614,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -702,7 +702,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Querier/.*\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -719,7 +719,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -824,7 +824,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -912,7 +912,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",method=~\"Memcache.Get|Memcache.GetMulti\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(cortex_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",method=~\"Memcache.Get|Memcache.GetMulti\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -929,7 +929,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1034,7 +1034,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1122,7 +1122,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (label_replace(label_replace(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__interval]), \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"), \"status\", \"${1}\",   \"status_code\", \"([a-z]+)\"))",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1139,7 +1139,7 @@
      "title": "QPS",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1209,7 +1209,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1218,7 +1218,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempodb_gcs_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1227,7 +1227,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempodb_gcs_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__interval])) by () * 1e3 / sum(rate(tempodb_gcs_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempodb_backend_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__interval])) by () * 1e3 / sum(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1244,7 +1244,7 @@
      "title": "Latency",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1281,7 +1281,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "GCS",
+   "title": "Backend",
    "titleSize": "h6"
   },
   {
@@ -1342,7 +1342,7 @@
      "title": "p99",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1428,7 +1428,7 @@
      "title": "p50",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1530,7 +1530,7 @@
      "title": "Bytes Read",
      "tooltip": {
       "shared": true,
-      "sort": 0,
+      "sort": 2,
       "value_type": "individual"
      },
      "type": "graph",
@@ -1584,7 +1584,7 @@
      "value": "default"
     },
     "hide": 0,
-    "label": null,
+    "label": "Data Source",
     "name": "datasource",
     "options": [
 
@@ -1595,7 +1595,7 @@
     "type": "datasource"
    },
    {
-    "allValue": null,
+    "allValue": ".+",
     "current": {
      "selected": true,
      "text": "All",
