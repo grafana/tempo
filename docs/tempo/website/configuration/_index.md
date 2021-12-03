@@ -585,38 +585,32 @@ storage:
 
             # wal encoding/compression.
             # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            # (default: snappy)
-            [encoding: <string>]
+            [encoding: <string> | default = snappy]
 
-            # search data encoding/compression. same options as wal encoding.
-            # (default: none)
-            [search_encoding: <string>]
+            # Defines the search data encoding/compression protocol.
+            # Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+            [search_encoding: <string> | default = none]
 
         # block configuration
         block:
 
             # bloom filter false positive rate.  lower values create larger filters but fewer false positives
-            # (default: .01)
-            [bloom_filter_false_positive: <float>]
+            [bloom_filter_false_positive: <float> | default = 0.01]
 
             # maximum size of each bloom filter shard
-            # (default: 100 KiB)
-            [bloom_filter_shard_size_bytes: <int>]
+            [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
 
             # number of bytes per index record
-            # (default: 1MiB)
-            [index_downsample_bytes: <uint64>]
+            [index_downsample_bytes: <uint64> | default = 1MiB]
 
             # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            [encoding: <string>]
+            [encoding: <string> | default = zstd]
 
             # search data encoding/compression. same options as block encoding.
-            # (default: snappy)
-            [search_encoding: <string>]
+            [search_encoding: <string> | default = snappy]
 
             # number of bytes per search page
-            # (default: 1MiB)
-            [search_page_size_bytes: <int>]
+            [search_page_size_bytes: <int> | default = 1MiB]
 
 ```
 
@@ -747,6 +741,10 @@ overrides:
     #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
     # This override limit is used by the ingester.
     [max_traces_per_user: <int> | default = 10000]
+
+    # Maximum size of search data for a single trace in bytes. `0` to disable.
+    # From an operational perspective, the size of search data is proportional to the total size of all tags in a trace
+    [max_search_bytes_per_trace: <int> | default = 5000]
 
     # Maximum size in bytes of a tag-values query. Tag-values query is used mainly to populate the autocomplete dropdown.
     # Limit added to protect from tags with high cardinality or large values (like http urls or sql queries)
