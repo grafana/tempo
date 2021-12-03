@@ -11,7 +11,7 @@
 * [ENHANCEMENT] Include metrics for configured limit overrides and defaults: tempo_limits_overrides, tempo_limits_defaults [#1089](https://github.com/grafana/tempo/pull/1089) (@zalegrala)
 * [ENHANCEMENT] Add Envoy Proxy panel to `Tempo / Writes` dashboard [#1137](https://github.com/grafana/tempo/pull/1137) (@kvrhdn)
 * [ENHANCEMENT] Reduce compactionCycle to improve performance in large multitenant environments [#1145](https://github.com/grafana/tempo/pull/1145) (@joe-elliott)
-* [ENHANCEMENT] Added max_compaction_cycle to allow for independently configuring polling and compaction cycle. [#1145](https://github.com/grafana/tempo/pull/1145) (@joe-elliott)
+* [ENHANCEMENT] Added max_time_per_tenant to allow for independently configuring polling and compaction cycle. [#1145](https://github.com/grafana/tempo/pull/1145) (@joe-elliott)
 * [ENHANCEMENT] Add `tempodb_compaction_outstanding_blocks` metric to measure compaction load [#1143](https://github.com/grafana/tempo/pull/1143) (@mapno)
 * [ENHANCEMENT] Update mixin to use new backend metric [#1151](https://github.com/grafana/tempo/pull/1151) (@zalegrala)
 * [BUGFIX] Fix defaults for MaxBytesPerTrace (ingester.max-bytes-per-trace) and MaxSearchBytesPerTrace (ingester.max-search-bytes-per-trace) (@bitprocessor)

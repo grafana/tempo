@@ -278,6 +278,9 @@ compactor:
 
         # Optional. Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
         [iterator_buffer_size: <int>]
+
+        # Optional. The maximum amount of time to spend compacting a single tenant before moving to the next. Default is 5m.
+        [max_time_per_tenant: <duration>] 
 ```
 
 ## Storage
@@ -437,10 +440,6 @@ storage:
         # the bucket contents.
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
-
-        # The maximum amount of time to spend compacting a single tenant before moving to the next.
-        # Default is 5m.
-        [max_compaction_cycle: <duration>] 
 
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"

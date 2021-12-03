@@ -19,7 +19,7 @@ import (
 
 const (
 	DefaultBlocklistPoll            = 5 * time.Minute
-	DefaultMaxCompactionCycle       = 5 * time.Minute
+	DefaultMaxTimePerTenant         = 5 * time.Minute
 	DefaultBlocklistPollConcurrency = uint(50)
 	DefaultRetentionConcurrency     = uint(10)
 	DefaultTenantIndexBuilders      = 2
@@ -37,7 +37,6 @@ type Config struct {
 	BlocklistPollFallback            bool          `yaml:"blocklist_poll_fallback"`
 	BlocklistPollTenantIndexBuilders int           `yaml:"blocklist_poll_tenant_index_builders"`
 	BlocklistPollStaleTenantIndex    time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
-	MaxCompactionCycle               time.Duration `yaml:"max_compaction_cycle"`
 
 	// backends
 	Backend string        `yaml:"backend"`
@@ -66,6 +65,7 @@ type CompactorConfig struct {
 	CompactedBlockRetention time.Duration `yaml:"compacted_block_retention"`
 	RetentionConcurrency    uint          `yaml:"retention_concurrency"`
 	IteratorBufferSize      int           `yaml:"iterator_buffer_size"`
+	MaxTimePerTenant        time.Duration `yaml:"max_time_per_tenant"`
 }
 
 func validateConfig(cfg *Config) error {

@@ -238,6 +238,7 @@ compactor:
     compacted_block_retention: 1h0m0s
     retention_concurrency: 10
     iterator_buffer_size: 1000
+    max_time_per_tenant: 5m0s
   override_ring_key: compactor
 ingester:
   lifecycler:
@@ -321,7 +322,6 @@ storage:
     blocklist_poll_fallback: true
     blocklist_poll_tenant_index_builders: 2
     blocklist_poll_stale_tenant_index: 0s
-    max_compaction_cycle: 5m0s
     backend: local
     local:
       path: /tmp/tempo/traces
