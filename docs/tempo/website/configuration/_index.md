@@ -717,8 +717,8 @@ overrides:
     
     # Global ingestion limits configurations
 
-    # Specifies whether the ingestion rate limits should be applied by each replica (of the distributor and ingester)
-    # individually OR should be shared across all replicas. See the "override strategies" section below for an example.
+    # Specifies whether the ingestion rate limits should be applied by each instance of the distributor and ingester
+    # individually, or the limits are to be shared across all instances. See the "override strategies" section for an example.
     [ingestion_rate_strategy: <global|local> | default = local]
 
     # Burst size (bytes) used in ingestion.
@@ -747,13 +747,13 @@ overrides:
     [max_search_bytes_per_trace: <int> | default = 5000]
 
     # Maximum size in bytes of a tag-values query. Tag-values query is used mainly to populate the autocomplete dropdown.
-    # Limit added to protect from tags with high cardinality or large values (like http urls or sql queries)
+    # Limit added to protect from tags with high cardinality or large values (like HTTP URLs or SQL queries)
     # This override limit is used by the ingester and the querier.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
 
     # Tenant-specific overrides
 
-    # Tenant-specific overrides settings config file. See the "Tenant-specific overrides" section below for an example.
+    # Tenant-specific overrides settings configuration file. See the "Tenant-specific overrides" section for an example.
     [per_tenant_override_config: /conf/overrides.yaml]
 ```
 
@@ -800,7 +800,7 @@ overrides:
   [ingestion_rate_strategy: <global|local> | default = local]
 ```
 
-For ex, the config below specifies that each replica of the distributor will apply a limit of `15MB/s`.
+For example, this configuration specifies that each instance of the distributor will apply a limit of `15MB/s`.
 
 ```yaml
 overrides:
@@ -808,8 +808,8 @@ overrides:
   - ingestion_rate_limit_bytes: 15000000
 ```
 
-The config below specifies that together, all distributor replicas will apply a limit of `15MB/s`.
-So if there are 5 replicas, each will apply a local limit of `(15MB/s / 5) = 3MB/s`.
+This configuration specifies that together, all distributor instances will apply a limit of `15MB/s`.
+So if there are 5 instances, each instance will apply a local limit of `(15MB/s / 5) = 3MB/s`.
 
 ```yaml
 overrides:
