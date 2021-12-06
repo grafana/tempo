@@ -17,7 +17,8 @@ package handler
 
 import (
 	"fmt"
-	"io/ioutil"
+	"html"
+	"io"
 	"mime"
 	"net/http"
 
@@ -61,7 +62,7 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 
 // SaveSpan submits the span provided in the request body to the JaegerBatchesHandler
 func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
-	bodyBytes, err := ioutil.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(r.Body)
 	r.Body.Close()
 	if err != nil {
 		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
@@ -76,13 +77,13 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, ok := acceptedThriftFormats[contentType]; !ok {
-		http.Error(w, fmt.Sprintf("Unsupported content type: %v", contentType), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Unsupported content type: %v", html.EscapeString(contentType)), http.StatusBadRequest)
 		return
 	}
 
 	tdes := thrift.NewTDeserializer()
 	batch := &tJaeger.Batch{}
-	if err = tdes.Read(batch, bodyBytes); err != nil {
+	if err = tdes.Read(r.Context(), batch, bodyBytes); err != nil {
 		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 		return
 	}

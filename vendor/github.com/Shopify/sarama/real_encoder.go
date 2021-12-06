@@ -3,6 +3,7 @@ package sarama
 import (
 	"encoding/binary"
 	"errors"
+	"math"
 
 	"github.com/rcrowley/go-metrics"
 )
@@ -42,6 +43,11 @@ func (re *realEncoder) putVarint(in int64) {
 
 func (re *realEncoder) putUVarint(in uint64) {
 	re.off += binary.PutUvarint(re.raw[re.off:], in)
+}
+
+func (re *realEncoder) putFloat64(in float64) {
+	binary.BigEndian.PutUint64(re.raw[re.off:], math.Float64bits(in))
+	re.off += 8
 }
 
 func (re *realEncoder) putArrayLength(in int) error {
@@ -85,6 +91,11 @@ func (re *realEncoder) putVarintBytes(in []byte) error {
 		return nil
 	}
 	re.putVarint(int64(len(in)))
+	return re.putRawBytes(in)
+}
+
+func (re *realEncoder) putCompactBytes(in []byte) error {
+	re.putUVarint(uint64(len(in) + 1))
 	return re.putRawBytes(in)
 }
 
