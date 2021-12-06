@@ -14,7 +14,7 @@
 * [ENHANCEMENT] Added max_time_per_tenant to allow for independently configuring polling and compaction cycle. [#1145](https://github.com/grafana/tempo/pull/1145) (@joe-elliott)
 * [ENHANCEMENT] Add `tempodb_compaction_outstanding_blocks` metric to measure compaction load [#1143](https://github.com/grafana/tempo/pull/1143) (@mapno)
 * [ENHANCEMENT] Update mixin to use new backend metric [#1151](https://github.com/grafana/tempo/pull/1151) (@zalegrala)
-* [ENHANCEMENT] Make `TempoIngesterFlushesFailing` alert more actionable [#1155](https://github.com/grafana/tempo/pull/1155) (@dannykopping)
+* [ENHANCEMENT] Make `TempoIngesterFlushesFailing` alert more actionable [#1157](https://github.com/grafana/tempo/pull/1157) (@dannykopping)
 * [ENHANCEMENT] Switch open-telemetry/opentelemetry-collector to grafana/opentelemetry-collectorl fork, update it to 0.40.0 and add missing dependencies due to the change (@tete17)
 * [BUGFIX] Fix defaults for MaxBytesPerTrace (ingester.max-bytes-per-trace) and MaxSearchBytesPerTrace (ingester.max-search-bytes-per-trace) (@bitprocessor)
 * [BUGFIX] Ignore empty objects during compaction [#1113](https://github.com/grafana/tempo/pull/1113) (@mdisibio)
