@@ -97,6 +97,10 @@ How to **investigate**:
   ```
   sum(rate(tempo_ingester_failed_flushes_total{cluster="...", container="ingester"}[5m])) by (pod)
   ```
+- If retries are failing it means that blocks are being reattempted. If this is only occurring to one block it strongly suggests block corruption:
+  ```
+  increase(tempo_ingester_flush_failed_retries_total) > 0
+  ```
 - Check the logs for errors
 
 If a single block can not be flushed, this block might be corrupted. A corrupted or bad block might be missing some files or a file
@@ -176,5 +180,8 @@ Alert your users accordingly!
 Note that tenant indexes are built independently and an issue may only be impacting one or very few tenants. `tempodb_blocklist_tenant_index_builder`,
 `tempodb_blocklist_tenant_index_age_seconds` and `tempodb_blocklist_tenant_index_errors_total` are all per-tenant metrics. If
 you can isolate the impacted tenants, attempt to take targeted action instead of making sweeping changes. Your easiest lever 
-to pull is to simply delete stale tenant indexes as all components will fallback to bucket listing.
+to pull is to simply delete stale tenant indexes as all components will fallback to bucket listing. The tenant index is located at:
 
+```
+/<tenant>/index.json.gz
+```

@@ -58,6 +58,7 @@
     "expr": |
       sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[1h])) > 2 and
       sum by (cluster, namespace) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0
+    "for": "5m"
     "labels":
       "severity": "critical"
   - "alert": "TempoPollsFailing"
