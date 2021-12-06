@@ -88,7 +88,7 @@
               sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s and
               sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0 and
               sum by (%s) (increase(tempo_ingester_flush_failed_retries_total{}[5m])) > 0
-            ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster],
+            ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster, $._config.group_by_cluster],
             labels: {
               severity: 'critical',
             },
