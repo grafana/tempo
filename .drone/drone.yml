@@ -191,6 +191,35 @@ depends_on:
 - docker-arm64
 
 ---
+kind: pipeline
+name: cd-to-dev-env
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: image-tag
+  image: alpine/git
+  commands:
+  - apk --update --no-cache add bash
+  - git fetch origin --tags
+  - echo $(./tools/image-tag) > .tags
+
+- image: us.gcr.io/kubernetes-dev/drone/plugins/updater
+  settings:
+    config_json: "{\n  \"destination_branch\": \"master\",\n  \"pull_request_branch_prefix\": \"cd-tempo-dev\",\n  \"pull_request_enabled\": false,\n  \"pull_request_team_reviewers\": [\n    \"tempo-squad\"\n  ],\n  \"repo_name\": \"deployment_tools\",\n  \"update_jsonnet_attribute_configs\": [\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo\",\n      \"jsonnet_value_file\": \".image-tag\"\n    }\n  ]\n}\n"
+    github_token:
+      from_secret: gh_token
+
+image_pull_secrets:
+- dockerconfigjson
+
+trigger:
+  ref:
+  - refs/heads/main
+
+---
 kind: secret
 name: docker_username
 
@@ -207,7 +236,23 @@ get:
   name: password
 
 ---
+kind: secret
+name: dockerconfigjson
+
+get:
+  path: secret/data/common/gcr
+  name: .dockerconfigjson
+
+---
+kind: secret
+name: gh_token
+
+get:
+  path: infra/data/ci/github/grafanabot
+  name: pat
+
+---
 kind: signature
-hmac: abd3b54098c91a187d36ad479babcaf25e9f7e582038440e5928b43d20a577ed
+hmac: e0ecdfdc06ccf3d57a99e95aee501ea70aeeaca8db91e12416cb8895f0921898
 
 ...
