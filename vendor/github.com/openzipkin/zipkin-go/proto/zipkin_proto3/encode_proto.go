@@ -1,4 +1,4 @@
-// Copyright 2019 The OpenZipkin Authors
+// Copyright 2021 The OpenZipkin Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ import (
 	"errors"
 	"time"
 
-	"google.golang.org/protobuf/proto"
 	zipkinmodel "github.com/openzipkin/zipkin-go/model"
+	"google.golang.org/protobuf/proto"
 )
 
 var errNilProtoSpan = errors.New("expecting a non-nil Span")

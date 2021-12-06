@@ -12,51 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package component
+package component // import "go.opentelemetry.io/collector/component"
 
 import (
 	"context"
 
-	"go.uber.org/zap"
-
-	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config"
 )
 
-// ServiceExtension is the interface for objects hosted by the OpenTelemetry Collector that
+// Extension is the interface for objects hosted by the OpenTelemetry Collector that
 // don't participate directly on data pipelines but provide some functionality
 // to the service, examples: health check endpoint, z-pages, etc.
-type ServiceExtension interface {
+type Extension interface {
 	Component
 }
 
-// PipelineWatcher is an extra interface for ServiceExtension hosted by the OpenTelemetry
+// PipelineWatcher is an extra interface for Extension hosted by the OpenTelemetry
 // Collector that is to be implemented by extensions interested in changes to pipeline
 // states. Typically this will be used by extensions that change their behavior if data is
 // being ingested or not, e.g.: a k8s readiness probe.
 type PipelineWatcher interface {
-	// Ready notifies the ServiceExtension that all pipelines were built and the
+	// Ready notifies the Extension that all pipelines were built and the
 	// receivers were started, i.e.: the service is ready to receive data
-	// (notice that it may already have received data when this method is called).
+	// (note that it may already have received data when this method is called).
 	Ready() error
 
-	// NotReady notifies the ServiceExtension that all receivers are about to be stopped,
+	// NotReady notifies the Extension that all receivers are about to be stopped,
 	// i.e.: pipeline receivers will not accept new data.
-	// This is sent before receivers are stopped, so the ServiceExtension can take any
-	// appropriate action before that happens.
+	// This is sent before receivers are stopped, so the Extension can take any
+	// appropriate actions before that happens.
 	NotReady() error
 }
 
-// ExtensionCreateParams is passed to ExtensionFactory.Create* functions.
-type ExtensionCreateParams struct {
-	// Logger that the factory can use during creation and can pass to the created
-	// component to be used later as well.
-	Logger *zap.Logger
+// ExtensionCreateSettings is passed to ExtensionFactory.Create* functions.
+type ExtensionCreateSettings struct {
+	TelemetrySettings
 
-	// ApplicationStartInfo can be used by components for informational purposes
-	ApplicationStartInfo ApplicationStartInfo
+	// BuildInfo can be used by components for informational purposes
+	BuildInfo BuildInfo
 }
 
 // ExtensionFactory is a factory interface for extensions to the service.
+//
+// This interface cannot be directly implemented. Implementations must
+// use the extensionhelper.NewFactory to implement it.
 type ExtensionFactory interface {
 	Factory
 
@@ -65,10 +64,10 @@ type ExtensionFactory interface {
 	// configuration and should not cause side-effects that prevent the creation
 	// of multiple instances of the Extension.
 	// The object returned by this method needs to pass the checks implemented by
-	// 'configcheck.ValidateConfig'. It is recommended to have such check in the
+	// 'configtest.CheckConfigStruct'. It is recommended to have these checks in the
 	// tests of any implementation of the Factory interface.
-	CreateDefaultConfig() configmodels.Extension
+	CreateDefaultConfig() config.Extension
 
 	// CreateExtension creates a service extension based on the given config.
-	CreateExtension(ctx context.Context, params ExtensionCreateParams, cfg configmodels.Extension) (ServiceExtension, error)
+	CreateExtension(ctx context.Context, set ExtensionCreateSettings, cfg config.Extension) (Extension, error)
 }

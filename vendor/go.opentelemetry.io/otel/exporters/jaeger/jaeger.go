@@ -26,7 +26,7 @@ import (
 	gen "go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/jaeger"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -248,8 +248,11 @@ func keyValueToTag(keyValue attribute.KeyValue) *gen.Tag {
 			VDouble: &f,
 			VType:   gen.TagType_DOUBLE,
 		}
-	case attribute.ARRAY:
-		json, _ := json.Marshal(keyValue.Value.AsArray())
+	case attribute.BOOLSLICE,
+		attribute.INT64SLICE,
+		attribute.FLOAT64SLICE,
+		attribute.STRINGSLICE:
+		json, _ := json.Marshal(keyValue.Value.AsInterface())
 		a := (string)(json)
 		tag = &gen.Tag{
 			Key:   string(keyValue.Key),
