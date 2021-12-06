@@ -52,7 +52,12 @@ spec:
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
+        - mountPath: /overrides
+          name: overrides
       volumes:
       - configMap:
           name: tempo-querier
         name: tempo-conf
+      - configMap:
+          name: tempo-overrides
+        name: overrides
