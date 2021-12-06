@@ -97,6 +97,10 @@ How to **investigate**:
   ```
   sum(rate(tempo_ingester_failed_flushes_total{cluster="...", container="ingester"}[5m])) by (pod)
   ```
+- Check if retries have been failing:
+  ```
+  increase(tempo_ingester_flush_failed_retries_total) > 0
+  ```
 - Check the logs for errors
 
 If a single block can not be flushed, this block might be corrupted. A corrupted or bad block might be missing some files or a file
