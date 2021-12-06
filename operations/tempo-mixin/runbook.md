@@ -97,7 +97,7 @@ How to **investigate**:
   ```
   sum(rate(tempo_ingester_failed_flushes_total{cluster="...", container="ingester"}[5m])) by (pod)
   ```
-- Check if retries have been failing:
+- If retries are failing it means that blocks are being reattempted. If this is only occurring to one block it strongly suggests block corruption:
   ```
   increase(tempo_ingester_flush_failed_retries_total) > 0
   ```

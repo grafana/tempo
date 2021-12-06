@@ -82,22 +82,6 @@
             },
           },
           {
-            // page immediately if > 2 flushes have failed AND flush retries have failed
-            alert: 'TempoIngesterFlushesFailing',
-            expr: |||
-              sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s and
-              sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0 and
-              sum by (%s) (increase(tempo_ingester_flush_failed_retries_total{}[5m])) > 0
-            ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster, $._config.group_by_cluster],
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: 'Greater than %s flushes have failed in the past hour, and retries have failed.' % $._config.alerts.flushes_per_hour_failed,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterFlushesFailing',
-            },
-          },
-          {
             // wait 5m for failed flushes to self-heal using retries
             alert: 'TempoIngesterFlushesFailing',
             expr: |||
