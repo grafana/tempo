@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 )
 
 const (
+	// jpe make all urlparams internal?
 	urlParamTraceID = "traceID"
 	// search
 	urlParamTags        = "tags"
@@ -33,7 +35,7 @@ const (
 	URLParamEncoding      = "encoding"
 	URLParamIndexPageSize = "indexPageSize"
 	URLParamTotalRecords  = "totalRecords"
-	URLParamTenant        = "tenant"
+	URLParamTenant        = "tenant" // jpe remove this?
 	URLParamDataEncoding  = "dataEncoding"
 	URLParamVersion       = "version"
 
@@ -69,6 +71,7 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 	return byteID, nil
 }
 
+// jpe provide the reverse methods? create http.request?
 func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:  map[string]string{},
@@ -147,158 +150,151 @@ func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (
 		req.Limit = maxLimit
 	}
 
+	if s, ok := extractQueryParam(r, URLParamStart); ok {
+		start, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start: %w", err)
+		}
+		req.Start = uint32(start)
+	}
+
+	if s, ok := extractQueryParam(r, URLParamEnd); ok {
+		end, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid end: %w", err)
+		}
+		req.End = uint32(end)
+	}
+
+	// start and end == 0 is fine
+	if req.End == 0 && req.Start == 0 {
+		return req, nil
+	}
+
+	// if start or end are non-zero do some checks
+	if req.End <= req.Start {
+		return nil, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", req.Start, req.End)
+	}
+	if req.End-req.Start > maxRange {
+		return nil, fmt.Errorf("range specified by start and end exceeds %d seconds. received start=%d end=%d", maxRange, req.Start, req.End)
+	}
 	return req, nil
 }
 
-// ParseBackendSearch is used by both the query frontend and querier to parse backend search requests.
-// /?start=0&end=0&limit=20
-func ParseBackendSearch(r *http.Request) (start, end int64, limit int, err error) {
-	if s := r.URL.Query().Get(URLParamStart); s != "" {
-		start, err = strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			return
-		}
+// ParseBlockSearchRequest parses all http parameters necessary to perform a block search.
+func ParseSearchBlockRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (*tempopb.SearchBlockRequest, error) {
+	searchReq, err := ParseSearchRequest(r, defaultLimit, maxLimit)
+	if err != nil {
+		return nil, err
 	}
 
-	if s := r.URL.Query().Get(URLParamEnd); s != "" {
-		end, err = strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			return
-		}
+	// start and end = 0 is NOT fine for a block search request
+	if searchReq.End == 0 {
+		return nil, errors.New("start and end required")
 	}
 
-	if s := r.URL.Query().Get(URLParamLimit); s != "" {
-		limit, err = strconv.Atoi(s)
-		if err != nil {
-			return
-		}
+	req := &tempopb.SearchBlockRequest{
+		SearchReq: searchReq,
 	}
 
-	if start <= 0 || end <= 0 {
-		err = errors.New("please provide positive values for http parameters start and end")
-		return
+	s := r.URL.Query().Get(URLParamStartPage)
+	startPage, err := strconv.ParseInt(s, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid startPage: %w", err)
 	}
+	if startPage < 0 {
+		return nil, fmt.Errorf("startPage must be non-negative. received: %s", s)
+	}
+	req.StartPage = uint32(startPage)
 
-	if limit == 0 {
-		limit = defaultLimit
+	s = r.URL.Query().Get(URLParamTotalPages)
+	totalPages64, err := strconv.ParseInt(s, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid totalPages %s: %w", s, err)
 	}
+	if totalPages64 <= 0 {
+		return nil, fmt.Errorf("totalPages must be greater than 0. received: %s", s)
+	}
+	req.TotalPages = uint32(totalPages64)
 
-	if end-start > maxRange {
-		err = fmt.Errorf("range specified by start and end exceeds %d seconds. received start=%d end=%d", maxRange, start, end)
-		return
+	s = r.URL.Query().Get(URLParamBlockID)
+	blockID, err := uuid.Parse(s)
+	if err != nil {
+		return nil, fmt.Errorf("invalid blockID: %w", err)
 	}
-	if end <= start {
-		err = fmt.Errorf("http parameter start must be before end. received start=%d end=%d", start, end)
-		return
-	}
+	req.BlockID = blockID.String()
 
-	return
+	s = r.URL.Query().Get(URLParamEncoding)
+	encoding, err := backend.ParseEncoding(s)
+	if err != nil {
+		return nil, err
+	}
+	req.Encoding = encoding.String()
+
+	s = r.URL.Query().Get(URLParamIndexPageSize)
+	indexPageSize, err := strconv.ParseInt(s, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid indexPageSize %s: %w", s, err)
+	}
+	if indexPageSize <= 0 {
+		return nil, fmt.Errorf("indexPageSize must be greater than 0. received %d", indexPageSize)
+	}
+	req.IndexPageSize = uint32(indexPageSize)
+
+	s = r.URL.Query().Get(URLParamTotalRecords)
+	totalRecords, err := strconv.ParseInt(s, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid totalRecords %s: %w", s, err)
+	}
+	if totalRecords <= 0 {
+		return nil, fmt.Errorf("totalRecords must be greater than 0. received %d", totalRecords)
+	}
+	req.TotalRecords = uint32(totalRecords)
+
+	dataEncoding := r.URL.Query().Get(URLParamDataEncoding)
+	if dataEncoding == "" {
+		return nil, errors.New("dataEncoding required")
+	}
+	req.DataEncoding = dataEncoding
+
+	version := r.URL.Query().Get(URLParamVersion)
+	if version == "" {
+		return nil, errors.New("version required")
+	}
+	req.Version = version
+
+	// jpe - restore this or pull tenant id from context and return?
+	// tenant = r.URL.Query().Get(URLParamTenant)
+	// if tenant == "" {
+	// 	err = errors.New("tenant required")
+	// 	return
+	// }
+
+	return req, nil
 }
 
-// ParseBackendSearchQuerier is used by the querier to parse backend search requests.
-// /?startPage=1&totalPages=1&blockID=0f9f8f8f-8f8f-8f8f-8f8f-8f8f8f8f8f8f
-func ParseBackendSearchQuerier(r *http.Request) (startPage, totalPages uint32, blockID uuid.UUID, err error) {
-	var startPage64, totalPages64 int64
-
-	if s := r.URL.Query().Get(URLParamStartPage); s != "" {
-		startPage64, err = strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return
-		}
-		if startPage64 < 0 {
-			err = fmt.Errorf("startPage must be non-negative. received: %s", s)
-			return
-		}
-		startPage = uint32(startPage64)
-	}
-
-	if s := r.URL.Query().Get(URLParamTotalPages); s != "" {
-		totalPages64, err = strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			err = fmt.Errorf("failed to parse totalPages %s: %w", s, err)
-			return
-		}
-		if totalPages64 <= 0 {
-			err = fmt.Errorf("totalPages must be greater than 0. received: %s", s)
-			return
-		}
-		totalPages = uint32(totalPages64)
-	}
-
-	if s := r.URL.Query().Get(URLParamBlockID); s != "" {
-		blockID, err = uuid.Parse(s)
-		if err != nil {
-			err = fmt.Errorf("blockID: %w", err)
-			return
+// BuildSearchBlockRequest takes a tempopb.SearchBlockRequest and populates the passed http.Request
+// with the appropriate params. If no http.Request is provided a new one is created.
+func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRequest) *http.Request {
+	if req == nil {
+		req = &http.Request{
+			URL: &url.URL{},
 		}
 	}
 
-	if blockID == uuid.Nil {
-		err = errors.New("blockID required")
-		return
-	}
+	q := req.URL.Query()
+	q.Add(URLParamBlockID, searchReq.BlockID)
+	q.Add(URLParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
+	q.Add(URLParamTotalPages, strconv.FormatUint(uint64(searchReq.TotalPages), 10))
+	q.Add(URLParamEncoding, searchReq.Encoding)
+	q.Add(URLParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
+	q.Add(URLParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
+	q.Add(URLParamDataEncoding, searchReq.DataEncoding)
+	q.Add(URLParamVersion, searchReq.Version)
 
-	return
-}
+	req.URL.RawQuery = q.Encode()
 
-// ParseBackendSearchServerless is used by the serverless functionality to parse backend search requests.
-// /?encoding=zstd&indexPageSize=10totalRecords=10&tenant=1
-// jpe test
-func ParseBackendSearchServerless(r *http.Request) (encoding backend.Encoding, dataEncoding string, indexPageSize, totalRecords uint32, tenant, version string, err error) {
-	var indexPageSize64, totalRecords64 int64
-
-	if s := r.URL.Query().Get(URLParamEncoding); s != "" {
-		encoding, err = backend.ParseEncoding(s)
-		if err != nil {
-			err = fmt.Errorf("failed to parse encoding %s: %w", s, err)
-			return
-		}
-	}
-	if s := r.URL.Query().Get(URLParamIndexPageSize); s != "" {
-		indexPageSize64, err = strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			err = fmt.Errorf("failed to parse indexPageSize %s: %w", s, err)
-			return
-		}
-		if indexPageSize64 < 0 {
-			err = fmt.Errorf("indexPageSize must be non-negative. received %d", indexPageSize64)
-			return
-		}
-		indexPageSize = uint32(indexPageSize64)
-	}
-
-	if s := r.URL.Query().Get(URLParamTotalRecords); s != "" {
-		totalRecords64, err = strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			err = fmt.Errorf("failed to parse totalRecords %s: %w", s, err)
-			return
-		}
-		if totalRecords64 < 0 {
-			err = fmt.Errorf("totalRecords must be non-negative. received %d", indexPageSize64)
-			return
-		}
-		totalRecords = uint32(totalRecords64)
-	}
-
-	tenant = r.URL.Query().Get(URLParamTenant)
-	if tenant == "" {
-		err = errors.New("tenant required")
-		return
-	}
-
-	dataEncoding = r.URL.Query().Get(URLParamDataEncoding)
-	if dataEncoding == "" {
-		err = errors.New("dataEncoding required")
-		return
-	}
-
-	version = r.URL.Query().Get(URLParamVersion)
-	if dataEncoding == "" {
-		err = errors.New("version required")
-		return
-	}
-
-	return
+	return req
 }
 
 func extractQueryParam(r *http.Request, param string) (string, bool) {

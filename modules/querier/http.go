@@ -144,10 +144,8 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, string, error)
 }
 
 func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
-	if api.IsBackendSearch(r) { // jpe better consolidate with backendSearchHandler. lot of repeated code. do this after we figure out what to do with param deletes
-		q.backendSearchHandler(w, r)
-		return
-	}
+	// jpe - make ingester search queries respect start/end
+	isSearchBlock := api.IsSearchBlock(r)
 
 	// Enforce the query timeout while querying backends
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
@@ -157,23 +155,41 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	defer span.Finish()
 
 	span.SetTag("requestURI", r.RequestURI)
+	span.SetTag("isSearchBlock", isSearchBlock)
 
-	req, err := api.ParseSearchRequest(r, q.cfg.SearchDefaultResultLimit, q.cfg.SearchMaxResultLimit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	var resp *tempopb.SearchResponse
+	if isSearchBlock {
+		req, err := api.ParseSearchRequest(r, q.cfg.SearchDefaultResultLimit, q.cfg.SearchMaxResultLimit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-	span.SetTag("SearchRequest", req.String())
+		span.SetTag("SearchRequest", req.String())
 
-	resp, err := q.Search(ctx, req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		resp, err = q.Search(ctx, req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		req, err := api.ParseSearchBlockRequest(r, q.cfg.SearchDefaultResultLimit, q.cfg.SearchMaxResultLimit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		span.SetTag("SearchRequestBlock", req.String())
+
+		resp, err = q.SearchBlock(ctx, req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp)
+	err := marshaller.Marshal(w, resp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -223,59 +239,6 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	resp, err := q.SearchTagValues(ctx, req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
-func (q *Querier) backendSearchHandler(w http.ResponseWriter, r *http.Request) {
-	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
-	defer cancel()
-
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.BackendSearch")
-	defer span.Finish()
-
-	searchReq, err := api.ParseSearchRequest(r, q.cfg.SearchDefaultResultLimit, q.cfg.SearchMaxResultLimit)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	// parseSearchRequest doesn't respect these as "reserved" tags. let's remove them here.
-	// this will all be cleaned up when search paths are consolidated.
-	delete(searchReq.Tags, api.URLParamBlockID) // jpe what do?
-	delete(searchReq.Tags, api.URLParamStartPage)
-	delete(searchReq.Tags, api.URLParamTotalPages)
-	delete(searchReq.Tags, api.URLParamStart)
-	delete(searchReq.Tags, api.URLParamEnd)
-
-	start, end, _, err := api.ParseBackendSearch(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	startPage, totalPages, blockID, err := api.ParseBackendSearchQuerier(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	searchReq.Start = uint32(start) // jpe all of this needs to go into ParseSearchRequest
-	searchReq.End = uint32(end)
-	searchReq.StartPage = startPage
-	searchReq.TotalPages = totalPages
-	searchReq.BlockID = blockID[:]
-
-	resp, err := q.BackendSearch(ctx, searchReq)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

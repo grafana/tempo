@@ -16,7 +16,8 @@ const RootSpanNotYetReceivedText = "<root span not yet received>"
 // Matches determines if the passed object encoded using dataEncoding matches the tempopb.SearchRequest.
 //  If the object matches the request then a non-nil tempopb.TraceSearchMetaData is returned. Otherwise
 //  nil is returned.
-func Matches(id []byte, obj []byte, dataEncoding string, reqStart, reqEnd uint32, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
+// jpe - reqStart/End are in req now
+func Matches(id []byte, obj []byte, dataEncoding string, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
 	traceStart := uint64(math.MaxUint64)
 	traceEnd := uint64(0)
 
@@ -75,7 +76,7 @@ func Matches(id []byte, obj []byte, dataEncoding string, reqStart, reqEnd uint32
 	if req.MinDurationMs != 0 && req.MinDurationMs > durationMs {
 		return nil, nil
 	}
-	if uint32(traceStartMs/1000) > reqEnd || uint32(traceEndMs/1000) < reqStart {
+	if uint32(traceStartMs/1000) > req.Start || uint32(traceEndMs/1000) < req.End {
 		return nil, nil
 	}
 

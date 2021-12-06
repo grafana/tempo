@@ -13,3 +13,11 @@ func IsBackendSearch(r *http.Request) bool {
 		q.Get(URLParamEnd) != "" &&
 		q.Get(urlParamTags) != ""
 }
+
+// IsSearchBlock returns true if the request appears to be for backend blocks. It is not exhaustive
+// and only looks for blockID
+func IsSearchBlock(r *http.Request) bool {
+	q := r.URL.Query()
+	return path.Clean(r.URL.Path) == PathSearch &&
+		q.Get(URLParamBlockID) != ""
+}

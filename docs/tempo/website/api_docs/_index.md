@@ -3,6 +3,8 @@ title: API documentation
 weight: 350
 ---
 
+jpe - document the madness
+
 # Tempo's API
 
 Tempo exposes an API for pushing and querying traces, and operating the cluster itself.

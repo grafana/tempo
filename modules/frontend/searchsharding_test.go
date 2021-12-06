@@ -122,6 +122,24 @@ func TestShardedRequests(t *testing.T) {
 			},
 			expectedURIs: []string{},
 		},
+		// meta.json fields
+		{
+			targetBytesPerRequest: 1000,
+			metas: []*backend.BlockMeta{
+				{
+					Size:          1000,
+					TotalRecords:  100,
+					BlockID:       uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					DataEncoding:  "json",
+					Encoding:      backend.EncGZIP,
+					IndexPageSize: 13,
+					Version:       "glarg",
+				},
+			},
+			expectedURIs: []string{
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=json&encoding=gzip&end=20&indexPageSize=13&k=test&start=10&startPage=0&totalPages=100&totalRecords=100&v=test&version=glarg",
+			},
+		},
 		// bytes/per request is too small for the page size
 		{
 			targetBytesPerRequest: 1,
@@ -133,9 +151,9 @@ func TestShardedRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=0&totalPages=1&v=test",
-				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=1&totalPages=1&v=test",
-				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=2&totalPages=1&v=test",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&start=10&startPage=0&totalPages=1&totalRecords=3&v=test&version=",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&start=10&startPage=1&totalPages=1&totalRecords=3&v=test&version=",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&start=10&startPage=2&totalPages=1&totalRecords=3&v=test&version=",
 			},
 		},
 		// 100 pages, 10 bytes per page, 1k allowed per request
@@ -149,7 +167,7 @@ func TestShardedRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=0&totalPages=100&v=test",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&start=10&startPage=0&totalPages=100&totalRecords=100&v=test&version=",
 			},
 		},
 		// 100 pages, 10 bytes per page, 900 allowed per request
@@ -163,8 +181,8 @@ func TestShardedRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=0&totalPages=90&v=test",
-				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=90&totalPages=90&v=test",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&start=10&startPage=0&totalPages=90&totalRecords=100&v=test&version=",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&start=10&startPage=90&totalPages=90&totalRecords=100&v=test&version=",
 			},
 		},
 		// two blocks
@@ -183,10 +201,10 @@ func TestShardedRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=0&totalPages=90&v=test",
-				"/querier/?blockID=00000000-0000-0000-0000-000000000000&end=20&k=test&start=10&startPage=90&totalPages=90&v=test",
-				"/querier/?blockID=00000000-0000-0000-0000-000000000001&end=20&k=test&start=10&startPage=0&totalPages=180&v=test",
-				"/querier/?blockID=00000000-0000-0000-0000-000000000001&end=20&k=test&start=10&startPage=180&totalPages=180&v=test",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&start=10&startPage=0&totalPages=90&totalRecords=100&v=test&version=",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&start=10&startPage=90&totalPages=90&totalRecords=100&v=test&version=",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000001&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&start=10&startPage=0&totalPages=180&totalRecords=200&v=test&version=",
+				"/querier/?blockID=00000000-0000-0000-0000-000000000001&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&start=10&startPage=180&totalPages=180&totalRecords=200&v=test&version=",
 			},
 		},
 	}

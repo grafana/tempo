@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -129,7 +128,7 @@ func newSearchSharder(reader tempodb.Reader, concurrentRequests int, targetBytes
 //    start=<unix epoch seconds>
 //    end=<unix epoch seconds>
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
-	start, end, limit, err := api.ParseBackendSearch(r)
+	searchReq, err := api.ParseSearchRequest(r, 20, 50) // jpe where do i get these?
 	if err != nil {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
@@ -145,11 +144,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
 
-	span.SetTag("start", start)
-	span.SetTag("end", end)
-	span.SetTag("limit", limit)
-
-	blocks := s.blockMetas(start, end, tenantID)
+	blocks := s.blockMetas(int64(searchReq.Start), int64(searchReq.End), tenantID)
 	span.SetTag("block-count", len(blocks))
 
 	reqs, err := s.shardedRequests(ctx, blocks, tenantID, r)
@@ -160,7 +155,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.concurrentRequests))
-	overallResponse := newSearchResponse(ctx, limit)
+	overallResponse := newSearchResponse(ctx, int(searchReq.Limit))
 	overallResponse.results.Metrics.InspectedBlocks = uint32(len(blocks))
 
 	for _, req := range reqs {
@@ -290,15 +285,21 @@ func (s *searchSharder) shardedRequests(ctx context.Context, metas []*backend.Bl
 			subR := parent.Clone(ctx)
 			subR.Header.Set(user.OrgIDHeaderName, tenantID)
 
-			q := subR.URL.Query()
-			q.Add(api.URLParamBlockID, blockID)
-			q.Add(api.URLParamStartPage, strconv.Itoa(startPage))
-			q.Add(api.URLParamTotalPages, strconv.Itoa(pagesPerQuery))
+			subR = api.BuildSearchBlockRequest(subR, &tempopb.SearchBlockRequest{
+				BlockID:       blockID,
+				StartPage:     uint32(startPage),
+				TotalPages:    uint32(pagesPerQuery),
+				Encoding:      m.Encoding.String(),
+				IndexPageSize: m.IndexPageSize,
+				TotalRecords:  m.TotalRecords,
+				DataEncoding:  m.DataEncoding,
+				Version:       m.Version,
+			})
 
 			// adding to RequestURI only because weaveworks/common uses the RequestURI field to
 			// translate from http.Request to httpgrpc.Request
 			// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
-			subR.RequestURI = api.PathPrefixQuerier + parent.URL.Path + queryDelimiter + q.Encode()
+			subR.RequestURI = api.PathPrefixQuerier + parent.URL.Path + queryDelimiter + subR.URL.Query().Encode()
 			reqs = append(reqs, subR)
 		}
 	}

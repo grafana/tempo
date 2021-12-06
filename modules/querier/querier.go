@@ -383,13 +383,14 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 }
 
 // todo(search): consolidate
-func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+	// jpe check config value and either search yourself or hand off to serverless
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
 	}
 
-	blockID, err := uuid.FromBytes(req.BlockID)
+	blockID, err := uuid.Parse(req.BlockID)
 	if err != nil {
 		return nil, err
 	}
@@ -400,13 +401,14 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.SearchRequest)
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
+	// jpe create meta.json from SearchBlockRequest and use that instead of this garbage
 	err = q.store.IterateObjects(ctx, tenantID, blockID, int(req.StartPage), int(req.TotalPages), func(id common.ID, obj []byte, dataEncoding string) bool {
 		respMtx.Lock()
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 		respMtx.Unlock()
 
-		metadata, err := model.Matches(id, obj, dataEncoding, req.Start, req.End, req) // jpe change to only take searchrequest
+		metadata, err := model.Matches(id, obj, dataEncoding, req.SearchReq)
 
 		respMtx.Lock()
 		defer respMtx.Unlock()
@@ -419,7 +421,7 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.SearchRequest)
 		}
 
 		resp.Traces = append(resp.Traces, metadata)
-		return len(resp.Traces) >= int(req.Limit)
+		return len(resp.Traces) >= int(req.SearchReq.Limit)
 	})
 	if err != nil {
 		return nil, err

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
 )
 
@@ -61,4 +62,10 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 	}
 
 	return res, nil
+}
+
+// SearchBlock only exists here to fulfill the protobuf interface. The ingester will never support
+// backend search
+func (i *Ingester) SearchBlock(context.Context, *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+	return nil, errors.New("not implemented")
 }

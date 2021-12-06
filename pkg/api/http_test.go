@@ -1,16 +1,14 @@
 package api
 
 import (
-	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -119,6 +117,28 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Limit: defaultLimit,
 			},
 		},
+		{
+			name:     "start and end both set",
+			urlQuery: "tags=service.name%3Dfoo&start=10&end=20",
+			expected: &tempopb.SearchRequest{
+				Tags: map[string]string{
+					"service.name": "foo",
+				},
+				Start: 10,
+				End:   20,
+				Limit: defaultLimit,
+			},
+		},
+		{
+			name:     "end before start",
+			urlQuery: "tags=service.name%3Dfoo&start=20&end=10",
+			err:      "http parameter start must be before end. received start=20 end=10",
+		},
+		{
+			name:     "start/end exceed max range",
+			urlQuery: "tags=service.name%3Dfoo&start=20&end=1000000",
+			err:      "range specified by start and end exceeds 1800 seconds. received start=20 end=1000000",
+		},
 	}
 
 	for _, tt := range tests {
@@ -190,160 +210,137 @@ func TestQuerierParseSearchRequestTagsError(t *testing.T) {
 	}
 }
 
-func TestParseBackendSearch(t *testing.T) {
+func TestParseSearchBlockRequest(t *testing.T) {
 	tests := []struct {
-		start         int64
-		end           int64
-		limit         int
-		expectedLimit int
-		expectedError error
-	}{
-		{
-			expectedError: errors.New("please provide positive values for http parameters start and end"),
-		},
-		{
-			start:         10,
-			expectedError: errors.New("please provide positive values for http parameters start and end"),
-		},
-		{
-			end:           10,
-			expectedError: errors.New("please provide positive values for http parameters start and end"),
-		},
-		{
-			start:         15,
-			end:           10,
-			expectedError: errors.New("http parameter start must be before end. received start=15 end=10"),
-		},
-		{
-			start:         10,
-			end:           100000,
-			expectedError: errors.New("range specified by start and end exceeds 1800 seconds. received start=10 end=100000"),
-		},
-		{
-			start:         10,
-			end:           20,
-			expectedLimit: 20,
-		},
-		{
-			start:         10,
-			end:           20,
-			limit:         30,
-			expectedLimit: 30,
-		},
-	}
-
-	for _, tc := range tests {
-		url := "/blerg?"
-		if tc.start != 0 {
-			url += fmt.Sprintf("&start=%d", tc.start)
-		}
-		if tc.end != 0 {
-			url += fmt.Sprintf("&end=%d", tc.end)
-		}
-		if tc.limit != 0 {
-			url += fmt.Sprintf("&limit=%d", tc.limit)
-		}
-		r := httptest.NewRequest("GET", url, nil)
-
-		actualStart, actualEnd, actualLimit, actualError := ParseBackendSearch(r)
-
-		if tc.expectedError != nil {
-			assert.Equal(t, tc.expectedError, actualError)
-			continue
-		}
-		assert.NoError(t, actualError)
-		assert.Equal(t, tc.start, actualStart)
-		assert.Equal(t, tc.end, actualEnd)
-		assert.Equal(t, tc.expectedLimit, actualLimit)
-	}
-}
-
-func TestParseBackendSearchQuerier(t *testing.T) {
-	tests := []struct {
-		url                string
-		expectedError      string
-		expectedStartPage  uint32
-		expectedTotalPages uint32
-		expectedBlockID    uuid.UUID
+		url           string
+		expected      *tempopb.SearchBlockRequest
+		expectedError string
 	}{
 		{
 			url:           "/",
-			expectedError: "blockID required",
+			expectedError: "start and end required",
 		},
 		{
-			url:           "/?blockID=asdf",
-			expectedError: "blockID: invalid UUID length: 4",
+			url:           "/?start=10&end=20",
+			expectedError: "invalid startPage: strconv.ParseInt: parsing \"\": invalid syntax",
 		},
 		{
-			url:             "/?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b",
-			expectedBlockID: uuid.MustParse("b92ec614-3fd7-4299-b6db-f657e7025a9b"),
+			url:           "/?start=10&end=20&startPage=0",
+			expectedError: "invalid totalPages : strconv.ParseInt: parsing \"\": invalid syntax",
 		},
 		{
-			url:           "/?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&startPage=-1",
-			expectedError: "startPage must be non-negative. received: -1",
+			url:           "/?start=10&end=20&startPage=0&totalPages=10",
+			expectedError: "invalid blockID: invalid UUID length: 0",
 		},
 		{
-			url:           "/?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&startPage=0&totalPages=0",
-			expectedError: "totalPages must be greater than 0. received: 0",
+			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=adsf",
+			expectedError: "invalid blockID: invalid UUID length: 4",
 		},
 		{
-			url:                "/?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&startPage=4&totalPages=3",
-			expectedStartPage:  4,
-			expectedTotalPages: 3,
-			expectedBlockID:    uuid.MustParse("b92ec614-3fd7-4299-b6db-f657e7025a9b"),
+			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b",
+			expectedError: "invalid encoding: , supported: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2",
+		},
+		{
+			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=blerg",
+			expectedError: "invalid encoding: blerg, supported: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2",
+		},
+		{
+			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2",
+			expectedError: "invalid indexPageSize : strconv.ParseInt: parsing \"\": invalid syntax",
+		},
+		{
+			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=0",
+			expectedError: "indexPageSize must be greater than 0. received 0",
+		},
+		{
+			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10",
+			expectedError: "invalid totalRecords : strconv.ParseInt: parsing \"\": invalid syntax",
+		},
+		{
+			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=-1",
+			expectedError: "totalRecords must be greater than 0. received -1",
+		},
+		{
+			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11",
+			expectedError: "dataEncoding required",
+		},
+		{
+			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1",
+			expectedError: "version required",
+		},
+		{
+			url: "/?tags=foo%3Dbar&start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2",
+			expected: &tempopb.SearchBlockRequest{
+				SearchReq: &tempopb.SearchRequest{
+					Tags: map[string]string{
+						"foo": "bar",
+					},
+					Start: 10,
+					End:   20,
+					Limit: defaultLimit,
+				},
+				StartPage:     0,
+				TotalPages:    10,
+				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
+				Encoding:      "s2",
+				IndexPageSize: 10,
+				TotalRecords:  11,
+				DataEncoding:  "v1",
+				Version:       "v2",
+			},
 		},
 	}
 
 	for _, tc := range tests {
 		r := httptest.NewRequest("GET", tc.url, nil)
-		actualStartPage, actualTotalPages, actualBlockID, actualErr := ParseBackendSearchQuerier(r)
+		actualReq, actualErr := ParseSearchBlockRequest(r, defaultLimit, 1000)
 
 		if len(tc.expectedError) != 0 {
 			assert.EqualError(t, actualErr, tc.expectedError)
+			assert.Nil(t, actualReq)
 			continue
 		}
-		assert.Equal(t, tc.expectedStartPage, actualStartPage)
-		assert.Equal(t, tc.expectedTotalPages, actualTotalPages)
-		assert.Equal(t, tc.expectedBlockID, actualBlockID)
+		assert.Equal(t, tc.expected, actualReq)
 	}
 }
 
-// todo(search): improve this test. it is currently thin b/c i expect it to change
-func TestParseBackendSearchServerless(t *testing.T) {
+func TestBuildSearchBlockRequest(t *testing.T) {
 	tests := []struct {
-		url                   string
-		expectedError         string
-		expectedEncoding      backend.Encoding
-		expectedDataEncoding  string
-		expectedIndexPageSize uint32
-		expectedTotalRecords  uint32
-		expectedTenant        string
-		expectedVersion       string
+		req     *tempopb.SearchBlockRequest
+		httpReq *http.Request
+		query   string
 	}{
 		{
-			url:                   "/?encoding=none&dataEncoding=v2&indexPageSize=2&totalRecords=3&tenant=yay&version=v3",
-			expectedEncoding:      backend.EncNone,
-			expectedDataEncoding:  "v2",
-			expectedIndexPageSize: 2,
-			expectedTotalRecords:  3,
-			expectedTenant:        "yay",
-			expectedVersion:       "v3",
+			req: &tempopb.SearchBlockRequest{
+				StartPage:     0,
+				TotalPages:    10,
+				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
+				Encoding:      "s2",
+				IndexPageSize: 10,
+				TotalRecords:  11,
+				DataEncoding:  "v1",
+				Version:       "v2",
+			},
+			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&startPage=0&totalPages=10&totalRecords=11&version=v2",
+		},
+		{
+			req: &tempopb.SearchBlockRequest{
+				StartPage:     0,
+				TotalPages:    10,
+				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
+				Encoding:      "s2",
+				IndexPageSize: 10,
+				TotalRecords:  11,
+				DataEncoding:  "v1",
+				Version:       "v2",
+			},
+			httpReq: httptest.NewRequest("GET", "/test/path", nil),
+			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&startPage=0&totalPages=10&totalRecords=11&version=v2",
 		},
 	}
 
 	for _, tc := range tests {
-		r := httptest.NewRequest("GET", tc.url, nil)
-		encoding, dataEncoding, indexPageSize, totalRecords, tenant, version, err := ParseBackendSearchServerless(r)
-
-		if len(tc.expectedError) != 0 {
-			assert.EqualError(t, err, tc.expectedError)
-			continue
-		}
-		assert.Equal(t, tc.expectedEncoding, encoding)
-		assert.Equal(t, tc.expectedDataEncoding, dataEncoding)
-		assert.Equal(t, tc.expectedIndexPageSize, indexPageSize)
-		assert.Equal(t, tc.expectedTotalRecords, totalRecords)
-		assert.Equal(t, tc.expectedTenant, tenant)
-		assert.Equal(t, tc.expectedVersion, version)
+		actualURL := BuildSearchBlockRequest(tc.httpReq, tc.req)
+		assert.Equal(t, tc.query, actualURL.URL.String())
 	}
 }
