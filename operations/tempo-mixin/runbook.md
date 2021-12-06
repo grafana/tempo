@@ -180,5 +180,8 @@ Alert your users accordingly!
 Note that tenant indexes are built independently and an issue may only be impacting one or very few tenants. `tempodb_blocklist_tenant_index_builder`,
 `tempodb_blocklist_tenant_index_age_seconds` and `tempodb_blocklist_tenant_index_errors_total` are all per-tenant metrics. If
 you can isolate the impacted tenants, attempt to take targeted action instead of making sweeping changes. Your easiest lever 
-to pull is to simply delete stale tenant indexes as all components will fallback to bucket listing.
+to pull is to simply delete stale tenant indexes as all components will fallback to bucket listing. The tenant index is located at:
 
+```
+/<tenant>/index.json.gz
+```
