@@ -15,6 +15,7 @@ require (
 	cloud.google.com/go/functions v1.0.0 // indirect
 	cloud.google.com/go/kms v1.1.0 // indirect
 	github.com/google/uuid v1.3.0
+	github.com/grafana/dskit v0.0.0-20211021180445-3bd016e9d7f1
 	github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78
 )
 

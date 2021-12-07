@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"reflect"
@@ -30,6 +29,7 @@ import (
 
 const (
 	configMicroservices = "config-microservices.yaml"
+	configServerless    = "config-serverless.yaml"
 	configHA            = "config-scalable-single-binary.yaml"
 
 	configAllInOneS3      = "config-all-in-one-s3.yaml"
@@ -118,14 +118,15 @@ func TestAllInOne(t *testing.T) {
 
 			// test metrics
 			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempodb_blocklist_length"))
+			require.NoError(t, tempo.WaitSumMetricsWithOptions(cortex_e2e.Equals(1), []string{"tempodb_blocklist_length"}, cortex_e2e.WaitMissingMetrics))
 			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(4), "tempo_query_frontend_queries_total"))
 
 			// query trace - should fetch from backend
 			queryAndAssertTrace(t, apiClient, info)
 
-			// TODO: when search is implemented in the backend, add search
-			//searchAndAssertTrace(t, apiClient, info)
+			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
+			now := time.Now()
+			searchAndAssertTraceBackend(t, apiClient, info, int(now.Add(-20*time.Minute).Unix()), int(now.Unix()))
 		})
 	}
 }
@@ -236,6 +237,10 @@ func TestMicroservices(t *testing.T) {
 
 	// search an in-memory trace
 	searchAndAssertTrace(t, apiClient, info)
+
+	// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
+	now := time.Now()
+	searchAndAssertTraceBackend(t, apiClient, info, int(now.Add(-20*time.Minute).Unix()), int(now.Unix()))
 
 	// stop another ingester and confirm things fail
 	err = tempoIngester1.Kill()
@@ -411,7 +416,34 @@ func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 	require.Contains(t, tagValuesResp.TagValues, strings.ToLower(attr.GetValue().GetStringValue()))
 
 	// verify trace can be found using attribute
-	resp, err := client.Search(fmt.Sprintf("%s=%s", attr.GetKey(), attr.GetValue().GetStringValue()))
+	resp, err := client.Search(attr.GetKey() + "=" + attr.GetValue().GetStringValue())
+	require.NoError(t, err)
+
+	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
+		for _, s := range resp.Traces {
+			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
+			require.NoError(t, err)
+			if equal {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	require.True(t, hasHex(info.HexID(), resp))
+}
+
+// by passing a time range and using a query_ingesters_within_min/max of 0 we can force the queriers
+// to look in the backend blocks
+func searchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int, end int) {
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	attr := tempoUtil.RandomAttrFromTrace(expected)
+
+	// verify trace can be found using attribute and time range
+	resp, err := client.SearchWithRange(attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
 	require.NoError(t, err)
 
 	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {

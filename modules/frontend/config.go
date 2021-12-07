@@ -16,7 +16,7 @@ type Config struct {
 	SearchConcurrentRequests    int                             `yaml:"search_concurrent_jobs,omitempty"`
 	SearchTargetBytesPerRequest int                             `yaml:"search_target_bytes_per_job,omitempty"`
 	QueryIngestersWithinMin     time.Duration                   `yaml:"query_ingesters_within_min,omitempty"`
-	QueryIngestersWithinMax     time.Duration                   `yaml:"query_ingesters_within_min,omitempty"`
+	QueryIngestersWithinMax     time.Duration                   `yaml:"query_ingesters_within_max,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

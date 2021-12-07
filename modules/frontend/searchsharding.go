@@ -383,6 +383,10 @@ func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, pa
 	if backendStart > ingesterMin {
 		backendStart = ingesterMin
 	}
+	// if ingester start == ingester end then we don't need to query it
+	if ingesterStart == ingesterEnd {
+		return backendStart, backendEnd, nil, nil
+	}
 
 	subR := parent.Clone(ctx)
 	subR.Header.Set(user.OrgIDHeaderName, tenantID)

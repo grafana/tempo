@@ -289,6 +289,15 @@ func TestIngesterRequest(t *testing.T) {
 			expectedStart:           uint32(fifteenMinutesAgo),
 			expectedEnd:             uint32(fifteenMinutesAgo),
 		},
+		// queryIngestersWithinMin/Max = 0 results in no ingester query
+		{
+			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(int(tenMinutesAgo)) + "&end=" + strconv.Itoa(now),
+			queryIngestersWithinMin: 0,
+			queryIngestersWithinMax: 0,
+			expectedURI:             "",
+			expectedStart:           uint32(tenMinutesAgo),
+			expectedEnd:             uint32(now),
+		},
 		// start/end = 20 - 10 mins ago - break across query ingesters within max
 		//  ingester start/End = 15 - 10 mins ago
 		//  backend start/End = 20 - 10 mins ago

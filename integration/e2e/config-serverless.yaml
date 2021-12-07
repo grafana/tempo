@@ -1,7 +1,5 @@
 search_enabled: true
 
-target: all
-
 server:
   http_listen_port: 3200
 
@@ -17,16 +15,14 @@ distributor:
 
 ingester:
   lifecycler:
-    address: 127.0.0.1
     ring:
       kvstore:
-        store: inmemory
-      replication_factor: 1
-    final_sleep: 0s
+        store: memberlist
+      replication_factor: 3
+    heartbeat_period: 100ms
   trace_idle_period: 100ms
-  max_block_bytes: 1
   max_block_duration: 2s
-  complete_block_timeout: 1s
+  complete_block_timeout: 5s
   flush_check_period: 1s
 
 storage:
@@ -43,5 +39,17 @@ storage:
       max_workers: 10
       queue_depth: 100
 
-overrides:
-  max_search_bytes_per_trace: 50_000
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+  - tempo_e2e-distributor:7946
+  - tempo_e2e-ingester-1:7946
+  - tempo_e2e-ingester-2:7946
+  - tempo_e2e-ingester-3:7946
+  - tempo_e2e-querier:7946
+
+querier:
+  search_external_endpoint: "http://tempo_e2e-serverless:8080/"
+  frontend_worker:
+    frontend_address: tempo_e2e-query-frontend:9095

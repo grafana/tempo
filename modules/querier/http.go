@@ -158,7 +158,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	span.SetTag("isSearchBlock", isSearchBlock)
 
 	var resp *tempopb.SearchResponse
-	if isSearchBlock {
+	if !isSearchBlock {
 		req, err := api.ParseSearchRequest(r, q.cfg.SearchDefaultResultLimit, q.cfg.SearchMaxResultLimit)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

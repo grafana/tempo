@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -32,13 +34,12 @@ import (
 const envConfigPrefix = "TEMPO"
 
 // used to initialize a reader one time
-var reader backend.Reader
-var readerErr error
-var readerConfig *tempodb.Config
-var once sync.Once
-
-// todo(search)
-//   integration tests
+var (
+	reader       backend.Reader
+	readerErr    error
+	readerConfig *tempodb.Config
+	readerOnce   sync.Once
+)
 
 // Handler is the main entrypoint for the serverless handler. it expects a tempopb.SearchBlockRequest
 // encoded in its parameters
@@ -49,14 +50,14 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// load local backend config file. by convention this must be in the same folder at ./config.json
+	// load config, fields are set through env vars TEMPO_
 	reader, cfg, err := loadBackend()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	tenant, err := user.ExtractOrgID(r.Context())
+	tenant, _, err := user.ExtractOrgIDFromHTTPRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -104,7 +105,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	for {
 		id, obj, err := iter.Next(r.Context())
-		if err == io.EOF || id == nil || obj == nil {
+		if err == io.EOF {
 			break
 		}
 		if err != nil {
@@ -139,12 +140,12 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func loadBackend() (backend.Reader, *tempodb.Config, error) {
-	once.Do(func() {
+	readerOnce.Do(func() {
 		cfg, err := loadConfig()
 		if err != nil {
 			readerErr = err
+			return
 		}
-		readerConfig = cfg
 
 		var r backend.RawReader
 
@@ -166,8 +167,10 @@ func loadBackend() (backend.Reader, *tempodb.Config, error) {
 		}
 		if err != nil {
 			readerErr = err
+			return
 		}
 
+		readerConfig = cfg
 		reader = backend.NewReader(r)
 	})
 
@@ -202,7 +205,10 @@ func loadConfig() (*tempodb.Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 
 	cfg := &tempodb.Config{}
-	v.Unmarshal(cfg, setTagName)
+	err = v.Unmarshal(cfg, setTagName, setDecodeHooks)
+	if err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
 }
@@ -211,4 +217,32 @@ func loadConfig() (*tempodb.Config, error) {
 // for all config struct fields
 func setTagName(d *mapstructure.DecoderConfig) {
 	d.TagName = "yaml"
+}
+
+// install all required decodeHooks so that viper will parse the yaml properly
+func setDecodeHooks(c *mapstructure.DecoderConfig) {
+	c.DecodeHook = mapstructure.ComposeDecodeHookFunc(
+		mapstructure.StringToTimeDurationHookFunc(),
+		mapstructure.StringToSliceHookFunc(","),
+		stringToFlagExt(),
+	)
+}
+
+// stringToFlagExt returns a DecodeHookFunc that converts
+// strings to dskit.FlagExt values.
+func stringToFlagExt() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{}) (interface{}, error) {
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		if t != reflect.TypeOf(flagext.Secret{}) {
+			return data, nil
+		}
+		return flagext.Secret{
+			Value: data.(string),
+		}, nil
+	}
 }
