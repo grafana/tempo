@@ -190,6 +190,8 @@ query_frontend:
   query_shards: 20
   search_concurrent_jobs: 50
   search_target_bytes_per_job: 10485760
+  query_ingesters_within_min: 15m
+  query_ingesters_within_max: 1h
 compactor:
   ring:
     kvstore:

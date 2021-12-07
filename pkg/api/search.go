@@ -9,8 +9,8 @@ import (
 func IsBackendSearch(r *http.Request) bool {
 	q := r.URL.Query()
 	return path.Clean(r.URL.Path) == PathSearch &&
-		q.Get(URLParamStart) != "" &&
-		q.Get(URLParamEnd) != "" &&
+		q.Get(urlParamStart) != "" &&
+		q.Get(urlParamEnd) != "" &&
 		q.Get(urlParamTags) != ""
 }
 
@@ -19,5 +19,5 @@ func IsBackendSearch(r *http.Request) bool {
 func IsSearchBlock(r *http.Request) bool {
 	q := r.URL.Query()
 	return path.Clean(r.URL.Path) == PathSearch &&
-		q.Get(URLParamBlockID) != ""
+		q.Get(urlParamBlockID) != ""
 }

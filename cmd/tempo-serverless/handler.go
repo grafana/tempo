@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -21,6 +22,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
+	"github.com/weaveworks/common/user"
 	"gopkg.in/yaml.v2"
 
 	// required by the goog
@@ -37,49 +39,11 @@ var once sync.Once
 
 // todo(search)
 //   integration tests
-//   pass meta.json as a body here and to the queriers
 
-// Handler is the main entrypoint
-// Parameters
-//  - searchRequest           - tags, min/maxDuration, limit
-//  - BackendSearch 		  - start, end
-//  - BackendSearchQuerier    - startPage, totalPages, blockID
-//  - BackendSearchServerless - encoding, dataEncoding, indexPageSize, totalRecords, tenant, version
-// Response
-//  - tempopb.SearchResponse
+// Handler is the main entrypoint for the serverless handler. it expects a tempopb.SearchBlockRequest
+// encoded in its parameters
 func Handler(w http.ResponseWriter, r *http.Request) {
-	searchReq, err := api.ParseSearchRequest(r, 20, 0) // todo(search): parameterize 20
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	// parseSearchRequest doesn't respect these as "reserved" tags. let's remove them here.
-	// this will all be cleaned up when search paths are consolidated.
-	delete(searchReq.Tags, api.URLParamBlockID) // jpe what do?
-	delete(searchReq.Tags, api.URLParamStartPage)
-	delete(searchReq.Tags, api.URLParamTotalPages)
-	delete(searchReq.Tags, api.URLParamStart)
-	delete(searchReq.Tags, api.URLParamEnd)
-	delete(searchReq.Tags, api.URLParamEncoding)
-	delete(searchReq.Tags, api.URLParamIndexPageSize)
-	delete(searchReq.Tags, api.URLParamTotalRecords)
-	delete(searchReq.Tags, api.URLParamTenant)
-	delete(searchReq.Tags, api.URLParamDataEncoding)
-	delete(searchReq.Tags, api.URLParamVersion)
-
-	start, end, limit, err := api.ParseBackendSearch(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	startPage, totalPages, blockID, err := api.ParseBackendSearchQuerier(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	enc, dataEncoding, indexPageSize, totalRecords, tenant, version, err := api.ParseBackendSearchServerless(r)
+	searchReq, err := api.ParseSearchBlockRequest(r, 20, 0) // todo(search): parameterize 20 and 0
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -92,16 +56,34 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tenant, err := user.ExtractOrgID(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	blockID, err := uuid.Parse(searchReq.BlockID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	enc, err := backend.ParseEncoding(searchReq.Encoding)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// fake out meta, we're only filling in the fields here we need
 	// which is kind of cheating
 	meta := &backend.BlockMeta{
-		Version:       version,
+		Version:       searchReq.Version,
 		TenantID:      tenant,
 		Encoding:      enc,
-		IndexPageSize: indexPageSize,
-		TotalRecords:  totalRecords,
+		IndexPageSize: searchReq.IndexPageSize,
+		TotalRecords:  searchReq.TotalRecords,
 		BlockID:       blockID,
-		DataEncoding:  dataEncoding,
+		DataEncoding:  searchReq.DataEncoding,
 	}
 
 	block, err := encoding.NewBackendBlock(meta, reader)
@@ -111,7 +93,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// todo(search): the below iterator setup and loop exists in the querier, serverless and tempo-cli. see if there is an opportunity to consolidate
-	iter, err := block.PartialIterator(cfg.Search.ChunkSizeBytes, int(startPage), int(totalPages))
+	iter, err := block.PartialIterator(cfg.Search.ChunkSizeBytes, int(searchReq.StartPage), int(searchReq.TotalPages))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -134,7 +116,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 
-		metadata, err := model.Matches(id, obj, dataEncoding, uint32(start), uint32(end), searchReq)
+		metadata, err := model.Matches(id, obj, searchReq.DataEncoding, searchReq.SearchReq)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -144,7 +126,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		resp.Traces = append(resp.Traces, metadata)
-		if len(resp.Traces) >= int(limit) {
+		if len(resp.Traces) >= int(searchReq.SearchReq.Limit) {
 			break
 		}
 	}

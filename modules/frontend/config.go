@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"flag"
+	"time"
 
 	"github.com/cortexproject/cortex/pkg/frontend"
 	v1 "github.com/cortexproject/cortex/pkg/frontend/v1"
@@ -14,6 +15,8 @@ type Config struct {
 	TolerateFailedBlocks        int                             `yaml:"tolerate_failed_blocks,omitempty"`
 	SearchConcurrentRequests    int                             `yaml:"search_concurrent_jobs,omitempty"`
 	SearchTargetBytesPerRequest int                             `yaml:"search_target_bytes_per_job,omitempty"`
+	QueryIngestersWithinMin     time.Duration                   `yaml:"query_ingesters_within_min,omitempty"`
+	QueryIngestersWithinMax     time.Duration                   `yaml:"query_ingesters_within_min,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -23,6 +26,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxRetries = 2
 	cfg.QueryShards = 20
 	cfg.TolerateFailedBlocks = 0
+	cfg.QueryIngestersWithinMin = 15 * time.Minute
+	cfg.QueryIngestersWithinMax = time.Hour
 
 	cfg.SearchConcurrentRequests = defaultConcurrentRequests
 	cfg.SearchTargetBytesPerRequest = defaultTargetBytesPerRequest

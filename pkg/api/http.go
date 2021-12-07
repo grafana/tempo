@@ -18,26 +18,25 @@ import (
 )
 
 const (
-	// jpe make all urlparams internal?
 	urlParamTraceID = "traceID"
 	// search
 	urlParamTags        = "tags"
 	urlParamMinDuration = "minDuration"
 	urlParamMaxDuration = "maxDuration"
-	URLParamLimit       = "limit"
-	URLParamStart       = "start"
-	URLParamEnd         = "end"
+	urlParamLimit       = "limit"
+	urlParamStart       = "start"
+	urlParamEnd         = "end"
 	// backend search querier
-	URLParamStartPage  = "startPage"
-	URLParamTotalPages = "totalPages"
-	URLParamBlockID    = "blockID"
+	urlParamStartPage  = "startPage"
+	urlParamTotalPages = "totalPages"
+	urlParamBlockID    = "blockID"
 	// backend search serverless
-	URLParamEncoding      = "encoding"
-	URLParamIndexPageSize = "indexPageSize"
-	URLParamTotalRecords  = "totalRecords"
-	URLParamTenant        = "tenant" // jpe remove this?
-	URLParamDataEncoding  = "dataEncoding"
-	URLParamVersion       = "version"
+	urlParamEncoding      = "encoding"
+	urlParamIndexPageSize = "indexPageSize"
+	urlParamTotalRecords  = "totalRecords"
+	urlParamTenant        = "tenant" // jpe remove this?
+	urlParamDataEncoding  = "dataEncoding"
+	urlParamVersion       = "version"
 
 	HeaderAccept         = "Accept"
 	HeaderAcceptProtobuf = "application/protobuf"
@@ -86,7 +85,7 @@ func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (
 		// As Grafana gets updated and/or versions using this get old we can remove this section.
 		for k, v := range r.URL.Query() {
 			// Skip reserved keywords
-			if k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == URLParamLimit {
+			if k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit {
 				continue
 			}
 
@@ -135,7 +134,7 @@ func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (
 		}
 	}
 
-	if s, ok := extractQueryParam(r, URLParamLimit); ok {
+	if s, ok := extractQueryParam(r, urlParamLimit); ok {
 		limit, err := strconv.Atoi(s)
 		if err != nil {
 			return nil, fmt.Errorf("invalid limit: %w", err)
@@ -150,7 +149,7 @@ func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (
 		req.Limit = maxLimit
 	}
 
-	if s, ok := extractQueryParam(r, URLParamStart); ok {
+	if s, ok := extractQueryParam(r, urlParamStart); ok {
 		start, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid start: %w", err)
@@ -158,7 +157,7 @@ func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (
 		req.Start = uint32(start)
 	}
 
-	if s, ok := extractQueryParam(r, URLParamEnd); ok {
+	if s, ok := extractQueryParam(r, urlParamEnd); ok {
 		end, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid end: %w", err)
@@ -197,7 +196,7 @@ func ParseSearchBlockRequest(r *http.Request, defaultLimit uint32, maxLimit uint
 		SearchReq: searchReq,
 	}
 
-	s := r.URL.Query().Get(URLParamStartPage)
+	s := r.URL.Query().Get(urlParamStartPage)
 	startPage, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid startPage: %w", err)
@@ -207,7 +206,7 @@ func ParseSearchBlockRequest(r *http.Request, defaultLimit uint32, maxLimit uint
 	}
 	req.StartPage = uint32(startPage)
 
-	s = r.URL.Query().Get(URLParamTotalPages)
+	s = r.URL.Query().Get(urlParamTotalPages)
 	totalPages64, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid totalPages %s: %w", s, err)
@@ -217,21 +216,21 @@ func ParseSearchBlockRequest(r *http.Request, defaultLimit uint32, maxLimit uint
 	}
 	req.TotalPages = uint32(totalPages64)
 
-	s = r.URL.Query().Get(URLParamBlockID)
+	s = r.URL.Query().Get(urlParamBlockID)
 	blockID, err := uuid.Parse(s)
 	if err != nil {
 		return nil, fmt.Errorf("invalid blockID: %w", err)
 	}
 	req.BlockID = blockID.String()
 
-	s = r.URL.Query().Get(URLParamEncoding)
+	s = r.URL.Query().Get(urlParamEncoding)
 	encoding, err := backend.ParseEncoding(s)
 	if err != nil {
 		return nil, err
 	}
 	req.Encoding = encoding.String()
 
-	s = r.URL.Query().Get(URLParamIndexPageSize)
+	s = r.URL.Query().Get(urlParamIndexPageSize)
 	indexPageSize, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid indexPageSize %s: %w", s, err)
@@ -241,7 +240,7 @@ func ParseSearchBlockRequest(r *http.Request, defaultLimit uint32, maxLimit uint
 	}
 	req.IndexPageSize = uint32(indexPageSize)
 
-	s = r.URL.Query().Get(URLParamTotalRecords)
+	s = r.URL.Query().Get(urlParamTotalRecords)
 	totalRecords, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid totalRecords %s: %w", s, err)
@@ -251,13 +250,13 @@ func ParseSearchBlockRequest(r *http.Request, defaultLimit uint32, maxLimit uint
 	}
 	req.TotalRecords = uint32(totalRecords)
 
-	dataEncoding := r.URL.Query().Get(URLParamDataEncoding)
+	dataEncoding := r.URL.Query().Get(urlParamDataEncoding)
 	if dataEncoding == "" {
 		return nil, errors.New("dataEncoding required")
 	}
 	req.DataEncoding = dataEncoding
 
-	version := r.URL.Query().Get(URLParamVersion)
+	version := r.URL.Query().Get(urlParamVersion)
 	if version == "" {
 		return nil, errors.New("version required")
 	}
@@ -273,28 +272,72 @@ func ParseSearchBlockRequest(r *http.Request, defaultLimit uint32, maxLimit uint
 	return req, nil
 }
 
-// BuildSearchBlockRequest takes a tempopb.SearchBlockRequest and populates the passed http.Request
+// BuildSearchRequest takes a tempopb.SearchRequest and populates the passed http.Request
 // with the appropriate params. If no http.Request is provided a new one is created.
-func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRequest) *http.Request {
+// jpe test
+func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*http.Request, error) {
 	if req == nil {
 		req = &http.Request{
 			URL: &url.URL{},
 		}
 	}
 
+	if searchReq == nil {
+		return req, nil
+	}
+
+	// jpe add all searchReq.SearchReq params to req
 	q := req.URL.Query()
-	q.Add(URLParamBlockID, searchReq.BlockID)
-	q.Add(URLParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
-	q.Add(URLParamTotalPages, strconv.FormatUint(uint64(searchReq.TotalPages), 10))
-	q.Add(URLParamEncoding, searchReq.Encoding)
-	q.Add(URLParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
-	q.Add(URLParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	q.Add(URLParamDataEncoding, searchReq.DataEncoding)
-	q.Add(URLParamVersion, searchReq.Version)
+	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
+	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	q.Set(urlParamLimit, strconv.FormatUint(uint64(searchReq.Limit), 10))
+	q.Set(urlParamMaxDuration, strconv.FormatUint(uint64(searchReq.MaxDurationMs), 10)+"ms")
+	q.Set(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
+
+	builder := &strings.Builder{}
+	encoder := logfmt.NewEncoder(builder)
+
+	for k, v := range searchReq.Tags {
+		err := encoder.EncodeKeyval(k, v)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	q.Set(urlParamTags, builder.String())
 
 	req.URL.RawQuery = q.Encode()
 
-	return req
+	return req, nil
+}
+
+// BuildSearchBlockRequest takes a tempopb.SearchBlockRequest and populates the passed http.Request
+// with the appropriate params. If no http.Request is provided a new one is created.
+func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRequest) (*http.Request, error) {
+	if req == nil {
+		req = &http.Request{
+			URL: &url.URL{},
+		}
+	}
+
+	req, err := BuildSearchRequest(req, searchReq.SearchReq)
+	if err != nil {
+		return nil, err
+	}
+
+	q := req.URL.Query()
+	q.Set(urlParamBlockID, searchReq.BlockID)
+	q.Set(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
+	q.Set(urlParamTotalPages, strconv.FormatUint(uint64(searchReq.TotalPages), 10))
+	q.Set(urlParamEncoding, searchReq.Encoding)
+	q.Set(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
+	q.Set(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
+	q.Set(urlParamDataEncoding, searchReq.DataEncoding)
+	q.Set(urlParamVersion, searchReq.Version)
+
+	req.URL.RawQuery = q.Encode()
+
+	return req, nil
 }
 
 func extractQueryParam(r *http.Request, param string) (string, bool) {

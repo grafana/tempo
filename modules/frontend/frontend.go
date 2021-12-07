@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 
 	"github.com/go-kit/log"
@@ -49,6 +51,10 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 
 	if cfg.SearchTargetBytesPerRequest <= 0 {
 		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
+	}
+
+	if cfg.QueryIngestersWithinMax < cfg.QueryIngestersWithinMin {
+		return nil, fmt.Errorf("query ingesters within min should be less than query ingesters within max")
 	}
 
 	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
@@ -158,7 +164,12 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 func newSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		ingesterSearchRT := next
-		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, cfg.SearchConcurrentRequests, cfg.SearchTargetBytesPerRequest, logger))
+		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, searchSharderConfig{
+			concurrentRequests:      cfg.SearchConcurrentRequests,
+			targetBytesPerRequest:   cfg.SearchTargetBytesPerRequest,
+			queryIngestersWithinMin: cfg.QueryIngestersWithinMin,
+			queryIngestersWithinMax: cfg.QueryIngestersWithinMax,
+		}, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// backend search queries require sharding so we pass through a special roundtripper
@@ -170,9 +181,23 @@ func newSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger) M
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
-			r.RequestURI = api.PathPrefixQuerier + r.RequestURI
+			r.RequestURI = buildRequestURI(api.PathPrefixQuerier, r.RequestURI, nil)
 
 			return ingesterSearchRT.RoundTrip(r)
 		})
 	})
+}
+
+// buildRequestURI returns a uri based on the passed parameters
+// we do this because weaveworks/common uses the RequestURI field to translate from http.Request to httpgrpc.Request
+// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
+func buildRequestURI(prefix string, originalURI string, params url.Values) string {
+	const queryDelimiter = "?"
+
+	uri := path.Join(prefix, originalURI)
+	if len(params) > 0 {
+		uri += queryDelimiter + params.Encode()
+	}
+
+	return uri
 }

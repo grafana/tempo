@@ -204,6 +204,20 @@ query_frontend:
     # The target number of bytes for each job to handle when performing a backend search.
     # (default: 10485760)
     [search_target_bytes_per_job: <int>]
+
+    # This duration controls the min cutoff between relying on ingesters and the backend for recent trace information.
+    # If it is set to 15m then data within the last 15m will be queried from the ingesters and all previous data will
+    # be queried from the backend. Notice there is overlap with query_ingesters_within_max. The period of time between
+    # min and max will be queried from both the ingesters and the backend.
+    # (default: 15m)
+    [query_ingesters_within_min: <duration>]
+
+    # This duration controls the max cutoff between relying on ingesters and the backend for recent trace information.
+    # If it is set to 1h then data within the last 1h will be queried from the ingesters and all previous data will
+    # be queried from the backend. Notice there is overlap with query_ingesters_within_min. The period of time between
+    # min and max will be queried from both the ingesters and the backend.
+    # (default: 1h)
+    [query_ingesters_within_max: <duration>]
 ```
 
 ## Querier

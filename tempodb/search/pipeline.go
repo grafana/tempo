@@ -40,6 +40,8 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 		})
 	}
 
+	// jpe - here: make ingester search respect start/end time of req.
+
 	if req.MaxDurationMs > 0 {
 		maxDurationNanos := uint64(time.Duration(req.MaxDurationMs) * time.Millisecond)
 

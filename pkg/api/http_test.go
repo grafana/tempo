@@ -337,10 +337,62 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 			httpReq: httptest.NewRequest("GET", "/test/path", nil),
 			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&startPage=0&totalPages=10&totalRecords=11&version=v2",
 		},
+		{
+			req: &tempopb.SearchBlockRequest{
+				SearchReq: &tempopb.SearchRequest{
+					Tags: map[string]string{
+						"foo": "bar",
+					},
+					Start:         10,
+					End:           20,
+					MinDurationMs: 30,
+					MaxDurationMs: 40,
+					Limit:         50,
+				},
+				StartPage:     0,
+				TotalPages:    10,
+				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
+				Encoding:      "s2",
+				IndexPageSize: 10,
+				TotalRecords:  11,
+				DataEncoding:  "v1",
+				Version:       "v2",
+			},
+			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&end=20&indexPageSize=10&limit=50&maxDuration=40ms&minDuration=30ms&start=10&startPage=0&tags=foo%3Dbar&totalPages=10&totalRecords=11&version=v2",
+		},
 	}
 
 	for _, tc := range tests {
-		actualURL := BuildSearchBlockRequest(tc.httpReq, tc.req)
+		actualURL, err := BuildSearchBlockRequest(tc.httpReq, tc.req)
+		assert.NoError(t, err)
+		assert.Equal(t, tc.query, actualURL.URL.String())
+	}
+}
+
+func TestBuildSearchRequest(t *testing.T) {
+	tests := []struct {
+		req     *tempopb.SearchRequest
+		httpReq *http.Request
+		query   string
+	}{
+		{
+			req: &tempopb.SearchRequest{
+				Tags: map[string]string{
+					"foo": "bar",
+				},
+				Start:         10,
+				End:           20,
+				MinDurationMs: 30,
+				MaxDurationMs: 40,
+				Limit:         50,
+			},
+			query: "?end=20&limit=50&maxDuration=40ms&minDuration=30ms&start=10&tags=foo%3Dbar",
+		},
+	}
+
+	for _, tc := range tests {
+		actualURL, err := BuildSearchRequest(tc.httpReq, tc.req)
+		assert.NoError(t, err)
 		assert.Equal(t, tc.query, actualURL.URL.String())
 	}
 }

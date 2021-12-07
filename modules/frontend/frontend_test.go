@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
@@ -59,5 +60,13 @@ func TestFrontendBadConfigFails(t *testing.T) {
 		SearchConcurrentRequests:    defaultConcurrentRequests,
 		SearchTargetBytesPerRequest: 0}, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend search target bytes per request should be greater than 0")
+	assert.Nil(t, f)
+
+	f, err = New(Config{QueryShards: maxQueryShards,
+		SearchConcurrentRequests:    defaultConcurrentRequests,
+		SearchTargetBytesPerRequest: defaultTargetBytesPerRequest,
+		QueryIngestersWithinMin:     time.Hour,
+		QueryIngestersWithinMax:     time.Minute}, nil, nil, log.NewNopLogger(), nil)
+	assert.EqualError(t, err, "query ingesters within min should be less than query ingesters within max")
 	assert.Nil(t, f)
 }
