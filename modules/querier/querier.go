@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
@@ -395,14 +396,28 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		return nil, err
 	}
 
+	enc, err := backend.ParseEncoding(req.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	meta := &backend.BlockMeta{
+		Version:       req.Version,
+		TenantID:      tenantID,
+		Encoding:      enc,
+		IndexPageSize: req.IndexPageSize,
+		TotalRecords:  req.TotalRecords,
+		BlockID:       blockID,
+		DataEncoding:  req.DataEncoding,
+	}
+
 	var searchErr error
 	respMtx := sync.Mutex{}
 	resp := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
-	// jpe create meta.json from SearchBlockRequest and use that instead of this garbage
-	err = q.store.IterateObjects(ctx, tenantID, blockID, int(req.StartPage), int(req.TotalPages), func(id common.ID, obj []byte, dataEncoding string) bool {
+	err = q.store.IterateObjects(ctx, meta, int(req.StartPage), int(req.TotalPages), func(id common.ID, obj []byte, dataEncoding string) bool {
 		respMtx.Lock()
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))

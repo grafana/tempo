@@ -38,7 +38,7 @@ func (m *mockReader) Find(ctx context.Context, tenantID string, id common.ID, bl
 func (m *mockReader) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return m.metas
 }
-func (m *mockReader) IterateObjects(ctx context.Context, tenantID string, blockID uuid.UUID, startPage int, totalPages int, callback tempodb.IterateObjectCallback) error {
+func (m *mockReader) IterateObjects(ctx context.Context, meta *backend.BlockMeta, startPage int, totalPages int, callback tempodb.IterateObjectCallback) error {
 	return nil
 }
 func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}
@@ -422,7 +422,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			response1: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
-						TraceID: "1234",
+						TraceID:           "1234",
+						StartTimeUnixNano: 1,
 					},
 				},
 				Metrics: &tempopb.SearchMetrics{
@@ -435,7 +436,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			response2: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
-						TraceID: "5678",
+						TraceID:           "5678",
+						StartTimeUnixNano: 0,
 					},
 				},
 				Metrics: &tempopb.SearchMetrics{
@@ -448,10 +450,12 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			expectedResponse: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
-						TraceID: "1234",
+						TraceID:           "1234",
+						StartTimeUnixNano: 1,
 					},
 					{
-						TraceID: "5678",
+						TraceID:           "5678",
+						StartTimeUnixNano: 0,
 					},
 				},
 				Metrics: &tempopb.SearchMetrics{

@@ -70,7 +70,7 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 	return byteID, nil
 }
 
-// jpe provide the reverse methods? create http.request?
+// ParseSearchRequest takes an http.Request and decodes query params to create a tempopb.SearchRequest
 func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:  map[string]string{},
@@ -274,7 +274,6 @@ func ParseSearchBlockRequest(r *http.Request, defaultLimit uint32, maxLimit uint
 
 // BuildSearchRequest takes a tempopb.SearchRequest and populates the passed http.Request
 // with the appropriate params. If no http.Request is provided a new one is created.
-// jpe test
 func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*http.Request, error) {
 	if req == nil {
 		req = &http.Request{
@@ -286,7 +285,6 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 		return req, nil
 	}
 
-	// jpe add all searchReq.SearchReq params to req
 	q := req.URL.Query()
 	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
 	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))

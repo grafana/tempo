@@ -58,7 +58,7 @@ type Config struct {
 }
 
 type SearchConfig struct {
-	ChunkSizeBytes     uint32 `yaml:"chunk_size_bytes"` // jpe docs
+	ChunkSizeBytes     uint32 `yaml:"chunk_size_bytes"`
 	PrefetchTraceCount int    `yaml:"prefetch_trace_count"`
 }
 

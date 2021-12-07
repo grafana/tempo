@@ -74,8 +74,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// fake out meta, we're only filling in the fields here we need
-	// which is kind of cheating
+	// /giphy so meta
 	meta := &backend.BlockMeta{
 		Version:       searchReq.Version,
 		TenantID:      tenant,
