@@ -20,9 +20,9 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"time"
@@ -42,7 +42,6 @@ type strategyStore struct {
 
 	storedStrategies atomic.Value // holds *storedStrategies
 
-	ctx        context.Context
 	cancelFunc context.CancelFunc
 }
 
@@ -58,7 +57,6 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	h := &strategyStore{
 		logger:     logger,
-		ctx:        ctx,
 		cancelFunc: cancelFunc,
 	}
 	h.storedStrategies.Store(defaultStrategies())
@@ -68,7 +66,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 		return h, nil
 	}
 
-	loadFn := samplingStrategyLoader(options.StrategiesFile)
+	loadFn := h.samplingStrategyLoader(options.StrategiesFile)
 	strategies, err := loadStrategies(loadFn)
 	if err != nil {
 		return nil, err
@@ -76,7 +74,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	h.parseStrategies(strategies)
 
 	if options.ReloadInterval > 0 {
-		go h.autoUpdateStrategies(options.ReloadInterval, loadFn)
+		go h.autoUpdateStrategies(ctx, options.ReloadInterval, loadFn)
 	}
 	return h, nil
 }
@@ -97,7 +95,8 @@ func (h *strategyStore) Close() {
 	h.cancelFunc()
 }
 
-func downloadSamplingStrategies(url string) ([]byte, error) {
+func (h *strategyStore) downloadSamplingStrategies(url string) ([]byte, error) {
+	h.logger.Info("Downloading sampling strategies", zap.String("url", url))
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download sampling strategies: %w", err)
@@ -128,15 +127,16 @@ func isURL(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func samplingStrategyLoader(strategiesFile string) strategyLoader {
+func (h *strategyStore) samplingStrategyLoader(strategiesFile string) strategyLoader {
 	if isURL(strategiesFile) {
 		return func() ([]byte, error) {
-			return downloadSamplingStrategies(strategiesFile)
+			return h.downloadSamplingStrategies(strategiesFile)
 		}
 	}
 
 	return func() ([]byte, error) {
-		currBytes, err := ioutil.ReadFile(filepath.Clean(strategiesFile))
+		h.logger.Info("Loading sampling strategies", zap.String("filename", strategiesFile))
+		currBytes, err := os.ReadFile(filepath.Clean(strategiesFile))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read strategies file %s: %w", strategiesFile, err)
 		}
@@ -144,7 +144,7 @@ func samplingStrategyLoader(strategiesFile string) strategyLoader {
 	}
 }
 
-func (h *strategyStore) autoUpdateStrategies(interval time.Duration, loader strategyLoader) {
+func (h *strategyStore) autoUpdateStrategies(ctx context.Context, interval time.Duration, loader strategyLoader) {
 	lastValue := string(nullJSON)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -152,7 +152,7 @@ func (h *strategyStore) autoUpdateStrategies(interval time.Duration, loader stra
 		select {
 		case <-ticker.C:
 			lastValue = h.reloadSamplingStrategy(loader, lastValue)
-		case <-h.ctx.Done():
+		case <-ctx.Done():
 			return
 		}
 	}

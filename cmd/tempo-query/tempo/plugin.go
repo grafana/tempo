@@ -17,11 +17,11 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	jaeger "github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 
-	ot_pdata "go.opentelemetry.io/collector/consumer/pdata"
-	ot_jaeger "go.opentelemetry.io/collector/translator/trace/jaeger"
+	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+	"go.opentelemetry.io/collector/model/otlp"
 )
 
 const (
@@ -84,10 +84,9 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("%s", body)
 	}
 
-	otTrace := ot_pdata.NewTraces()
-	err = otTrace.FromOtlpProtoBytes(body)
+	otTrace, err := otlp.NewProtobufTracesUnmarshaler().UnmarshalTraces(body)
 	if err != nil {
-		return nil, fmt.Errorf("Error converting tempo response to Otlp: %w", err)
+		return nil, fmt.Errorf("error unmarshalling body to otlp trace %v: %w", traceID, err)
 	}
 
 	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
@@ -300,7 +299,7 @@ func (b *Backend) newGetRequest(ctx context.Context, url string, span opentracin
 
 func extractBearerToken(ctx context.Context) (string, bool) {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		values := md.Get(spanstore.BearerTokenKey)
+		values := md.Get(shared.BearerTokenKey)
 		if len(values) > 0 {
 			return values[0], true
 		}

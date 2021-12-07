@@ -82,11 +82,13 @@
             },
           },
           {
+            // wait 5m for failed flushes to self-heal using retries
             alert: 'TempoIngesterFlushesFailing',
             expr: |||
               sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s and
               sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0
             ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster],
+            'for': '5m',
             labels: {
               severity: 'critical',
             },
