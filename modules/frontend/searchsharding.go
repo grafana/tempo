@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -33,21 +34,21 @@ type searchResponse struct {
 	statusCode int
 	statusMsg  string
 	ctx        context.Context
-	results    *tempopb.SearchResponse
+
+	resultsMap     map[string]*tempopb.TraceSearchMetadata
+	resultsMetrics *tempopb.SearchMetrics
 
 	limit int
 	mtx   sync.Mutex
 }
 
-// jpe add deduping here and at the querier level
 func newSearchResponse(ctx context.Context, limit int) *searchResponse {
 	return &searchResponse{
-		ctx:        ctx,
-		statusCode: http.StatusOK,
-		limit:      limit,
-		results: &tempopb.SearchResponse{
-			Metrics: &tempopb.SearchMetrics{},
-		},
+		ctx:            ctx,
+		statusCode:     http.StatusOK,
+		limit:          limit,
+		resultsMetrics: &tempopb.SearchMetrics{},
+		resultsMap:     map[string]*tempopb.TraceSearchMetadata{},
 	}
 }
 
@@ -70,11 +71,17 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.results.Traces = append(r.results.Traces, res.Traces...)
+	for _, t := range res.Traces {
+		// just take the first
+		if _, ok := r.resultsMap[t.TraceID]; !ok {
+			r.resultsMap[t.TraceID] = t
+		}
+	}
+
 	// purposefully ignoring InspectedBlocks as that value is set by the sharder
-	r.results.Metrics.InspectedBytes += res.Metrics.InspectedBytes
-	r.results.Metrics.InspectedTraces += res.Metrics.InspectedTraces
-	r.results.Metrics.SkippedBlocks += res.Metrics.SkippedBlocks
+	r.resultsMetrics.InspectedBytes += res.Metrics.InspectedBytes
+	r.resultsMetrics.InspectedTraces += res.Metrics.InspectedTraces
+	r.resultsMetrics.SkippedBlocks += res.Metrics.SkippedBlocks
 }
 
 func (r *searchResponse) shouldQuit() bool {
@@ -90,11 +97,29 @@ func (r *searchResponse) shouldQuit() bool {
 	if r.statusCode/100 != 2 {
 		return true
 	}
-	if len(r.results.Traces) > r.limit {
+	if len(r.resultsMap) > r.limit {
 		return true
 	}
 
 	return false
+}
+
+func (r *searchResponse) result() *tempopb.SearchResponse {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	res := &tempopb.SearchResponse{
+		Metrics: r.resultsMetrics,
+	}
+
+	for _, t := range r.resultsMap {
+		res.Traces = append(res.Traces, t)
+	}
+	sort.Slice(res.Traces, func(i, j int) bool {
+		return res.Traces[i].StartTimeUnixNano > res.Traces[j].StartTimeUnixNano
+	})
+
+	return res
 }
 
 type searchSharder struct {
@@ -173,7 +198,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.concurrentRequests))
 	overallResponse := newSearchResponse(ctx, int(searchReq.Limit))
-	overallResponse.results.Metrics.InspectedBlocks = uint32(len(blocks))
+	overallResponse.resultsMetrics.InspectedBlocks = uint32(len(blocks))
 
 	for _, req := range reqs {
 		if overallResponse.shouldQuit() {
@@ -245,7 +270,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	m := &jsonpb.Marshaler{}
-	bodyString, err := m.MarshalToString(overallResponse.results)
+	bodyString, err := m.MarshalToString(overallResponse.result())
 	if err != nil {
 		return nil, err
 	}

@@ -80,15 +80,33 @@ func TestSearchResponseShouldQuit(t *testing.T) {
 	sr = newSearchResponse(ctx, 2)
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
-			{},
+			{
+				TraceID: "samething",
+			},
 		},
 		Metrics: &tempopb.SearchMetrics{},
 	})
 	assert.False(t, sr.shouldQuit())
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
-			{},
-			{},
+			{
+				TraceID: "samething",
+			},
+			{
+				TraceID: "samething",
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{},
+	})
+	assert.False(t, sr.shouldQuit())
+	sr.addResponse(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID: "otherthing",
+			},
+			{
+				TraceID: "thingthatsdifferent",
+			},
 		},
 		Metrics: &tempopb.SearchMetrics{},
 	})
