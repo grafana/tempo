@@ -131,6 +131,7 @@ querier:
   search_query_timeout: 30s
   search_default_result_limit: 20
   search_max_result_limit: 0
+  search_external_endpoint: ""
   max_concurrent_queries: 5
   frontend_worker:
     frontend_address: 127.0.0.1:9095

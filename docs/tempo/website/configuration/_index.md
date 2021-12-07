@@ -243,6 +243,12 @@ querier:
     # The default value of 0 disables this limit.
     [search_max_result_limit: <int> | default = 0]
 
+    # An external endpoint that the querier will use to offload backend search requests. It must  
+    # take and return the same value as /api/search endpoint on the querier. This is intended to be
+    # used with serverless technologies for massive parralelization of the search path. jpe - link to real docs
+    # The default value of "" disables this feature.
+    [search_external_endpoint: <string> | default = ""]
+
     # config of the worker that connects to the query frontend
     frontend_worker:
 

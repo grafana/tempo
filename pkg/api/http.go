@@ -34,7 +34,6 @@ const (
 	urlParamEncoding      = "encoding"
 	urlParamIndexPageSize = "indexPageSize"
 	urlParamTotalRecords  = "totalRecords"
-	urlParamTenant        = "tenant" // jpe remove this?
 	urlParamDataEncoding  = "dataEncoding"
 	urlParamVersion       = "version"
 
@@ -261,13 +260,6 @@ func ParseSearchBlockRequest(r *http.Request, defaultLimit uint32, maxLimit uint
 		return nil, errors.New("version required")
 	}
 	req.Version = version
-
-	// jpe - restore this or pull tenant id from context and return?
-	// tenant = r.URL.Query().Get(URLParamTenant)
-	// if tenant == "" {
-	// 	err = errors.New("tenant required")
-	// 	return
-	// }
 
 	return req, nil
 }

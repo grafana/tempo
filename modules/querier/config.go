@@ -15,6 +15,7 @@ type Config struct {
 	SearchQueryTimeout       time.Duration        `yaml:"search_query_timeout"`
 	SearchDefaultResultLimit uint32               `yaml:"search_default_result_limit"`
 	SearchMaxResultLimit     uint32               `yaml:"search_max_result_limit"`
+	SearchExternalEndpont    string               `yaml:"search_external_endpoint"`
 	ExtraQueryDelay          time.Duration        `yaml:"extra_query_delay,omitempty"`
 	MaxConcurrentQueries     int                  `yaml:"max_concurrent_queries"`
 	Worker                   cortex_worker.Config `yaml:"frontend_worker"`

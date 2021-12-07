@@ -1,8 +1,10 @@
 package querier
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"sort"
 	"sync"
@@ -10,6 +12,7 @@ import (
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
@@ -17,6 +20,7 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -383,9 +387,15 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	return resp, nil
 }
 
-// todo(search): consolidate
+// SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
-	// jpe check config value and either search yourself or hand off to serverless
+	// todo: if the querier is not currently doing anything it should prefer handling the request itself to
+	//  offloading to the external endpoint
+	// check if we should offload this it to another endpoint
+	if q.cfg.SearchExternalEndpont != "" {
+		return searchExternalEndpoint(ctx, q.cfg.SearchExternalEndpont, req)
+	}
+
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
@@ -487,4 +497,37 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	}
 
 	return response
+}
+
+func searchExternalEndpoint(ctx context.Context, externalEndpoint string, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+	req, err := http.NewRequest(http.MethodGet, externalEndpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)
+	}
+	req, err = api.BuildSearchBlockRequest(req, searchReq)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to build search block request: %w", err)
+	}
+	err = user.InjectOrgIDIntoHTTPRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to call http: %s, %w", externalEndpoint, err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to read body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("external endpoint returned %d, %s", resp.StatusCode, string(body))
+	}
+	var searchResp tempopb.SearchResponse
+	err = jsonpb.Unmarshal(bytes.NewReader(body), &searchResp)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to unmarshal body: %s, %w", string(body), err)
+	}
+	return &searchResp, nil
 }
