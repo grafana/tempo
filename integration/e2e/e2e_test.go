@@ -164,7 +164,7 @@ func TestMicroservices(t *testing.T) {
 			Value: "ACTIVE",
 		},
 	}
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
+	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...), cortex_e2e.WaitMissingMetrics))
 
 	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
@@ -297,9 +297,9 @@ func TestScalableSingleBinary(t *testing.T) {
 
 	t.Logf("tempo1.Endpoint(): %+v", tempo1.Endpoint(3200))
 
-	require.NoError(t, tempo1.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
-	require.NoError(t, tempo2.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
-	require.NoError(t, tempo3.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...)))
+	require.NoError(t, tempo1.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...), cortex_e2e.WaitMissingMetrics))
+	require.NoError(t, tempo2.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...), cortex_e2e.WaitMissingMetrics))
+	require.NoError(t, tempo3.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...), cortex_e2e.WaitMissingMetrics))
 
 	c1, err := newJaegerGRPCClient(tempo1.Endpoint(14250))
 	require.NoError(t, err)

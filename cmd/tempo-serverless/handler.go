@@ -44,7 +44,7 @@ var (
 // Handler is the main entrypoint for the serverless handler. it expects a tempopb.SearchBlockRequest
 // encoded in its parameters
 func Handler(w http.ResponseWriter, r *http.Request) {
-	searchReq, err := api.ParseSearchBlockRequest(r, 20, 0) // todo(search): parameterize 20 and 0
+	searchReq, err := api.ParseSearchBlockRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

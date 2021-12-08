@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -231,8 +232,8 @@ func TestBackendRequests(t *testing.T) {
 
 	for _, tc := range tests {
 		s := &searchSharder{
-			cfg: searchSharderConfig{
-				targetBytesPerRequest: tc.targetBytesPerRequest,
+			cfg: SearchSharderConfig{
+				TargetBytesPerRequest: tc.targetBytesPerRequest,
 			},
 		}
 		req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
@@ -335,14 +336,14 @@ func TestIngesterRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		s := &searchSharder{
-			cfg: searchSharderConfig{
-				queryIngestersWithinMin: tc.queryIngestersWithinMin,
-				queryIngestersWithinMax: tc.queryIngestersWithinMax,
+			cfg: SearchSharderConfig{
+				QueryIngestersWithinMin: tc.queryIngestersWithinMin,
+				QueryIngestersWithinMax: tc.queryIngestersWithinMax,
 			},
 		}
 		req := httptest.NewRequest("GET", tc.request, nil)
 
-		searchReq, err := api.ParseSearchRequest(req, 20, 1000)
+		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
 		actualStart, actualEnd, actualReq, err := s.ingesterRequest(context.Background(), "test", req, searchReq)
@@ -547,9 +548,9 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 						BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					},
 				},
-			}, searchSharderConfig{
-				concurrentRequests:    1, // 1 concurrent request to force order
-				targetBytesPerRequest: defaultTargetBytesPerRequest,
+			}, SearchSharderConfig{
+				ConcurrentRequests:    1, // 1 concurrent request to force order
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			}, log.NewNopLogger())
 			testRT := NewRoundTripper(next, sharder)
 
@@ -576,4 +577,49 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSearchSharderRoundTripBadRequest(t *testing.T) {
+	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, nil
+	})
+
+	sharder := newSearchSharder(&mockReader{}, SearchSharderConfig{
+		ConcurrentRequests:    defaultConcurrentRequests,
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MaxDuration:           5 * time.Minute,
+	}, log.NewNopLogger())
+	testRT := NewRoundTripper(next, sharder)
+
+	// no org id
+	req := httptest.NewRequest("GET", "/?start=1000&end=1100", nil)
+	resp, err := testRT.RoundTrip(req)
+	testBadRequest(t, resp, err, "no org id")
+
+	// start/end outside of max duration
+	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
+	req.Header.Set(user.OrgIDHeaderName, "blerg")
+	resp, err = testRT.RoundTrip(req)
+	testBadRequest(t, resp, err, "range specified by start and end exceeds 5m0s. received start=1000 end=1500")
+
+	// bad request
+	req = httptest.NewRequest("GET", "/?start=asdf&end=1500", nil)
+	req.Header.Set(user.OrgIDHeaderName, "blerg")
+	resp, err = testRT.RoundTrip(req)
+	testBadRequest(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
+}
+
+func testBadRequest(t *testing.T, resp *http.Response, err error, expectedBody string) {
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Nil(t, err)
+	buff, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedBody, string(buff))
+}
+
+func TestAdjustLimit(t *testing.T) {
+	assert.Equal(t, uint32(10), adjustLimit(0, 10, 0))
+	assert.Equal(t, uint32(3), adjustLimit(3, 10, 0))
+	assert.Equal(t, uint32(3), adjustLimit(3, 10, 20))
+	assert.Equal(t, uint32(20), adjustLimit(25, 10, 20))
 }

@@ -25,8 +25,11 @@ func (s *mockNextTripperware) RoundTrip(_ *http.Request) (*http.Response, error)
 func TestFrontendRoundTripsSearch(t *testing.T) {
 	next := &mockNextTripperware{}
 	f, err := New(Config{QueryShards: minQueryShards,
-		SearchConcurrentRequests:    defaultConcurrentRequests,
-		SearchTargetBytesPerRequest: defaultTargetBytesPerRequest}, next, nil, log.NewNopLogger(), nil)
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		},
+	}, next, nil, log.NewNopLogger(), nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -39,34 +42,49 @@ func TestFrontendRoundTripsSearch(t *testing.T) {
 
 func TestFrontendBadConfigFails(t *testing.T) {
 	f, err := New(Config{QueryShards: minQueryShards - 1,
-		SearchConcurrentRequests:    defaultConcurrentRequests,
-		SearchTargetBytesPerRequest: defaultTargetBytesPerRequest}, nil, nil, log.NewNopLogger(), nil)
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		},
+	}, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend query shards should be between 2 and 256 (both inclusive)")
 	assert.Nil(t, f)
 
 	f, err = New(Config{QueryShards: maxQueryShards + 1,
-		SearchConcurrentRequests:    defaultConcurrentRequests,
-		SearchTargetBytesPerRequest: defaultTargetBytesPerRequest}, nil, nil, log.NewNopLogger(), nil)
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		},
+	}, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend query shards should be between 2 and 256 (both inclusive)")
 	assert.Nil(t, f)
 
 	f, err = New(Config{QueryShards: maxQueryShards,
-		SearchConcurrentRequests:    0,
-		SearchTargetBytesPerRequest: defaultTargetBytesPerRequest}, nil, nil, log.NewNopLogger(), nil)
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    0,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		},
+	}, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend search concurrent requests should be greater than 0")
 	assert.Nil(t, f)
 
 	f, err = New(Config{QueryShards: maxQueryShards,
-		SearchConcurrentRequests:    defaultConcurrentRequests,
-		SearchTargetBytesPerRequest: 0}, nil, nil, log.NewNopLogger(), nil)
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: 0,
+		},
+	}, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend search target bytes per request should be greater than 0")
 	assert.Nil(t, f)
 
 	f, err = New(Config{QueryShards: maxQueryShards,
-		SearchConcurrentRequests:    defaultConcurrentRequests,
-		SearchTargetBytesPerRequest: defaultTargetBytesPerRequest,
-		QueryIngestersWithinMin:     time.Hour,
-		QueryIngestersWithinMax:     time.Minute}, nil, nil, log.NewNopLogger(), nil)
+		Search: SearchSharderConfig{
+			ConcurrentRequests:      defaultConcurrentRequests,
+			TargetBytesPerRequest:   defaultTargetBytesPerRequest,
+			QueryIngestersWithinMin: time.Hour,
+			QueryIngestersWithinMax: time.Minute,
+		},
+	}, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "query ingesters within min should be less than query ingesters within max")
 	assert.Nil(t, f)
 }

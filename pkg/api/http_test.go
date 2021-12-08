@@ -20,9 +20,6 @@ func TestEquality(t *testing.T) {
 }
 
 func TestQuerierParseSearchRequest(t *testing.T) {
-	defaultLimit := uint32(20)
-	maxLimit := uint32(100)
-
 	tests := []struct {
 		name     string
 		urlQuery string
@@ -42,14 +39,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			expected: &tempopb.SearchRequest{
 				Tags:  map[string]string{},
 				Limit: 10,
-			},
-		},
-		{
-			name:     "limit exceeding max",
-			urlQuery: "limit=120",
-			expected: &tempopb.SearchRequest{
-				Tags:  map[string]string{},
-				Limit: 100,
 			},
 		},
 		{
@@ -134,11 +123,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			urlQuery: "tags=service.name%3Dfoo&start=20&end=10",
 			err:      "http parameter start must be before end. received start=20 end=10",
 		},
-		{
-			name:     "start/end exceed max range",
-			urlQuery: "tags=service.name%3Dfoo&start=20&end=1000000",
-			err:      "range specified by start and end exceeds 1800 seconds. received start=20 end=1000000",
-		},
 	}
 
 	for _, tt := range tests {
@@ -146,7 +130,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://tempo/api/search?"+tt.urlQuery, nil)
 			fmt.Println("RequestURI:", r.RequestURI)
 
-			searchRequest, err := ParseSearchRequest(r, defaultLimit, maxLimit)
+			searchRequest, err := ParseSearchRequest(r)
 
 			if tt.err != "" {
 				assert.EqualError(t, err, tt.err)
@@ -179,7 +163,7 @@ func TestQuerierParseSearchRequestTags(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://tempo/api/search?tags="+url.QueryEscape(tt.tags), nil)
 			fmt.Println("RequestURI:", r.RequestURI)
 
-			searchRequest, err := ParseSearchRequest(r, 0, 0)
+			searchRequest, err := ParseSearchRequest(r)
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, searchRequest.Tags)
@@ -203,7 +187,7 @@ func TestQuerierParseSearchRequestTagsError(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://tempo/api/search?tags="+url.QueryEscape(tt.tags), nil)
 			fmt.Println("RequestURI:", r.RequestURI)
 
-			_, err := ParseSearchRequest(r, 0, 0)
+			_, err := ParseSearchRequest(r)
 
 			assert.EqualError(t, err, tt.err)
 		})
@@ -293,7 +277,7 @@ func TestParseSearchBlockRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		r := httptest.NewRequest("GET", tc.url, nil)
-		actualReq, actualErr := ParseSearchBlockRequest(r, defaultLimit, 1000)
+		actualReq, actualErr := ParseSearchBlockRequest(r)
 
 		if len(tc.expectedError) != 0 {
 			assert.EqualError(t, actualErr, tc.expectedError)

@@ -45,15 +45,15 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
 	}
 
-	if cfg.SearchConcurrentRequests <= 0 {
+	if cfg.Search.ConcurrentRequests <= 0 {
 		return nil, fmt.Errorf("frontend search concurrent requests should be greater than 0")
 	}
 
-	if cfg.SearchTargetBytesPerRequest <= 0 {
+	if cfg.Search.TargetBytesPerRequest <= 0 {
 		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
 	}
 
-	if cfg.QueryIngestersWithinMax < cfg.QueryIngestersWithinMin {
+	if cfg.Search.QueryIngestersWithinMax < cfg.Search.QueryIngestersWithinMin {
 		return nil, fmt.Errorf("query ingesters within min should be less than query ingesters within max")
 	}
 
@@ -164,12 +164,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 func newSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		ingesterSearchRT := next
-		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, searchSharderConfig{
-			concurrentRequests:      cfg.SearchConcurrentRequests,
-			targetBytesPerRequest:   cfg.SearchTargetBytesPerRequest,
-			queryIngestersWithinMin: cfg.QueryIngestersWithinMin,
-			queryIngestersWithinMax: cfg.QueryIngestersWithinMax,
-		}, logger))
+		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, cfg.Search, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// backend search queries require sharding so we pass through a special roundtripper

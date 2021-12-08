@@ -126,19 +126,22 @@ type searchSharder struct {
 	next   http.RoundTripper
 	reader tempodb.Reader
 
-	cfg    searchSharderConfig
+	cfg    SearchSharderConfig
 	logger log.Logger
 }
 
-type searchSharderConfig struct {
-	concurrentRequests      int
-	targetBytesPerRequest   int
-	queryIngestersWithinMin time.Duration
-	queryIngestersWithinMax time.Duration
+type SearchSharderConfig struct {
+	ConcurrentRequests      int           `yaml:"concurrent_jobs,omitempty"`
+	TargetBytesPerRequest   int           `yaml:"target_bytes_per_job,omitempty"`
+	DefaultLimit            uint32        `yaml:"default_result_limit"`
+	MaxLimit                uint32        `yaml:"max_result_limit"`
+	MaxDuration             time.Duration `yaml:"max_duration"`
+	QueryIngestersWithinMin time.Duration `yaml:"query_ingesters_within_min,omitempty"`
+	QueryIngestersWithinMax time.Duration `yaml:"query_ingesters_within_max,omitempty"`
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, cfg searchSharderConfig, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, cfg SearchSharderConfig, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:   next,
@@ -157,7 +160,7 @@ func newSearchSharder(reader tempodb.Reader, cfg searchSharderConfig, logger log
 //    start=<unix epoch seconds>
 //    end=<unix epoch seconds>
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
-	searchReq, err := api.ParseSearchRequest(r, 20, 50) // jpe where do i get these?
+	searchReq, err := api.ParseSearchRequest(r)
 	if err != nil {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
@@ -165,10 +168,22 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
+	searchReq.Limit = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
+
+	if s.cfg.MaxDuration != 0 && time.Duration(searchReq.End-searchReq.Start)*time.Second > s.cfg.MaxDuration {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("range specified by start and end exceeds %s. received start=%d end=%d", s.cfg.MaxDuration, searchReq.Start, searchReq.End))),
+		}, nil
+	}
+
 	ctx := r.Context()
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, err
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Body:       io.NopCloser(strings.NewReader(err.Error())),
+		}, nil
 	}
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
@@ -196,7 +211,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("request-count", len(reqs))
 
 	// execute requests
-	wg := boundedwaitgroup.New(uint(s.cfg.concurrentRequests))
+	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
 	overallResponse := newSearchResponse(ctx, int(searchReq.Limit))
 	overallResponse.resultsMetrics.InspectedBlocks = uint32(len(blocks))
 
@@ -317,7 +332,7 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 		if bytesPerPage == 0 {
 			return nil, fmt.Errorf("block %s has an invalid 0 bytes per page", m.BlockID)
 		}
-		pagesPerQuery := s.cfg.targetBytesPerRequest / int(bytesPerPage)
+		pagesPerQuery := s.cfg.TargetBytesPerRequest / int(bytesPerPage)
 		if pagesPerQuery == 0 {
 			pagesPerQuery = 1 // have to have at least 1 page per query
 		}
@@ -355,8 +370,8 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 // if the returned start == the returned end then no further querying is necessary
 func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (uint32, uint32, *http.Request, error) {
 	now := time.Now()
-	ingesterMin := uint32(now.Add(-s.cfg.queryIngestersWithinMin).Unix())
-	ingesterMax := uint32(now.Add(-s.cfg.queryIngestersWithinMax).Unix())
+	ingesterMin := uint32(now.Add(-s.cfg.QueryIngestersWithinMin).Unix())
+	ingesterMax := uint32(now.Add(-s.cfg.QueryIngestersWithinMax).Unix())
 
 	backendStart := searchReq.Start
 	backendEnd := searchReq.End
@@ -400,4 +415,17 @@ func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, pa
 	subR.RequestURI = buildRequestURI(api.PathPrefixQuerier, parent.URL.Path, subR.URL.Query())
 
 	return backendStart, backendEnd, subR, nil
+}
+
+// adjusts the limit based on provided config
+func adjustLimit(limit, defaultLimit, maxLimit uint32) uint32 {
+	if limit == 0 {
+		return defaultLimit
+	}
+
+	if maxLimit != 0 && limit > maxLimit {
+		return maxLimit
+	}
+
+	return limit
 }

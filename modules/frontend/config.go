@@ -9,14 +9,11 @@ import (
 )
 
 type Config struct {
-	Config                      frontend.CombinedFrontendConfig `yaml:",inline"`
-	MaxRetries                  int                             `yaml:"max_retries,omitempty"`
-	QueryShards                 int                             `yaml:"query_shards,omitempty"`
-	TolerateFailedBlocks        int                             `yaml:"tolerate_failed_blocks,omitempty"`
-	SearchConcurrentRequests    int                             `yaml:"search_concurrent_jobs,omitempty"`
-	SearchTargetBytesPerRequest int                             `yaml:"search_target_bytes_per_job,omitempty"`
-	QueryIngestersWithinMin     time.Duration                   `yaml:"query_ingesters_within_min,omitempty"`
-	QueryIngestersWithinMax     time.Duration                   `yaml:"query_ingesters_within_max,omitempty"`
+	Config               frontend.CombinedFrontendConfig `yaml:",inline"`
+	MaxRetries           int                             `yaml:"max_retries,omitempty"`
+	QueryShards          int                             `yaml:"query_shards,omitempty"`
+	TolerateFailedBlocks int                             `yaml:"tolerate_failed_blocks,omitempty"`
+	Search               SearchSharderConfig             `yaml:"search"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -26,11 +23,15 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxRetries = 2
 	cfg.QueryShards = 20
 	cfg.TolerateFailedBlocks = 0
-	cfg.QueryIngestersWithinMin = 15 * time.Minute
-	cfg.QueryIngestersWithinMax = time.Hour
-
-	cfg.SearchConcurrentRequests = defaultConcurrentRequests
-	cfg.SearchTargetBytesPerRequest = defaultTargetBytesPerRequest
+	cfg.Search = SearchSharderConfig{
+		QueryIngestersWithinMin: 15 * time.Minute,
+		QueryIngestersWithinMax: time.Hour,
+		DefaultLimit:            20,
+		MaxLimit:                0,
+		MaxDuration:             61 * time.Minute,
+		ConcurrentRequests:      defaultConcurrentRequests,
+		TargetBytesPerRequest:   defaultTargetBytesPerRequest,
+	}
 }
 
 type CortexNoQuerierLimits struct{}

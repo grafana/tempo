@@ -49,8 +49,6 @@ const (
 	PathSearchTagValues = "/api/search/tag/{tagName}/values"
 	PathEcho            = "/api/echo"
 
-	// todo(search): make configurable
-	maxRange     = 1800 // 30 minutes
 	defaultLimit = 20
 )
 
@@ -70,7 +68,7 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 }
 
 // ParseSearchRequest takes an http.Request and decodes query params to create a tempopb.SearchRequest
-func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (*tempopb.SearchRequest, error) {
+func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:  map[string]string{},
 		Limit: defaultLimit,
@@ -144,10 +142,6 @@ func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (
 		req.Limit = uint32(limit)
 	}
 
-	if maxLimit != 0 && req.Limit > maxLimit {
-		req.Limit = maxLimit
-	}
-
 	if s, ok := extractQueryParam(r, urlParamStart); ok {
 		start, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
@@ -173,15 +167,12 @@ func ParseSearchRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (
 	if req.End <= req.Start {
 		return nil, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", req.Start, req.End)
 	}
-	if req.End-req.Start > maxRange {
-		return nil, fmt.Errorf("range specified by start and end exceeds %d seconds. received start=%d end=%d", maxRange, req.Start, req.End)
-	}
 	return req, nil
 }
 
 // ParseBlockSearchRequest parses all http parameters necessary to perform a block search.
-func ParseSearchBlockRequest(r *http.Request, defaultLimit uint32, maxLimit uint32) (*tempopb.SearchBlockRequest, error) {
-	searchReq, err := ParseSearchRequest(r, defaultLimit, maxLimit)
+func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, error) {
+	searchReq, err := ParseSearchRequest(r)
 	if err != nil {
 		return nil, err
 	}

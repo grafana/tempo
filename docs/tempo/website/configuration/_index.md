@@ -197,27 +197,44 @@ query_frontend:
     # (default: 0)
     [tolerate_failed_blocks: <int>]
 
-    # The number of concurrent jobs to execute when searching the backend.
-    # (default: 50)
-    [search_concurrent_job: <int>]
+    search:
 
-    # The target number of bytes for each job to handle when performing a backend search.
-    # (default: 10485760)
-    [search_target_bytes_per_job: <int>]
+        # The number of concurrent jobs to execute when searching the backend.
+        # (default: 50)
+        [concurrent_jobs: <int>]
 
-    # This duration controls the min cutoff between relying on ingesters and the backend for recent trace information.
-    # If it is set to 15m then data within the last 15m will be queried from the ingesters and all previous data will
-    # be queried from the backend. Notice there is overlap with query_ingesters_within_max. The period of time between
-    # min and max will be queried from both the ingesters and the backend.
-    # (default: 15m)
-    [query_ingesters_within_min: <duration>]
+        # The target number of bytes for each job to handle when performing a backend search.
+        # (default: 10485760)
+        [target_bytes_per_job: <int>]
 
-    # This duration controls the max cutoff between relying on ingesters and the backend for recent trace information.
-    # If it is set to 1h then data within the last 1h will be queried from the ingesters and all previous data will
-    # be queried from the backend. Notice there is overlap with query_ingesters_within_min. The period of time between
-    # min and max will be queried from both the ingesters and the backend.
-    # (default: 1h)
-    [query_ingesters_within_max: <duration>]
+        # Limit used for search requests if none is set by the caller
+        # (default: 20)
+        [default_result_limit: <int>]
+
+        # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter 
+        # exceeds the value configured here it will be set to the value configured here.
+        # The default value of 0 disables this limit.
+        # (default: 0)
+        [max_result_limit: <int>]
+
+        # The maximum allowed time range for a search.
+        # 0 disables this limit.
+        # (default: 1h1m0s)
+        [max_result_limit: <duration>]
+
+        # This duration controls the min cutoff between relying on ingesters and the backend for recent trace information.
+        # If it is set to 15m then data within the last 15m will be queried from the ingesters and all previous data will
+        # be queried from the backend. Notice there is overlap with query_ingesters_within_max. The period of time between
+        # min and max will be queried from both the ingesters and the backend.
+        # (default: 15m)
+        [query_ingesters_within_min: <duration>]
+
+        # This duration controls the max cutoff between relying on ingesters and the backend for recent trace information.
+        # If it is set to 1h then data within the last 1h will be queried from the ingesters and all previous data will
+        # be queried from the backend. Notice there is overlap with query_ingesters_within_min. The period of time between
+        # min and max will be queried from both the ingesters and the backend.
+        # (default: 1h)
+        [query_ingesters_within_max: <duration>]
 ```
 
 ## Querier
@@ -235,17 +252,9 @@ querier:
     # Timeout for search requests    
     [search_query_timeout: <duration> | default = 30s]
 
-    # Limit used for search requests if none is set by the caller
-    [search_default_result_limit: <int> | default = 20]
-
-    # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter 
-    # exceeds the value configured here it will be set to the value configured here.
-    # The default value of 0 disables this limit.
-    [search_max_result_limit: <int> | default = 0]
-
     # An external endpoint that the querier will use to offload backend search requests. It must  
     # take and return the same value as /api/search endpoint on the querier. This is intended to be
-    # used with serverless technologies for massive parralelization of the search path. jpe - link to real docs
+    # used with serverless technologies for massive parrallelization of the search path. jpe - link to real docs
     # The default value of "" disables this feature.
     [search_external_endpoint: <string> | default = ""]
 

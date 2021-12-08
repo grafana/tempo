@@ -144,7 +144,6 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, string, error)
 }
 
 func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
-	// jpe - make ingester search queries respect start/end
 	isSearchBlock := api.IsSearchBlock(r)
 
 	// Enforce the query timeout while querying backends
@@ -159,7 +158,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	var resp *tempopb.SearchResponse
 	if !isSearchBlock {
-		req, err := api.ParseSearchRequest(r, q.cfg.SearchDefaultResultLimit, q.cfg.SearchMaxResultLimit)
+		req, err := api.ParseSearchRequest(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -173,7 +172,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		req, err := api.ParseSearchBlockRequest(r, q.cfg.SearchDefaultResultLimit, q.cfg.SearchMaxResultLimit)
+		req, err := api.ParseSearchBlockRequest(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
