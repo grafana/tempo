@@ -291,6 +291,7 @@ The storage block is used to configure TempoDB. It supports S3, GCS, Azure, loca
 The following example shows common options.  For further platform-specific information refer to the following:
 * [GCS](gcs/)
 * [S3](s3/)
+* [Azure](azure/)
 
 ```yaml
 # Storage configuration for traces
