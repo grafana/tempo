@@ -208,7 +208,7 @@ steps:
 
 - image: us.gcr.io/kubernetes-dev/drone/plugins/updater
   settings:
-    config_json: "{\n  \"destination_branch\": \"master\",\n  \"pull_request_branch_prefix\": \"cd-tempo-dev\",\n  \"pull_request_enabled\": false,\n  \"pull_request_team_reviewers\": [\n    \"tempo-squad\"\n  ],\n  \"repo_name\": \"deployment_tools\",\n  \"update_jsonnet_attribute_configs\": [\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo\",\n      \"jsonnet_value_file\": \".image-tag\"\n    }\n  ]\n}\n"
+    config_json: "{\n  \"destination_branch\": \"master\",\n  \"pull_request_branch_prefix\": \"cd-tempo-dev\",\n  \"pull_request_enabled\": false,\n  \"pull_request_team_reviewers\": [\n    \"tempo-squad\"\n  ],\n  \"repo_name\": \"deployment_tools\",\n  \"update_jsonnet_attribute_configs\": [\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": tempo,\n      \"jsonnet_value_file\": \".tags\"\n    }\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": tempo-query,\n      \"jsonnet_value_file\": \".tags\"\n    }\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": tempo-vulture,\n      \"jsonnet_value_file\": \".tags\"\n    }\n  ]\n}\n"
     github_token:
       from_secret: gh_token
 
@@ -218,6 +218,9 @@ image_pull_secrets:
 trigger:
   ref:
   - refs/heads/main
+
+depends_on:
+- manifest
 
 ---
 kind: secret
@@ -253,6 +256,6 @@ get:
 
 ---
 kind: signature
-hmac: e0ecdfdc06ccf3d57a99e95aee501ea70aeeaca8db91e12416cb8895f0921898
+hmac: 28dccc8737c6f6985cf2d31a9890da4360433a56b8580c510719f45d7a306623
 
 ...

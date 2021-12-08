@@ -107,18 +107,28 @@ local deploy_to_dev() = {
           "pull_request_branch_prefix": "cd-tempo-dev",
           "pull_request_enabled": false,
           "pull_request_team_reviewers": [
-            "tempo-squad"
+            "tempo"
           ],
           "repo_name": "deployment_tools",
           "update_jsonnet_attribute_configs": [
             {
               "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
-              "jsonnet_key": "tempo",
-              "jsonnet_value_file": ".image-tag"
+              "jsonnet_key": %s,
+              "jsonnet_value_file": ".tags"
+            }
+            {
+              "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+              "jsonnet_key": %s,
+              "jsonnet_value_file": ".tags"
+            }
+            {
+              "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+              "jsonnet_key": %s,
+              "jsonnet_value_file": ".tags"
             }
           ]
         }
-      |||,
+      ||| % ['tempo', 'tempo-query', 'tempo-vulture'],
     github_token: {
         from_secret: gh_token_secret.name,
     },
@@ -171,6 +181,10 @@ local deploy_to_dev() = {
       image_tag(),
     ] + [
       deploy_to_dev(),
+    ],
+    depends_on+: [
+      // wait for images to be published on dockerhub
+      'manifest',
     ],
   },
 ] + [
