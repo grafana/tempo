@@ -1,16 +1,17 @@
 package tempofb
 
 import (
+	"hash"
 	"sort"
 	"strings"
 
+	"github.com/cespare/xxhash"
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
 type SearchDataMap interface {
 	Add(k, v string)
 	Contains(k, v string) bool
-	WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT
 	Range(f func(k, v string))
 	RangeKeys(f func(k string))
 	RangeKeyValues(k string, f func(v string))
@@ -84,19 +85,6 @@ func (s SearchDataMapSmall) RangeKeyValues(k string, f func(v string)) {
 	}
 }
 
-func (s SearchDataMapSmall) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
-	keys := make([]string, 0, len(s))
-	for k := range s {
-		keys = append(keys, k)
-	}
-
-	valuesf := func(k string, _ []string) []string {
-		return s[k]
-	}
-
-	return writeToBuilder(b, keys, valuesf)
-}
-
 type SearchDataMapLarge map[string]map[string]struct{}
 
 func (s SearchDataMapLarge) Add(k, v string) {
@@ -141,66 +129,83 @@ func (s SearchDataMapLarge) RangeKeyValues(k string, f func(v string)) {
 	}
 }
 
-func (s SearchDataMapLarge) WriteToBuilder(b *flatbuffers.Builder) flatbuffers.UOffsetT {
-	keys := make([]string, 0, len(s))
-	for k := range s {
+func WriteSearchDataMap(b *flatbuffers.Builder, d SearchDataMap, cache map[uint64]flatbuffers.UOffsetT) flatbuffers.UOffsetT {
+	h := xxhash.New()
+
+	var keys []string
+	d.RangeKeys(func(k string) {
 		keys = append(keys, k)
-	}
-
-	valuesf := func(k string, buffer []string) []string {
-		buffer = buffer[:0]
-		for v := range s[k] {
-			buffer = append(buffer, v)
-		}
-
-		return buffer
-	}
-
-	return writeToBuilder(b, keys, valuesf)
-}
-
-func writeToBuilder(b *flatbuffers.Builder, keys []string, valuesf func(k string, buffer []string) []string) flatbuffers.UOffsetT {
-
-	var values []string
-
-	offsets := make([]flatbuffers.UOffsetT, 0, len(keys))
+	})
 	sort.Strings(keys)
 
+	offsets := make([]flatbuffers.UOffsetT, 0, len(keys))
+	var values []string
 	for _, k := range keys {
 
-		values := valuesf(k, values)
+		values = values[:0]
+		d.RangeKeyValues(k, func(v string) {
+			values = append(values, v)
+		})
 
-		// Skip empty keys
-		if len(values) <= 0 {
-			continue
-		}
-
-		ko := b.CreateSharedString(strings.ToLower(k))
-
-		// Sort values
-		sort.Strings(values)
-
-		valueStrings := make([]flatbuffers.UOffsetT, len(values))
-		for i := range values {
-			valueStrings[i] = b.CreateSharedString(strings.ToLower(values[i]))
-		}
-
-		KeyValuesStartValueVector(b, len(valueStrings))
-		for _, vs := range valueStrings {
-			b.PrependUOffsetT(vs)
-		}
-		valueVector := b.EndVector(len(valueStrings))
-
-		KeyValuesStart(b)
-		KeyValuesAddKey(b, ko)
-		KeyValuesAddValue(b, valueVector)
-		offsets = append(offsets, KeyValuesEnd(b))
+		offsets = append(offsets, writeKeyValues(b, k, values, h, cache))
 	}
 
 	SearchEntryStartTagsVector(b, len(offsets))
 	for _, kvo := range offsets {
 		b.PrependUOffsetT(kvo)
 	}
-	keyValueVector := b.EndVector((len(offsets)))
-	return keyValueVector
+	vector := b.EndVector((len(offsets)))
+	return vector
+}
+
+func writeKeyValues(b *flatbuffers.Builder, key string, values []string, h hash.Hash64, cache map[uint64]flatbuffers.UOffsetT) flatbuffers.UOffsetT {
+	// Skip empty keys
+	if len(values) <= 0 {
+		return 0
+	}
+
+	// Prep
+	key = strings.ToLower(key)
+	for i := range values {
+		values[i] = strings.ToLower(values[i])
+	}
+	sort.Strings(values)
+
+	// Hash, cache
+	var ce uint64
+	if cache != nil {
+		h.Reset()
+		h.Write([]byte(key))
+		for _, v := range values {
+			h.Write([]byte{0}) // separator
+			h.Write([]byte(v))
+		}
+		ce = h.Sum64()
+		if offset, ok := cache[ce]; ok {
+			return offset
+		}
+	}
+
+	ko := b.CreateSharedString(key)
+	valueStrings := make([]flatbuffers.UOffsetT, len(values))
+	for i := range values {
+		valueStrings[i] = b.CreateSharedString(strings.ToLower(values[i]))
+	}
+
+	KeyValuesStartValueVector(b, len(valueStrings))
+	for _, vs := range valueStrings {
+		b.PrependUOffsetT(vs)
+	}
+	valueVector := b.EndVector(len(valueStrings))
+
+	KeyValuesStart(b)
+	KeyValuesAddKey(b, ko)
+	KeyValuesAddValue(b, valueVector)
+	offset := KeyValuesEnd(b)
+
+	if cache != nil {
+		cache[ce] = offset
+	}
+
+	return offset
 }
