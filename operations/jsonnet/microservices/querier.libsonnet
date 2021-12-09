@@ -5,8 +5,6 @@
   local volumeMount = k.core.v1.volumeMount,
   local deployment = k.apps.v1.deployment,
   local volume = k.core.v1.volume,
-  local service = k.core.v1.service,
-  local servicePort = k.core.v1.servicePort,
 
   local target_name = 'querier',
   local tempo_config_volume = 'tempo-conf',
@@ -39,7 +37,7 @@
         [$._config.gossip_member_label]: 'true',
       }
     ) +
-    deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(0) +
+    deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(3) +
     deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
     deployment.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_querier_configmap.data['tempo.yaml'])),
