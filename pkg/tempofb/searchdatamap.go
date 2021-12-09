@@ -158,20 +158,22 @@ func WriteSearchDataMap(b *flatbuffers.Builder, d SearchDataMap, cache map[uint6
 	return vector
 }
 
+// writeKeyValues saves the key->values entry to the builder.  Results are optionally cached and
+// existing identical key->values entries reused.
 func writeKeyValues(b *flatbuffers.Builder, key string, values []string, h hash.Hash64, cache map[uint64]flatbuffers.UOffsetT) flatbuffers.UOffsetT {
 	// Skip empty keys
 	if len(values) <= 0 {
 		return 0
 	}
 
-	// Prep
+	// Preparation, must be done before hashing/caching.
 	key = strings.ToLower(key)
 	for i := range values {
 		values[i] = strings.ToLower(values[i])
 	}
 	sort.Strings(values)
 
-	// Hash, cache
+	// Hash, cache (optional)
 	var ce uint64
 	if cache != nil {
 		h.Reset()
