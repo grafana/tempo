@@ -2,17 +2,12 @@ package api
 
 import (
 	"net/http"
-	"path"
-	"strings"
 )
 
 // IsBackendSearch returns true if the request has a start, end and tags parameter and is the /api/search path
 func IsBackendSearch(r *http.Request) bool {
 	q := r.URL.Query()
-	return strings.HasSuffix(path.Clean(r.URL.Path), PathSearch) &&
-		q.Get(urlParamStart) != "" &&
-		q.Get(urlParamEnd) != "" &&
-		q.Get(urlParamTags) != ""
+	return q.Get(urlParamStart) != "" && q.Get(urlParamEnd) != ""
 }
 
 // IsSearchBlock returns true if the request appears to be for backend blocks. It is not exhaustive
@@ -20,6 +15,5 @@ func IsBackendSearch(r *http.Request) bool {
 func IsSearchBlock(r *http.Request) bool {
 	q := r.URL.Query()
 
-	return strings.HasSuffix(path.Clean(r.URL.Path), PathSearch) &&
-		q.Get(urlParamBlockID) != ""
+	return q.Get(urlParamBlockID) != ""
 }

@@ -74,8 +74,9 @@ func Matches(id []byte, obj []byte, dataEncoding string, req *tempopb.SearchRequ
 	}
 	if req.MinDurationMs != 0 && req.MinDurationMs > durationMs {
 		return nil, nil
+
 	}
-	if req.Start >= uint32(traceStartMs/1000) || req.End <= uint32(traceEndMs/1000) { // jpe test
+	if !(req.Start <= uint32(traceEndMs/1000) && req.End >= uint32(traceStartMs/1000)) {
 		return nil, nil
 	}
 
