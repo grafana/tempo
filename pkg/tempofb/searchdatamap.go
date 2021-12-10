@@ -9,16 +9,10 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
-type SearchDataMap interface {
-	Add(k, v string)
-	Contains(k, v string) bool
-	Range(f func(k, v string))
-	RangeKeys(f func(k string))
-	RangeKeyValues(k string, f func(v string))
-}
+type SearchDataMap map[string]map[string]struct{}
 
 func NewSearchDataMap() SearchDataMap {
-	return make(SearchDataMapLarge, 10) // 10 for luck
+	return make(SearchDataMap, 10) // 10 for luck
 }
 
 func NewSearchDataMapWithData(m map[string][]string) SearchDataMap {
@@ -32,62 +26,7 @@ func NewSearchDataMapWithData(m map[string][]string) SearchDataMap {
 	return s
 }
 
-type SearchDataMapSmall map[string][]string
-
-func (s SearchDataMapSmall) Add(k, v string) {
-	vs, ok := s[k]
-	if !ok {
-		// First entry for key
-		s[k] = []string{v}
-		return
-	}
-
-	// Key already present, now check for value
-	for i := range vs {
-		if vs[i] == v {
-			// Already present, nothing to do
-			return
-		}
-	}
-
-	// Not found, append
-	s[k] = append(vs, v)
-}
-
-func (s SearchDataMapSmall) Contains(k, v string) bool {
-	e := s[k]
-	for _, vvv := range e {
-		if strings.Contains(vvv, v) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (s SearchDataMapSmall) Range(f func(k, v string)) {
-	for k, vv := range s {
-		for _, v := range vv {
-			f(k, v)
-		}
-	}
-}
-
-func (s SearchDataMapSmall) RangeKeys(f func(k string)) {
-	for k := range s {
-		f(k)
-	}
-}
-
-func (s SearchDataMapSmall) RangeKeyValues(k string, f func(v string)) {
-	for _, v := range s[k] {
-		f(v)
-	}
-}
-
-type SearchDataMapLarge map[string]map[string]struct{}
-
-func (s SearchDataMapLarge) Add(k, v string) {
+func (s SearchDataMap) Add(k, v string) {
 	values, ok := s[k]
 	if !ok {
 		// first entry
@@ -101,7 +40,7 @@ func (s SearchDataMapLarge) Add(k, v string) {
 	}
 }
 
-func (s SearchDataMapLarge) Contains(k, v string) bool {
+func (s SearchDataMap) Contains(k, v string) bool {
 	if values, ok := s[k]; ok {
 		_, ok := values[v]
 		return ok
@@ -109,7 +48,7 @@ func (s SearchDataMapLarge) Contains(k, v string) bool {
 	return false
 }
 
-func (s SearchDataMapLarge) Range(f func(k, v string)) {
+func (s SearchDataMap) Range(f func(k, v string)) {
 	for k, values := range s {
 		for v := range values {
 			f(k, v)
@@ -117,13 +56,13 @@ func (s SearchDataMapLarge) Range(f func(k, v string)) {
 	}
 }
 
-func (s SearchDataMapLarge) RangeKeys(f func(k string)) {
+func (s SearchDataMap) RangeKeys(f func(k string)) {
 	for k := range s {
 		f(k)
 	}
 }
 
-func (s SearchDataMapLarge) RangeKeyValues(k string, f func(v string)) {
+func (s SearchDataMap) RangeKeyValues(k string, f func(v string)) {
 	for v := range s[k] {
 		f(v)
 	}
