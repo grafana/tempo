@@ -516,14 +516,16 @@ func TestInstanceMetrics(t *testing.T) {
 	i, err := newInstance(tenantID, limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
-	verifyMetric := func(v int) {
+	cutAndVerify := func(v int) {
+		err := i.CutCompleteTraces(0, true)
+		require.NoError(t, err)
+
 		liveTraces, err := test.GetGaugeVecValue(metricLiveTraces, tenantID)
 		require.NoError(t, err)
 		require.Equal(t, v, int(liveTraces))
 	}
 
-	i.CutCompleteTraces(0, false)
-	verifyMetric(0)
+	cutAndVerify(0)
 
 	// Push some traces
 	count := 100
@@ -532,12 +534,9 @@ func TestInstanceMetrics(t *testing.T) {
 		err := i.Push(context.Background(), request)
 		require.NoError(t, err)
 	}
-	i.CutCompleteTraces(0, false)
-	verifyMetric(count)
+	cutAndVerify(count)
 
-	// Cut
-	i.CutCompleteTraces(0, true)
-	verifyMetric(0)
+	cutAndVerify(0)
 }
 
 func defaultInstance(t require.TestingT, tmpDir string) *instance {
