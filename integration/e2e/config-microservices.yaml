@@ -16,7 +16,7 @@ ingester:
         store: memberlist
       replication_factor: 3
     heartbeat_period: 100ms
-  trace_idle_period: 100ms
+  trace_idle_period: 1s
   max_block_duration: 2s
   complete_block_timeout: 5s
   flush_check_period: 1s
