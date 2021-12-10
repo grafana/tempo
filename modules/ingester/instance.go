@@ -50,6 +50,11 @@ var (
 		Name:      "ingester_traces_created_total",
 		Help:      "The total number of traces created per tenant.",
 	}, []string{"tenant"})
+	metricLiveTraces = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "ingester_live_traces",
+		Help:      "The current number of lives traces per tenant.",
+	}, []string{"tenant"})
 	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "ingester_blocks_cleared_total",
@@ -513,6 +518,9 @@ func (i *instance) resetHeadBlock() error {
 func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
+
+	// Set this before cutting to give a more accurate number.
+	metricLiveTraces.WithLabelValues(i.instanceID).Set(float64(len(i.traces)))
 
 	cutoffTime := time.Now().Add(cutoff)
 	tracesToCut := make([]*trace, 0, len(i.traces))
