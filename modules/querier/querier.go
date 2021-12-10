@@ -504,6 +504,10 @@ func searchExternalEndpoint(ctx context.Context, externalEndpoint string, search
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)
 	}
+	// jpe - remove
+	fmt.Println("external endpoint: ", externalEndpoint)
+	fmt.Println("url ", req.URL.String())
+	fmt.Println("uri ", req.RequestURI)
 	req, err = api.BuildSearchBlockRequest(req, searchReq)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to build search block request: %w", err)
