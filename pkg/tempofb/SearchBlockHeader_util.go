@@ -63,7 +63,7 @@ func (s *SearchBlockHeaderMutable) Contains(k []byte, v []byte, _ *KeyValues) bo
 func (s *SearchBlockHeaderMutable) ToBytes() []byte {
 	b := flatbuffers.NewBuilder(1024)
 
-	tags := s.Tags.WriteToBuilder(b)
+	tags := WriteSearchDataMap(b, s.Tags, nil)
 
 	SearchBlockHeaderStart(b)
 	SearchBlockHeaderAddMinDurationNanos(b, s.MinDur)
