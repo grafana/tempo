@@ -206,7 +206,7 @@ steps:
   - git fetch origin --tags
   - echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd-tempo
   - echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query
-  - echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo-vulture
+  - echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo_vulture
 
 - name: update-dev-images
   image: us.gcr.io/kubernetes-dev/drone/plugins/updater
@@ -259,6 +259,6 @@ get:
 
 ---
 kind: signature
-hmac: d20ed246c32800cdb5554d35401b0da350111284837308053f83822a442a5e60
+hmac: 5c2e81faa8e2b8958c2873f92194c48a17a4780472405b918470ce95895e4e1c
 
 ...

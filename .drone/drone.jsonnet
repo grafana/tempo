@@ -70,7 +70,7 @@ local image_tag_for_cd() = {
       'git fetch origin --tags',
       'echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd-tempo',
       'echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query',
-      'echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo-vulture',
+      'echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo_vulture',
     ],
 };
 
