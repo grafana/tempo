@@ -100,35 +100,28 @@ local docker_manifest(app) = {
 
 local deploy_to_dev() = {
   image: 'us.gcr.io/kubernetes-dev/drone/plugins/updater',
+  name: 'update-dev-images',
   settings: {
-    config_json: |||
-        {
-          "destination_branch": "master",
-          "pull_request_branch_prefix": "cd-tempo-dev",
-          "pull_request_enabled": false,
-          "pull_request_team_reviewers": [
-            "tempo"
-          ],
-          "repo_name": "deployment_tools",
-          "update_jsonnet_attribute_configs": [
-            {
-              "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
-              "jsonnet_key": %s,
-              "jsonnet_value_file": ".tags"
-            }
-            {
-              "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
-              "jsonnet_key": %s,
-              "jsonnet_value_file": ".tags"
-            }
-            {
-              "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
-              "jsonnet_key": %s,
-              "jsonnet_value_file": ".tags"
-            }
-          ]
-        }
-      ||| % ['tempo', 'tempo-query', 'tempo-vulture'],
+    config_json: std.manifestJsonEx(
+      {
+        "destination_branch": "master",
+        "pull_request_branch_prefix": "cd-tempo-dev",
+        "pull_request_enabled": false,
+        "pull_request_team_reviewers": [
+          "tempo"
+        ],
+        "repo_name": "deployment_tools",
+        "update_jsonnet_attribute_configs": [
+          {
+            "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+            "jsonnet_key": app,
+            "jsonnet_value_file": ".tags"
+          }
+          for app in ['tempo', 'tempo_query', 'tempo_vulture']
+        ],
+      },
+      '  '
+    ),
     github_token: {
         from_secret: gh_token_secret.name,
     },
