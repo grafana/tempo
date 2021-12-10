@@ -442,7 +442,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 			return false
 		}
 		if metadata == nil {
-			return true
+			return false
 		}
 
 		resp.Traces = append(resp.Traces, metadata)
