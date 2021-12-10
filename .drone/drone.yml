@@ -209,7 +209,7 @@ steps:
 - name: update-dev-images
   image: us.gcr.io/kubernetes-dev/drone/plugins/updater
   settings:
-    config_json: "{\n  \"destination_branch\": \"master\",\n  \"pull_request_branch_prefix\": \"cd-tempo-dev\",\n  \"pull_request_enabled\": false,\n  \"pull_request_team_reviewers\": [\n    \"tempo\"\n  ],\n  \"repo_name\": \"deployment_tools\",\n  \"update_jsonnet_attribute_configs\": [\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo\",\n      \"jsonnet_value_file\": \".tags\"\n    },\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo-query\",\n      \"jsonnet_value_file\": \".tags\"\n    },\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo-vulture\",\n      \"jsonnet_value_file\": \".tags\"\n    }\n  ]\n}"
+    config_json: "{\n  \"destination_branch\": \"master\",\n  \"pull_request_branch_prefix\": \"cd-tempo-dev\",\n  \"pull_request_enabled\": false,\n  \"pull_request_team_reviewers\": [\n    \"tempo\"\n  ],\n  \"repo_name\": \"deployment_tools\",\n  \"update_jsonnet_attribute_configs\": [\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo\",\n      \"jsonnet_value_file\": \".tags\"\n    },\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo_query\",\n      \"jsonnet_value_file\": \".tags\"\n    },\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo_vulture\",\n      \"jsonnet_value_file\": \".tags\"\n    }\n  ]\n}"
     github_token:
       from_secret: gh_token
 
@@ -257,6 +257,6 @@ get:
 
 ---
 kind: signature
-hmac: 8588839a3a7d6b742058ea1da28c4981c6c0a1c5a3bbb9f1a3403fb5df1007eb
+hmac: 0ae3eb5a66257be4bc232fc5c1e36922ce07a6b8da79a971b81558500dab580c
 
 ...

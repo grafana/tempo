@@ -104,18 +104,18 @@ local deploy_to_dev() = {
   settings: {
     config_json: std.manifestJsonEx(
       {
-        "destination_branch": "master",
-        "pull_request_branch_prefix": "cd-tempo-dev",
-        "pull_request_enabled": false,
-        "pull_request_team_reviewers": [
-          "tempo"
+        destination_branch: 'master',
+        pull_request_branch_prefix: 'cd-tempo-dev',
+        pull_request_enabled: false,
+        pull_request_team_reviewers: [
+          'tempo'
         ],
-        "repo_name": "deployment_tools",
-        "update_jsonnet_attribute_configs": [
+        repo_name: 'deployment_tools',
+        update_jsonnet_attribute_configs: [
           {
-            "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
-            "jsonnet_key": app,
-            "jsonnet_value_file": ".tags"
+            file_path: 'ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet',
+            jsonnet_key: app,
+            jsonnet_value_file: '.tags'
           }
           for app in ['tempo', 'tempo_query', 'tempo_vulture']
         ],
