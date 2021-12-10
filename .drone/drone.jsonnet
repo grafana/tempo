@@ -62,6 +62,16 @@ local image_tag(arch = '') = {
   ),
 };
 
+local image_tag_for_cd() = {
+    name: 'image-tag-for-cd',
+    image: 'alpine/git',
+    commands: [
+      'apk --update --no-cache add bash',
+      'git fetch origin --tags',
+      'echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd',
+    ],
+};
+
 local build_binaries(arch) = {
   name: 'build-tempo-binaries',
   image: 'golang:1.17-alpine',
@@ -115,7 +125,7 @@ local deploy_to_dev() = {
           {
             file_path: 'ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet',
             jsonnet_key: app,
-            jsonnet_value_file: '.tags'
+            jsonnet_value_file: '.tags-for-cd'
           }
           for app in ['tempo', 'tempo_query', 'tempo_vulture']
         ],
@@ -171,7 +181,7 @@ local deploy_to_dev() = {
       docker_config_json_secret.name,
     ],
     steps+: [
-      image_tag(),
+      image_tag_for_cd(),
     ] + [
       deploy_to_dev(),
     ],
