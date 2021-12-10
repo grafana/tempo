@@ -68,7 +68,7 @@ local image_tag_for_cd() = {
     commands: [
       'apk --update --no-cache add bash',
       'git fetch origin --tags',
-      'echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd',
+      'echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd-tempo',
       'echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query',
       'echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo-vulture',
     ],

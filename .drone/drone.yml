@@ -204,9 +204,9 @@ steps:
   commands:
   - apk --update --no-cache add bash
   - git fetch origin --tags
-  - echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd
+  - echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd-tempo
   - echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query
-  - echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo_vulture
+  - echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo-vulture
 
 - name: update-dev-images
   image: us.gcr.io/kubernetes-dev/drone/plugins/updater
@@ -259,6 +259,6 @@ get:
 
 ---
 kind: signature
-hmac: 3c0b9814bf8eaefc4c166797b9206a569a20cd7a1d58315fe140e2998e88b4d0
+hmac: d20ed246c32800cdb5554d35401b0da350111284837308053f83822a442a5e60
 
 ...
