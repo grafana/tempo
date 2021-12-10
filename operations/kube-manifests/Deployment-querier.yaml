@@ -14,7 +14,7 @@ spec:
       tempo-gossip-member: "true"
   strategy:
     rollingUpdate:
-      maxSurge: 0
+      maxSurge: 3
       maxUnavailable: 1
   template:
     metadata:

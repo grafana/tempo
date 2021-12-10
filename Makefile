@@ -174,7 +174,7 @@ gen-proto:
 .PHONY: gen-flat
 gen-flat:
 	# -o /pkg generates into same folder as tempo.fbs for simpler imports.
-	docker run -v${PWD}:/opt/src neomantra/flatbuffers flatc --go -o /opt/src/pkg /opt/src/pkg/tempofb/tempo.fbs
+	docker run --rm -v${PWD}:/opt/src neomantra/flatbuffers flatc --go -o /opt/src/pkg /opt/src/pkg/tempofb/tempo.fbs
 
 ### Check vendored files and generated proto
 .PHONY: vendor-check

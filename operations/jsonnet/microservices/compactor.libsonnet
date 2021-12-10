@@ -5,8 +5,6 @@
   local volumeMount = k.core.v1.volumeMount,
   local deployment = k.apps.v1.deployment,
   local volume = k.core.v1.volume,
-  local service = k.core.v1.service,
-  local servicePort = k.core.v1.servicePort,
 
   local target_name = 'compactor',
   local tempo_config_volume = 'tempo-conf',
