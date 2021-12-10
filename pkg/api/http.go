@@ -74,9 +74,28 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		Limit: defaultLimit,
 	}
 
+	if s, ok := extractQueryParam(r, urlParamStart); ok {
+		start, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start: %w", err)
+		}
+		req.Start = uint32(start)
+	}
+
+	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+		end, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid end: %w", err)
+		}
+		req.End = uint32(end)
+	}
+
 	encodedTags, tagsFound := extractQueryParam(r, urlParamTags)
 
-	if !tagsFound {
+	// if we have don't have tags and we don't see start or end treat this like an old style search
+	// if we have no tags but we DO have start/end we have to treat this like a range search with no
+	// tags specified.
+	if !tagsFound && req.Start == 0 && req.End == 0 {
 		// Passing tags as individual query parameters is not supported anymore, clients should use the tags
 		// query parameter instead. We still parse these tags since the initial Grafana implementation uses this.
 		// As Grafana gets updated and/or versions using this get old we can remove this section.
@@ -140,22 +159,6 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 			return nil, errors.New("invalid limit: must be a positive number")
 		}
 		req.Limit = uint32(limit)
-	}
-
-	if s, ok := extractQueryParam(r, urlParamStart); ok {
-		start, err := strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("invalid start: %w", err)
-		}
-		req.Start = uint32(start)
-	}
-
-	if s, ok := extractQueryParam(r, urlParamEnd); ok {
-		end, err := strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("invalid end: %w", err)
-		}
-		req.End = uint32(end)
 	}
 
 	// start and end == 0 is fine

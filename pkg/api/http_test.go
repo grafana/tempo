@@ -123,6 +123,26 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			urlQuery: "tags=service.name%3Dfoo&start=20&end=10",
 			err:      "http parameter start must be before end. received start=20 end=10",
 		},
+		{
+			name:     "top-level tags",
+			urlQuery: "service.name=bar",
+			expected: &tempopb.SearchRequest{
+				Tags: map[string]string{
+					"service.name": "bar",
+				},
+				Limit: defaultLimit,
+			},
+		},
+		{
+			name:     "top-level tags with range specified are ignored",
+			urlQuery: "service.name=bar&start=10&end=20",
+			expected: &tempopb.SearchRequest{
+				Tags:  map[string]string{},
+				Start: 10,
+				End:   20,
+				Limit: defaultLimit,
+			},
+		},
 	}
 
 	for _, tt := range tests {
