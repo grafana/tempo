@@ -199,17 +199,19 @@ platform:
   arch: amd64
 
 steps:
-- name: image-tag
+- name: image-tag-for-cd
   image: alpine/git
   commands:
   - apk --update --no-cache add bash
   - git fetch origin --tags
-  - echo $(./tools/image-tag) > .tags
+  - echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd
+  - echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query
+  - echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo_vulture
 
 - name: update-dev-images
   image: us.gcr.io/kubernetes-dev/drone/plugins/updater
   settings:
-    config_json: "{\n  \"destination_branch\": \"master\",\n  \"pull_request_branch_prefix\": \"cd-tempo-dev\",\n  \"pull_request_enabled\": false,\n  \"pull_request_team_reviewers\": [\n    \"tempo\"\n  ],\n  \"repo_name\": \"deployment_tools\",\n  \"update_jsonnet_attribute_configs\": [\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo\",\n      \"jsonnet_value_file\": \".tags\"\n    },\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo_query\",\n      \"jsonnet_value_file\": \".tags\"\n    },\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo_vulture\",\n      \"jsonnet_value_file\": \".tags\"\n    }\n  ]\n}"
+    config_json: "{\n  \"destination_branch\": \"master\",\n  \"pull_request_branch_prefix\": \"cd-tempo-dev\",\n  \"pull_request_enabled\": false,\n  \"pull_request_team_reviewers\": [\n    \"tempo\"\n  ],\n  \"repo_name\": \"deployment_tools\",\n  \"update_jsonnet_attribute_configs\": [\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo\",\n      \"jsonnet_value_file\": \".tags-for-cd-tempo\"\n    },\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo_query\",\n      \"jsonnet_value_file\": \".tags-for-cd-tempo_query\"\n    },\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo_vulture\",\n      \"jsonnet_value_file\": \".tags-for-cd-tempo_vulture\"\n    }\n  ]\n}"
     github_token:
       from_secret: gh_token
 
@@ -257,6 +259,6 @@ get:
 
 ---
 kind: signature
-hmac: 0ae3eb5a66257be4bc232fc5c1e36922ce07a6b8da79a971b81558500dab580c
+hmac: 3c0b9814bf8eaefc4c166797b9206a569a20cd7a1d58315fe140e2998e88b4d0
 
 ...

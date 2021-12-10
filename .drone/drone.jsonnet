@@ -69,6 +69,8 @@ local image_tag_for_cd() = {
       'apk --update --no-cache add bash',
       'git fetch origin --tags',
       'echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd',
+      'echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query',
+      'echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo-vulture',
     ],
 };
 
@@ -125,7 +127,7 @@ local deploy_to_dev() = {
           {
             file_path: 'ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet',
             jsonnet_key: app,
-            jsonnet_value_file: '.tags-for-cd'
+            jsonnet_value_file: '.tags-for-cd-' + app,
           }
           for app in ['tempo', 'tempo_query', 'tempo_vulture']
         ],
