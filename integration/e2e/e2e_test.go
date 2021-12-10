@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -148,7 +149,7 @@ func TestMicroservices(t *testing.T) {
 	tempoQuerier := util.NewTempoQuerier()
 	require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoIngester3, tempoDistributor, tempoQueryFrontend, tempoQuerier))
 
-	// wait for 2 active ingesters
+	// wait for active ingesters
 	time.Sleep(1 * time.Second)
 	matchers := []*labels.Matcher{
 		{
@@ -221,7 +222,7 @@ func TestMicroservices(t *testing.T) {
 	queryAndAssertTrace(t, apiClient, info)
 
 	// stop an ingester and confirm we can still write and query
-	err = tempoIngester2.Stop()
+	err = tempoIngester2.Kill()
 	require.NoError(t, err)
 
 	// sleep for heartbeat timeout
@@ -237,7 +238,7 @@ func TestMicroservices(t *testing.T) {
 	searchAndAssertTrace(t, apiClient, info)
 
 	// stop another ingester and confirm things fail
-	err = tempoIngester1.Stop()
+	err = tempoIngester1.Kill()
 	require.NoError(t, err)
 
 	require.Error(t, info.EmitBatches(c))
@@ -251,12 +252,27 @@ func TestScalableSingleBinary(t *testing.T) {
 	minio := cortex_e2e_db.NewMinio(9000, "tempo")
 	require.NotNil(t, minio)
 	require.NoError(t, s.StartAndWaitReady(minio))
-	//
-	require.NoError(t, util.CopyFileToSharedDir(s, configHA, "config.yaml"))
-	tempo1 := util.NewTempoScalableSingleBinary(1)
-	tempo2 := util.NewTempoScalableSingleBinary(2)
-	tempo3 := util.NewTempoScalableSingleBinary(3)
 
+	// copy configuration file over to shared dir
+	require.NoError(t, util.CopyFileToSharedDir(s, configHA, "config.yaml"))
+
+	// start three scalable single binary tempos in parallel
+	var wg sync.WaitGroup
+	var tempo1, tempo2, tempo3 *cortex_e2e.HTTPService
+	wg.Add(3)
+	go func() {
+		tempo1 = util.NewTempoScalableSingleBinary(1)
+		wg.Done()
+	}()
+	go func() {
+		tempo2 = util.NewTempoScalableSingleBinary(2)
+		wg.Done()
+	}()
+	go func() {
+		tempo3 = util.NewTempoScalableSingleBinary(3)
+		wg.Done()
+	}()
+	wg.Wait()
 	require.NoError(t, s.StartAndWaitReady(tempo1, tempo2, tempo3))
 
 	// wait for 2 active ingesters
@@ -314,16 +330,16 @@ func TestScalableSingleBinary(t *testing.T) {
 
 	queryAndAssertTrace(t, apiClient1, info)
 
-	err = tempo1.Stop()
+	err = tempo1.Kill()
 	require.NoError(t, err)
 
 	// Push to one of the instances that are still running.
 	require.NoError(t, info.EmitBatches(c2))
 
-	err = tempo2.Stop()
+	err = tempo2.Kill()
 	require.NoError(t, err)
 
-	err = tempo3.Stop()
+	err = tempo3.Kill()
 	require.NoError(t, err)
 }
 

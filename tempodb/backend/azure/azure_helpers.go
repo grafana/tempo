@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -20,7 +21,18 @@ const (
 )
 
 func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.ContainerURL, error) {
-	c, err := blob.NewSharedKeyCredential(cfg.StorageAccountName.String(), cfg.StorageAccountKey.String())
+	accountName := cfg.StorageAccountName.String()
+	accountKey := cfg.StorageAccountKey.String()
+
+	if accountName == "" {
+		accountName = os.Getenv("AZURE_STORAGE_ACCOUNT")
+	}
+
+	if accountKey == "" {
+		accountKey = os.Getenv("AZURE_STORAGE_KEY")
+	}
+
+	c, err := blob.NewSharedKeyCredential(accountName, accountKey)
 	if err != nil {
 		return blob.ContainerURL{}, err
 	}
@@ -63,12 +75,12 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 		HTTPSender: httpSender,
 	})
 
-	u, err := url.Parse(fmt.Sprintf("https://%s.%s", cfg.StorageAccountName, cfg.Endpoint))
+	u, err := url.Parse(fmt.Sprintf("https://%s.%s", accountName, cfg.Endpoint))
 
 	// If the endpoint doesn't start with blob.core we can assume Azurite is being used
 	// So the endpoint should follow Azurite URL style
 	if !strings.HasPrefix(cfg.Endpoint, "blob.core") {
-		u, err = url.Parse(fmt.Sprintf("http://%s/%s", cfg.Endpoint, cfg.StorageAccountName))
+		u, err = url.Parse(fmt.Sprintf("http://%s/%s", cfg.Endpoint, accountName))
 	}
 
 	if err != nil {

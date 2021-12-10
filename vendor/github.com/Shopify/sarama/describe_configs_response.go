@@ -224,7 +224,7 @@ func (r *ConfigEntry) encode(pe packetEncoder, version int16) (err error) {
 	return nil
 }
 
-//https://cwiki.apache.org/confluence/display/KAFKA/KIP-226+-+Dynamic+Broker+Configuration
+// https://cwiki.apache.org/confluence/display/KAFKA/KIP-226+-+Dynamic+Broker+Configuration
 func (r *ConfigEntry) decode(pd packetDecoder, version int16) (err error) {
 	if version == 0 {
 		r.Source = SourceUnknown
@@ -308,19 +308,19 @@ func (c *ConfigSynonym) encode(pe packetEncoder, version int16) (err error) {
 func (c *ConfigSynonym) decode(pd packetDecoder, version int16) error {
 	name, err := pd.getString()
 	if err != nil {
-		return nil
+		return err
 	}
 	c.ConfigName = name
 
 	value, err := pd.getString()
 	if err != nil {
-		return nil
+		return err
 	}
 	c.ConfigValue = value
 
 	source, err := pd.getInt8()
 	if err != nil {
-		return nil
+		return err
 	}
 	c.Source = ConfigSource(source)
 	return nil

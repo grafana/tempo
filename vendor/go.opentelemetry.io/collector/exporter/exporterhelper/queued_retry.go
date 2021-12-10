@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package exporterhelper
+package exporterhelper // import "go.opentelemetry.io/collector/exporter/exporterhelper"
 
 import (
 	"context"
@@ -20,38 +20,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cenkalti/backoff"
-	"github.com/jaegertracing/jaeger/pkg/queue"
-	"go.opencensus.io/trace"
+	"github.com/cenkalti/backoff/v4"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"go.opentelemetry.io/collector/consumer/consumererror"
-	"go.opentelemetry.io/collector/obsreport"
 )
 
-// QueueSettings defines configuration for queueing batches before sending to the consumerSender.
-type QueueSettings struct {
-	// Enabled indicates whether to not enqueue batches before sending to the consumerSender.
-	Enabled bool `mapstructure:"enabled"`
-	// NumConsumers is the number of consumers from the queue.
-	NumConsumers int `mapstructure:"num_consumers"`
-	// QueueSize is the maximum number of batches allowed in queue at a given time.
-	QueueSize int `mapstructure:"queue_size"`
-}
-
-// DefaultQueueSettings returns the default settings for QueueSettings.
-func DefaultQueueSettings() QueueSettings {
-	return QueueSettings{
-		Enabled:      true,
-		NumConsumers: 10,
-		// For 5000 queue elements at 100 requests/sec gives about 50 sec of survival of destination outage.
-		// This is a pretty decent value for production.
-		// User should calculate this from the perspective of how many seconds to buffer in case of a backend outage,
-		// multiply that by the number of requests per seconds.
-		QueueSize: 5000,
-	}
-}
+var (
+	errSendingQueueIsFull = errors.New("sending_queue is full")
+)
 
 // RetrySettings defines configuration for retrying batches in case of export failure.
 // The current supported strategy is exponential backoff.
@@ -78,15 +58,6 @@ func DefaultRetrySettings() RetrySettings {
 	}
 }
 
-type queuedRetrySender struct {
-	cfg             QueueSettings
-	consumerSender  requestSender
-	queue           *queue.BoundedQueue
-	retryStopCh     chan struct{}
-	traceAttributes []trace.Attribute
-	logger          *zap.Logger
-}
-
 func createSampledLogger(logger *zap.Logger) *zap.Logger {
 	if logger.Core().Enabled(zapcore.DebugLevel) {
 		// Debugging is enabled. Don't do any sampling.
@@ -106,107 +77,81 @@ func createSampledLogger(logger *zap.Logger) *zap.Logger {
 	return logger.WithOptions(opts)
 }
 
-func newQueuedRetrySender(fullName string, qCfg QueueSettings, rCfg RetrySettings, nextSender requestSender, logger *zap.Logger) *queuedRetrySender {
-	retryStopCh := make(chan struct{})
-	sampledLogger := createSampledLogger(logger)
-	traceAttr := trace.StringAttribute(obsreport.ExporterKey, fullName)
-	return &queuedRetrySender{
-		cfg: qCfg,
-		consumerSender: &retrySender{
-			traceAttribute: traceAttr,
-			cfg:            rCfg,
-			nextSender:     nextSender,
-			stopCh:         retryStopCh,
-			logger:         sampledLogger,
-		},
-		queue:           queue.NewBoundedQueue(qCfg.QueueSize, func(item interface{}) {}),
-		retryStopCh:     retryStopCh,
-		traceAttributes: []trace.Attribute{traceAttr},
-		logger:          sampledLogger,
-	}
-}
-
-// start is invoked during service startup.
-func (qrs *queuedRetrySender) start() {
-	qrs.queue.StartConsumers(qrs.cfg.NumConsumers, func(item interface{}) {
-		req := item.(request)
-		_, _ = qrs.consumerSender.send(req)
-	})
-}
-
 // send implements the requestSender interface
-func (qrs *queuedRetrySender) send(req request) (int, error) {
+func (qrs *queuedRetrySender) send(req request) error {
 	if !qrs.cfg.Enabled {
-		n, err := qrs.consumerSender.send(req)
+		err := qrs.consumerSender.send(req)
 		if err != nil {
 			qrs.logger.Error(
 				"Exporting failed. Dropping data. Try enabling sending_queue to survive temporary failures.",
-				zap.Int("dropped_items", n),
+				zap.Int("dropped_items", req.count()),
 			)
 		}
-		return n, err
+		return err
 	}
 
 	// Prevent cancellation and deadline to propagate to the context stored in the queue.
 	// The grpc/http based receivers will cancel the request context after this function returns.
 	req.setContext(noCancellationContext{Context: req.context()})
 
-	span := trace.FromContext(req.context())
+	span := trace.SpanFromContext(req.context())
 	if !qrs.queue.Produce(req) {
 		qrs.logger.Error(
 			"Dropping data because sending_queue is full. Try increasing queue_size.",
 			zap.Int("dropped_items", req.count()),
 		)
-		span.Annotate(qrs.traceAttributes, "Dropped item, sending_queue is full.")
-		return req.count(), errors.New("sending_queue is full")
+		span.AddEvent("Dropped item, sending_queue is full.", trace.WithAttributes(qrs.traceAttributes...))
+		return errSendingQueueIsFull
 	}
 
-	span.Annotate(qrs.traceAttributes, "Enqueued item.")
-	return 0, nil
-}
-
-// shutdown is invoked during service shutdown.
-func (qrs *queuedRetrySender) shutdown() {
-	// First stop the retry goroutines, so that unblocks the queue workers.
-	close(qrs.retryStopCh)
-
-	// Stop the queued sender, this will drain the queue and will call the retry (which is stopped) that will only
-	// try once every request.
-	qrs.queue.Stop()
+	span.AddEvent("Enqueued item.", trace.WithAttributes(qrs.traceAttributes...))
+	return nil
 }
 
 // TODO: Clean this by forcing all exporters to return an internal error type that always include the information about retries.
 type throttleRetry struct {
-	error
+	err   error
 	delay time.Duration
 }
 
+func (t throttleRetry) Error() string {
+	return "Throttle (" + t.delay.String() + "), error: " + t.err.Error()
+}
+
+func (t throttleRetry) Unwrap() error {
+	return t.err
+}
+
+// NewThrottleRetry creates a new throttle retry error.
 func NewThrottleRetry(err error, delay time.Duration) error {
-	return &throttleRetry{
-		error: err,
+	return throttleRetry{
+		err:   err,
 		delay: delay,
 	}
 }
 
+type onRequestHandlingFinishedFunc func(*zap.Logger, request, error) error
+
 type retrySender struct {
-	traceAttribute trace.Attribute
-	cfg            RetrySettings
-	nextSender     requestSender
-	stopCh         chan struct{}
-	logger         *zap.Logger
+	traceAttribute     attribute.KeyValue
+	cfg                RetrySettings
+	nextSender         requestSender
+	stopCh             chan struct{}
+	logger             *zap.Logger
+	onTemporaryFailure onRequestHandlingFinishedFunc
 }
 
 // send implements the requestSender interface
-func (rs *retrySender) send(req request) (int, error) {
+func (rs *retrySender) send(req request) error {
 	if !rs.cfg.Enabled {
-		n, err := rs.nextSender.send(req)
+		err := rs.nextSender.send(req)
 		if err != nil {
 			rs.logger.Error(
 				"Exporting failed. Try enabling retry_on_failure config option.",
 				zap.Error(err),
 			)
 		}
-		return n, err
+		return err
 	}
 
 	// Do not use NewExponentialBackOff since it calls Reset and the code here must
@@ -217,21 +162,20 @@ func (rs *retrySender) send(req request) (int, error) {
 		Multiplier:          backoff.DefaultMultiplier,
 		MaxInterval:         rs.cfg.MaxInterval,
 		MaxElapsedTime:      rs.cfg.MaxElapsedTime,
+		Stop:                backoff.Stop,
 		Clock:               backoff.SystemClock,
 	}
 	expBackoff.Reset()
-	span := trace.FromContext(req.context())
+	span := trace.SpanFromContext(req.context())
 	retryNum := int64(0)
 	for {
-		span.Annotate(
-			[]trace.Attribute{
-				rs.traceAttribute,
-				trace.Int64Attribute("retry_num", retryNum)},
-			"Sending request.")
-		droppedItems, err := rs.nextSender.send(req)
+		span.AddEvent(
+			"Sending request.",
+			trace.WithAttributes(rs.traceAttribute, attribute.Int64("retry_num", retryNum)))
 
+		err := rs.nextSender.send(req)
 		if err == nil {
-			return droppedItems, nil
+			return nil
 		}
 
 		// Immediately drop data on permanent errors.
@@ -239,40 +183,35 @@ func (rs *retrySender) send(req request) (int, error) {
 			rs.logger.Error(
 				"Exporting failed. The error is not retryable. Dropping data.",
 				zap.Error(err),
-				zap.Int("dropped_items", droppedItems),
+				zap.Int("dropped_items", req.count()),
 			)
-			return droppedItems, err
+			return err
 		}
 
-		// If partial error, update data and stats with non exported data.
-		if partialErr, isPartial := err.(consumererror.PartialError); isPartial {
-			req = req.onPartialError(partialErr)
-		}
+		// Give the request a chance to extract signal data to retry if only some data
+		// failed to process.
+		req = req.onError(err)
 
 		backoffDelay := expBackoff.NextBackOff()
-
 		if backoffDelay == backoff.Stop {
 			// throw away the batch
 			err = fmt.Errorf("max elapsed time expired %w", err)
-			rs.logger.Error(
-				"Exporting failed. No more retries left. Dropping data.",
-				zap.Error(err),
-				zap.Int("dropped_items", droppedItems),
-			)
-			return req.count(), err
+			return rs.onTemporaryFailure(rs.logger, req, err)
 		}
 
-		if throttleErr, isThrottle := err.(*throttleRetry); isThrottle {
+		throttleErr := throttleRetry{}
+		isThrottle := errors.As(err, &throttleErr)
+		if isThrottle {
 			backoffDelay = max(backoffDelay, throttleErr.delay)
 		}
 
 		backoffDelayStr := backoffDelay.String()
-		span.Annotate(
-			[]trace.Attribute{
+		span.AddEvent(
+			"Exporting failed. Will retry the request after interval.",
+			trace.WithAttributes(
 				rs.traceAttribute,
-				trace.StringAttribute("interval", backoffDelayStr),
-				trace.StringAttribute("error", err.Error())},
-			"Exporting failed. Will retry the request after interval.")
+				attribute.String("interval", backoffDelayStr),
+				attribute.String("error", err.Error())))
 		rs.logger.Info(
 			"Exporting failed. Will retry the request after interval.",
 			zap.Error(err),
@@ -283,9 +222,9 @@ func (rs *retrySender) send(req request) (int, error) {
 		// back-off, but get interrupted when shutting down or request is cancelled or timed out.
 		select {
 		case <-req.context().Done():
-			return req.count(), fmt.Errorf("request is cancelled or timed out %w", err)
+			return fmt.Errorf("request is cancelled or timed out %w", err)
 		case <-rs.stopCh:
-			return req.count(), fmt.Errorf("interrupted due to shutdown %w", err)
+			return fmt.Errorf("interrupted due to shutdown %w", err)
 		case <-time.After(backoffDelay):
 		}
 	}

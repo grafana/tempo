@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/consumer/pdata"
+	"go.opentelemetry.io/collector/model/pdata"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/pkg/util"
@@ -20,7 +20,11 @@ type testConsumer struct {
 	assertFunc assertFunc
 }
 
-func newAssertingConsumer(t *testing.T, assertFunc assertFunc) consumer.TracesConsumer {
+func (tc *testConsumer) Capabilities() consumer.Capabilities {
+	return consumer.Capabilities{MutatesData: false}
+}
+
+func newAssertingConsumer(t *testing.T, assertFunc assertFunc) consumer.Traces {
 	return &testConsumer{
 		t:          t,
 		assertFunc: assertFunc,

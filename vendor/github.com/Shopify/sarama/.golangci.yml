@@ -40,10 +40,13 @@ linters:
     - bodyclose
     - deadcode
     - depguard
+    - exportloopref
     - dogsled
     # - dupl
     - errcheck
     - funlen
+    - gochecknoinits
+    # - goconst
     # - gocritic
     - gocyclo
     - gofmt
@@ -53,11 +56,11 @@ linters:
     # - gosimple
     - govet
     # - ineffassign
-    - interfacer
-    # - misspell
+    - misspell
     # - nakedret
+    - nilerr
     # - scopelint
-    # - staticcheck
+    - staticcheck
     - structcheck
     # - stylecheck
     - typecheck
@@ -65,13 +68,9 @@ linters:
     - unused
     - varcheck
     - whitespace
-    # - goconst
-    - gochecknoinits
 
 issues:
   exclude:
-    - consider giving a name to these results
-    - include an explanation for nolint directive
-    - Potential Integer overflow made by strconv.Atoi result conversion to int16/32
-    - Use of weak random number generator
-    - TLS MinVersion too low
+    - "G404: Use of weak random number generator"
+  # maximum count of issues with the same text. set to 0 for unlimited. default is 3.
+  max-same-issues: 0

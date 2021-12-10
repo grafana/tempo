@@ -73,10 +73,13 @@ benchmark:
 test-with-cover: 
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
+.PHONY: test-e2e
+test-e2e: docker-tempo
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
+
 # test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all
-test-all: docker-tempo test-with-cover
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
+test-all: test-with-cover test-e2e
 
 .PHONY: test-bench
 test-bench: docker-tempo

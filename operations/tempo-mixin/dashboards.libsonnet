@@ -195,11 +195,11 @@ dashboard_utils {
         g.row('Backend - Ingester')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempodb_backend_request_duration_seconds_count{%s,operation="POST"}' % $.jobMatcher($._config.jobs.ingester))
+          $.qpsPanel('tempodb_backend_request_duration_seconds_count{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.ingester))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation="POST"}' % $.jobMatcher($._config.jobs.ingester))
+          $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.ingester))
         )
       )
       .addRow(
@@ -217,11 +217,11 @@ dashboard_utils {
         g.row('Backend - Compactor')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempodb_backend_request_duration_seconds_count{%s,operation="POST"}' % $.jobMatcher($._config.jobs.compactor))
+          $.qpsPanel('tempodb_backend_request_duration_seconds_count{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.compactor))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation="POST"}' % $.jobMatcher($._config.jobs.compactor))
+          $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.compactor))
         )
       ),
     'tempo-resources.json':

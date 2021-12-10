@@ -131,7 +131,7 @@ func readKeyName(delimiters string, in []byte) (string, int, error) {
 	// Check if key name surrounded by quotes.
 	var keyQuote string
 	if line[0] == '"' {
-		if len(line) > 6 && string(line[0:3]) == `"""` {
+		if len(line) > 6 && line[0:3] == `"""` {
 			keyQuote = `"""`
 		} else {
 			keyQuote = `"`
@@ -232,7 +232,7 @@ func (p *parser) readValue(in []byte, bufferSize int) (string, error) {
 	}
 
 	var valQuote string
-	if len(line) > 3 && string(line[0:3]) == `"""` {
+	if len(line) > 3 && line[0:3] == `"""` {
 		valQuote = `"""`
 	} else if line[0] == '`' {
 		valQuote = "`"
@@ -289,12 +289,8 @@ func (p *parser) readValue(in []byte, bufferSize int) (string, error) {
 		hasSurroundedQuote(line, '"')) && !p.options.PreserveSurroundedQuote {
 		line = line[1 : len(line)-1]
 	} else if len(valQuote) == 0 && p.options.UnescapeValueCommentSymbols {
-		if strings.Contains(line, `\;`) {
-			line = strings.Replace(line, `\;`, ";", -1)
-		}
-		if strings.Contains(line, `\#`) {
-			line = strings.Replace(line, `\#`, "#", -1)
-		}
+		line = strings.ReplaceAll(line, `\;`, ";")
+		line = strings.ReplaceAll(line, `\#`, "#")
 	} else if p.options.AllowPythonMultilineValues && lastChar == '\n' {
 		return p.readPythonMultilines(line, bufferSize)
 	}
@@ -377,7 +373,7 @@ func (f *File) parse(reader io.Reader) (err error) {
 
 	// Ignore error because default section name is never empty string.
 	name := DefaultSection
-	if f.options.Insensitive {
+	if f.options.Insensitive || f.options.InsensitiveSections {
 		name = strings.ToLower(DefaultSection)
 	}
 	section, _ := f.NewSection(name)
@@ -469,7 +465,7 @@ func (f *File) parse(reader io.Reader) (err error) {
 			inUnparseableSection = false
 			for i := range f.options.UnparseableSections {
 				if f.options.UnparseableSections[i] == name ||
-					(f.options.Insensitive && strings.EqualFold(f.options.UnparseableSections[i], name)) {
+					((f.options.Insensitive || f.options.InsensitiveSections) && strings.EqualFold(f.options.UnparseableSections[i], name)) {
 					inUnparseableSection = true
 					continue
 				}

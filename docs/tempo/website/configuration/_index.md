@@ -291,6 +291,7 @@ The storage block is used to configure TempoDB. It supports S3, GCS, Azure, loca
 The following example shows common options.  For further platform-specific information refer to the following:
 * [GCS](gcs/)
 * [S3](s3/)
+* [Azure](azure/)
 
 ```yaml
 # Storage configuration for traces
@@ -716,16 +717,20 @@ overrides:
     
     # Global ingestion limits configurations
 
+    # Specifies whether the ingestion rate limits should be applied by each instance of the distributor and ingester
+    # individually, or the limits are to be shared across all instances. See the "override strategies" section for an example.
+    [ingestion_rate_strategy: <global|local> | default = local]
+
     # Burst size (bytes) used in ingestion.
     # Results in errors like
-    #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
+    #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while adding 10 bytes
     [ingestion_burst_size_bytes: <int> | default = 20000000 (20MB) ]
 
     # Per-user ingestion rate limit (bytes) used in ingestion. 
     # Results in errors like
-    #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while 
+    #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
     [ingestion_rate_limit_bytes: <int> | default = 15000000 (15MB) ]
-    
+
     # Maximum size of a single trace in bytes.  `0` to disable. 
     # Results in errors like
     #    TRACE_TOO_LARGE: max size of trace (5000000) exceeded while adding 387 bytes
@@ -734,19 +739,22 @@ overrides:
     # Maximum number of active traces per user, per ingester. `0` to disable. 
     # Results in errors like
     #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
+    # This override limit is used by the ingester.
     [max_traces_per_user: <int> | default = 10000]
 
     # Maximum size of search data for a single trace in bytes. `0` to disable.
     # From an operational perspective, the size of search data is proportional to the total size of all tags in a trace
     [max_search_bytes_per_trace: <int> | default = 5000]
 
+    # Maximum size in bytes of a tag-values query. Tag-values query is used mainly to populate the autocomplete dropdown.
+    # Limit added to protect from tags with high cardinality or large values (like HTTP URLs or SQL queries)
+    # This override limit is used by the ingester and the querier.
+    [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
+
     # Tenant-specific overrides
 
-    # tenant-specific overrides settings config file
+    # Tenant-specific overrides settings configuration file. See the "Tenant-specific overrides" section for an example.
     [per_tenant_override_config: /conf/overrides.yaml]
-
-    # Ingestion strategy, default is `local`.
-    [ingestion_rate_strategy: <global|local>]
 ```
 
 
@@ -785,11 +793,28 @@ The trace limits specified by the various parameters are, by default, applied as
 A setting that applies at a local level is quite helpful in ensuring that each distributor independently can process traces up to the limit without affecting the tracing limits on other distributors.
 
 However, as a cluster grows quite large, this can lead to quite a large quantity of traces. An alternative strategy may be to set a `global` trace limit that establishes a total budget of all traces across all distributors in the cluster. The global limit is averaged across all distributors by using the distributor ring.
+
 ```yaml
 # /conf/tempo.yaml
 overrides:
-    # Ingestion strategy, default is `local`.
-    ingestion_rate_strategy: <global|local>
+  [ingestion_rate_strategy: <global|local> | default = local]
+```
+
+For example, this configuration specifies that each instance of the distributor will apply a limit of `15MB/s`.
+
+```yaml
+overrides:
+  - ingestion_rate_strategy: local
+  - ingestion_rate_limit_bytes: 15000000
+```
+
+This configuration specifies that together, all distributor instances will apply a limit of `15MB/s`.
+So if there are 5 instances, each instance will apply a local limit of `(15MB/s / 5) = 3MB/s`.
+
+```yaml
+overrides:
+  - ingestion_rate_strategy: global
+  - ingestion_rate_limit_bytes: 15000000
 ```
 
 ## Search

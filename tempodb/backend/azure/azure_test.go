@@ -5,15 +5,36 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCredentials(t *testing.T) {
+	_, _, _, err := New(&Config{})
+	require.Error(t, err)
+
+	os.Setenv("AZURE_STORAGE_ACCOUNT", "testing")
+	os.Setenv("AZURE_STORAGE_KEY", "dGVzdGluZwo=")
+
+	defer os.Unsetenv("AZURE_STORAGE_ACCOUNT")
+	defer os.Unsetenv("AZURE_STORAGE_KEY")
+
+	count := int32(0)
+	server := fakeServer(t, 1*time.Second, &count)
+
+	_, _, _, err = New(&Config{
+		Endpoint: server.URL[7:], // [7:] -> strip http://,
+	})
+	require.NoError(t, err)
+}
 
 func TestHedge(t *testing.T) {
 	tests := []struct {
@@ -45,12 +66,14 @@ func TestHedge(t *testing.T) {
 			server := fakeServer(t, tc.returnIn, &count)
 
 			r, w, _, err := New(&Config{
-				MaxBuffers:        3,
-				BufferSize:        1000,
-				ContainerName:     "blerg",
-				Endpoint:          server.URL[7:], // [7:] -> strip http://,
-				HedgeRequestsAt:   tc.hedgeAt,
-				HedgeRequestsUpTo: 2,
+				StorageAccountName: flagext.Secret{Value: "testing"},
+				StorageAccountKey:  flagext.Secret{Value: "YQo="},
+				MaxBuffers:         3,
+				BufferSize:         1000,
+				ContainerName:      "blerg",
+				Endpoint:           server.URL[7:], // [7:] -> strip http://,
+				HedgeRequestsAt:    tc.hedgeAt,
+				HedgeRequestsUpTo:  2,
 			})
 			require.NoError(t, err)
 

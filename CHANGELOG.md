@@ -2,6 +2,7 @@
 
 * [CHANGE] Search: Add new per-tenant limit `max_bytes_per_tag_values_query` to limit the size of tag-values response. [#1068](https://github.com/grafana/tempo/pull/1068) (@annanay25)
 * [CHANGE] Reduce MaxSearchBytesPerTrace `ingester.max-search-bytes-per-trace` default to 5KB [#1129](https://github.com/grafana/tempo/pull/1129) @annanay25
+* [CHANGE] **BREAKING CHANGE** The OTEL GRPC receiver's default port changed from 55680 to 4317. [#1142](https://github.com/grafana/tempo/pull/1142) (@tete17)
 * [ENHANCEMENT] Expose `upto` parameter on hedged requests for each backend with `hedge_requests_up_to`. [#1085](https://github.com/grafana/tempo/pull/1085) (@joe-elliott)
 * [ENHANCEMENT] Search: drop use of TagCache, extract tags and tag values on-demand [#1068](https://github.com/grafana/tempo/pull/1068) (@kvrhdn)
 * [ENHANCEMENT] Jsonnet: add `$._config.namespace` to filter by namespace in cortex metrics [#1098](https://github.com/grafana/tempo/pull/1098) (@mapno)
@@ -14,12 +15,18 @@
 * [ENHANCEMENT] Added max_time_per_tenant to allow for independently configuring polling and compaction cycle. [#1145](https://github.com/grafana/tempo/pull/1145) (@joe-elliott)
 * [ENHANCEMENT] Add `tempodb_compaction_outstanding_blocks` metric to measure compaction load [#1143](https://github.com/grafana/tempo/pull/1143) (@mapno)
 * [ENHANCEMENT] Update mixin to use new backend metric [#1151](https://github.com/grafana/tempo/pull/1151) (@zalegrala)
-* [BUGFIX] Fix defaults for MaxBytesPerTrace (ingester.max-bytes-per-trace) and MaxSearchBytesPerTrace (ingester.max-search-bytes-per-trace) (@bitprocessor)
-* [BUGFIX] Ignore empty objects during compaction [#1113](https://github.com/grafana/tempo/pull/1113) (@mdisibio)
+* [ENHANCEMENT] Make `TempoIngesterFlushesFailing` alert more actionable [#1157](https://github.com/grafana/tempo/pull/1157) (@dannykopping)
+* [ENHANCEMENT] Switch open-telemetry/opentelemetry-collector to grafana/opentelemetry-collectorl fork, update it to 0.40.0 and add missing dependencies due to the change [#1142](https://github.com/grafana/tempo/pull/1142) (@tete17)
+* [ENHANCEMENT] Allow environment variables for Azure storage credentials [#1147](https://github.com/grafana/tempo/pull/1147) (@zalegrala)
+* [ENHANCEMENT] jsonnet: set rollingUpdate.maxSurge to 3 for distributor, frontend and queriers [#1164](https://github.com/grafana/tempo/pull/1164) (@kvrhdn)
 * [BUGFIX] Add process name to vulture traces to work around display issues [#1127](https://github.com/grafana/tempo/pull/1127) (@mdisibio)
 * [BUGFIX] Fixed issue where compaction sometimes dropped spans. [#1130](https://github.com/grafana/tempo/pull/1130) (@joe-elliott)
 * [BUGFIX] Ensure that the admin client jsonnet has correct S3 bucket property. (@hedss)
 * [BUGFIX] Publish tenant index age correctly for tenant index writers. [#1146](https://github.com/grafana/tempo/pull/1146) (@joe-elliott)
+
+## v1.2.1 / 2021-11-15
+* [BUGFIX] Fix defaults for MaxBytesPerTrace (ingester.max-bytes-per-trace) and MaxSearchBytesPerTrace (ingester.max-search-bytes-per-trace) [#1109](https://github.com/grafana/tempo/pull/1109) (@bitprocessor)
+* [BUGFIX] Ignore empty objects during compaction [#1113](https://github.com/grafana/tempo/pull/1113) (@mdisibio)
 
 ## v1.2.0 / 2021-11-05
 * [CHANGE] **BREAKING CHANGE** Drop support for v0 and v1 blocks. See [1.1 changelog](https://github.com/grafana/tempo/releases/tag/v1.1.0) for details [#919](https://github.com/grafana/tempo/pull/919) (@joe-elliott)
@@ -88,7 +95,7 @@
 * [ENHANCEMENT] Add `search_default_limit` and `search_max_result_limit` to querier config. [#1022](https://github.com/grafana/tempo/pull/1022) [#1044](https://github.com/grafana/tempo/pull/1044) (@kvrhdn)
 * [ENHANCEMENT] Add new metric `tempo_distributor_push_duration_seconds` [#1027](https://github.com/grafana/tempo/pull/1027) (@zalegrala)
 * [ENHANCEMENT] Add query parameter to show the default config values and the difference between the current values and the defaults. [#1045](https://github.com/grafana/tempo/pull/1045) (@MichelHollands)
-* [ENHANCEMENT] Adding metrics around ingester flush retries [#1049](https://github.com/grafana/tempo/pull/944) (@dannykopping)
+* [ENHANCEMENT] Adding metrics around ingester flush retries [#1049](https://github.com/grafana/tempo/pull/1049) (@dannykopping)
 * [ENHANCEMENT] Performance: More efficient distributor batching [#1075](https://github.com/grafana/tempo/pull/1075) (@joe-elliott)
 * [ENHANCEMENT] Allow search disablement in vulture [#1069](https://github.com/grafana/tempo/pull/1069) (@zalegrala)
 * [ENHANCEMENT] Jsonnet: add `$._config.search_enabled`, correctly set `http_api_prefix` in config [#1072](https://github.com/grafana/tempo/pull/1072) (@kvrhdn)

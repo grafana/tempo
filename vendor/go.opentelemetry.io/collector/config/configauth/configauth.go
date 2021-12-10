@@ -12,63 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package configauth
+package configauth // import "go.opentelemetry.io/collector/config/configauth"
 
 import (
-	"context"
+	"errors"
+	"fmt"
 
-	"google.golang.org/grpc"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config"
 )
 
-// Authentication defines the auth settings for the receiver
+var (
+	errAuthenticatorNotFound  = errors.New("authenticator not found")
+	errNotClientAuthenticator = errors.New("requested authenticator is not a client authenticator")
+	errNotServerAuthenticator = errors.New("requested authenticator is not a server authenticator")
+)
+
+// Authentication defines the auth settings for the receiver.
 type Authentication struct {
-	// The attribute (header name) to look for auth data. Optional, default value: "authentication".
-	Attribute string `mapstructure:"attribute"`
-
-	// OIDC configures this receiver to use the given OIDC provider as the backend for the authentication mechanism.
-	// Required.
-	OIDC *OIDC `mapstructure:"oidc"`
+	// AuthenticatorID specifies the name of the extension to use in order to authenticate the incoming data point.
+	AuthenticatorID config.ComponentID `mapstructure:"authenticator"`
 }
 
-// OIDC defines the OpenID Connect properties for this processor
-type OIDC struct {
-	// IssuerURL is the base URL for the OIDC provider.
-	// Required.
-	IssuerURL string `mapstructure:"issuer_url"`
+// GetServerAuthenticator attempts to select the appropriate ServerAuthenticator from the list of extensions,
+// based on the requested extension name. If an authenticator is not found, an error is returned.
+func (a Authentication) GetServerAuthenticator(extensions map[config.ComponentID]component.Extension) (ServerAuthenticator, error) {
+	if ext, found := extensions[a.AuthenticatorID]; found {
+		if auth, ok := ext.(ServerAuthenticator); ok {
+			return auth, nil
+		}
+		return nil, errNotServerAuthenticator
+	}
 
-	// Audience of the token, used during the verification.
-	// For example: "https://accounts.google.com" or "https://login.salesforce.com".
-	// Required.
-	Audience string `mapstructure:"audience"`
-
-	// The local path for the issuer CA's TLS server cert.
-	// Optional.
-	IssuerCAPath string `mapstructure:"issuer_ca_path"`
-
-	// The claim to use as the username, in case the token's 'sub' isn't the suitable source.
-	// Optional.
-	UsernameClaim string `mapstructure:"username_claim"`
-
-	// The claim that holds the subject's group membership information.
-	// Optional.
-	GroupsClaim string `mapstructure:"groups_claim"`
+	return nil, fmt.Errorf("failed to resolve authenticator %q: %w", a.AuthenticatorID, errAuthenticatorNotFound)
 }
 
-// ToServerOptions builds a set of server options ready to be used by the gRPC server
-func (a *Authentication) ToServerOptions() ([]grpc.ServerOption, error) {
-	auth, err := NewAuthenticator(*a)
-	if err != nil {
-		return nil, err
+// GetClientAuthenticator attempts to select the appropriate ClientAuthenticator from the list of extensions,
+// based on the component id of the extension. If an authenticator is not found, an error is returned.
+// This should be only used by HTTP clients.
+func (a Authentication) GetClientAuthenticator(extensions map[config.ComponentID]component.Extension) (ClientAuthenticator, error) {
+	if ext, found := extensions[a.AuthenticatorID]; found {
+		if auth, ok := ext.(ClientAuthenticator); ok {
+			return auth, nil
+		}
+		return nil, errNotClientAuthenticator
 	}
-
-	// perhaps we should use a timeout here?
-	// TODO: we need a hook to call auth.Close()
-	if err := auth.Start(context.Background()); err != nil {
-		return nil, err
-	}
-
-	return []grpc.ServerOption{
-		grpc.UnaryInterceptor(auth.UnaryInterceptor),
-		grpc.StreamInterceptor(auth.StreamInterceptor),
-	}, nil
+	return nil, fmt.Errorf("failed to resolve authenticator %q: %w", a.AuthenticatorID, errAuthenticatorNotFound)
 }

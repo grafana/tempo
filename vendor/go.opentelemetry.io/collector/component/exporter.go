@@ -12,52 +12,51 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package component
+package component // import "go.opentelemetry.io/collector/component"
 
 import (
 	"context"
 
-	"go.uber.org/zap"
-
-	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
 )
 
-// Exporter defines functions that all exporters must implement.
+// Exporter exports telemetry data from the collector to a destination.
 type Exporter interface {
 	Component
 }
 
-// TracesExporter is a Exporter that can consume traces.
+// TracesExporter is an Exporter that can consume traces.
 type TracesExporter interface {
 	Exporter
-	consumer.TracesConsumer
+	consumer.Traces
 }
 
 // MetricsExporter is an Exporter that can consume metrics.
 type MetricsExporter interface {
 	Exporter
-	consumer.MetricsConsumer
+	consumer.Metrics
 }
 
 // LogsExporter is an Exporter that can consume logs.
 type LogsExporter interface {
 	Exporter
-	consumer.LogsConsumer
+	consumer.Logs
 }
 
-// ExporterCreateParams is passed to Create*Exporter functions.
-type ExporterCreateParams struct {
-	// Logger that the factory can use during creation and can pass to the created
-	// component to be used later as well.
-	Logger *zap.Logger
+// ExporterCreateSettings configures Exporter creators.
+type ExporterCreateSettings struct {
+	TelemetrySettings
 
-	// ApplicationStartInfo can be used by components for informational purposes
-	ApplicationStartInfo ApplicationStartInfo
+	// BuildInfo can be used by components for informational purposes
+	BuildInfo BuildInfo
 }
 
-// ExporterFactory can create TracesExporter and MetricsExporter. This is the
-// new factory type that can create new style exporters.
+// ExporterFactory can create MetricsExporter, TracesExporter and
+// LogsExporter. This is the new preferred factory type to create exporters.
+//
+// This interface cannot be directly implemented. Implementations must
+// use the exporterhelper.NewFactory to implement it.
 type ExporterFactory interface {
 	Factory
 
@@ -66,34 +65,25 @@ type ExporterFactory interface {
 	// configuration and should not cause side-effects that prevent the creation
 	// of multiple instances of the Exporter.
 	// The object returned by this method needs to pass the checks implemented by
-	// 'configcheck.ValidateConfig'. It is recommended to have such check in the
+	// 'configtest.CheckConfigStruct'. It is recommended to have these checks in the
 	// tests of any implementation of the Factory interface.
-	CreateDefaultConfig() configmodels.Exporter
+	CreateDefaultConfig() config.Exporter
 
 	// CreateTracesExporter creates a trace exporter based on this config.
-	// If the exporter type does not support tracing or if the config is not valid
-	// error will be returned instead.
-	CreateTracesExporter(
-		ctx context.Context,
-		params ExporterCreateParams,
-		cfg configmodels.Exporter,
-	) (TracesExporter, error)
+	// If the exporter type does not support tracing or if the config is not valid,
+	// an error will be returned instead.
+	CreateTracesExporter(ctx context.Context, set ExporterCreateSettings,
+		cfg config.Exporter) (TracesExporter, error)
 
 	// CreateMetricsExporter creates a metrics exporter based on this config.
-	// If the exporter type does not support metrics or if the config is not valid
-	// error will be returned instead.
-	CreateMetricsExporter(
-		ctx context.Context,
-		params ExporterCreateParams,
-		cfg configmodels.Exporter,
-	) (MetricsExporter, error)
+	// If the exporter type does not support metrics or if the config is not valid,
+	// an error will be returned instead.
+	CreateMetricsExporter(ctx context.Context, set ExporterCreateSettings,
+		cfg config.Exporter) (MetricsExporter, error)
 
 	// CreateLogsExporter creates an exporter based on the config.
-	// If the exporter type does not support logs or if the config is not valid
-	// error will be returned instead.
-	CreateLogsExporter(
-		ctx context.Context,
-		params ExporterCreateParams,
-		cfg configmodels.Exporter,
-	) (LogsExporter, error)
+	// If the exporter type does not support logs or if the config is not valid,
+	// an error will be returned instead.
+	CreateLogsExporter(ctx context.Context, set ExporterCreateSettings,
+		cfg config.Exporter) (LogsExporter, error)
 }

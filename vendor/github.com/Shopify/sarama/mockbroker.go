@@ -30,9 +30,9 @@ type RequestNotifierFunc func(bytesRead, bytesWritten int)
 // to facilitate testing of higher level or specialized consumers and producers
 // built on top of Sarama. Note that it does not 'mimic' the Kafka API protocol,
 // but rather provides a facility to do that. It takes care of the TCP
-// transport, request unmarshaling, response marshaling, and makes it the test
+// transport, request unmarshalling, response marshaling, and makes it the test
 // writer responsibility to program correct according to the Kafka API protocol
-// MockBroker behaviour.
+// MockBroker behavior.
 //
 // MockBroker is implemented as a TCP server listening on a kernel-selected
 // localhost port that can accept many connections. It reads Kafka requests
@@ -83,9 +83,13 @@ func (b *MockBroker) SetLatency(latency time.Duration) {
 // and uses the found MockResponse instance to generate an appropriate reply.
 // If the request type is not found in the map then nothing is sent.
 func (b *MockBroker) SetHandlerByMap(handlerMap map[string]MockResponse) {
+	fnMap := make(map[string]MockResponse)
+	for k, v := range handlerMap {
+		fnMap[k] = v
+	}
 	b.setHandler(func(req *request) (res encoderWithHeader) {
 		reqTypeName := reflect.TypeOf(req.body).Elem().Name()
-		mockResponse := handlerMap[reqTypeName]
+		mockResponse := fnMap[reqTypeName]
 		if mockResponse == nil {
 			return nil
 		}
@@ -218,6 +222,8 @@ func (b *MockBroker) handleRequests(conn io.ReadWriteCloser, idx int, wg *sync.W
 	defer func() {
 		_ = conn.Close()
 	}()
+	s := spew.NewDefaultConfig()
+	s.MaxDepth = 1
 	Logger.Printf("*** mockbroker/%d/%d: connection opened", b.BrokerID(), idx)
 	var err error
 
@@ -264,7 +270,12 @@ func (b *MockBroker) handleRequests(conn io.ReadWriteCloser, idx int, wg *sync.W
 				Logger.Printf("*** mockbroker/%d/%d: ignored %v", b.brokerID, idx, spew.Sdump(req))
 				continue
 			}
-			Logger.Printf("*** mockbroker/%d/%d: served %v -> %v", b.brokerID, idx, req, res)
+			Logger.Printf(
+				"*** mockbroker/%d/%d: replied to %T with %T\n-> %s\n-> %s",
+				b.brokerID, idx, req.body, res,
+				s.Sprintf("%#v", req.body),
+				s.Sprintf("%#v", res),
+			)
 
 			encodedRes, err := encode(res, nil)
 			if err != nil {
