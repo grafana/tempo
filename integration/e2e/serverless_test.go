@@ -75,8 +75,8 @@ func TestServerless(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
-	// sleep for one maintenance cycle
-	time.Sleep(5 * time.Second)
+	// zzz
+	time.Sleep(10 * time.Second)
 
 	// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 	now := time.Now()
