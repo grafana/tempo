@@ -500,6 +500,45 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 	}
 }
 
+func TestInstanceMetrics(t *testing.T) {
+	tenantID := "fake"
+
+	limits, err := overrides.NewOverrides(overrides.Limits{})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir, err := os.MkdirTemp("/tmp", "")
+	assert.NoError(t, err, "unexpected error getting temp dir")
+	defer os.RemoveAll(tempDir)
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+
+	i, err := newInstance(tenantID, limiter, ingester.store, ingester.local)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	cutAndVerify := func(v int) {
+		err := i.CutCompleteTraces(0, true)
+		require.NoError(t, err)
+
+		liveTraces, err := test.GetGaugeVecValue(metricLiveTraces, tenantID)
+		require.NoError(t, err)
+		require.Equal(t, v, int(liveTraces))
+	}
+
+	cutAndVerify(0)
+
+	// Push some traces
+	count := 100
+	for j := 0; j < count; j++ {
+		request := test.MakeRequest(10, []byte{})
+		err := i.Push(context.Background(), request)
+		require.NoError(t, err)
+	}
+	cutAndVerify(count)
+
+	cutAndVerify(0)
+}
+
 func defaultInstance(t require.TestingT, tmpDir string) *instance {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")

@@ -150,7 +150,7 @@ func TestMicroservices(t *testing.T) {
 	tempoQuerier := util.NewTempoQuerier()
 	require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoIngester3, tempoDistributor, tempoQueryFrontend, tempoQuerier))
 
-	// wait for 2 active ingesters
+	// wait for active ingesters
 	time.Sleep(1 * time.Second)
 	matchers := []*labels.Matcher{
 		{

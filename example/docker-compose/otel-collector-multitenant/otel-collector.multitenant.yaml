@@ -4,7 +4,7 @@ receivers:
       thrift_http:
 exporters:
   otlp:
-    endpoint: tempo:55680
+    endpoint: tempo:4317
     insecure: true
     headers:
       x-scope-orgid: foo-bar-baz

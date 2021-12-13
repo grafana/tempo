@@ -52,6 +52,7 @@ The current team members are:
 - Koenraad Verheyden - [kvrhdn](https://github.com/kvrhdn) ([Grafana Labs](https://grafana.com/))
 - Mario Rodriguez - [mapno](https://github.com/mapno) ([Grafana Labs](https://grafana.com/))
 - Marty Disibio - [mdisibio](https://github.com/mdisibio) ([Grafana Labs](https://grafana.com/))
+- Zach Leslie - [zalegrala](https://github.com/zalegrala) ([Grafana Labs](https://grafana.com/))
 
 ### Maintainers
 

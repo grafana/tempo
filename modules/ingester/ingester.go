@@ -163,26 +163,6 @@ func (i *Ingester) markUnavailable() {
 	i.stopIncomingRequests()
 }
 
-// Push implements tempopb.Pusher.Push (super deprecated)
-func (i *Ingester) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
-	if i.readonly {
-		return nil, ErrReadOnly
-	}
-
-	instanceID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	instance, err := i.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
-	}
-
-	err = instance.Push(ctx, req)
-	return &tempopb.PushResponse{}, err
-}
-
 // PushBytes implements tempopb.Pusher.PushBytes
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
 	if i.readonly {
