@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/tempo/modules/distributor/receiver"
+	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -57,6 +58,16 @@ var (
 		Name:      "distributor_ingester_append_failures_total",
 		Help:      "The total number of failed batch appends sent to ingesters.",
 	}, []string{"ingester"})
+	metricGeneratorPushes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_metrics_generator_pushes_total",
+		Help:      "The total number of span pushes sent to generators.",
+	}, []string{"generator"})
+	metricGeneratorPushesFailures = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_metrics_generator_pushes_failures_total",
+		Help:      "The total number of failed span pushes sent to generators.",
+	}, []string{"generator"})
 	metricSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_spans_received_total",
@@ -78,6 +89,11 @@ var (
 		Name:      "distributor_ingester_clients",
 		Help:      "The current number of ingester clients.",
 	})
+	metricGeneratorClients = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "distributor_generator_clients",
+		Help:      "The current number of generator clients.",
+	})
 	metricDiscardedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "discarded_spans_total",
@@ -89,12 +105,15 @@ var (
 type Distributor struct {
 	services.Service
 
-	cfg             Config
-	clientCfg       ingester_client.Config
-	ingestersRing   ring.ReadRing
-	pool            *ring_client.Pool
-	DistributorRing *ring.Ring
-	overrides       *overrides.Overrides
+	cfg                Config
+	clientCfg          ingester_client.Config
+	ingestersRing      ring.ReadRing
+	pool               *ring_client.Pool
+	generatorClientCfg generator_client.Config
+	generatorsRing     ring.ReadRing
+	generatorPool      *ring_client.Pool
+	DistributorRing    *ring.Ring
+	overrides          *overrides.Overrides
 
 	// search
 	searchEnabled    bool
@@ -109,7 +128,8 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, level logging.Level, searchEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
+// TODO this method has a lot of parameters
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, loggingLevel logging.Level, searchEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -151,6 +171,20 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	subservices = append(subservices, pool)
 
+	var generatorPool *ring_client.Pool
+	if generatorsRing != nil {
+		generatorPool = ring_client.NewPool("distributor_generator_pool",
+			generatorClientCfg.PoolConfig,
+			ring_client.NewRingServiceDiscovery(generatorsRing),
+			func(addr string) (ring_client.PoolClient, error) {
+				return generator_client.New(addr, generatorClientCfg)
+			},
+			metricGeneratorClients,
+			log.Logger)
+
+		subservices = append(subservices, generatorPool)
+	}
+
 	// turn list into map for efficient checking
 	tagsToDrop := map[string]struct{}{}
 	for _, tag := range cfg.SearchTagsDenyList {
@@ -162,6 +196,9 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		clientCfg:            clientCfg,
 		ingestersRing:        ingestersRing,
 		pool:                 pool,
+		generatorClientCfg:   generatorClientCfg,
+		generatorsRing:       generatorsRing,
+		generatorPool:        generatorPool,
 		DistributorRing:      distributorRing,
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 		searchEnabled:        searchEnabled,
@@ -174,7 +211,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		cfgReceivers = defaultReceivers
 	}
 
-	receivers, err := receiver.New(cfgReceivers, d, middleware, level)
+	receivers, err := receiver.New(cfgReceivers, d, middleware, loggingLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -281,6 +318,12 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 		recordDiscaredSpans(err, userID, spanCount)
 	}
 
+	// TODO if pushing to the ingesters failed, should we still try to push to the generators? (probably not)
+	err = d.sendToGenerators(ctx, userID, batches, keys)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "pushing to generator failed", "err", err)
+	}
+
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
@@ -330,6 +373,45 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		metricIngesterAppends.WithLabelValues(ingester.Addr).Inc()
 		if err != nil {
 			metricIngesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
+		}
+		return err
+	}, func() {})
+
+	return err
+}
+
+// TODO can we include this in a test somewhere?
+func (d *Distributor) sendToGenerators(ctx context.Context, userID string, traces []*v1.ResourceSpans, keys []uint32) error {
+	if d.generatorsRing == nil {
+		return nil
+	}
+
+	// TODO should we make this configurable like with the ingesters?
+	op := ring.WriteNoExtend
+
+	err := ring.DoBatch(ctx, op, d.generatorsRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
+		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
+		defer cancel()
+		localCtx = user.InjectOrgID(localCtx, userID)
+
+		// TODO if the generator does not need the full trace, trim down this request to safe processing time, i.e.
+		// 	- don't send spans if the tenant does not generate metrics
+		//  - only send relevant spans (e.g. span kind client and server for service graphs)
+		req := tempopb.PushSpansRequest{
+			Batches: traces,
+		}
+
+		c, err := d.generatorPool.GetClientFor(generator.Addr)
+		if err != nil {
+			return err
+		}
+
+		_, err = c.(tempopb.GeneratorClient).PushSpans(localCtx, &req)
+		metricGeneratorPushes.WithLabelValues(generator.Addr).Inc()
+		if err != nil {
+			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()
+			// TODO don't log this (but it's useful for now)
+			level.Error(log.Logger).Log("msg", "pushing to generator failed", "addr", generator.Addr, "err", err)
 		}
 		return err
 	}, func() {})

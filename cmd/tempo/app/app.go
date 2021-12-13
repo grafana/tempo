@@ -35,6 +35,8 @@ import (
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	"github.com/grafana/tempo/modules/frontend"
+	"github.com/grafana/tempo/modules/generator"
+	generator_client "github.com/grafana/tempo/modules/generator/client"
 	"github.com/grafana/tempo/modules/ingester"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -56,16 +58,18 @@ type Config struct {
 	HTTPAPIPrefix       string `yaml:"http_api_prefix"`
 	UseOTelTracer       bool   `yaml:"use_otel_tracer,omitempty"`
 
-	Server         server.Config          `yaml:"server,omitempty"`
-	Distributor    distributor.Config     `yaml:"distributor,omitempty"`
-	IngesterClient ingester_client.Config `yaml:"ingester_client,omitempty"`
-	Querier        querier.Config         `yaml:"querier,omitempty"`
-	Frontend       frontend.Config        `yaml:"query_frontend,omitempty"`
-	Compactor      compactor.Config       `yaml:"compactor,omitempty"`
-	Ingester       ingester.Config        `yaml:"ingester,omitempty"`
-	StorageConfig  storage.Config         `yaml:"storage,omitempty"`
-	LimitsConfig   overrides.Limits       `yaml:"overrides,omitempty"`
-	MemberlistKV   memberlist.KVConfig    `yaml:"memberlist,omitempty"`
+	Server          server.Config           `yaml:"server,omitempty"`
+	Distributor     distributor.Config      `yaml:"distributor,omitempty"`
+	IngesterClient  ingester_client.Config  `yaml:"ingester_client,omitempty"`
+	GeneratorClient generator_client.Config `yaml:"metrics_generator_client,omitempty"`
+	Querier         querier.Config          `yaml:"querier,omitempty"`
+	Frontend        frontend.Config         `yaml:"query_frontend,omitempty"`
+	Compactor       compactor.Config        `yaml:"compactor,omitempty"`
+	Ingester        ingester.Config         `yaml:"ingester,omitempty"`
+	Generator       generator.Config        `yaml:"metrics_generator,omitempty"`
+	StorageConfig   storage.Config          `yaml:"storage,omitempty"`
+	LimitsConfig    overrides.Limits        `yaml:"overrides,omitempty"`
+	MemberlistKV    memberlist.KVConfig     `yaml:"memberlist,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers flag.
@@ -109,15 +113,17 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// Everything else
 	flagext.DefaultValues(&c.IngesterClient)
 	c.IngesterClient.GRPCClientConfig.GRPCCompression = "snappy"
+	flagext.DefaultValues(&c.GeneratorClient)
+	c.GeneratorClient.GRPCClientConfig.GRPCCompression = "snappy"
 	flagext.DefaultValues(&c.LimitsConfig)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "distributor"), f)
 	c.Ingester.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "ingester"), f)
+	c.Generator.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "generator"), f)
 	c.Querier.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "querier"), f)
 	c.Frontend.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "frontend"), f)
 	c.Compactor.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(tempo_util.PrefixConfig(prefix, "storage"), f)
-
 }
 
 // MultitenancyIsEnabled checks if multitenancy is enabled
@@ -162,16 +168,18 @@ func newDefaultConfig() *Config {
 type App struct {
 	cfg Config
 
-	Server       *server.Server
-	ring         *ring.Ring
-	overrides    *overrides.Overrides
-	distributor  *distributor.Distributor
-	querier      *querier.Querier
-	frontend     *cortex_frontend.Frontend
-	compactor    *compactor.Compactor
-	ingester     *ingester.Ingester
-	store        storage.Store
-	MemberlistKV *memberlist.KVInitService
+	Server        *server.Server
+	ring          *ring.Ring // TODO should we rename this to ingesterRing?
+	generatorRing *ring.Ring
+	overrides     *overrides.Overrides
+	distributor   *distributor.Distributor
+	querier       *querier.Querier
+	frontend      *cortex_frontend.Frontend
+	compactor     *compactor.Compactor
+	ingester      *ingester.Ingester
+	generator     *generator.Generator
+	store         storage.Store
+	MemberlistKV  *memberlist.KVInitService
 
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware
@@ -383,6 +391,15 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 		if t.ingester != nil {
 			if err := t.ingester.CheckReady(r.Context()); err != nil {
 				http.Error(w, "Ingester not ready: "+err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+		}
+
+		// Generator has a special check that makes sure that it was able to register into the ring,
+		// and that all other ring entries are OK too.
+		if t.generator != nil {
+			if err := t.generator.CheckReady(r.Context()); err != nil {
+				http.Error(w, "Generator not ready: "+err.Error(), http.StatusServiceUnavailable)
 				return
 			}
 		}

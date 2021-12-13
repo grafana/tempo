@@ -62,6 +62,8 @@
 
   tempo_ingester_config:: $.tempo_config{},
 
+  tempo_generator_config:: $.tempo_config{},
+
   tempo_compactor_config:: $.tempo_config {
     compactor+: {
       compaction+: {
@@ -121,6 +123,12 @@
     configMap.new('tempo-ingester') +
     configMap.withData({
       'tempo.yaml': k.util.manifestYaml($.tempo_ingester_config),
+    }),
+
+  tempo_generator_configmap:
+    configMap.new('tempo-metrics-generator') +
+    configMap.withData({
+      'tempo.yaml': $.util.manifestYaml($.tempo_generator_config),
     }),
 
   tempo_compactor_configmap:
