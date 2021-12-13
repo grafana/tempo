@@ -215,14 +215,7 @@ func (d *Distributor) stopping(_ error) error {
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
-// Push pushes a trace
-func (d *Distributor) Push(ctx context.Context, req *tempopb.PushRequest) (*tempopb.PushResponse, error) {
-	return d.PushBatches(ctx, []*v1.ResourceSpans{
-		req.Batch,
-	})
-}
-
-// Push batches pushes a batch of traces
+// PushBatches pushes a batch of traces
 func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpans) (*tempopb.PushResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -342,11 +335,6 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	}, func() {})
 
 	return err
-}
-
-// PushBytes Not used by the distributor
-func (d *Distributor) PushBytes(context.Context, *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
-	return nil, nil
 }
 
 // Check implements the grpc healthcheck
