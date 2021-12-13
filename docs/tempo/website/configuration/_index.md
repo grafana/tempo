@@ -254,7 +254,7 @@ querier:
 
     # An external endpoint that the querier will use to offload backend search requests. It must  
     # take and return the same value as /api/search endpoint on the querier. This is intended to be
-    # used with serverless technologies for massive parrallelization of the search path. jpe - link to real docs
+    # used with serverless technologies for massive parrallelization of the search path.
     # The default value of "" disables this feature.
     [search_external_endpoint: <string> | default = ""]
 

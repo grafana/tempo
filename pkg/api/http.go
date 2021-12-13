@@ -26,11 +26,11 @@ const (
 	urlParamLimit       = "limit"
 	urlParamStart       = "start"
 	urlParamEnd         = "end"
-	// backend search querier
-	urlParamStartPage  = "startPage"
-	urlParamTotalPages = "totalPages"
-	urlParamBlockID    = "blockID"
-	// backend search serverless
+
+	// backend search (querier/serverless)
+	urlParamStartPage     = "startPage"
+	urlParamTotalPages    = "totalPages"
+	urlParamBlockID       = "blockID"
 	urlParamEncoding      = "encoding"
 	urlParamIndexPageSize = "indexPageSize"
 	urlParamTotalRecords  = "totalRecords"

@@ -92,7 +92,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// todo(search): the below iterator setup and loop exists in the querier, serverless and tempo-cli. see if there is an opportunity to consolidate
+	// tempodb exposes an IterateObjects() method to basically perform the below loop. currently we are purposefully
+	// not using that so that the serverless function doesn't have to instantiate a full tempodb instance.
 	iter, err := block.PartialIterator(cfg.Search.ChunkSizeBytes, int(searchReq.StartPage), int(searchReq.TotalPages))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
