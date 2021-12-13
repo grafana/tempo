@@ -51,6 +51,9 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
 
+      - name: Add buildpack commands for serverless testing
+        uses: buildpacks/github-actions/setup-pack@v4.1.0
+
       - name: Test
         run: make test-e2e
 

@@ -27,3 +27,6 @@ build-zip:
 		-x Makefile                      # exclude Makefile
 
 	rm -rf vendor
+
+test:
+	go test -v .
