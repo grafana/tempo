@@ -283,16 +283,16 @@ func TestIngesterRequest(t *testing.T) {
 		},
 		// start/end is inside queryIngestersWithinMin
 		{
-			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(int(tenMinutesAgo)) + "&end=" + strconv.Itoa(now),
+			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersWithinMin: 15 * time.Minute,
 			queryIngestersWithinMax: 30 * time.Minute,
-			expectedURI:             "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(int(tenMinutesAgo)) + "&tags=foo%3Dbar",
+			expectedURI:             "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(tenMinutesAgo) + "&tags=foo%3Dbar",
 			expectedStart:           uint32(fifteenMinutesAgo),
 			expectedEnd:             uint32(fifteenMinutesAgo),
 		},
 		// queryIngestersWithinMin/Max = 0 results in no ingester query
 		{
-			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(int(tenMinutesAgo)) + "&end=" + strconv.Itoa(now),
+			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersWithinMin: 0,
 			queryIngestersWithinMax: 0,
 			expectedURI:             "",
@@ -303,10 +303,10 @@ func TestIngesterRequest(t *testing.T) {
 		//  ingester start/End = 15 - 10 mins ago
 		//  backend start/End = 20 - 10 mins ago
 		{
-			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(int(twentyMinutesAgo)) + "&end=" + strconv.Itoa(tenMinutesAgo),
+			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(tenMinutesAgo),
 			queryIngestersWithinMin: 5 * time.Minute,
 			queryIngestersWithinMax: 15 * time.Minute,
-			expectedURI:             "/querier?end=" + strconv.Itoa(tenMinutesAgo) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(int(fifteenMinutesAgo)) + "&tags=foo%3Dbar",
+			expectedURI:             "/querier?end=" + strconv.Itoa(tenMinutesAgo) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(fifteenMinutesAgo) + "&tags=foo%3Dbar",
 			expectedStart:           uint32(twentyMinutesAgo),
 			expectedEnd:             uint32(tenMinutesAgo),
 		},
@@ -314,10 +314,10 @@ func TestIngesterRequest(t *testing.T) {
 		//  ingester start/End = 10 - now mins ago
 		//  backend start/End = 15 - 10 mins ago
 		{
-			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(int(tenMinutesAgo)) + "&end=" + strconv.Itoa(now),
+			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersWithinMin: 5 * time.Minute,
 			queryIngestersWithinMax: 15 * time.Minute,
-			expectedURI:             "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(int(tenMinutesAgo)) + "&tags=foo%3Dbar",
+			expectedURI:             "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(tenMinutesAgo) + "&tags=foo%3Dbar",
 			expectedStart:           uint32(tenMinutesAgo),
 			expectedEnd:             uint32(fiveMinutesAgo),
 		},
@@ -325,10 +325,10 @@ func TestIngesterRequest(t *testing.T) {
 		//  ingester start/End = 15 - now mins ago
 		//  backend start/End = 20 - 5 mins ago
 		{
-			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(int(twentyMinutesAgo)) + "&end=" + strconv.Itoa(now),
+			request:                 "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersWithinMin: 5 * time.Minute,
 			queryIngestersWithinMax: 15 * time.Minute,
-			expectedURI:             "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(int(fifteenMinutesAgo)) + "&tags=foo%3Dbar",
+			expectedURI:             "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(fifteenMinutesAgo) + "&tags=foo%3Dbar",
 			expectedStart:           uint32(twentyMinutesAgo),
 			expectedEnd:             uint32(fiveMinutesAgo),
 		},
