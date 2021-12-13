@@ -220,7 +220,7 @@ query_frontend:
         # The maximum allowed time range for a search.
         # 0 disables this limit.
         # (default: 1h1m0s)
-        [max_result_limit: <duration>]
+        [max_duration: <duration>]
 
         # This duration controls the min cutoff between relying on ingesters and the backend for recent trace information.
         # If it is set to 15m then data within the last 15m will be queried from the ingesters and all previous data will
