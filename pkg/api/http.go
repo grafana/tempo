@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	urlParamTraceID = "traceID"
+	URLParamTraceID = "traceID"
 	// search
 	urlParamTags        = "tags"
 	urlParamMinDuration = "minDuration"
@@ -54,7 +54,7 @@ const (
 
 func ParseTraceID(r *http.Request) ([]byte, error) {
 	vars := mux.Vars(r)
-	traceID, ok := vars[urlParamTraceID]
+	traceID, ok := vars[URLParamTraceID]
 	if !ok {
 		return nil, fmt.Errorf("please provide a traceID")
 	}
