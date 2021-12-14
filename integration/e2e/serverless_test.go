@@ -95,8 +95,8 @@ func newTempoServerless() *cortex_e2e.HTTPService {
 	s.SetEnvVars(map[string]string{
 		"TEMPO_S3_BUCKET":     "tempo",
 		"TEMPO_S3_ENDPOINT":   "tempo_e2e-minio-9000:9000",
-		"TEMPO_S3_ACCESS_KEY": "Cheescake",
-		"TEMPO_S3_SECRET_KEY": "supersecret",
+		"TEMPO_S3_ACCESS_KEY": cortex_e2e_db.MinioAccessKey,
+		"TEMPO_S3_SECRET_KEY": cortex_e2e_db.MinioSecretKey,
 		"TEMPO_S3_INSECURE":   "true",
 		"TEMPO_BACKEND":       "s3",
 	})

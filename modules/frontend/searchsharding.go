@@ -72,7 +72,7 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 	defer r.mtx.Unlock()
 
 	for _, t := range res.Traces {
-		// just take the first
+		// todo: determine a better way to combine?
 		if _, ok := r.resultsMap[t.TraceID]; !ok {
 			r.resultsMap[t.TraceID] = t
 		}

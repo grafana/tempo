@@ -75,7 +75,7 @@ type Writer interface {
 	WAL() *wal.WAL
 }
 
-type IterateObjectCallback func(id common.ID, obj []byte, dataEncoding string) bool
+type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error)
@@ -393,7 +393,7 @@ func (rw *readerWriter) IterateObjects(ctx context.Context, meta *backend.BlockM
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			isDone := callback(id, obj, meta.DataEncoding)
+			isDone := callback(id, obj)
 			if isDone {
 				done.Store(true)
 			}
