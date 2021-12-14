@@ -24,13 +24,13 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.QueryShards = 20
 	cfg.TolerateFailedBlocks = 0
 	cfg.Search = SearchSharderConfig{
-		QueryIngestersWithinMin: 15 * time.Minute,
-		QueryIngestersWithinMax: time.Hour,
-		DefaultLimit:            20,
-		MaxLimit:                0,
-		MaxDuration:             61 * time.Minute,
-		ConcurrentRequests:      defaultConcurrentRequests,
-		TargetBytesPerRequest:   defaultTargetBytesPerRequest,
+		QueryBackendAfter:     15 * time.Minute,
+		QueryIngestersUntil:   time.Hour,
+		DefaultLimit:          20,
+		MaxLimit:              0,
+		MaxDuration:           61 * time.Minute,
+		ConcurrentRequests:    defaultConcurrentRequests,
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 	}
 }
 

@@ -53,8 +53,8 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
 	}
 
-	if cfg.Search.QueryIngestersWithinMax < cfg.Search.QueryIngestersWithinMin {
-		return nil, fmt.Errorf("query ingesters within min should be less than query ingesters within max")
+	if cfg.Search.QueryBackendAfter < cfg.Search.QueryIngestersUntil {
+		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
 
 	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{

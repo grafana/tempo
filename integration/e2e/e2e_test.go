@@ -434,7 +434,7 @@ func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 	require.True(t, hasHex(info.HexID(), resp))
 }
 
-// by passing a time range and using a query_ingesters_within_min/max of 0 we can force the queriers
+// by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
 // to look in the backend blocks
 func searchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int, end int) {
 	expected, err := info.ConstructTraceFromEpoch()

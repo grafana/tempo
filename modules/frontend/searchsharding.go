@@ -131,13 +131,13 @@ type searchSharder struct {
 }
 
 type SearchSharderConfig struct {
-	ConcurrentRequests      int           `yaml:"concurrent_jobs,omitempty"`
-	TargetBytesPerRequest   int           `yaml:"target_bytes_per_job,omitempty"`
-	DefaultLimit            uint32        `yaml:"default_result_limit"`
-	MaxLimit                uint32        `yaml:"max_result_limit"`
-	MaxDuration             time.Duration `yaml:"max_duration"`
-	QueryIngestersWithinMin time.Duration `yaml:"query_ingesters_within_min,omitempty"`
-	QueryIngestersWithinMax time.Duration `yaml:"query_ingesters_within_max,omitempty"`
+	ConcurrentRequests    int           `yaml:"concurrent_jobs,omitempty"`
+	TargetBytesPerRequest int           `yaml:"target_bytes_per_job,omitempty"`
+	DefaultLimit          uint32        `yaml:"default_result_limit"`
+	MaxLimit              uint32        `yaml:"max_result_limit"`
+	MaxDuration           time.Duration `yaml:"max_duration"`
+	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
+	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
 }
 
 // newSearchSharder creates a sharding middleware for search
@@ -370,14 +370,14 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 // if the returned start == the returned end then no further querying is necessary
 func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (uint32, uint32, *http.Request, error) {
 	now := time.Now()
-	ingesterMin := uint32(now.Add(-s.cfg.QueryIngestersWithinMin).Unix())
-	ingesterMax := uint32(now.Add(-s.cfg.QueryIngestersWithinMax).Unix())
+	backendAfter := uint32(now.Add(-s.cfg.QueryBackendAfter).Unix())
+	ingesterUntil := uint32(now.Add(-s.cfg.QueryIngestersUntil).Unix())
 
 	backendStart := searchReq.Start
 	backendEnd := searchReq.End
 
 	// if there's no overlap between the query and ingester range just return nil
-	if backendEnd < ingesterMax {
+	if backendEnd < ingesterUntil {
 		return backendStart, backendEnd, nil, nil
 	}
 
@@ -385,18 +385,18 @@ func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, pa
 	ingesterEnd := backendEnd
 
 	// adjust ingesterStart if necessary
-	if ingesterStart < ingesterMax {
-		ingesterStart = ingesterMax
+	if ingesterStart < ingesterUntil {
+		ingesterStart = ingesterUntil
 	}
 
 	// adjust backendStart/backendEnd if necessary
-	if backendEnd > ingesterMin {
-		backendEnd = ingesterMin
+	if backendEnd > backendAfter {
+		backendEnd = backendAfter
 	}
 	// if the start of the query is greater than our max we don't need any additional
 	// querying. signal this by returning start == end
-	if backendStart > ingesterMin {
-		backendStart = ingesterMin
+	if backendStart > backendAfter {
+		backendStart = backendAfter
 	}
 	// if ingester start == ingester end then we don't need to query it
 	if ingesterStart == ingesterEnd {

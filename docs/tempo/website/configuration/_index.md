@@ -222,19 +222,16 @@ query_frontend:
         # (default: 1h1m0s)
         [max_duration: <duration>]
 
-        # This duration controls the min cutoff between relying on ingesters and the backend for recent trace information.
-        # If it is set to 15m then data within the last 15m will be queried from the ingesters and all previous data will
-        # be queried from the backend. Notice there is overlap with query_ingesters_within_max. The period of time between
-        # min and max will be queried from both the ingesters and the backend.
+        # query_backend_after and query_ingesters_until together control where the query-frontend searches for traces. 
+        # Time ranges before query_ingesters_until will be searched in the ingesters only.
+        # Time ranges after query_backend_after will be searched in the backend/object storage only.
+        # Time ranges from query_backend_after through query_ingesters_until will be queried from both locations.
+        # query_backend_after must be less than or equal to query_ingesters_until.
         # (default: 15m)
-        [query_ingesters_within_min: <duration>]
+        [query_backend_after: <duration>]
 
-        # This duration controls the max cutoff between relying on ingesters and the backend for recent trace information.
-        # If it is set to 1h then data within the last 1h will be queried from the ingesters and all previous data will
-        # be queried from the backend. Notice there is overlap with query_ingesters_within_min. The period of time between
-        # min and max will be queried from both the ingesters and the backend.
         # (default: 1h)
-        [query_ingesters_within_max: <duration>]
+        [query_ingesters_until: <duration>]
 ```
 
 ## Querier

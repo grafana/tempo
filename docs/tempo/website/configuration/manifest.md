@@ -193,8 +193,8 @@ query_frontend:
     default_result_limit: 20
     max_result_limit: 0
     max_duration: 1h1m0s
-    query_ingesters_within_min: 15m0s
-    query_ingesters_within_max: 1h0m0s
+    query_backend_after: 15m0s
+    query_ingesters_until: 1h0m0s
 compactor:
   ring:
     kvstore:

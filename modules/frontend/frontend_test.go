@@ -79,12 +79,12 @@ func TestFrontendBadConfigFails(t *testing.T) {
 
 	f, err = New(Config{QueryShards: maxQueryShards,
 		Search: SearchSharderConfig{
-			ConcurrentRequests:      defaultConcurrentRequests,
-			TargetBytesPerRequest:   defaultTargetBytesPerRequest,
-			QueryIngestersWithinMin: time.Hour,
-			QueryIngestersWithinMax: time.Minute,
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+			QueryIngestersUntil:   time.Hour,
+			QueryBackendAfter:     time.Minute,
 		},
 	}, nil, nil, log.NewNopLogger(), nil)
-	assert.EqualError(t, err, "query ingesters within min should be less than query ingesters within max")
+	assert.EqualError(t, err, "query backend after should be less than or equal to query ingester until")
 	assert.Nil(t, f)
 }
