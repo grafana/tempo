@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go v1.42.9
 	github.com/cespare/xxhash v1.1.0
 	github.com/cortexproject/cortex v1.10.1-0.20211104100946-3f329a21cad4
-	github.com/cristalhq/hedgedhttp v0.6.0
+	github.com/cristalhq/hedgedhttp v0.7.0
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.0.0
 	github.com/go-kit/log v0.2.0
