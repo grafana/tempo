@@ -53,7 +53,10 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 
 	// hedge if desired (0 means disabled)
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
+		transport, stats, err = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
+		if err != nil {
+			return blob.ContainerURL{}, err
+		}
 		instrumentation.PublishHedgedMetrics(stats)
 	}
 
