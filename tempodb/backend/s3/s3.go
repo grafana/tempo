@@ -347,7 +347,10 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	var stats *hedgedhttp.Stats
 
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
+		transport, stats, err = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
+		if err != nil {
+			return nil, err
+		}
 		instrumentation.PublishHedgedMetrics(stats)
 	}
 

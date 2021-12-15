@@ -244,7 +244,10 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 
 	// hedge if desired (0 means disabled)
 	if hedge && cfg.HedgeRequestsAt != 0 {
-		transport, stats = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
+		transport, stats, err = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
+		if err != nil {
+			return nil, err
+		}
 		instrumentation.PublishHedgedMetrics(stats)
 	}
 

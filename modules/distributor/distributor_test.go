@@ -568,7 +568,7 @@ func TestDistributor(t *testing.T) {
 			d := prepare(t, limits, nil)
 
 			request := test.MakeRequest(tc.lines, []byte{})
-			response, err := d.Push(ctx, request)
+			response, err := d.PushBatches(ctx, []*v1.ResourceSpans{request.Batch})
 
 			assert.True(t, proto.Equal(tc.expectedResponse, response))
 			assert.Equal(t, tc.expectedError, err)
@@ -623,10 +623,6 @@ type mockIngester struct {
 }
 
 var _ tempopb.PusherClient = (*mockIngester)(nil)
-
-func (i *mockIngester) Push(ctx context.Context, in *tempopb.PushRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
-	return nil, nil
-}
 
 func (i *mockIngester) PushBytes(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
 	return nil, nil
