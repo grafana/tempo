@@ -1,6 +1,6 @@
 +++
 title = "Copyright notice"
-aliases = ["/docs/tempo/next/copyright-notice"]
+aliases = ["/docs/tempo/latest/copyright-notice"]
 +++
 
 # Copyright notice
