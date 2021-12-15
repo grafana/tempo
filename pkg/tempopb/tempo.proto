@@ -51,7 +51,7 @@ message SearchBlockRequest {
   SearchRequest searchReq = 1;
   string blockID = 2;
   uint32 startPage = 3;
-  uint32 totalPages = 4;
+  uint32 pagesToSearch = 4;
   string encoding = 5;
   uint32 indexPageSize = 6;
   uint32 totalRecords = 7;

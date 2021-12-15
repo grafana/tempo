@@ -29,7 +29,7 @@ const (
 
 	// backend search (querier/serverless)
 	urlParamStartPage     = "startPage"
-	urlParamTotalPages    = "totalPages"
+	urlParamPagesToSearch = "pagesToSearch"
 	urlParamBlockID       = "blockID"
 	urlParamEncoding      = "encoding"
 	urlParamIndexPageSize = "indexPageSize"
@@ -199,15 +199,15 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	}
 	req.StartPage = uint32(startPage)
 
-	s = r.URL.Query().Get(urlParamTotalPages)
-	totalPages64, err := strconv.ParseInt(s, 10, 32)
+	s = r.URL.Query().Get(urlParamPagesToSearch)
+	pagesToSearch64, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
-		return nil, fmt.Errorf("invalid totalPages %s: %w", s, err)
+		return nil, fmt.Errorf("invalid pagesToSearch %s: %w", s, err)
 	}
-	if totalPages64 <= 0 {
-		return nil, fmt.Errorf("totalPages must be greater than 0. received: %s", s)
+	if pagesToSearch64 <= 0 {
+		return nil, fmt.Errorf("pagesToSearch must be greater than 0. received: %s", s)
 	}
-	req.TotalPages = uint32(totalPages64)
+	req.PagesToSearch = uint32(pagesToSearch64)
 
 	s = r.URL.Query().Get(urlParamBlockID)
 	blockID, err := uuid.Parse(s)
@@ -312,7 +312,7 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	q := req.URL.Query()
 	q.Set(urlParamBlockID, searchReq.BlockID)
 	q.Set(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
-	q.Set(urlParamTotalPages, strconv.FormatUint(uint64(searchReq.TotalPages), 10))
+	q.Set(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
 	q.Set(urlParamEncoding, searchReq.Encoding)
 	q.Set(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
 	q.Set(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))

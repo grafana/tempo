@@ -230,50 +230,50 @@ func TestParseSearchBlockRequest(t *testing.T) {
 		},
 		{
 			url:           "/?start=10&end=20&startPage=0",
-			expectedError: "invalid totalPages : strconv.ParseInt: parsing \"\": invalid syntax",
+			expectedError: "invalid pagesToSearch : strconv.ParseInt: parsing \"\": invalid syntax",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&totalPages=10",
+			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10",
 			expectedError: "invalid blockID: invalid UUID length: 0",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=adsf",
+			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=adsf",
 			expectedError: "invalid blockID: invalid UUID length: 4",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b",
+			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b",
 			expectedError: "invalid encoding: , supported: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=blerg",
+			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=blerg",
 			expectedError: "invalid encoding: blerg, supported: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2",
+			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2",
 			expectedError: "invalid indexPageSize : strconv.ParseInt: parsing \"\": invalid syntax",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=0",
+			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=0",
 			expectedError: "indexPageSize must be greater than 0. received 0",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10",
+			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10",
 			expectedError: "invalid totalRecords : strconv.ParseInt: parsing \"\": invalid syntax",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=-1",
+			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=-1",
 			expectedError: "totalRecords must be greater than 0. received -1",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11",
+			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11",
 			expectedError: "dataEncoding required",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1",
+			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1",
 			expectedError: "version required",
 		},
 		{
-			url: "/?tags=foo%3Dbar&start=10&end=20&startPage=0&totalPages=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2",
+			url: "/?tags=foo%3Dbar&start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2",
 			expected: &tempopb.SearchBlockRequest{
 				SearchReq: &tempopb.SearchRequest{
 					Tags: map[string]string{
@@ -284,7 +284,7 @@ func TestParseSearchBlockRequest(t *testing.T) {
 					Limit: defaultLimit,
 				},
 				StartPage:     0,
-				TotalPages:    10,
+				PagesToSearch: 10,
 				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
 				Encoding:      "s2",
 				IndexPageSize: 10,
@@ -317,7 +317,7 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 		{
 			req: &tempopb.SearchBlockRequest{
 				StartPage:     0,
-				TotalPages:    10,
+				PagesToSearch: 10,
 				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
 				Encoding:      "s2",
 				IndexPageSize: 10,
@@ -325,12 +325,12 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				DataEncoding:  "v1",
 				Version:       "v2",
 			},
-			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&startPage=0&totalPages=10&totalRecords=11&version=v2",
+			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&pagesToSearch=10&startPage=0&totalRecords=11&version=v2",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
 				StartPage:     0,
-				TotalPages:    10,
+				PagesToSearch: 10,
 				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
 				Encoding:      "s2",
 				IndexPageSize: 10,
@@ -339,7 +339,7 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				Version:       "v2",
 			},
 			httpReq: httptest.NewRequest("GET", "/test/path", nil),
-			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&startPage=0&totalPages=10&totalRecords=11&version=v2",
+			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&pagesToSearch=10&startPage=0&totalRecords=11&version=v2",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
@@ -354,7 +354,7 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 					Limit:         50,
 				},
 				StartPage:     0,
-				TotalPages:    10,
+				PagesToSearch: 10,
 				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
 				Encoding:      "s2",
 				IndexPageSize: 10,
@@ -362,7 +362,7 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				DataEncoding:  "v1",
 				Version:       "v2",
 			},
-			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&end=20&indexPageSize=10&limit=50&maxDuration=40ms&minDuration=30ms&start=10&startPage=0&tags=foo%3Dbar&totalPages=10&totalRecords=11&version=v2",
+			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&end=20&indexPageSize=10&limit=50&maxDuration=40ms&minDuration=30ms&pagesToSearch=10&start=10&startPage=0&tags=foo%3Dbar&totalRecords=11&version=v2",
 		},
 	}
 

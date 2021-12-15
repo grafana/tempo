@@ -318,12 +318,6 @@ func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend
 // backendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
 func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta) ([]*http.Request, error) {
-	// build requests
-	//  downstream requests:
-	//    - all the same as this endpoint
-	//    - blockID=<guid>
-	//    - startPage=<number>
-	//    - totalPages=<number>
 	reqs := []*http.Request{}
 	for _, m := range metas {
 		if m.Size == 0 || m.TotalRecords == 0 {
@@ -347,7 +341,7 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 			subR, err := api.BuildSearchBlockRequest(subR, &tempopb.SearchBlockRequest{
 				BlockID:       blockID,
 				StartPage:     uint32(startPage),
-				TotalPages:    uint32(pagesPerQuery),
+				PagesToSearch: uint32(pagesPerQuery),
 				Encoding:      m.Encoding.String(),
 				IndexPageSize: m.IndexPageSize,
 				TotalRecords:  m.TotalRecords,
