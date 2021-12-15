@@ -269,7 +269,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 	return responses, err
 }
 
-func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	_, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
@@ -281,7 +281,7 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 	}
 
 	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
-		return client.Search(ctx, req)
+		return client.SearchRecent(ctx, req)
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.Search")

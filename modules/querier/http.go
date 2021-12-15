@@ -166,7 +166,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 		span.SetTag("SearchRequest", req.String())
 
-		resp, err = q.Search(ctx, req)
+		resp, err = q.SearchRecent(ctx, req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

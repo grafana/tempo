@@ -11,7 +11,7 @@ service Pusher {
 
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
-  rpc Search(SearchRequest) returns (SearchResponse) {};
+  rpc SearchRecent(SearchRequest) returns (SearchResponse) {};
   rpc SearchBlock(SearchBlockRequest) returns (SearchResponse) {};
   rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {};
   rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {};
