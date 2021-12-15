@@ -53,7 +53,7 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
 	}
 
-	if cfg.Search.QueryBackendAfter < cfg.Search.QueryIngestersUntil {
+	if cfg.Search.QueryIngestersUntil < cfg.Search.QueryBackendAfter {
 		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
 
