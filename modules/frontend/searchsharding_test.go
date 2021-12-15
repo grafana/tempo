@@ -256,88 +256,62 @@ func TestBackendRequests(t *testing.T) {
 
 func TestIngesterRequest(t *testing.T) {
 	now := int(time.Now().Unix())
-	fiveMinutesAgo := int(time.Now().Add(-5 * time.Minute).Unix())
 	tenMinutesAgo := int(time.Now().Add(-10 * time.Minute).Unix())
 	fifteenMinutesAgo := int(time.Now().Add(-15 * time.Minute).Unix())
 	twentyMinutesAgo := int(time.Now().Add(-20 * time.Minute).Unix())
 
-	//fmt.Println("now", now, "fiveMinutesAgo", fiveMinutesAgo, "ten", tenMinutesAgo, "fifteen", fifteenMinutesAgo, "twenty", twentyMinutesAgo)
-
 	tests := []struct {
 		request             string
-		queryBackendAfter   time.Duration
 		queryIngestersUntil time.Duration
 		expectedURI         string
-		expectedStart       uint32
-		expectedEnd         uint32
 		expectedError       error
 	}{
 		// start/end is outside queryIngestersUntil
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=10&end=20",
-			queryBackendAfter:   time.Minute,
 			queryIngestersUntil: 10 * time.Minute,
 			expectedURI:         "",
-			expectedStart:       10,
-			expectedEnd:         20,
 		},
 		// start/end is inside queryBackendAfter
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
-			queryBackendAfter:   15 * time.Minute,
 			queryIngestersUntil: 30 * time.Minute,
 			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(tenMinutesAgo) + "&tags=foo%3Dbar",
-			expectedStart:       uint32(fifteenMinutesAgo),
-			expectedEnd:         uint32(fifteenMinutesAgo),
 		},
 		// backendAfter/ingsetersUntil = 0 results in no ingester query
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
-			queryBackendAfter:   0,
 			queryIngestersUntil: 0,
 			expectedURI:         "",
-			expectedStart:       uint32(tenMinutesAgo),
-			expectedEnd:         uint32(now),
 		},
 		// start/end = 20 - 10 mins ago - break across query ingesters until
 		//  ingester start/End = 15 - 10 mins ago
-		//  backend start/End = 20 - 10 mins ago
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(tenMinutesAgo),
-			queryBackendAfter:   5 * time.Minute,
 			queryIngestersUntil: 15 * time.Minute,
 			expectedURI:         "/querier?end=" + strconv.Itoa(tenMinutesAgo) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(fifteenMinutesAgo) + "&tags=foo%3Dbar",
-			expectedStart:       uint32(twentyMinutesAgo),
-			expectedEnd:         uint32(tenMinutesAgo),
 		},
 		// start/end = 10 - now mins ago - break across query backend after
 		//  ingester start/End = 10 - now mins ago
 		//  backend start/End = 15 - 10 mins ago
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
-			queryBackendAfter:   5 * time.Minute,
 			queryIngestersUntil: 15 * time.Minute,
 			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(tenMinutesAgo) + "&tags=foo%3Dbar",
-			expectedStart:       uint32(tenMinutesAgo),
-			expectedEnd:         uint32(fiveMinutesAgo),
 		},
 		// start/end = 20 - now mins ago - break across both query ingesters until and backend after
 		//  ingester start/End = 15 - now mins ago
 		//  backend start/End = 20 - 5 mins ago
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(now),
-			queryBackendAfter:   5 * time.Minute,
 			queryIngestersUntil: 15 * time.Minute,
 			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(fifteenMinutesAgo) + "&tags=foo%3Dbar",
-			expectedStart:       uint32(twentyMinutesAgo),
-			expectedEnd:         uint32(fiveMinutesAgo),
 		},
 	}
 
 	for _, tc := range tests {
 		s := &searchSharder{
 			cfg: SearchSharderConfig{
-				QueryBackendAfter:   tc.queryBackendAfter,
 				QueryIngestersUntil: tc.queryIngestersUntil,
 			},
 		}
@@ -346,7 +320,7 @@ func TestIngesterRequest(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		actualStart, actualEnd, actualReq, err := s.ingesterRequest(context.Background(), "test", req, searchReq)
+		actualReq, err := s.ingesterRequest(context.Background(), "test", req, searchReq)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue
@@ -357,6 +331,84 @@ func TestIngesterRequest(t *testing.T) {
 		} else {
 			assert.Equal(t, tc.expectedURI, actualReq.RequestURI)
 		}
+	}
+}
+
+func TestBackendRange(t *testing.T) {
+	now := int(time.Now().Unix())
+	fiveMinutesAgo := int(time.Now().Add(-5 * time.Minute).Unix())
+	tenMinutesAgo := int(time.Now().Add(-10 * time.Minute).Unix())
+	fifteenMinutesAgo := int(time.Now().Add(-15 * time.Minute).Unix())
+	twentyMinutesAgo := int(time.Now().Add(-20 * time.Minute).Unix())
+
+	tests := []struct {
+		request           string
+		queryBackendAfter time.Duration
+		expectedStart     uint32
+		expectedEnd       uint32
+	}{
+		// start/end is outside queryIngestersUntil
+		{
+			request:           "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=10&end=20",
+			queryBackendAfter: time.Minute,
+			expectedStart:     10,
+			expectedEnd:       20,
+		},
+		// start/end is inside queryBackendAfter
+		{
+			request:           "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
+			queryBackendAfter: 15 * time.Minute,
+			expectedStart:     uint32(fifteenMinutesAgo),
+			expectedEnd:       uint32(fifteenMinutesAgo),
+		},
+		// backendAfter/ingsetersUntil = 0 results in no ingester query
+		{
+			request:           "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
+			queryBackendAfter: 0,
+			expectedStart:     uint32(tenMinutesAgo),
+			expectedEnd:       uint32(now),
+		},
+		// start/end = 20 - 10 mins ago - break across query ingesters until
+		//  ingester start/End = 15 - 10 mins ago
+		//  backend start/End = 20 - 10 mins ago
+		{
+			request:           "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(tenMinutesAgo),
+			queryBackendAfter: 5 * time.Minute,
+			expectedStart:     uint32(twentyMinutesAgo),
+			expectedEnd:       uint32(tenMinutesAgo),
+		},
+		// start/end = 10 - now mins ago - break across query backend after
+		//  ingester start/End = 10 - now mins ago
+		//  backend start/End = 15 - 10 mins ago
+		{
+			request:           "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
+			queryBackendAfter: 5 * time.Minute,
+			expectedStart:     uint32(tenMinutesAgo),
+			expectedEnd:       uint32(fiveMinutesAgo),
+		},
+		// start/end = 20 - now mins ago - break across both query ingesters until and backend after
+		//  ingester start/End = 15 - now mins ago
+		//  backend start/End = 20 - 5 mins ago
+		{
+			request:           "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(now),
+			queryBackendAfter: 5 * time.Minute,
+			expectedStart:     uint32(twentyMinutesAgo),
+			expectedEnd:       uint32(fiveMinutesAgo),
+		},
+	}
+
+	for _, tc := range tests {
+		s := &searchSharder{
+			cfg: SearchSharderConfig{
+				QueryBackendAfter: tc.queryBackendAfter,
+			},
+		}
+		req := httptest.NewRequest("GET", tc.request, nil)
+
+		searchReq, err := api.ParseSearchRequest(req)
+		require.NoError(t, err)
+
+		actualStart, actualEnd := s.backendRange(searchReq)
 		assert.Equal(t, int(tc.expectedStart), int(actualStart))
 		assert.Equal(t, int(tc.expectedEnd), int(actualEnd))
 	}

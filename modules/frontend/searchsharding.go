@@ -188,10 +188,12 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
 
-	start, end, ingesterReq, err := s.ingesterRequest(ctx, tenantID, r, searchReq)
+	ingesterReq, err := s.ingesterRequest(ctx, tenantID, r, searchReq)
 	if err != nil {
 		return nil, err
 	}
+
+	start, end := s.backendRange(searchReq)
 
 	blocks := s.blockMetas(int64(start), int64(end), tenantID)
 	span.SetTag("block-count", len(blocks))
@@ -367,40 +369,26 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 
 // queryIngesterWithin returns a new start and end time range for the backend as well as an http request
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
-// if the returned start == the returned end then no further querying is necessary
-func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (uint32, uint32, *http.Request, error) {
+func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (*http.Request, error) {
 	now := time.Now()
-	backendAfter := uint32(now.Add(-s.cfg.QueryBackendAfter).Unix())
 	ingesterUntil := uint32(now.Add(-s.cfg.QueryIngestersUntil).Unix())
 
-	backendStart := searchReq.Start
-	backendEnd := searchReq.End
-
 	// if there's no overlap between the query and ingester range just return nil
-	if backendEnd < ingesterUntil {
-		return backendStart, backendEnd, nil, nil
+	if searchReq.End < ingesterUntil {
+		return nil, nil
 	}
 
-	ingesterStart := backendStart
-	ingesterEnd := backendEnd
+	ingesterStart := searchReq.Start
+	ingesterEnd := searchReq.End
 
 	// adjust ingesterStart if necessary
 	if ingesterStart < ingesterUntil {
 		ingesterStart = ingesterUntil
 	}
 
-	// adjust backendStart/backendEnd if necessary
-	if backendEnd > backendAfter {
-		backendEnd = backendAfter
-	}
-	// if the start of the query is greater than our max we don't need any additional
-	// querying. signal this by returning start == end
-	if backendStart > backendAfter {
-		backendStart = backendAfter
-	}
 	// if ingester start == ingester end then we don't need to query it
 	if ingesterStart == ingesterEnd {
-		return backendStart, backendEnd, nil, nil
+		return nil, nil
 	}
 
 	subR := parent.Clone(ctx)
@@ -410,11 +398,32 @@ func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, pa
 	searchReq.End = ingesterEnd
 	subR, err := api.BuildSearchRequest(subR, searchReq)
 	if err != nil {
-		return 0, 0, nil, err
+		return nil, err
 	}
 	subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
 
-	return backendStart, backendEnd, subR, nil
+	return subR, nil
+}
+
+// backendRange returns a new start/end range for the backend based on the config parameter
+// query_backend_after. If the returned start == the returned end then backend querying is not necessary.
+func (s *searchSharder) backendRange(searchReq *tempopb.SearchRequest) (uint32, uint32) {
+	now := time.Now()
+	backendAfter := uint32(now.Add(-s.cfg.QueryBackendAfter).Unix())
+
+	start := searchReq.Start
+	end := searchReq.End
+
+	// adjust start/end if necessary. if the entire query range was inside backendAfter then
+	// start will == end. This signals we don't need to query the backend.
+	if end > backendAfter {
+		end = backendAfter
+	}
+	if start > backendAfter {
+		start = backendAfter
+	}
+
+	return start, end
 }
 
 // adjusts the limit based on provided config
