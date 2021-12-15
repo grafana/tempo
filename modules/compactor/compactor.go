@@ -65,7 +65,6 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg pr
 			kv.RegistererWithKVName(reg, ring.CompactorRingKey+"-lifecycler"),
 			log.Logger,
 		)
-		//lifecyclerStore, err := tempo_ring.NewKvClient(cfg.ShardingRing.KVStore, ring.CompactorRingKey+"-lifecycler", reg)
 		if err != nil {
 			return nil, err
 		}
