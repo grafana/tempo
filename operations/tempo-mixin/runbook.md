@@ -51,6 +51,8 @@ If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/oper
 Use the "Forget" button to drop any unhealthy compactors. An unhealthy compactor or two has no immediate impact. Long term,
 however, it will cause the blocklist to grow unnecessarily long.
 
+The page is reachable via the admin page: `https://admin-<cluster>.grafana.net/directory-tempo/tempo-prod/compactor/ring`.
+
 ## TempoDistributorUnhealthy
 
 If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/distributor/ring`.
