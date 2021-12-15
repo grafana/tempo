@@ -94,7 +94,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 	// tempodb exposes an IterateObjects() method to basically perform the below loop. currently we are purposefully
 	// not using that so that the serverless function doesn't have to instantiate a full tempodb instance.
-	iter, err := block.PartialIterator(cfg.Search.ChunkSizeBytes, int(searchReq.StartPage), int(searchReq.TotalPages))
+	iter, err := block.PartialIterator(cfg.Search.ChunkSizeBytes, int(searchReq.StartPage), int(searchReq.PagesToSearch))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
