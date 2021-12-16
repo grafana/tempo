@@ -175,10 +175,6 @@ func (t *App) initQuerier() (services.Service, error) {
 
 		searchTagValuesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
 		t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
-
-		// todo(search): consolidate
-		backendSearchHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.BackendSearchHandler))
-		t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathBackendSearch)), backendSearchHandler)
 	}
 
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPServer.Handler)
@@ -207,7 +203,6 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByID)
 	searchHandler := middleware.Wrap(queryFrontend.Search)
-	backendSearchHandler := middleware.Wrap(queryFrontend.BackendSearch)
 
 	// register grpc server for queriers to connect to
 	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
@@ -221,8 +216,6 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), searchHandler)
 		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), searchHandler)
 
-		// todo(search): integrate with real search
-		t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathBackendSearch), backendSearchHandler)
 		t.store.EnablePolling(nil) // the query frontend does not need to have knowledge of the backend unless it is building jobs for backend search
 	}
 

@@ -11,10 +11,10 @@ service Pusher {
 
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
-  rpc Search(SearchRequest) returns (SearchResponse) {};
+  rpc SearchRecent(SearchRequest) returns (SearchResponse) {};
+  rpc SearchBlock(SearchBlockRequest) returns (SearchResponse) {};
   rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {};
   rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {};
-  rpc BackendSearch(BackendSearchRequest) returns (SearchResponse) {}; // todo(search): consolidate with real search
 }
 
 // Read
@@ -34,21 +34,29 @@ message TraceByIDMetrics {
   uint32 failedBlocks = 1;
 }
 
+// SearchRequest takes no block parameters and implies a "recent traces" search
 message SearchRequest {
   // case insensitive partial match
   map<string, string> Tags = 1 [(gogoproto.nullable) = false];
   uint32 MinDurationMs = 2;
   uint32 MaxDurationMs = 3;
   uint32 Limit = 4;
+  uint32 start = 5;
+  uint32 end = 6;
 }
 
-message BackendSearchRequest { // todo(search): consolidate with real search
-  SearchRequest search = 1;
-  uint32 start = 2;
-  uint32 end = 3;
-  uint32 startPage = 4;
-  uint32 totalPages = 5;
-  bytes blockID = 6;
+// SearchBlockRequest takes SearchRequest parameters as well as all information necessary
+// to search a block in the backend.
+message SearchBlockRequest {
+  SearchRequest searchReq = 1;
+  string blockID = 2;
+  uint32 startPage = 3;
+  uint32 pagesToSearch = 4;
+  string encoding = 5;
+  uint32 indexPageSize = 6;
+  uint32 totalRecords = 7;
+  string dataEncoding = 8;
+  string version = 9;
 }
 
 message SearchResponse {

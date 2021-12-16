@@ -26,6 +26,11 @@ Initially it was thought that Buildpacks could be used to write platform agnosti
 artifacts for different cloud providers, but unsure if this will pan out. For now we just use it as an easy
 way to build a docker image that is then used in integration tests.
 
+```
+docker run --rm -p 8080:8080 tempo-serverless
+curl http://localhost:8080
+```
+
 ### make build-zip
 
 This step builds an actual artifact that can be used in Google Cloud Functions. Upload the zip to a GCS bucket

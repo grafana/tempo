@@ -3,6 +3,7 @@
 # todo: get docker run working?
 # PACK=docker run -u ${shell id -u} -v /var/run/docker.sock:/var/run/docker.sock -v $(PWD):/workspace -w /workspace buildpacksio/pack
 PACK=pack
+GIT_REVISION := $(shell git rev-parse --short HEAD)
 
 # builds a docker image named "tempo-serverless" using the pack tool
 #   https://github.com/buildpacks/pack
@@ -22,7 +23,10 @@ build-docker:
 build-zip:
 	go mod vendor
 
-	zip tempo-serverless.zip ./* -r \
+	zip tempo-serverless-$(GIT_REVISION).zip ./* -r \
 		-x Makefile                      # exclude Makefile
 
 	rm -rf vendor
+
+test:
+	go test -v .

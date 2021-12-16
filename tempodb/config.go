@@ -23,14 +23,17 @@ const (
 	DefaultBlocklistPollConcurrency = uint(50)
 	DefaultRetentionConcurrency     = uint(10)
 	DefaultTenantIndexBuilders      = 2
+	DefaultPrefetchTraceCount       = 1000
+	DefaultSearchChunkSizeBytes     = 1_000_000
 )
 
 // Config holds the entirety of tempodb configuration
 // Defaults are in modules/storage/config.go
 type Config struct {
-	Pool  *pool.Config          `yaml:"pool,omitempty"`
-	WAL   *wal.Config           `yaml:"wal"`
-	Block *encoding.BlockConfig `yaml:"block"`
+	Pool   *pool.Config          `yaml:"pool,omitempty"`
+	WAL    *wal.Config           `yaml:"wal"`
+	Block  *encoding.BlockConfig `yaml:"block"`
+	Search *SearchConfig         `yaml:"search"`
 
 	BlocklistPoll                    time.Duration `yaml:"blocklist_poll"`
 	BlocklistPollConcurrency         uint          `yaml:"blocklist_poll_concurrency"`
@@ -54,9 +57,14 @@ type Config struct {
 	Redis                   *redis.Config                  `yaml:"redis"`
 }
 
+type SearchConfig struct {
+	ChunkSizeBytes     uint32 `yaml:"chunk_size_bytes"`
+	PrefetchTraceCount int    `yaml:"prefetch_trace_count"`
+}
+
 // CompactorConfig contains compaction configuration options
 type CompactorConfig struct {
-	ChunkSizeBytes          uint32        `yaml:"chunk_size_bytes"` // todo: do we need this?
+	ChunkSizeBytes          uint32        `yaml:"chunk_size_bytes"`
 	FlushSizeBytes          uint32        `yaml:"flush_size_bytes"`
 	MaxCompactionRange      time.Duration `yaml:"compaction_window"`
 	MaxCompactionObjects    int           `yaml:"max_compaction_objects"`

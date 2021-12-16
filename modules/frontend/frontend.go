@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 
 	"github.com/go-kit/log"
@@ -29,10 +31,10 @@ const (
 )
 
 type QueryFrontend struct {
-	TraceByID, Search, BackendSearch http.Handler
-	logger                           log.Logger
-	queriesPerTenant                 *prometheus.CounterVec
-	store                            storage.Store
+	TraceByID, Search http.Handler
+	logger            log.Logger
+	queriesPerTenant  *prometheus.CounterVec
+	store             storage.Store
 }
 
 // New returns a new QueryFrontend
@@ -41,6 +43,18 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 
 	if cfg.QueryShards < minQueryShards || cfg.QueryShards > maxQueryShards {
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
+	}
+
+	if cfg.Search.ConcurrentRequests <= 0 {
+		return nil, fmt.Errorf("frontend search concurrent requests should be greater than 0")
+	}
+
+	if cfg.Search.TargetBytesPerRequest <= 0 {
+		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
+	}
+
+	if cfg.Search.QueryIngestersUntil < cfg.Search.QueryBackendAfter {
+		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
 
 	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
@@ -52,8 +66,7 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 	retryWare := newRetryWare(cfg.MaxRetries, registerer)
 
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
-	searchMiddleware := MergeMiddlewares(newSearchMiddleware(), retryWare)
-	backendMiddleware := MergeMiddlewares(newBackendSearchMiddleware(store, logger), retryWare)
+	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, store, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": traceByIDOp,
@@ -64,11 +77,9 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
-	backend := backendMiddleware.Wrap(next)
 	return &QueryFrontend{
 		TraceByID:        newHandler(traces, traceByIDCounter, logger),
 		Search:           newHandler(search, searchCounter, logger),
-		BackendSearch:    newHandler(backend, searchCounter, logger),
 		logger:           logger,
 		queriesPerTenant: queriesPerTenant,
 		store:            store,
@@ -150,35 +161,38 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 }
 
 // newSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
-func newSearchMiddleware() Middleware {
-	return MiddlewareFunc(func(rt http.RoundTripper) http.RoundTripper {
+func newSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger) Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		ingesterSearchRT := next
+		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, cfg.Search, logger))
+
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			// backend search queries require sharding so we pass through a special roundtripper
+			if api.IsBackendSearch(r) {
+				return backendSearchRT.RoundTrip(r)
+			}
+
+			// ingester search queries only need to be proxied to a single querier
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
-			r.RequestURI = api.PathPrefixQuerier + r.RequestURI
+			r.RequestURI = buildUpstreamRequestURI(r.RequestURI, nil)
 
-			resp, err := rt.RoundTrip(r)
-
-			return resp, err
+			return ingesterSearchRT.RoundTrip(r)
 		})
 	})
 }
 
-// newBackendSearchMiddleware creates a new frontend middleware to handle backend search.
-// todo(search): integrate with real search
-func newBackendSearchMiddleware(reader tempodb.Reader, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		rt := NewRoundTripper(next, newSearchSharder(reader, defaultConcurrentRequests, logger))
+// buildUpstreamRequestURI returns a uri based on the passed parameters
+// we do this because weaveworks/common uses the RequestURI field to translate from http.Request to httpgrpc.Request
+// https://github.com/weaveworks/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
+func buildUpstreamRequestURI(originalURI string, params url.Values) string {
+	const queryDelimiter = "?"
 
-		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			orgID, _ := user.ExtractOrgID(r.Context())
+	uri := path.Join(api.PathPrefixQuerier, originalURI)
+	if len(params) > 0 {
+		uri += queryDelimiter + params.Encode()
+	}
 
-			r.Header.Set(user.OrgIDHeaderName, orgID)
-
-			resp, err := rt.RoundTrip(r)
-
-			return resp, err
-		})
-	})
+	return uri
 }

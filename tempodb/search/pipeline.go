@@ -55,6 +55,18 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 		})
 	}
 
+	if req.Start != 0 && req.End != 0 {
+		p.tracefilters = append(p.tracefilters, func(s tempofb.Trace) bool {
+			// req.Start and req.End are in unix epoch seconds
+			startTimeSeconds := uint32(s.StartTimeUnixNano() / uint64(time.Second))
+			endTimeSeconds := uint32(s.EndTimeUnixNano() / uint64(time.Second))
+
+			return req.Start <= endTimeSeconds && req.End >= startTimeSeconds
+		})
+
+		// todo: add block level filter for start/end time
+	}
+
 	if len(req.Tags) > 0 {
 		// Convert all search params to bytes once
 		kb := make([][]byte, 0, len(req.Tags))
