@@ -129,8 +129,7 @@ ingester_client:
 querier:
   query_timeout: 10s
   search_query_timeout: 30s
-  search_default_result_limit: 20
-  search_max_result_limit: 0
+  search_external_endpoint: ""
   max_concurrent_queries: 5
   frontend_worker:
     frontend_address: 127.0.0.1:9095
@@ -188,6 +187,14 @@ query_frontend:
   downstream_url: ""
   max_retries: 2
   query_shards: 20
+  search:
+    concurrent_jobs: 50
+    target_bytes_per_job: 10485760
+    default_result_limit: 20
+    max_result_limit: 0
+    max_duration: 1h1m0s
+    query_backend_after: 15m0s
+    query_ingesters_until: 1h0m0s
 compactor:
   ring:
     kvstore:
@@ -317,6 +324,9 @@ storage:
       encoding: zstd
       search_encoding: snappy
       search_page_size_bytes: 1048576
+    search:
+      chunk_size_bytes: 1000000
+      prefetch_trace_count: 1000
     blocklist_poll: 5m0s
     blocklist_poll_concurrency: 50
     blocklist_poll_fallback: true
@@ -369,8 +379,9 @@ overrides:
   max_traces_per_user: 10000
   max_global_traces_per_user: 0
   max_bytes_per_trace: 5000000
-  max_search_bytes_per_trace: 50000
+  max_search_bytes_per_trace: 5000
   block_retention: 0s
+  max_bytes_per_tag_values_query: 5000000
   per_tenant_override_config: ""
   per_tenant_override_period: 10s
 memberlist:

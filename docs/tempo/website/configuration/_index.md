@@ -187,7 +187,7 @@ query_frontend:
     # (default: 2)
     [max_retries: <int>]
 
-    # number of shards to split the query into
+    # The number of shards to split a trace by id query into.
     # (default: 20)
     [query_shards: <int>]
     
@@ -196,6 +196,42 @@ query_frontend:
     # partial results are indicated with HTTP status code 206
     # (default: 0)
     [tolerate_failed_blocks: <int>]
+
+    search:
+
+        # The number of concurrent jobs to execute when searching the backend.
+        # (default: 50)
+        [concurrent_jobs: <int>]
+
+        # The target number of bytes for each job to handle when performing a backend search.
+        # (default: 10485760)
+        [target_bytes_per_job: <int>]
+
+        # Limit used for search requests if none is set by the caller
+        # (default: 20)
+        [default_result_limit: <int>]
+
+        # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter 
+        # exceeds the value configured here it will be set to the value configured here.
+        # The default value of 0 disables this limit.
+        # (default: 0)
+        [max_result_limit: <int>]
+
+        # The maximum allowed time range for a search.
+        # 0 disables this limit.
+        # (default: 1h1m0s)
+        [max_duration: <duration>]
+
+        # query_backend_after and query_ingesters_until together control where the query-frontend searches for traces. 
+        # Time ranges before query_ingesters_until will be searched in the ingesters only.
+        # Time ranges after query_backend_after will be searched in the backend/object storage only.
+        # Time ranges from query_backend_after through query_ingesters_until will be queried from both locations.
+        # query_backend_after must be less than or equal to query_ingesters_until.
+        # (default: 15m)
+        [query_backend_after: <duration>]
+
+        # (default: 1h)
+        [query_ingesters_until: <duration>]
 ```
 
 ## Querier
@@ -213,13 +249,11 @@ querier:
     # Timeout for search requests    
     [search_query_timeout: <duration> | default = 30s]
 
-    # Limit used for search requests if none is set by the caller
-    [search_default_result_limit: <int> | default = 20]
-
-    # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter 
-    # exceeds the value configured here it will be set to the value configured here.
-    # The default value of 0 disables this limit.
-    [search_max_result_limit: <int> | default = 0]
+    # An external endpoint that the querier will use to offload backend search requests. It must  
+    # take and return the same value as /api/search endpoint on the querier. This is intended to be
+    # used with serverless technologies for massive parrallelization of the search path.
+    # The default value of "" disables this feature.
+    [search_external_endpoint: <string> | default = ""]
 
     # config of the worker that connects to the query frontend
     frontend_worker:
@@ -455,6 +489,20 @@ storage:
         # used to determine if the bloom filter should be cached.
         # Example: "cache_max_block_age: 48h"
         [cache_max_block_age: <duration>]
+
+        # Configuration parameters that impact trace search
+        search:
+
+            # Target number of bytes per GET request while scanning blocks. Default is 1MB. Reducing
+            # this value could positively impact trace search performance at the cost of more requests
+            # to object storage.
+            # Example: "chunk_size_bytes: 5_000_000"
+            [chunk_size_bytes: <int>]
+
+            # Number of traces to prefetch while scanning blocks. Default is 1000. Increasing this value
+            # can improve trace search performance at the cost of memory.
+            # Example: "prefetch_trace_count: 10000"
+            [prefetch_trace_count: <int>]
 
         # Cortex Background cache configuration. Requires having a cache configured.
         background_cache:

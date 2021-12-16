@@ -75,11 +75,11 @@ type Writer interface {
 	WAL() *wal.WAL
 }
 
-type IterateObjectCallback func(id common.ID, obj []byte, dataEncoding string) bool
+type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error)
-	IterateObjects(ctx context.Context, tenantID string, blockID uuid.UUID, startPage int, totalPages int, callback IterateObjectCallback) error
+	IterateObjects(ctx context.Context, meta *backend.BlockMeta, startPage int, totalPages int, callback IterateObjectCallback) error
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(sharder blocklist.JobSharder)
 
@@ -367,38 +367,18 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 // calling the provided callback for each object. If the callback returns true then iteration
 // is stopped and the function returns. Note that the callback needs to be threadsafe as it is called
 // concurrently.
-func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blockID uuid.UUID, startPage int, totalPages int, callback IterateObjectCallback) error {
-	metas := rw.blocklist.Metas(tenantID)
-
-	// todo: better way to find the meta?
-	var meta *backend.BlockMeta
-	for _, m := range metas {
-		if m.BlockID == blockID {
-			meta = m
-			break
-		}
-	}
-	if meta == nil {
-		// if we don't know about the meta then manually request it
-		var err error
-		meta, err = rw.r.BlockMeta(ctx, blockID, tenantID)
-		if err != nil {
-			return err
-		}
-	}
-
+func (rw *readerWriter) IterateObjects(ctx context.Context, meta *backend.BlockMeta, startPage int, totalPages int, callback IterateObjectCallback) error {
 	block, err := encoding.NewBackendBlock(meta, rw.r)
 	if err != nil {
 		return err
 	}
 
-	// todo(search): a graduated chunk size would allow for faster iteration
-	//               parameterize everything
-	iter, err := block.PartialIterator(1_000_000, startPage, totalPages)
+	// todo: a graduated chunk size would allow for faster iteration
+	iter, err := block.PartialIterator(rw.cfg.Search.ChunkSizeBytes, startPage, totalPages)
 	if err != nil {
 		return err
 	}
-	iter = encoding.NewPrefetchIterator(ctx, iter, 10000)
+	iter = encoding.NewPrefetchIterator(ctx, iter, rw.cfg.Search.PrefetchTraceCount)
 	wg := boundedwaitgroup.New(5)
 	done := atomic.Bool{}
 	for {
@@ -407,13 +387,13 @@ func (rw *readerWriter) IterateObjects(ctx context.Context, tenantID string, blo
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("error iterating %s, %w", blockID, err)
+			return fmt.Errorf("error iterating %s, %w", meta.BlockID, err)
 		}
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			isDone := callback(id, obj, meta.DataEncoding)
+			isDone := callback(id, obj)
 			if isDone {
 				done.Store(true)
 			}

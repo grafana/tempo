@@ -4,12 +4,13 @@ import (
 	"context"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
 )
 
 const searchDir = "search"
 
-func (i *Ingester) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+func (i *Ingester) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -63,7 +64,8 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 	return res, nil
 }
 
-// todo(search): consolidate. this only exists so that the ingester continues to implement the tempopb.QuerierServer interface.
-func (i *Ingester) BackendSearch(ctx context.Context, req *tempopb.BackendSearchRequest) (*tempopb.SearchResponse, error) {
-	return nil, nil
+// SearchBlock only exists here to fulfill the protobuf interface. The ingester will never support
+// backend search
+func (i *Ingester) SearchBlock(context.Context, *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+	return nil, errors.New("not implemented")
 }

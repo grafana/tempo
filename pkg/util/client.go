@@ -2,8 +2,10 @@ package util
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
@@ -65,13 +67,15 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	}()
 
 	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		return resp, fmt.Errorf("GET request to %s failed with response: %d", req.URL.String(), resp.StatusCode)
+		body, _ := ioutil.ReadAll(resp.Body)
+		return resp, fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
 	}
 
 	unmarshaller := &jsonpb.Unmarshaler{}
 	err = unmarshaller.Unmarshal(resp.Body, m)
 	if err != nil {
-		return resp, fmt.Errorf("error decoding %T json, err: %v", m, err)
+		body, _ := ioutil.ReadAll(resp.Body)
+		return resp, fmt.Errorf("error decoding %T json, err: %v  body: %s", m, err, string(body))
 	}
 
 	return resp, nil
@@ -101,6 +105,16 @@ func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, 
 func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
 	_, err := c.getFor(c.BaseURL+"/api/search?tags="+url.QueryEscape(tags), m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) SearchWithRange(tags string, start int, end int) (*tempopb.SearchResponse, error) {
+	m := &tempopb.SearchResponse{}
+	_, err := c.getFor(c.BaseURL+"/api/search?tags="+url.QueryEscape(tags)+"&start="+strconv.Itoa(start)+"&end="+strconv.Itoa(end), m)
 	if err != nil {
 		return nil, err
 	}
