@@ -87,10 +87,10 @@ metrics:
 
 ### Grafana
 
-Service graphs is hidden under the feature flag `tempoServiceGraphs`.
+Service graphs is hidden under the feature flag `tempoServiceGraph`.
 
 To run this feature:
-1. Run Grafana 8.2 or the latest pre-release and enable the `tempoSearch` [feature toggle](https://grafana.com/docs/grafana/latest/packages_api/data/featuretoggles/#temposervicegraph-property).
+1. Run Grafana 8.2 or the latest pre-release and enable the `tempoServiceGraph` [feature toggle](https://grafana.com/docs/grafana/latest/packages_api/data/featuretoggles/#temposervicegraph-property).
 2. Configure a Tempo datasource's 'Service Graphs' section by linking to the prometheus backend where metrics are being sent.
 
 Example provisioned datasource config for service graphs:
