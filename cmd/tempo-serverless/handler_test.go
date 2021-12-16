@@ -16,6 +16,7 @@ func TestLoadConfig(t *testing.T) {
 	cfg, err := loadConfig()
 	if err != nil {
 		t.Error("failed to load config", err)
+		return
 	}
 	if cfg.Backend != "gcs" {
 		t.Error("backend should be gcs", cfg.Backend)
@@ -28,5 +29,51 @@ func TestLoadConfig(t *testing.T) {
 	}
 	if cfg.GCS.HedgeRequestsAt != 400*time.Millisecond {
 		t.Error("gcs hedge requests at should be 400ms", cfg.GCS.HedgeRequestsAt)
+	}
+}
+
+func TestLoadConfigS3(t *testing.T) {
+	os.Setenv("TEMPO_S3_BUCKET", "tempo")
+	os.Setenv("TEMPO_S3_ENDPOINT", "glerg")
+	os.Setenv("TEMPO_BACKEND", "s3")
+	os.Setenv("TEMPO_S3_ACCESS_KEY", "access")
+	os.Setenv("TEMPO_S3_SECRET_KEY", "secret")
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Error("failed to load config", err)
+		return
+	}
+	if cfg.Backend != "s3" {
+		t.Error("backend should be s3", cfg.Backend)
+	}
+	if cfg.S3.Bucket != "tempo" {
+		t.Error("s3 bucket name should be tempo", cfg.S3.Bucket)
+	}
+	if cfg.S3.Endpoint != "glerg" {
+		t.Error("s3 endpoint should be glerg", cfg.S3.Endpoint)
+	}
+	if cfg.S3.AccessKey.String() != "access" {
+		t.Error("s3 access key should be access", cfg.S3.AccessKey)
+	}
+	if cfg.S3.SecretKey.String() != "secret" {
+		t.Error("s3 secret key should be secret", cfg.S3.SecretKey)
+	}
+}
+
+func TestLoadConfigAzure(t *testing.T) {
+	os.Setenv("TEMPO_BACKEND", "azure")
+	os.Setenv("TEMPO_AZURE_MAX_BUFFERS", "3")
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Error("failed to load config", err)
+		return
+	}
+	if cfg.Backend != "azure" {
+		t.Error("backend should be azure", cfg.Backend)
+	}
+	if cfg.Azure.MaxBuffers != 3 {
+		t.Error("azure max buffers should be 3", cfg.Azure.MaxBuffers)
 	}
 }

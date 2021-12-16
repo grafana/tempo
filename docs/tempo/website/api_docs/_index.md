@@ -138,6 +138,10 @@ The URL query parameters support the following values:
   Optional.  Find traces with no greater than this duration.  Uses the same form as `minDuration`.
 - `limit = (integer)`
   Optional.  Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration](../configuration#querier).
+- `start = (unix epoch seconds)`
+  Optional.  Along with `end` define a time range from which traces should be returned. 
+- `end = (unix epoch seconds)`
+  Optional.  Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` will change the way that Tempo searches. If the parameters are not provided then Tempo will search the recent trace data stored in the ingesters. If the parameters are provided it will search the backend as well.
 
 #### Example
 
