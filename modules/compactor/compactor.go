@@ -236,7 +236,7 @@ func (c *Compactor) OnRingInstanceRegister(lifecycler *ring.BasicLifecycler, rin
 	}
 
 	takenTokens := ringDesc.GetTokens()
-	newTokens := ring.GenerateTokens(512-len(tokens), takenTokens)
+	newTokens := ring.GenerateTokens(ringNumTokens-len(tokens), takenTokens)
 
 	// Tokens sorting will be enforced by the parent caller.
 	tokens = append(tokens, newTokens...)
