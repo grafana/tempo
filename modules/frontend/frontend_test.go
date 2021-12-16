@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,12 @@ func (s *mockNextTripperware) RoundTrip(_ *http.Request) (*http.Response, error)
 
 func TestFrontendRoundTripsSearch(t *testing.T) {
 	next := &mockNextTripperware{}
-	f, err := New(Config{QueryShards: minQueryShards}, next, nil, log.NewNopLogger(), nil)
+	f, err := New(Config{QueryShards: minQueryShards,
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		},
+	}, next, nil, log.NewNopLogger(), nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -35,11 +41,50 @@ func TestFrontendRoundTripsSearch(t *testing.T) {
 }
 
 func TestFrontendBadConfigFails(t *testing.T) {
-	f, err := New(Config{QueryShards: minQueryShards - 1}, nil, nil, log.NewNopLogger(), nil)
-	assert.Error(t, err)
+	f, err := New(Config{QueryShards: minQueryShards - 1,
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		},
+	}, nil, nil, log.NewNopLogger(), nil)
+	assert.EqualError(t, err, "frontend query shards should be between 2 and 256 (both inclusive)")
 	assert.Nil(t, f)
 
-	f, err = New(Config{QueryShards: maxQueryShards + 1}, nil, nil, log.NewNopLogger(), nil)
-	assert.Error(t, err)
+	f, err = New(Config{QueryShards: maxQueryShards + 1,
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		},
+	}, nil, nil, log.NewNopLogger(), nil)
+	assert.EqualError(t, err, "frontend query shards should be between 2 and 256 (both inclusive)")
+	assert.Nil(t, f)
+
+	f, err = New(Config{QueryShards: maxQueryShards,
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    0,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		},
+	}, nil, nil, log.NewNopLogger(), nil)
+	assert.EqualError(t, err, "frontend search concurrent requests should be greater than 0")
+	assert.Nil(t, f)
+
+	f, err = New(Config{QueryShards: maxQueryShards,
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: 0,
+		},
+	}, nil, nil, log.NewNopLogger(), nil)
+	assert.EqualError(t, err, "frontend search target bytes per request should be greater than 0")
+	assert.Nil(t, f)
+
+	f, err = New(Config{QueryShards: maxQueryShards,
+		Search: SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+			QueryIngestersUntil:   time.Minute,
+			QueryBackendAfter:     time.Hour,
+		},
+	}, nil, nil, log.NewNopLogger(), nil)
+	assert.EqualError(t, err, "query backend after should be less than or equal to query ingester until")
 	assert.Nil(t, f)
 }
