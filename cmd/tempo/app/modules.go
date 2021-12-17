@@ -36,12 +36,12 @@ import (
 // The various modules that make up tempo.
 const (
 	Ring                 string = "ring"
-	GeneratorRing        string = "metrics-generator-ring"
+	MetricsGeneratorRing string = "metrics-generator-ring"
 	Overrides            string = "overrides"
 	Server               string = "server"
 	Distributor          string = "distributor"
 	Ingester             string = "ingester"
-	Generator            string = "metrics-generator"
+	NetricsGenerator     string = "metrics-generator"
 	Querier              string = "querier"
 	QueryFrontend        string = "query-frontend"
 	Compactor            string = "compactor"
@@ -122,7 +122,6 @@ func (t *App) initOverrides() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	// todo: make ingester client a module instead of passing the config everywhere
-	// TODO only inject generator stuff if generator is enabled in cluster
 	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.cfg.GeneratorClient, t.generatorRing, t.overrides, t.TracesConsumerMiddleware, t.cfg.Server.LogLevel, t.cfg.SearchEnabled, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
@@ -321,14 +320,14 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
 	mm.RegisterModule(Ring, t.initRing, modules.UserInvisibleModule)
-	mm.RegisterModule(GeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
+	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(Overrides, t.initOverrides, modules.UserInvisibleModule)
 	mm.RegisterModule(Distributor, t.initDistributor)
 	mm.RegisterModule(Ingester, t.initIngester)
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
-	mm.RegisterModule(Generator, t.initGenerator)
+	mm.RegisterModule(NetricsGenerator, t.initGenerator)
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
@@ -340,14 +339,23 @@ func (t *App) setupModuleManager() error {
 		MemberlistKV:         {Server},
 		QueryFrontend:        {Store, Server},
 		Ring:                 {Server, MemberlistKV},
-		GeneratorRing:        {Server, MemberlistKV},
-		Distributor:          {Ring, GeneratorRing, Server, Overrides}, // TODO drop the dependency on generator ring if the component is not present
+		MetricsGeneratorRing: {Server, MemberlistKV},
+		Distributor:          {Ring, Server, Overrides},
 		Ingester:             {Store, Server, Overrides, MemberlistKV},
-		Generator:            {Server, Overrides, MemberlistKV},
+		NetricsGenerator:     {Server, Overrides, MemberlistKV},
 		Querier:              {Store, Ring, Overrides},
 		Compactor:            {Store, Server, Overrides, MemberlistKV},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor},
 		ScalableSingleBinary: {SingleBinary},
+	}
+
+	// TODO don't hardcode, the distributor should somehow know there is a generator in the system
+	// TODO disabling this causes a segmentation violation because of a nil pointer dereference somewhere in the ring
+	generatorEnabled := true
+
+	if generatorEnabled {
+		deps[Distributor] = append(deps[Distributor], MetricsGeneratorRing)
+		deps[SingleBinary] = append(deps[SingleBinary], NetricsGenerator)
 	}
 
 	for mod, targets := range deps {
