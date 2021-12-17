@@ -91,7 +91,7 @@ var (
 	})
 	metricGeneratorClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
-		Name:      "distributor_generator_clients",
+		Name:      "distributor_metrics_generator_clients",
 		Help:      "The current number of generator clients.",
 	})
 	metricDiscardedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
