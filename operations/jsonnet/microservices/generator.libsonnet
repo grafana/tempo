@@ -1,4 +1,6 @@
 {
+  // TODO make this entire module optional
+
   local k = import 'ksonnet-util/kausal.libsonnet',
   local container = k.core.v1.container,
   local containerPort = k.core.v1.containerPort,

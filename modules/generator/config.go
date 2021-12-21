@@ -9,13 +9,15 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
+	"github.com/prometheus/prometheus/config"
 )
 
 // Config for a generator.
 type Config struct {
 	LifecyclerConfig ring.LifecyclerConfig `yaml:"lifecycler,omitempty"`
+	OverrideRingKey  string                `yaml:"override_ring_key"`
 
-	OverrideRingKey string `yaml:"override_ring_key"`
+	RemoteWrite RemoteWriteConfig `yaml:"remote_write,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -38,4 +40,14 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	// TODO other components have constants in dskit/ring/ring.go, does this value actually matter?
 	cfg.OverrideRingKey = "generator"
+
+	cfg.RemoteWrite.RegisterFlagsAndApplyDefaults(prefix, f)
+}
+
+type RemoteWriteConfig struct {
+	Client  config.RemoteWriteConfig `yaml:"client"`
+	Enabled bool                     `yaml:"enabled"`
+}
+
+func (c *RemoteWriteConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 }

@@ -2,7 +2,10 @@ package generator
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math/rand"
+	"time"
 
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
@@ -10,6 +13,9 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/storage"
+	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -24,6 +30,8 @@ var (
 	})
 )
 
+type AppendableFactory func(userID string) storage.Appendable
+
 type Generator struct {
 	services.Service
 
@@ -32,11 +40,18 @@ type Generator struct {
 
 	lifecycler *ring.Lifecycler
 
+	// TODO cache these per userID?
+	appendableFactory AppendableFactory
+
 	subservicesWatcher *services.FailureWatcher
 }
 
 // New makes a new Generator.
 func New(cfg Config, overrides *overrides.Overrides, reg prometheus.Registerer) (*Generator, error) {
+	if cfg.RemoteWrite.Enabled && cfg.RemoteWrite.Client.URL == nil {
+		return nil, errors.New("remote-write enabled but client URL is not configured")
+	}
+
 	g := &Generator{
 		cfg:       &cfg,
 		overrides: overrides,
@@ -50,6 +65,13 @@ func New(cfg Config, overrides *overrides.Overrides, reg prometheus.Registerer) 
 
 	g.subservicesWatcher = services.NewFailureWatcher()
 	g.subservicesWatcher.WatchService(g.lifecycler)
+
+	// TODO add service to listen to changes in the overrides, if a tenant is added spin up a processor pipeline
+
+	rwMetrics := newRemoteWriteMetrics(reg)
+	g.appendableFactory = func(userID string) storage.Appendable {
+		return newRemoteWriteAppendable(cfg, log.Logger, userID, rwMetrics)
+	}
 
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)
 	return g, nil
@@ -87,6 +109,36 @@ func (g *Generator) stopping(_ error) error {
 
 func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
 	metricSpansReceivedTotal.Inc()
+
+	// YOLO: write a sample for every request we receive
+	orgID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	appendable := g.appendableFactory(orgID)
+	appender := appendable.Appender(ctx)
+
+	_, err = appender.Append(
+		0,
+		[]labels.Label{
+			{
+				Name:  "__name__",
+				Value: "hello_from_tempo",
+			},
+		},
+		time.Now().UnixMilli(),
+		float64(rand.Float64()),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	err = appender.Commit()
+	if err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 

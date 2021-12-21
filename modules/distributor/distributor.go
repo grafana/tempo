@@ -386,13 +386,17 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, trace
 		return nil
 	}
 
-	// TODO should we make this configurable like with the ingesters?
-	op := ring.WriteNoExtend
+	// TODO read from the overrides to determine whether this tenant is included
+
+	// If an instance is unhealthy write to the next one (i.e. write extend is enabled)
+	op := ring.Write
 
 	err := ring.DoBatch(ctx, op, d.generatorsRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
 		defer cancel()
 		localCtx = user.InjectOrgID(localCtx, userID)
+
+		// TODO we should use indexes to shard data
 
 		// TODO if the generator does not need the full trace, trim down this request to safe processing time, i.e.
 		// 	- don't send spans if the tenant does not generate metrics
@@ -406,7 +410,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, trace
 			return err
 		}
 
-		_, err = c.(tempopb.GeneratorClient).PushSpans(localCtx, &req)
+		_, err = c.(tempopb.MetricsGeneratorClient).PushSpans(localCtx, &req)
 		metricGeneratorPushes.WithLabelValues(generator.Addr).Inc()
 		if err != nil {
 			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()

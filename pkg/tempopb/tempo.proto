@@ -9,7 +9,7 @@ service Pusher {
   rpc PushBytes(PushBytesRequest) returns (PushResponse) {};
 }
 
-service Generator {
+service MetricsGenerator {
   rpc PushSpans(PushSpansRequest) returns (PushResponse) {};
 }
 

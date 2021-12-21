@@ -24,7 +24,7 @@ type Config struct {
 }
 
 type Client struct {
-	tempopb.GeneratorClient
+	tempopb.MetricsGeneratorClient
 	grpc_health_v1.HealthClient
 	io.Closer
 }
@@ -56,9 +56,9 @@ func New(addr string, cfg Config) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		GeneratorClient: tempopb.NewGeneratorClient(conn),
-		HealthClient:    grpc_health_v1.NewHealthClient(conn),
-		Closer:          conn,
+		MetricsGeneratorClient: tempopb.NewMetricsGeneratorClient(conn),
+		HealthClient:           grpc_health_v1.NewHealthClient(conn),
+		Closer:                 conn,
 	}, nil
 }
 

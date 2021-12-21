@@ -158,7 +158,7 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 	t.generator = generator
 
-	tempopb.RegisterGeneratorServer(t.Server.GRPC, t.generator)
+	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC, t.generator)
 	return t.generator, nil
 }
 
