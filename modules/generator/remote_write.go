@@ -35,7 +35,7 @@ func NewRemoteWriter(cfg RemoteWriteConfig, userID string) (RemoteWriter, error)
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("could not create remote-write client for tenant: %d", userID)
+		return nil, fmt.Errorf("could not create remote-write client for tenant: %s", userID)
 	}
 
 	return &RemoteWriteClient{
