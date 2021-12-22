@@ -77,7 +77,7 @@
         },
       },
     },
-    generator: {
+    metrics_generator: {
       replicas: 1,
       // TODO set this again once we gather some experimental data
       resources: {

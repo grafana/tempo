@@ -12,7 +12,7 @@
   local tempo_config_volume = 'tempo-conf',
   local tempo_overrides_config_volume = 'overrides',
 
-  tempo_generator_container::
+  tempo_metrics_generator_container::
     container.new(target_name, $._images.tempo) +
     container.withPorts([
       containerPort.new('prom-metrics', $._config.port),
@@ -26,14 +26,14 @@
       volumeMount.new(tempo_config_volume, '/conf'),
       volumeMount.new(tempo_overrides_config_volume, '/overrides'),
     ]) +
-    $.util.withResources($._config.generator.resources) +
+    $.util.withResources($._config.metrics_generator.resources) +
     $.util.readinessProbe,
 
-  tempo_generator_deployment:
+  tempo_metrics_generator_deployment:
     deployment.new(
       target_name,
-      $._config.generator.replicas,
-      $.tempo_generator_container,
+      $._config.metrics_generator.replicas,
+      $.tempo_metrics_generator_container,
       {
         app: target_name,
         [$._config.gossip_member_label]: 'true',
@@ -42,10 +42,10 @@
     deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(3) +
     deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
     deployment.mixin.spec.template.metadata.withAnnotations({
-      config_hash: std.md5(std.toString($.tempo_generator_configmap.data['tempo.yaml'])),
+      config_hash: std.md5(std.toString($.tempo_metrics_generator_configmap.data['tempo.yaml'])),
     }) +
     deployment.mixin.spec.template.spec.withVolumes([
-      volume.fromConfigMap(tempo_config_volume, $.tempo_generator_configmap.metadata.name),
+      volume.fromConfigMap(tempo_config_volume, $.tempo_metrics_generator_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]),
 }
