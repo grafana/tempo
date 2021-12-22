@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	util "github.com/grafana/tempo/integration"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
 	"github.com/stretchr/testify/require"

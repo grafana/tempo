@@ -8,7 +8,7 @@ import (
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
 	util "github.com/grafana/tempo/integration"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 )
 

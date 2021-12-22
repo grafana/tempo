@@ -11,7 +11,7 @@ import (
 	"github.com/klauspost/compress/s2"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
-	"github.com/prometheus/prometheus/pkg/pool"
+	"github.com/prometheus/prometheus/util/pool"
 )
 
 const maxEncoding = backend.EncS2
