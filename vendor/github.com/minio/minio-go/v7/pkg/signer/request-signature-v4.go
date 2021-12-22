@@ -118,7 +118,9 @@ func getCanonicalHeaders(req http.Request, ignoredHeaders map[string]bool) strin
 		headers = append(headers, strings.ToLower(k))
 		vals[strings.ToLower(k)] = vv
 	}
-	headers = append(headers, "host")
+	if !headerExists("host", headers) {
+		headers = append(headers, "host")
+	}
 	sort.Strings(headers)
 
 	var buf bytes.Buffer
@@ -130,7 +132,7 @@ func getCanonicalHeaders(req http.Request, ignoredHeaders map[string]bool) strin
 		switch {
 		case k == "host":
 			buf.WriteString(getHostAddr(&req))
-			fallthrough
+			buf.WriteByte('\n')
 		default:
 			for idx, v := range vals[k] {
 				if idx > 0 {
@@ -144,6 +146,15 @@ func getCanonicalHeaders(req http.Request, ignoredHeaders map[string]bool) strin
 	return buf.String()
 }
 
+func headerExists(key string, headers []string) bool {
+	for _, k := range headers {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
 // getSignedHeaders generate all signed request headers.
 // i.e lexically sorted, semicolon-separated list of lowercase
 // request header names.
@@ -155,7 +166,9 @@ func getSignedHeaders(req http.Request, ignoredHeaders map[string]bool) string {
 		}
 		headers = append(headers, strings.ToLower(k))
 	}
-	headers = append(headers, "host")
+	if !headerExists("host", headers) {
+		headers = append(headers, "host")
+	}
 	sort.Strings(headers)
 	return strings.Join(headers, ";")
 }

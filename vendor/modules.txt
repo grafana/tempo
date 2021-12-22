@@ -871,8 +871,8 @@ github.com/miekg/dns
 # github.com/minio/md5-simd v1.1.0
 ## explicit; go 1.14
 github.com/minio/md5-simd
-# github.com/minio/minio-go/v7 v7.0.10
-## explicit; go 1.12
+# github.com/minio/minio-go/v7 v7.0.16-0.20211116163909-d00629356463
+## explicit; go 1.15
 github.com/minio/minio-go/v7
 github.com/minio/minio-go/v7/pkg/credentials
 github.com/minio/minio-go/v7/pkg/encrypt

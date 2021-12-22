@@ -191,6 +191,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		a.objectName,
 		a.uploadID,
 		completeParts,
+		minio.PutObjectOptions{},
 	)
 	if err != nil {
 		return errors.Wrapf(err, "error completing multipart upload, object: %s, obj etag: %s", a.objectName, etag)
