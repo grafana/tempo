@@ -1,4 +1,4 @@
-.PHONY: all check install dashboards alerts rules
+.PHONY: all check install dashboards alerts rules fmt
 
 all: install dashboards alerts rules
 
@@ -16,3 +16,6 @@ alerts:
 
 rules:
 	jsonnet -J vendor -S rules.jsonnet > yamls/rules.yaml
+
+fmt:
+	jsonnetfmt -i *.{j,lib}sonnet

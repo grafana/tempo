@@ -1,6 +1,6 @@
+local dashboard_utils = import 'dashboard-utils.libsonnet';
 local g = import 'grafana-builder/grafana.libsonnet';
 local utils = import 'mixin-utils/utils.libsonnet';
-local dashboard_utils = import 'dashboard-utils.libsonnet';
 
 dashboard_utils {
   grafanaDashboards+: {
@@ -161,8 +161,8 @@ dashboard_utils {
         g.row('Distributor')
         .addPanel(
           $.panel('Spans/Second') +
-          $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__interval]))' % $.jobMatcher($._config.jobs.distributor), "accepted") +
-          $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__interval]))' % $.jobMatcher($._config.jobs.distributor), "refused")
+          $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
+          $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused')
         )
         .addPanel(
           $.panel('Latency') +
