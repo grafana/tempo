@@ -1,0 +1,943 @@
+{
+ "annotations": {
+  "list": [
+
+  ]
+ },
+ "editable": true,
+ "gnetId": null,
+ "graphTooltip": 0,
+ "hideControls": false,
+ "links": [
+  {
+   "asDropdown": true,
+   "icon": "external link",
+   "includeVars": true,
+   "keepTime": true,
+   "tags": [
+    "tempo"
+   ],
+   "targetBlank": false,
+   "title": "Tempo Dashboards",
+   "type": "dashboards"
+  }
+ ],
+ "refresh": "10s",
+ "rows": [
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 1,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "topk(10,\n  sum(\n    rate(tempo_distributor_spans_received_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])\n  ) by (tenant)\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{tenant}}",
+       "legendLink": null,
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Distributor Spans/Second (topk 10)",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 2,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "topk(10,\n  sum(\n    rate(tempo_ingester_traces_created_total{cluster=~\"$cluster\", job=~\"($namespace)/ingester\"}[$__rate_interval])\n  ) by (tenant)\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{tenant}}",
+       "legendLink": null,
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Ingester Traces Created/Second (topk 10)",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Cluster",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 3,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "topk(10,\n  sum(\n    rate(tempo_distributor_bytes_received_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])\n  ) by (tenant)\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{tenant}}",
+       "legendLink": null,
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Distributor Bytes/Second (topk 10)",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 4,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 6,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "topk(10,\n  avg(\n    tempodb_blocklist_length{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"}\n  ) by (tenant)\n)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{tenant}}",
+       "legendLink": null,
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Blocklist Length (topk 10)",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Cluster",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 5,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 4,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(rate(tempo_distributor_spans_received_total{job=~\".*/distributor\", tenant=~\"$tenant\"}[$__rate_interval])) by (cluster, namespace)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "Received ({{cluster}}, {{namespace}})",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "sum(rate(tempo_discarded_spans_total{job=~\".*/distributor\", tenant=~\"$tenant\"}[$__rate_interval])) by (cluster, namespace, reason)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "Discarded: {{reason}} ({{cluster}}, {{namespace}})",
+       "legendLink": null,
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Distributor Spans/Second",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 6,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 4,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "sum(\n  rate(tempo_query_frontend_queries_total{job=~\".*/query-frontend\", tenant=~\"$tenant\"}[$__rate_interval])\n) by (cluster, namespace, op)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{op}} ({{cluster}}, {{namespace}})",
+       "legendLink": null,
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Queries/Second",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    },
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$datasource",
+     "fill": 1,
+     "id": 7,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 4,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "avg(tempodb_blocklist_length{tenant=~\"$tenant\"}) by (cluster, namespace)\n",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "{{cluster}}, {{namespace}}",
+       "legendLink": null,
+       "step": 10
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Blocklist Length",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "graph",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Tenant",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "aliasColors": {
+
+     },
+     "bars": false,
+     "dashLength": 10,
+     "dashes": false,
+     "datasource": "$logsDatasource",
+     "fill": 1,
+     "id": 8,
+     "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+     },
+     "lines": true,
+     "linewidth": 1,
+     "links": [
+
+     ],
+     "nullPointMode": "null as zero",
+     "options": {
+      "dedupStrategy": "none",
+      "enableLogDetails": true,
+      "prettifyLogMessage": false,
+      "showCommonLabels": false,
+      "showLabels": false,
+      "showTime": true,
+      "sortOrder": "Descending",
+      "wrapLogMessage": false
+     },
+     "percentage": false,
+     "pointradius": 5,
+     "points": false,
+     "renderer": "flot",
+     "seriesOverrides": [
+
+     ],
+     "spaceLength": 10,
+     "span": 12,
+     "stack": false,
+     "steppedLine": false,
+     "targets": [
+      {
+       "expr": "{job=~\".*/query-frontend\"}\n|= \"caller=handler.go\"\n| logfmt\n| tenant=\"$tenant\"\n| line_format `{{printf \"%-12.12s\" .duration}}  {{printf \"%-6.6s\" .response_size}}  {{.url}}`\n",
+       "refId": "A"
+      }
+     ],
+     "thresholds": [
+
+     ],
+     "timeFrom": null,
+     "timeShift": null,
+     "title": "Queries",
+     "tooltip": {
+      "shared": true,
+      "sort": 2,
+      "value_type": "individual"
+     },
+     "type": "logs",
+     "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": [
+
+      ]
+     },
+     "yaxes": [
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": 0,
+       "show": true
+      },
+      {
+       "format": "short",
+       "label": null,
+       "logBase": 1,
+       "max": null,
+       "min": null,
+       "show": false
+      }
+     ]
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Tenant - Queries",
+   "titleSize": "h6"
+  }
+ ],
+ "schemaVersion": 14,
+ "style": "dark",
+ "tags": [
+  "tempo"
+ ],
+ "templating": {
+  "list": [
+   {
+    "current": {
+     "text": "default",
+     "value": "default"
+    },
+    "hide": 0,
+    "label": "Data Source",
+    "name": "datasource",
+    "options": [
+
+    ],
+    "query": "prometheus",
+    "refresh": 1,
+    "regex": "",
+    "type": "datasource"
+   },
+   {
+    "current": {
+     "text": "Loki",
+     "value": "Loki"
+    },
+    "hide": 0,
+    "label": "Logs Data Source",
+    "name": "logsDatasource",
+    "options": [
+
+    ],
+    "query": "loki",
+    "refresh": 1,
+    "regex": "",
+    "type": "datasource"
+   },
+   {
+    "allValue": ".+",
+    "current": {
+     "selected": true,
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": "$datasource",
+    "hide": 0,
+    "includeAll": true,
+    "label": "cluster",
+    "multi": true,
+    "name": "cluster",
+    "options": [
+
+    ],
+    "query": "label_values(tempo_build_info, cluster)",
+    "refresh": 1,
+    "regex": "",
+    "sort": 2,
+    "tagValuesQuery": "",
+    "tags": [
+
+    ],
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+   },
+   {
+    "allValue": null,
+    "current": {
+     "selected": true,
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": "$datasource",
+    "hide": 0,
+    "includeAll": true,
+    "label": "namespace",
+    "multi": true,
+    "name": "namespace",
+    "options": [
+
+    ],
+    "query": "label_values(tempo_build_info, namespace)",
+    "refresh": 1,
+    "regex": "",
+    "sort": 2,
+    "tagValuesQuery": "",
+    "tags": [
+
+    ],
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+   },
+   {
+    "allValue": null,
+    "current": {
+     "text": "prod",
+     "value": "prod"
+    },
+    "datasource": "$datasource",
+    "hide": 0,
+    "includeAll": false,
+    "label": "tenant",
+    "multi": false,
+    "name": "tenant",
+    "options": [
+
+    ],
+    "query": "query_result(sum(tempodb_blocklist_length{cluster=~\"$cluster\", namespace=~\"$namespace\"}) by (tenant) > 0)",
+    "refresh": 1,
+    "regex": "/\"([^\"]+)\"/",
+    "sort": 2,
+    "tagValuesQuery": "",
+    "tags": [
+
+    ],
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+   }
+  ]
+ },
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "timepicker": {
+  "refresh_intervals": [
+   "5s",
+   "10s",
+   "30s",
+   "1m",
+   "5m",
+   "15m",
+   "30m",
+   "1h",
+   "2h",
+   "1d"
+  ],
+  "time_options": [
+   "5m",
+   "15m",
+   "1h",
+   "6h",
+   "12h",
+   "24h",
+   "2d",
+   "7d",
+   "30d"
+  ]
+ },
+ "timezone": "utc",
+ "title": "Tempo / Tenants",
+ "uid": "",
+ "version": 0
+}

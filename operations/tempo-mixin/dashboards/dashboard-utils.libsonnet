@@ -26,6 +26,53 @@ grafana {
 
         d.addMultiTemplate('cluster', 'tempo_build_info', 'cluster')
         .addMultiTemplate('namespace', 'tempo_build_info', 'namespace', allValue=null),
+
+      addLogsDatasourceTemplate():: self {
+        templating+: {
+          list+: [{
+            current: {
+              text: 'Loki',
+              value: 'Loki',
+            },
+            hide: 0,
+            label: 'Logs Data Source',
+            name: 'logsDatasource',
+            options: [],
+            query: 'loki',
+            refresh: 1,
+            regex: '',
+            type: 'datasource',
+          }],
+        },
+      },
+
+      addQueryResultTemplate(name, query):: self {
+        templating+: {
+          list+: [{
+            allValue: null,
+            current: {
+              text: 'prod',
+              value: 'prod',
+            },
+            datasource: '$datasource',
+            hide: 0,
+            includeAll: false,
+            label: name,
+            multi: false,
+            name: name,
+            options: [],
+            query: 'query_result(%s)' % [query],
+            refresh: 1,
+            regex: '/"([^"]+)"/',
+            sort: 2,
+            tagValuesQuery: '',
+            tags: [],
+            tagsQuery: '',
+            type: 'query',
+            useTags: false,
+          }],
+        },
+      },
     },
 
   jobMatcher(job)::
@@ -94,6 +141,28 @@ grafana {
       },
     ],
     yaxes: $.yaxes('ms'),
+  },
+
+  logsPanel(title, query):: {
+    type: 'logs',
+    title: title,
+    options: {
+      dedupStrategy: 'none',
+      enableLogDetails: true,
+      prettifyLogMessage: false,
+      showCommonLabels: false,
+      showLabels: false,
+      showTime: true,
+      sortOrder: 'Descending',
+      wrapLogMessage: false,
+    },
+    datasource: '$logsDatasource',
+    targets: [
+      {
+        expr: query,
+        refId: 'A',
+      },
+    ],
   },
 
   namespaceMatcher()::
