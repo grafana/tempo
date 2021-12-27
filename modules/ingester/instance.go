@@ -137,7 +137,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 	// check for max traces before grabbing the lock to better load shed
 	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
 	if err != nil {
-		return status.Errorf(codes.FailedPrecondition, "%s max live traces per tenant exceeded: %v", overrides.ErrorPrefixLiveTracesExceeded, err)
+		return status.Errorf(codes.FailedPrecondition, "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
 	}
 
 	i.tracesMtx.Lock()
@@ -176,7 +176,7 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 	// check for max traces before grabbing the lock to better load shed
 	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
 	if err != nil {
-		return status.Errorf(codes.FailedPrecondition, "%s max live traces per tenant exceeded: %v", overrides.ErrorPrefixLiveTracesExceeded, err)
+		return status.Errorf(codes.FailedPrecondition, "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
 	}
 
 	i.tracesMtx.Lock()
