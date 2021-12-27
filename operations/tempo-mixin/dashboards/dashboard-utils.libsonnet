@@ -1,5 +1,5 @@
-local utils = import 'mixin-utils/utils.libsonnet';
 local grafana = import 'grafana-builder/grafana.libsonnet';
+local utils = import 'mixin-utils/utils.libsonnet';
 
 grafana {
   // Override the dashboard constructor to add:
@@ -25,7 +25,7 @@ grafana {
         };
 
         d.addMultiTemplate('cluster', 'tempo_build_info', 'cluster')
-         .addMultiTemplate('namespace', 'tempo_build_info', 'namespace', allValue=null),
+        .addMultiTemplate('namespace', 'tempo_build_info', 'namespace', allValue=null),
     },
 
   jobMatcher(job)::
@@ -61,7 +61,7 @@ grafana {
       ],
     },
 
-  # fork of grafana latency panel with additional_grouping added
+  // fork of grafana latency panel with additional_grouping added
   latencyPanel(metricName, selector, multiplier='1e3', additional_grouping=''):: {
     nullPointMode: 'null as zero',
     targets: [
