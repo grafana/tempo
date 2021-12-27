@@ -18,4 +18,5 @@ rules:
 	jsonnet -J vendor -S rules.jsonnet > yamls/rules.yaml
 
 fmt:
-	jsonnetfmt -i *.{j,lib}sonnet
+	find . -name 'vendor' -prune -o -name '*.libsonnet' -print -o -name '*.jsonnet' -print | \
+		xargs -n 1 -- jsonnetfmt -i
