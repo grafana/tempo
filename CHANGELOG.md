@@ -4,6 +4,10 @@
 * [CHANGE] Reduce MaxSearchBytesPerTrace `ingester.max-search-bytes-per-trace` default to 5KB [#1129](https://github.com/grafana/tempo/pull/1129) @annanay25
 * [CHANGE] **BREAKING CHANGE** The OTEL GRPC receiver's default port changed from 55680 to 4317. [#1142](https://github.com/grafana/tempo/pull/1142) (@tete17)
 * [CHANGE] Remove deprecated method `Push` from `tempopb.Pusher` [#1173](https://github.com/grafana/tempo/pull/1173) (@kvrhdn)
+* [CHANGE] Upgrade cristalhq/hedgedhttp from v0.6.0 to v0.7.0 [#1159](https://github.com/grafana/tempo/pull/1159) (@cristaloleg)
+* [CHANGE] Export trace id constant in api package [#1176](https://github.com/grafana/tempo/pull/1176)
+* [FEATURE] Added support for full backend search. [#1174](https://github.com/grafana/tempo/pull/1174) (@joe-elliott)
+  **BREAKING CHANGE** Moved `querier.search_max_result_limit` and `querier.search_default_result_limit` to `query_frontend.search.max_result_limit` and `query_frontend.search.default_result_limit`
 * [ENHANCEMENT] Expose `upto` parameter on hedged requests for each backend with `hedge_requests_up_to`. [#1085](https://github.com/grafana/tempo/pull/1085) (@joe-elliott)
 * [ENHANCEMENT] Search: drop use of TagCache, extract tags and tag values on-demand [#1068](https://github.com/grafana/tempo/pull/1068) (@kvrhdn)
 * [ENHANCEMENT] Jsonnet: add `$._config.namespace` to filter by namespace in cortex metrics [#1098](https://github.com/grafana/tempo/pull/1098) (@mapno)
@@ -22,6 +26,7 @@
 * [ENHANCEMENT] jsonnet: set rollingUpdate.maxSurge to 3 for distributor, frontend and queriers [#1164](https://github.com/grafana/tempo/pull/1164) (@kvrhdn)
 * [ENHANCEMENT] Reduce search data file sizes by optimizing contents [#1165](https://github.com/grafana/tempo/pull/1165) (@mdisibio)
 * [ENHANCEMENT] Add `tempo_ingester_live_traces` metric [#1170](https://github.com/grafana/tempo/pull/1170) (@mdisibio)
+* [ENHANCEMENT] Update compactor ring to automatically forget unhealthy entries [#1178](https://github.com/grafana/tempo/pull/1178) (@mdisibio)
 * [BUGFIX] Add process name to vulture traces to work around display issues [#1127](https://github.com/grafana/tempo/pull/1127) (@mdisibio)
 * [BUGFIX] Fixed issue where compaction sometimes dropped spans. [#1130](https://github.com/grafana/tempo/pull/1130) (@joe-elliott)
 * [BUGFIX] Ensure that the admin client jsonnet has correct S3 bucket property. (@hedss)

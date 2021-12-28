@@ -1,8 +1,10 @@
 package querier
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"sort"
 	"sync"
@@ -10,6 +12,7 @@ import (
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
@@ -17,10 +20,12 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
@@ -264,7 +269,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 	return responses, err
 }
 
-func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
+func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	_, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
@@ -276,7 +281,7 @@ func (q *Querier) Search(ctx context.Context, req *tempopb.SearchRequest) (*temp
 	}
 
 	responses, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
-		return client.Search(ctx, req)
+		return client.SearchRecent(ctx, req)
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.Search")
@@ -382,16 +387,38 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	return resp, nil
 }
 
-// todo(search): consolidate
-func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchRequest) (*tempopb.SearchResponse, error) {
+// SearchBlock searches the specified subset of the block for the passed tags.
+func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+	// todo: if the querier is not currently doing anything it should prefer handling the request itself to
+	//  offloading to the external endpoint
+	// check if we should offload this it to another endpoint
+	if q.cfg.SearchExternalEndpont != "" {
+		return searchExternalEndpoint(ctx, q.cfg.SearchExternalEndpont, req)
+	}
+
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
 	}
 
-	blockID, err := uuid.FromBytes(req.BlockID)
+	blockID, err := uuid.Parse(req.BlockID)
 	if err != nil {
 		return nil, err
+	}
+
+	enc, err := backend.ParseEncoding(req.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	meta := &backend.BlockMeta{
+		Version:       req.Version,
+		TenantID:      tenantID,
+		Encoding:      enc,
+		IndexPageSize: req.IndexPageSize,
+		TotalRecords:  req.TotalRecords,
+		BlockID:       blockID,
+		DataEncoding:  req.DataEncoding,
 	}
 
 	var searchErr error
@@ -400,13 +427,13 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
-	err = q.store.IterateObjects(ctx, tenantID, blockID, int(req.StartPage), int(req.TotalPages), func(id common.ID, obj []byte, dataEncoding string) bool {
+	err = q.store.IterateObjects(ctx, meta, int(req.StartPage), int(req.PagesToSearch), func(id common.ID, obj []byte) bool {
 		respMtx.Lock()
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 		respMtx.Unlock()
 
-		metadata, err := model.Matches(id, obj, dataEncoding, req.Start, req.End, req.Search)
+		metadata, err := model.Matches(id, obj, req.DataEncoding, req.SearchReq)
 
 		respMtx.Lock()
 		defer respMtx.Unlock()
@@ -415,11 +442,11 @@ func (q *Querier) BackendSearch(ctx context.Context, req *tempopb.BackendSearchR
 			return false
 		}
 		if metadata == nil {
-			return true
+			return false
 		}
 
 		resp.Traces = append(resp.Traces, metadata)
-		return len(resp.Traces) >= int(req.Search.Limit)
+		return len(resp.Traces) >= int(req.SearchReq.Limit)
 	})
 	if err != nil {
 		return nil, err
@@ -470,4 +497,37 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	}
 
 	return response
+}
+
+func searchExternalEndpoint(ctx context.Context, externalEndpoint string, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+	req, err := http.NewRequest(http.MethodGet, externalEndpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)
+	}
+	req, err = api.BuildSearchBlockRequest(req, searchReq)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to build search block request: %w", err)
+	}
+	err = user.InjectOrgIDIntoHTTPRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to call http: %s, %w", externalEndpoint, err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to read body: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("external endpoint returned %d, %s", resp.StatusCode, string(body))
+	}
+	var searchResp tempopb.SearchResponse
+	err = jsonpb.Unmarshal(bytes.NewReader(body), &searchResp)
+	if err != nil {
+		return nil, fmt.Errorf("external endpoint failed to unmarshal body: %s, %w", string(body), err)
+	}
+	return &searchResp, nil
 }

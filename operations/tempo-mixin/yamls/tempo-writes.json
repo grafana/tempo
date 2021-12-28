@@ -281,7 +281,7 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "{{grpc_status}}",
-       "legendLink": "",
+       "legendLink": null,
        "step": 10
       }
      ],

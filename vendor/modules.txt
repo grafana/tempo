@@ -287,7 +287,7 @@ github.com/cortexproject/cortex/pkg/util/process
 github.com/cortexproject/cortex/pkg/util/push
 github.com/cortexproject/cortex/pkg/util/spanlogger
 github.com/cortexproject/cortex/pkg/util/validation
-# github.com/cristalhq/hedgedhttp v0.6.0
+# github.com/cristalhq/hedgedhttp v0.7.0
 ## explicit; go 1.16
 github.com/cristalhq/hedgedhttp
 # github.com/davecgh/go-spew v1.1.1

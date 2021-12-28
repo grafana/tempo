@@ -2,9 +2,11 @@ package compactor
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	cortex_compactor "github.com/cortexproject/cortex/pkg/compactor"
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/pkg/util"
@@ -36,4 +38,20 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.Uint64Var(&cfg.Compactor.MaxBlockBytes, util.PrefixConfig(prefix, "compaction.max-block-bytes"), 100*1024*1024*1024 /* 100GB */, "Maximum size of a compacted block.")
 	f.DurationVar(&cfg.Compactor.MaxCompactionRange, util.PrefixConfig(prefix, "compaction.compaction-window"), time.Hour, "Maximum time window across which to compact blocks.")
 	cfg.OverrideRingKey = ring.CompactorRingKey
+}
+
+func toBasicLifecyclerConfig(cfg cortex_compactor.RingConfig, logger log.Logger) (ring.BasicLifecyclerConfig, error) {
+	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, logger)
+	if err != nil {
+		return ring.BasicLifecyclerConfig{}, err
+	}
+
+	instancePort := ring.GetInstancePort(cfg.InstancePort, cfg.ListenPort)
+
+	return ring.BasicLifecyclerConfig{
+		ID:              cfg.InstanceID,
+		Addr:            fmt.Sprintf("%s:%d", instanceAddr, instancePort),
+		HeartbeatPeriod: cfg.HeartbeatPeriod,
+		NumTokens:       ringNumTokens,
+	}, nil
 }

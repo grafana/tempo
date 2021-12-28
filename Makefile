@@ -70,11 +70,11 @@ benchmark:
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 .PHONY: test-with-cover
-test-with-cover: 
+test-with-cover: test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
 .PHONY: test-e2e
-test-e2e: docker-tempo
+test-e2e: docker-tempo docker-serverless
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
@@ -215,6 +215,15 @@ kube-manifests:
 
 kube-manifests-check:
 	$(MAKE) -C operations/kube-manifests/util check
+
+
+### serverless
+.PHONY: docker-serverless test-serverless
+docker-serverless:
+	$(MAKE) -C cmd/tempo-serverless build-docker
+
+test-serverless:
+	$(MAKE) -C cmd/tempo-serverless test
 
 ### tempo-mixin
 .PHONY: tempo-mixin tempo-mixin-check

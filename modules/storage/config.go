@@ -37,6 +37,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.WAL.Encoding = backend.EncSnappy
 	cfg.Trace.WAL.SearchEncoding = backend.EncNone
 
+	cfg.Trace.Search = &tempodb.SearchConfig{}
+	cfg.Trace.Search.ChunkSizeBytes = tempodb.DefaultSearchChunkSizeBytes
+	cfg.Trace.Search.PrefetchTraceCount = tempodb.DefaultPrefetchTraceCount
+
 	cfg.Trace.Block = &encoding.BlockConfig{}
 	f.Float64Var(&cfg.Trace.Block.BloomFP, util.PrefixConfig(prefix, "trace.block.bloom-filter-false-positive"), .01, "Bloom Filter False Positive.")
 	f.IntVar(&cfg.Trace.Block.BloomShardSizeBytes, util.PrefixConfig(prefix, "trace.block.bloom-filter-shard-size-bytes"), 100*1024, "Bloom Filter Shard Size in bytes.")

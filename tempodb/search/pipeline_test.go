@@ -148,6 +148,88 @@ func TestPipelineMatchesTraceDuration(t *testing.T) {
 	}
 }
 
+func TestPipelineMatchesTraceStartEnd(t *testing.T) {
+
+	testCases := []struct {
+		name        string
+		spanStart   int64
+		spanEnd     int64
+		reqStart    uint32
+		reqEnd      uint32
+		shouldMatch bool
+	}{
+		{
+			name:        "no filtering",
+			spanStart:   time.Now().UnixNano(),
+			spanEnd:     time.Now().UnixNano(),
+			shouldMatch: true,
+		},
+		{
+			name:        "requested range is before span",
+			spanStart:   time.Now().Add(-time.Minute).UnixNano(),
+			spanEnd:     time.Now().Add(-time.Minute).UnixNano(),
+			reqStart:    uint32(time.Now().Add(-3 * time.Minute).Unix()),
+			reqEnd:      uint32(time.Now().Add(-2 * time.Minute).Unix()),
+			shouldMatch: false,
+		},
+		{
+			name:        "requested range is after span",
+			spanStart:   time.Now().Add(-time.Minute).UnixNano(),
+			spanEnd:     time.Now().Add(-time.Minute).UnixNano(),
+			reqStart:    uint32(time.Now().Add(-30 * time.Second).Unix()),
+			reqEnd:      uint32(time.Now().Unix()),
+			shouldMatch: false,
+		},
+		{
+			name:        "requested range encloses span",
+			spanStart:   time.Now().Add(-time.Minute).UnixNano(),
+			spanEnd:     time.Now().Add(-time.Minute).UnixNano(),
+			reqStart:    uint32(time.Now().Add(-2 * time.Minute).Unix()),
+			reqEnd:      uint32(time.Now().Unix()),
+			shouldMatch: true,
+		},
+		{
+			name:        "span encloses requested range",
+			spanStart:   time.Now().Add(-2 * time.Minute).UnixNano(),
+			spanEnd:     time.Now().UnixNano(),
+			reqStart:    uint32(time.Now().Add(-time.Minute).Unix()),
+			reqEnd:      uint32(time.Now().Add(-time.Minute).Unix()),
+			shouldMatch: true,
+		},
+		{
+			name:        "range overlaps span start",
+			spanStart:   time.Now().Add(-3 * time.Minute).UnixNano(),
+			spanEnd:     time.Now().Add(-1 * time.Minute).UnixNano(),
+			reqStart:    uint32(time.Now().Add(-4 * time.Minute).Unix()),
+			reqEnd:      uint32(time.Now().Add(-2 * time.Minute).Unix()),
+			shouldMatch: true,
+		},
+		{
+			name:        "range overlaps span end",
+			spanStart:   time.Now().Add(-3 * time.Minute).UnixNano(),
+			spanEnd:     time.Now().Add(-1 * time.Minute).UnixNano(),
+			reqStart:    uint32(time.Now().Add(-2 * time.Minute).Unix()),
+			reqEnd:      uint32(time.Now().Unix()),
+			shouldMatch: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			p := NewSearchPipeline(&tempopb.SearchRequest{Start: tc.reqStart, End: tc.reqEnd})
+			data := tempofb.SearchEntryMutable{
+				StartTimeUnixNano: uint64(tc.spanStart),
+				EndTimeUnixNano:   uint64(tc.spanEnd),
+			}
+			sd := tempofb.NewSearchEntryFromBytes(data.ToBytes())
+			matches := p.Matches(sd)
+
+			require.Equal(t, tc.shouldMatch, matches)
+		})
+	}
+}
+
 func TestPipelineMatchesBlock(t *testing.T) {
 
 	// Run all tests against this header
