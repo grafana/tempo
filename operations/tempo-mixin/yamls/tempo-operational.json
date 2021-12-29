@@ -6040,7 +6040,7 @@
      "value": "tempo-ops"
     },
     "datasource": "$ds",
-    "definition": "label_values(kube_pod_container_info{image=~\".*tempo.*\", cluster=\"$cluster\"}, namespace)",
+    "definition": "label_values(tempo_build_info{cluster=\"$cluster\"}, namespace)",
     "description": null,
     "error": null,
     "hide": 0,
@@ -6052,7 +6052,7 @@
 
     ],
     "query": {
-     "query": "label_values(kube_pod_container_info{image=~\".*tempo.*\", cluster=\"$cluster\"}, namespace)",
+     "query": "label_values(tempo_build_info{cluster=\"$cluster\"}, namespace)",
      "refId": "ops-cortex-namespace-Variable-Query"
     },
     "refresh": 1,
