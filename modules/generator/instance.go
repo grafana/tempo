@@ -5,8 +5,10 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/modules/generator/collector"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/storage"
 	"go.opentelemetry.io/collector/model/otlp"
 	"go.opentelemetry.io/collector/model/pdata"
 
@@ -28,20 +30,30 @@ type instance struct {
 	overrides  *overrides.Overrides
 
 	registerer prometheus.Registerer
+	appendable storage.Appendable
 
 	processors []processor.Processor
 
 	metricSpansReceivedTotal prometheus.Counter
+
+	collector *collector.Collector
 }
 
-func newInstance(instanceID string, overrides *overrides.Overrides, userMetricsRegisterer prometheus.Registerer) (*instance, error) {
+func newInstance(instanceID string, overrides *overrides.Overrides, userMetricsRegisterer prometheus.Registerer, appendable storage.Appendable) (*instance, error) {
 	i := &instance{
 		instanceID: instanceID,
 		overrides:  overrides,
 
 		registerer: userMetricsRegisterer,
+		appendable: appendable,
 
 		metricSpansReceivedTotal: metricSpansReceivedTotal.WithLabelValues(instanceID),
+	}
+
+	var err error
+	i.collector, err = collector.New(context.Background(), userMetricsRegisterer, appendable)
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO we should build a pipeline based upon the overrides configured
@@ -63,6 +75,10 @@ func (i *instance) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 		return err
 	}
 
+	if err := i.collector.PushSpans(ctx, otlpTraces); err != nil {
+		return err
+	}
+
 	for _, processor := range i.processors {
 		err = processor.ConsumeTraces(ctx, otlpTraces)
 		if err != nil {
@@ -73,7 +89,7 @@ func (i *instance) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 	return nil
 }
 
-func convertToOTLP(ctx context.Context, req *tempopb.PushSpansRequest) (pdata.Traces, error) {
+func convertToOTLP(_ context.Context, req *tempopb.PushSpansRequest) (pdata.Traces, error) {
 	// We do the reverse of the Distributor here: convert to bytes and back to
 	// OTLP proto. This is unfortunate for efficiency, but it works around the
 	// otel-collector internalization of otel-proto which Tempo also uses.

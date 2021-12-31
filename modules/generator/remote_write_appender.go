@@ -77,7 +77,7 @@ func (a *RemoteWriteAppender) Append(_ uint64, l labels.Labels, t int64, v float
 	return 0, nil
 }
 
-func (a *RemoteWriteAppender) AppendExemplar(_ uint64, l labels.Labels, e exemplar.Exemplar) (uint64, error) {
+func (a *RemoteWriteAppender) AppendExemplar(uint64, labels.Labels, exemplar.Exemplar) (uint64, error) {
 	// TODO as a tracing backend, we should definitely support this 😅
 	return 0, errors.New("exemplars are unsupported")
 }

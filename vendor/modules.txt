@@ -870,6 +870,9 @@ github.com/olekukonko/tablewriter
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter/internal/awsmsk
+# github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.40.0
+## explicit; go 1.17
+github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter
 # github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.40.0
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils
@@ -878,6 +881,9 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/
 # github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.40.0
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.40.0
+## explicit; go 1.17
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry
 # github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.40.0
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger
@@ -889,6 +895,9 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencen
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/zipkin
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv2
+# github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanmetricsprocessor v0.40.0
+## explicit; go 1.17
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanmetricsprocessor
 # github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.40.0
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver
@@ -1184,6 +1193,8 @@ github.com/thanos-io/thanos/pkg/strutil
 github.com/thanos-io/thanos/pkg/targets/targetspb
 github.com/thanos-io/thanos/pkg/testutil
 github.com/thanos-io/thanos/pkg/tracing
+# github.com/tidwall/pretty v1.2.0
+## explicit; go 1.16
 # github.com/uber-go/atomic v1.4.0
 ## explicit
 github.com/uber-go/atomic
@@ -1337,6 +1348,9 @@ go.opentelemetry.io/collector/receiver/otlpreceiver/external/metrics
 go.opentelemetry.io/collector/receiver/otlpreceiver/external/trace
 go.opentelemetry.io/collector/receiver/receiverhelper
 go.opentelemetry.io/collector/receiver/scrapererror
+go.opentelemetry.io/collector/service/external/builder
+go.opentelemetry.io/collector/service/external/components
+go.opentelemetry.io/collector/service/external/fanoutconsumer
 # go.opentelemetry.io/collector/model v0.40.0
 ## explicit; go 1.17
 go.opentelemetry.io/collector/model/internal

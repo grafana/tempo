@@ -11,15 +11,14 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/weaveworks/common/user"
-
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 )
 
 const userMetricsScrapeEndpoint = "/api/trace-metrics"
@@ -182,12 +181,13 @@ func (g *Generator) getOrCreateInstance(instanceID string) (*instance, error) {
 		return inst, nil
 	}
 
+	// TODO: Take a RLock before Lock? 🔐
 	g.instancesMtx.Lock()
 	defer g.instancesMtx.Unlock()
 	inst, ok = g.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, g.overrides, g.userMetricsRegisterer)
+		inst, err = newInstance(instanceID, g.overrides, g.userMetricsRegisterer, g.appendableFactory(instanceID))
 		if err != nil {
 			return nil, err
 		}
