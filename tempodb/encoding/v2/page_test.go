@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -142,4 +143,19 @@ func TestCorruptHeader(t *testing.T) {
 	page, err = unmarshalPageFromReader(bytes.NewReader(buffBytes), constDataHeader, nil)
 	assert.Nil(t, page)
 	assert.EqualError(t, err, "unexpected non-zero len data header")
+}
+
+func TestIncompletePageDetected(t *testing.T) {
+	dataLen := 100
+	del := 10
+	buff := &bytes.Buffer{}
+
+	_, err := marshalPageToWriter(make([]byte, dataLen), buff, constDataHeader)
+	require.NoError(t, err)
+
+	// Delete some bytes from the end of the page
+	buff.Truncate(buff.Len() - del)
+
+	_, err = unmarshalPageFromReader(buff, constDataHeader, nil)
+	require.EqualError(t, err, fmt.Sprintf("unexpected incomplete page read: expected:%d read:%d", dataLen, dataLen-del))
 }

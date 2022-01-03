@@ -91,7 +91,10 @@ func unmarshalPageFromReader(r io.Reader, header pageHeader, buffer []byte) (*pa
 		buffer = buffer[:dataLength]
 	}
 
-	_, err = r.Read(buffer)
+	actualLength, err := r.Read(buffer)
+	if actualLength != len(buffer) {
+		return nil, fmt.Errorf("unexpected incomplete page read: expected:%d read:%d", len(buffer), actualLength)
+	}
 	if err != nil {
 		return nil, err
 	}
