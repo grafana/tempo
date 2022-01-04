@@ -539,6 +539,52 @@ func TestInstanceMetrics(t *testing.T) {
 	cutAndVerify(0)
 }
 
+func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
+	ctx := context.Background()
+	tenantID := "fake"
+	maxTraceBytes := 100
+	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+
+	tempDir, err := os.MkdirTemp("/tmp", "")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+
+	limits, err := overrides.NewOverrides(overrides.Limits{
+		MaxBytesPerTrace: maxTraceBytes,
+	})
+	require.NoError(t, err)
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	i, err := newInstance(tenantID, limiter, ingester.store, ingester.local)
+	require.NoError(t, err)
+
+	pushFn := func(byteCount int) error {
+		return i.PushBytes(ctx, id, make([]byte, byteCount), nil)
+	}
+
+	// Fill up trace to max
+	err = pushFn(maxTraceBytes)
+	require.NoError(t, err)
+
+	// Pushing again fails
+	err = pushFn(3)
+	require.Contains(t, err.Error(), (newTraceTooLargeError(id, maxTraceBytes, 3)).Error())
+
+	// Pushing still fails after flush
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	err = pushFn(5)
+	require.Contains(t, err.Error(), (newTraceTooLargeError(id, maxTraceBytes, 5)).Error())
+
+	// Cut block and then pushing works again
+	_, err = i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	err = pushFn(maxTraceBytes)
+	require.NoError(t, err)
+}
+
 func defaultInstance(t require.TestingT, tmpDir string) *instance {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")

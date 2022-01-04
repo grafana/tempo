@@ -2,17 +2,13 @@ package ingester
 
 import (
 	"context"
-	"encoding/hex"
 	"time"
 
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/status"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"google.golang.org/grpc/codes"
 
-	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -54,7 +50,8 @@ func (t *trace) Push(_ context.Context, instanceID string, trace []byte, searchD
 	if t.maxBytes != 0 {
 		reqSize := len(trace)
 		if t.currentBytes+reqSize > t.maxBytes {
-			return status.Errorf(codes.FailedPrecondition, "%s max size of trace (%d) exceeded while adding %d bytes to trace %s", overrides.ErrorPrefixTraceTooLarge, t.maxBytes, reqSize, hex.EncodeToString(t.traceID))
+			//return status.Errorf(codes.FailedPrecondition, "%s max size of trace (%d) exceeded while adding %d bytes to trace %s", overrides.ErrorPrefixTraceTooLarge, t.maxBytes, reqSize, hex.EncodeToString(t.traceID))
+			return newTraceTooLargeError(t.traceID, t.maxBytes, reqSize)
 		}
 
 		t.currentBytes += reqSize
