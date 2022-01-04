@@ -129,7 +129,7 @@ ingester_client:
 querier:
   query_timeout: 10s
   search_query_timeout: 30s
-  search_external_endpoint: ""
+  search_external_endpoints: []
   max_concurrent_queries: 5
   frontend_worker:
     frontend_address: 127.0.0.1:9095

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"sort"
 	"sync"
@@ -391,9 +392,10 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	// todo: if the querier is not currently doing anything it should prefer handling the request itself to
 	//  offloading to the external endpoint
-	// check if we should offload this it to another endpoint
-	if q.cfg.SearchExternalEndpont != "" {
-		return searchExternalEndpoint(ctx, q.cfg.SearchExternalEndpont, req)
+	// todo: metrics per endpoint
+	if len(q.cfg.SearchExternalEndponts) != 0 {
+		endpoint := q.cfg.SearchExternalEndponts[rand.Intn(len(q.cfg.SearchExternalEndponts))]
+		return searchExternalEndpoint(ctx, endpoint, req)
 	}
 
 	tenantID, err := user.ExtractOrgID(ctx)
