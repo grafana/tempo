@@ -20,6 +20,7 @@
     prometheus_web_route_prefix: self.prometheus_path,
     prometheus_config_dir: '/etc/prometheus',
     prometheus_config_file: self.prometheus_config_dir + '/prometheus.yml',
+    prometheus_enabled_features: ['exemplar-storage'],
   },
 
   scrape_configs: {},
