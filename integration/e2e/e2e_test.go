@@ -126,7 +126,7 @@ func TestAllInOne(t *testing.T) {
 
 			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 			now := time.Now()
-			searchAndAssertTraceBackend(t, apiClient, info, int(now.Add(-20*time.Minute).Unix()), int(now.Unix()))
+			searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 		})
 	}
 }
@@ -240,7 +240,7 @@ func TestMicroservices(t *testing.T) {
 
 	// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 	now := time.Now()
-	searchAndAssertTraceBackend(t, apiClient, info, int(now.Add(-20*time.Minute).Unix()), int(now.Unix()))
+	searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
 	// stop another ingester and confirm things fail
 	err = tempoIngester1.Kill()
@@ -436,7 +436,7 @@ func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
 // to look in the backend blocks
-func searchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int, end int) {
+func searchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int64, end int64) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
