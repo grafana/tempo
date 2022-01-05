@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"time"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/util/log"
@@ -45,6 +46,12 @@ var (
 		Name:      "querier_ingester_clients",
 		Help:      "The current number of ingester clients.",
 	})
+	metricEndpointDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "querier_external_endpoint_duration_seconds",
+		Help:      "The duration of the external endpoints.",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"endpoint"})
 )
 
 // Querier handlers queries.
@@ -392,9 +399,8 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	// todo: if the querier is not currently doing anything it should prefer handling the request itself to
 	//  offloading to the external endpoint
-	// todo: metrics per endpoint
-	if len(q.cfg.SearchExternalEndponts) != 0 {
-		endpoint := q.cfg.SearchExternalEndponts[rand.Intn(len(q.cfg.SearchExternalEndponts))]
+	if len(q.cfg.SearchExternalEndpoints) != 0 {
+		endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
 		return searchExternalEndpoint(ctx, endpoint, req)
 	}
 
@@ -514,7 +520,9 @@ func searchExternalEndpoint(ctx context.Context, externalEndpoint string, search
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)
 	}
+	start := time.Now()
 	resp, err := http.DefaultClient.Do(req)
+	metricEndpointDuration.WithLabelValues(externalEndpoint).Observe(time.Since(start).Seconds())
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to call http: %s, %w", externalEndpoint, err)
 	}

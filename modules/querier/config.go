@@ -13,7 +13,7 @@ import (
 type Config struct {
 	TraceLookupQueryTimeout time.Duration        `yaml:"query_timeout"`
 	SearchQueryTimeout      time.Duration        `yaml:"search_query_timeout"`
-	SearchExternalEndponts  []string             `yaml:"search_external_endpoints"`
+	SearchExternalEndpoints []string             `yaml:"search_external_endpoints"`
 	ExtraQueryDelay         time.Duration        `yaml:"extra_query_delay,omitempty"`
 	MaxConcurrentQueries    int                  `yaml:"max_concurrent_queries"`
 	Worker                  cortex_worker.Config `yaml:"frontend_worker"`
