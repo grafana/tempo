@@ -34,6 +34,25 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
+type traceTooLargeError struct {
+	traceID           common.ID
+	maxBytes, reqSize int
+}
+
+func newTraceTooLargeError(traceID common.ID, maxBytes, reqSize int) *traceTooLargeError {
+	return &traceTooLargeError{
+		traceID:  traceID,
+		maxBytes: maxBytes,
+		reqSize:  reqSize,
+	}
+}
+
+func (e traceTooLargeError) Error() string {
+	return fmt.Sprintf(
+		"%s max size of trace (%d) exceeded while adding %d bytes to trace %s",
+		overrides.ErrorPrefixTraceTooLarge, e.maxBytes, e.reqSize, hex.EncodeToString(e.traceID))
+}
+
 // Errors returned on Query.
 var (
 	ErrTraceMissing = errors.New("Trace missing")
@@ -68,9 +87,10 @@ var (
 )
 
 type instance struct {
-	tracesMtx  sync.Mutex
-	traces     map[uint32]*trace
-	traceCount atomic.Int32
+	tracesMtx   sync.Mutex
+	traces      map[uint32]*trace
+	largeTraces map[uint32]int // maxBytes that trace exceeded
+	traceCount  atomic.Int32
 
 	blocksMtx        sync.RWMutex
 	headBlock        *wal.AppendBlock
@@ -109,6 +129,7 @@ type searchLocalBlockEntry struct {
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
 		traces:               map[uint32]*trace{},
+		largeTraces:          map[uint32]int{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
 
@@ -140,9 +161,6 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 		return status.Errorf(codes.FailedPrecondition, "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
 	}
 
-	i.tracesMtx.Lock()
-	defer i.tracesMtx.Unlock()
-
 	id, err := pushRequestTraceID(req)
 	if err != nil {
 		return err
@@ -161,8 +179,7 @@ func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
 		return err
 	}
 
-	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, i.instanceID, buffer, nil)
+	return i.push(ctx, id, buffer, nil)
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
@@ -179,11 +196,29 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 		return status.Errorf(codes.FailedPrecondition, "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
 	}
 
+	return i.push(ctx, id, traceBytes, searchData)
+}
+
+func (i *instance) push(ctx context.Context, id, traceBytes, searchData []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
+	tkn := i.tokenForTraceID(id)
+
+	if maxBytes, ok := i.largeTraces[tkn]; ok {
+		return status.Errorf(codes.FailedPrecondition, (newTraceTooLargeError(id, maxBytes, len(traceBytes)).Error()))
+	}
+
 	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, i.instanceID, traceBytes, searchData)
+	err := trace.Push(ctx, i.instanceID, traceBytes, searchData)
+	if err != nil {
+		if e, ok := err.(*traceTooLargeError); ok {
+			i.largeTraces[tkn] = trace.maxBytes
+			return status.Errorf(codes.FailedPrecondition, e.Error())
+		}
+	}
+
+	return err
 }
 
 func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
@@ -486,6 +521,12 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 
 // resetHeadBlock() should be called under lock
 func (i *instance) resetHeadBlock() error {
+
+	// Clear large traces when cutting block
+	i.tracesMtx.Lock()
+	i.largeTraces = map[uint32]int{}
+	i.tracesMtx.Unlock()
+
 	oldHeadBlock := i.headBlock
 	var err error
 	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
