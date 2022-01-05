@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	tempoProtoGenPkgPath = "github.com/grafana/tempo/pkg/tempopb"
-	cortexPath           = "github.com/cortexproject/cortex"
+	tempoProtoGenPkgPath  = "github.com/grafana/tempo/pkg/tempopb"
+	cortexPath            = "github.com/cortexproject/cortex"
+	jaegerProtoGenPkgPath = "github.com/jaegertracing/jaeger/proto-gen"
+	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger/model"
 )
 
 func init() {
@@ -59,5 +61,6 @@ func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
 
 // useGogo checks if the element belongs to Tempo/Cortex packages
 func useGogo(t reflect.Type) bool {
-	return t != nil && (strings.HasPrefix(t.PkgPath(), tempoProtoGenPkgPath) || strings.HasPrefix(t.PkgPath(), cortexPath))
+	return t != nil &&
+		(strings.HasPrefix(t.PkgPath(), tempoProtoGenPkgPath) || strings.HasPrefix(t.PkgPath(), cortexPath) || strings.HasPrefix(t.PkgPath(), jaegerProtoGenPkgPath) || strings.HasPrefix(t.PkgPath(), jaegerModelPkgPath))
 }
