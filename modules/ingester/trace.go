@@ -50,7 +50,6 @@ func (t *trace) Push(_ context.Context, instanceID string, trace []byte, searchD
 	if t.maxBytes != 0 {
 		reqSize := len(trace)
 		if t.currentBytes+reqSize > t.maxBytes {
-			//return status.Errorf(codes.FailedPrecondition, "%s max size of trace (%d) exceeded while adding %d bytes to trace %s", overrides.ErrorPrefixTraceTooLarge, t.maxBytes, reqSize, hex.EncodeToString(t.traceID))
 			return newTraceTooLargeError(t.traceID, t.maxBytes, reqSize)
 		}
 
