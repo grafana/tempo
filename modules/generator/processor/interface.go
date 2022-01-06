@@ -3,15 +3,14 @@ package processor
 import (
 	"context"
 
-	"go.opentelemetry.io/collector/model/pdata"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // TODO review this interface
 //  we probably need something to update the configuration as well
-//  should we use pdata.Traces?
 
 type Processor interface {
 	Name() string
-	ConsumeTraces(ctx context.Context, td pdata.Traces) error
+	PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error
 	Shutdown(ctx context.Context) error
 }
