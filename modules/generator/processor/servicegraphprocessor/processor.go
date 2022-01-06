@@ -148,11 +148,6 @@ func (p *processor) Start(ctx context.Context, _ component.Host) error {
 	// initialize store
 	p.store = newStore(p.wait, p.maxItems, p.collectEdge)
 
-	//reg, ok := ctx.Value(contextkeys.PrometheusRegisterer).(prometheus.Registerer)
-	//if !ok || reg == nil {
-	//	return fmt.Errorf("key does not contain a prometheus registerer")
-	//}
-	//p.reg = reg
 	return p.registerMetrics()
 }
 

@@ -117,6 +117,14 @@ func remoteWriteServer(t *testing.T, expected []metric) (*httptest.Server, chan 
 
 var expectedMetrics = []metric{
 	{"tempo_calls_total{service=\"test-service\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"test\", span_status=\"STATUS_CODE_OK\", tenant=\"single-tenant\"}", 10},
+	{"tempo_latency_count{service=\"test-service\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"test\", span_status=\"STATUS_CODE_OK\", tenant=\"single-tenant\"}", 10},
+	{"tempo_latency_sum{service=\"test-service\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"test\", span_status=\"STATUS_CODE_OK\", tenant=\"single-tenant\"}", 0},
+	{"tempo_latency_bucket{le=\"1\", service=\"test-service\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"test\", span_status=\"STATUS_CODE_OK\", tenant=\"single-tenant\"}", 0},
+	{"tempo_latency_bucket{le=\"10\", service=\"test-service\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"test\", span_status=\"STATUS_CODE_OK\", tenant=\"single-tenant\"}", 0},
+	{"tempo_latency_bucket{le=\"50\", service=\"test-service\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"test\", span_status=\"STATUS_CODE_OK\", tenant=\"single-tenant\"}", 0},
+	{"tempo_latency_bucket{le=\"100\", service=\"test-service\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"test\", span_status=\"STATUS_CODE_OK\", tenant=\"single-tenant\"}", 0},
+	{"tempo_latency_bucket{le=\"500\", service=\"test-service\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"test\", span_status=\"STATUS_CODE_OK\", tenant=\"single-tenant\"}", 0},
+	{"tempo_latency_bucket{le=\"+Inf\", service=\"test-service\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"test\", span_status=\"STATUS_CODE_OK\", tenant=\"single-tenant\"}", 0},
 }
 
 func defaultLimitsTestConfig() overrides.Limits {

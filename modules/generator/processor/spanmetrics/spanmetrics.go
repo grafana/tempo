@@ -3,6 +3,8 @@ package spanmetrics
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -10,7 +12,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/storage"
 	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
@@ -24,30 +25,44 @@ const (
 type processor struct {
 	namespace, tenant string
 
-	appender storage.Appender
+	// TODO: pass storage.Appender instead?
+	//  appendable.Appender(ctx) creates a new Appender for every push.
+	appendable storage.Appendable
 
-	mtx   sync.Mutex
-	calls map[string]float64
-
-	cache map[string]labels.Labels
+	// TODO: possibly split mutex into two: one for the metrics and one for the cache.
+	//  cache's mutex should be RWMutex.
+	mtx sync.Mutex
+	// TODO: need a mechanism to clean up inactive series,
+	//  otherwise this is unbounded memory usage.
+	calls               map[string]float64
+	latencyCount        map[string]float64
+	latencySum          map[string]float64
+	latencyBucketCounts map[string][]float64
+	latencyBuckets      []float64
+	cache               map[string]labels.Labels
 }
 
-func New(tenant string, appender storage.Appender) gen.Processor {
+func New(tenant string, appendable storage.Appendable) gen.Processor {
 	return &processor{
-		namespace: "tempo",
-		tenant:    tenant,
-		appender:  appender,
-		calls:     make(map[string]float64),
-		cache:     make(map[string]labels.Labels),
+		namespace:           "tempo",
+		tenant:              tenant,
+		appendable:          appendable,
+		calls:               make(map[string]float64),
+		latencyCount:        make(map[string]float64),
+		latencySum:          make(map[string]float64),
+		latencyBucketCounts: make(map[string][]float64),
+		// TODO: make this configurable.
+		latencyBuckets: []float64{1, 10, 50, 100, 500},
+		cache:          make(map[string]labels.Labels),
 	}
 }
 
 func (p *processor) Name() string { return name }
 
-func (p *processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) error {
+func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
 	p.aggregateMetrics(req.Batches)
 
-	return p.collectMetrics()
+	return p.collectMetrics(ctx)
 }
 
 func (p *processor) Shutdown(context.Context) error { return nil }
@@ -69,37 +84,98 @@ func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span) {
 	key := p.buildKey(svcName, span)
 
+	latencyMS := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Millisecond.Nanoseconds())
+
 	p.mtx.Lock()
+	p.cacheLabels(key, svcName, span)
 	p.calls[key]++
+	p.aggregateLatencyMetrics(key, latencyMS)
 	p.mtx.Unlock()
 }
 
-func (p *processor) collectMetrics() error {
+func (p *processor) aggregateLatencyMetrics(key string, latencyMS float64) {
+	// TODO: make this configurable
+	if _, ok := p.latencyBucketCounts[key]; !ok {
+		p.latencyBucketCounts[key] = make([]float64, len(p.latencyBuckets)+1)
+	}
+
+	p.latencyCount[key]++
+	p.latencySum[key] += latencyMS
+	idx := sort.SearchFloat64s(p.latencyBuckets, latencyMS)
+	for i := 0; i < idx; i++ {
+		p.latencyBucketCounts[key][i]++
+	}
+}
+
+func (p *processor) collectMetrics(ctx context.Context) error {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
 	t := time.Now().Unix()
 
-	var errs error
+	appender := p.appendable.Appender(ctx)
+
+	if err := p.collectCalls(appender, t); err != nil {
+		return err
+	}
+
+	if err := p.collectLatencyMetrics(appender, t); err != nil {
+		return err
+	}
+
+	return appender.Commit()
+}
+
+func (p *processor) collectCalls(appender storage.Appender, t int64) error {
+	// TODO: only collect new data points.
 	for key, count := range p.calls {
 		lbls := p.getLabels(key, callsMetric)
 
-		if _, err := p.appender.Append(0, lbls, t, count); err != nil {
-			errs = multierror.Append(errs, err)
+		if _, err := appender.Append(0, lbls, t, count); err != nil {
+			return err
 		}
 	}
-	if errs != nil {
-		return errs
-	}
+	return nil
+}
 
-	return p.appender.Commit()
+func (p *processor) collectLatencyMetrics(appender storage.Appender, t int64) error {
+	// TODO: iterate only once.
+	for key, count := range p.latencyCount {
+		lbls := p.getLabels(key, "latency_count")
+
+		if _, err := appender.Append(0, lbls, t, count); err != nil {
+			return err
+		}
+	}
+	for key, count := range p.latencySum {
+		lbls := p.getLabels(key, "latency_sum")
+
+		if _, err := appender.Append(0, lbls, t, count); err != nil {
+			return err
+		}
+	}
+	for key, buckets := range p.latencyBucketCounts {
+		lbls := p.getLabels(key, "latency_bucket")
+		for i, count := range buckets {
+			if i < len(p.latencyBuckets) {
+				lbls = append(lbls, labels.Label{Name: "le", Value: strconv.FormatInt(int64(p.latencyBuckets[i]), 10)})
+				if _, err := appender.Append(0, lbls, t, count); err != nil {
+					return err
+				}
+			} else {
+				lbls = append(lbls, labels.Label{Name: "le", Value: "+Inf"})
+				if _, err := appender.Append(0, lbls, t, count); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (p *processor) buildKey(svcName string, span *v1_trace.Span) string {
 	// TODO: add more dimensions
 	key := fmt.Sprintf("%s_%s_%s_%s", svcName, span.Name, span.Kind, span.Status)
-
-	p.cacheLabels(key, svcName, span)
 
 	return key
 }

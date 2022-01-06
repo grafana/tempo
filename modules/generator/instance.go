@@ -47,8 +47,7 @@ func newInstance(instanceID string, overrides *overrides.Overrides, userMetricsR
 
 	// TODO we should build a pipeline based upon the overrides configured
 	// TODO when the overrides change we should update all the processors/the pipeline
-	appender := i.appendable.Appender(context.Background())
-	spanMetricsProcessor := spanmetrics.New(instanceID, appender)
+	spanMetricsProcessor := spanmetrics.New(instanceID, i.appendable)
 
 	i.processors = []processor.Processor{spanMetricsProcessor}
 
