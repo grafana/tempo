@@ -61,6 +61,7 @@ func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
 
 // useGogo checks if the element belongs to Tempo/Cortex/Jaeger packages
 func useGogo(t reflect.Type) bool {
+	pkgPath := t.PkgPath()
 	return t != nil &&
-		(strings.HasPrefix(t.PkgPath(), tempoProtoGenPkgPath) || strings.HasPrefix(t.PkgPath(), cortexPath) || strings.HasPrefix(t.PkgPath(), jaegerProtoGenPkgPath) || strings.HasPrefix(t.PkgPath(), jaegerModelPkgPath))
+		(strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, cortexPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath))
 }
