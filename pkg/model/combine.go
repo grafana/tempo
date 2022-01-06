@@ -38,9 +38,14 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 		return objs[0], false, nil
 	}
 
+	decoder, err := NewDecoder(dataEncoding)
+	if err != nil {
+		return nil, false, fmt.Errorf("error getting decoder: %w", err)
+	}
+
 	var combinedTrace *tempopb.Trace
 	for _, obj := range objs {
-		trace, err := Unmarshal(obj, dataEncoding)
+		trace, err := decoder.Unmarshal(obj)
 		if err != nil {
 			return nil, false, fmt.Errorf("error unmarshaling trace: %w", err)
 		}
@@ -57,7 +62,12 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 }
 
 func CombineToProto(obj []byte, dataEncoding string, trace *tempopb.Trace) (*tempopb.Trace, error) {
-	objTrace, err := Unmarshal(obj, dataEncoding)
+	decoder, err := NewDecoder(dataEncoding)
+	if err != nil {
+		return nil, fmt.Errorf("error getting decoder: %w", err)
+	}
+
+	objTrace, err := decoder.Unmarshal(obj)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling obj (%s): %w", dataEncoding, err)
 	}

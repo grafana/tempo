@@ -21,7 +21,12 @@ func Matches(id []byte, obj []byte, dataEncoding string, req *tempopb.SearchRequ
 	traceStart := uint64(math.MaxUint64)
 	traceEnd := uint64(0)
 
-	trace, err := Unmarshal(obj, dataEncoding)
+	decoder, err := NewDecoder(dataEncoding)
+	if err != nil {
+		return nil, err
+	}
+
+	trace, err := decoder.Unmarshal(obj)
 	if err != nil {
 		return nil, err
 	}

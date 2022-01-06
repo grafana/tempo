@@ -14,19 +14,22 @@ func TestUnmarshal(t *testing.T) {
 	empty := &tempopb.Trace{}
 
 	for _, e := range allEncodings {
+		decoder, err := NewDecoder(e)
+		require.NoError(t, err)
+
 		trace := test.MakeTrace(100, nil)
 		bytes, err := marshal(trace, e)
 		require.NoError(t, err)
 
-		actual, err := Unmarshal(bytes, e)
+		actual, err := decoder.Unmarshal(bytes)
 		require.NoError(t, err)
 		assert.True(t, proto.Equal(trace, actual))
 
-		actual, err = Unmarshal(nil, e)
+		actual, err = decoder.Unmarshal(nil)
 		assert.NoError(t, err)
 		assert.True(t, proto.Equal(empty, actual))
 
-		actual, err = Unmarshal([]byte{}, e)
+		actual, err = decoder.Unmarshal([]byte{})
 		assert.NoError(t, err)
 		assert.True(t, proto.Equal(empty, actual))
 	}

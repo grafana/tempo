@@ -217,7 +217,11 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			var storeTrace *tempopb.Trace
 
 			for i, partialTrace := range partialTraces {
-				t, err := model.Unmarshal(partialTrace, dataEncodings[i])
+				decoder, err := model.NewDecoder(dataEncodings[i])
+				if err != nil {
+					return nil, errors.Wrap(err, "error getting decoder in Querier.FindTraceByID")
+				}
+				t, err := decoder.Unmarshal(partialTrace)
 				if err != nil {
 					return nil, errors.Wrap(err, "error unmarshalling in Querier.FindTraceByID")
 				}

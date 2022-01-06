@@ -10,7 +10,7 @@ import (
 
 // jpe : distributor needs to marshal somehow
 type Decoder interface {
-	ToProto(obj []byte) (*tempopb.Trace, error)
+	Unmarshal(obj []byte) (*tempopb.Trace, error)
 	Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error)
 	Range(obj []byte) (uint32, uint32, error)
 }
@@ -24,4 +24,14 @@ func NewDecoder(dataEncoding string) (Decoder, error) {
 	}
 
 	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, allEncodings)
+}
+
+func MustNewDecoder(dataEncoding string) Decoder {
+	decoder, err := NewDecoder(dataEncoding)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return decoder
 }

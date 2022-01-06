@@ -21,39 +21,6 @@ var allEncodings = []string{
 	tracepb.Encoding,
 }
 
-// Unmarshal converts a byte slice of the passed encoding into a *tempopb.Trace
-func Unmarshal(obj []byte, dataEncoding string) (*tempopb.Trace, error) {
-	trace := &tempopb.Trace{}
-
-	switch dataEncoding {
-	case "":
-		err := proto.Unmarshal(obj, trace)
-		if err != nil {
-			return nil, err
-		}
-	case "v1":
-		traceBytes := &tempopb.TraceBytes{}
-		err := proto.Unmarshal(obj, traceBytes)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, bytes := range traceBytes.Traces {
-			innerTrace := &tempopb.Trace{}
-			err = proto.Unmarshal(bytes, innerTrace)
-			if err != nil {
-				return nil, err
-			}
-
-			trace.Batches = append(trace.Batches, innerTrace.Batches...)
-		}
-	default:
-		return nil, fmt.Errorf("unrecognized dataEncoding in Unmarshal %s", dataEncoding)
-	}
-
-	return trace, nil
-}
-
 // jpe put in decoder?
 // marshal converts a tempopb.Trace into a byte slice encoded using dataEncoding
 func marshal(trace *tempopb.Trace, dataEncoding string) ([]byte, error) {

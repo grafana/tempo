@@ -426,7 +426,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
 		}
 		// jpe liveTrace just happens to be v1.Encoding. we need to make this generic.
-		completeTrace, err = model.Unmarshal(allBytes, v1model.Encoding)
+		completeTrace, err = model.MustNewDecoder(v1model.Encoding).Unmarshal(allBytes)
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
@@ -526,7 +526,7 @@ func (i *instance) resetHeadBlock() error {
 
 	oldHeadBlock := i.headBlock
 	var err error
-	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
+	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding) // jpe remove and kill CurrentEncoding?
 	if err != nil {
 		return err
 	}

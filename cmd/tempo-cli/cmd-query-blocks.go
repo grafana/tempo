@@ -156,7 +156,7 @@ func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, bloc
 		return nil, nil
 	}
 
-	trace, err := model.Unmarshal(obj, meta.DataEncoding)
+	trace, err := model.MustNewDecoder(meta.DataEncoding).Unmarshal(obj)
 	if err != nil {
 		return nil, err
 	}
