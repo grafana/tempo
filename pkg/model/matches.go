@@ -2,6 +2,7 @@ package model
 
 import (
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -103,18 +104,35 @@ func Matches(id []byte, obj []byte, dataEncoding string, req *tempopb.SearchRequ
 	}, nil
 }
 
-// todo: support more attribute types. currently only string is supported
+// searchAttributes returns true if the tags passed are contained in the atts slice
 func searchAttributes(tags map[string]string, atts []*v1common.KeyValue) bool {
 	for _, a := range atts {
-		var v string
+		var searchString string
 		var ok bool
 
-		if v, ok = tags[a.Key]; !ok {
+		if searchString, ok = tags[a.Key]; !ok {
 			continue
 		}
 
-		if strings.Contains(a.Value.GetStringValue(), v) {
-			return true
+		// todo: support AnyValue_ArrayValue and AnyValue_KvlistValue
+		switch v := a.Value.Value.(type) {
+		case *v1common.AnyValue_StringValue:
+			return strings.Contains(v.StringValue, searchString)
+		case *v1common.AnyValue_IntValue:
+			n, err := strconv.ParseInt(searchString, 10, 64)
+			if err == nil {
+				return v.IntValue == n
+			}
+		case *v1common.AnyValue_DoubleValue:
+			f, err := strconv.ParseFloat(searchString, 64)
+			if err == nil {
+				return v.DoubleValue == f
+			}
+		case *v1common.AnyValue_BoolValue:
+			b, err := strconv.ParseBool(searchString)
+			if err == nil {
+				return v.BoolValue == b
+			}
 		}
 	}
 

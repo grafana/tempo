@@ -36,6 +36,18 @@ func TestMatches(t *testing.T) {
 										Key:   "foo",
 										Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "barricus"}},
 									},
+									{
+										Key:   "intfoo",
+										Value: &v1common.AnyValue{Value: &v1common.AnyValue_IntValue{IntValue: 42}},
+									},
+									{
+										Key:   "floatfoo",
+										Value: &v1common.AnyValue{Value: &v1common.AnyValue_DoubleValue{DoubleValue: 42.42}},
+									},
+									{
+										Key:   "boolfoo",
+										Value: &v1common.AnyValue{Value: &v1common.AnyValue_BoolValue{BoolValue: true}},
+									},
 								},
 							},
 						},
@@ -155,7 +167,7 @@ func TestMatches(t *testing.T) {
 			expected: testMetadata,
 		},
 		{
-			name:  "tag excludes",
+			name:  "string tag excludes",
 			trace: testTrace,
 			req: &tempopb.SearchRequest{
 				Start:         12,
@@ -167,7 +179,7 @@ func TestMatches(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name:  "tag includes",
+			name:  "string tag includes",
 			trace: testTrace,
 			req: &tempopb.SearchRequest{
 				Start:         12,
@@ -175,6 +187,78 @@ func TestMatches(t *testing.T) {
 				MaxDurationMs: 10000,
 				MinDurationMs: 5000,
 				Tags:          map[string]string{"foo": "bar"},
+			},
+			expected: testMetadata,
+		},
+		{
+			name:  "int tag excludes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 1,
+				MinDurationMs: 10000,
+				Tags:          map[string]string{"intfoo": "blerg"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "int tag includes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 10000,
+				MinDurationMs: 5000,
+				Tags:          map[string]string{"intfoo": "42"},
+			},
+			expected: testMetadata,
+		},
+		{
+			name:  "float tag excludes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 1,
+				MinDurationMs: 10000,
+				Tags:          map[string]string{"floatfoo": "42.4323"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "float tag includes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 10000,
+				MinDurationMs: 5000,
+				Tags:          map[string]string{"floatfoo": "42.42"},
+			},
+			expected: testMetadata,
+		},
+		{
+			name:  "bool tag excludes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 1,
+				MinDurationMs: 10000,
+				Tags:          map[string]string{"boolfoo": "False"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "bool tag includes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 10000,
+				MinDurationMs: 5000,
+				Tags:          map[string]string{"boolfoo": "true"},
 			},
 			expected: testMetadata,
 		},
