@@ -116,6 +116,8 @@ message PushBytesRequest {
   repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
   // search data, length must match traces
   repeated bytes searchData = 4 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+
+  string dataEncoding = 5;
 }
 
 

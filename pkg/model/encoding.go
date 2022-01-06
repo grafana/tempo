@@ -3,6 +3,8 @@ package model
 import (
 	"fmt"
 
+	"github.com/grafana/tempo/pkg/model/tracepb"
+	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 
 	"github.com/gogo/protobuf/proto"
@@ -11,16 +13,12 @@ import (
 // CurrentEncoding is a string representing the encoding that all new blocks should be created with
 //   "" = tempopb.Trace
 //   "v1" = tempopb.TraceBytes
-const CurrentEncoding = "v1"
-
-// TracePBEncoding is a string that represents the original TracePBEncoding. Pass this if you know that the
-// bytes are encoded *tracepb.Trace
-const TracePBEncoding = ""
+const CurrentEncoding = v1.Encoding
 
 // allEncodings is used for testing
 var allEncodings = []string{
-	CurrentEncoding,
-	TracePBEncoding,
+	v1.Encoding,
+	tracepb.Encoding,
 }
 
 // Unmarshal converts a byte slice of the passed encoding into a *tempopb.Trace
