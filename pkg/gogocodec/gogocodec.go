@@ -1,5 +1,11 @@
 // This is copied over from Jaeger and modified to work for Tempo
 
+// Upgrading to grpc 1.38.0 broke compatibility with gogoproto.customtype. (https://github.com/grpc/grpc-go/issues/4192)
+// We use a customtype in the ingesters to pre-allocate byte slices that are reused for requests.
+// Similarly Jaeger and Cortex use gogo's custom types for efficiency.
+// gogoproto codec is needed only if a custom type (for ex: PreallocBytes) is used directly in a request-response object.
+// The codec defined in this package allows us to choose gogo marshalling/unmarshalling for specific structs (Tempo/Jaeger/Cortex) only.
+
 package gogocodec
 
 import (
@@ -61,7 +67,9 @@ func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
 
 // useGogo checks if the element belongs to Tempo/Cortex/Jaeger packages
 func useGogo(t reflect.Type) bool {
+	if t == nil {
+		return false
+	}
 	pkgPath := t.PkgPath()
-	return t != nil &&
-		(strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, cortexPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath))
+	return (strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, cortexPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath))
 }
