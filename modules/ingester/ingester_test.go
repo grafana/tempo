@@ -19,7 +19,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -75,11 +75,11 @@ func TestFullTraceReturned(t *testing.T) {
 	traceID := make([]byte, 16)
 	_, err = rand.Read(traceID)
 	assert.NoError(t, err)
-	trace := test.MakeTrace(2, traceID) // 2 batches
-	model.SortTrace(trace)
+	testTrace := test.MakeTrace(2, traceID) // 2 batches
+	trace.SortTrace(testTrace)
 
 	// push the first batch
-	pushBatch(t, ingester, trace.Batches[0], traceID)
+	pushBatch(t, ingester, testTrace.Batches[0], traceID)
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -88,14 +88,14 @@ func TestFullTraceReturned(t *testing.T) {
 	}
 
 	// push the 2nd batch
-	pushBatch(t, ingester, trace.Batches[1], traceID)
+	pushBatch(t, ingester, testTrace.Batches[1], traceID)
 
 	// make sure the trace comes back whole
 	foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID: traceID,
 	})
 	assert.NoError(t, err, "unexpected error querying")
-	assert.True(t, proto.Equal(trace, foundTrace.Trace))
+	assert.True(t, proto.Equal(testTrace, foundTrace.Trace))
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -108,7 +108,7 @@ func TestFullTraceReturned(t *testing.T) {
 		TraceID: traceID,
 	})
 	assert.NoError(t, err, "unexpected error querying")
-	assert.True(t, proto.Equal(trace, foundTrace.Trace))
+	assert.True(t, proto.Equal(testTrace, foundTrace.Trace))
 }
 
 func TestDeprecatedPush(t *testing.T) {
@@ -122,11 +122,11 @@ func TestDeprecatedPush(t *testing.T) {
 	traceID := make([]byte, 16)
 	_, err = rand.Read(traceID)
 	assert.NoError(t, err)
-	trace := test.MakeTrace(2, traceID) // 2 batches
-	model.SortTrace(trace)
+	testTrace := test.MakeTrace(2, traceID) // 2 batches
+	trace.SortTrace(testTrace)
 
 	// push the first batch using the deprecated method
-	pushDeprecatedBatch(t, ingester, trace.Batches[0])
+	pushDeprecatedBatch(t, ingester, testTrace.Batches[0])
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -135,14 +135,14 @@ func TestDeprecatedPush(t *testing.T) {
 	}
 
 	// push the 2nd batch
-	pushBatch(t, ingester, trace.Batches[1], traceID)
+	pushBatch(t, ingester, testTrace.Batches[1], traceID)
 
 	// make sure the trace comes back whole
 	foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID: traceID,
 	})
 	assert.NoError(t, err, "unexpected error querying")
-	assert.True(t, proto.Equal(trace, foundTrace.Trace))
+	assert.True(t, proto.Equal(testTrace, foundTrace.Trace))
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -155,7 +155,7 @@ func TestDeprecatedPush(t *testing.T) {
 		TraceID: traceID,
 	})
 	assert.NoError(t, err, "unexpected error querying")
-	assert.True(t, proto.Equal(trace, foundTrace.Trace))
+	assert.True(t, proto.Equal(testTrace, foundTrace.Trace))
 }
 
 func TestWal(t *testing.T) {
@@ -396,10 +396,10 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 		_, err := rand.Read(id)
 		require.NoError(t, err)
 
-		trace := test.MakeTrace(10, id)
-		model.SortTrace(trace)
+		testTrace := test.MakeTrace(10, id)
+		trace.SortTrace(testTrace)
 
-		traces = append(traces, trace)
+		traces = append(traces, testTrace)
 		traceIDs = append(traceIDs, id)
 	}
 

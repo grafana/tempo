@@ -267,10 +267,12 @@ func TestMatches(t *testing.T) {
 	for _, tc := range tests {
 		for _, e := range allEncodings {
 			t.Run(tc.name+":"+e, func(t *testing.T) {
-				obj, err := marshal(tc.trace, e)
+				d := MustNewDecoder(e)
+
+				obj, err := d.Marshal(tc.trace)
 				require.NoError(t, err)
 
-				actual, err := MustNewDecoder(e).Matches([]byte{0x01}, obj, tc.req)
+				actual, err := d.Matches([]byte{0x01}, obj, tc.req)
 				require.NoError(t, err)
 
 				assert.Equal(t, tc.expected, actual)

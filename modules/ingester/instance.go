@@ -22,6 +22,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	v1model "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -89,7 +90,7 @@ var (
 
 type instance struct {
 	tracesMtx   sync.Mutex
-	traces      map[uint32]*trace
+	traces      map[uint32]*liveTrace
 	largeTraces map[uint32]int // maxBytes that trace exceeded
 	traceCount  atomic.Int32
 
@@ -129,7 +130,7 @@ type searchLocalBlockEntry struct {
 
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
-		traces:               map[uint32]*trace{},
+		traces:               map[uint32]*liveTrace{},
 		largeTraces:          map[uint32]int{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
@@ -235,7 +236,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 
 	for _, t := range tracesToCut {
-		model.SortTraceBytes(t.traceBytes)
+		trace.SortTraceBytes(t.traceBytes)
 
 		out, err := proto.Marshal(t.traceBytes)
 		if err != nil {
@@ -492,7 +493,7 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSea
 
 // getOrCreateTrace will return a new trace object for the given request
 //  It must be called under the i.tracesMtx lock
-func (i *instance) getOrCreateTrace(traceID []byte) *trace {
+func (i *instance) getOrCreateTrace(traceID []byte) *liveTrace {
 	fp := i.tokenForTraceID(traceID)
 	trace, ok := i.traces[fp]
 	if ok {
@@ -553,7 +554,7 @@ func (i *instance) resetHeadBlock() error {
 	return nil
 }
 
-func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
+func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrace {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -561,7 +562,7 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	metricLiveTraces.WithLabelValues(i.instanceID).Set(float64(len(i.traces)))
 
 	cutoffTime := time.Now().Add(cutoff)
-	tracesToCut := make([]*trace, 0, len(i.traces))
+	tracesToCut := make([]*liveTrace, 0, len(i.traces))
 
 	for key, trace := range i.traces {
 		if cutoffTime.After(trace.lastAppend) || immediate {

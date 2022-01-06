@@ -3,11 +3,9 @@ package model
 import (
 	"fmt"
 
-	"github.com/grafana/tempo/pkg/model/tracepb"
+	v0 "github.com/grafana/tempo/pkg/model/v0"
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 // CurrentEncoding is a string representing the encoding that all new blocks should be created with
@@ -17,27 +15,36 @@ const CurrentEncoding = v1.Encoding
 
 // allEncodings is used for testing
 var allEncodings = []string{
+	v0.Encoding,
 	v1.Encoding,
-	tracepb.Encoding,
 }
 
-// jpe put in decoder?
-// marshal converts a tempopb.Trace into a byte slice encoded using dataEncoding
-func marshal(trace *tempopb.Trace, dataEncoding string) ([]byte, error) {
+// jpe : distributor needs to marshal somehow
+type Decoder interface {
+	Unmarshal(obj []byte) (*tempopb.Trace, error)
+	Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error)
+	Combine(objs ...[]byte) ([]byte, error) // jpe combine tests?
+	Marshal(t *tempopb.Trace) ([]byte, error)
+	Range(obj []byte) (uint32, uint32, error) // jpe remove for now?
+}
+
+func NewDecoder(dataEncoding string) (Decoder, error) {
 	switch dataEncoding {
-	case "":
-		return proto.Marshal(trace)
-	case "v1":
-		traceBytes := &tempopb.TraceBytes{}
-		bytes, err := proto.Marshal(trace)
-		if err != nil {
-			return nil, err
-		}
-
-		traceBytes.Traces = append(traceBytes.Traces, bytes)
-
-		return proto.Marshal(traceBytes)
-	default:
-		return nil, fmt.Errorf("unrecognized dataEncoding in Unmarshal %s", dataEncoding)
+	case v0.Encoding:
+		return v0.NewDecoder(), nil
+	case v1.Encoding:
+		return v1.NewDecoder(), nil
 	}
+
+	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, allEncodings)
+}
+
+func MustNewDecoder(dataEncoding string) Decoder {
+	decoder, err := NewDecoder(dataEncoding)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return decoder
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/tracepb"
+	v0 "github.com/grafana/tempo/pkg/model/v0"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -250,7 +250,7 @@ func TestSameIDCompaction(t *testing.T) {
 	// and write them to different blocks
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
-		head, err := wal.NewBlock(blockID, testTenantID, tracepb.Encoding)
+		head, err := wal.NewBlock(blockID, testTenantID, v0.Encoding)
 		require.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {
@@ -293,10 +293,10 @@ func TestSameIDCompaction(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 
-		actualBytes, _, err := model.ObjectCombiner.Combine(tracepb.Encoding, b...)
+		actualBytes, _, err := model.ObjectCombiner.Combine(v0.Encoding, b...)
 		require.NoError(t, err)
 
-		expectedBytes, _, err := model.ObjectCombiner.Combine(tracepb.Encoding, allReqs[i]...)
+		expectedBytes, _, err := model.ObjectCombiner.Combine(v0.Encoding, allReqs[i]...)
 		require.NoError(t, err)
 
 		assert.Equal(t, expectedBytes, actualBytes)

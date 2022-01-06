@@ -1,8 +1,10 @@
 package v1
 
 import (
+	"fmt"
+
 	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/tempo/pkg/model/tracepb"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -38,14 +40,45 @@ func (d *Decoder) Unmarshal(obj []byte) (*tempopb.Trace, error) {
 }
 
 func (d *Decoder) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
-	trace, err := d.Unmarshal(obj)
+	t, err := d.Unmarshal(obj)
 	if err != nil {
 		return nil, err
 	}
 
-	return tracepb.MatchesProto(id, trace, req)
+	return trace.MatchesProto(id, t, req)
 }
 
 func (d *Decoder) Range(obj []byte) (uint32, uint32, error) {
 	return 0, 0, nil // jpe unsupported
+}
+
+func (d *Decoder) Combine(objs ...[]byte) ([]byte, error) {
+	var combinedTrace *tempopb.Trace
+	for _, obj := range objs {
+		t, err := d.Unmarshal(obj)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
+		}
+
+		combinedTrace, _, _, _ = trace.CombineTraceProtos(combinedTrace, t)
+	}
+
+	combinedBytes, err := d.Marshal(combinedTrace)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling combinedBytes: %w", err)
+	}
+
+	return combinedBytes, nil
+}
+
+func (d *Decoder) Marshal(t *tempopb.Trace) ([]byte, error) {
+	traceBytes := &tempopb.TraceBytes{}
+	bytes, err := proto.Marshal(t)
+	if err != nil {
+		return nil, err
+	}
+
+	traceBytes.Traces = append(traceBytes.Traces, bytes)
+
+	return proto.Marshal(traceBytes)
 }

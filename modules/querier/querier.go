@@ -24,7 +24,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/tracepb"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
@@ -184,9 +184,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		for _, r := range responses {
-			trace := r.response.(*tempopb.TraceByIDResponse).Trace
-			if trace != nil {
-				completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, trace)
+			t := r.response.(*tempopb.TraceByIDResponse).Trace
+			if t != nil {
+				completeTrace, _, _, spanCount = trace.CombineTraceProtos(completeTrace, t)
 				spanCountTotal += spanCount
 				traceCountTotal++
 			}
@@ -227,10 +227,10 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 					return nil, errors.Wrap(err, "error unmarshalling in Querier.FindTraceByID")
 				}
 
-				storeTrace, _, _, _ = model.CombineTraceProtos(t, storeTrace)
+				storeTrace, _, _, _ = trace.CombineTraceProtos(t, storeTrace) // jpe use decoder to combine?
 			}
 
-			completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, storeTrace)
+			completeTrace, _, _, spanCount = trace.CombineTraceProtos(completeTrace, storeTrace)
 			spanCountTotal += spanCount
 			traceCountTotal++
 
@@ -495,7 +495,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 
 	for _, t := range traces {
 		if t.RootServiceName == "" {
-			t.RootServiceName = tracepb.RootSpanNotYetReceivedText
+			t.RootServiceName = trace.RootSpanNotYetReceivedText
 		}
 		response.Traces = append(response.Traces, t)
 	}

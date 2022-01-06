@@ -12,6 +12,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -110,8 +111,8 @@ func TestReturnAllHits(t *testing.T) {
 	require.Len(t, foundBytes, 2)
 
 	// expected trace
-	expectedTrace, _, _, _ := model.CombineTraceProtos(testTraces[0], testTraces[1])
-	model.SortTrace(expectedTrace)
+	expectedTrace, _, _, _ := trace.CombineTraceProtos(testTraces[0], testTraces[1])
+	trace.SortTrace(expectedTrace)
 
 	// actual trace
 	actualTraceBytes, _, err := model.ObjectCombiner.Combine("", foundBytes...)
@@ -120,6 +121,6 @@ func TestReturnAllHits(t *testing.T) {
 	err = proto.Unmarshal(actualTraceBytes, actualTrace)
 	assert.NoError(t, err)
 
-	model.SortTrace(actualTrace)
+	trace.SortTrace(actualTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }

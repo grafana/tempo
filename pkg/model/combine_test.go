@@ -2,10 +2,10 @@ package model
 
 import (
 	"fmt"
-	"hash/fnv"
 	"math/rand"
 	"testing"
 
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
@@ -16,8 +16,8 @@ func TestCombine(t *testing.T) {
 	t1 := test.MakeTrace(10, []byte{0x01, 0x02})
 	t2 := test.MakeTrace(10, []byte{0x01, 0x03})
 
-	SortTrace(t1)
-	SortTrace(t2)
+	trace.SortTrace(t1)
+	trace.SortTrace(t2)
 
 	// split t2 into two traces
 	t2a := &tempopb.Trace{}
@@ -144,7 +144,7 @@ func TestCombineProtos(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		_, actualA, actualB, actualTotal := CombineTraceProtos(tt.traceA, tt.traceB)
+		_, actualA, actualB, actualTotal := trace.CombineTraceProtos(tt.traceA, tt.traceB)
 
 		assert.Equal(t, tt.expectedA, actualA)
 		assert.Equal(t, tt.expectedB, actualB)
@@ -162,25 +162,15 @@ func BenchmarkCombineTraceProtos(b *testing.B) {
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				CombineTraceProtos(t1, t2)
+				trace.CombineTraceProtos(t1, t2)
 			}
 		})
 	}
 }
 
-func BenchmarkTokenForID(b *testing.B) {
-	h := fnv.New32()
-	id := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
-	buffer := make([]byte, 4)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = tokenForID(h, buffer, 0, id)
-	}
-}
-
 func mustMarshal(trace *tempopb.Trace, encoding string) []byte {
-	b, err := marshal(trace, encoding)
+	d := MustNewDecoder(encoding)
+	b, err := d.Marshal(trace)
 	if err != nil {
 		panic(err)
 	}
