@@ -60,8 +60,7 @@ func CombineToProto(obj []byte, dataEncoding string, t *tempopb.Trace) (*tempopb
 		return nil, fmt.Errorf("error unmarshalling obj (%s): %w", dataEncoding, err)
 	}
 
-	// jpe rename CombineTraceProtos. are these int returns in use anywher?
-	combined, _, _, _ := trace.CombineTraceProtos(objTrace, t)
+	combined, _ := trace.CombineTraceProtos(objTrace, t)
 
 	return combined, nil
 }

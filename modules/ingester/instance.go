@@ -23,7 +23,6 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
-	v1model "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/validation"
@@ -426,8 +425,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
 		}
-		// jpe liveTrace just happens to be v1.Encoding. we need to make this generic.
-		completeTrace, err = model.MustNewDecoder(v1model.Encoding).Unmarshal(allBytes)
+		completeTrace, err = model.MustNewDecoder(model.CurrentEncoding).Unmarshal(allBytes)
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
@@ -527,7 +525,7 @@ func (i *instance) resetHeadBlock() error {
 
 	oldHeadBlock := i.headBlock
 	var err error
-	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding) // jpe remove and kill CurrentEncoding?
+	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
 	if err != nil {
 		return err
 	}

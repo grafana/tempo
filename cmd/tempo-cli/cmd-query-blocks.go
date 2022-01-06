@@ -64,7 +64,7 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 
 		fmt.Println(jsonBytes.String())
 		jsonBytes.Reset()
-		combinedTrace, _, _, _ = trace.CombineTraceProtos(result.trace, combinedTrace)
+		combinedTrace, _ = trace.CombineTraceProtos(result.trace, combinedTrace)
 	}
 
 	fmt.Println("combined:")

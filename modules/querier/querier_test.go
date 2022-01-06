@@ -111,7 +111,7 @@ func TestReturnAllHits(t *testing.T) {
 	require.Len(t, foundBytes, 2)
 
 	// expected trace
-	expectedTrace, _, _, _ := trace.CombineTraceProtos(testTraces[0], testTraces[1])
+	expectedTrace, _ := trace.CombineTraceProtos(testTraces[0], testTraces[1])
 	trace.SortTrace(expectedTrace)
 
 	// actual trace

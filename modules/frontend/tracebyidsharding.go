@@ -139,7 +139,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// happy path
 			statusCode = http.StatusOK
-			overallTrace, _, _, _ = trace.CombineTraceProtos(overallTrace, traceResp.Trace)
+			overallTrace, _ = trace.CombineTraceProtos(overallTrace, traceResp.Trace)
 		}(req)
 	}
 	wg.Wait()

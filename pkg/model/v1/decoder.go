@@ -48,10 +48,6 @@ func (d *Decoder) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*t
 	return trace.MatchesProto(id, t, req)
 }
 
-func (d *Decoder) Range(obj []byte) (uint32, uint32, error) {
-	return 0, 0, nil // jpe unsupported
-}
-
 func (d *Decoder) Combine(objs ...[]byte) ([]byte, error) {
 	var combinedTrace *tempopb.Trace
 	for _, obj := range objs {
@@ -60,7 +56,7 @@ func (d *Decoder) Combine(objs ...[]byte) ([]byte, error) {
 			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
 		}
 
-		combinedTrace, _, _, _ = trace.CombineTraceProtos(combinedTrace, t)
+		combinedTrace, _ = trace.CombineTraceProtos(combinedTrace, t)
 	}
 
 	combinedBytes, err := d.Marshal(combinedTrace)

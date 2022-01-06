@@ -19,13 +19,11 @@ var allEncodings = []string{
 	v1.Encoding,
 }
 
-// jpe : distributor needs to marshal somehow
 type Decoder interface {
 	Unmarshal(obj []byte) (*tempopb.Trace, error)
 	Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error)
 	Combine(objs ...[]byte) ([]byte, error) // jpe combine tests?
 	Marshal(t *tempopb.Trace) ([]byte, error)
-	Range(obj []byte) (uint32, uint32, error) // jpe remove for now?
 }
 
 func NewDecoder(dataEncoding string) (Decoder, error) {

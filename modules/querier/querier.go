@@ -186,7 +186,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		for _, r := range responses {
 			t := r.response.(*tempopb.TraceByIDResponse).Trace
 			if t != nil {
-				completeTrace, _, _, spanCount = trace.CombineTraceProtos(completeTrace, t)
+				completeTrace, spanCount = trace.CombineTraceProtos(completeTrace, t)
 				spanCountTotal += spanCount
 				traceCountTotal++
 			}
@@ -227,10 +227,10 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 					return nil, errors.Wrap(err, "error unmarshalling in Querier.FindTraceByID")
 				}
 
-				storeTrace, _, _, _ = trace.CombineTraceProtos(t, storeTrace) // jpe use decoder to combine?
+				storeTrace, _ = trace.CombineTraceProtos(t, storeTrace)
 			}
 
-			completeTrace, _, _, spanCount = trace.CombineTraceProtos(completeTrace, storeTrace)
+			completeTrace, spanCount = trace.CombineTraceProtos(completeTrace, storeTrace)
 			spanCountTotal += spanCount
 			traceCountTotal++
 
