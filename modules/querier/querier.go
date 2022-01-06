@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/tracepb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
@@ -433,13 +434,18 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
+	decoder, err := model.NewDecoder(req.DataEncoding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
+	}
+
 	err = q.store.IterateObjects(ctx, meta, int(req.StartPage), int(req.PagesToSearch), func(id common.ID, obj []byte) bool {
 		respMtx.Lock()
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 		respMtx.Unlock()
 
-		metadata, err := model.Matches(id, obj, req.DataEncoding, req.SearchReq)
+		metadata, err := decoder.Matches(id, obj, req.SearchReq)
 
 		respMtx.Lock()
 		defer respMtx.Unlock()
@@ -489,7 +495,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 
 	for _, t := range traces {
 		if t.RootServiceName == "" {
-			t.RootServiceName = model.RootSpanNotYetReceivedText
+			t.RootServiceName = tracepb.RootSpanNotYetReceivedText
 		}
 		response.Traces = append(response.Traces, t)
 	}
