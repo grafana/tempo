@@ -218,16 +218,10 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			var storeTrace *tempopb.Trace
 
 			for i, partialTrace := range partialTraces {
-				decoder, err := model.NewDecoder(dataEncodings[i])
+				storeTrace, err = model.CombineWithProto(partialTrace, dataEncodings[i], storeTrace)
 				if err != nil {
-					return nil, errors.Wrap(err, "error getting decoder in Querier.FindTraceByID")
+					return nil, errors.Wrap(err, "error combining in Querier.FindTraceByID")
 				}
-				t, err := decoder.Unmarshal(partialTrace)
-				if err != nil {
-					return nil, errors.Wrap(err, "error unmarshalling in Querier.FindTraceByID")
-				}
-
-				storeTrace, _ = trace.CombineTraceProtos(t, storeTrace)
 			}
 
 			completeTrace, spanCount = trace.CombineTraceProtos(completeTrace, storeTrace)
@@ -434,7 +428,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
-	decoder, err := model.NewDecoder(req.DataEncoding)
+	encoding, err := model.NewEncoding(req.DataEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
 	}
@@ -445,7 +439,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 		respMtx.Unlock()
 
-		metadata, err := decoder.Matches(id, obj, req.SearchReq)
+		metadata, err := encoding.Matches(id, obj, req.SearchReq)
 
 		respMtx.Lock()
 		defer respMtx.Unlock()

@@ -10,26 +10,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMarshalUnmarshal(t *testing.T) { // jpe expand
+func TestMarshalUnmarshal(t *testing.T) {
 	empty := &tempopb.Trace{}
 
 	for _, e := range allEncodings {
-		decoder, err := NewDecoder(e)
+		encoding, err := NewEncoding(e)
 		require.NoError(t, err)
 
+		// random trace
 		trace := test.MakeTrace(100, nil)
-		bytes, err := decoder.Marshal(trace)
+		bytes, err := encoding.Marshal(trace)
 		require.NoError(t, err)
 
-		actual, err := decoder.Unmarshal(bytes)
+		actual, err := encoding.Unmarshal(bytes)
 		require.NoError(t, err)
 		assert.True(t, proto.Equal(trace, actual))
 
-		actual, err = decoder.Unmarshal(nil)
+		// nil trace
+		actual, err = encoding.Unmarshal(nil)
 		assert.NoError(t, err)
 		assert.True(t, proto.Equal(empty, actual))
 
-		actual, err = decoder.Unmarshal([]byte{})
+		// empty byte slice
+		actual, err = encoding.Unmarshal([]byte{})
 		assert.NoError(t, err)
 		assert.True(t, proto.Equal(empty, actual))
 	}

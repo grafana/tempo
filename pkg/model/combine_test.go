@@ -102,43 +102,6 @@ func TestCombine(t *testing.T) {
 	}
 }
 
-// logic of actually combining traces should be tested above.  focusing on the spancounts here
-func TestCombineProtos(t *testing.T) {
-	sameTrace := test.MakeTraceWithSpanCount(10, 10, []byte{0x01, 0x03})
-
-	tests := []struct {
-		traceA        *tempopb.Trace
-		traceB        *tempopb.Trace
-		expectedTotal int
-	}{
-		{
-			traceA:        nil,
-			traceB:        test.MakeTraceWithSpanCount(10, 10, []byte{0x01, 0x03}),
-			expectedTotal: -1,
-		},
-		{
-			traceA:        test.MakeTraceWithSpanCount(10, 10, []byte{0x01, 0x03}),
-			traceB:        nil,
-			expectedTotal: -1,
-		},
-		{
-			traceA:        test.MakeTraceWithSpanCount(10, 10, []byte{0x01, 0x03}),
-			traceB:        test.MakeTraceWithSpanCount(10, 10, []byte{0x01, 0x01}),
-			expectedTotal: 200,
-		},
-		{
-			traceA:        sameTrace,
-			traceB:        sameTrace,
-			expectedTotal: 100,
-		},
-	}
-
-	for _, tt := range tests {
-		_, actualTotal := trace.CombineTraceProtos(tt.traceA, tt.traceB)
-		assert.Equal(t, tt.expectedTotal, actualTotal)
-	}
-}
-
 func BenchmarkCombineTraceProtos(b *testing.B) {
 	sizes := []int{1, 10, 1000, 10000, 100000}
 
@@ -156,7 +119,7 @@ func BenchmarkCombineTraceProtos(b *testing.B) {
 }
 
 func mustMarshal(trace *tempopb.Trace, encoding string) []byte {
-	d := MustNewDecoder(encoding)
+	d := MustNewEncoding(encoding)
 	b, err := d.Marshal(trace)
 	if err != nil {
 		panic(err)

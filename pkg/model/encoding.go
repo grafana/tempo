@@ -19,26 +19,26 @@ var allEncodings = []string{
 	v1.Encoding,
 }
 
-type Decoder interface {
+type Encoding interface {
 	Unmarshal(obj []byte) (*tempopb.Trace, error)
-	Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error)
-	Combine(objs ...[]byte) ([]byte, error) // jpe combine tests?
 	Marshal(t *tempopb.Trace) ([]byte, error)
+	Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error)
+	Combine(objs ...[]byte) ([]byte, error)
 }
 
-func NewDecoder(dataEncoding string) (Decoder, error) {
+func NewEncoding(dataEncoding string) (Encoding, error) {
 	switch dataEncoding {
 	case v0.Encoding:
-		return v0.NewDecoder(), nil
+		return v0.NewEncoding(), nil
 	case v1.Encoding:
-		return v1.NewDecoder(), nil
+		return v1.NewEncoding(), nil
 	}
 
 	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, allEncodings)
 }
 
-func MustNewDecoder(dataEncoding string) Decoder {
-	decoder, err := NewDecoder(dataEncoding)
+func MustNewEncoding(dataEncoding string) Encoding {
+	decoder, err := NewEncoding(dataEncoding)
 
 	if err != nil {
 		panic(err)

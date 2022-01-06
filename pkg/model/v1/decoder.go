@@ -10,16 +10,16 @@ import (
 
 const Encoding = "v1"
 
-type Decoder struct {
+type enc struct {
 }
 
-var decoder = &Decoder{}
+var staticEncoding = &enc{}
 
-func NewDecoder() *Decoder {
-	return decoder
+func NewEncoding() *enc {
+	return staticEncoding
 }
 
-func (d *Decoder) Unmarshal(obj []byte) (*tempopb.Trace, error) {
+func (d *enc) Unmarshal(obj []byte) (*tempopb.Trace, error) {
 	trace := &tempopb.Trace{}
 	traceBytes := &tempopb.TraceBytes{}
 	err := proto.Unmarshal(obj, traceBytes)
@@ -39,7 +39,7 @@ func (d *Decoder) Unmarshal(obj []byte) (*tempopb.Trace, error) {
 	return trace, err
 }
 
-func (d *Decoder) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
+func (d *enc) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
 	t, err := d.Unmarshal(obj)
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func (d *Decoder) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*t
 	return trace.MatchesProto(id, t, req)
 }
 
-func (d *Decoder) Combine(objs ...[]byte) ([]byte, error) {
+func (d *enc) Combine(objs ...[]byte) ([]byte, error) {
 	var combinedTrace *tempopb.Trace
 	for _, obj := range objs {
 		t, err := d.Unmarshal(obj)
@@ -67,7 +67,7 @@ func (d *Decoder) Combine(objs ...[]byte) ([]byte, error) {
 	return combinedBytes, nil
 }
 
-func (d *Decoder) Marshal(t *tempopb.Trace) ([]byte, error) {
+func (d *enc) Marshal(t *tempopb.Trace) ([]byte, error) {
 	traceBytes := &tempopb.TraceBytes{}
 	bytes, err := proto.Marshal(t)
 	if err != nil {

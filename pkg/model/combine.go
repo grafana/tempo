@@ -36,12 +36,12 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 		return objs[0], false, nil
 	}
 
-	decoder, err := NewDecoder(dataEncoding)
+	encoding, err := NewEncoding(dataEncoding)
 	if err != nil {
 		return nil, false, fmt.Errorf("error getting decoder: %w", err)
 	}
 
-	combinedBytes, err := decoder.Combine(objs...)
+	combinedBytes, err := encoding.Combine(objs...)
 	if err != nil {
 		return nil, false, fmt.Errorf("error combining: %w", err)
 	}
@@ -49,13 +49,13 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 	return combinedBytes, true, nil
 }
 
-func CombineToProto(obj []byte, dataEncoding string, t *tempopb.Trace) (*tempopb.Trace, error) {
-	decoder, err := NewDecoder(dataEncoding)
+func CombineWithProto(obj []byte, dataEncoding string, t *tempopb.Trace) (*tempopb.Trace, error) {
+	encoding, err := NewEncoding(dataEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("error getting decoder: %w", err)
 	}
 
-	objTrace, err := decoder.Unmarshal(obj)
+	objTrace, err := encoding.Unmarshal(obj)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling obj (%s): %w", dataEncoding, err)
 	}

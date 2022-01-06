@@ -425,7 +425,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
 		}
-		completeTrace, err = model.MustNewDecoder(model.CurrentEncoding).Unmarshal(allBytes)
+		completeTrace, err = model.MustNewEncoding(model.CurrentEncoding).Unmarshal(allBytes)
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
@@ -441,7 +441,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
 	}
-	completeTrace, err = model.CombineToProto(foundBytes, i.headBlock.Meta().DataEncoding, completeTrace)
+	completeTrace, err = model.CombineWithProto(foundBytes, i.headBlock.Meta().DataEncoding, completeTrace)
 	if err != nil {
 		return nil, fmt.Errorf("headblock unmarshal failed in FindTraceByID")
 	}
@@ -452,7 +452,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
 		}
-		completeTrace, err = model.CombineToProto(foundBytes, c.Meta().DataEncoding, completeTrace)
+		completeTrace, err = model.CombineWithProto(foundBytes, c.Meta().DataEncoding, completeTrace)
 		if err != nil {
 			return nil, fmt.Errorf("completingBlocks combine failed in FindTraceByID")
 		}
@@ -464,7 +464,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
 		}
-		completeTrace, err = model.CombineToProto(foundBytes, c.BlockMeta().DataEncoding, completeTrace)
+		completeTrace, err = model.CombineWithProto(foundBytes, c.BlockMeta().DataEncoding, completeTrace)
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock combine failed in FindTraceByID")
 		}
