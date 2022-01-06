@@ -118,6 +118,7 @@ func BenchmarkCombineTraceProtos(b *testing.B) {
 	}
 }
 
+// nolint:unparam
 func mustMarshal(trace *tempopb.Trace, encoding string) []byte {
 	d := MustNewEncoding(encoding)
 	b, err := d.Marshal(trace)
