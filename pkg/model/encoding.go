@@ -20,12 +20,17 @@ var allEncodings = []string{
 }
 
 type Encoding interface {
+	// Unmarshal the byte slice to a tempopb trace
 	Unmarshal(obj []byte) (*tempopb.Trace, error)
+	// Marshal a tempopb.Trace to a byte slice
 	Marshal(t *tempopb.Trace) ([]byte, error)
+	// Matches tests the passed byte slice and id to determine if it matches the criteria in tempopb.SearchRequest
 	Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error)
+	// Combine combines the passed byte slice
 	Combine(objs ...[]byte) ([]byte, error)
 }
 
+// NewEncoding returns an Encoding given the passed string.
 func NewEncoding(dataEncoding string) (Encoding, error) {
 	switch dataEncoding {
 	case v0.Encoding:
@@ -37,6 +42,7 @@ func NewEncoding(dataEncoding string) (Encoding, error) {
 	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, allEncodings)
 }
 
+// MustNewEncoding creates a new encoding or it panics
 func MustNewEncoding(dataEncoding string) Encoding {
 	decoder, err := NewEncoding(dataEncoding)
 
