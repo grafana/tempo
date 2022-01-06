@@ -214,21 +214,15 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		if len(partialTraces) != 0 {
 			traceCountTotal = 0
 			spanCountTotal = 0
-			// combine partialTraces
-			var allBytes []byte
-			baseEncoding := dataEncodings[0] // just arbitrarily choose an encoding. generally they will all be the same
-			for i, partialTrace := range partialTraces {
-				dataEncoding := dataEncodings[i]
-				allBytes, _, err = model.CombineTraceBytes(allBytes, partialTrace, baseEncoding, dataEncoding)
-				if err != nil {
-					return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
-				}
-			}
+			var storeTrace *tempopb.Trace
 
-			// marshal to proto and add to completeTrace
-			storeTrace, err := model.Unmarshal(allBytes, baseEncoding)
-			if err != nil {
-				return nil, errors.Wrap(err, "error unmarshaling combined trace in Querier.FindTraceByID")
+			for i, partialTrace := range partialTraces {
+				t, err := model.Unmarshal(partialTrace, dataEncodings[i])
+				if err != nil {
+					return nil, errors.Wrap(err, "error unmarshalling in Querier.FindTraceByID")
+				}
+
+				storeTrace, _, _, _ = model.CombineTraceProtos(t, storeTrace)
 			}
 
 			completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, storeTrace)

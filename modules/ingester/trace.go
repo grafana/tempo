@@ -45,6 +45,7 @@ func newTrace(traceID []byte, maxBytes int, maxSearchBytes int) *trace {
 	}
 }
 
+// jpe add Compact function to call before writing to a block?
 func (t *trace) Push(_ context.Context, instanceID string, trace []byte, searchData []byte) error {
 	t.lastAppend = time.Now()
 	if t.maxBytes != 0 {

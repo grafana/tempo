@@ -56,43 +56,16 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 	return combinedBytes, true, nil
 }
 
-// CombineTraceBytes combines objA and objB encoded using dataEncodingA and dataEncodingB and returns a trace encoded with dataEncodingA
-func CombineTraceBytes(objA []byte, objB []byte, dataEncodingA string, dataEncodingB string) (_ []byte, wasCombined bool, _ error) {
-	// if the byte arrays are the same, we can return quickly
-	if bytes.Equal(objA, objB) {
-		return objA, false, nil
-	}
-	if objB == nil {
-		return objA, false, nil
-	}
-
-	// bytes differ.  unmarshal and combine traces
-	traceA, errA := Unmarshal(objA, dataEncodingA)
-	traceB, errB := Unmarshal(objB, dataEncodingB)
-
-	// if we had problems unmarshaling one or the other, return the one that marshalled successfully
-	if errA != nil && errB == nil {
-		if dataEncodingA != dataEncodingB {
-			// have to convert objB to dataEncodingA
-			bytes, _ := marshal(traceB, dataEncodingA)
-			return bytes, false, fmt.Errorf("error unsmarshaling objA (%s): %w", dataEncodingA, errA)
-		}
-		return objB, false, fmt.Errorf("error unsmarshaling objA (%s): %w", dataEncodingA, errA)
-	} else if errB != nil && errA == nil {
-		return objA, false, fmt.Errorf("error unsmarshaling objB (%s): %w", dataEncodingB, errB)
-	} else if errA != nil && errB != nil {
-		// if both failed let's send back an empty trace
-		bytes, _ := marshal(&tempopb.Trace{}, dataEncodingA)
-		return bytes, false, fmt.Errorf("both A (%s) and B (%s) failed to unmarshal. returning an empty trace", dataEncodingA, dataEncodingB)
-	}
-
-	traceComplete, _, _, _ := CombineTraceProtos(traceA, traceB)
-
-	bytes, err := marshal(traceComplete, dataEncodingA)
+func CombineToProto(obj []byte, dataEncoding string, trace *tempopb.Trace) (*tempopb.Trace, error) {
+	objTrace, err := Unmarshal(obj, dataEncoding)
 	if err != nil {
-		return objA, true, errors.Wrap(err, "marshalling the combine trace threw an error")
+		return nil, fmt.Errorf("error unmarshalling obj (%s): %w", dataEncoding, err)
 	}
-	return bytes, true, nil
+
+	// jpe rename CombineTraceProtos. are these int returns in use anywher?
+	combined, _, _, _ := CombineTraceProtos(objTrace, trace)
+
+	return combined, nil
 }
 
 // CombineTraceProtos combines two trace protos into one.  Note that it is destructive.

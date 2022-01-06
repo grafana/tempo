@@ -329,7 +329,7 @@ func TestFlush(t *testing.T) {
 			TraceID: traceID,
 		})
 		require.NoError(t, err, "unexpected error querying")
-		require.Equal(t, foundTrace.Trace, traces[pos])
+		require.Equal(t, traces[pos], foundTrace.Trace)
 	}
 
 	// stopping the ingester should force cut all live traces to disk

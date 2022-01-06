@@ -54,6 +54,7 @@ func Unmarshal(obj []byte, dataEncoding string) (*tempopb.Trace, error) {
 	return trace, nil
 }
 
+// jpe put in decoder?
 // marshal converts a tempopb.Trace into a byte slice encoded using dataEncoding
 func marshal(trace *tempopb.Trace, dataEncoding string) ([]byte, error) {
 	switch dataEncoding {

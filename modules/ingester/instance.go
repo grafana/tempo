@@ -22,6 +22,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
+	v1model "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/validation"
@@ -414,15 +415,21 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace, error) {
 	var err error
-	var allBytes []byte
+	var completeTrace *tempopb.Trace
 
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
-		allBytes, err = proto.Marshal(liveTrace.traceBytes)
+		allBytes, err := proto.Marshal(liveTrace.traceBytes)
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
+		}
+		// jpe liveTrace just happens to be v1.Encoding. we need to make this generic.
+		completeTrace, err = model.Unmarshal(allBytes, v1model.Encoding)
+		if err != nil {
+			i.tracesMtx.Unlock()
+			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
 		}
 	}
 	i.tracesMtx.Unlock()
@@ -435,9 +442,9 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
 	}
-	allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, i.headBlock.Meta().DataEncoding)
+	completeTrace, err = model.CombineToProto(foundBytes, i.headBlock.Meta().DataEncoding, completeTrace)
 	if err != nil {
-		return nil, fmt.Errorf("post headBlock combine failed: %w", err)
+		return nil, fmt.Errorf("headblock unmarshal failed in FindTraceByID")
 	}
 
 	// completingBlock
@@ -446,9 +453,9 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
 		}
-		allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, c.Meta().DataEncoding)
+		completeTrace, err = model.CombineToProto(foundBytes, c.Meta().DataEncoding, completeTrace)
 		if err != nil {
-			return nil, fmt.Errorf("post completingBlocks combine failed: %w", err)
+			return nil, fmt.Errorf("completingBlocks combine failed in FindTraceByID")
 		}
 	}
 
@@ -458,23 +465,13 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
 		}
-		allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, c.BlockMeta().DataEncoding)
+		completeTrace, err = model.CombineToProto(foundBytes, c.BlockMeta().DataEncoding, completeTrace)
 		if err != nil {
-			return nil, fmt.Errorf("post completeBlocks combine failed: %w", err)
+			return nil, fmt.Errorf("completeBlock combine failed in FindTraceByID")
 		}
 	}
 
-	// now marshal it all
-	if allBytes != nil {
-		out, err := model.Unmarshal(allBytes, model.CurrentEncoding)
-		if err != nil {
-			return nil, err
-		}
-
-		return out, nil
-	}
-
-	return nil, nil
+	return completeTrace, nil
 }
 
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
