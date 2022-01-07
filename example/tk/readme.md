@@ -25,7 +25,7 @@ If you wish to use a local image, you can import these into k3d
 k3d image import grafana/tempo:latest --cluster tempo
 ```
 
-Next either deploy the microservices or the single binary.
+Next either deploy the microservices or the single binary. You can also use tanka [inline environments](https://tanka.dev/inline-environments) to deploy Tempo with either of the two.
 
 ### Microservices
 The microservices deploy of Tempo is fault tolerant, high volume, independently scalable.  This jsonnet is in use by
@@ -44,6 +44,38 @@ store them in an S3 or GCS bucket.  See configuration docs or some of the other 
 # double check you're applying to your local k3d before running this!
 tk apply tempo-single-binary
 ```
+
+### Inline environments
+Tanka [inline environments](https://tanka.dev/inline-environments) allow to programmatically create Tanka environments which are based on either of the two deployments modes described before and which can be then completely customized according to the needs.
+
+The [cluster.libsonnet](./inline/clusters.libsonnet) file can be used to specify the deployment mode to use just by changing this line:
+```
+    local tempo = import '../tempo-microservices/main.jsonnet',
+```
+The above example is for [Microservices](#microservices).
+
+Then the:
+```
+    dataOverride: {
+```
+section can be used to override anything inside Tempo's deployment.
+
+The following is an example of how to override Tempo's `_config`:
+```json
+
+dataOverride: {
+    _config+:: {
+        ingester+: {
+            pvc_size: '15Gi',
+            pvc_storage_class: 'my-storage-class',
+        },
+    },
+},
+```
+
+The very same approach can be used to add new resources to deploy along with Tempo, they just have to be added in the `dataOverride` object.
+
+This allow the creation of multiple environments with their related customizations in a single point and also allows to reuse the already existing Single Binary and Microservices environments as a "starting point".
 
 ### Search traces
 
