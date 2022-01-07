@@ -8,8 +8,8 @@
           "subdir": "grafana"
         }
       },
-      "version": "c4975f7c4a7ab4c21020c4afbf247aa49142174d",
-      "sum": "BHvjNVA6foCySv2Rz6EY+miuwdGnsQxkqaOsZJYAi30="
+      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
+      "sum": "7rANfqY8ERvoABHbwoGsdGpUeHxxYCSVOcM4Eky4QtQ="
     },
     {
       "source": {
@@ -18,8 +18,8 @@
           "subdir": "grafana-builder"
         }
       },
-      "version": "c4975f7c4a7ab4c21020c4afbf247aa49142174d",
-      "sum": "y8uA/daOROErelzoo2p1rtqABhUPArg2alsfcb0PQBk="
+      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
+      "sum": "0KkygBQd/AFzUvVzezE4qF/uDYgrwUXVpZfINBti0oc="
     },
     {
       "source": {
@@ -28,8 +28,8 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "c4975f7c4a7ab4c21020c4afbf247aa49142174d",
-      "sum": "fFVlCoa/N0qiqTbDhZAEdRm2Vv76Z9Clxp3/haJ+PyA="
+      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
+      "sum": "JDsc/bUs5Yv1RkGKcm0hMteqCKZqemxA3qP6eiEATr8="
     },
     {
       "source": {
@@ -38,7 +38,7 @@
           "subdir": "kube-state-metrics/"
         }
       },
-      "version": "c4975f7c4a7ab4c21020c4afbf247aa49142174d",
+      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
       "sum": "kH7gD2rdqRtBujmCObN0ifNF/BkSZU8pleFRI8itkqY="
     },
     {
@@ -48,7 +48,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "c4975f7c4a7ab4c21020c4afbf247aa49142174d",
+      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
       "sum": "dTOeEux3t9bYSqP2L/uCuLo/wUDpCKH4w+4OD9fePUk="
     },
     {
@@ -58,8 +58,8 @@
           "subdir": "prometheus"
         }
       },
-      "version": "c4975f7c4a7ab4c21020c4afbf247aa49142174d",
-      "sum": "jecVpzopHoNjOW5CjsUnMfYNQNtKGlvzONYtQQbkDqg="
+      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
+      "sum": "1/gaGD2Wu6ZML+sXTEKo5zZC/VyBgS30yznbprRyy84="
     },
     {
       "source": {
@@ -68,8 +68,8 @@
           "subdir": "1.21"
         }
       },
-      "version": "efb8cd3f9e2a3562c24e10404d5ed8b6c2d67174",
-      "sum": "EZpcgrWS8k6QCOMYW7t4wnLpCRlaikXLMDKJNV9ZD5Q="
+      "version": "f8efa81cf15257bd151b97e31599e20b2ba5311b",
+      "sum": "FYub7WxElJkqjjXA++DemsKHwsPqUFW945BTgpVop6Q="
     }
   ],
   "legacyImports": false
