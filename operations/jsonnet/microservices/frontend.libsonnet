@@ -23,11 +23,13 @@
       '-config.file=/conf/tempo.yaml',
       '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
+    container.withEnvMixin($._config.variables_expansion_env_mixin) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
     ]) +
     $.util.withResources($._config.query_frontend.resources) +
-    $.util.readinessProbe,
+    $.util.readinessProbe +
+    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}),
 
   tempo_query_container::
     container.new('tempo-query', $._images.tempo_query) +
