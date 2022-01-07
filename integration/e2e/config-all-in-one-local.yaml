@@ -13,6 +13,7 @@ distributor:
     jaeger:
       protocols:
         grpc:
+  log_received_traces: true
 
 ingester:
   lifecycler:
