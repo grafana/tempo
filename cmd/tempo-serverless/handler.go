@@ -105,7 +105,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
-	decoder, err := model.NewDecoder(searchReq.DataEncoding)
+	decoder, err := model.NewObjectDecoder(searchReq.DataEncoding)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

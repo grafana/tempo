@@ -4,15 +4,80 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestObjectDecoderMarshalUnmarshal(t *testing.T) {
+	empty := &tempopb.Trace{}
+
+	for _, e := range allEncodings {
+		t.Run(e, func(t *testing.T) {
+			encoding, err := NewObjectDecoder(e)
+			require.NoError(t, err)
+
+			// random trace
+			trace := test.MakeTrace(100, nil)
+			bytes := MustMarshalToObject(trace, e)
+
+			actual, err := encoding.PrepareForRead(bytes)
+			require.NoError(t, err)
+			assert.True(t, proto.Equal(trace, actual))
+
+			// nil trace
+			actual, err = encoding.PrepareForRead(nil)
+			assert.NoError(t, err)
+			assert.True(t, proto.Equal(empty, actual))
+
+			// empty byte slice
+			actual, err = encoding.PrepareForRead([]byte{})
+			assert.NoError(t, err)
+			assert.True(t, proto.Equal(empty, actual))
+		})
+	}
+}
+
+func TestBatchDecoderToObjectDecoder(t *testing.T) {
+	for _, e := range allEncodings {
+		t.Run(e, func(t *testing.T) {
+			objectDecoder, err := NewObjectDecoder(e)
+			require.NoError(t, err)
+
+			batchDecoder, err := NewBatchDecoder(e)
+			require.NoError(t, err)
+
+			// random trace
+			trace := test.MakeTrace(100, nil)
+
+			batch, err := batchDecoder.PrepareForWrite(trace, 0, 0) // jpe test start/end
+			require.NoError(t, err)
+
+			// batch prepareforread
+			actual, err := batchDecoder.PrepareForRead([][]byte{batch})
+			require.NoError(t, err)
+			require.True(t, proto.Equal(trace, actual))
+
+			// convert to object
+			object, err := batchDecoder.ToObject([][]byte{batch})
+			require.NoError(t, err)
+
+			actual, err = objectDecoder.PrepareForRead(object)
+			require.NoError(t, err)
+			require.True(t, proto.Equal(trace, actual))
+		})
+	}
+}
+
 func TestMatches(t *testing.T) {
+	startSeconds := 10
+	endSeconds := 20
+
 	testTrace := &tempopb.Trace{
 		Batches: []*v1.ResourceSpans{
 			{
@@ -29,8 +94,8 @@ func TestMatches(t *testing.T) {
 						Spans: []*v1.Span{
 							{
 								Name:              "test",
-								StartTimeUnixNano: uint64(10 * time.Second),
-								EndTimeUnixNano:   uint64(20 * time.Second),
+								StartTimeUnixNano: uint64(time.Duration(startSeconds) * time.Second),
+								EndTimeUnixNano:   uint64(time.Duration(endSeconds) * time.Second),
 								Attributes: []*v1common.KeyValue{
 									{
 										Key:   "foo",
@@ -267,10 +332,8 @@ func TestMatches(t *testing.T) {
 	for _, tc := range tests {
 		for _, e := range allEncodings {
 			t.Run(tc.name+":"+e, func(t *testing.T) {
-				d := MustNewDecoder(e)
-
-				obj, err := d.(encoderDecoder).Marshal(tc.trace)
-				require.NoError(t, err)
+				d := MustNewObjectDecoder(e)
+				obj := mustMarshalToObjectWithRange(tc.trace, e, uint32(startSeconds), uint32(endSeconds))
 
 				actual, err := d.Matches([]byte{0x01}, obj, tc.req)
 				require.NoError(t, err)
@@ -283,7 +346,7 @@ func TestMatches(t *testing.T) {
 
 func TestMatchesFails(t *testing.T) {
 	for _, e := range allEncodings {
-		_, err := MustNewDecoder(e).Matches([]byte{0x01}, []byte{0x02, 0x03}, nil)
+		_, err := MustNewObjectDecoder(e).Matches([]byte{0x01}, []byte{0x02, 0x03}, nil)
 		assert.Error(t, err)
 	}
 }

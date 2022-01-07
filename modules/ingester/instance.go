@@ -11,7 +11,6 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -154,7 +153,6 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) error {
 	for j := range req.Traces {
-
 		// Search data is optional.
 		var searchData []byte
 		if len(req.SearchData) > j && len(req.SearchData[j].Slice) > 0 {
@@ -219,11 +217,12 @@ func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	tracesToCut := i.tracesToCut(cutoff, immediate)
+	batchDecoder := model.MustNewBatchDecoder(model.CurrentEncoding)
 
 	for _, t := range tracesToCut {
 		trace.SortTraceBytes(t.traceBytes)
 
-		out, err := proto.Marshal(t.traceBytes)
+		out, err := batchDecoder.ToObject(t.traceBytes.Traces)
 		if err != nil {
 			return err
 		}
@@ -406,12 +405,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
-		allBytes, err := proto.Marshal(liveTrace.traceBytes)
-		if err != nil {
-			i.tracesMtx.Unlock()
-			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
-		}
-		completeTrace, err = model.MustNewDecoder(model.CurrentEncoding).PrepareForRead(allBytes)
+		completeTrace, err = model.MustNewBatchDecoder(model.CurrentEncoding).PrepareForRead(liveTrace.traceBytes.Traces)
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)

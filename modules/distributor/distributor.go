@@ -29,6 +29,7 @@ import (
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
@@ -97,6 +98,7 @@ type Distributor struct {
 	pool            *ring_client.Pool
 	DistributorRing *ring.Ring
 	overrides       *overrides.Overrides
+	traceEncoder    model.BatchDecoder
 
 	// search
 	searchEnabled    bool
@@ -169,6 +171,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		searchEnabled:        searchEnabled,
 		globalTagsToDrop:     tagsToDrop,
 		overrides:            o,
+		traceEncoder:         model.MustNewBatchDecoder(model.CurrentEncoding),
 	}
 
 	cfgReceivers := cfg.Receivers
@@ -290,10 +293,11 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 }
 
 func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, searchData [][]byte, keys []uint32, ids [][]byte) error {
+	// jpe make encoder interface and use here
 	// Marshal to bytes once
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
-		b, err := t.Marshal()
+		b, err := d.traceEncoder.PrepareForWrite(t, 0, 0) // jpe start/end time
 		if err != nil {
 			return errors.Wrap(err, "failed to marshal PushRequest")
 		}

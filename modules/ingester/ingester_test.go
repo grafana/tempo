@@ -18,6 +18,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -396,12 +397,13 @@ func defaultLimitsTestConfig() overrides.Limits {
 func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 
+	batchDecoder := model.MustNewBatchDecoder(model.CurrentEncoding)
+
 	pbTrace := &tempopb.Trace{
 		Batches: []*v1.ResourceSpans{batch},
 	}
 
-	buffer := tempopb.SliceFromBytePool(pbTrace.Size())
-	_, err := pbTrace.MarshalToSizedBuffer(buffer)
+	buffer, err := batchDecoder.PrepareForWrite(pbTrace, 0, 0) // jpe 0s for start/end?
 	require.NoError(t, err)
 
 	_, err = i.PushBytes(ctx, &tempopb.PushBytesRequest{

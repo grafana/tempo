@@ -21,7 +21,7 @@ var (
 )
 
 type liveTrace struct {
-	traceBytes   *tempopb.TraceBytes
+	traceBytes   *tempopb.TraceBytes // jpe - change to [][]byte
 	lastAppend   time.Time
 	traceID      []byte
 	maxBytes     int
