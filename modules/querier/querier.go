@@ -428,7 +428,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
-	encoding, err := model.NewDecoder(req.DataEncoding)
+	decoder, err := model.NewDecoder(req.DataEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
 	}
@@ -439,7 +439,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 		respMtx.Unlock()
 
-		metadata, err := encoding.Matches(id, obj, req.SearchReq)
+		metadata, err := decoder.Matches(id, obj, req.SearchReq)
 
 		respMtx.Lock()
 		defer respMtx.Unlock()
