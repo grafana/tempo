@@ -13,8 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -45,7 +43,7 @@ func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool
 func TestReturnAllHits(t *testing.T) {
 	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	require.NoError(t, err, "unexpected error creating temp dir")
 
 	r, w, _, err := tempodb.New(&tempodb.Config{
 		Backend: "local",
@@ -89,8 +87,8 @@ func TestReturnAllHits(t *testing.T) {
 		head, err := wal.NewBlock(blockID, util.FakeTenantID, "")
 		require.NoError(t, err)
 
-		req := test.MakeRequest(10, testTraceID)
-		testTraces = append(testTraces, &tempopb.Trace{Batches: []*v1.ResourceSpans{req.Batch}})
+		req := test.MakeTrace(10, testTraceID)
+		testTraces = append(testTraces, req)
 		bReq, err := proto.Marshal(req)
 		require.NoError(t, err)
 
@@ -106,8 +104,8 @@ func TestReturnAllHits(t *testing.T) {
 
 	// find should return both now
 	foundBytes, _, failedBLocks, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
-	assert.NoError(t, err)
-	assert.Nil(t, failedBLocks)
+	require.NoError(t, err)
+	require.Nil(t, failedBLocks)
 	require.Len(t, foundBytes, 2)
 
 	// expected trace
@@ -116,11 +114,11 @@ func TestReturnAllHits(t *testing.T) {
 
 	// actual trace
 	actualTraceBytes, _, err := model.ObjectCombiner.Combine("", foundBytes...)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	actualTrace := &tempopb.Trace{}
 	err = proto.Unmarshal(actualTraceBytes, actualTrace)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	trace.SortTrace(actualTrace)
-	assert.Equal(t, expectedTrace, actualTrace)
+	require.Equal(t, expectedTrace, actualTrace)
 }

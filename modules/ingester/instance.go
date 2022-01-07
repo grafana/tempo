@@ -24,7 +24,6 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -153,34 +152,21 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 	return i, nil
 }
 
-// Push is used to push an entire tempopb.PushRequest. It is depecrecated and only required
-// for older protocols.
-func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
-	// check for max traces before grabbing the lock to better load shed
-	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
-	if err != nil {
-		return status.Errorf(codes.FailedPrecondition, "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
-	}
+func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) error {
+	for j := range req.Traces {
 
-	id, err := pushRequestTraceID(req)
-	if err != nil {
-		return err
-	}
+		// Search data is optional.
+		var searchData []byte
+		if len(req.SearchData) > j && len(req.SearchData[j].Slice) > 0 {
+			searchData = req.SearchData[j].Slice
+		}
 
-	t := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{req.Batch},
+		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice, searchData)
+		if err != nil {
+			return err
+		}
 	}
-
-	// traceBytes eventually end up back into the bytepool
-	// allocating like this prevents panics by only putting slices into the bytepool
-	// that were retrieved from there
-	buffer := tempopb.SliceFromBytePool(t.Size())
-	_, err = t.MarshalToSizedBuffer(buffer)
-	if err != nil {
-		return err
-	}
-
-	return i.push(ctx, id, buffer, nil)
+	return nil
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
@@ -594,24 +580,6 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 	}
 
 	return nil
-}
-
-// pushRequestTraceID gets the TraceID of the first span in the batch and assumes its the trace ID throughout
-//  this assumption should hold b/c the distributors make sure each batch all belong to the same trace
-func pushRequestTraceID(req *tempopb.PushRequest) ([]byte, error) {
-	if req == nil || req.Batch == nil {
-		return nil, errors.New("req or req.Batch nil")
-	}
-
-	if len(req.Batch.InstrumentationLibrarySpans) == 0 {
-		return nil, errors.New("InstrumentationLibrarySpans has length 0")
-	}
-
-	if len(req.Batch.InstrumentationLibrarySpans[0].Spans) == 0 {
-		return nil, errors.New("Spans has length 0")
-	}
-
-	return req.Batch.InstrumentationLibrarySpans[0].Spans[0].TraceId, nil
 }
 
 func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock, error) {

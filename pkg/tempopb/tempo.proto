@@ -99,16 +99,12 @@ message Trace {
 }
 
 // Write
-message PushRequest {
-  tempopb.trace.v1.ResourceSpans batch = 1;
-}
-
 message PushResponse {
 }
 
 message PushBytesRequest {
   // pre-marshalled PushRequests
-  repeated bytes requests = 1 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes", deprecated=true];
+  //repeated bytes requests = 1 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes", deprecated=true];
 
   // pre-marshalled Traces. length must match ids
   repeated bytes traces = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
