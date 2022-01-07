@@ -1389,6 +1389,7 @@ go.opentelemetry.io/collector/consumer/consumerhelper
 go.opentelemetry.io/collector/consumer/consumertest
 go.opentelemetry.io/collector/exporter/exporterhelper
 go.opentelemetry.io/collector/exporter/exporterhelper/external
+go.opentelemetry.io/collector/exporter/otlpexporter
 go.opentelemetry.io/collector/extension/experimental/storage
 go.opentelemetry.io/collector/external/internalinterface
 go.opentelemetry.io/collector/external/middleware
