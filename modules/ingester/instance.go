@@ -22,6 +22,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/validation"
@@ -88,7 +89,7 @@ var (
 
 type instance struct {
 	tracesMtx   sync.Mutex
-	traces      map[uint32]*trace
+	traces      map[uint32]*liveTrace
 	largeTraces map[uint32]int // maxBytes that trace exceeded
 	traceCount  atomic.Int32
 
@@ -128,7 +129,7 @@ type searchLocalBlockEntry struct {
 
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
-		traces:               map[uint32]*trace{},
+		traces:               map[uint32]*liveTrace{},
 		largeTraces:          map[uint32]int{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
@@ -234,7 +235,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 
 	for _, t := range tracesToCut {
-		model.SortTraceBytes(t.traceBytes)
+		trace.SortTraceBytes(t.traceBytes)
 
 		out, err := proto.Marshal(t.traceBytes)
 		if err != nil {
@@ -414,15 +415,20 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace, error) {
 	var err error
-	var allBytes []byte
+	var completeTrace *tempopb.Trace
 
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
-		allBytes, err = proto.Marshal(liveTrace.traceBytes)
+		allBytes, err := proto.Marshal(liveTrace.traceBytes)
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
+		}
+		completeTrace, err = model.MustNewDecoder(model.CurrentEncoding).PrepareForRead(allBytes)
+		if err != nil {
+			i.tracesMtx.Unlock()
+			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
 		}
 	}
 	i.tracesMtx.Unlock()
@@ -435,9 +441,9 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
 	}
-	allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, i.headBlock.Meta().DataEncoding)
+	completeTrace, err = model.CombineForRead(foundBytes, i.headBlock.Meta().DataEncoding, completeTrace)
 	if err != nil {
-		return nil, fmt.Errorf("post headBlock combine failed: %w", err)
+		return nil, fmt.Errorf("headblock unmarshal failed in FindTraceByID")
 	}
 
 	// completingBlock
@@ -446,9 +452,9 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
 		}
-		allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, c.Meta().DataEncoding)
+		completeTrace, err = model.CombineForRead(foundBytes, c.Meta().DataEncoding, completeTrace)
 		if err != nil {
-			return nil, fmt.Errorf("post completingBlocks combine failed: %w", err)
+			return nil, fmt.Errorf("completingBlocks combine failed in FindTraceByID")
 		}
 	}
 
@@ -458,23 +464,13 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
 		}
-		allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, c.BlockMeta().DataEncoding)
+		completeTrace, err = model.CombineForRead(foundBytes, c.BlockMeta().DataEncoding, completeTrace)
 		if err != nil {
-			return nil, fmt.Errorf("post completeBlocks combine failed: %w", err)
+			return nil, fmt.Errorf("completeBlock combine failed in FindTraceByID")
 		}
 	}
 
-	// now marshal it all
-	if allBytes != nil {
-		out, err := model.Unmarshal(allBytes, model.CurrentEncoding)
-		if err != nil {
-			return nil, err
-		}
-
-		return out, nil
-	}
-
-	return nil, nil
+	return completeTrace, nil
 }
 
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
@@ -495,7 +491,7 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSea
 
 // getOrCreateTrace will return a new trace object for the given request
 //  It must be called under the i.tracesMtx lock
-func (i *instance) getOrCreateTrace(traceID []byte) *trace {
+func (i *instance) getOrCreateTrace(traceID []byte) *liveTrace {
 	fp := i.tokenForTraceID(traceID)
 	trace, ok := i.traces[fp]
 	if ok {
@@ -556,7 +552,7 @@ func (i *instance) resetHeadBlock() error {
 	return nil
 }
 
-func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
+func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrace {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -564,7 +560,7 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	metricLiveTraces.WithLabelValues(i.instanceID).Set(float64(len(i.traces)))
 
 	cutoffTime := time.Now().Add(cutoff)
-	tracesToCut := make([]*trace, 0, len(i.traces))
+	tracesToCut := make([]*liveTrace, 0, len(i.traces))
 
 	for key, trace := range i.traces {
 		if cutoffTime.After(trace.lastAppend) || immediate {

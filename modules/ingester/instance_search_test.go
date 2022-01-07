@@ -16,7 +16,7 @@ import (
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -64,9 +64,9 @@ func TestInstanceSearch(t *testing.T) {
 		id := make([]byte, 16)
 		rand.Read(id)
 
-		trace := test.MakeTrace(10, id)
-		model.SortTrace(trace)
-		traceBytes, err := trace.Marshal()
+		testTrace := test.MakeTrace(10, id)
+		trace.SortTrace(testTrace)
+		traceBytes, err := testTrace.Marshal()
 		require.NoError(t, err)
 
 		// annotate just a fraction of traces with search data

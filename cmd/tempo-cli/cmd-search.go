@@ -140,7 +140,7 @@ func searchIterator(iter encoding.Iterator, dataEncoding string, name string, va
 		}
 
 		// todo : parrallelize unmarshal and search
-		trace, err := model.Unmarshal(obj, dataEncoding)
+		trace, err := model.MustNewDecoder(dataEncoding).PrepareForRead(obj)
 		if err != nil {
 			return nil, err
 		}

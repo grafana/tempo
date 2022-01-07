@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/go-test/deep"
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
@@ -415,8 +415,8 @@ func queryTrace(client *util.Client, info *util.TraceInfo) (traceMetrics, error)
 }
 
 func equalTraces(a, b *tempopb.Trace) bool {
-	model.SortTrace(a)
-	model.SortTrace(b)
+	trace.SortTrace(a)
+	trace.SortTrace(b)
 
 	return reflect.DeepEqual(a, b)
 }

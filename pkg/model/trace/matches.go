@@ -1,4 +1,4 @@
-package model
+package trace
 
 import (
 	"math"
@@ -14,17 +14,9 @@ import (
 
 const RootSpanNotYetReceivedText = "<root span not yet received>"
 
-// Matches determines if the passed object encoded using dataEncoding matches the tempopb.SearchRequest.
-//  If the object matches the request then a non-nil tempopb.TraceSearchMetaData is returned. Otherwise
-//  nil is returned.
-func Matches(id []byte, obj []byte, dataEncoding string, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
+func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
 	traceStart := uint64(math.MaxUint64)
 	traceEnd := uint64(0)
-
-	trace, err := Unmarshal(obj, dataEncoding)
-	if err != nil {
-		return nil, err
-	}
 
 	tagFound := false
 	if len(req.Tags) == 0 {

@@ -22,7 +22,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
@@ -475,8 +475,8 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 }
 
 func equalTraces(a, b *tempopb.Trace) bool {
-	model.SortTrace(a)
-	model.SortTrace(b)
+	trace.SortTrace(a)
+	trace.SortTrace(b)
 
 	return reflect.DeepEqual(a, b)
 }

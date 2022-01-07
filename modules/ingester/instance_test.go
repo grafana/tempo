@@ -15,7 +15,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
@@ -106,9 +106,9 @@ func TestInstanceFind(t *testing.T) {
 		id := make([]byte, 16)
 		rand.Read(id)
 
-		trace := test.MakeTrace(10, id)
-		model.SortTrace(trace)
-		traceBytes, err := trace.Marshal()
+		testTrace := test.MakeTrace(10, id)
+		trace.SortTrace(testTrace)
+		traceBytes, err := testTrace.Marshal()
 		require.NoError(t, err)
 
 		err = i.PushBytes(context.Background(), id, traceBytes, nil)
@@ -116,7 +116,7 @@ func TestInstanceFind(t *testing.T) {
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 		ids = append(ids, id)
-		traces = append(traces, trace)
+		traces = append(traces, testTrace)
 	}
 
 	queryAll(t, i, ids, traces)
@@ -342,7 +342,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 	id := make([]byte, 16)
 	rand.Read(id)
 	tracepb := test.MakeTraceBytes(10, id)
-	pastTrace := &trace{
+	pastTrace := &liveTrace{
 		traceID:    id,
 		traceBytes: tracepb,
 		lastAppend: time.Now().Add(-time.Hour),
@@ -350,7 +350,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 
 	id = make([]byte, 16)
 	rand.Read(id)
-	nowTrace := &trace{
+	nowTrace := &liveTrace{
 		traceID:    id,
 		traceBytes: tracepb,
 		lastAppend: time.Now().Add(time.Hour),
@@ -360,9 +360,9 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 		name             string
 		cutoff           time.Duration
 		immediate        bool
-		input            []*trace
-		expectedExist    []*trace
-		expectedNotExist []*trace
+		input            []*liveTrace
+		expectedExist    []*liveTrace
+		expectedNotExist []*liveTrace
 	}{
 		{
 			name:      "empty",
@@ -373,23 +373,23 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 			name:             "cut immediate",
 			cutoff:           0,
 			immediate:        true,
-			input:            []*trace{pastTrace, nowTrace},
-			expectedNotExist: []*trace{pastTrace, nowTrace},
+			input:            []*liveTrace{pastTrace, nowTrace},
+			expectedNotExist: []*liveTrace{pastTrace, nowTrace},
 		},
 		{
 			name:             "cut recent",
 			cutoff:           0,
 			immediate:        false,
-			input:            []*trace{pastTrace, nowTrace},
-			expectedExist:    []*trace{nowTrace},
-			expectedNotExist: []*trace{pastTrace},
+			input:            []*liveTrace{pastTrace, nowTrace},
+			expectedExist:    []*liveTrace{nowTrace},
+			expectedNotExist: []*liveTrace{pastTrace},
 		},
 		{
 			name:             "cut all time",
 			cutoff:           2 * time.Hour,
 			immediate:        false,
-			input:            []*trace{pastTrace, nowTrace},
-			expectedNotExist: []*trace{pastTrace, nowTrace},
+			input:            []*liveTrace{pastTrace, nowTrace},
+			expectedNotExist: []*liveTrace{pastTrace, nowTrace},
 		},
 	}
 

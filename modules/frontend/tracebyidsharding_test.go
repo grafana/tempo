@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
@@ -78,12 +78,12 @@ func TestBuildShardedRequests(t *testing.T) {
 }
 
 func TestShardingWareDoRequest(t *testing.T) {
-	// create and split a trace
-	trace := test.MakeTrace(10, []byte{0x01, 0x02})
+	// create and split a splitTrace
+	splitTrace := test.MakeTrace(10, []byte{0x01, 0x02})
 	trace1 := &tempopb.Trace{}
 	trace2 := &tempopb.Trace{}
 
-	for _, b := range trace.Batches {
+	for _, b := range splitTrace.Batches {
 		if rand.Int()%2 == 0 {
 			trace1.Batches = append(trace1.Batches, b)
 		} else {
@@ -187,7 +187,7 @@ func TestShardingWareDoRequest(t *testing.T) {
 			status2:        200,
 			trace2:         trace2,
 			expectedStatus: 200,
-			expectedTrace:  trace,
+			expectedTrace:  splitTrace,
 		},
 		{
 			name:          "200+err",
@@ -219,7 +219,7 @@ func TestShardingWareDoRequest(t *testing.T) {
 			failedBlockQueries1: 1,
 			failedBlockQueries2: 1,
 			expectedStatus:      200,
-			expectedTrace:       trace,
+			expectedTrace:       splitTrace,
 		},
 		{
 			name:                "failedBlocks over: 200+200",
@@ -267,17 +267,17 @@ func TestShardingWareDoRequest(t *testing.T) {
 			sharder := newTraceByIDSharder(2, 2, log.NewNopLogger())
 
 			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-				var trace *tempopb.Trace
+				var testTrace *tempopb.Trace
 				var statusCode int
 				var err error
 				var failedBlockQueries int
 				if r.RequestURI == "/querier/api/traces/1234?mode=ingesters" {
-					trace = tc.trace1
+					testTrace = tc.trace1
 					statusCode = tc.status1
 					err = tc.err1
 					failedBlockQueries = tc.failedBlockQueries1
 				} else {
-					trace = tc.trace2
+					testTrace = tc.trace2
 					err = tc.err2
 					statusCode = tc.status2
 					failedBlockQueries = tc.failedBlockQueries2
@@ -289,9 +289,9 @@ func TestShardingWareDoRequest(t *testing.T) {
 
 				resBytes := []byte("error occurred")
 				if statusCode != 500 {
-					if trace != nil {
+					if testTrace != nil {
 						resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
-							Trace: trace,
+							Trace: testTrace,
 							Metrics: &tempopb.TraceByIDMetrics{
 								FailedBlocks: uint32(failedBlockQueries),
 							},
@@ -334,8 +334,8 @@ func TestShardingWareDoRequest(t *testing.T) {
 				err = proto.Unmarshal(bytesTrace, actualResp)
 				require.NoError(t, err)
 
-				model.SortTrace(tc.expectedTrace)
-				model.SortTrace(actualResp.Trace)
+				trace.SortTrace(tc.expectedTrace)
+				trace.SortTrace(actualResp.Trace)
 				assert.True(t, proto.Equal(tc.expectedTrace, actualResp.Trace))
 			}
 		})

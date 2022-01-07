@@ -12,6 +12,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,8 +39,7 @@ func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool
 	if len(objs) != 2 {
 		return nil, false, nil
 	}
-	combined, wasCombined, _ := model.CombineTraceBytes(objs[0], objs[1], dataEncoding, dataEncoding)
-	return combined, wasCombined, nil
+	return model.ObjectCombiner.Combine(dataEncoding, objs...)
 }
 
 func TestReturnAllHits(t *testing.T) {
@@ -111,16 +111,16 @@ func TestReturnAllHits(t *testing.T) {
 	require.Len(t, foundBytes, 2)
 
 	// expected trace
-	expectedTrace, _, _, _ := model.CombineTraceProtos(testTraces[0], testTraces[1])
-	model.SortTrace(expectedTrace)
+	expectedTrace, _ := trace.CombineTraceProtos(testTraces[0], testTraces[1])
+	trace.SortTrace(expectedTrace)
 
 	// actual trace
-	actualTraceBytes, _, err := model.CombineTraceBytes(foundBytes[1], foundBytes[0], "", "")
+	actualTraceBytes, _, err := model.ObjectCombiner.Combine("", foundBytes...)
 	assert.NoError(t, err)
 	actualTrace := &tempopb.Trace{}
 	err = proto.Unmarshal(actualTraceBytes, actualTrace)
 	assert.NoError(t, err)
 
-	model.SortTrace(actualTrace)
+	trace.SortTrace(actualTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }

@@ -152,7 +152,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 
 			copy(prevID, objID)
 
-			trace, err := model.Unmarshal(obj, meta.DataEncoding)
+			trace, err := model.MustNewDecoder(meta.DataEncoding).PrepareForRead(obj)
 			if err != nil {
 				return err
 			}
