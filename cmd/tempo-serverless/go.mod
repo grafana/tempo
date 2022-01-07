@@ -32,4 +32,4 @@ replace (
 // Pin to the latest release of grpc-go with GenerateAndRegisterManualResolver
 // This function is used by jeagertracing/jaeger, but we can't update jaeger
 // without updating the open-telemetry/collector as well
-replace google.golang.org/grpc => google.golang.org/grpc v1.33.3
+replace google.golang.org/grpc => google.golang.org/grpc v1.38.0
