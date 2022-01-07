@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
+	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -81,6 +81,8 @@ func TestReturnAllHits(t *testing.T) {
 	// keep track of traces sent
 	testTraces := make([]*tempopb.Trace, 0, blockCount)
 
+	d := v1.NewDecoder()
+
 	// split the same trace across multiple blocks
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
@@ -89,7 +91,7 @@ func TestReturnAllHits(t *testing.T) {
 
 		req := test.MakeTrace(10, testTraceID)
 		testTraces = append(testTraces, req)
-		bReq, err := proto.Marshal(req)
+		bReq, err := d.Marshal(req)
 		require.NoError(t, err)
 
 		err = head.Append(testTraceID, bReq)
@@ -113,10 +115,9 @@ func TestReturnAllHits(t *testing.T) {
 	trace.SortTrace(expectedTrace)
 
 	// actual trace
-	actualTraceBytes, _, err := model.ObjectCombiner.Combine("", foundBytes...)
+	actualTraceBytes, _, err := model.ObjectCombiner.Combine(v1.Encoding, foundBytes...)
 	require.NoError(t, err)
-	actualTrace := &tempopb.Trace{}
-	err = proto.Unmarshal(actualTraceBytes, actualTrace)
+	actualTrace, err := d.PrepareForRead(actualTraceBytes)
 	require.NoError(t, err)
 
 	trace.SortTrace(actualTrace)
