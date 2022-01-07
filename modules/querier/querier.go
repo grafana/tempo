@@ -218,7 +218,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			var storeTrace *tempopb.Trace
 
 			for i, partialTrace := range partialTraces {
-				storeTrace, err = model.CombineWithProto(partialTrace, dataEncodings[i], storeTrace)
+				storeTrace, err = model.CombineForRead(partialTrace, dataEncodings[i], storeTrace)
 				if err != nil {
 					return nil, errors.Wrap(err, "error combining in Querier.FindTraceByID")
 				}
@@ -428,7 +428,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
-	encoding, err := model.NewEncoding(req.DataEncoding)
+	encoding, err := model.NewDecoder(req.DataEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
 	}

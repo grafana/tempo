@@ -36,7 +36,7 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 		return objs[0], false, nil
 	}
 
-	encoding, err := NewEncoding(dataEncoding)
+	encoding, err := NewDecoder(dataEncoding)
 	if err != nil {
 		return nil, false, fmt.Errorf("error getting decoder: %w", err)
 	}
@@ -49,13 +49,16 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 	return combinedBytes, true, nil
 }
 
-func CombineWithProto(obj []byte, dataEncoding string, t *tempopb.Trace) (*tempopb.Trace, error) {
-	encoding, err := NewEncoding(dataEncoding)
+// CombineForRead is a convenience method used for combining while reading a trace. Due its
+// use of PrepareForRead() it is a costly method and should not be called during any write
+// or compaction operations.
+func CombineForRead(obj []byte, dataEncoding string, t *tempopb.Trace) (*tempopb.Trace, error) {
+	encoding, err := NewDecoder(dataEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("error getting decoder: %w", err)
 	}
 
-	objTrace, err := encoding.Unmarshal(obj)
+	objTrace, err := encoding.PrepareForRead(obj)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling obj (%s): %w", dataEncoding, err)
 	}

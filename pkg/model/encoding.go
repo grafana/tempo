@@ -19,32 +19,38 @@ var allEncodings = []string{
 	v1.Encoding,
 }
 
-type Encoding interface {
-	// Unmarshal the byte slice to a tempopb trace
-	Unmarshal(obj []byte) (*tempopb.Trace, error)
-	// Marshal a tempopb.Trace to a byte slice
-	Marshal(t *tempopb.Trace) ([]byte, error)
+// Decoder is used to work with opaque byte slices that contain trace data
+type Decoder interface {
+	// PrepareForRead converts the byte slice into a tempopb.Trace for reading. This can be very expensive
+	//  and should only be used when surfacing a byte slice from tempodb and preparing it for reads.
+	PrepareForRead(obj []byte) (*tempopb.Trace, error)
 	// Matches tests the passed byte slice and id to determine if it matches the criteria in tempopb.SearchRequest
 	Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error)
 	// Combine combines the passed byte slice
 	Combine(objs ...[]byte) ([]byte, error)
 }
 
-// NewEncoding returns an Encoding given the passed string.
-func NewEncoding(dataEncoding string) (Encoding, error) {
+// encoderDecoder is an internal interface to assist with testing in this package
+type encoderDecoder interface {
+	Decoder
+	Marshal(t *tempopb.Trace) ([]byte, error)
+}
+
+// NewDecoder returns a Decoder given the passed string.
+func NewDecoder(dataEncoding string) (Decoder, error) {
 	switch dataEncoding {
 	case v0.Encoding:
-		return v0.NewEncoding(), nil
+		return v0.NewDecoder(), nil
 	case v1.Encoding:
-		return v1.NewEncoding(), nil
+		return v1.NewDecoder(), nil
 	}
 
 	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, allEncodings)
 }
 
-// MustNewEncoding creates a new encoding or it panics
-func MustNewEncoding(dataEncoding string) Encoding {
-	decoder, err := NewEncoding(dataEncoding)
+// MustNewDecoder creates a new encoding or it panics
+func MustNewDecoder(dataEncoding string) Decoder {
+	decoder, err := NewDecoder(dataEncoding)
 
 	if err != nil {
 		panic(err)
