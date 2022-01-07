@@ -18,8 +18,11 @@ import (
 )
 
 const (
-	name        = "spanmetrics"
-	callsMetric = "calls_total"
+	name          = "spanmetrics"
+	callsMetric   = "calls_total"
+	latencyCount  = "latency_count"
+	latencySum    = "latency_sum"
+	latencyBucket = "latency_bucket"
 )
 
 type processor struct {
@@ -139,36 +142,35 @@ func (p *processor) collectCalls(appender storage.Appender, t int64) error {
 }
 
 func (p *processor) collectLatencyMetrics(appender storage.Appender, t int64) error {
-	// TODO: iterate only once.
+	// TODO: only collect new data points.
 	for key, count := range p.latencyCount {
-		lbls := p.getLabels(key, "latency_count")
-
+		// Collect latency count
+		lbls := p.getLabels(key, latencyCount)
 		if _, err := appender.Append(0, lbls, t, count); err != nil {
 			return err
 		}
-	}
-	for key, count := range p.latencySum {
-		lbls := p.getLabels(key, "latency_sum")
 
-		if _, err := appender.Append(0, lbls, t, count); err != nil {
+		// Collect latency sum
+		lbls = p.getLabels(key, latencySum)
+		if _, err := appender.Append(0, lbls, t, p.latencySum[key]); err != nil {
 			return err
 		}
-	}
-	for key, buckets := range p.latencyBucketCounts {
-		lbls := p.getLabels(key, "latency_bucket")
-		for i, count := range buckets {
-			if i < len(p.latencyBuckets) {
-				lbls = append(lbls, labels.Label{Name: "le", Value: strconv.FormatInt(int64(p.latencyBuckets[i]), 10)})
-				if _, err := appender.Append(0, lbls, t, count); err != nil {
-					return err
-				}
-			} else {
+
+		// Collect latency buckets
+		lbls = p.getLabels(key, latencyBucket)
+		for i, count := range p.latencyBucketCounts[key] {
+			if i == len(p.latencyBuckets) {
 				lbls = append(lbls, labels.Label{Name: "le", Value: "+Inf"})
-				if _, err := appender.Append(0, lbls, t, count); err != nil {
-					return err
-				}
+				_, err := appender.Append(0, lbls, t, count)
+				return err
+			}
+
+			lbls = append(lbls, labels.Label{Name: "le", Value: strconv.Itoa(int(p.latencyBuckets[i]))})
+			if _, err := appender.Append(0, lbls, t, count); err != nil {
+				return err
 			}
 		}
+
 	}
 	return nil
 }
